@@ -95,7 +95,7 @@ export interface IFixtureMessage {
 		| { kind: 'mcpStarting'; servers: readonly string[]; local?: boolean; blocking?: boolean; background?: boolean }
 		| { kind: 'terminal'; command: string; output?: string; intention?: string; complete?: boolean; exitCode?: number; background?: boolean }
 		| { kind: 'subagent'; id: string; description: string; complete?: boolean }
-		| { kind: 'terminalConfirmation'; command: string; title?: string; disclaimer?: string; requestUnsandboxedExecution?: boolean; requestUnsandboxedExecutionReason?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string } }
+		| { kind: 'terminalConfirmation'; command: string; title?: string; message?: string; disclaimer?: string; requestUnsandboxedExecution?: boolean; requestUnsandboxedExecutionReason?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string } }
 		| { kind: 'elicitation'; title: string; message: string; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string }; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
 	>;
 	readonly details?: string;
@@ -159,6 +159,7 @@ export interface IChatWidgetFixtureOptions {
 	readonly hostLayoutMode?: 'none' | 'listOnly' | 'stackedFull' | 'stackedTargeted';
 	/** Mirrors `IChatWidgetViewOptions.persistentContentHeight` for content mounted by {@link IChatWidgetFixtureOptions.decorateInputPart}. */
 	readonly persistentContentHeight?: number;
+	readonly stickyProgress?: boolean;
 	/** Enables or disables both settings required by the real tree-based sticky-scroll path. */
 	readonly stickyScroll?: boolean;
 	/** Enables the response-level persistent progress indicator. */
@@ -614,7 +615,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 						{
 							invocationMessage: new MarkdownString(`Running \`${part.command}\``),
 							pastTenseMessage: message.responseComplete === false ? undefined : new MarkdownString(`Ran \`${part.command}\``),
-							confirmationMessages: confirmation ? { title, message: new MarkdownString(`\`${part.command}\``), disclaimer: confirmation.disclaimer ? new MarkdownString(confirmation.disclaimer, { supportThemeIcons: true }) : undefined } : undefined,
+							confirmationMessages: confirmation ? { title, message: confirmation.message ?? new MarkdownString(`\`${part.command}\``), disclaimer: confirmation.disclaimer ? new MarkdownString(confirmation.disclaimer, { supportThemeIcons: true }) : undefined } : undefined,
 							toolSpecificData,
 						},
 						fixtureToolData,
@@ -753,6 +754,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			},
 			location: ChatAgentLocation.Chat,
 			paddingBottom: options.persistentContentHeight,
+			stickyProgress: options.stickyProgress,
 			rendererOptions: {
 				contentHorizontalPadding: options.contentHorizontalPadding,
 				progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
@@ -760,6 +762,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		},
 	));
 
+	if (options.stickyProgress) {
+		listWidget.setStickyProgressContainer(inputPart.persistentContentContainerElement);
+	}
 	listWidget.setViewModel(viewModel);
 	listWidget.setVisible(true);
 	disposableStore.add(Event.runAndSubscribe(Event.accumulate(viewModel.onDidChange), () => listWidget.refresh()));
@@ -1108,6 +1113,7 @@ const PERSISTENT_PROGRESS_TERMINAL_CONFIRMATION: IFixtureMessage[] = [{
 		kind: 'terminalConfirmation',
 		command: 'npm install',
 		title: 'Run `npm install`?',
+		message: 'Review dependency installation before running this command.',
 	}],
 	responseComplete: false,
 }];
@@ -2019,7 +2025,7 @@ function defineToolChainScenarios(progressAnimation = ChatProgressAnimation.Draw
 			{ kind: 'markdown', text: '### What I found\n\nThe existing progress is rendered by several content parts:\n\n- Tool calls keep their own details.\n- Reasoning remains independently collapsible.\n- The response owns a single working indicator.' },
 			{ kind: 'thinking', text: '**Checking the implementation**\nVerify that the setting still restores the original rendering.' },
 			tool('read_file', 'Read `src/progress.test.ts`', true),
-			{ kind: 'markdown', text: 'Persistent progress defaults to Draw in Insiders and Off in Stable. Experiments can override either default. Select Draw with Compact tool previews explicitly:\n\n```json\n{\n  "chat.experimental.persistentProgress": "draw",\n  "chat.experimental.persistentProgressVerbosity": "compact"\n}\n```\n\nI am checking the remaining rendering scenarios now.' },
+			{ kind: 'markdown', text: 'Persistent progress defaults to Draw in all versions of VS Code. Experiments can override the default. Select Draw with Compact tool previews explicitly:\n\n```json\n{\n  "chat.persistentProgress": "draw",\n  "chat.persistentProgressVerbosity": "compact"\n}\n```\n\nI am checking the remaining rendering scenarios now.' },
 		])),
 		StreamingToolCall: scenario(PERSISTENT_PROGRESS_STREAMING_TOOL),
 		StandaloneMcpTool: scenario(tools([...before, { kind: 'tool', toolId: 'mcp_documentation_lookup', displayName: 'Documentation', invocationMessage: 'Looking up the progress API...', source: mcpSource }]), { activityRowSpacing: true }),

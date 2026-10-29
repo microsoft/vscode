@@ -9,18 +9,19 @@ import { Dimension } from '../../../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { AutoOpenBarrier, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, OperatingSystem, type IProcessEnvironment } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CodeDataTransfers } from '../../../../../platform/dnd/browser/dnd.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
+import { IQuickInputHideEvent, IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { TerminalCapability, type ICwdDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
@@ -242,6 +243,43 @@ suite('Workbench - TerminalInstance', () => {
 			const result = await instance.changeIcon();
 			deepStrictEqual({ result, icon: instance.icon }, { result: undefined, icon: Codicon.rocket });
 		});
+
+		for (const reset of [true, false]) {
+			test(`terminal color picker uses neutral selection and supports ${reset ? 'reset' : 'cancellation'}`, async () => {
+				const instantiationService = createTerminalInstantiationService();
+				const accepted = store.add(new Emitter<IQuickPickDidAcceptEvent>());
+				const hidden = store.add(new Emitter<IQuickInputHideEvent>());
+				const picker = upcastPartial<IQuickPick<IQuickPickItem, { useSeparators: true }>>({
+					onDidHide: hidden.event,
+					onDidAccept: accepted.event,
+					show() { },
+					hide() { },
+					dispose() { },
+				});
+				instantiationService.stub(IQuickInputService, 'createQuickPick', () => picker);
+				const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, { icon: Codicon.rocket, color: 'terminal.ansiRed' }));
+				await instance.xtermReadyPromise;
+				const result = instance.changeColor();
+				const resetItem = picker.items.find((item): item is IQuickPickItem => item.type !== 'separator' && item.id === undefined)!;
+				if (reset) {
+					picker.selectedItems = [resetItem];
+					accepted.fire({ inBackground: false });
+				} else {
+					hidden.fire({ reason: QuickInputHideReason.Gesture });
+				}
+				deepStrictEqual({
+					result: await result,
+					neutralSelection: picker.useNeutralSelection,
+					resetLabel: resetItem.label,
+					color: instance.shellLaunchConfig.color,
+				}, {
+					result: undefined,
+					neutralSelection: true,
+					resetLabel: 'Reset to default',
+					color: reset ? undefined : 'terminal.ansiRed',
+				});
+			});
+		}
 
 		async function createTerminalWithLongLine(): Promise<TerminalInstance> {
 			const instance = await createTerminalInstance();

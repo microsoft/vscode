@@ -61,7 +61,7 @@ import { IChat, ISessionChangeset, ISessionChangesetOperationTarget, ISessionWor
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
-import { ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../../../contrib/chat/common/constants.js';
+import { ENVIRONMENT_PICKER_SETTING } from '../../../../../../contrib/chat/common/constants.js';
 import '../../../../../chat/browser/media/chatWidget.css';
 
 const SESSION_ID = 'local-agent-host:s1';
@@ -655,8 +655,6 @@ suite('Agent Host Session Config Picker', () => {
 
 	test('contributes worktree before branch in the new session composer layout', async () => {
 		const services = setupServices(store);
-		await services.configurationService.setUserConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, true);
-		await services.configurationService.setUserConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING, true);
 		services.instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
 			override readonly onDidChange = Event.None;
 			override register() { return toDisposable(() => { }); }
@@ -887,14 +885,10 @@ suite('Agent Host Session Config Picker', () => {
 			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
 			.map(item => item.command.id);
 
-		context.setValue(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`, true);
-		context.setValue(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`, true);
 		const legacy = {
 			primary: visible(MenuId.ChatInput),
 			secondary: visible(MenuId.ChatInputSecondary),
 		};
-		context.setValue(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`, false);
-		context.setValue(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`, false);
 		context.setValue(SessionUsesExperimentalComposerLayoutContext.key, true);
 		const experimental = {
 			primary: visible(MenuId.ChatInput),

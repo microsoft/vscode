@@ -1265,7 +1265,7 @@ type TestPermissionRequest = TestPermissionRequestBase & ({
 	readonly toolTitle: string;
 	readonly readOnly?: boolean;
 	readonly permissionRecommendation?: Extract<PermissionRequest, { kind: 'mcp' }>['permissionRecommendation'];
-});
+} | Extract<PermissionRequest, { kind: 'hook' }>);
 
 function toPermissionRequest(request: TestPermissionRequest): PermissionRequest {
 	switch (request.kind) {
@@ -1288,6 +1288,8 @@ function toPermissionRequest(request: TestPermissionRequest): PermissionRequest 
 			return { toolDescription: '', toolName: '', ...request };
 		case 'mcp':
 			return { readOnly: false, ...request };
+		case 'hook':
+			return request;
 	}
 }
 
@@ -1637,6 +1639,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		getChatOwnConfigValues: target => target.chat === chatChannelUri.toString() ? { ...options?.chatConfigValues } : {},
 		updateChatConfig: (target, patch) => { chatConfigUpdates.push({ chat: target.chat, patch }); },
 		seedChatConfig: () => ({ values: {}, dispose: () => { } }),
+		completeChatConfigs: () => { },
+		getChatPersistedConfigValues: () => undefined,
+		getCompleteChatConfigValues: (_session: string, own: Readonly<Record<string, unknown>>) => ({ ...own }),
 		getEffectiveWorkingDirectories: () => undefined,
 		// Own values only, like the real service; `inheritedConfigValues` is
 		// visible through `getEffectiveValue` alone so tests can prove a
@@ -11926,6 +11931,38 @@ suite('CopilotAgentSession', () => {
 			}
 
 			assert.deepStrictEqual(actual, cases.map(({ toolCallId, expected }) => `${toolCallId}=${expected}`));
+		});
+
+		test('hook terminal confirmations show the command and reason without becoming shell permissions', async () => {
+			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables);
+			const toolCallId = 'tc-hook-shell';
+			mockSession.fire('tool.execution_start', {
+				toolCallId, toolName: 'bash', arguments: { command: 'echo old-command' },
+			});
+			const resultPromise = runtime.handlePermissionRequest({
+				kind: 'hook',
+				toolCallId,
+				toolName: 'bash',
+				toolArgs: { command: 'echo review-me' },
+				hookMessage: 'Review this command before running it.',
+			});
+			const signal = await waitForSignal(s => s.kind === 'pending_confirmation');
+			assert.ok(signal.kind === 'pending_confirmation');
+			assert.deepStrictEqual({
+				title: signal.state.confirmationTitle,
+				message: signal.state.invocationMessage,
+				input: getInlineToolInput(signal.state.toolInput),
+				permissionKind: signal.permissionKind,
+				toolKind: readToolCallMeta(signal.state).toolKind,
+			}, {
+				title: 'Run in terminal?',
+				message: 'Review this command before running it.',
+				input: JSON.stringify({ command: 'echo review-me' }, null, 2),
+				permissionKind: 'hook',
+				toolKind: 'terminal',
+			});
+			session.respondToPermissionRequest(toolCallId, false);
+			assert.strictEqual((await resultPromise).kind, 'reject');
 		});
 
 		test('custom terminal permissions are normalized for shell auto-approval', async () => {

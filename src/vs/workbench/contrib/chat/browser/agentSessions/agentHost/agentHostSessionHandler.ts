@@ -1577,9 +1577,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				config.connection,
 				config.connectionAuthority,
 				sessionResource => this._resolveSessionUri(sessionResource),
-				sessionResource => {
+				(sessionResource, sessionState) => {
 					const backendSession = this._resolveSessionUri(sessionResource);
-					const chat = backendSession ? this._getChatURIOrDefault(sessionResource, backendSession) : undefined;
+					const chat = backendSession ? this._getChatURIOrDefault(sessionResource, backendSession, sessionState) : undefined;
 					return chat !== undefined ? URI.parse(chat) : undefined;
 				},
 				this._logService,
@@ -2731,7 +2731,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return chatURI;
 	}
 
-	private _getChatURIOrDefault(sessionResource: URI, session: URI): string | undefined {
+	/** Resolves the chat of `sessionResource`, from `sessionState` when given, else from the session's current state. */
+	private _getChatURIOrDefault(sessionResource: URI, session: URI, sessionState?: SessionState): string | undefined {
 		const mapped = this._chatURIsBySessionResource.get(sessionResource);
 		if (mapped) {
 			return mapped;
@@ -2740,7 +2741,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (explicitChat) {
 			return explicitChat;
 		}
-		const state = this._getRawSessionState(session.toString());
+		const state = sessionState ?? this._getRawSessionState(session.toString());
 		return sessionResource.fragment ? state && getSessionChatResource(state, sessionResource.fragment, state.defaultChat) : state?.defaultChat;
 	}
 
@@ -7388,6 +7389,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return languageModelIdentifier.substring(prefix.length);
 			}
 		}
+		// A peer chat backed by another agent of this host selects from that agent's models.
+		const targetSessionType = this._languageModelsService.lookupLanguageModel(languageModelIdentifier)?.targetChatSessionType;
+		if (targetSessionType && languageModelIdentifier.startsWith(targetSessionType + ':')) {
+			return languageModelIdentifier.substring(targetSessionType.length + 1);
+		}
 		if (languageModelIdentifier.includes('/')) {
 			this._logService.warn(`[AgentHost] Dropping foreign model identifier '${languageModelIdentifier}' for session type '${this._config.sessionType}'; falling back to default model.`);
 			return undefined;
@@ -7399,8 +7405,29 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!rawModelId) {
 			return undefined;
 		}
-		const prefix = `${getChatSessionType(sessionResource)}:`;
+		const prefix = `${this._getChatModelVendor(sessionResource)}:`;
 		return rawModelId.startsWith(prefix) ? rawModelId : `${prefix}${rawModelId}`;
+	}
+
+	/**
+	 * The language model vendor of the chat `sessionResource` names: its session type, or for a chat backed by another
+	 * agent than its session's (e.g. one moved in from a session of that agent), the session type of that agent, whose
+	 * models the chat selects from. A chat's turns name raw model ids of its own agent.
+	 */
+	private _getChatModelVendor(sessionResource: URI): string {
+		const sessionType = getChatSessionType(sessionResource);
+		if (!sessionType.endsWith(this._config.provider)) {
+			return sessionType;
+		}
+		// A chat is addressed by its fragment or, for a subagent chat, its query parameter: match the backend chat it
+		// resolves to against the session's catalog.
+		const backendSession = this._resolveSessionUri(sessionResource);
+		const state = this._getRawSessionState(backendSession.toString());
+		const chat = state && this._getChatURIOrDefault(sessionResource, backendSession, state);
+		const chatProvider = chat !== undefined ? state?.chats.find(summary => summary.resource === chat)?.provider : undefined;
+		return state && chatProvider && chatProvider !== state.provider
+			? `${sessionType.slice(0, sessionType.length - this._config.provider.length)}${chatProvider}`
+			: sessionType;
 	}
 
 	private _getTurnResponseDetails(sessionResource: URI, backendSession: URI, turn: Turn | undefined): string | undefined {

@@ -38,7 +38,7 @@ Selects the `out-build/` directory instead of `out/` for node.js integration tes
 Accepts a **source file path** (starting with `src/`). Works identically to `scripts/test.sh --run`.
 
 ```bash
-./scripts/test-integration.sh --run src/vs/workbench/services/search/test/browser/search.integrationTest.ts
+./scripts/test-integration.sh --run src/vs/workbench/services/search/test/node/search.integrationTest.ts
 ```
 
 ### `--runGlob <pattern>` (aliases: `--glob`, `--runGrep`) - Select test files by path
@@ -107,7 +107,7 @@ All other options (e.g. `--timeout`, `--coverage`, `--reporter`) are forwarded t
 ./scripts/test-integration.sh
 
 # Run a single integration test file
-./scripts/test-integration.sh --run src/vs/workbench/services/search/test/browser/search.integrationTest.ts
+./scripts/test-integration.sh --run src/vs/workbench/services/search/test/node/search.integrationTest.ts
 
 # Run integration tests matching a grep pattern
 ./scripts/test-integration.sh --grep "TextSearchProvider"
@@ -128,7 +128,7 @@ All other options (e.g. `--timeout`, `--coverage`, `--reporter`) are forwarded t
 ./scripts/test-integration.sh --suite api-folder --grep 'should open'
 
 # Combine file and grep
-./scripts/test-integration.sh --run src/vs/workbench/services/search/test/browser/search.integrationTest.ts --grep "should search"
+./scripts/test-integration.sh --run src/vs/workbench/services/search/test/node/search.integrationTest.ts --grep "should search"
 ```
 
 ## Compilation requirement

@@ -11,11 +11,12 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ChatMoveSettingId } from '../../../../../platform/agentHost/common/agentHostChatMove.js';
+import { ChatProvidersSettingId } from '../../../../../platform/agentHost/common/agentHostChatProviders.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, getChatHarness, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChatMoveEnd, SessionMoveRefusedError } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
@@ -32,14 +33,25 @@ export function isChatMoveDndEnabled(configurationService: IConfigurationService
 }
 
 /**
- * Whether `target` can receive a chat (or a single-chat session) moved from `source`: another started, unarchived
- * session of the same provider and agent (its session type: one provider can serve several agents, e.g. Copilot,
- * Claude and Codex) that holds several chats.
+ * Whether chats may move into sessions of another agent of the same provider, keeping their own agent: both Move Chats
+ * and chats with their own agents are enabled.
  */
-export function canMoveIntoSession(source: ISession, target: ISession): boolean {
+export function isCrossAgentChatMoveEnabled(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(ChatMoveSettingId.Enabled) === true
+		&& configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) === true;
+}
+
+/**
+ * Whether `target` can receive a chat (or a single-chat session) moved from `source`: another started, unarchived
+ * session of the same provider that holds several chats, and of the same agent (its session type: one provider can
+ * serve several agents, e.g. Copilot, Claude and Codex), or, when `harness` is given (cross-agent moves are on, see
+ * {@link isCrossAgentChatMoveEnabled}), of another agent whose session offers its chats `harness`: the harness of the
+ * moved chat, which keeps its agent.
+ */
+export function canMoveIntoSession(source: ISession, target: ISession, harness?: string): boolean {
 	return target.sessionId !== source.sessionId
 		&& target.providerId === source.providerId
-		&& target.sessionType === source.sessionType
+		&& (target.sessionType === source.sessionType || (harness !== undefined && !!target.capabilities.get().supportsChatHarnesses?.includes(harness)))
 		&& !target.isArchived.get()
 		&& target.status.get() !== SessionStatus.Untitled
 		&& target.capabilities.get().supportsMultipleChats;
@@ -67,27 +79,42 @@ export interface ISessionsListMoveDestination {
 
 /**
  * Where moving a chat or single-chat session of `source` to the end of `target` puts it, or `undefined` when `target`
- * can't receive it (see {@link canMoveIntoSession}). `exclude` is the moved chat, when it is already in `target`. The
- * sessions list's drops and the move commands share it.
+ * can't receive it (see {@link canMoveIntoSession}, which `harness` is passed to). `exclude` is the moved chat, when it
+ * is already in `target`. The sessions list's drops and the move commands share it.
  */
-export function getChatMoveAppendDestination(source: ISession, target: ISession, exclude?: IChat): ISessionsListMoveDestination | undefined {
-	return canMoveIntoSession(source, target) ? { session: target, after: getChatMoveAppendAnchor(target, exclude) } : undefined;
+export function getChatMoveAppendDestination(source: ISession, target: ISession, exclude?: IChat, harness?: string): ISessionsListMoveDestination | undefined {
+	return canMoveIntoSession(source, target, harness) ? { session: target, after: getChatMoveAppendAnchor(target, exclude) } : undefined;
 }
 
-/** The sessions the nested session `chat` of `source` can move into, each at its end, in the order of `sessions`: none when its provider can't move it. */
-export function getChatMoveDestinations(source: ISession, chat: IChat, sessions: readonly ISession[], sessionsManagementService: Pick<ISessionsManagementService, 'canMoveChat'>): ISessionsListMoveDestination[] {
+/** The harness a chat moved across agents keeps, or `undefined` while cross-agent moves are off (see {@link isCrossAgentChatMoveEnabled}). */
+function getMovedChatHarness(source: ISession, chat: IChat, crossAgent: boolean | undefined): string | undefined {
+	return crossAgent ? getChatHarness(source, chat) : undefined;
+}
+
+/**
+ * The sessions the nested session `chat` of `source` can move into, each at its end, in the order of `sessions`: none
+ * when its provider can't move it. With `crossAgent` (see {@link isCrossAgentChatMoveEnabled}), also the sessions of
+ * other agents that offer the chat's harness.
+ */
+export function getChatMoveDestinations(source: ISession, chat: IChat, sessions: readonly ISession[], sessionsManagementService: Pick<ISessionsManagementService, 'canMoveChat'>, crossAgent?: boolean): ISessionsListMoveDestination[] {
 	if (!sessionsManagementService.canMoveChat(source, chat)) {
 		return [];
 	}
-	return sessions.flatMap(session => getChatMoveAppendDestination(source, session, chat) ?? []);
+	const harness = getMovedChatHarness(source, chat, crossAgent);
+	return sessions.flatMap(session => getChatMoveAppendDestination(source, session, chat, harness) ?? []);
 }
 
-/** The sessions the single-chat session `source` can nest under, each at its end, in the order of `sessions`: none when its provider can't move it. */
-export function getSessionMoveDestinations(source: ISession, sessions: readonly ISession[], sessionsManagementService: Pick<ISessionsManagementService, 'canMoveSessionUnder'>): ISessionsListMoveDestination[] {
+/**
+ * The sessions the single-chat session `source` can nest under, each at its end, in the order of `sessions`: none
+ * when its provider can't move it. With `crossAgent`, also the sessions of other agents that offer the harness of its
+ * main chat.
+ */
+export function getSessionMoveDestinations(source: ISession, sessions: readonly ISession[], sessionsManagementService: Pick<ISessionsManagementService, 'canMoveSessionUnder'>, crossAgent?: boolean): ISessionsListMoveDestination[] {
 	if (!sessionsManagementService.canMoveSessionUnder(source)) {
 		return [];
 	}
-	return sessions.flatMap(session => getChatMoveAppendDestination(source, session) ?? []);
+	const harness = getMovedChatHarness(source, source.mainChat.get(), crossAgent);
+	return sessions.flatMap(session => getChatMoveAppendDestination(source, session, undefined, harness) ?? []);
 }
 
 /**
@@ -154,8 +181,10 @@ export type SessionsListChatDrop =
  * Positions are anchored in the order of the session's chats, whatever order the list shows them in.
  * When the list doesn't show the session's chats in that order (`positionsShown` false), a chat can't be reordered in
  * its own session, and dropped on a nested chat row of another session it goes to that session's end.
+ * With `crossAgent` (see {@link isCrossAgentChatMoveEnabled}), it can also drop into sessions of other agents that
+ * offer its harness.
  */
-export function getSessionsListChatDrop(source: ISession, chat: IChat, target: ISessionsListChatDropTarget | undefined, positionsShown: boolean): SessionsListChatDrop | undefined {
+export function getSessionsListChatDrop(source: ISession, chat: IChat, target: ISessionsListChatDropTarget | undefined, positionsShown: boolean, crossAgent?: boolean): SessionsListChatDrop | undefined {
 	const session = target?.session;
 	if (!target || !session) {
 		return { kind: 'newSession' };
@@ -164,7 +193,7 @@ export function getSessionsListChatDrop(source: ISession, chat: IChat, target: I
 	if (!positionsShown && isOwnSession) {
 		return undefined;
 	}
-	const append = isOwnSession ? { session, after: getChatMoveAppendAnchor(session, chat) } : getChatMoveAppendDestination(source, session, chat);
+	const append = isOwnSession ? { session, after: getChatMoveAppendAnchor(session, chat) } : getChatMoveAppendDestination(source, session, chat, getMovedChatHarness(source, chat, crossAgent));
 	if (!append) {
 		return undefined;
 	}
@@ -224,8 +253,9 @@ export type SessionsListSessionDrop =
  * where the list accepts that placement; otherwise these quarters nest too.
  * When the list doesn't show the session's chats in that order (`positionsShown` false), a nested chat row is the
  * session's row: the session goes to its end.
+ * With `crossAgent`, it can also nest under sessions of other agents that offer the harness of its main chat.
  */
-export function getSessionsListSessionDrop(source: ISession, target: ISessionsListSessionDropTarget, positionsShown: boolean): SessionsListSessionDrop | undefined {
+export function getSessionsListSessionDrop(source: ISession, target: ISessionsListSessionDropTarget, positionsShown: boolean, crossAgent?: boolean): SessionsListSessionDrop | undefined {
 	const { session, quarter } = target;
 	const chat = positionsShown ? target.chat : undefined;
 	if (!target.chat && quarter === ListViewTargetSector.TOP && target.isManuallyOrdered() && target.canPlace('before')) {
@@ -234,7 +264,7 @@ export function getSessionsListSessionDrop(source: ISession, target: ISessionsLi
 	if (quarter === ListViewTargetSector.BOTTOM && target.isManuallyOrdered() && target.isLastInSection() && target.canPlace('after')) {
 		return { kind: 'place', session, position: 'after' };
 	}
-	const append = getChatMoveAppendDestination(source, session);
+	const append = getChatMoveAppendDestination(source, session, undefined, getMovedChatHarness(source, source.mainChat.get(), crossAgent));
 	if (!append) {
 		return undefined;
 	}
