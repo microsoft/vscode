@@ -36,13 +36,13 @@ suite('Watcher .gitignore excludes', () => {
 			'',
 		].join('\n')), [
 			'target/**/*',
-			'build', 'build/**',
-			'node_modules', 'node_modules/**', '*/**/node_modules', '*/**/node_modules/**',
-			'.local/**/*', '*/**/.local/**/*',
-			'*.log', '*.log/**', '*/**/*.log', '*/**/*.log/**',
+			'build{,/**}',
+			'node_modules{,/**}', '*/node_modules{,/**}', '*/*/node_modules{,/**}', '*/*/*/node_modules{,/**}',
+			'.local/**/*', '*/.local/**/*', '*/*/.local/**/*', '*/*/*/.local/**/*',
+			'*.log{,/**}', '*/*.log{,/**}', '*/*/*.log{,/**}', '*/*/*/*.log{,/**}',
 			'src/generated/**/*',
-			'dist/*.o', 'dist/*.o/**',
-			'coverage', 'coverage/**', '*/**/coverage', '*/**/coverage/**',
+			'dist/*.o{,/**}',
+			'coverage{,/**}', '*/coverage{,/**}', '*/*/coverage{,/**}', '*/*/*/coverage{,/**}',
 			'out/**/*',
 			'a/**/*',
 		]);
@@ -56,12 +56,32 @@ suite('Watcher .gitignore excludes', () => {
 			'/ leading',
 			'/*.[oa]',
 		].join('\n')), [
-			'#notes', '#notes/**',
-			'[{]a,b[}]', '[{]a,b[}]/**',
-			'file [(]1[)].txt', 'file [(]1[)].txt/**',
-			'[ ]leading', '[ ]leading/**',
-			'*.[oa]', '*.[oa]/**',
+			'#notes{,/**}',
+			'[{]a,b[}]{,/**}',
+			'file [(]1[)].txt{,/**}',
+			'[ ]leading{,/**}',
+			'*.[oa]{,/**}',
 		]);
+	});
+
+	test('skips patterns that a later negation may re-include', () => {
+		assert.deepStrictEqual({
+			negations: getWatcherExcludesFromGitIgnore([
+				'node_modules',
+				'*.log',
+				'coverage/',
+				'/build/*',
+				'Keep',
+				'!important.log',
+				'!/src/coverage/',
+				'!/build/keep/',
+				'/out/',
+			].join('\n')),
+			tooManyNegations: getWatcherExcludesFromGitIgnore(['node_modules', ...Array.from({ length: 51 }, (_, i) => `!keep${i}`)].join('\n')),
+		}, {
+			negations: ['node_modules{,/**}', '*/node_modules{,/**}', '*/*/node_modules{,/**}', '*/*/*/node_modules{,/**}', 'out/**/*'],
+			tooManyNegations: [],
+		});
 	});
 
 	test('negations that use unsupported bracket expressions still skip the patterns before them', () => {
@@ -70,9 +90,6 @@ suite('Watcher .gitignore excludes', () => {
 
 	test('skips patterns that could exclude paths git does not ignore', () => {
 		assert.deepStrictEqual(getWatcherExcludesFromGitIgnore([
-			'dist/',
-			'*.log',
-			'!important.log',
 			'/target/',
 			'\\\\backslash',
 			'C:/drive',
@@ -95,7 +112,7 @@ suite('Watcher .gitignore excludes', () => {
 			'.GITIGNORE',
 			'/.Git/',
 			'/out',
-		].join('\r\n')), ['target/**/*', 'out', 'out/**']);
+		].join('\r\n')), ['target/**/*', 'out{,/**}']);
 	});
 
 	test('excludes match the expected paths of the watched folder', () => {
@@ -104,8 +121,8 @@ suite('Watcher .gitignore excludes', () => {
 		const excludes = parseWatcherPatterns(folder, getWatcherExcludesFromGitIgnore('/target/\nnode_modules/\ntmp/\n*.log\n'), false);
 		const isExcluded = (path: string) => excludes.some(exclude => exclude(join(folder, path)));
 
-		const paths = ['target', 'target/debug/build.rs', 'src/target/x', 'target.rs', 'node_modules', 'node_modules/x', 'packages/a/node_modules/x/index.js', 'tmp/x', 'a/tmp/x', 'a.log', 'logs/b.log', 'src/main.rs', '.gitignore'];
-		assert.deepStrictEqual(paths.filter(isExcluded), ['target/debug/build.rs', 'node_modules/x', 'packages/a/node_modules/x/index.js', 'tmp/x', 'a/tmp/x', 'a.log', 'logs/b.log']);
+		const paths = ['target', 'target/debug/build.rs', 'src/target/x', 'target.rs', 'node_modules', 'node_modules/x', 'packages/a/node_modules/x/index.js', 'a/b/c/d/node_modules/x', 'tmp/x', 'a/tmp/x', 'a/b/c/tmp/x', 'a.log', 'logs/b.log', 'a/b/c/d/e.log', 'src/main.rs', '.gitignore'];
+		assert.deepStrictEqual(paths.filter(isExcluded), ['target/debug/build.rs', 'node_modules/x', 'packages/a/node_modules/x/index.js', 'tmp/x', 'a/tmp/x', 'a/b/c/tmp/x', 'a.log', 'logs/b.log']);
 	});
 
 	test('reads the .gitignore file at the root of the folder', async () => {

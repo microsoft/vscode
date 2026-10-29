@@ -18,6 +18,27 @@ const MAX_GIT_IGNORE_FILE_SIZE = 512 * 1024;
 const MAX_GIT_IGNORE_WATCHER_EXCLUDES = 500;
 
 /**
+ * Number of later negations above which a pattern is skipped without
+ * comparing it to each of them.
+ */
+const MAX_GIT_IGNORE_NEGATIONS = 50;
+
+/**
+ * Prefixes of the excludes for a pattern that matches at any depth. Watchers
+ * match every exclude against every path they find and every event they
+ * report, and an exclude that starts with `**` is a complex regular expression
+ * that is slow to match. Such a pattern therefore only excludes paths up to
+ * three folders below the watched folder, like `files.watcherExclude` does by
+ * default.
+ */
+const ANY_DEPTH_PREFIXES = ['', '*/', '*/*/', '*/*/*/'];
+
+/**
+ * Characters that make a glob match more than one name.
+ */
+const GLOB_CHARACTERS = /[*?[{]/;
+
+/**
  * Globs that are skipped:
  * - backslashes, which watchers interpret as escapes or path separators
  * - `:`, which can make a glob look like an absolute Windows path
@@ -40,17 +61,22 @@ const NEVER_EXCLUDED_PATHS = [GIT_IGNORE_FILE_NAME, '.git', '.git/HEAD', 'vscode
  * into exclude patterns for a recursive watch request on that folder. The
  * patterns are relative to the watched folder. For example, `/target/`
  * excludes everything inside the `target` folder of the watched folder and
- * `node_modules` excludes files and folders named `node_modules` at any depth,
- * including everything inside them. The patterns never start with `**`, which
- * watchers match against absolute paths, so that the name of a parent of the
- * watched folder cannot cause the whole folder to be excluded.
+ * `node_modules` excludes files and folders named `node_modules`, including
+ * everything inside them. The patterns never start with `**`, which watchers
+ * match against absolute paths, so that the name of a parent of the watched
+ * folder cannot cause the whole folder to be excluded.
  *
  * Excluding a path that git does not ignore would drop its file events, so the
  * conversion prefers excluding too little over excluding too much:
- * - Patterns that come before a negation (`!`) are skipped, because the
- *   negation may re-include paths they match.
+ * - A pattern is skipped when a later negation (`!`) may re-include a path
+ *   that it matches. Git does not re-include paths inside of an ignored
+ *   folder, so this is only assumed when both patterns may match the same
+ *   name, for example `*.log` and `!important.log`.
  * - A pattern that only matches folders excludes what is inside of a folder,
  *   but not the folder itself, which could also be a file of the same name.
+ * - A pattern that matches at any depth, such as `node_modules`, only
+ *   excludes paths up to three folders below the watched folder, because
+ *   watchers are slow to match excludes that start with `**`.
  * - Patterns that cannot be expressed in the same way for all watchers are
  *   skipped, and so are patterns matching the `.gitignore` file itself, so
  *   that changes to it are still reported, or a `.git` folder.
@@ -63,12 +89,18 @@ const NEVER_EXCLUDED_PATHS = [GIT_IGNORE_FILE_NAME, '.git', '.git/HEAD', 'vscode
  */
 export function getWatcherExcludesFromGitIgnore(contents: string): string[] {
 	const patterns = parseGitIgnore(contents);
-	const lastNegation = patterns.findLastIndex(pattern => pattern.negated);
+	const negatedNames = patterns.filter(pattern => pattern.negated).map(pattern => getName(pattern.glob));
 
 	const excludes = new Set<string>();
-	for (const pattern of patterns.slice(lastNegation + 1)) {
+	let negations = 0;
+	for (const pattern of patterns) {
+		if (pattern.negated) {
+			negations++;
+			continue;
+		}
+
 		const patternExcludes = toWatcherExcludes(pattern)?.filter(exclude => !excludes.has(exclude));
-		if (!patternExcludes?.length) {
+		if (!patternExcludes?.length || mayBeReIncluded(getName(pattern.glob), negatedNames.slice(negations))) {
 			continue;
 		}
 
@@ -84,14 +116,51 @@ export function getWatcherExcludesFromGitIgnore(contents: string): string[] {
 	return [...excludes];
 }
 
+/**
+ * Whether one of the later negations may re-include a path that matches a
+ * pattern whose last segment is `name`.
+ */
+function mayBeReIncluded(name: string, laterNegatedNames: readonly string[]): boolean {
+	return laterNegatedNames.length > MAX_GIT_IGNORE_NEGATIONS || laterNegatedNames.some(negatedName => mayMatchSameName(name, negatedName));
+}
+
+/**
+ * Whether two last segments of patterns may match the same name. Git matches
+ * case-insensitively when `core.ignoreCase` is set.
+ */
+function mayMatchSameName(a: string, b: string): boolean {
+	const isGlobA = GLOB_CHARACTERS.test(a);
+	const isGlobB = GLOB_CHARACTERS.test(b);
+	if (isGlobA && isGlobB) {
+		return true;
+	}
+
+	if (isGlobA) {
+		return match(a, b, { ignoreCase: true });
+	}
+
+	if (isGlobB) {
+		return match(b, a, { ignoreCase: true });
+	}
+
+	return a.toLowerCase() === b.toLowerCase();
+}
+
+/**
+ * The last segment of a glob, which matches the name of a file or folder.
+ */
+function getName(glob: string): string {
+	return glob.substring(glob.lastIndexOf('/') + 1);
+}
+
 function toWatcherExcludes(pattern: IGitIgnorePattern): string[] | undefined {
 	let glob = pattern.glob;
 	if (UNSUPPORTED_GLOB.test(glob) || hasControlCharacter(glob)) {
 		return undefined;
 	}
 
-	// Patterns that match at any depth start with `*/**/` instead of `**/`,
-	// so that watchers match them relative to the watched folder
+	// Patterns that match at any depth get the prefixes for a few depths
+	// instead of `**/`, see `ANY_DEPTH_PREFIXES`
 	let anyDepth = !pattern.anchored;
 	while (glob.startsWith('**/')) {
 		glob = glob.substring(3);
@@ -111,11 +180,11 @@ function toWatcherExcludes(pattern: IGitIgnorePattern): string[] | undefined {
 	} else if (pattern.directoryOnly) {
 		suffixes = ['/**/*']; // everything inside the folder, but not a file of the same name
 	} else {
-		suffixes = ['', '/**']; // a file, or a folder and everything inside it
+		suffixes = ['{,/**}']; // a file, or a folder and everything inside it
 	}
 
 	const excludes: string[] = [];
-	for (const prefix of anyDepth ? ['', '*/**/'] : ['']) {
+	for (const prefix of anyDepth ? ANY_DEPTH_PREFIXES : ['']) {
 		for (const suffix of suffixes) {
 			excludes.push(`${prefix}${glob}${suffix}`);
 		}
