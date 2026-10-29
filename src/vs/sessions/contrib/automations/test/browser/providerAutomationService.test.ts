@@ -126,6 +126,10 @@ suite('ProviderAutomationService', () => {
 				providers.push(provider);
 				changed.fire({ added: [provider], removed: [] });
 			},
+			removeProvider: (provider: ISessionsProvider) => {
+				providers = providers.filter(candidate => candidate !== provider);
+				changed.fire({ added: [], removed: [provider] });
+			},
 		};
 	}
 
@@ -351,6 +355,40 @@ suite('ProviderAutomationService', () => {
 		addProvider(provider(store));
 		store.catalogueState.set('unavailable', undefined);
 		assert.deepStrictEqual(available, [[], ['local'], []]);
+	});
+
+	test('provider registration and removal update every catalogue projection', () => {
+		const { service, addProvider, removeProvider } = setup();
+		const local = provider(new TestAuthority('local'));
+		const remote = new TestAuthority('remote');
+		remote.catalogueState.set('unavailable', undefined);
+		remote.historyState.set('error', undefined);
+		remote.isRefreshing.set(true, undefined);
+		remote.runs.set([{
+			id: 'remote-run', automationId: 'remote-automation', status: 'running', trigger: 'manual', startedAt: '2026-01-02T00:00:00Z',
+		}], undefined);
+		const remoteProvider = provider(remote);
+		const states: object[] = [];
+		disposables.add(autorun(reader => states.push({
+			catalogue: service.catalogueState.read(reader),
+			available: service.availableProviders.read(reader).map(provider => provider.id),
+			unavailable: service.unavailableProviders.read(reader).map(provider => provider.id),
+			automations: service.automations.read(reader).map(automation => automation.id),
+			runs: service.runs.read(reader).map(run => run.id),
+			history: service.historyState.read(reader),
+			refreshing: service.isRefreshing.read(reader),
+		})));
+		addProvider(local);
+		addProvider(remoteProvider);
+		removeProvider(remoteProvider);
+		removeProvider(local);
+		assert.deepStrictEqual(states, [
+			{ catalogue: 'unavailable', available: [], unavailable: [], automations: [], runs: [], history: 'ready', refreshing: false },
+			{ catalogue: 'ready', available: ['local'], unavailable: [], automations: ['local-automation'], runs: [], history: 'ready', refreshing: false },
+			{ catalogue: 'unavailable', available: ['local'], unavailable: ['remote'], automations: ['local-automation', 'remote-automation'], runs: ['remote-run'], history: 'error', refreshing: true },
+			{ catalogue: 'ready', available: ['local'], unavailable: [], automations: ['local-automation'], runs: [], history: 'ready', refreshing: false },
+			{ catalogue: 'unavailable', available: [], unavailable: [], automations: [], runs: [], history: 'ready', refreshing: false },
+		]);
 	});
 
 	test('disabled provider is absent from every aggregate and command route without affecting other hosts', async () => {
