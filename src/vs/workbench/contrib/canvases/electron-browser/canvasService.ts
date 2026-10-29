@@ -307,6 +307,8 @@ export class CanvasService extends Disposable implements ICanvasService {
 	/** Loads a new source into the retained page, so it is replaced in place without detaching its view or moving focus. */
 	private navigatePresentationModel(presentation: ICanvasPresentation, model: IBrowserViewModel, source: URI): Promise<IBrowserViewModel> {
 		const generation = ++presentation.modelGeneration;
+		// The page leaves its previous source even if this navigation is superseded, so returning to that source must load it again.
+		presentation.modelSource = undefined;
 		const value = model.loadURL(source.toString(true)).then(() => {
 			if (presentation.model !== model || presentation.modelGeneration !== generation || !isEqual(presentation.canvas?.source, source)) {
 				throw new CancellationError();

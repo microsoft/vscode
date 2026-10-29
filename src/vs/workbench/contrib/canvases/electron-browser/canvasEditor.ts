@@ -173,8 +173,10 @@ export class CanvasEditor extends EditorPane {
 		if (canvas === undefined || canvas.source === undefined) {
 			return;
 		}
-		// An attached page stays presented while the new source loads into it in place.
-		if (!this.model) {
+		if (this.model) {
+			// The attached page stays presented while the new source loads into it in place, but no longer counts as showing its last source.
+			this.loadedKey = undefined;
+		} else {
 			this._detach(localize('canvas.loading', "Loading canvas…"));
 		}
 		const sequence = ++this.loadSequence;

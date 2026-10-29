@@ -45,6 +45,7 @@ suite('CanvasEditor', () => {
 		let pendingLayouts: DeferredPromise<void>[] | undefined;
 		let disposed = 0;
 		let created = 0;
+		const requested: string[] = [];
 		const openExternal = store.add(new Emitter<string>());
 		const opened: Array<{ resource: string; options: OpenOptions | undefined }> = [];
 		const modelAttached = new DeferredPromise<void>();
@@ -76,7 +77,7 @@ suite('CanvasEditor', () => {
 		instantiationService.stub(ICanvasService, {
 			enabled: observableValue('enabled', true),
 			isOwnerPresentable: (_reference, reader) => ownerVisible.read(reader),
-			resolveCanvasModel: async () => { created++; return { model: await view, reused: false }; },
+			resolveCanvasModel: async (_reference, source) => { created++; requested.push(source.toString()); return { model: await view, reused: false }; },
 		});
 		instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
 		instantiationService.stub(IAccessibleViewService, {});
@@ -120,6 +121,7 @@ suite('CanvasEditor', () => {
 			editor, input, model, visible, attached, ownerVisible, openExternal, opened, modelAttached, openerCalled, warningLogged, parent, log, nativeBounds, errors,
 			get disposed() { return disposed; },
 			get created() { return created; },
+			requested,
 			message: () => parent.querySelector('.session-canvas-message')?.textContent,
 			reconnecting: () => !!parent.querySelector('.session-canvas-editor.provider-reconnecting'),
 			setView: (value: Promise<IBrowserViewModel>) => view = value,
@@ -345,6 +347,28 @@ suite('CanvasEditor', () => {
 		harness.editor.clearInput();
 		await timeout(0);
 		assert.deepStrictEqual({ created: harness.created, attached: harness.attached.includes(harness.model) }, { created: 0, attached: false });
+	});
+
+	test('loads a returning source while a newer in-place load is still pending', async () => {
+		const harness = createHarness();
+		await harness.open();
+		await harness.modelAttached.p;
+		await timeout(0);
+		const canvas = harness.input.canvas.get();
+		assert.ok(canvas);
+		const pendingLoad = new DeferredPromise<IBrowserViewModel>();
+		harness.setView(pendingLoad.p);
+		harness.input.setCanvas({ ...canvas, source: URI.parse('https://example.test/next') });
+		harness.setView(Promise.resolve(harness.model));
+		harness.input.setCanvas(canvas);
+		await timeout(0);
+		await pendingLoad.complete(harness.model);
+		await timeout(0);
+
+		assert.deepStrictEqual({ requested: harness.requested, errors: harness.errors }, {
+			requested: ['https://example.test/', 'https://example.test/next', 'https://example.test/'],
+			errors: [],
+		});
 	});
 
 	test('freezes the attached page while its provider reconnects and reveals it only after the fresh source loads', async () => {

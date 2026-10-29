@@ -334,6 +334,37 @@ suite('SessionCanvasService', () => {
 		});
 	});
 
+	test('loads a returning source into the retained page while a newer navigation is pending', async () => {
+		const harness = createHarness();
+		await harness.openSettled[0];
+		await Promise.resolve();
+		const input = harness.opened[0];
+		const loads: string[] = [];
+		const pendingNavigation = new DeferredPromise<void>();
+		harness.setCreateBrowserModelHandler(async () => upcastPartial<IBrowserViewModel>({
+			onWillDispose: Event.None,
+			loadURL: url => {
+				loads.push(url);
+				return url.endsWith('/next') ? pendingNavigation.p : Promise.resolve();
+			},
+			dispose: () => { },
+		}));
+		const source = harness.canvas.source!;
+		const nextSource = URI.parse('https://example.test/next');
+		await harness.canvasService.resolveCanvasModel(input.reference, source);
+		harness.canvases.set([{ ...harness.canvas, source: nextSource }], undefined);
+		const toNext = harness.canvasService.resolveCanvasModel(input.reference, nextSource);
+		harness.canvases.set([harness.canvas], undefined);
+		const backToSource = await harness.canvasService.resolveCanvasModel(input.reference, source);
+		pendingNavigation.complete();
+		await assert.rejects(toNext, CancellationError);
+
+		assert.deepStrictEqual({ loads, reused: backToSource.reused }, {
+			loads: ['https://example.test/next', 'https://example.test/preview'],
+			reused: false,
+		});
+	});
+
 	test('keeps the browser model while its provider is unavailable and loads returning sources into it in place', async () => {
 		const harness = createHarness();
 		await harness.openSettled[0];
