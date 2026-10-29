@@ -300,7 +300,23 @@ export interface InitializeResult {
 	 * @see {@link /specification/tcp-channel | TCP Channel}
 	 */
 	tcpConnections?: TcpConnectionsCapability;
+	/**
+	 * Present when chats in one session may be backed by different agents
+	 * (see {@link CreateChatParams.provider} and {@link ChatState.provider}).
+	 * Clients MUST NOT send `CreateChatParams.provider` without it.
+	 * @stability 1.0
+	 * @see {@link /specification/chat-channel#chat-providers | Chat Channel: Chat providers}
+	 */
+	multipleChatProviders?: MultipleChatProvidersCapability;
 }
+
+/**
+ * Presence capability for {@link InitializeResult.multipleChatProviders}.
+ *
+ * @category Commands
+ * @stability 1.0
+ */
+export interface MultipleChatProvidersCapability { }
 
 /**
  * Automation features supported by this host authority.

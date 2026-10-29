@@ -44,9 +44,9 @@ import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, SetChatWorkspaceExtensionMethod, setChatWorkspaceParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ListAgentExtensionsExtensionMethod, listAgentExtensionsParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, setAgentExtensionEnabledParamsValidator, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod } from '../common/agentHostExtensionProtocol.js';
-import { SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupParamsValidator } from '../common/agentHostWorktreeCleanup.js';
-import { AgentHostWorktreeCleanupCapabilityMetaKey } from '../common/meta/agentHostWorktreeCleanupMeta.js';
+import { AcknowledgeAutomationDeletionExtensionMethod, acknowledgeAutomationDeletionParamsValidator, CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, SetChatWorkspaceExtensionMethod, setChatWorkspaceParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ListAgentExtensionsExtensionMethod, listAgentExtensionsParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, setAgentExtensionEnabledParamsValidator, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, DeleteAutomationExtensionMethod, deleteAutomationParamsValidator } from '../common/agentHostExtensionProtocol.js';
+import { CleanupManagedWorktreeExtensionMethod, cleanupManagedWorktreeParamsValidator, ListManagedWorktreesExtensionMethod, listManagedWorktreesParamsValidator, SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupParamsValidator } from '../common/agentHostWorktreeCleanup.js';
+import { AgentHostWorktreeCleanupCapabilityMetaKey, ManagedWorktreesCapabilityMetaKey } from '../common/meta/agentHostWorktreeCleanupMeta.js';
 import { savedChatToDto } from '../common/agentHostSavedChat.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
@@ -60,7 +60,7 @@ import type { CommandMap } from '../common/state/protocol/messages.js';
 import type { ChatConfigChangedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import type { AutomationEntry, RootConfigState } from '../common/state/protocol/state.js';
 import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction } from '../common/state/sessionActions.js';
-import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
+import { compareProtocolVersions, isActionKnownToVersion, PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { AgentHostTcpBudget } from '../common/agentHostTcpConnection.js';
 import { AgentHostChannelScheduler } from '../common/agentHostChannelDelivery.js';
 import { AgentHostTcpConnections } from './agentHostTcpConnections.js';
@@ -149,6 +149,7 @@ export function toListedSessionSummary(s: IAgentSessionMetadata): ListSessionsRe
 		resource: s.session.toString(),
 		provider,
 		title: s.summary ?? 'Session',
+		...(s.origin ? { origin: s.origin } : {}),
 		status: s.status ?? SessionStatus.Idle,
 		activity: s.activity,
 		createdAt: new Date(s.startTime).toISOString(),
@@ -160,6 +161,7 @@ export function toListedSessionSummary(s: IAgentSessionMetadata): ListSessionsRe
 			resource: chat.chat.toString(),
 			title: chat.summary ?? '',
 			origin: chat.origin,
+			...(chat.provider !== undefined ? { provider: chat.provider } : {}),
 			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 			// Forward the chat's activity bits so clients can present them without subscribing.
 			...(chat.status !== undefined || chat.isRead !== undefined ? {
@@ -453,6 +455,9 @@ function projectCopilotAutomation(automation: AutomationEntry, vscode: boolean):
 		},
 	};
 }
+
+/** The first protocol version whose clients may be told about `multipleChatProviders`. */
+const MULTIPLE_CHAT_PROVIDERS_PROTOCOL_VERSION = '1.1.0';
 
 /**
  * Represents a connected protocol client with its subscription state.
@@ -992,6 +997,17 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	// ---- Handshake handlers ----------------------------------------------------
 
+	/**
+	 * Whether a connection that negotiated `protocolVersion` is told that chats
+	 * of one session may use different agents (`multipleChatProviders`): only
+	 * behind the host setting and from protocol version 1.1.0.
+	 */
+	private _supportsMultipleChatProviders(protocolVersion: string): boolean {
+		return !this._config.relayRoots
+			&& this._agentService.multipleChatProvidersEnabled === true
+			&& compareProtocolVersions(protocolVersion, MULTIPLE_CHAT_PROVIDERS_PROTOCOL_VERSION) >= 0;
+	}
+
 	private _handleInitialize(
 		params: InitializeParams,
 		transport: IProtocolTransport,
@@ -1116,9 +1132,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							&& !!this._agentService.setAgentExtensionEnabled
 							&& transport.relayClientId === undefined
 							&& !transport.relayPassive,
+							!!this._agentService.deleteAutomation,
 						),
 						...(transport.relayClientId === undefined && !transport.relayPassive ? { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } : {}),
 						...(transport.relayClientId === undefined && !transport.relayPassive && this._agentService.sessionWorktreeCleanup ? { [AgentHostWorktreeCleanupCapabilityMetaKey]: true } : {}),
+						...(!this._config.relayRoots && !this._config.relayRootMeta && transport.relayClientId === undefined && !transport.relayPassive && this._agentService.listManagedWorktrees && this._agentService.cleanupManagedWorktree ? { [ManagedWorktreesCapabilityMetaKey]: true } : {}),
 						...(this._config.allowExtensionMethods !== false && this._agentService.installSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
 							? { [sandboxCertificateInstallationCapability]: true } : {}),
 						...(this._config.allowExtensionMethods !== false && this._agentService.rotateSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
@@ -1135,6 +1153,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				terminalCommandPrefix: this._config.terminalCommandPrefix,
 				telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
 				automations: this._config.relayRoots || this._config.scopedRelayCredentials ? undefined : this._agentService.automationCapabilities,
+				...(this._supportsMultipleChatProviders(negotiated) ? { multipleChatProviders: {} } : {}),
 				tcpConnections: this._tcpConnections.get(transport)?.supported && !this._config.relayRoots ? {} : undefined,
 			};
 			return {
@@ -2226,6 +2245,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (chatUriError !== undefined) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, chatUriError);
 			}
+			if (params.provider !== undefined && (typeof params.provider !== 'string' || !this._supportsMultipleChatProviders(_client.protocolVersion))) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'This host does not support chats with their own agent.');
+			}
 			if (workspace) {
 				await this._requireChatWorkspaceGrants(_client, workspace);
 			}
@@ -2260,6 +2282,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					default:
 						throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Unsupported createChat source kind: ${String((source as { kind?: unknown }).kind)}`);
 				}
+			}
+			if (params.provider !== undefined) {
+				options = { ...options, provider: params.provider };
 			}
 			const create = () => this._agentService.createChat(
 				URI.parse(params.channel),
@@ -3493,6 +3518,46 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 	}
 
+	private _handleDeleteAutomationRequest(params: unknown): Promise<readonly string[]> | undefined {
+		if (!this._agentService.deleteAutomation) {
+			return undefined;
+		}
+		const validated = deleteAutomationParamsValidator.validate(params);
+		if (validated.error) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+		}
+		try {
+			const { automation, deleteHistory, legacySessions, requestId } = validated.content;
+			const resource = URI.parse(automation);
+			if (resource.scheme !== 'ahp-automation' || resource.authority || resource.query || resource.fragment || !resource.path.startsWith('/') || resource.path.length < 2) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'automation must be an Automation URI');
+			}
+			if (!deleteHistory && legacySessions !== undefined && legacySessions.length > 0) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'legacySessions requires deleteHistory');
+			}
+			const sessions = legacySessions?.map(session => {
+				const resource = URI.parse(session, true);
+				if (!resource.scheme || !resource.path.startsWith('/') || resource.path.length < 2 || resource.query || resource.fragment || isAhpChatChannel(resource.toString())) {
+					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'legacySessions must contain session URIs');
+				}
+				return resource;
+			});
+			return this._agentService.deleteAutomation(automation, deleteHistory, sessions, requestId);
+		} catch (error) {
+			return Promise.reject(error);
+		}
+	}
+
+	private _handleAcknowledgeAutomationDeletionRequest(params: unknown): Promise<void> | undefined {
+		if (!this._agentService.acknowledgeAutomationDeletion) {
+			return undefined;
+		}
+		const validated = acknowledgeAutomationDeletionParamsValidator.validate(params);
+		return validated.error
+			? Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message))
+			: this._agentService.acknowledgeAutomationDeletion(validated.content.requestId);
+	}
+
 	private _parseSessionUri(sessionParam: string): URI {
 		let session: URI;
 		try {
@@ -3642,6 +3707,23 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _handleExtensionRequest(client: IConnectedClient, method: string, params: unknown): Promise<unknown> | undefined {
+		if ((method === ListManagedWorktreesExtensionMethod || method === CleanupManagedWorktreeExtensionMethod)
+			&& !this._config.relayRoots && !this._config.relayRootMeta && client.transport.relayClientId === undefined && !client.transport.relayPassive) {
+			if (method === ListManagedWorktreesExtensionMethod && this._agentService.listManagedWorktrees) {
+				const validated = listManagedWorktreesParamsValidator.validate(params);
+				if (validated.error) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+				}
+				return this._agentService.listManagedWorktrees(validated.content.repositories.map(repository => URI.parse(repository)));
+			}
+			if (method === CleanupManagedWorktreeExtensionMethod && this._agentService.cleanupManagedWorktree) {
+				const validated = cleanupManagedWorktreeParamsValidator.validate(params);
+				if (validated.error) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+				}
+				return this._agentService.cleanupManagedWorktree(URI.parse(validated.content.repository), URI.parse(validated.content.worktree), validated.content.branch);
+			}
+		}
 		if (method === SessionWorktreeCleanupExtensionMethod && !this._config.relayRoots && !this._config.relayRootMeta
 			&& client.transport.relayClientId === undefined && !client.transport.relayPassive && this._agentService.sessionWorktreeCleanup) {
 			const validated = sessionWorktreeCleanupParamsValidator.validate(params);
@@ -3697,6 +3779,15 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 		if (method === ImportSessionExtensionMethod) {
 			return this._handleImportSessionRequest(params);
+		}
+		if ((method === DeleteAutomationExtensionMethod || method === AcknowledgeAutomationDeletionExtensionMethod) && this._config.scopedRelayCredentials) {
+			return Promise.reject(new ProtocolError(AhpErrorCodes.PermissionDenied, 'Automations do not support client-owned credentials'));
+		}
+		if (method === DeleteAutomationExtensionMethod) {
+			return this._handleDeleteAutomationRequest(params);
+		}
+		if (method === AcknowledgeAutomationDeletionExtensionMethod) {
+			return this._handleAcknowledgeAutomationDeletionRequest(params);
 		}
 		if (method === StageCreateSessionImportChunkExtensionMethod && !this._config.relayRoots && !this._config.relayRootMeta && !client.transport.relayPassive) {
 			return this._handleStageCreateSessionImportChunkRequest(client, params);
@@ -4254,6 +4345,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					envelope = { ...envelope, action: { ...action, turns: action.turns.map(turn => projectCopilotTurn(turn, vscode)) } };
 					break;
 			}
+		}
+		if (envelope.action.type === ActionType.ChatMoved && !isActionKnownToVersion(envelope.action, client.protocolVersion)) {
+			// Older clients learn a moved chat's owner from the sessions' chat lists only.
+			return undefined;
 		}
 		if (!client.legacyChatUris) {
 			return envelope;

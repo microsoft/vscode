@@ -23,7 +23,7 @@ concurrency:
 jobs:
   playwright:
     name: Playwright Fixture Tests
-    runs-on: ubuntu-latest
+    runs-on: vscode-large-runners-ubuntu-8-core
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -86,7 +86,7 @@ jobs:
 
   screenshots:
     name: Screenshots
-    runs-on: ubuntu-latest
+    runs-on: vscode-large-runners-ubuntu-8-core
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -478,7 +478,7 @@ jobs:
     needs:
       - playwright
       - screenshots
-    runs-on: ubuntu-latest
+    runs-on: vscode-large-runners-ubuntu-8-core
     steps:
       - name: Verify fixture test results
         run: |

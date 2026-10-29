@@ -21,7 +21,7 @@ import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/ag
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentService } from './agentService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentConfigurationService, seedMultipleChatProvidersFromEnvironment } from './agentConfigurationService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
@@ -180,6 +180,10 @@ async function startAgentHost(): Promise<void> {
 			completions: accessor.get(IAgentHostCompletions),
 		}));
 		const agentConfigurationService = runtimeServices.configurationService;
+		// The starter forwards the multiple-chat-providers setting when it is on: seeded before the first handshake, so the
+		// first `initialize` advertises the capability and the client needn't re-initialize. The client's mirror of the
+		// setting stays authoritative afterwards; with the setting off nothing is forwarded and nothing changes.
+		seedMultipleChatProvidersFromEnvironment(agentConfigurationService, process.env);
 		fileService = runtimeServices.fileService;
 		proxyResolver = runtimeServices.proxyResolver;
 		stateManager = runtimeServices.stateManager;

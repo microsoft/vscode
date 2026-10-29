@@ -34,9 +34,19 @@ export interface IAgentHostProviderService {
 	resolveProvider(provider?: AgentProvider): IAgent | undefined;
 	getProvider(provider: AgentProvider): IAgent | undefined;
 	getProviderForSession(session: URI | string): IAgent | undefined;
+	/**
+	 * Resolves the agent backing `chat` of `session`: the chat's own agent when
+	 * one is associated with it (a chat whose agent differs from its session's),
+	 * otherwise the session's agent. `undefined` when the chat's own agent is not
+	 * registered: such a chat never falls back to its session's agent.
+	 */
+	getProviderForChat(session: URI | string, chat: URI | string | undefined): IAgent | undefined;
 	getProviders(): readonly IAgent[];
 	associateSession(session: URI | string, provider: AgentProvider): void;
 	releaseSession(session: URI | string, expectedProvider?: AgentProvider): void;
+	/** Records the agent of a chat whose agent differs from its session's. A chat's agent never changes. */
+	associateChat(chat: URI | string, provider: AgentProvider): void;
+	releaseChat(chat: URI | string): void;
 	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult>;
 	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 	getNetworkDiagnostics(): Promise<IAgentHostProviderNetworkDiagnostics>;
@@ -50,6 +60,7 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 	private readonly _providerRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	private readonly _providers = this._register(new DisposableMap<AgentProvider, IAgent>());
 	private readonly _sessionToProvider = new Map<string, AgentProvider>();
+	private readonly _chatToProvider = new Map<string, AgentProvider>();
 	private readonly _agents: ISettableObservable<readonly IAgent[]> = observableValue(this, []);
 	readonly agents: IObservable<readonly IAgent[]> = this._agents;
 	private readonly _onDidRegisterProvider = this._register(new Emitter<IAgent>());
@@ -140,6 +151,11 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 		return undefined;
 	}
 
+	getProviderForChat(session: URI | string, chat: URI | string | undefined): IAgent | undefined {
+		const chatProvider = chat === undefined ? undefined : this._chatToProvider.get(typeof chat === 'string' ? chat : chat.toString());
+		return chatProvider !== undefined ? this._providers.get(chatProvider) : this.getProviderForSession(session);
+	}
+
 	getProviders(): readonly IAgent[] {
 		return [...this._providers.values()];
 	}
@@ -154,6 +170,14 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 			return;
 		}
 		this._sessionToProvider.delete(key);
+	}
+
+	associateChat(chat: URI | string, provider: AgentProvider): void {
+		this._chatToProvider.set(typeof chat === 'string' ? chat : chat.toString(), provider);
+	}
+
+	releaseChat(chat: URI | string): void {
+		this._chatToProvider.delete(typeof chat === 'string' ? chat : chat.toString());
 	}
 
 	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult> {
@@ -243,6 +267,7 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 			this._agents.set([], undefined);
 			this._defaultProvider = undefined;
 			this._sessionToProvider.clear();
+			this._chatToProvider.clear();
 		}
 	}
 }

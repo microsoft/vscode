@@ -235,6 +235,11 @@ export interface IGitRemote {
 	readonly url: string;
 }
 
+export interface IAgentHostGitWorktree {
+	readonly path: URI;
+	readonly branchName: string | undefined;
+}
+
 export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
@@ -253,6 +258,8 @@ export interface IAgentHostGitService {
 	getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean }): Promise<URI | undefined>;
 	/** Returns worktree roots in Git's porcelain order, with the primary worktree first. */
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
+	/** Reads roots and branches in one Git invocation, with unquoted, NUL-delimited paths. Throws if inventory fails. */
+	getWorktrees(workingDirectory: URI): Promise<IAgentHostGitWorktree[]>;
 	/**
 	 * Creates a worktree, optionally on a new branch. `onProgress` receives every checkout
 	 * sample git reports, which can be several per second, so consumers are

@@ -60,6 +60,9 @@ export interface IAICustomizationMarketplaceOpenTarget {
 	readonly searchQuery?: string;
 	readonly connectorName?: string;
 	readonly connectorDisplayName?: string;
+	readonly preserveFocus?: boolean;
+	/** Exact registry identity for legacy MCP detail links, not a display-name search. */
+	readonly mcpServer?: { readonly name: string; readonly registryUrl?: string };
 }
 
 /** Command IDs for the AI Customizations Management Editor. */

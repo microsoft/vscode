@@ -80,13 +80,13 @@ suite('New chat picker keybindings', () => {
 		});
 	});
 
-	test('only enable picker shortcuts with the unified workspace picker', () => {
+	test('only enable picker shortcuts for visible pickers in a focused new-session input', () => {
 		assert.deepStrictEqual({
 			workspace: FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN.serialize(),
 			harness: FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN.serialize(),
 		}, {
-			workspace: 'chatInputHasFocus && chatIsEnabled && config.sessions.chat.unifiedWorkspacePicker.enabled && isNewChatSession && isSessionsWindow && sessionWorkspacePickerVisible',
-			harness: 'chatInputHasFocus && chatIsEnabled && config.sessions.chat.unifiedWorkspacePicker.enabled && isNewChatSession && isSessionsWindow && sessionHarnessPickerVisible',
+			workspace: 'chatInputHasFocus && chatIsEnabled && isNewChatSession && isSessionsWindow && sessionWorkspacePickerVisible',
+			harness: 'chatInputHasFocus && chatIsEnabled && isNewChatSession && isSessionsWindow && sessionHarnessPickerVisible',
 		});
 	});
 

@@ -103,6 +103,54 @@
 	padding: 4px;
 }
 
+.interactive-list > .monaco-list > .chat-list-overlay-clip {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+
+.interactive-session .interactive-item-container.chat-sticky-progress {
+	position: absolute;
+	inset-inline: 0;
+	bottom: 0;
+	padding: 0 var(--vscode-spacing-size160);
+	min-width: 0;
+	z-index: 5;
+	pointer-events: auto;
+}
+
+/* Without progress, the row keeps its single-line slot above the input so Scroll to Latest stays in place. */
+.interactive-session .interactive-item-container.chat-sticky-progress:empty {
+	height: calc(var(--chat-response-footer-height) + 2 * var(--vscode-spacing-size20));
+	pointer-events: none;
+}
+
+.interactive-session .interactive-item-container.chat-sticky-progress:not(:empty) {
+	padding-block: var(--vscode-spacing-size20);
+	background-color: var(--vscode-chat-list-background, var(--vscode-editor-background));
+	border-radius: var(--vscode-cornerRadius-medium);
+
+	> .chat-working-progress {
+		padding-inline-end: var(--vscode-spacing-size400);
+	}
+}
+
+.interactive-session .chat-sticky-progress:not(:empty)::before {
+	bottom: 100%;
+	height: var(--vscode-spacing-size160);
+}
+
+.hc-black .interactive-session .chat-sticky-progress:not(:empty),
+.hc-light .interactive-session .chat-sticky-progress:not(:empty) {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
+	outline-offset: -1px;
+}
+
+.hc-black .interactive-session .chat-sticky-progress:not(:empty)::before,
+.hc-light .interactive-session .chat-sticky-progress:not(:empty)::before {
+	content: none;
+}
+
 .interactive-item-container {
 	padding: 12px 16px;
 	display: flex;
@@ -347,7 +395,8 @@
 	transition: opacity 0.1s ease-in-out;
 }
 
-.interactive-item-container.interactive-response.chat-persistent-progress {
+.interactive-item-container.interactive-response.chat-persistent-progress,
+.interactive-item-container.chat-sticky-progress {
 	--chat-response-footer-height: max(22px, calc(var(--vscode-chat-font-size-body-m) * 1.5));
 }
 
@@ -2407,6 +2456,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: contents;
 }
 
+.interactive-session .chat-input-persistent-content > .chat-sticky-progress {
+	bottom: 100%;
+	/* Match the transcript inset beyond the input part's margin. */
+	padding: 0 var(--vscode-spacing-size40);
+}
+
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content > .chat-sticky-progress {
+	position: absolute;
+}
+
 /* Opted in via `IChatWidgetViewOptions.persistentContentHeight`: the content
 	floats above the input so the transcript scrolls underneath it. Its bottom
 	padding occupies the input part's top inset, leaving one shared spacing tier
@@ -2424,9 +2483,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	z-index: 0;
 }
 
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content:not(.chat-persistent-content-visible) {
+	bottom: 100%;
+}
+
 /* Separate floating controls from transcript content without masking the list,
 	so the treatment remains stable while content streams or scrolls. During the
 	pet's run cycle, the overlay paints the same fade beneath the pet. */
+.interactive-session .chat-sticky-progress:not(:empty)::before,
 .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before,
 .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before {
 	content: '';
@@ -4172,7 +4236,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-scroll-down {
 	display: none;
 	position: absolute;
-	/* Clear any content floating above the input. */
+	z-index: 6;
+	/* Without a sticky progress row to center on, clear any content floating above the input. */
 	bottom: calc(var(--vscode-spacing-size80) + var(--vscode-chat-persistent-content-height, 0px));
 	right: var(--vscode-spacing-size120);
 	border-radius: var(--vscode-cornerRadius-large);
@@ -4185,6 +4250,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		margin: 0;
 		flex-shrink: 0;
 		font-size: var(--vscode-codiconFontSize);
+	}
+}
+
+/* The arrow-down glyph keeps its 1px stem on the pixel grid, which leaves it half a pixel right of center.
+	Nudge it so it looks optically centered, except at 1x where the shift would blur the stem. */
+@media not (resolution: 1dppx) {
+	.interactive-session .chat-scroll-down .codicon-chat-scroll-to-bottom {
+		transform: translateX(-0.5px);
 	}
 }
 
@@ -4223,7 +4296,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session:not(.chat-widget > .interactive-session) {
 
-	.interactive-item-container {
+	.interactive-item-container:not(.chat-sticky-progress) {
 		padding: var(--vscode-spacing-size60) var(--vscode-spacing-size160);
 	}
 

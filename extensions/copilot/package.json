@@ -3483,6 +3483,15 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.recordVideoSkill.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.recordVideoSkill.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.codeGeneration.instructions": {
             "markdownDeprecationMessage": "%github.copilot.config.codeGeneration.instructions.deprecated%",
             "type": "array",
@@ -6745,6 +6754,13 @@
         "when": "github.copilot.sessionSearch.enabled",
         "sessionTypes": [
           "local"
+        ]
+      },
+      {
+        "path": "./assets/prompts/skills/record-video/SKILL.md",
+        "when": "config.github.copilot.chat.recordVideoSkill.enabled",
+        "sessionTypes": [
+          "copilotcli"
         ]
       }
     ],
