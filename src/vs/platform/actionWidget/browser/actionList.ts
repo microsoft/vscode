@@ -164,8 +164,6 @@ export interface IActionListItem<T> {
 	readonly description?: string | IMarkdownString;
 	/** Additional nonvisual text matched by the built-in filter. */
 	readonly filterText?: string;
-	/** Include this item only while the built-in text filter has a nonempty query. */
-	readonly showOnlyWhenFiltering?: boolean;
 	/**
 	 * Optional accessible description used in place of {@link description} for
 	 * screen reader labels. Useful when the visual description contains icons
@@ -1712,9 +1710,6 @@ export class ActionListWidget<T> extends Disposable {
 			flushFilteredSection();
 		} else {
 			for (const item of this._allMenuItems) {
-				if (item.showOnlyWhenFiltering) {
-					continue;
-				}
 				if (item.kind === ActionListItemKind.Header) {
 					visible.push(item);
 					continue;
@@ -2196,6 +2191,7 @@ export class ActionListWidget<T> extends Disposable {
 			this._filterInput.value = '';
 			this._filterText = '';
 			this._applyOrUpdateFilter();
+			this._options?.onDidChangeFilter?.('');
 			return true;
 		}
 		return false;
@@ -2326,8 +2322,9 @@ export class ActionListWidget<T> extends Disposable {
 
 		// Keep the filter above the list. Skipped when the caller mounted the filter
 		// somewhere else entirely (e.g. inside a tab bar), where it has no list to sit above.
+		// Moving it unnecessarily would blur the focused search input.
 		const listParent = this.domNode.parentElement;
-		if (listParent && this._filterContainer?.parentElement === listParent) {
+		if (listParent && this._filterContainer?.parentElement === listParent && this._filterContainer.nextSibling !== this.domNode) {
 			listParent.insertBefore(this._filterContainer, this.domNode);
 		}
 		this._layoutSubmenu?.();
