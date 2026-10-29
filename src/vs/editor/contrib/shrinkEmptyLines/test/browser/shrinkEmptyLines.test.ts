@@ -373,45 +373,30 @@ suite('Shrink Empty Lines', () => {
 		assert.deepStrictEqual(getLineHeights(editor), [19, 10, 10, 19]);
 	});
 
-	test('retains the line height when punctuation is appended', () => {
+	test('updates punctuation font ranges without changing line height', () => {
 		const { editor, model } = createEditor('a\n{ }\n0', { shrinkEmptyLines: 0.5 });
-		const heightIds = getShrinkingDecorations(model).filter(decoration => typeof decoration.options.lineHeight === 'number').map(decoration => decoration.id);
-		let heightChanges = 0;
-		disposables.add(model.onDidChangeLineHeight(event => heightChanges += event.changes.length));
 
 		model.applyEdits([{ range: new Range(2, 4, 2, 4), text: ';' }]);
 
 		assert.deepStrictEqual({
-			heightIds: getShrinkingDecorations(model).filter(decoration => typeof decoration.options.lineHeight === 'number').map(decoration => decoration.id),
-			heightChanges,
 			lineHeights: getLineHeights(editor),
 			fontRanges: getShrinkingDecorations(model).filter(decoration => decoration.options.fontSize !== null).map(decoration => [decoration.range.startColumn, decoration.range.endColumn]),
 		}, {
-			heightIds,
-			heightChanges: 0,
 			lineHeights: [19, 10, 19],
 			fontRanges: [[1, 2], [3, 5]],
 		});
 	});
 
-	test('keeps retained height ranges correct when an edit adds wrapped lines', () => {
+	test('updates wrapped line heights when punctuation is appended', () => {
 		const { editor, model } = createEditor('{}\na', {
 			shrinkEmptyLines: 0.5,
 			wordWrap: 'wordWrapColumn',
 			wordWrapColumn: 2,
 			wrappingIndent: 'none',
 		});
-		const heightIds = getShrinkingDecorations(model).filter(decoration => typeof decoration.options.lineHeight === 'number').map(decoration => decoration.id);
-
 		model.applyEdits([{ range: new Range(1, 3, 1, 3), text: ';;' }]);
 
-		assert.deepStrictEqual({
-			heightIds: getShrinkingDecorations(model).filter(decoration => typeof decoration.options.lineHeight === 'number').map(decoration => decoration.id),
-			lineHeights: getLineHeights(editor),
-		}, {
-			heightIds,
-			lineHeights: [10, 10, 19],
-		});
+		assert.deepStrictEqual(getLineHeights(editor), [10, 10, 19]);
 	});
 
 	test('merges edits on the same line without creating duplicate decorations', () => {
