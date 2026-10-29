@@ -15,7 +15,7 @@ import { autorun, derived, IObservable, IReader, observableSignalFromEvent, obse
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { ArtifactAction, ArtifactActionRejectedError, ArtifactAuthenticationRequest, ArtifactAuthenticationRequiredError, ArtifactAvailability, ArtifactContributionView, ArtifactDetails, ArtifactGroupPresentation, ArtifactIcon, ArtifactJsonValue, ArtifactPreparation, ArtifactPrompt, ArtifactRecord, ArtifactResourceMatch, IArtifactActionContext, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegration, IArtifactIntegrationBinding, IArtifactResourceContext, isArtifactOptionEnabled, isArtifactRunSettled } from '../../../artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactAction, ArtifactActionRejectedError, ArtifactAuthenticationRequest, ArtifactAuthenticationRequiredError, ArtifactAvailability, ArtifactContributionView, ArtifactDetails, ArtifactDetailsItem, ArtifactGroupPresentation, ArtifactIcon, ArtifactJsonValue, ArtifactPreparation, ArtifactPrompt, ArtifactRecord, ArtifactResourceMatch, IArtifactActionContext, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegration, IArtifactIntegrationBinding, IArtifactResourceContext, isArtifactOptionEnabled, isArtifactRunSettled } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { ArtifactConfigurationConflictError, ArtifactRetryLimitError } from '../../../artifactIntegrations/common/artifactIntegrationStore.js';
 import { firstCredentialFailure, FragmentState, GitHubFragmentError, PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestReviewThread, PullRequestSnapshot, PullRequestSubscription } from '../../../github/common/githubPullRequestService.js';
 import { IGitHubAccountClient } from '../../../github/common/account/account.js';
@@ -613,9 +613,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 							: { id: 'resolveThread', iconId: 'check', label: localize('prArtifact.resolveThread', "Resolve Comment") }],
 					}),
 					items: main ? [] : detailsId === 'checks' ? checks.slice(start, start + 200).map(check => ({
-						id: check.id, label: check.name, icon: checkIcon(checkPresentationState(check)),
-						description: check.conclusion ?? check.status,
-						resource: check.detailsUrl ?? `${this.resource.target.resource.toString()}/checks`,
+						...this.checkItem(check),
 						...(this.rerunnableJob(snapshot, check) ? { actions: ['rerunCheck'] } : {}),
 					})) : threads.slice(start, start + 200).map(thread => {
 						const comment = thread.comments.find(comment => isPullRequestFeedbackAuthor(comment.author))!;
@@ -643,6 +641,14 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			},
 			runItemAction: (itemId, actionId, token) => this.runItemAction(detailsId, itemId, actionId, token),
 			dispose: () => lease.dispose(),
+		};
+	}
+
+	private checkItem(check: PullRequestCheck): ArtifactDetailsItem {
+		return {
+			id: check.id, label: check.name, icon: checkIcon(checkPresentationState(check)),
+			description: check.conclusion ?? check.status,
+			resource: check.detailsUrl ?? `${this.resource.target.resource.toString()}/checks`,
 		};
 	}
 
@@ -841,6 +847,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			}));
 		}
 		const quote = (text: string) => text.split(/\r?\n/).map(line => `> ${line}`).join('\n');
+		let details: ArtifactDetails[] | undefined;
 		const lines = [
 			`Pull request artifact action: ${id}`,
 			`Target: ${this.resource.target.resource.toString()}`,
@@ -868,12 +875,20 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 				lines.push(quote(JSON.stringify(check)));
 			}
 			lines.push(`There are ${failures.length} failing checks. Retrieve any checks omitted from this bounded preview.`);
+			details = [{
+				availability: { kind: 'available' },
+				title: localize('prArtifact.failingChecksTitle', "Failing Checks ({0})", failures.length),
+				description: localize('prArtifact.failingChecksDescription', "Shows the failing required checks, and the jobs they wait for, that this action asked to fix."),
+				links: [],
+				items: failures.slice(0, 100).map(check => this.checkItem(check)),
+				completeness: failures.length > 100 ? 'partial' : 'complete',
+			}];
 		} else {
 			lines.push(`Update the PR branch against its base ${JSON.stringify(snapshot.core.value.baseRef)} and resolve conflicts, preserving both sides' intended changes.`);
 		}
 		lines.push('Validate the repair, then commit and push only the relevant changes to this PR. Respect commit signing and verification hooks. Do not wait or poll for new CI results.',
 			'Do not merge, mark ready, enable GitHub auto-merge, or enqueue the PR. Those lifecycle actions are owned by the artifact integration.');
-		return { kind: 'ready', value: { text: lines.join('\n\n') } };
+		return { kind: 'ready', value: { text: lines.join('\n\n'), ...(details ? { details } : {}) } };
 	}
 
 	private isRequestedHead(context: IArtifactActionContext, snapshot: PullRequestSnapshot): boolean {

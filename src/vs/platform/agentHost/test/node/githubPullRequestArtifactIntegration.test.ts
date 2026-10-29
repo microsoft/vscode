@@ -1148,6 +1148,30 @@ suite('GitHub pull request artifact integration', () => {
 		await f.finishPrompt();
 	}));
 
+	test('presents only the failing checks a repair prompt asks to fix', () => run(async store => {
+		const base = createPullRequestArtifactSnapshot();
+		const f = await fixture(store, {
+			...base, checks: {
+				...base.checks, value: {
+					...base.checks.value!, checks: [
+						{ id: 'passed', name: 'Passed', required: true, type: 'checkRun', status: 'COMPLETED', conclusion: 'SUCCESS' },
+						{ id: 'failed', name: 'Failed', required: true, type: 'checkRun', status: 'COMPLETED', conclusion: 'FAILURE', detailsUrl: 'https://github.com/owner/repo/actions/runs/1/job/2' },
+						{ id: 'pending', name: 'Pending', required: false, type: 'checkRun', status: 'IN_PROGRESS' },
+						{ id: 'optional', name: 'Optional', required: false, type: 'checkRun', status: 'COMPLETED', conclusion: 'FAILURE' },
+					]
+				}
+			}
+		});
+		await f.invoke('fixCI');
+		assert.deepStrictEqual(f.prompts[0].presentation?.details.map(details => ({ title: details.title, links: details.links, completeness: details.completeness, items: details.items.map(item => [item.id, item.label, item.icon.id, item.resource]) })), [{
+			title: 'Failing Checks (1)', links: [], completeness: 'complete',
+			items: [
+				['failed', 'Failed', 'error-compact', 'https://github.com/owner/repo/actions/runs/1/job/2'],
+			],
+		}]);
+		await f.finishPrompt();
+	}));
+
 	test('blocks repairs on a different branch or GitHub repository without sending a prompt', () => run(async store => {
 		const base = createPullRequestArtifactSnapshot();
 		const f = await fixture(store, { ...base, mergeability: { ...base.mergeability, value: { ...base.mergeability.value!, mergeable: 'CONFLICTING' } } });
