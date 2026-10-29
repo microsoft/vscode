@@ -19,7 +19,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
-import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { AgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 import { IChatTipProvider, IChatTipService } from '../../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { OPEN_AGENTS_WINDOW_COMMAND_ID } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -109,7 +109,7 @@ suite('OpenAgentsWindowSystemWideKeybindingTip', () => {
 			notificationService,
 			new NullLogService(),
 		));
-		return { tip, provider: chatTipService.provider!, chatTipService, keybindingService, keybindingEditingService, notificationService };
+		return { tip, provider: chatTipService.provider!, chatTipService, keybindingService, keybindingEditingService, storageService, notificationService };
 	}
 
 	function systemWideKeybinding(command: string): ResolvedKeybindingItem {
@@ -133,6 +133,24 @@ suite('OpenAgentsWindowSystemWideKeybindingTip', () => {
 			enabledCommands: [ENABLE_OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING_COMMAND_ID],
 			afterBinding: undefined,
 			unsupported: undefined,
+		});
+	});
+
+	test('clearing dismissed tips restores the provider tip', () => {
+		const fixture = createTip();
+		fixture.provider.dismissTip('sessions.openAgentsWindowSystemWideKeybinding');
+		const dismissedTip = fixture.provider.provideTip();
+
+		fixture.provider.clearDismissedTips?.();
+
+		assert.deepStrictEqual({
+			dismissedTip,
+			restoredTipId: fixture.provider.provideTip()?.id,
+			storedDismissal: fixture.storageService.getBoolean('sessions.openAgentsWindowSystemWideKeybindingTip.dismissed', StorageScope.APPLICATION),
+		}, {
+			dismissedTip: undefined,
+			restoredTipId: 'sessions.openAgentsWindowSystemWideKeybinding',
+			storedDismissal: undefined,
 		});
 	});
 

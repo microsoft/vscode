@@ -86,6 +86,12 @@ export class OpenAgentsWindowSystemWideKeybindingTip extends Disposable implemen
 		this._onDidChange.fire();
 	}
 
+	clearDismissedTips(): void {
+		this._dismissed = false;
+		this._storageService.remove(OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING_TIP_DISMISSED, StorageScope.APPLICATION);
+		this._onDidChange.fire();
+	}
+
 	private _updateEnabled(): void {
 		const enabled = this._hasSystemWideKeybinding();
 		if (this._enabled === enabled) {
