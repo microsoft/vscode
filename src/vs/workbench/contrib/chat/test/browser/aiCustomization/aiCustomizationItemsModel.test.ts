@@ -135,7 +135,6 @@ suite('AICustomizationItemsModel', () => {
 				listPromptFilesForStorage: async () => [],
 				getCustomAgents: async () => listPromptFilesResult.filter(f => f.type === PromptsType.agent).map(customAgentFromPromptPath),
 				findAgentSkills: async () => [],
-				getDiscoveryInfo: async type => ({ type, files: [], durationInMillis: 0 }),
 				getHooks: async () => undefined,
 				getInstructionFiles: async () => [],
 				getPromptSlashCommands: async () => [],
@@ -463,32 +462,6 @@ suite('AICustomizationItemsModel', () => {
 			}]);
 		});
 
-		test('skills that lose a name collision are listed as overridden by the winning skill', async () => {
-			availableHarnesses.set([createDescriptor('A', undefined), descriptorB], undefined);
-			activeSessionResource.set(URI.parse('A:///session2'), undefined);
-			const workspaceSkill = URI.parse('file:///workspace/.github/skills/review/SKILL.md');
-			const userSkill = URI.parse('file:///home/.copilot/skills/review/SKILL.md');
-			instaService.stub(IPromptsService, 'findAgentSkills', async () => [{ uri: workspaceSkill, storage: PromptsStorage.local, name: 'review', description: 'Team review', disableModelInvocation: false, userInvocable: true }]);
-			instaService.stub(IPromptsService, 'getDiscoveryInfo', async (type: PromptsType) => ({
-				type,
-				durationInMillis: 0,
-				files: [{ status: 'skipped', skipReason: 'duplicate-name', duplicateOf: workspaceSkill, promptPath: { uri: userSkill, storage: PromptsStorage.user, type: PromptsType.skill, name: 'review', description: 'My review' } }],
-			}));
-
-			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
-			const items = model.getItems(AICustomizationManagementSection.Skills);
-			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
-
-			assert.deepStrictEqual(items.get().map(item => ({
-				uri: item.uri.toString(),
-				scope: item.scope,
-				overriddenBy: item.overriddenBy && { ...item.overriddenBy, uri: item.overriddenBy.uri.toString() },
-			})).sort((a, b) => a.uri.localeCompare(b.uri)), [
-				{ uri: userSkill.toString(), scope: 'user', overriddenBy: { name: 'review', uri: workspaceSkill.toString(), scope: 'workspace' } },
-				{ uri: workspaceSkill.toString(), scope: 'workspace', overriddenBy: undefined },
-			]);
-		});
-
 		test('plugin count includes provider-supplied plugin items', async () => {
 			providerA_items = [
 				{
@@ -771,7 +744,6 @@ suite('AICustomizationItemsModel', () => {
 				listPromptFilesForStorage: async () => [],
 				getCustomAgents: async () => [],
 				findAgentSkills: async () => [],
-				getDiscoveryInfo: async type => ({ type, files: [], durationInMillis: 0 }),
 				getHooks: async () => undefined,
 				getInstructionFiles: async () => [],
 				getDisabledPromptFiles: () => new ResourceSet(),
@@ -1018,7 +990,6 @@ suite('AICustomizationItemsModel', () => {
 				listPromptFilesForStorage: async () => [],
 				getCustomAgents: async () => [],
 				findAgentSkills: async () => [],
-				getDiscoveryInfo: async type => ({ type, files: [], durationInMillis: 0 }),
 				getHooks: async () => undefined,
 				getInstructionFiles: async () => [],
 				getDisabledPromptFiles: () => new ResourceSet(),

@@ -13,11 +13,11 @@ import { localize } from '../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IAICustomizationWorkspaceService, AICustomizationScopes, AICustomizationSources } from '../../common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationSources } from '../../common/aiCustomizationWorkspaceService.js';
 import { HookType, HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
 import { PromptsType, getSourceDescription } from '../../common/promptSyntax/promptTypes.js';
-import { IAgentSkill, ICustomAgent, IPromptsService, matchesSessionType, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { ICustomAgent, IPromptsService, matchesSessionType, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 import { getFriendlyName, isChatExtensionItem } from './aiCustomizationItemSource.js';
@@ -156,7 +156,6 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					}
 				}
 			}
-			items.push(...await this.getOverriddenSkills(skills ?? [], seenUris, token));
 		} else if (promptType === PromptsType.prompt) {
 			const commands = await this.promptsService.getPromptSlashCommands(token);
 			for (const command of commands) {
@@ -310,45 +309,6 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 				});
 			}
 		}
-	}
-
-	/**
-	 * Returns skills that discovery skipped because a same-named skill with
-	 * higher precedence won, so they can be shown as overridden instead of
-	 * silently disappearing.
-	 */
-	private async getOverriddenSkills(winners: readonly IAgentSkill[], seenUris: ResourceSet, token: CancellationToken): Promise<ICustomizationItem[]> {
-		const discovery = await this.promptsService.getDiscoveryInfo(PromptsType.skill, token);
-		const winnersByUri = new ResourceMap<IAgentSkill>();
-		for (const skill of winners) {
-			winnersByUri.set(skill.uri, skill);
-		}
-		const items: ICustomizationItem[] = [];
-		for (const file of discovery.files) {
-			if (file.status !== 'skipped' || file.skipReason !== 'duplicate-name' || !file.duplicateOf || seenUris.has(file.promptPath.uri)) {
-				continue;
-			}
-			const winner = winnersByUri.get(file.duplicateOf);
-			if (!winner) {
-				continue;
-			}
-			const promptPath = file.promptPath;
-			seenUris.add(promptPath.uri);
-			items.push({
-				uri: promptPath.uri,
-				type: PromptsType.skill,
-				name: promptPath.name || basename(dirname(promptPath.uri)),
-				description: promptPath.description,
-				source: promptPath.storage,
-				enabled: true,
-				extensionId: promptPath.extension?.identifier.value,
-				pluginUri: promptPath.pluginUri,
-				pluginLabel: promptPath.pluginLabel,
-				overriddenBy: { name: winner.name, uri: winner.uri, scope: AICustomizationScopes.fromSource(winner.storage) },
-				userInvocable: false,
-			});
-		}
-		return items;
 	}
 
 	private applyBuiltinGroupKeys(items: ICustomizationItem[], extensionInfoByUri: ResourceMap<{ id: ExtensionIdentifier; displayName?: string }>): ICustomizationItem[] {

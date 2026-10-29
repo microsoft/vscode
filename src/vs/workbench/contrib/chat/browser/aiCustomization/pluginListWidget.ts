@@ -1514,8 +1514,8 @@ export class PluginListWidget extends Disposable {
 			},
 			...(harnessEntries.length > 0 ? [{
 				id: 'harness',
-				label: this.harnessService.getActiveDescriptor().label,
-				description: localize('harnessPluginsGroupDescription', "Plugins built into {0}.", this.harnessService.getActiveDescriptor().label),
+				label: this.harnessService.getActiveDescriptor().agentLabel ?? this.harnessService.getActiveDescriptor().label,
+				description: localize('harnessPluginsGroupDescription', "Plugins built into {0}.", this.harnessService.getActiveDescriptor().agentLabel ?? this.harnessService.getActiveDescriptor().label),
 				icon: this.harnessService.getActiveDescriptor().icon,
 				children: harnessEntries,
 			}] : []),

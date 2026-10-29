@@ -89,7 +89,6 @@ import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvai
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { findAICustomizationWorkspaceGroupContaining, getAICustomizationWorkspaceGroups, isAICustomizationWorkspaceGroupKey, isInAICustomizationWorkspaceFolder } from './aiCustomizationWorkspaceGroups.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
 
 export type { AgentHostMcpServer } from './mcpServerCount.js';
 
@@ -2073,7 +2072,6 @@ export class McpListWidget extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 		this.agentHostCustomizationsChanged = observableSignalFromEvent(this, this.agentHostCustomizationService.onDidChangeCustomizations);
@@ -2934,7 +2932,6 @@ export class McpListWidget extends Disposable {
 			...workspaceGroups.map(group => [group.key, []] as [string, IMcpSectionEntry[]]),
 			['workspace', []],
 			['account', []],
-			['extensions', []],
 			['harness', []],
 			['vscode', []],
 			['available', showGallery ? this.getAvailableGalleryServers().map(server => ({ type: 'marketplace-item', server })) : []],
@@ -2963,15 +2960,13 @@ export class McpListWidget extends Disposable {
 
 		const workspaceDescription = localize('workspaceMcpServersGroupDescription', "MCP servers configured by this workspace.");
 		const harness = grouped.get('harness')!.length > 0 ? this.customizationHarnessService.getActiveDescriptor() : undefined;
-		const productName = grouped.get('vscode')!.length > 0 ? this.productService.nameShort || 'VS Code' : '';
 		const definitions = [
 			{ id: 'user', label: localize('userMcpServersGroup', "User"), description: localize('userScopeMcpServersGroupDescription', "MCP servers configured for your profile or provided by plugins you installed. Available across workspaces."), icon: Codicon.account },
 			...workspaceGroups.map(group => ({ id: group.key, label: localize('workspaceFolderMcpServersGroup', "Workspace · {0}", group.label), description: workspaceDescription, icon: Codicon.folder, workspaceFolder: group.uri })),
 			{ id: 'workspace', label: localize('workspaceMcpServersGroup', "Workspace"), description: workspaceDescription, icon: Codicon.folder, workspaceFolder: undefined },
 			{ id: 'account', label: localize('accountMcpServersGroup', "Account"), description: localize('accountMcpServersGroupDescription', "MCP servers provided by your signed-in account, connected connectors, or a managed catalog."), icon: Codicon.organization },
-			{ id: 'extensions', label: localize('extensionMcpServersGroup', "Extensions"), description: localize('extensionMcpServersGroupDescription', "MCP servers provided by installed extensions."), icon: Codicon.extensions },
-			...(harness ? [{ id: 'harness', label: harness.label, description: localize('harnessMcpServersGroupDescription', "MCP servers built into {0}.", harness.label), icon: harness.icon }] : []),
-			{ id: 'vscode', label: productName, description: localize('vscodeMcpServersGroupDescription', "MCP servers built into {0}.", productName), icon: Codicon.vscode },
+			...(harness ? [{ id: 'harness', label: harness.agentLabel ?? harness.label, description: localize('harnessMcpServersGroupDescription', "MCP servers built into {0}.", harness.agentLabel ?? harness.label), icon: harness.icon }] : []),
+			{ id: 'vscode', label: localize('vscodeManagedMcpServersGroup', "VS Code Managed"), description: localize('vscodeManagedMcpServersGroupDescription', "MCP servers built into VS Code or provided by installed extensions."), icon: Codicon.vscode },
 			{ id: 'available', label: localize('availableMcpServersSection', "Available"), description: localize('availableMcpServersSectionDescription', "Browse and install MCP servers from the marketplace."), icon: Codicon.globe },
 		].filter(group => group.id === 'available'
 			? showGallery
@@ -3016,16 +3011,12 @@ export class McpListWidget extends Disposable {
 
 	/**
 	 * Returns the tree group for a server: its scope, a specific workspace folder
-	 * for multi-root workspaces, or for application servers the supplier that
-	 * built or contributed it.
+	 * for multi-root workspaces, or for application servers whether the agent
+	 * or VS Code supplies it.
 	 */
 	private getMcpTreeGroupKey(entry: IMcpInstalledEntry, group: McpEntryGroup, sourceUri: URI | undefined, isMultiRoot: boolean): string {
 		if (group === 'application') {
-			switch (getMcpEntryOrigin(entry)?.kind) {
-				case 'extension': return 'extensions';
-				case 'harness': return 'harness';
-				default: return 'vscode';
-			}
+			return getMcpEntryOrigin(entry)?.kind === 'harness' ? 'harness' : 'vscode';
 		}
 		// Servers outside every workspace folder stay in a plain Workspace group.
 		if (group === 'workspace' && isMultiRoot && sourceUri) {

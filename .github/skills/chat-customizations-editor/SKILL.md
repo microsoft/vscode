@@ -100,9 +100,9 @@ All test data lives in `allFiles` (prompt-based items) and the `mcpWorkspace/Use
 
 ### Exercising scope grouping
 
-Items are grouped by scope (User, Workspace, Account), and built-in or contributed items by supplier (Extensions, the active agent such as Copilot CLI, and VS Code). Rows supplied by a plugin, extension, or organization carry a source label, and items synced to a remote agent host carry a "Synced" label. `aiCustomizationOrganization.fixture.ts` covers these states for the local harness (prompts-service discovery) and an Agent Host harness (the real `AgentCustomizationItemProvider` over an in-memory file system), including overridden skills, synced items, multi-root workspaces, many plugins, search, and narrow layouts.
+Items are grouped by scope (User, Workspace, Account), and built-in or contributed items by supplier: the active agent (for example Copilot) or VS Code Managed, which also holds extension contributions. Rows supplied by a plugin, extension, or organization show `Plugin: <name>`, `Extension: <name>`, or `Organization: <name>` in place of their path; plugin and extension names link to their details. `aiCustomizationOrganization.fixture.ts` covers these states for the local harness (prompts-service discovery) and a remote Agent Host harness (the real `AgentCustomizationItemProvider` over an in-memory file system), including synced items, multi-root workspaces, many plugins, search, and narrow layouts.
 
-Items from the default chat extension appear in the VS Code group, and its organization files (`…/github/<org>/…`) under Account. For fixtures to exercise this:
+Items from the default chat extension appear in the VS Code Managed group, and its organization files (`…/github/<org>/…`) under Account. For fixtures to exercise this:
 1. Mock `IProductService.defaultChatAgent.chatExtensionId` (e.g., `'GitHub.copilot-chat'`)
 2. Give mock items extension provenance via `extensionId` / `extensionDisplayName` matching that ID
 

@@ -21,7 +21,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getCustomizationOverrideReason, getMultiRootWorkspaceRelativeFilename, getTargetedCreateActionLabel, matchesCustomizationSearchQuery, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
+import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getMultiRootWorkspaceRelativeFilename, getTargetedCreateActionLabel, matchesCustomizationSearchQuery, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
 import { AICustomizationItemNormalizer, IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, splitPathLabel, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
@@ -273,27 +273,22 @@ suite('aiCustomizationListWidget', () => {
 		});
 	});
 
-	test('overridden customizations explain which scope is used instead', () => {
+	test('a source label replaces the secondary text in accessible labels', () => {
 		const item: IAICustomizationListItem = {
-			id: 'review',
-			uri: URI.file('/home/.copilot/skills/review/SKILL.md'),
-			name: 'review',
-			filename: '~/.copilot/skills/review/SKILL.md',
-			source: PromptsStorage.user,
+			id: 'azure-deploy',
+			uri: URI.file('/home/.copilot/plugins/azure/skills/azure-deploy/SKILL.md'),
+			name: 'azure-deploy',
+			filename: '~/.copilot/plugins/azure/skills/azure-deploy/SKILL.md',
+			source: PromptsStorage.plugin,
 			promptType: PromptsType.skill,
 			disabled: false,
-			overriddenBy: { name: 'review', uri: URI.file('/workspace/.github/skills/review/SKILL.md'), scope: AICustomizationScopes.workspace },
 		};
 		assert.deepStrictEqual({
-			reason: getCustomizationOverrideReason(item),
-			agentReason: getCustomizationOverrideReason({ ...item, promptType: PromptsType.agent }),
-			notOverridden: getCustomizationOverrideReason({ ...item, overriddenBy: undefined }),
-			ariaLabel: getCustomizationItemAriaLabel(item),
+			withSource: getCustomizationItemAriaLabel(item, 'Plugin: azure'),
+			withoutSource: getCustomizationItemAriaLabel(item),
 		}, {
-			reason: 'The skill with the same name in Workspace is used instead.',
-			agentReason: 'The agent with the same name in Workspace is used instead.',
-			notOverridden: undefined,
-			ariaLabel: 'review. The skill with the same name in Workspace is used instead.',
+			withSource: 'azure-deploy. Plugin: azure',
+			withoutSource: 'azure-deploy. ~/.copilot/plugins/azure/skills/azure-deploy/SKILL.md',
 		});
 	});
 
@@ -655,7 +650,7 @@ suite('aiCustomizationListWidget', () => {
 		const normalizer = new AICustomizationItemNormalizer(labelService, productService);
 		const normalize = (item: Partial<ICustomizationItem> & Pick<ICustomizationItem, 'uri' | 'source'>) => {
 			const normalized = normalizer.normalizeItem({ type: PromptsType.agent, name: 'Agent', extensionId: undefined, pluginUri: undefined, ...item }, PromptsType.agent);
-			return { scope: normalized.scope, origin: normalized.origin, delivery: normalized.delivery, groupKey: normalized.groupKey };
+			return { scope: normalized.scope, origin: normalized.origin, groupKey: normalized.groupKey };
 		};
 
 		assert.deepStrictEqual([
@@ -668,14 +663,14 @@ suite('aiCustomizationListWidget', () => {
 			normalize({ uri: URI.parse('copilot-builtin:/agents/ask.agent.md'), source: AICustomizationSources.builtin, origin: { kind: 'harness' } }),
 			normalize({ uri: URI.file('/host/agents/a.agent.md'), source: PromptsStorage.user, scope: AICustomizationScopes.application }),
 		], [
-			{ scope: 'workspace', origin: undefined, delivery: undefined, groupKey: undefined },
-			{ scope: 'user', origin: undefined, delivery: 'syncedFromClient', groupKey: undefined },
-			{ scope: 'user', origin: { kind: 'plugin', id: 'plugin:file:///home/.copilot/plugins/azure', label: 'azure' }, delivery: undefined, groupKey: undefined },
-			{ scope: 'application', origin: { kind: 'extension', id: 'extension:acme.tools', label: 'Acme Tools' }, delivery: undefined, groupKey: undefined },
-			{ scope: 'application', origin: { kind: 'vscode', id: 'vscode:' }, delivery: undefined, groupKey: 'builtin' },
-			{ scope: 'account', origin: { kind: 'account', id: 'account:contoso', label: 'contoso' }, delivery: undefined, groupKey: 'builtin' },
-			{ scope: 'application', origin: { kind: 'harness', id: 'harness:', label: undefined }, delivery: undefined, groupKey: 'builtin' },
-			{ scope: 'application', origin: { kind: 'vscode', id: 'vscode:' }, delivery: undefined, groupKey: undefined },
+			{ scope: 'workspace', origin: undefined, groupKey: undefined },
+			{ scope: 'user', origin: undefined, groupKey: undefined },
+			{ scope: 'user', origin: { kind: 'plugin', id: 'plugin:file:///home/.copilot/plugins/azure', label: 'azure' }, groupKey: undefined },
+			{ scope: 'application', origin: { kind: 'extension', id: 'extension:acme.tools', label: 'Acme Tools' }, groupKey: undefined },
+			{ scope: 'application', origin: { kind: 'vscode', id: 'vscode:' }, groupKey: 'builtin' },
+			{ scope: 'account', origin: { kind: 'account', id: 'account:contoso', label: 'contoso' }, groupKey: 'builtin' },
+			{ scope: 'application', origin: { kind: 'harness', id: 'harness:', label: undefined }, groupKey: 'builtin' },
+			{ scope: 'application', origin: { kind: 'vscode', id: 'vscode:' }, groupKey: undefined },
 		]);
 	});
 
@@ -1302,7 +1297,7 @@ suite('aiCustomizationListWidget', () => {
 			});
 		});
 
-		test('groups items by scope and supplier and labels each item with its source', async () => {
+		test('groups items by scope and supplier and names each item\'s source', async () => {
 			const listItem = (id: string, source: IAICustomizationListItem['source'], extra: Partial<IAICustomizationListItem> = {}): IAICustomizationListItem => ({
 				id,
 				uri: URI.file(`/${id}/SKILL.md`),
@@ -1315,7 +1310,7 @@ suite('aiCustomizationListWidget', () => {
 			});
 			const items = observableValue<readonly IAICustomizationListItem[]>('test', [
 				listItem('triage', PromptsStorage.user),
-				listItem('review', PromptsStorage.user, { overriddenBy: { name: 'review', uri: URI.file('/workspace-review/SKILL.md'), scope: AICustomizationScopes.workspace } }),
+				listItem('review', PromptsStorage.user),
 				listItem('azure-deploy', PromptsStorage.plugin, { origin: { kind: 'plugin', id: 'plugin:azure', label: 'azure' } }),
 				listItem('workspace-review', PromptsStorage.local),
 				listItem('release', AICustomizationSources.extension, { scope: AICustomizationScopes.account, origin: { kind: 'account', id: 'account:contoso', label: 'contoso' } }),
@@ -1343,30 +1338,24 @@ suite('aiCustomizationListWidget', () => {
 				if (group) {
 					return `# ${group}`;
 				}
-				const labels = [visibleText(row.querySelector('.item-override-label')), visibleText(row.querySelector('.item-source-label:not(.item-synced-label)'))].filter(Boolean);
-				const reason = visibleText(row.querySelector('.item-override-reason'));
-				return [row.querySelector('.item-name')?.textContent, ...labels.map(label => `[${label}]`), ...(reason ? [`(${reason})`] : [])].join(' ');
+				const source = visibleText(row.querySelector('.item-source'));
+				return [row.querySelector('.item-name')?.textContent, ...(source ? [`(${source})`] : [])].join(' ');
 			});
 			assert.deepStrictEqual(rows, [
 				'# User',
-				'review [Overridden by Workspace] (The skill with the same name in Workspace is used instead.Show)',
+				'review',
 				'triage',
-				'azure-deploy [azure]',
+				'azure-deploy (Plugin: azure)',
 				'# Workspace',
 				'workspace-review',
 				'# Account',
-				'release [contoso]',
-				'# Extensions',
-				'acme-lint [Acme Tools]',
+				'release (Organization: contoso)',
 				'# Test',
 				'ask',
-				`# ${instaService.get(IProductService).nameShort}`,
+				'# VS Code Managed',
 				'init',
+				'acme-lint (Extension: Acme Tools)',
 			]);
-
-			widget.element.querySelector<HTMLElement>('.item-override-reason-link')!.click();
-			const selected = Array.from(widget.element.querySelectorAll<HTMLElement>('.list-container .monaco-list-row.selected'), row => row.querySelector('.item-name')?.textContent);
-			assert.deepStrictEqual(selected, ['workspace-review']);
 		});
 	});
 });

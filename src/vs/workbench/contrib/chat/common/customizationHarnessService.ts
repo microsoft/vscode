@@ -169,6 +169,11 @@ export interface IHarnessDescriptor {
 	readonly label: string;
 	readonly icon: ThemeIcon;
 	/**
+	 * Name of the agent without qualifiers such as the remote host, used to
+	 * label the customizations built into the agent. Defaults to {@link label}.
+	 */
+	readonly agentLabel?: string;
+	/**
 	 * The target whose custom agent format this harness supports.
 	 */
 	readonly customAgentTarget?: Target;
@@ -263,15 +268,6 @@ export interface ICustomizationOrigin {
 }
 
 /**
- * Describes the customization that takes precedence over a same-named one.
- */
-export interface ICustomizationOverride {
-	readonly name: string;
-	readonly uri: URI;
-	readonly scope: AICustomizationScope;
-}
-
-/**
  * Represents a customization item provided by any source.
  */
 export interface ICustomizationItem {
@@ -312,8 +308,6 @@ export interface ICustomizationItem {
 	readonly origin?: ICustomizationOrigin;
 	/** Set when the item was synced from this client to a remote agent environment. */
 	readonly delivery?: 'syncedFromClient';
-	/** Set when another customization with the same name takes precedence over this one. */
-	readonly overriddenBy?: ICustomizationOverride;
 	/** Human-readable name of the extension that contributed this customization, if any. */
 	readonly extensionLabel?: string;
 	/** When set, shows a small inline badge next to the item name (e.g. an applyTo glob pattern). */

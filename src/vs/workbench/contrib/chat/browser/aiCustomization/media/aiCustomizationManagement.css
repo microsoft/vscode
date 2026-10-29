@@ -766,55 +766,6 @@ per-word capitalization does not survive translation. */
 	opacity: 0.5;
 }
 
-/* An overridden item is still listed in its own scope, but quieter than an active one. */
-.ai-customization-list-item.overridden .item-name {
-	color: var(--vscode-disabledForeground);
-}
-
-/* Explains why an overridden item is not used, with a link to the item used instead. */
-.ai-customization-list-item .item-override-reason {
-	display: flex;
-	align-items: baseline;
-	gap: var(--vscode-spacing-size40);
-	min-width: 0;
-}
-
-.ai-customization-list-item .item-override-reason-text {
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.ai-customization-list-item .item-override-reason-link {
-	flex-shrink: 0;
-	color: var(--vscode-textLink-foreground);
-	cursor: pointer;
-}
-
-.ai-customization-list-item .item-override-reason-link:hover {
-	color: var(--vscode-textLink-activeForeground);
-	text-decoration: underline;
-}
-
-/* Source label: names the plugin, extension, or organization that supplied a row, or that it was synced. */
-.ai-customization-list-item .item-source-label {
-	display: inline-flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size20);
-	min-width: 0;
-	overflow: hidden;
-}
-
-.ai-customization-list-item .item-source-label .codicon {
-	flex-shrink: 0;
-	font-size: var(--vscode-fontSize-label3);
-}
-
-.ai-customization-list-item .item-source-label-text {
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
 .ai-customization-list-item .item-left {
 	display: flex;
 	align-items: center;
@@ -2992,7 +2943,8 @@ per-word capitalization does not survive translation. */
 
 .mcp-server-item .mcp-server-source-path.source-link,
 .copilot-customization-tree-source-link.source-link,
-.tools-list-connected-row .source-link {
+.tools-list-connected-row .source-link,
+.ai-customization-list-item .item-source.source-link {
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
 	text-decoration: none;
@@ -3000,14 +2952,16 @@ per-word capitalization does not survive translation. */
 
 .mcp-server-item .mcp-server-source-path.source-link:hover,
 .copilot-customization-tree-source-link.source-link:hover,
-.tools-list-connected-row .source-link:hover {
+.tools-list-connected-row .source-link:hover,
+.ai-customization-list-item .item-source.source-link:hover {
 	color: var(--vscode-textLink-activeForeground);
 	text-decoration: underline;
 }
 
 .mcp-server-item .mcp-server-source-path.source-link:focus-visible,
 .copilot-customization-tree-source-link.source-link:focus-visible,
-.tools-list-connected-row .source-link:focus-visible {
+.tools-list-connected-row .source-link:focus-visible,
+.ai-customization-list-item .item-source.source-link:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }

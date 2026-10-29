@@ -36,7 +36,7 @@ import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/cha
 import { IAgentPlugin, IAgentPluginService } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
 import { IMarketplacePlugin } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
 import { PromptFileSource, PromptsType, Target } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
-import { IAgentSkill, ICustomAgent, IInstructionFile, IPromptFileDiscoveryResult, IPromptPath, IPromptPathBase, IPromptsService, PromptsStorage } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IAgentSkill, ICustomAgent, IInstructionFile, IPromptPath, IPromptPathBase, IPromptsService, PromptsStorage } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
@@ -47,7 +47,7 @@ import '../../../../../platform/theme/common/colors/listColors.js';
 // Fixtures for how customizations are organized into groups. Each variant
 // feeds the real items model and list widget through the same provider
 // inputs production uses: prompts-service discovery for the local harness and
-// Agent Host Protocol customizations for the Copilot CLI harness.
+// Agent Host Protocol customizations for a remote Copilot agent host harness.
 
 const CHAT_EXTENSION_ID = 'GitHub.copilot-chat';
 const userHome = URI.file('/home/dev');
@@ -63,7 +63,6 @@ interface ILocalFixtureData {
 	readonly skills?: readonly IAgentSkill[];
 	readonly skillFiles?: readonly IPromptPath[];
 	readonly builtinSkills?: readonly IPromptPath[];
-	readonly skippedSkills?: readonly IPromptFileDiscoveryResult[];
 	readonly instructions?: readonly { readonly uri: URI; readonly name: string; readonly description?: string; readonly storage: PromptsStorage; readonly pattern?: string; readonly extension?: IExtensionDescription; readonly pluginUri?: URI }[];
 	readonly workspaceFolders?: readonly URI[];
 }
@@ -123,12 +122,10 @@ function agentFile(uri: URI, storage: PromptsStorage, extensionDescription?: IEx
 	return upcastPartial<IPromptPath>({ uri, storage, type: PromptsType.agent, extension: extensionDescription });
 }
 
-const workspaceReviewSkill = skill(joinPath(workspaceRoot, '.github/skills/review/SKILL.md'), PromptsStorage.local, 'review', 'Review pull requests with the team checklist');
-const userReviewSkillUri = joinPath(userHome, '.copilot/skills/review/SKILL.md');
 
 const localSkills: readonly IAgentSkill[] = [
 	skill(joinPath(workspaceRoot, '.github/skills/deploy/SKILL.md'), PromptsStorage.local, 'deploy', 'Deploy the service to staging'),
-	workspaceReviewSkill,
+	skill(joinPath(workspaceRoot, '.github/skills/review/SKILL.md'), PromptsStorage.local, 'review', 'Review pull requests with the team checklist'),
 	skill(joinPath(workspaceRoot, '.github/skills/release-notes/SKILL.md'), PromptsStorage.local, 'release-notes', 'Draft release notes from merged pull requests'),
 	skill(joinPath(userHome, '.copilot/skills/triage/SKILL.md'), PromptsStorage.user, 'triage', 'Triage new issues and apply labels'),
 	skill(joinPath(userHome, '.copilot/skills/summarize/SKILL.md'), PromptsStorage.user, 'summarize', 'Summarize a long thread in my preferred format'),
@@ -144,18 +141,10 @@ const localBuiltinSkills: readonly IPromptPath[] = [
 	upcastPartial<IPromptPath>({ uri: URI.file('/app/skills/summarize/SKILL.md'), storage: PromptsStorage.builtIn, type: PromptsType.skill, name: 'summarize', description: 'Summarize the conversation' }),
 ];
 
-const localSkippedSkills: readonly IPromptFileDiscoveryResult[] = [{
-	status: 'skipped',
-	skipReason: 'duplicate-name',
-	duplicateOf: workspaceReviewSkill.uri,
-	promptPath: upcastPartial<IPromptPath>({ uri: userReviewSkillUri, storage: PromptsStorage.user, type: PromptsType.skill, name: 'review', description: 'My personal review checklist' }),
-}];
-
 const localSkillsData: ILocalFixtureData = {
 	skills: localSkills,
 	skillFiles: localSkills.map(skillFile),
 	builtinSkills: localBuiltinSkills,
-	skippedSkills: localSkippedSkills,
 };
 
 const orgAgentUri = joinPath(chatExtensionStorage, 'github/contoso/agents/release-captain.agent.md');
@@ -245,13 +234,6 @@ function createLocalPromptsService(data: ILocalFixtureData): IPromptsService {
 		override async listAgentInstructions() { return []; }
 		override async getInstructionFiles(): Promise<readonly IInstructionFile[]> { return (data.instructions ?? []).map(file => ({ ...file, description: file.description, pattern: file.pattern })); }
 		override async getSourceFolders() { return []; }
-		override async getDiscoveryInfo(type: PromptsType) {
-			const loaded = type === PromptsType.skill
-				? (data.skills ?? []).map((entry): IPromptFileDiscoveryResult => ({ status: 'loaded', promptPath: skillFile(entry) }))
-				: [];
-			const skipped = type === PromptsType.skill ? data.skippedSkills ?? [] : [];
-			return { type, files: [...loaded, ...skipped], durationInMillis: 0 };
-		}
 	}();
 }
 
@@ -438,7 +420,8 @@ async function renderOrganization(ctx: ComponentFixtureContext, options: IRender
 	if (options.harness === 'agentHost') {
 		descriptor = {
 			id: AGENT_HOST_SESSION_TYPE,
-			label: 'Copilot CLI',
+			label: 'Copilot [devbox]',
+			agentLabel: 'Copilot',
 			icon: ThemeIcon.fromId(Codicon.copilot.id),
 			hideGenerateButton: true,
 			itemProvider: await createAgentHostItemProvider(ctx, promptsService),
@@ -506,6 +489,8 @@ async function renderOrganization(ctx: ComponentFixtureContext, options: IRender
 	});
 
 	const widget = ctx.disposableStore.add(instantiationService.createInstance(AICustomizationListWidget));
+	// The editor opens plugin details from a row's plugin link; listening shows the links.
+	ctx.disposableStore.add(widget.onDidRequestShowPlugin(() => { }));
 	ctx.container.appendChild(widget.element);
 	await widget.setSection(options.section);
 	widget.layout(height, width);

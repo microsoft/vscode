@@ -23,9 +23,9 @@ import { RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstract
 import { IObjectTreeElement, ITreeContextMenuEvent, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, extensionIcon, pluginIcon } from './aiCustomizationIcons.js';
+import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon } from './aiCustomizationIcons.js';
 import { AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_CUSTOMIZATION_ITEM_URI_KEY, AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, AICustomizationManagementCreateMenuId, AICustomizationManagementSection, AI_CUSTOMIZATION_ITEM_DISABLED_KEY, getAICustomizationManagementItemMenuId, sectionToPromptType } from './aiCustomizationManagement.js';
-import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
@@ -39,7 +39,7 @@ import { IMenuService, MenuItemAction } from '../../../../../platform/actions/co
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { createActionViewItem, getContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { AICustomizationScope, AICustomizationScopes, AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationScopes, AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -52,6 +52,7 @@ import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentatio
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { getCustomizationListItemScope, IAICustomizationListItem, IAICustomizationListItemOrigin } from './aiCustomizationItemSource.js';
@@ -61,7 +62,6 @@ import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvai
 import { findAICustomizationWorkspaceGroupContaining, getAICustomizationWorkspaceGroupForResource, getAICustomizationWorkspaceGroups, isAICustomizationWorkspaceGroupKey } from './aiCustomizationWorkspaceGroups.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { isRemoteAgentHostTarget } from '../../common/chatSessionsService.js';
 
 export { truncateToFirstLine } from './aiCustomizationListWidgetUtils.js';
 
@@ -135,16 +135,11 @@ interface IAICustomizationItemTemplateData {
 	readonly typeIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
 	readonly badge: HTMLElement;
-	readonly overrideLabel: HTMLElement;
-	readonly sourceLabel: HTMLElement;
-	readonly syncedLabel: HTMLElement;
-	readonly overrideReason: HTMLElement;
-	readonly overrideReasonText: HTMLElement;
-	readonly overrideReasonLink: HTMLElement;
 	readonly statusIcon: HTMLElement;
 	readonly descriptionContainer: HTMLElement;
 	readonly description: HighlightedLabel;
 	readonly path: MiddleEllipsisPathLabel;
+	readonly source: HTMLAnchorElement;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 	readonly iconDisposables: DisposableStore;
@@ -290,7 +285,9 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 	setFocusedItemId(itemId: string | undefined): void {
 		this.focusedItemId = itemId;
 		for (const template of this.templates) {
-			template.actionBar.setFocusable(itemId !== undefined && template.currentItemId === itemId);
+			const focused = itemId !== undefined && template.currentItemId === itemId;
+			template.actionBar.setFocusable(focused);
+			template.source.tabIndex = focused && template.source.classList.contains('source-link') ? 0 : -1;
 		}
 	}
 
@@ -307,16 +304,11 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		const nameRow = DOM.append(textContainer, $('.item-name-row'));
 		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(nameRow, $('.item-name'))));
 		const badge = DOM.append(nameRow, $('.inline-badge.item-badge'));
-		const overrideLabel = DOM.append(nameRow, $('.inline-badge.item-override-label'));
-		const sourceLabel = DOM.append(nameRow, $('.inline-badge.item-source-label'));
-		const syncedLabel = DOM.append(nameRow, $('.inline-badge.item-source-label.item-synced-label'));
 		const statusIcon = DOM.append(nameRow, $('.item-status-icon'));
 		const descriptionContainer = DOM.append(textContainer, $('.item-description'));
 		const description = disposables.add(new HighlightedLabel(descriptionContainer));
 		const path = disposables.add(new MiddleEllipsisPathLabel(DOM.append(descriptionContainer, $('.item-path'))));
-		const overrideReason = DOM.append(descriptionContainer, $('.item-override-reason'));
-		const overrideReasonText = DOM.append(overrideReason, $('span.item-override-reason-text'));
-		const overrideReasonLink = DOM.append(overrideReason, $('a.item-override-reason-link'));
+		const source = DOM.append(descriptionContainer, $<HTMLAnchorElement>('a.item-source'));
 
 		// Right section for actions (hover-visible)
 		const actionsContainer = DOM.append(container, $('.item-right'));
@@ -336,16 +328,11 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			typeIcon,
 			nameLabel,
 			badge,
-			overrideLabel,
-			sourceLabel,
-			syncedLabel,
-			overrideReason,
-			overrideReasonText,
-			overrideReasonLink,
 			statusIcon,
 			descriptionContainer,
 			description,
 			path,
+			source,
 			disposables,
 			elementDisposables,
 			iconDisposables,
@@ -376,7 +363,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		renderIcon();
 		templateData.elementDisposables.add(this.themeService.onDidColorThemeChange(renderIcon));
 
-		// Hover tooltip: name + where it comes from + badge context + override / sync state
+		// Hover tooltip: name + where it comes from + badge context
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container, () => {
 			let content: string;
 			const originLabel = element.origin ? this.presentation.getOriginLabel(element.origin) : undefined;
@@ -390,16 +377,6 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			if (element.badgeTooltip) {
 				content += `\n\n${element.badgeTooltip}`;
 			}
-			const overrideReason = getCustomizationOverrideReason(element);
-			if (overrideReason) {
-				content += `\n\n${overrideReason}`;
-			}
-			for (const overridden of this.presentation.getOverriddenItems(element)) {
-				content += `\n\n${localize('overridesTooltip', "Takes precedence over '{0}' in {1}.", overridden.name, getCustomizationScopeLabel(getCustomizationListItemScope(overridden)))}`;
-			}
-			if (element.delivery && this.presentation.showDelivery()) {
-				content += `\n\n${localize('thisComputerTooltip', "Stored on this computer and sent to {0}.", this.presentation.getHarnessLabel())}`;
-			}
 			return {
 				content,
 				appearance: {
@@ -409,9 +386,8 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			};
 		}));
 
-		// Apply disabled / overridden styling
+		// Apply disabled styling
 		templateData.container.classList.toggle('disabled', element.disabled);
-		templateData.container.classList.toggle('overridden', !!element.overriddenBy);
 
 		// Name with highlights — nameMatches are pre-computed against the formatted display name
 		const displayName = element.displayName ?? formatDisplayName(element.name);
@@ -431,26 +407,6 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		} else {
 			templateData.badge.textContent = '';
 			templateData.badge.style.display = 'none';
-		}
-
-		if (element.overriddenBy) {
-			templateData.overrideLabel.textContent = localize('overriddenByLabel', "Overridden by {0}", getCustomizationScopeLabel(element.overriddenBy.scope));
-			templateData.overrideLabel.style.display = '';
-		} else {
-			templateData.overrideLabel.textContent = '';
-			templateData.overrideLabel.style.display = 'none';
-		}
-
-		const sourceLabel = this.presentation.getSourceLabel(element);
-		renderSourceLabel(templateData.sourceLabel, sourceLabel?.icon, sourceLabel?.label);
-		if (sourceLabel) {
-			templateData.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.sourceLabel, sourceLabel.detail));
-		}
-
-		const showSynced = !!element.delivery && this.presentation.showDelivery();
-		renderSourceLabel(templateData.syncedLabel, showSynced ? Codicon.deviceDesktop : undefined, showSynced ? localize('thisComputerLabel', "This computer") : undefined);
-		if (showSynced) {
-			templateData.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.syncedLabel, localize('thisComputerTooltip', "Stored on this computer and sent to {0}.", this.presentation.getHarnessLabel())));
 		}
 
 		// Status icon for external items with sync/loading status
@@ -485,22 +441,13 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			templateData.statusIcon.className = 'item-status-icon';
 		}
 
-		const overriddenBy = element.overriddenBy;
-		templateData.overrideReason.style.display = overriddenBy ? '' : 'none';
-		templateData.overrideReasonText.textContent = getCustomizationOverrideReason(element) ?? '';
-		templateData.overrideReasonLink.textContent = overriddenBy ? localize('showOverridingCustomizationLink', "Show") : '';
-		if (overriddenBy) {
-			const reveal = (e: MouseEvent) => {
-				DOM.EventHelper.stop(e, true);
-				this.presentation.revealOverridingItem(overriddenBy.uri);
-			};
-			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.overrideReasonLink, DOM.EventType.MOUSE_DOWN, e => DOM.EventHelper.stop(e, true)));
-			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.overrideReasonLink, DOM.EventType.CLICK, reveal));
-		}
+		// A plugin, extension, or organization is more telling than the path of a
+		// file it supplies, so its name replaces the secondary text.
+		const source = this.presentation.getSourceLabel(element);
+		this.renderSource(templateData, element, source);
 
 		const secondaryText = getCustomizationSecondaryText(element.description, element.filename, element.promptType);
-		if (overriddenBy) {
-			// The explanation replaces the path; the hover still shows the location.
+		if (source) {
 			templateData.description.element.style.display = 'none';
 			templateData.path.element.style.display = 'none';
 			templateData.descriptionContainer.style.display = '';
@@ -569,6 +516,36 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		templateData.elementDisposables.add(menu.onDidChange(updateActions));
 
 		templateData.actionBar.context = context;
+	}
+
+	private renderSource(templateData: IAICustomizationItemTemplateData, element: IAICustomizationListItem, source: IAICustomizationItemSource | undefined): void {
+		const link = templateData.source;
+		link.textContent = source?.label ?? '';
+		link.style.display = source ? '' : 'none';
+		const open = source?.open;
+		link.classList.toggle('source-link', !!open);
+		link.tabIndex = open && element.id === this.focusedItemId ? 0 : -1;
+		if (!source || !open) {
+			link.removeAttribute('href');
+			link.removeAttribute('aria-label');
+			if (source) {
+				templateData.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), link, source.detail));
+			}
+			return;
+		}
+		link.setAttribute('href', '#');
+		link.setAttribute('aria-label', source.detail);
+		templateData.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), link, source.detail));
+		templateData.elementDisposables.add(DOM.addDisposableListener(link, DOM.EventType.MOUSE_DOWN, e => e.stopPropagation()));
+		templateData.elementDisposables.add(DOM.addStandardDisposableListener(link, DOM.EventType.KEY_DOWN, e => {
+			if (e.keyCode === KeyCode.Enter) {
+				e.stopPropagation();
+			}
+		}));
+		templateData.elementDisposables.add(DOM.addDisposableListener(link, DOM.EventType.CLICK, e => {
+			DOM.EventHelper.stop(e, true);
+			open();
+		}));
 	}
 
 	disposeElement(_entry: IFileItemEntry, _index: number, templateData: IAICustomizationItemTemplateData): void {
@@ -696,69 +673,37 @@ interface ICustomizationItemGroup {
 }
 
 /**
+ * The plugin, extension, or organization that supplied a row, shown in place
+ * of its secondary text.
+ */
+interface IAICustomizationItemSource {
+	/** For example "Plugin: azure". */
+	readonly label: string;
+	/** Hover and, for a link, accessible name. */
+	readonly detail: string;
+	/** Opens the source's details; `undefined` when there is nothing to open. */
+	readonly open?: () => void;
+}
+
+/**
  * Presentation context the item renderer needs from the widget.
  */
 interface IAICustomizationItemPresentation {
-	/** Whether to mark items synced from this client (only meaningful for a remote agent host). */
-	showDelivery(): boolean;
-	getHarnessLabel(): string;
-	/** Items this item takes precedence over because they share its name. */
-	getOverriddenItems(item: IAICustomizationListItem): readonly IAICustomizationListItem[];
-	revealOverridingItem(uri: URI): void;
 	getOriginLabel(origin: IAICustomizationListItemOrigin): { readonly label: string; readonly detail: string };
-	/** The source label shown on a row, or `undefined` when the group already names the source. */
-	getSourceLabel(item: IAICustomizationListItem): { readonly icon: ThemeIcon; readonly label: string; readonly detail: string } | undefined;
+	/** The source shown on a row, or `undefined` when the group already names it. */
+	getSourceLabel(item: IAICustomizationListItem): IAICustomizationItemSource | undefined;
 }
 
-function renderSourceLabel(element: HTMLElement, icon: ThemeIcon | undefined, label: string | undefined): void {
-	DOM.clearNode(element);
-	if (!icon || !label) {
-		element.style.display = 'none';
-		return;
-	}
-	element.style.display = '';
-	DOM.append(element, $(`span${ThemeIcon.asCSSSelector(icon)}`));
-	DOM.append(element, $('span.item-source-label-text')).textContent = label;
-}
-
-/** Group keys for the account and application scopes. */
 /** Group keys for the account scope and the application-scope suppliers. */
 const ACCOUNT_GROUP_KEY = 'account';
-const EXTENSIONS_GROUP_KEY = 'extensions';
 const HARNESS_GROUP_KEY = 'harness';
 const VSCODE_GROUP_KEY = 'vscode';
-
-export function getCustomizationScopeLabel(scope: AICustomizationScope): string {
-	switch (scope) {
-		case AICustomizationScopes.workspace: return localize('scopeWorkspace', "Workspace");
-		case AICustomizationScopes.account: return localize('scopeAccount', "Account");
-		case AICustomizationScopes.application: return localize('scopeApplication', "Application");
-		case AICustomizationScopes.user:
-		default: return localize('scopeUser', "User");
-	}
-}
 
 /**
  * Widget that displays a searchable list of AI customization items.
  */
 export function getCollapsedCustomizationGroupKey(section: AICustomizationManagementSection, groupKey: string): string {
 	return `${section}:${groupKey}`;
-}
-
-/**
- * Explains why an overridden customization is not used, naming where the
- * same-named customization that is used instead lives.
- */
-export function getCustomizationOverrideReason(item: Pick<IAICustomizationListItem, 'overriddenBy' | 'promptType'>): string | undefined {
-	if (!item.overriddenBy) {
-		return undefined;
-	}
-	const scope = getCustomizationScopeLabel(item.overriddenBy.scope);
-	switch (item.promptType) {
-		case PromptsType.skill: return localize('overrideReasonSkill', "The skill with the same name in {0} is used instead.", scope);
-		case PromptsType.agent: return localize('overrideReasonAgent', "The agent with the same name in {0} is used instead.", scope);
-		default: return localize('overrideReasonCustomization', "The customization with the same name in {0} is used instead.", scope);
-	}
 }
 
 export function getCustomizationItemStatusLabel(item: IAICustomizationListItem): string | undefined {
@@ -771,13 +716,11 @@ export function getCustomizationItemStatusLabel(item: IAICustomizationListItem):
 	}
 }
 
-export function getCustomizationItemAriaLabel(item: IAICustomizationListItem, showDelivery = false, sourceLabel?: string): string {
+export function getCustomizationItemAriaLabel(item: IAICustomizationListItem, sourceLabel?: string): string {
 	const displayName = item.displayName ?? formatDisplayName(item.name);
-	const secondaryText = getCustomizationSecondaryText(item.description, item.filename, item.promptType);
+	const secondaryText = sourceLabel ?? getCustomizationSecondaryText(item.description, item.filename, item.promptType);
 	const statusLabel = getCustomizationItemStatusLabel(item);
-	const overrideLabel = getCustomizationOverrideReason(item);
-	const deliveryLabel = item.delivery && showDelivery ? localize('itemAriaThisComputer', "Stored on this computer") : undefined;
-	const accessibleSecondaryText = [sourceLabel, overrideLabel ? undefined : secondaryText, overrideLabel, deliveryLabel, statusLabel, item.statusMessage].filter(Boolean).join('. ');
+	const accessibleSecondaryText = [secondaryText, statusLabel, item.statusMessage].filter(Boolean).join('. ');
 	const nameAndDescription = accessibleSecondaryText ? localize('itemAriaLabel', "{0}. {1}", displayName, accessibleSecondaryText) : displayName;
 	return item.disabled ? localize('itemAriaLabelDisabled', "{0}, disabled", nameAndDescription) : nameAndDescription;
 }
@@ -846,6 +789,10 @@ export class AICustomizationListWidget extends Disposable {
 
 	private readonly _onDidRequestBrowse = this._register(new Emitter<void>());
 	readonly onDidRequestBrowse: Event<void> = this._onDidRequestBrowse.event;
+
+	private readonly _onDidRequestShowPlugin = this._register(new Emitter<IAgentPlugin>());
+	/** Fires when a row's plugin link is activated. Plugin links are only shown while this has listeners. */
+	readonly onDidRequestShowPlugin: Event<IAgentPlugin> = this._onDidRequestShowPlugin.event;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -1016,12 +963,8 @@ export class AICustomizationListWidget extends Disposable {
 			AICustomizationItemRenderer,
 			(item: IAICustomizationListItem, anchor: HTMLElement) => this.showItemContextMenu(item, anchor),
 			{
-				showDelivery: () => this.showsDelivery(),
-				getHarnessLabel: () => this.harnessService.getActiveDescriptor().label,
 				getOriginLabel: origin => this.getOriginLabel(origin),
 				getSourceLabel: item => this.getSourceLabel(item),
-				getOverriddenItems: item => this.allItems.filter(other => other.overriddenBy && isEqual(other.overriddenBy.uri, item.uri)),
-				revealOverridingItem: uri => this.revealOverridingItem(uri),
 			} satisfies IAICustomizationItemPresentation,
 		);
 		this.list = this._register(this.instantiationService.createInstance(
@@ -1046,8 +989,7 @@ export class AICustomizationListWidget extends Disposable {
 						if (entry.type === 'group-header') {
 							return localize('groupAriaLabel2', "{0}, {1} items", entry.label, entry.count);
 						}
-						const source = this.getSourceLabel(entry.item);
-						const label = getCustomizationItemAriaLabel(entry.item, this.showsDelivery(), source && localize('itemAriaSource', "{0}: {1}", source.detail, source.label));
+						const label = getCustomizationItemAriaLabel(entry.item, this.getSourceLabel(entry.item)?.label);
 						if (!hasReadableCustomizationContent(entry.item.uri)) {
 							return localize('itemAriaLabelNoSourceContent', "{0}, source content unavailable", label);
 						}
@@ -1148,14 +1090,6 @@ export class AICustomizationListWidget extends Disposable {
 
 		const { secondary } = getContextMenuActions(actions, 'inline');
 
-		const overriddenBy = item.overriddenBy;
-		const overrideActions = overriddenBy ? [
-			new Action('showOverridingCustomization', localize('showOverridingCustomization', "Show Overriding Customization"), undefined, true, async () => {
-				this.revealOverridingItem(overriddenBy.uri);
-			}),
-			new Separator(),
-		] : [];
-
 		// Add copy path actions (not shown for built-in items where the path is an implementation detail)
 		const copyActions = item.isBuiltin || !hasReadableCustomizationContent(item.uri) ? [] : [
 			new Separator(),
@@ -1178,7 +1112,7 @@ export class AICustomizationListWidget extends Disposable {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => [...overrideActions, ...secondary, ...copyActions],
+			getActions: () => [...secondary, ...copyActions],
 		});
 	}
 
@@ -1635,7 +1569,9 @@ export class AICustomizationListWidget extends Disposable {
 	 * first, then supplied items ordered by their source.
 	 */
 	private buildGroupChildren(group: ICustomizationItemGroup): IListEntry[] {
-		const sourceKey = (item: IAICustomizationListItem) => item.origin ? this.getOriginLabel(item.origin).label.toLowerCase() : '';
+		// Items that need no source line (authored in the scope or built into the
+		// group's supplier) sort ahead of those supplied by a plugin, extension, or organization.
+		const sourceKey = (item: IAICustomizationListItem) => item.origin && item.origin.kind !== 'vscode' && item.origin.kind !== 'harness' ? this.getOriginLabel(item.origin).label.toLowerCase() : '';
 		return [...group.items]
 			.sort((a, b) => sourceKey(a).localeCompare(sourceKey(b)) || a.name.localeCompare(b.name))
 			.map(item => ({ type: 'file-item', item }));
@@ -1713,9 +1649,8 @@ export class AICustomizationListWidget extends Disposable {
 			...workspaceGroups.map(group => ({ groupKey: group.key, label: localize('workspaceFolderGroup', "Workspace · {0}", group.label), icon: workspaceIcon, description: workspaceDescription, items: [], workspaceFolder: group.uri })),
 			{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: workspaceDescription, items: [] },
 			{ groupKey: ACCOUNT_GROUP_KEY, label: localize('accountGroup', "Account"), icon: Codicon.organization, description: localize('accountGroupDescription', "Read-only customizations provided by your signed-in account, such as your GitHub organization."), items: [] },
-			{ groupKey: EXTENSIONS_GROUP_KEY, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
-			{ groupKey: HARNESS_GROUP_KEY, label: this.harnessService.getActiveDescriptor().label, icon: this.harnessService.getActiveDescriptor().icon, description: localize('harnessGroupDescription', "Read-only customizations built into {0}.", this.harnessService.getActiveDescriptor().label), items: [] },
-			{ groupKey: VSCODE_GROUP_KEY, label: this.getProductName(), icon: Codicon.vscode, description: localize('vscodeGroupDescription', "Read-only customizations built into {0}.", this.getProductName()), items: [] },
+			{ groupKey: HARNESS_GROUP_KEY, label: this.getAgentLabel(), icon: this.harnessService.getActiveDescriptor().icon, description: localize('harnessGroupDescription', "Read-only customizations built into {0}.", this.getAgentLabel()), items: [] },
+			{ groupKey: VSCODE_GROUP_KEY, label: localize('vscodeManagedGroup', "VS Code Managed"), icon: Codicon.vscode, description: localize('vscodeManagedGroupDescription', "Read-only customizations built into VS Code or provided by installed extensions."), items: [] },
 		];
 
 		for (const item of matchedItems) {
@@ -1763,11 +1698,7 @@ export class AICustomizationListWidget extends Disposable {
 		switch (getCustomizationListItemScope(item)) {
 			case AICustomizationScopes.account: return ACCOUNT_GROUP_KEY;
 			case AICustomizationScopes.application:
-				switch (item.origin?.kind) {
-					case 'extension': return EXTENSIONS_GROUP_KEY;
-					case 'harness': return HARNESS_GROUP_KEY;
-					default: return VSCODE_GROUP_KEY;
-				}
+				return item.origin?.kind === 'harness' ? HARNESS_GROUP_KEY : VSCODE_GROUP_KEY;
 			case AICustomizationScopes.workspace: {
 				if (!isMultiRoot) {
 					return PromptsStorage.local;
@@ -1780,9 +1711,9 @@ export class AICustomizationListWidget extends Disposable {
 		}
 	}
 
-	/** Whether to mark items synced from this client; only meaningful for a remote agent host. */
-	private showsDelivery(): boolean {
-		return isRemoteAgentHostTarget(this.harnessService.activeHarness.get());
+	private getAgentLabel(): string {
+		const descriptor = this.harnessService.getActiveDescriptor();
+		return descriptor.agentLabel ?? descriptor.label;
 	}
 
 	private getProductName(): string {
@@ -1803,7 +1734,7 @@ export class AICustomizationListWidget extends Disposable {
 			case 'account':
 				return { label: origin.label ?? localize('githubAccountOrigin', "GitHub"), detail: localize('organizationOrigin', "GitHub organization") };
 			case 'harness':
-				return { label: origin.label ?? this.harnessService.getActiveDescriptor().label, detail: localize('harnessOrigin', "Built into the agent") };
+				return { label: origin.label ?? this.getAgentLabel(), detail: localize('harnessOrigin', "Built into the agent") };
 			case 'vscode':
 			default:
 				return { label: origin.label ?? this.getProductName(), detail: localize('vscodeOrigin', "Built-in") };
@@ -1811,19 +1742,30 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	/**
-	 * The label that tells a row's source apart from its siblings. Items in a
+	 * The plugin, extension, or organization that supplied a row. Items in a
 	 * group named after their supplier (VS Code or the agent) need none.
 	 */
-	private getSourceLabel(item: IAICustomizationListItem): { readonly icon: ThemeIcon; readonly label: string; readonly detail: string } | undefined {
+	private getSourceLabel(item: IAICustomizationListItem): IAICustomizationItemSource | undefined {
 		const origin = item.origin;
-		if (!origin || origin.kind === 'vscode' || origin.kind === 'harness') {
-			return undefined;
-		}
-		const { label, detail } = this.getOriginLabel(origin);
-		switch (origin.kind) {
-			case 'plugin': return { icon: pluginIcon, label, detail };
-			case 'extension': return { icon: extensionIcon, label, detail };
-			case 'account': return { icon: Codicon.organization, label, detail };
+		switch (origin?.kind) {
+			case 'plugin': {
+				const plugin = item.pluginUri ? this.agentPluginService.plugins.get().find(plugin => isEqual(plugin.uri, item.pluginUri)) : undefined;
+				const name = plugin?.label ?? origin.label ?? this.getOriginLabel(origin).label;
+				return plugin && this._onDidRequestShowPlugin.hasListeners()
+					? { label: localize('itemSourcePlugin', "Plugin: {0}", name), detail: localize('openItemSourcePlugin', "Open plugin details for {0}", name), open: () => this._onDidRequestShowPlugin.fire(plugin) }
+					: { label: localize('itemSourcePlugin', "Plugin: {0}", name), detail: this.getOriginLabel(origin).detail };
+			}
+			case 'extension': {
+				const name = this.getOriginLabel(origin).label;
+				const extensionId = item.extensionId;
+				return extensionId
+					? { label: localize('itemSourceExtension', "Extension: {0}", name), detail: localize('openItemSourceExtension', "Open extension details for {0}", name), open: () => this.commandService.executeCommand('extension.open', extensionId) }
+					: { label: localize('itemSourceExtension', "Extension: {0}", name), detail: this.getOriginLabel(origin).detail };
+			}
+			case 'account':
+				return { label: localize('itemSourceOrganization', "Organization: {0}", this.getOriginLabel(origin).label), detail: this.getOriginLabel(origin).detail };
+			default:
+				return undefined;
 		}
 	}
 
@@ -2036,28 +1978,6 @@ export class AICustomizationListWidget extends Disposable {
 		if (this.displayEntries.length > 0) {
 			this.list.reveal(this.displayEntries[this.displayEntries.length - 1]);
 		}
-	}
-
-	/**
-	 * Reveals the customization that overrides another, clearing a search
-	 * filter or expanding its group when either hides it.
-	 */
-	private revealOverridingItem(uri: URI): void {
-		const findEntry = () => this.displayEntries.find(entry => entry.type === 'file-item' && isEqual(entry.item.uri, uri));
-		if (!findEntry() && this.searchQuery.trim()) {
-			this.searchInput.value = '';
-			this.searchQuery = '';
-			this.filterItems();
-		}
-		const entry = findEntry();
-		if (!entry) {
-			return;
-		}
-		const parent = this.list.getParentElement(entry);
-		if (parent && this.list.isCollapsed(parent)) {
-			this.list.expand(parent);
-		}
-		this.revealAndSelectFirstItemByUri([uri]);
 	}
 
 	/**

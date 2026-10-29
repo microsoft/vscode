@@ -24,7 +24,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { AICustomizationScope, AICustomizationScopes, AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
-import { ICustomizationItem, ICustomizationItemProvider, ICustomizationOverride, ICustomizationSourceFolder, isLegacyDeliveryGroupKey, isSyncedFromClientCustomizationItem } from '../../common/customizationHarnessService.js';
+import { ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder, isLegacyDeliveryGroupKey } from '../../common/customizationHarnessService.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
 import { HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
@@ -71,10 +71,6 @@ export interface IAICustomizationListItem {
 	readonly scope?: AICustomizationScope;
 	/** Supplier within the scope, used to subgroup items. Undefined for files authored directly in the scope. */
 	readonly origin?: IAICustomizationListItemOrigin;
-	/** Set when the item was synced from this client to a remote agent environment. */
-	readonly delivery?: 'syncedFromClient';
-	/** Set when another customization with the same name takes precedence over this one. */
-	readonly overriddenBy?: ICustomizationOverride;
 	/** URI of the parent plugin, when this item comes from an installed plugin. */
 	readonly pluginUri?: URI;
 	/** When set, overrides the formatted name for display. */
@@ -257,8 +253,6 @@ export class AICustomizationItemNormalizer {
 			source,
 			scope,
 			origin: this.inferOrigin(item, source, scope, pluginUri, extensionId),
-			delivery: isSyncedFromClientCustomizationItem(item) ? 'syncedFromClient' : undefined,
-			overriddenBy: item.overriddenBy,
 			promptType,
 			disabled: item.enabled === false,
 			groupKey,
@@ -433,8 +427,8 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 	 * into the provider's items. The provider may re-discover the bundled
 	 * copies when scanning disk — those duplicates are dropped (deduped by
 	 * URI) and replaced with the authoritative built-in entry tagged
-	 * `groupKey: BUILTIN_STORAGE`. A built-in that a user or workspace skill
-	 * with the same name replaces is kept and marked as overridden.
+	 * `groupKey: BUILTIN_STORAGE`. User-authored overrides (different URI,
+	 * same name) are preserved and hide the built-in copy.
 	 *
 	 * A workbench that uses the base `PromptsService` contributes no built-in
 	 * skills, so `builtinPaths` is empty and the items are returned unchanged.
@@ -454,19 +448,19 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 		// re-discovered the bundled copy by scanning disk).
 		const deduped = items.filter(item => !builtinUris.has(item.uri));
 
-		// Collect user/workspace skills by name so a built-in copy that has
-		// been overridden at either level is shown as overridden.
-		const overridingItems = new Map<string, IAICustomizationListItem>();
+		// Collect names of user/workspace skills so we can hide the built-in
+		// copy once the user has added an override at either level.
+		const overriddenNames = new Set<string>();
 		for (const item of deduped) {
-			if ((item.source === AICustomizationSources.local || item.source === AICustomizationSources.user) && item.name && !item.overriddenBy) {
-				const existing = overridingItems.get(item.name);
-				if (!existing || (existing.source === AICustomizationSources.user && item.source === AICustomizationSources.local)) {
-					overridingItems.set(item.name, item);
+			if (item.source === AICustomizationSources.local || item.source === AICustomizationSources.user) {
+				if (item.name) {
+					overriddenNames.add(item.name);
 				}
 			}
 		}
 
-		// Append authoritative built-in entries.
+		// Append authoritative built-in entries (excluding any that have been
+		// overridden by a workspace or user copy with the same name).
 		const uriUseCounts = new ResourceMap<number>();
 		for (const item of deduped) {
 			uriUseCounts.set(item.uri, (uriUseCounts.get(item.uri) ?? 0) + 1);
@@ -475,7 +469,9 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 		const disabledPromptFiles = this.promptsService.getDisabledPromptFiles(PromptsType.skill);
 		for (const p of builtinPaths) {
 			const name = p.name ?? basename(p.uri);
-			const overridingItem = overridingItems.get(name);
+			if (overriddenNames.has(name)) {
+				continue;
+			}
 			const builtinItem: ICustomizationItem = {
 				uri: p.uri,
 				type: PromptsType.skill,
@@ -487,7 +483,6 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 				extensionId: undefined,
 				pluginUri: undefined,
 				userInvocable: true,
-				overriddenBy: overridingItem ? { name: overridingItem.name, uri: overridingItem.uri, scope: getCustomizationListItemScope(overridingItem) } : undefined,
 			};
 			appended.push(this.itemNormalizer.normalizeItem(builtinItem, promptType, uriUseCounts));
 		}
