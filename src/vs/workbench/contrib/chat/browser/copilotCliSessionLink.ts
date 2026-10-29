@@ -97,7 +97,10 @@ export class CopilotCliSessionLinkOpener {
 			}
 		} catch (error) {
 			this.logService.error(`[CopilotCliSessionLinkOpener] Failed to import session ${sessionId}`, error);
-			this.notificationService.error(localize('copilotCliSessionImportFailed', "Couldn't open the Copilot CLI session: {0}", toErrorMessage(error)));
+			// The host's reason for not finding a session is internal, such as an eligibility check, so isn't shown.
+			this.notificationService.error(error instanceof ProtocolError && error.code === AhpErrorCodes.SessionNotFound
+				? localize('copilotCliSessionNotFound', "Couldn't open the Copilot CLI session because it couldn't be found. It may have been deleted, or it was created by another app.")
+				: localize('copilotCliSessionImportFailed', "Couldn't open the Copilot CLI session: {0}", toErrorMessage(error)));
 			return;
 		}
 		// A host that doesn't report the address keeps the session at the address it was imported from.
