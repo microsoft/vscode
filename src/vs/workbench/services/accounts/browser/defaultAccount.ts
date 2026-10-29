@@ -1110,11 +1110,13 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		}
 
 		if (!isSuccess(response)) {
+			// Only a 404 means no organization or enterprise registry policy applies to the user. A 403 means MCP was
+			// disabled for the user (enforced separately through the token's `mcp` flag) or rate limiting, and 401/429/5xx
+			// are failures; none of them withdraw a registry restriction.
 			if (response.res.statusCode === 404) {
 				this.logService.debug('[DefaultAccount] Received 404 for MCP registry data, treating as no registry available.');
 				return null;
 			}
-			// 401/403 may be transient (e.g. a token refresh) and 429/5xx are failures, not an answer about the policy.
 			this.logService.debug(`[DefaultAccount] unexpected status code ${response.res.statusCode} while fetching MCP registry data`);
 			return undefined;
 		}
