@@ -32,6 +32,7 @@ interface Entity {
 	readonly implementation: readonly Span[];
 	readonly isTest: boolean;
 	readonly children: Entity[];
+	readonly rename?: { readonly name: Span; readonly declaration: ts.Node };
 }
 
 interface Source {
@@ -56,8 +57,13 @@ interface DiffTree {
 
 type Side = 'original' | 'modified';
 
+interface TextChange {
+	readonly original: Span;
+	readonly modified: Span;
+}
+
 /**
- * Matches uniquely named siblings and groups import/export statements in a sparse structural tree.
+ * Matches named siblings and conservative name-only renames in a sparse structural tree.
  */
 export function computeStructuralDiff(originalFile: ts.SourceFile, modifiedFile: ts.SourceFile, context: vscode.StructuralDiffContext, token: vscode.CancellationToken): vscode.StructuralDiff {
 	const checkCancellation = () => {
@@ -67,6 +73,10 @@ export function computeStructuralDiff(originalFile: ts.SourceFile, modifiedFile:
 	};
 	const original = collectSource(originalFile, checkCancellation);
 	const modified = collectSource(modifiedFile, checkCancellation);
+	const changes = context.changes.map(change => ({
+		original: fromRange(originalFile, change.originalRange),
+		modified: fromRange(modifiedFile, change.modifiedRange),
+	}));
 	let nextId = 0;
 	const merge = (left: Entity | undefined, right: Entity | undefined): DiffTree => {
 		checkCancellation();
@@ -80,13 +90,10 @@ export function computeStructuralDiff(originalFile: ts.SourceFile, modifiedFile:
 		};
 		const leftChildren = left?.children ?? [];
 		const rightChildren = right?.children ?? [];
-		const leftByKey = groupEntities(leftChildren);
-		const rightByKey = groupEntities(rightChildren);
+		const counterparts = matchSiblings(leftChildren, rightChildren, originalFile, modifiedFile, changes, checkCancellation);
 		const matched = new Set<Entity>();
 		const children = rightChildren.map(child => {
-			const key = entityKey(child);
-			const candidates = leftByKey.get(key);
-			const counterpart = candidates?.length === 1 && rightByKey.get(key)?.length === 1 ? candidates[0] : undefined;
+			const counterpart = counterparts.get(child);
 			if (counterpart !== undefined) {
 				matched.add(counterpart);
 			}
@@ -100,10 +107,10 @@ export function computeStructuralDiff(originalFile: ts.SourceFile, modifiedFile:
 		return { original: left, modified: right, result, children };
 	};
 	const tree = merge(original.root, modified.root);
-	for (const [textChangeIndex, change] of context.changes.entries()) {
+	for (const [textChangeIndex, change] of changes.entries()) {
 		checkCancellation();
-		classify(tree, 'original', original, textChangeIndex, fromRange(originalFile, change.originalRange), checkCancellation);
-		classify(tree, 'modified', modified, textChangeIndex, fromRange(modifiedFile, change.modifiedRange), checkCancellation);
+		classify(tree, 'original', original, textChangeIndex, change.original, checkCancellation);
+		classify(tree, 'modified', modified, textChangeIndex, change.modified, checkCancellation);
 	}
 	const prune = (node: DiffTree): vscode.StructuralDiffNode => {
 		for (const child of node.children) {
@@ -179,6 +186,9 @@ function collectSource(file: ts.SourceFile, checkCancellation: () => void): Sour
 					implementation: bodySpans(info.body, file),
 					isTest: parent.isTest || /^(?:it|test|spec)(?:$|[\s_.:-]|[A-Z])/.test(info.name),
 					children: [],
+					rename: info.nameNode && (ts.isIdentifier(info.nameNode) || ts.isPrivateIdentifier(info.nameNode))
+						? { name: nodeSpan(info.nameNode, file), declaration: info.rangeNode }
+						: undefined,
 				};
 				parent.children.push(container);
 			}
@@ -296,10 +306,13 @@ function entityKey(entity: Entity): string {
 	return JSON.stringify([entity.value.kind, entity.value.languageKind, entity.value.name]);
 }
 
-function groupEntities(entities: readonly Entity[]): Map<string, Entity[]> {
+function groupEntities(entities: readonly Entity[], keyOf: (entity: Entity) => string | undefined = entityKey): Map<string, Entity[]> {
 	const groups = new Map<string, Entity[]>();
 	for (const entity of entities) {
-		const key = entityKey(entity);
+		const key = keyOf(entity);
+		if (key === undefined) {
+			continue;
+		}
 		const group = groups.get(key);
 		if (group === undefined) {
 			groups.set(key, [entity]);
@@ -308,6 +321,84 @@ function groupEntities(entities: readonly Entity[]): Map<string, Entity[]> {
 		}
 	}
 	return groups;
+}
+
+function matchSiblings(original: readonly Entity[], modified: readonly Entity[], originalFile: ts.SourceFile, modifiedFile: ts.SourceFile, changes: readonly TextChange[], checkCancellation: () => void): Map<Entity, Entity> {
+	const originalByKey = groupEntities(original);
+	const modifiedByKey = groupEntities(modified);
+	const matches = new Map<Entity, Entity>();
+	const matchedOriginal = new Set<Entity>();
+	for (const entity of modified) {
+		checkCancellation();
+		const key = entityKey(entity);
+		const candidates = originalByKey.get(key);
+		if (candidates?.length === 1 && modifiedByKey.get(key)?.length === 1) {
+			matches.set(entity, candidates[0]);
+			matchedOriginal.add(candidates[0]);
+		}
+	}
+
+	const unmatchedOriginal = original.filter(entity => !matchedOriginal.has(entity) && originalByKey.get(entityKey(entity))?.length === 1);
+	const unmatchedModified = modified.filter(entity => !matches.has(entity) && modifiedByKey.get(entityKey(entity))?.length === 1);
+	if (unmatchedOriginal.length === 0 || unmatchedModified.length === 0) {
+		return matches;
+	}
+	const originalBySyntax = groupEntities(unmatchedOriginal, entity => renameFingerprint(entity, originalFile, checkCancellation));
+	const modifiedBySyntax = groupEntities(unmatchedModified, entity => renameFingerprint(entity, modifiedFile, checkCancellation));
+	for (const [fingerprint, candidates] of modifiedBySyntax) {
+		checkCancellation();
+		const originalCandidates = originalBySyntax.get(fingerprint);
+		if (candidates.length !== 1 || originalCandidates?.length !== 1) {
+			continue;
+		}
+		const before = originalCandidates[0];
+		const after = candidates[0];
+		if (before.value.name !== after.value.name && changes.some(change =>
+			touchesName(change.original, before.rename!.name) && touchesName(change.modified, after.rename!.name))) {
+			matches.set(after, before);
+		}
+	}
+	return matches;
+}
+
+function renameFingerprint(entity: Entity, file: ts.SourceFile, checkCancellation: () => void): string | undefined {
+	if (entity.rename === undefined) {
+		return undefined;
+	}
+	const { name, declaration } = entity.rename;
+	const parts: [ts.SyntaxKind, string | null][] = [];
+	let nameTokens = 0;
+	let missingToken = false;
+	const visit = (node: ts.Node): void => {
+		checkCancellation();
+		if (ts.isJSDocNodeKind(node.kind) || ts.isTriviaKind(node.kind)) {
+			return;
+		}
+		if (ts.isToken(node)) {
+			const span = nodeSpan(node, file);
+			if (span.start === span.end) {
+				missingToken = true;
+			} else if (span.start === name.start && span.end === name.end) {
+				nameTokens++;
+				parts.push([node.kind, null]);
+			} else {
+				parts.push([node.kind, node.getText(file)]);
+			}
+		} else {
+			parts.push([node.kind, null]);
+			node.getChildren(file).forEach(visit);
+		}
+	};
+	visit(declaration);
+	return nameTokens === 1 && !missingToken
+		? JSON.stringify([entity.value.kind, entity.value.languageKind, parts])
+		: undefined;
+}
+
+function touchesName(change: Span, name: Span): boolean {
+	return change.start === change.end
+		? name.start <= change.start && change.start <= name.end
+		: change.start < name.end && name.start < change.end;
 }
 
 function classify(tree: DiffTree, side: Side, source: Source, textChangeIndex: number, span: Span, checkCancellation: () => void): void {

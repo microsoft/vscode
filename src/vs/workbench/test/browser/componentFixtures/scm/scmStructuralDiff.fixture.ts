@@ -46,9 +46,16 @@ export default defineThemedFixtureGroup({ path: 'scm/' }, {
 		],
 		render: context => renderStructuralChanges(context, 360, [StructuralDiffClassification.Header, StructuralDiffClassification.Implementation]),
 	}),
+	StructuralRename: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: [
+			'The renamed calculate method has a muted [rename] annotation aligned on the right, immediately before its modified diff icon. The displayed name is calculate, while the hover and accessible label identify its previous name compute. Added/deleted methods and the unchanged Calculator container have no rename annotation.',
+		],
+		render: context => renderStructuralChanges(context, 360, [StructuralDiffClassification.Header], 'compute'),
+	}),
 });
 
-function renderStructuralChanges({ container, disposableStore, theme }: ComponentFixtureContext, width: number, classifications: readonly StructuralDiffClassification[] = [StructuralDiffClassification.Implementation]): void {
+function renderStructuralChanges({ container, disposableStore, theme }: ComponentFixtureContext, width: number, classifications: readonly StructuralDiffClassification[] = [StructuralDiffClassification.Implementation], originalName?: string): void {
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
 	container.classList.add('scm-view');
 	container.style.width = `${width}px`;
@@ -74,7 +81,9 @@ function renderStructuralChanges({ container, disposableStore, theme }: Componen
 		const name = status === 'changed' ? width < 300 ? 'calculateWithAdditionalValidation' : 'calculate' : status === 'added' ? 'newMethod' : 'oldMethod';
 		const entity = { name, kind: SymbolKind.Method, range, detail: status === 'changed' ? '(value: number): number' : undefined };
 		const node: StructuralDiffNode = {
-			id: status, original: status === 'added' ? undefined : entity, modified: status === 'deleted' ? undefined : entity,
+			id: status,
+			original: status === 'added' ? undefined : status === 'changed' && originalName ? { ...entity, name: originalName } : entity,
+			modified: status === 'deleted' ? undefined : entity,
 			originalChanges: [],
 			modifiedChanges: status === 'changed' ? classifications.map((classification, index) => ({
 				textChangeIndex: 0, range: new Range(index + 3, 1, index + 3, 12), classification,

@@ -155,7 +155,8 @@ declare module 'vscode' {
 	/**
 	 * A node in a sparse, file-local structural diff tree.
 	 *
-	 * A node with both versions asserts that the entities correspond. Providers
+	 * A node with both versions asserts that the entities correspond; different names
+	 * on those versions represent a detected rename. Providers
 	 * are not required to detect renames or moves. Unmatched entities can be
 	 * represented as separate additions and deletions.
 	 */

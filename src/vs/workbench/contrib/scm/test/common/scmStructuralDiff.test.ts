@@ -423,6 +423,38 @@ suite('SCM structural diff model', () => {
 		]);
 	});
 
+	test('represents paired entities with different names as renamed modifications', async () => {
+		const element = (await model.getChildren(resource))[0];
+		assert.ok(element.type === 'structuralDiff');
+		const renamed = {
+			...element,
+			node: { ...element.node, modified: { ...element.node.modified!, name: 'RenamedCalculator' } },
+		};
+		const candidates = [
+			renamed,
+			{
+				...renamed,
+				node: {
+					...renamed.node,
+					modifiedChanges: [{ textChangeIndex: 0, range: new Range(1, 7, 1, 24), classification: StructuralDiffClassification.Header }],
+				},
+			},
+		];
+		assert.deepStrictEqual(candidates.map(candidate => ({
+			name: getSCMStructuralDiffLabel(candidate),
+			change: getSCMStructuralDiffChange(candidate),
+			annotation: getSCMStructuralDiffChangeAnnotation(candidate),
+			description: getSCMStructuralDiffDescription(candidate),
+			aria: getSCMStructuralDiffAriaLabel(candidate),
+		})), candidates.map(() => ({
+			name: 'RenamedCalculator',
+			change: { type: 'modified', label: 'Changed' },
+			annotation: { label: 'rename', description: 'Renamed from Calculator to RenamedCalculator' },
+			description: 'Renamed from Calculator to RenamedCalculator',
+			aria: 'RenamedCalculator, class, Renamed from Calculator to RenamedCalculator',
+		})));
+	});
+
 	test('invalidates results when the model language changes', async () => {
 		const children = await model.getChildren(resource);
 		languageChanges.fire({ model: modified, oldLanguageId: 'plaintext' });

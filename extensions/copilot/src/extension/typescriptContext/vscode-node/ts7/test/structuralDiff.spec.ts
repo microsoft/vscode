@@ -99,7 +99,7 @@ suite('TypeScript 7 structural diff', () => {
 		}]);
 	});
 
-	test('does not confuse a renamed entity with its old counterpart', async () => {
+	test('matches a name-only rename with its original entity', async () => {
 		const original = 'function before() { return 1; }';
 		const modified = 'function after() { return 1; }';
 		const result = await compute(original, modified, [{
@@ -108,8 +108,170 @@ suite('TypeScript 7 structural diff', () => {
 		assert.deepStrictEqual(summarize(result, original, modified).map(node => ({
 			path: node.path, original: node.original, modified: node.modified,
 		})), [
-			{ path: ['after'], original: undefined, modified: 'after' },
-			{ path: ['before'], original: 'before', modified: undefined },
+			{ path: ['after'], original: 'before', modified: 'after' },
+		]);
+	});
+
+	for (const [source, before, after] of [
+		['class Example { private before: number = 1; }', 'before', 'after'],
+		['class Example { private runNext(): void { schedule(); } }', 'runNext', 'runNext2'],
+		['class Example { private runNext2(): void { schedule(); } }', 'runNext2', 'runNext'],
+		['class Example { _value = 1; }', '_value', 'value'],
+		['class Example { value = 1; }', 'value', '_value'],
+		['class Example { calculate() { return 1; } }', 'calculate', 'calcFastulate'],
+		['class Example { #before = 1; }', '#before', '#after'],
+		['interface Example { before: number; }', 'before', 'after'],
+		['const options = { before: 1 };', 'before', 'after'],
+		['const before = () => 1;', 'before', 'after'],
+		['class Example { before = () => 1; }', 'before', 'after'],
+		['const before = 1;', 'before', 'after'],
+	] as const) {
+		test(`matches a declaration-name edit including empty ranges: ${before} -> ${after} in ${source}`, async () => {
+			const modified = source.replace(before, after);
+			let prefix = 0;
+			while (prefix < Math.min(before.length, after.length) && before[prefix] === after[prefix]) {
+				prefix++;
+			}
+			let suffix = 0;
+			while (suffix < Math.min(before.length, after.length) - prefix
+				&& before[before.length - 1 - suffix] === after[after.length - 1 - suffix]) {
+				suffix++;
+			}
+			const originalDocument = createTextDocumentData(uri, source, 'typescript').document;
+			const modifiedDocument = createTextDocumentData(uri, modified, 'typescript').document;
+			const originalName = rangeOf(source, before);
+			const modifiedName = rangeOf(modified, after);
+			const originalStart = originalDocument.offsetAt(originalName.start);
+			const modifiedStart = modifiedDocument.offsetAt(modifiedName.start);
+			const result = await compute(source, modified, [{
+				originalRange: new vscode.Range(originalDocument.positionAt(originalStart + prefix), originalDocument.positionAt(originalStart + before.length - suffix)),
+				modifiedRange: new vscode.Range(modifiedDocument.positionAt(modifiedStart + prefix), modifiedDocument.positionAt(modifiedStart + after.length - suffix)),
+			}]);
+			const allNodes = flatten(result.root);
+			const renamed = allNodes.filter(node => node.modified?.name === after);
+			assert.deepStrictEqual({
+				renamed: renamed.map(node => ({
+					original: node.original?.name,
+					modified: node.modified?.name,
+					originalSelection: node.original?.selectionRange,
+					modifiedSelection: node.modified?.selectionRange,
+				})),
+				unmatched: allNodes.filter(node => !node.original || !node.modified).map(node => (node.modified ?? node.original)?.name),
+			}, {
+				renamed: [{ original: before, modified: after, originalSelection: originalName, modifiedSelection: modifiedName }],
+				unmatched: [],
+			});
+		});
+	}
+
+	test('matches renamed getters and setters independently', async () => {
+		const original = 'class Example { get before() { return 1; } set before(value: number) { consume(value); } }';
+		const modified = original.replaceAll('before', 'after');
+		const result = await compute(original, modified, [
+			{ originalRange: rangeOf(original, 'before'), modifiedRange: rangeOf(modified, 'after') },
+			{ originalRange: rangeOf(original, 'before', original.indexOf('set')), modifiedRange: rangeOf(modified, 'after', modified.indexOf('set')) },
+		]);
+		assert.deepStrictEqual(result.root.children[0].children.map(node => [node.original?.name, node.modified?.name, node.modified?.languageKind]), [
+			['before', 'after', 'getter'], ['before', 'after', 'setter'],
+		]);
+	});
+
+	test('reserves exact-name matches before searching for renames', async () => {
+		const original = 'class Example { before() { return 1; } unchangedName() { return 1; } }';
+		const modified = 'class Example { after() { return 1; } unchangedName() { return 2; } }';
+		const result = await compute(original, modified);
+		assert.deepStrictEqual(result.root.children[0].children.map(node => [node.original?.name, node.modified?.name]), [
+			['before', 'after'], ['unchangedName', 'unchangedName'],
+		]);
+	});
+
+	test('matches rename locations after earlier edits and allows reference changes outside the declaration', async () => {
+		const original = 'const value = 0;\nclass Example { before() { return 1; } }\nnew Example().before();';
+		const modified = `// An earlier insertion\n${original.replaceAll('before', 'after')}`;
+		const result = await compute(original, modified, [
+			{ originalRange: new vscode.Range(0, 0, 0, 0), modifiedRange: new vscode.Range(0, 0, 1, 0) },
+			{ originalRange: rangeOf(original, 'before'), modifiedRange: rangeOf(modified, 'after') },
+			{ originalRange: rangeOf(original, 'before', original.indexOf('new Example')), modifiedRange: rangeOf(modified, 'after', modified.indexOf('new Example')) },
+		]);
+		assert.deepStrictEqual(result.root.children[0].children.map(node => [node.original?.name, node.modified?.name]), [['before', 'after']]);
+	});
+
+	test('ignores formatting trivia without changing the syntax fingerprint', async () => {
+		const original = 'class Example { before(value: number) { return value + 1; } }';
+		const modified = 'class Example { after ( value : number ) {\n // Comment\n return value + 1;\n} }';
+		const result = await compute(original, modified, [{
+			originalRange: rangeOf(original, 'before'), modifiedRange: rangeOf(modified, 'after'),
+		}]);
+		assert.deepStrictEqual(result.root.children[0].children.map(node => [node.original?.name, node.modified?.name]), [['before', 'after']]);
+	});
+
+	for (const [original, modified] of [
+		['class Example { before() { return 1; } }', 'class Example { after() { return 2; } }'],
+		['class Example { before = 1; }', 'class Example { after = 2; }'],
+		['class Example { before: number; }', 'class Example { after: string; }'],
+		['class Example { before(value: number) {} }', 'class Example { after(value: string) {} }'],
+		['class Example { private before() {} }', 'class Example { public after() {} }'],
+		['function before() { return before(); }', 'function after() { return after(); }'],
+		['function before() { return "before"; }', 'function after() { return "after"; }'],
+		['function before() { return\nvalue; }', 'function after() { return value; }'],
+	] as const) {
+		test(`does not infer a rename when syntax outside the name changes: ${original}`, async () => {
+			const result = await compute(original, modified);
+			assert.deepStrictEqual(flatten(result.root).filter(node => node.original?.name === 'before' || node.modified?.name === 'after').map(node => [
+				node.original?.name, node.modified?.name,
+			]), [[undefined, 'after'], ['before', undefined]]);
+		});
+	}
+
+	for (const [beforeMembers, afterMembers] of [
+		['before() {} other() {}', 'after() {} another() {}'],
+		['before() {}', 'after() {} another() {}'],
+		['before() {} other() {}', 'after() {}'],
+	] as const) {
+		test(`does not infer ambiguous one-to-one rename candidates: ${beforeMembers} -> ${afterMembers}`, async () => {
+			const result = await compute(`class Example { ${beforeMembers} }`, `class Example { ${afterMembers} }`);
+			assert.strictEqual(result.root.children[0].children.every(node => !node.original || !node.modified), true);
+		});
+	}
+
+	test('does not infer rename pairs for overloads', async () => {
+		const original = 'function before(value: string): void;\nfunction before(value: number): void;\nfunction before(value: string | number) {}';
+		const modified = original.replaceAll('before', 'after');
+		const result = await compute(original, modified);
+		assert.strictEqual(result.root.children.every(node => !node.original || !node.modified), true);
+	});
+
+	test('requires paired name-location evidence instead of equating independent additions and deletions', async () => {
+		const original = 'class Example {\n\tbefore() { return 1; }\n\tkeep() { return 2; }\n}';
+		const modified = 'class Example {\n\tkeep() { return 2; }\n\tafter() { return 1; }\n}';
+		const result = await compute(original, modified, [
+			{ originalRange: rangeOf(original, '\tbefore() { return 1; }\n'), modifiedRange: new vscode.Range(1, 0, 1, 0) },
+			{ originalRange: new vscode.Range(3, 0, 3, 0), modifiedRange: rangeOf(modified, '\tafter() { return 1; }\n') },
+		]);
+		assert.deepStrictEqual(result.root.children[0].children.map(node => [node.original?.name, node.modified?.name]), [
+			[undefined, 'after'], ['before', undefined],
+		]);
+	});
+
+	test('does not search across different matched parent entities', async () => {
+		const original = 'class First { before() {} }\nclass Second {}';
+		const modified = 'class First {}\nclass Second { after() {} }';
+		const result = await compute(original, modified);
+		assert.deepStrictEqual(result.root.children.map(node => ({
+			parent: node.modified?.name,
+			children: node.children.map(child => [child.original?.name, child.modified?.name]),
+		})), [
+			{ parent: 'First', children: [['before', undefined]] },
+			{ parent: 'Second', children: [[undefined, 'after']] },
+		]);
+	});
+
+	test('does not infer computed-name changes as simple identifier renames', async () => {
+		const original = 'class Example { [before]() {} }';
+		const modified = 'class Example { [after]() {} }';
+		const result = await compute(original, modified);
+		assert.deepStrictEqual(result.root.children[0].children.map(node => [node.original?.name, node.modified?.name]), [
+			[undefined, '[after]'], ['[before]', undefined],
 		]);
 	});
 
@@ -569,6 +731,10 @@ class TestTypeScript7Api {
 
 function fullRange(document: vscode.TextDocument): vscode.Range {
 	return new vscode.Range(new vscode.Position(0, 0), document.positionAt(document.getText().length));
+}
+
+function flatten(node: vscode.StructuralDiffNode): vscode.StructuralDiffNode[] {
+	return [node, ...node.children.flatMap(flatten)];
 }
 
 function rangeOf(text: string, part: string, from = 0): vscode.Range {

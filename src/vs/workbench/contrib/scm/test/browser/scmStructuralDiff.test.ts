@@ -400,6 +400,37 @@ suite('SCM structural diff tree', () => {
 		});
 	});
 
+	test('renders renamed entities as modifications with both names in hovers and accessible labels', () => {
+		const hoverService = new TestStatusHoverService();
+		const renderer = new SCMStructuralDiffRenderer(hoverService);
+		const template = store.add(renderer.renderTemplate($('.scm-view')));
+		const element = {
+			...child,
+			node: {
+				...child.node,
+				original: { ...child.node.original!, name: 'runNext' },
+				modified: { ...child.node.modified!, name: 'runNext2' },
+				modifiedChanges: [{ textChangeIndex: 0, range: new Range(3, 9, 3, 10), classification: StructuralDiffClassification.Header }],
+			},
+		};
+		renderer.renderElement(new class extends mock<ITreeNode<SCMStructuralDiffElement, FuzzyScore>>() {
+			override readonly element = element;
+			override readonly filterData = FuzzyScore.Default;
+		}, 0, template);
+		assert.deepStrictEqual({
+			text: template.label.element.textContent,
+			annotation: template.annotation.textContent,
+			modifiedIcon: template.status.classList.contains('codicon-diff-modified'),
+			addedIcon: template.status.classList.contains('codicon-diff-added'),
+			hovers: hoverService.labels,
+			aria: template.label.element.getAttribute('aria-label'),
+		}, {
+			text: 'runNext2', annotation: '[rename]', modifiedIcon: true, addedIcon: false,
+			hovers: ['Renamed from runNext to runNext2'],
+			aria: 'runNext2, method, Renamed from runNext to runNext2',
+		});
+	});
+
 	test('right-aligns bracketed annotations before status icons without squeezing them for long names', () => {
 		const container = $('.monaco-workbench.scm-view');
 		container.style.width = '240px';

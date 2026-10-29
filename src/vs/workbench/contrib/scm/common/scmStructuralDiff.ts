@@ -70,7 +70,8 @@ export function getSCMStructuralDiffChange(element: SCMStructuralDiffElement): {
 	if (!element.node.modified) {
 		return { type: 'deleted', label: localize('structuralDiff.deleted', "Deleted") };
 	}
-	if (element.node.originalChanges.length > 0 || element.node.modifiedChanges.length > 0) {
+	if (element.node.original.name !== element.node.modified.name
+		|| element.node.originalChanges.length > 0 || element.node.modifiedChanges.length > 0) {
 		return { type: 'modified', label: localize('structuralDiff.changed', "Changed") };
 	}
 	return undefined;
@@ -79,6 +80,12 @@ export function getSCMStructuralDiffChange(element: SCMStructuralDiffElement): {
 export function getSCMStructuralDiffChangeAnnotation(element: SCMStructuralDiffElement): { readonly label: string; readonly description: string } | undefined {
 	if (element.type === 'structuralDiffStatus' || !element.node.original || !element.node.modified) {
 		return undefined;
+	}
+	if (element.node.original.name !== element.node.modified.name) {
+		return {
+			label: localize('structuralDiff.renameAnnotation', "rename"),
+			description: localize('structuralDiff.renamed', "Renamed from {0} to {1}", element.node.original.name, element.node.modified.name),
+		};
 	}
 	const changes = [...element.node.originalChanges, ...element.node.modifiedChanges];
 	const declarationChanged = changes.some(change => change.classification === StructuralDiffClassification.Header);

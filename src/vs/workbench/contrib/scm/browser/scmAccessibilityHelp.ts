@@ -128,6 +128,7 @@ class SCMAccessibilityHelpContentProvider extends Disposable implements IAccessi
 		content.push(localize('scm-structural-msg2', " - Press Enter on a changed symbol to open its file diff at that symbol. Deleted symbols open on the original side. File-level actions continue to apply to file rows."));
 		content.push(localize('scm-structural-status', " - Changed symbols have added, deleted, or modified icons. Their status is included in the accessible label. Unchanged containers have no status icon."));
 		content.push(localize('scm-structural-annotations', " - Modified symbols indicate whether their declaration, implementation, or both changed. These details are included in accessible labels."));
+		content.push(localize('scm-structural-rename', " - Detected renames appear with the new symbol name and a rename annotation. The original and new names are included in the hover and accessible label."));
 
 		// Source Control Graph
 		content.push(localize('scm-graph-msg1', "Use the \"Source Control: Focus on Source Control Graph View\" command to open the Source Control Graph view."));
