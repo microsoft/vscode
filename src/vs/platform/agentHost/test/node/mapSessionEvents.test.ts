@@ -2381,6 +2381,40 @@ suite('mapSessionEvents — history replay', () => {
 		}
 	}
 
+	test('Remote Control prompts are restored as user turns', async () => {
+		// `/remote on`: prompts steered from github.com or GitHub Mobile echo with a `command-<id>` source.
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'typed', data: { interactionId: 'interaction-1', content: 'Typed in VS Code' } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-1', content: 'Hello.', toolRequests: [] } },
+			{ type: 'user.message', id: 'remote', data: { interactionId: 'interaction-2', content: 'Sent from the phone', source: 'command-a023a7ea-d4b5-48b9-b600-9cf7d83a2f28' } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-2', content: 'Answered locally.', toolRequests: [] } },
+			{ type: 'user.message', id: 'injected', data: { interactionId: 'interaction-3', content: 'Injected skill content', source: 'skill' } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-3', content: 'The skill is complete.', toolRequests: [] } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({
+			id: turn.id,
+			message: turn.message,
+			parts: partKinds(turn.responseParts),
+		})), [
+			{
+				id: 'typed',
+				message: { text: 'Typed in VS Code', origin: { kind: MessageKind.User } },
+				parts: [{ kind: ResponsePartKind.Markdown, content: 'Hello.' }],
+			},
+			{
+				id: 'remote',
+				message: { text: 'Sent from the phone', origin: { kind: MessageKind.User } },
+				parts: [
+					{ kind: ResponsePartKind.Markdown, content: 'Answered locally.' },
+					{ kind: ResponsePartKind.Markdown, content: 'The skill is complete.' },
+				],
+			},
+		]);
+	});
+
 	test('synthetic user messages do not start a new turn', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'user-event-1', data: { interactionId: 'interaction-1', content: 'Use the skill' } },
