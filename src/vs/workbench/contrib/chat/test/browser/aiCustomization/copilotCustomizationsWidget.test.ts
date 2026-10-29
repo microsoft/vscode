@@ -575,7 +575,7 @@ suite('CopilotCanvasesWidget', () => {
 	});
 
 	test('refreshes committed enablement after a live reconciliation failure', async () => {
-		const harness = createHarness({ mutationError: new Error('Canvas extension \'Preview Extension\' was disabled in settings, but couldn\'t stop in this chat. Reconciliation failed.') });
+		const harness = createHarness({ mutationError: new Error('Canvas extension \'Preview Extension\' was disabled in settings, but couldn\'t be stopped in this chat. Reconciliation failed.') });
 		await timeout(20);
 		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable canvas extension \'Preview Extension\'"]');
 		assert.ok(disable);
@@ -591,7 +591,7 @@ suite('CopilotCanvasesWidget', () => {
 			refreshed: true,
 			checked: 'false',
 			retained: true,
-			notifications: ['Canvas extension \'Preview Extension\' was disabled in settings, but couldn\'t stop in this chat. Reconciliation failed.'],
+			notifications: ['Canvas extension \'Preview Extension\' was disabled in settings, but couldn\'t be stopped in this chat. Reconciliation failed.'],
 		});
 	});
 
@@ -607,7 +607,7 @@ suite('CopilotCanvasesWidget', () => {
 				return [preview];
 			},
 			onMutation: () => failCanvasListing = true,
-			mutationError: new Error('Canvas extension \'Preview Extension\' was disabled in settings, but couldn\'t stop in this chat. Reconciliation failed.'),
+			mutationError: new Error('Canvas extension \'Preview Extension\' was disabled in settings, but couldn\'t be stopped in this chat. Reconciliation failed.'),
 		});
 		await timeout(20);
 		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable canvas extension \'Preview Extension\'"]');
@@ -619,7 +619,7 @@ suite('CopilotCanvasesWidget', () => {
 			notifications: harness.notifications,
 		}, {
 			checked: 'false',
-			notifications: ['Canvas extension \'Preview Extension\' was disabled in settings, but couldn\'t stop in this chat. Reconciliation failed.'],
+			notifications: ['Canvas extension \'Preview Extension\' was disabled in settings, but couldn\'t be stopped in this chat. Reconciliation failed.'],
 		});
 	});
 
@@ -649,7 +649,7 @@ suite('CopilotCanvasesWidget', () => {
 		const harness = createHarness({
 			definitions: [preview],
 			extensionInventory: inventory([preview], 'disabled'),
-			mutationError: new Error('Canvas extension \'Preview Extension\' was enabled in settings, but couldn\'t start in this chat. Reconciliation failed.'),
+			mutationError: new Error('Canvas extension \'Preview Extension\' was enabled in settings, but couldn\'t be started in this chat. Reconciliation failed.'),
 		});
 		await timeout(20);
 		const enable = harness.container.querySelector<HTMLElement>('[aria-label="Enable canvas extension \'Preview Extension\'"]');

@@ -3020,8 +3020,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			});
 		} catch (error) {
 			throw new Error(enabled
-				? localize('copilot.extensionEnableReconcileFailed', "Canvas extension '{0}' was enabled in settings, but couldn't start in this chat. {1}", extension.name, getErrorMessage(error))
-				: localize('copilot.extensionDisableReconcileFailed', "Canvas extension '{0}' was disabled in settings, but couldn't stop in this chat. {1}", extension.name, getErrorMessage(error)));
+				? localize('copilot.extensionEnableReconcileFailed', "Canvas extension '{0}' was enabled in settings, but couldn't be started in this chat. {1}", extension.name, getErrorMessage(error))
+				: localize('copilot.extensionDisableReconcileFailed', "Canvas extension '{0}' was disabled in settings, but couldn't be stopped in this chat. {1}", extension.name, getErrorMessage(error)));
 		}
 	}
 
