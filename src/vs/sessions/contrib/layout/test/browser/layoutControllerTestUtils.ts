@@ -267,6 +267,8 @@ export interface ITestLayoutHarness {
 	readonly layoutModeService: ISessionLayoutModeService;
 	/** The session view the Sessions Part reports for any session. */
 	sessionView: SessionView | undefined;
+	/** Whether {@link sessionView} is the main window's, rather than a chat window's that the lookup by id falls back to. */
+	sessionViewInMainWindow: boolean;
 	/** Fires the Sessions Part's layout, which the harness reports after `setSize` of the Sessions Part. */
 	onDidLayoutSessionsPart: Emitter<IDimension>;
 	sessionsPartChromeHeight: number;
@@ -412,6 +414,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		executedCommands: [],
 		get layoutModeService() { return layoutModeService; },
 		sessionView: undefined,
+		sessionViewInMainWindow: true,
 		onDidLayoutSessionsPart: store.add(new Emitter<IDimension>()),
 		sessionsPartChromeHeight: 0,
 		sessionsPartHeightConstraints: undefined,
@@ -547,6 +550,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			}
 		}
 		override getSessionView() { return harness.sessionView; }
+		override getMainWindowSessionView() { return harness.sessionViewInMainWindow ? harness.sessionView : undefined; }
 	});
 
 	instaService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {

@@ -292,4 +292,18 @@ suite('Sessions - DesktopStackedChatController', () => {
 			grown: { enabled: true, inputOnly: false, headerHidden: false, sizedByHost: false, height: Math.round((collapsed + 500) / 2), minimum: collapsed, remembered: false },
 		});
 	}));
+
+	test('never drives the view of a chat window that shows the main window\'s session, such as while the session moves to a window: only a view of the main window', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { controller, chatView, sessionView } = await createController();
+		// The lookup by id finds no view of the main window, and falls back to the chat window's.
+		harness.sessionViewInMainWindow = false;
+		harness.layoutService.setSidePaneArrangement(SessionLayoutMode.Stacked);
+		await timeout(0);
+		controller.stackedChat.toggleConversation();
+		drag(collapsed);
+		await timeout(0);
+		const { enabled, inputOnly, headerHidden, sizedByHost } = state(chatView, sessionView);
+
+		assert.deepStrictEqual({ enabled, inputOnly, headerHidden, sizedByHost }, { enabled: false, inputOnly: false, headerHidden: false, sizedByHost: false });
+	}));
 });

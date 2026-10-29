@@ -82,7 +82,9 @@ export class DesktopStackedChatController extends Disposable {
 				return undefined;
 			}
 			const session = sessionsService.mainWindowActiveSession.read(reader);
-			return this._sessionsPartService.getSessionView(session?.sessionId);
+			// The main window's view only: never that of a chat window showing the session, which has its own input-only
+			// controller and header.
+			return this._sessionsPartService.getMainWindowSessionView(session?.sessionId);
 		});
 		this._register(autorun(reader => {
 			const view = sessionView.read(reader);

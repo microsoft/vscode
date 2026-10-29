@@ -130,6 +130,13 @@ export interface ISessionsPartService {
 	getSessionView(session: string | ISession | undefined): SessionView | undefined;
 
 	/**
+	 * The main window's view of the session with `sessionId`, or its placeholder (new-session) view when `sessionId` is
+	 * `undefined`; never the view of a chat window, which {@link getSessionView} falls back to. For what drives only the
+	 * main window's views, such as its layout.
+	 */
+	getMainWindowSessionView(sessionId: string | undefined): SessionView | undefined;
+
+	/**
 	 * Returns the session view that currently contains DOM focus.
 	 */
 	getFocusedSessionView(): SessionView | undefined;
