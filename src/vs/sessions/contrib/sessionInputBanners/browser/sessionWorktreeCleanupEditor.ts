@@ -250,7 +250,10 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.retryButton = this.editorDisposables.add(new Button(this.batchSummaryRow, { ...defaultButtonStyles, secondary: true }));
 		this.retryButton.label = localize('sessionWorktreeCleanup.retryFailed', "Retry Failed Worktrees");
 		this.retryButton.element.classList.add('session-worktree-cleanup-action', 'session-worktree-cleanup-retry');
-		this.editorDisposables.add(this.retryButton.onDidClick(() => void this.cleanupSelected(this.getRetryCandidates())));
+		this.editorDisposables.add(this.retryButton.onDidClick(() => {
+			const candidates = this.getRetryCandidates();
+			void this.cleanupSelected(candidates, candidates.some(worktree => this.canForceCleanup(worktree)) ? candidates : undefined);
+		}));
 
 		const selection = dom.$('.session-worktree-cleanup-select-all');
 		summaryRow.insertBefore(selection, this.cleanupButton.element);
@@ -1257,7 +1260,12 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	}
 
 	private canForceCleanup(worktree: ISessionWorktree): boolean {
-		return !this.isWorktreeInProgress(worktree) && this.hasRemovalIssue(worktree) && this.cleanupService.canForceCleanup?.(worktree) === true;
+		return !this.isWorktreeInProgress(worktree) && this.hasRemovalIssue(worktree) && this.cleanupService.canForceCleanup?.(this.withSchedulingFailure(worktree)) === true;
+	}
+
+	private withSchedulingFailure(worktree: ISessionWorktree): ISessionWorktree {
+		const message = this.cleanupBatch.get(getWorktreeCleanupId(worktree))?.schedulingError;
+		return message ? { ...worktree, cleanupStatus: { state: 'failed', message } } : worktree;
 	}
 
 	private updateCleanupBatch(): void {
@@ -1283,12 +1291,10 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		}
 	}
 
-	private getRetryCandidates(): ISessionWorktreeCleanupCandidate[] {
-		return this.getVisibleWorktrees()
-			.filter(worktree => this.cleanupBatch.get(getWorktreeCleanupId(worktree))?.state === 'failed' && this.canScheduleCleanup(worktree))
-			.map(worktree => worktree.session
-				? { session: worktree.session, sizeBytes: worktree.sizeBytes, worktreeCount: worktree.worktreeCount }
-				: { unlinkedWorktree: worktree.unlinkedWorktree, sizeBytes: worktree.sizeBytes, worktreeCount: worktree.worktreeCount });
+	private getRetryCandidates(): ISessionWorktree[] {
+		const failed = this.getVisibleWorktrees().filter(worktree => this.cleanupBatch.get(getWorktreeCleanupId(worktree))?.state === 'failed');
+		const force = failed.filter(worktree => this.canForceCleanup(worktree));
+		return force.length > 0 ? force : failed.filter(worktree => this.canScheduleCleanup(worktree));
 	}
 
 	private renderBatchSummary(): void {
@@ -1324,7 +1330,11 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		}
 		this.hasCleanupFailures ||= failed > 0;
 		dom.setVisibility(this.hasCleanupFailures, this.retryButton.element);
-		this.retryButton.enabled = !this.isSchedulingCleanup && this.getRetryCandidates().length > 0;
+		const retryCandidates = this.getRetryCandidates();
+		this.retryButton.label = retryCandidates.some(worktree => this.canForceCleanup(worktree))
+			? localize('sessionWorktreeCleanup.forceRetryFailed', "Force Remove Failed Worktrees")
+			: localize('sessionWorktreeCleanup.retryFailed', "Retry Failed Worktrees");
+		this.retryButton.enabled = !this.isSchedulingCleanup && retryCandidates.length > 0;
 	}
 
 	private async cleanupSelected(selected = this.getSelected(), forceWorktrees?: readonly ISessionWorktree[]): Promise<void> {
@@ -1370,7 +1380,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 				}
 			};
 			if (forceWorktrees) {
-				await this.cleanupService.forceCleanupWorktrees(forceWorktrees, onProgress);
+				await this.cleanupService.forceCleanupWorktrees(forceWorktrees.map(worktree => this.withSchedulingFailure(worktree)), onProgress);
 			} else {
 				await this.cleanupService.cleanupWorktrees(selected, onProgress);
 			}

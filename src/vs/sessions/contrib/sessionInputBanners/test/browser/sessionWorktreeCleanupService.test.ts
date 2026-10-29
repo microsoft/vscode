@@ -1092,7 +1092,8 @@ suite('SessionWorktreeCleanupService', () => {
 				result, calls,
 				warnsAboutLoss: confirmations.length === 1 && confirmations[0].includes('all uncommitted changes') && confirmations[0].includes('cannot be undone'),
 				warnsAboutUsage: confirmations[0].includes('even if another session or chat is using them') && confirmations[0].includes('may stop working'),
-			}, { result: confirmed, calls: confirmed ? [{ retry: true, force: true }] : [], warnsAboutLoss: true, warnsAboutUsage: true });
+				warnsAboutBranchChange: confirmations[0].includes('their branch changed since they were listed'),
+			}, { result: confirmed, calls: confirmed ? [{ retry: true, force: true }] : [], warnsAboutLoss: true, warnsAboutUsage: true, warnsAboutBranchChange: true });
 		});
 	}
 

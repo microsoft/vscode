@@ -183,8 +183,8 @@ suite('AgentHostWorktreeCleanupService', () => {
 			for (const path of [repository, external, symlink]) {
 				await assert.rejects(cleanup.cleanupManagedWorktree(repository, path, 'agents/recovered', force), /no longer registered/);
 			}
-			await assert.rejects(cleanup.cleanupManagedWorktree(repository, managed, 'agents/wrong-branch', force), /branch/);
 		}
+		await assert.rejects(cleanup.cleanupManagedWorktree(repository, managed, 'agents/wrong-branch'), /branch changed/);
 	});
 
 	test('managed inventory and cleanup require an agents branch prefix even with force', async () => {
@@ -209,6 +209,38 @@ suite('AgentHostWorktreeCleanupService', () => {
 		await worktree.removal.complete();
 		await assert.rejects(removal, /branches starting with 'agents\/'/);
 		assert.deepStrictEqual({ forced: worktree.forcedRemovals, pending: (await pending(database)).length }, { forced: [], pending: 1 });
+	});
+
+	for (const staleBranch of ['agents/stale', 'component-explorer-1']) {
+		test(`confirmed force ignores stale branch ${staleBranch} and usage references`, async () => {
+			const { database, cleanup, worktree, repository, managed, head } = await createManagedInventory();
+			head.branch = 'agents/current';
+			await useWorktree(database, OTHER_SESSION, { repositoryRoot: repository, worktree: managed, branchName: head.branch });
+			await assert.rejects(cleanup.cleanupManagedWorktree(repository, managed, staleBranch), /branch/);
+			await cleanup.cleanupManagedWorktree(repository, managed, staleBranch, true);
+			assert.deepStrictEqual({
+				calls: worktree.calls,
+				forced: worktree.forcedRemovals,
+				pending: await pending(database),
+			}, {
+				calls: [`remove:${managed.toString()}:commit:agents/current:force`],
+				forced: [managed.toString()],
+				pending: [],
+			});
+		});
+	}
+
+	test('confirmed force tolerates an agents branch change at the final removal guard', async () => {
+		const { database, cleanup, worktree, repository, managed, head } = await createManagedInventory();
+		worktree.removal = new DeferredPromise<void>();
+		const removal = cleanup.cleanupManagedWorktree(repository, managed, head.branch, true);
+		await worktree.removalStarted.p;
+		head.branch = 'agents/current';
+		await worktree.removal.complete();
+		await removal;
+		assert.deepStrictEqual({ forced: worktree.forcedRemovals, pending: await pending(database) }, {
+			forced: [managed.toString()], pending: [],
+		});
 	});
 
 	test('explicit unlinked cleanup persists a commit-mode request without a session owner', async () => {

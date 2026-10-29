@@ -1477,6 +1477,54 @@ suite('SessionWorktreeCleanupEditor', () => {
 		});
 	}));
 
+	test('failed scheduling enables force selection and confirmed retry without repeating ordinary cleanup', async () => {
+		const worktrees = [createUnlinkedWorktree('agents/in-use'), createUnlinkedWorktree('component-explorer-1')];
+		const ordinary: string[][] = [];
+		const forced: { id: string; state: string | undefined }[][] = [];
+		const { editor, container, errors } = createEditor({
+			getWorktrees: async () => worktrees,
+			canForceCleanup: worktree => worktree.worktreeExists === true && worktree.cleanupStatus?.state === 'failed',
+			cleanupWorktrees: async (candidates, onProgress) => {
+				ordinary.push(candidates.map(getWorktreeCleanupId));
+				onProgress?.({ state: 'started' });
+				for (const candidate of candidates) {
+					onProgress?.({ state: 'failed', candidate, message: 'A session is using this worktree or its branch changed' });
+				}
+				throw new Error('Some cleanup requests failed');
+			},
+			// Cancellation leaves the failed batch available for another confirmed attempt.
+			forceCleanupWorktrees: async candidates => {
+				forced.push(candidates.map(candidate => ({ id: getWorktreeCleanupId(candidate), state: candidate.cleanupStatus?.state })));
+				return false;
+			},
+		});
+		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+		await timeout(0);
+		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
+		await timeout(0);
+		const retry = container.querySelector<HTMLElement>('.session-worktree-cleanup-retry')!;
+		const section = container.querySelector('details')!;
+		const initial = [...section.querySelectorAll('.session-worktree-cleanup-row [role="checkbox"]')].map(checkbox => checkbox.getAttribute('aria-checked'));
+		retry.click();
+		await timeout(0);
+		section.querySelector<HTMLElement>('.session-worktree-cleanup-select-all [role="checkbox"]')!.click();
+		container.querySelector<HTMLElement>('.session-worktree-cleanup-force-remove')!.click();
+		await timeout(0);
+		const expectedForced = worktrees.map(worktree => ({ id: getWorktreeCleanupId(worktree), state: 'failed' }));
+		assert.deepStrictEqual({
+			ordinary, forced, initial, errors,
+			retry: { label: retry.textContent, disabled: retry.getAttribute('aria-disabled') },
+			selected: [...section.querySelectorAll('.session-worktree-cleanup-row [role="checkbox"]')].map(checkbox => checkbox.getAttribute('aria-checked')),
+		}, {
+			ordinary: [worktrees.map(getWorktreeCleanupId)],
+			forced: [expectedForced, expectedForced],
+			initial: ['false', 'false'],
+			errors: ['Some cleanup requests failed'],
+			retry: { label: 'Force Remove Failed Worktrees', disabled: 'false' },
+			selected: ['true', 'true'],
+		});
+	});
+
 	test('keeps batch counts across filters and restricts retry to visible failed worktrees', async () => {
 		const worktrees = [createWorktree('first', '/repos/app'), createWorktree('second', '/other/app')];
 		const requests: string[][] = [];
