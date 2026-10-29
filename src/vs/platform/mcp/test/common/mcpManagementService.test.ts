@@ -7,7 +7,6 @@ import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { AbstractCommonMcpManagementService, AbstractMcpResourceManagementService, McpUserResourceManagementService } from '../../common/mcpManagementService.js';
 import { GalleryMcpServerStatus, IAllowedMcpServersService, IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpServerInput, InstallOptions, RegistryType, TransportType, UninstallOptions } from '../../common/mcpManagement.js';
@@ -1416,7 +1415,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 
 suite('McpResourceManagementService', () => {
 	const mcpResource = URI.from({ scheme: Schemas.inMemory, path: '/mcp.json' });
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: FileService;
 	let uriIdentityService: UriIdentityService;
 	let scannerService: McpResourceScannerService;
@@ -1436,7 +1435,6 @@ suite('McpResourceManagementService', () => {
 	}
 
 	setup(async () => {
-		disposables = new DisposableStore();
 		fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
 		uriIdentityService = disposables.add(new UriIdentityService(fileService));
@@ -1456,12 +1454,6 @@ suite('McpResourceManagementService', () => {
 			}
 		}, null, '\t')));
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('fires update when root sandbox changes', async () => {
 		const initial = await service.getInstalled();
@@ -1628,7 +1620,7 @@ suite('McpResourceManagementService', () => {
 
 suite('McpResourceManagementService - install policy enforcement', () => {
 	const mcpResource = URI.from({ scheme: Schemas.inMemory, path: '/mcp-policy.json' });
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: FileService;
 	let uriIdentityService: UriIdentityService;
 	let scannerService: McpResourceScannerService;
@@ -1641,18 +1633,11 @@ suite('McpResourceManagementService - install policy enforcement', () => {
 	}
 
 	setup(() => {
-		disposables = new DisposableStore();
 		fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
 		uriIdentityService = disposables.add(new UriIdentityService(fileService));
 		scannerService = disposables.add(new McpResourceScannerService(fileService, uriIdentityService));
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('install throws and does not persist a server blocked by policy', async () => {
 		const service = createService(() => new MarkdownString('This mcp server is blocked by your organization.'));

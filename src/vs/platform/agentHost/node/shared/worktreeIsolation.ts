@@ -24,9 +24,9 @@ import { ISessionDataService, type ISessionDatabase } from '../../common/session
 import { IAgentHostSessionStateStore, type ISessionStateWorktreeCoOwner, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { getSessionPullRequestUrl, SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { DETACHED_WORKTREE_OWNER_SCHEME, DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX, isAgentDevContainerWorktreeHandle } from '../../common/meta/agentDevContainerWorktreeMeta.js';
-import { getRepositoryRootFromWorktree, getWorktreesRoot } from '../../common/worktreePaths.js';
+import { AGENT_BRANCH_PREFIX, getRepositoryRootFromWorktree, getWorktreesRoot } from '../../common/worktreePaths.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, ResponsePart, ResponsePartKind, Turn } from '../../common/state/sessionState.js';
-import { AGENT_BRANCH_PREFIX, IAgentBranchNameGenerator } from './agentBranchNameGenerator.js';
+import { IAgentBranchNameGenerator } from './agentBranchNameGenerator.js';
 import { IAgentHostPullRequestResolver } from './pullRequestResolver.js';
 import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees } from './sessionAdditionalWorktrees.js';
@@ -132,7 +132,7 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	 * before the folder is removed. Throws when Git fails, so the removal can
 	 * be retried.
 	 */
-	removeRecordedWorktree(key: string, worktree: IRecordedWorktree, mode: WorktreeRemovalMode, canRemove?: () => Promise<boolean>): Promise<WorktreeRemovalOutcome>;
+	removeRecordedWorktree(key: string, worktree: IRecordedWorktree, mode: WorktreeRemovalMode, canRemove?: () => Promise<boolean>, discardChanges?: boolean): Promise<WorktreeRemovalOutcome>;
 	readWorktreeMetadata(sessionUri: URI): Promise<IWorktreeMetadata | undefined>;
 	adoptExistingWorktreeMetadata(sessionUri: URI, workingDirectory: URI): Promise<boolean>;
 	recordAdoptedWorktreeMetadata(sessionUri: URI, metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI }): Promise<void>;
@@ -1783,8 +1783,16 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		return worktree && { worktree: worktree.worktree, repositoryRoot: worktree.repositoryRoot, branchName: this._materializedWorktrees.get(key)?.branchName ?? '' };
 	}
 
-	async removeRecordedWorktree(key: string, recorded: IRecordedWorktree, mode: WorktreeRemovalMode, canRemove?: () => Promise<boolean>): Promise<WorktreeRemovalOutcome> {
+	async removeRecordedWorktree(key: string, recorded: IRecordedWorktree, mode: WorktreeRemovalMode, canRemove?: () => Promise<boolean>, discardChanges = false): Promise<WorktreeRemovalOutcome> {
 		const { worktree, branchName } = recorded;
+		if (discardChanges) {
+			if (canRemove && !await canRemove()) {
+				return 'inUse';
+			}
+			await this._gitService.removeWorktree(recorded.repositoryRoot, worktree, { force: true, discardChanges: true });
+			this._forgetRemovedWorktree(key);
+			return 'removed';
+		}
 		if (!await fileExists(worktree.fsPath)) {
 			// Prune its registration, so the branch is free and unarchive can recreate the folder.
 			if (await fileExists(recorded.repositoryRoot.fsPath)) {

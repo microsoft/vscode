@@ -15758,16 +15758,16 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._worktreeDiskUsage.measure(root, token, session);
 	}
 
-	sessionWorktreeCleanup(session: URI, retry: boolean) {
-		return this._worktreeCleanup.sessionWorktreeCleanup(session, retry);
+	sessionWorktreeCleanup(session: URI, retry: boolean, force?: boolean) {
+		return this._worktreeCleanup.sessionWorktreeCleanup(session, retry, force);
 	}
 
 	listManagedWorktrees(repositories: readonly URI[]) {
 		return this._worktreeCleanup.listManagedWorktrees(repositories);
 	}
 
-	cleanupManagedWorktree(repository: URI, worktree: URI, branch: string) {
-		return this._worktreeCleanup.cleanupManagedWorktree(repository, worktree, branch);
+	cleanupManagedWorktree(repository: URI, worktree: URI, branch: string, force?: boolean) {
+		return this._worktreeCleanup.cleanupManagedWorktree(repository, worktree, branch, force);
 	}
 
 	async resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {

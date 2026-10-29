@@ -13,7 +13,6 @@ import { disposableTimeout, timeout } from '../../../../../base/common/async.js'
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { structuralEquals } from '../../../../../base/common/equals.js';
 import { CancellationError, ErrorNoTelemetry, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
@@ -91,6 +90,7 @@ import { ILanguageModelToolsService, isToolSet } from '../../common/tools/langua
 import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, handleModeSwitch } from '../actions/chatActions.js';
+import { captureForkPromptSourceInput, IForkPromptSourceInput } from '../actions/chatForkActions.js';
 import { ChatTreeItem, ChatViewPaneTarget, IChatAcceptInputOptions, IChatAccessibilityService, IChatBackgroundActivityPillSections, IChatCodeBlockInfo, IChatFileTreeInfo, IChatFindController, IChatListItemRendererOptions, IChatPasteTargetService, IChatRespondent, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, IChatWidgetViewState, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
 import { ChatAttachmentModel } from '../attachments/chatAttachmentModel.js';
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
@@ -3542,38 +3542,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private _createForkPromptInputCleanup(query: string | undefined, options: IChatAcceptInputOptions | undefined): (() => void) | undefined {
-		const sourceSessionResource = this.viewModel?.sessionResource;
-		if (!sourceSessionResource || !isAgentHostTarget(getChatSessionType(sourceSessionResource)) || !!query || options?.preserveInput) {
+	private _createForkPromptInputCleanup(query: string | undefined, options: IChatAcceptInputOptions | undefined): IForkPromptSourceInput | undefined {
+		// Only a submission of the composer's own draft can own it.
+		if (query || options?.preserveInput) {
 			return undefined;
 		}
-		const ownedInput = this.getInput();
-		const forkPart = this.parsedInput.parts.find((part): part is ChatRequestSlashCommandPart =>
-			part instanceof ChatRequestSlashCommandPart && part.slashCommand.command === 'fork');
-		const afterFork = forkPart ? ownedInput.slice(forkPart.range.endExclusive) : '';
-		const promptToken = afterFork ? /^(\s*)prompt(?=\s|$)/.exec(afterFork) : undefined;
-		const promptText = promptToken ? afterFork.slice(promptToken[0].length).trim() : '';
-		if (!forkPart
-			|| !promptToken
-			|| !promptText) {
-			return undefined;
-		}
-		const sourceInputModel = this.viewModel?.model.inputModel;
-		const ownedAttachments = [...this.input.attachmentModel.attachments];
-		// Keep cleanup bound to the source model even after navigating to the fork.
-		return () => {
-			if (!sourceInputModel) {
-				return;
-			}
-			const state = sourceInputModel.state.get();
-			if (state?.inputText !== ownedInput) {
-				return;
-			}
-			if (!structuralEquals(state.attachments ?? [], ownedAttachments)) {
-				return;
-			}
-			sourceInputModel.setState({ inputText: '', attachments: [] });
-		};
+		return captureForkPromptSourceInput(this, this.chatService);
 	}
 
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
@@ -3589,7 +3563,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// its captured source draft until its silent callback establishes whether
 		// creation/message acceptance succeeded; ordinary slash commands retain
 		// their existing eager-clear behavior.
-		let clearOwnedForkPromptInput: (() => void) | undefined;
+		let forkPromptSourceInput: IForkPromptSourceInput | undefined;
 		const sessionResource = this.viewModel?.sessionResource;
 		const modeInfo = this.input.currentModeInfo;
 		const interaction = this.instantiationService.createInstance(ChatUserInteraction, {
@@ -3618,7 +3592,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			// Dictation may flush its final transcript while stopping. Snapshot the
 			// owned source only after that update, immediately before submission.
-			clearOwnedForkPromptInput = this._createForkPromptInputCleanup(query, options);
+			forkPromptSourceInput = this._createForkPromptInputCleanup(query, options);
 
 			if (this.viewModel) {
 				markChat(this.viewModel.sessionResource, ChatPerfMark.RequestStart);
@@ -3627,8 +3601,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				if (kind === 'queued') {
 					interaction.cancel('queued');
 				}
-			}, clearOwnedForkPromptInput);
+			}, forkPromptSourceInput);
 			if (!response) {
+				// Nothing is still running the fork, so its outcome is settled.
+				forkPromptSourceInput?.dispose();
 				interaction.cancel('notDispatched');
 				return undefined;
 			}
@@ -3638,6 +3614,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			return response;
 		} catch (error) {
+			forkPromptSourceInput?.dispose();
 			interaction.cancel(isCancellationError(error) ? 'cancelled' : 'error');
 			throw error;
 		}
@@ -3804,7 +3781,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return blocked;
 	}
 
-	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}, onDidCreateResponse?: IChatSendRequestOptions['onDidCreateResponse'], clearOwnedForkPromptInput?: () => void): Promise<IChatResponseModel | undefined> {
+	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}, onDidCreateResponse?: IChatSendRequestOptions['onDidCreateResponse'], forkPromptSourceInput?: IForkPromptSourceInput): Promise<IChatResponseModel | undefined> {
 		if (this.isTranscriptProgressActive || this.isSubmissionBlockedByManagedSettingsRefresh()) {
 			return undefined;
 		}
@@ -3867,8 +3844,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			? await this._tryExecuteImmediateSlashCommand(inputValue, isUserQuery ? this.parsedInput : undefined, immediateCommandOptions)
 			: undefined;
 		if (immediateCommandResult?.executed) {
-			if (clearOwnedForkPromptInput) {
-				clearOwnedForkPromptInput();
+			if (forkPromptSourceInput) {
+				forkPromptSourceInput.clear();
 			} else if (!immediateCommandResult.preserveInput) {
 				this.setInput('');
 			}
@@ -3908,7 +3885,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		};
 
 		const attachedContext = this._getAttachedContextForConcurrentSlashCommand(options.preserveInput);
-		if (await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus, clearOwnedForkPromptInput)) {
+		if (await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus, forkPromptSourceInput?.clear)) {
 			return;
 		}
 		const isEditing = this.viewModel?.editing;
@@ -4065,7 +4042,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		try {
 			result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
 				onDidCreateResponse,
-				onDidExecuteSlashCommand: clearOwnedForkPromptInput,
+				onDidExecuteSlashCommand: forkPromptSourceInput?.clear,
 				...selectedModelRequestOptions,
 				location: this.location,
 				locationData: this._location.resolveData?.(),
@@ -4107,7 +4084,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// visibility sync before firing events to hide the welcome view
 		this.updateChatViewVisibility();
-		this.input.acceptInput(options?.storeToHistory ?? isUserQuery, options?.preserveFocus, clearOwnedForkPromptInput ? true : options?.preserveInput);
+		this.input.acceptInput(options?.storeToHistory ?? isUserQuery, options?.preserveFocus, forkPromptSourceInput ? true : options?.preserveInput);
 
 		if (!options.preserveInput) {
 			// A maintenance command is not the user's goal.
@@ -4123,6 +4100,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		});
 		if (!sent) {
 			return;
+		}
+		if (forkPromptSourceInput) {
+			// The silent command settles after this method returns; its success
+			// callback clears the draft, and anything else retains it.
+			sent.data.responseCompletePromise.finally(() => forkPromptSourceInput.dispose());
 		}
 		if (isUserQuery) {
 			this.chatPetService.unlockAchievement(ChatPetAchievementIds.FirstChatMessage);

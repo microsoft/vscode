@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore, type IReference } from '../../../../base/common/lifecycle.js';
+import { type IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -144,7 +144,7 @@ class TestWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 
 suite('AgentHostCustomizationEnablementService', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const session = 'ahp://copilot/session-1';
 	const workspace = URI.file('/repo');
 	let storage: AgentHostStorageService;
@@ -170,8 +170,6 @@ suite('AgentHostCustomizationEnablementService', () => {
 		await service.initializeSession(session);
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('resolves session, workspace, global, and default decisions in precedence order', () => {
 		service.setEnablement(session, plugin, CustomizationEnablementKind.Global, false);
@@ -210,6 +208,23 @@ suite('AgentHostCustomizationEnablementService', () => {
 			enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: false }],
 			workingDirectory: { kind: 'directory', uri: workspace.toString() },
 		});
+	});
+
+	test('inherits provider enablement without persisting discovery as user intent', async () => {
+		const server: ICustomizationEnablementTarget = {
+			id: 'native-server', name: 'native-server', type: CustomizationType.McpServer,
+			source: URI.file('/plugins/native/.mcp.json'), defaultEnabled: false,
+		};
+		const before = service.resolve(session, server);
+		service.setEnablement(session, server, CustomizationEnablementKind.Workspace, true);
+		const overridden = service.resolve(session, server);
+		service.setEnablement(session, server, CustomizationEnablementKind.Workspace, false);
+		const inherited = service.resolve(session, { ...server, defaultEnabled: true });
+		assert.deepStrictEqual([before, overridden, inherited].map(serializableResolution), [
+			{ kind: 'resolved', enabled: false, workingDirectory: { kind: 'directory', uri: workspace.toString() }, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] },
+			{ kind: 'resolved', enabled: true, workingDirectory: { kind: 'directory', uri: workspace.toString() }, enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true }, { kind: CustomizationEnablementKind.Global, enabled: false }] },
+			{ kind: 'resolved', enabled: true, workingDirectory: { kind: 'directory', uri: workspace.toString() }, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
+		]);
 	});
 
 	test('resolves a global decision for a newly registered plugin MCP child', async () => {

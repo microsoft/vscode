@@ -41,7 +41,9 @@
       "supported": "limited",
       "description": "%workspaceTrust%",
       "restrictedConfigurations": [
-        "markdown.styles"
+        "markdown.styles",
+        "markdown.copyFiles.destination",
+        "markdown.copyFiles.overwriteBehavior"
       ]
     }
   },

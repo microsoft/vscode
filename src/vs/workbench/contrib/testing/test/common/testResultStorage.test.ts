@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { range } from '../../../../../base/common/arrays.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -18,7 +17,7 @@ import { TestStorageService } from '../../../../test/common/workbenchTestService
 
 suite('Workbench - Test Result Storage', () => {
 	let storage: InMemoryResultStorage;
-	let ds: DisposableStore;
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const makeResult = (taskName = 't') => {
 		const t = ds.add(new LiveTestResult(
@@ -46,17 +45,12 @@ suite('Workbench - Test Result Storage', () => {
 		assert.deepStrictEqual((await storage.read()).map(r => r.id), stored.map(s => s.id));
 
 	setup(async () => {
-		ds = new DisposableStore();
 		storage = ds.add(new InMemoryResultStorage({
 			asCanonicalUri(uri) {
 				return uri;
 			},
 		} as IUriIdentityService, ds.add(new TestStorageService()), new NullLogService()));
 	});
-
-	teardown(() => ds.dispose());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('stores a single result', async () => {
 		const r = range(5).map(() => makeResult());

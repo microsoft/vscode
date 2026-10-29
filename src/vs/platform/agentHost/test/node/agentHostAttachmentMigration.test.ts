@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -23,9 +22,7 @@ import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 suite('AgentHostAttachmentMigration', () => {
-	const disposables = new DisposableStore();
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const sessionDataService = createNullSessionDataService();
 	const attachmentsOf = (resource: string) => joinPath(sessionDataService.getSessionDataDir(URI.parse(resource)), SESSION_ATTACHMENTS_DIRNAME);

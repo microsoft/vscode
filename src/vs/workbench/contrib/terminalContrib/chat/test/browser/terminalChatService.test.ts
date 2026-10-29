@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -30,7 +29,7 @@ function listenerCount(emitter: Emitter<any>): number {
 }
 
 suite('TerminalChatService', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: TerminalChatService;
 	let instantiationService: TestInstantiationService;
 	let onDidDisposeSessionEmitter: Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' }>;
@@ -54,12 +53,6 @@ suite('TerminalChatService', () => {
 
 		service = store.add(instantiationService.createInstance(TerminalChatService));
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('registerTerminalInstanceWithToolSession does not accumulate onDidDisposeSession listeners when re-registering the same instance (#309906)', () => {
 		const onInstanceDisposed = store.add(new Emitter<ITerminalInstance>());
