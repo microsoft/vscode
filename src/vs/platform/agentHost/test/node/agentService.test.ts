@@ -101,6 +101,7 @@ import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATI
 import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { AgentHostSystemWakeService } from '../../node/agentHostSystemWakeService.js';
+import type { IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_ORIGIN_KEY, SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { SCHEDULED_WORK_WAKE_SETTLE_MS } from '../../common/agentHostWakeNetworkMonitor.js';
 import { AgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
@@ -35327,6 +35328,28 @@ suite('AgentService (node dispatcher)', () => {
 			const sourceSession = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
 			const sourceChat = URI.parse(buildChatUri(sourceSession, 'source-chat'));
 			await localService.createChat(sourceSession, sourceChat);
+			const firstActiveClient: SessionActiveClient = {
+				clientId: 'first-client',
+				tools: [{ name: 'first-tool', description: 'First tool', inputSchema: { type: 'object' } }],
+				customizations: [{
+					type: CustomizationType.Plugin,
+					id: 'first-plugin',
+					uri: 'file:///first-plugin',
+					name: 'first-plugin',
+				}],
+			};
+			const initiatingActiveClient: SessionActiveClient = {
+				clientId: 'test-client',
+				tools: [{ name: 'initiating-tool', description: 'Initiating tool', inputSchema: { type: 'object' } }],
+				customizations: [{
+					type: CustomizationType.Plugin,
+					id: 'agent-plan',
+					uri: 'file:///agent-plan',
+					name: 'agent-plan',
+				}],
+			};
+			localService.dispatchAction(sourceSession.toString(), { type: ActionType.SessionActiveClientSet, activeClient: firstActiveClient }, 'first-client', 1);
+			localService.dispatchAction(sourceSession.toString(), { type: ActionType.SessionActiveClientSet, activeClient: initiatingActiveClient }, 'test-client', 1);
 			getStateManager(localService).setSessionConfig(sourceSession.toString(), {
 				schema: { type: 'object', properties: {} },
 				values: {
@@ -35344,6 +35367,10 @@ suite('AgentService (node dispatcher)', () => {
 				startedAt: new Date().toISOString(),
 				message: { text: 'Create more work', origin: { kind: MessageKind.User }, model: { id: 'source-model' } },
 			}, 'test-client', 1);
+			const turnTracker = Reflect.get(localService, '_turnTracker') as IAgentHostTurnTracker;
+			turnTracker.turnStarted(agent, sourceChat.toString(), sourceSession.toString(), 'source-turn', 'source-model', undefined, 'default', undefined, undefined, undefined, 'test-client');
+			const getCreationDefaults = Reflect.get(localService, '_getServerToolCreationDefaults') as IAgentServiceSessionServerToolAccessor['getCreationDefaults'];
+			const selectedActiveClient = getCreationDefaults.call(localService, sourceChat, 'source-turn')?.activeClient;
 			const sourceModelBeforeCreation = getStateManager(localService).getSessionState(sourceChat.toString())?.activeTurn?.message.model;
 			const sessionUrisBeforeCreation = new Set(getStateManager(localService).getSessionUris());
 
@@ -35389,6 +35416,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				sourceModelBeforeCreation,
+				selectedActiveClient,
 				createdIsolation,
 				downgradedIsolation,
 				delegation: delegatedMessage && readAgentMessageDelegationMeta(delegatedMessage),
@@ -35400,6 +35428,7 @@ suite('AgentService (node dispatcher)', () => {
 				chatOptions: agent.createChatOptions.at(-1),
 			}, {
 				sourceModelBeforeCreation: { id: 'source-model' },
+				selectedActiveClient: initiatingActiveClient,
 				createdIsolation: 'worktree',
 				downgradedIsolation: 'folder',
 				delegation: {
