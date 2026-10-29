@@ -6,6 +6,7 @@
 import { equals } from '../../../../base/common/arrays.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedOpts, IObservable, mapObservableArrayCached } from '../../../../base/common/observable.js';
+import { ArtifactSnapshot, getArtifactMainContribution } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatPillEntry } from '../../../../workbench/browser/chatPills.js';
 import { ChatInputPillPins, createChatInputPillSource, IChatInputPillSource } from '../../../../workbench/contrib/chat/browser/chatInputPills.js';
@@ -31,6 +32,39 @@ export interface IArtifactIntegrationPillItem {
  */
 export function getArtifactIntegrationGroupKey(kind: SessionChatPillKind, isArtifact: boolean, mainIntegrationId: string | undefined): string | undefined {
 	return isArtifact && mainIntegrationId !== undefined ? JSON.stringify([kind, mainIntegrationId]) : undefined;
+}
+
+/**
+ * Identifies the resource an integrated record presents: records the main integration bound to the same canonical
+ * resource, such as several links to one experiment step, are aliases of each other. Records not yet bound have none.
+ */
+export function getArtifactIntegrationAliasKey(snapshot: ArtifactSnapshot): string | undefined {
+	const main = getArtifactMainContribution(snapshot);
+	return main?.resourceKey !== undefined ? JSON.stringify([(main.authority ?? snapshot.authority).id, main.integrationId, main.resourceKey]) : undefined;
+}
+
+/** An integrated record that may be an alias of another record of the same resource. */
+export interface IArtifactIntegrationAliasCandidate {
+	readonly isArtifact: boolean;
+	/** Identifies the resource the record presents; records without a key are never aliases. */
+	readonly aliasKey?: string;
+}
+
+/**
+ * Keeps one record per resource, so aliases recorded several times, such as scorecards of one experiment step, show
+ * one pill. The first artifact among the aliases is kept, else the first reference, in its recorded position.
+ */
+export function collapseArtifactIntegrationAliases<T extends IArtifactIntegrationAliasCandidate>(items: readonly T[]): readonly T[] {
+	const kept = new Map<string, T>();
+	for (const item of items) {
+		if (item.aliasKey !== undefined) {
+			const current = kept.get(item.aliasKey);
+			if (!current || (!current.isArtifact && item.isArtifact)) {
+				kept.set(item.aliasKey, item);
+			}
+		}
+	}
+	return items.filter(item => item.aliasKey === undefined || kept.get(item.aliasKey) === item);
 }
 
 /** An artifact that can be listed in a group of artifacts sharing its main integration. */
@@ -72,7 +106,7 @@ export function layoutArtifactIntegrationPills<T extends IArtifactIntegrationPil
 	return result;
 }
 
-interface IArtifactIntegrationPillPlacement extends IArtifactIntegrationPillItem, IArtifactIntegrationPillCandidate {
+interface IArtifactIntegrationPillPlacement extends IArtifactIntegrationPillItem, IArtifactIntegrationPillCandidate, IArtifactIntegrationAliasCandidate {
 	readonly pinned: boolean;
 }
 
@@ -94,13 +128,17 @@ export class ArtifactIntegrationPillSources extends Disposable {
 		const pins = this._register(instantiationService.createInstance(ChatInputPillPins));
 		const placements = derived(this, reader => {
 			const scope = pinScope.read(reader);
-			return items.read(reader).map((item): IArtifactIntegrationPillPlacement => ({
-				...item,
-				groupKey: getArtifactIntegrationGroupKey(item.kind, item.isArtifact, item.presentation.snapshot.read(reader).mainIntegrationId),
-				pinned: pins.getPinned(scope, item.kind, reader).has(item.entry.id),
-			}));
+			return items.read(reader).map((item): IArtifactIntegrationPillPlacement => {
+				const snapshot = item.presentation.snapshot.read(reader);
+				return {
+					...item,
+					groupKey: getArtifactIntegrationGroupKey(item.kind, item.isArtifact, snapshot.mainIntegrationId),
+					aliasKey: getArtifactIntegrationAliasKey(snapshot),
+					pinned: pins.getPinned(scope, item.kind, reader).has(item.entry.id),
+				};
+			});
 		});
-		const layout = derived(this, reader => layoutArtifactIntegrationPills(placements.read(reader).filter(item => item.visible), item => item.pinned));
+		const layout = derived(this, reader => layoutArtifactIntegrationPills(collapseArtifactIntegrationAliases(placements.read(reader).filter(item => item.visible)), item => item.pinned));
 		const pinAction = (item: IArtifactIntegrationPillPlacement, scope: string | undefined, pinned: boolean) =>
 			scope ? pins.createPinAction(item.entry, item.kind, scope, pinned) : undefined;
 

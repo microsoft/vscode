@@ -28,7 +28,7 @@ import { SessionChatPillKind } from '../../../../../workbench/contrib/chat/commo
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ArtifactDetailsSelection } from '../../browser/artifactDetailsView.js';
 import { ArtifactIntegrationGroup, getArtifactGroupRowActions, getArtifactIntegrationGroupSummary, IArtifactIntegrationGroupMember } from '../../browser/artifactIntegrationGroup.js';
-import { ArtifactIntegrationPillSources, getArtifactIntegrationGroupKey, IArtifactIntegrationPillItem, layoutArtifactIntegrationPills } from '../../browser/artifactIntegrationPillSources.js';
+import { ArtifactIntegrationPillSources, collapseArtifactIntegrationAliases, getArtifactIntegrationAliasKey, getArtifactIntegrationGroupKey, IArtifactIntegrationPillItem, layoutArtifactIntegrationPills } from '../../browser/artifactIntegrationPillSources.js';
 import { ArtifactIntegrationPresentation, IArtifactDetailsHost } from '../../browser/artifactIntegrationPresentation.js';
 
 function snapshot(id: string, changes: { readonly group?: { readonly icon: string; readonly color?: string; readonly priority: number }; readonly groupLabel?: string; readonly sections?: readonly { readonly id: string; readonly label: string; readonly icon: string }[]; readonly automation?: boolean } = {}): ArtifactSnapshot {
@@ -95,6 +95,25 @@ suite('Artifact Integration Groups', () => {
 			undefined,
 			undefined,
 		]);
+	});
+
+	test('collapses records the main integration bound to the same resource into one, preferring the first artifact', () => {
+		const bound = (id: string, resourceKey: string | undefined, authority = 'client'): ArtifactSnapshot => {
+			const base = snapshot(id);
+			return { ...base, authority: { ...base.authority, id: authority }, contributions: base.contributions.map(contribution => resourceKey ? { ...contribution, resourceKey } : contribution) };
+		};
+		const items = [
+			{ id: 'scorecard1', isArtifact: false, aliasKey: getArtifactIntegrationAliasKey(bound('scorecard1', 'step')) },
+			{ id: 'experiment', isArtifact: true, aliasKey: getArtifactIntegrationAliasKey(bound('experiment', 'experiment')) },
+			{ id: 'scorecard2', isArtifact: false, aliasKey: getArtifactIntegrationAliasKey(bound('scorecard2', 'step')) },
+			{ id: 'stepArtifact', isArtifact: true, aliasKey: getArtifactIntegrationAliasKey(bound('stepArtifact', 'step')) },
+			{ id: 'stepArtifact2', isArtifact: true, aliasKey: getArtifactIntegrationAliasKey(bound('stepArtifact2', 'step')) },
+			// Not bound yet, or bound by another authority: never an alias.
+			{ id: 'loading1', isArtifact: true, aliasKey: getArtifactIntegrationAliasKey(bound('loading1', undefined)) },
+			{ id: 'loading2', isArtifact: true, aliasKey: getArtifactIntegrationAliasKey(bound('loading2', undefined)) },
+			{ id: 'remote', isArtifact: false, aliasKey: getArtifactIntegrationAliasKey(bound('remote', 'step', 'host')) },
+		];
+		assert.deepStrictEqual(collapseArtifactIntegrationAliases(items).map(item => item.id), ['experiment', 'stepArtifact', 'loading1', 'loading2', 'remote']);
 	});
 
 	test('offers Open, the entry actions in pill dropdown order with Pin before Remove, and keeps the dropdown open only for membership changes', () => {
@@ -369,6 +388,34 @@ suite('Artifact Integration Groups', () => {
 			shrunk: { labels: ['2 Experiments', 'Recorded ref'], samePill: true },
 			pinned: { labels: ['Recorded 1', 'Recorded ref', 'Recorded 2'], menu: ['chatInputPills.artifacts.unpin.2', 'remove.2'] },
 			unpinned: ['2 Experiments', 'Recorded ref'],
+		});
+	});
+
+	test('pill sources show one pill for records bound to the same resource, such as scorecards of one experiment step', () => {
+		const f = fixture();
+		const bound = (id: string, resourceKey: string) => {
+			const base = snapshot(id, { groupLabel: 'Experiments' });
+			return f.member({ ...base, contributions: base.contributions.map(contribution => ({ ...contribution, resourceKey })) });
+		};
+		const item = (member: IArtifactIntegrationGroupMember, isArtifact: boolean): IArtifactIntegrationPillItem =>
+			({ entry: member.entry, presentation: member.presentation, kind: isArtifact ? SessionChatPillKind.Artifacts : SessionChatPillKind.References, isArtifact, visible: true });
+		const items = observableValue<readonly IArtifactIntegrationPillItem[]>('items', [
+			item(bound('draft', 'experiment/draft'), true),
+			item(bound('scorecard1', 'step'), false),
+			item(bound('corrected', 'experiment/corrected'), true),
+			item(bound('scorecard2', 'step'), false),
+			item(bound('scorecard3', 'step'), false),
+		]);
+		const sources = store.add(f.instantiation.createInstance(ArtifactIntegrationPillSources, items, constObservable('chat'), f.detailsHost));
+		const pills = derived(reader => sources.sources.read(reader).filter(source => source.isVisible?.read(reader) ?? true).flatMap(source => source.pills.read(reader)));
+		store.add(autorun(reader => { pills.read(reader); }));
+		const labels = () => pills.get().map(pill => pill.action.label);
+		const references = labels();
+		// Recording the step as an artifact moves it into the group, still once.
+		items.set([...items.get(), item(bound('stepArtifact', 'step'), true)], undefined);
+		assert.deepStrictEqual({ references, artifact: labels() }, {
+			references: ['2 Experiments', 'Recorded scorecard1'],
+			artifact: ['3 Experiments'],
 		});
 	});
 

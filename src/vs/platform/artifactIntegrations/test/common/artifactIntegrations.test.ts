@@ -967,7 +967,10 @@ suite('Artifact Integrations', () => {
 		await waitForState(f.service.ledger.state, state => state.runs[0]?.indeterminate === true);
 		const blocked = await second.object.invoke('test', 'act', 'chat', 'alias');
 		await waitForState(f.service.ledger.state, state => state.runs.some(run => run.id === blocked.id && run.state === 'blocked'));
-		assert.deepStrictEqual({ effects, resources: f.counts().resources }, { effects: 1, resources: 1 });
+		assert.deepStrictEqual({
+			effects, resources: f.counts().resources,
+			resourceKeys: [first, second].map(reference => reference.object.snapshot.get().contributions.map(contribution => contribution.resourceKey)),
+		}, { effects: 1, resources: 1, resourceKeys: [['canonical-resource'], ['canonical-resource']] });
 	}));
 
 	test('main presentation follows registration priority rather than availability timing', () => run(async store => {
