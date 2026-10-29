@@ -13869,7 +13869,7 @@ declare module 'vscode' {
 		 * Commands contributed to `timeline/item/context` are run with the following arguments:
 		 * 1. The {@link TimelineItem} the command was run on.
 		 * 2. The {@link Uri} of the file or folder whose timeline is shown, or `undefined` for the workspace timeline.
-		 * 3. The id of the provider of the item, see {@link TimelineProvider.id}.
+		 * 3. The id that the provider of the item was registered with, see {@link workspace.registerTimelineProvider}.
 		 * 4. If the item is part of a multi-selection, all selected items from the same provider, including the
 		 *    first argument. Otherwise `undefined`.
 		 *
@@ -13963,19 +13963,6 @@ declare module 'vscode' {
 	 */
 	export interface TimelineProvider {
 		/**
-		 * A unique identifier for this provider. It is passed to commands and used to filter the Timeline view.
-		 *
-		 * Registering two timeline providers with the same id fails. A {@link WorkspaceTimelineProvider} from the
-		 * same extension can use the same id, in which case both are shown as one source of the Timeline view.
-		 */
-		readonly id: string;
-
-		/**
-		 * A human-readable name for this provider, shown when filtering the Timeline view.
-		 */
-		readonly label: string;
-
-		/**
 		 * An optional event to signal that timelines from this provider have changed. Fire the {@link Uri uris}
 		 * of the files or folders whose timelines changed, or `undefined` to signal that all of them changed.
 		 *
@@ -14002,19 +13989,6 @@ declare module 'vscode' {
 	 * While the workspace timeline is shown, the `timelineForWorkspace` context key is `true`.
 	 */
 	export interface WorkspaceTimelineProvider {
-		/**
-		 * A unique identifier for this provider. It is passed to commands and used to filter the Timeline view.
-		 *
-		 * Registering two workspace timeline providers with the same id fails. A {@link TimelineProvider} from the
-		 * same extension can use the same id, in which case both are shown as one source of the Timeline view.
-		 */
-		readonly id: string;
-
-		/**
-		 * A human-readable name for this provider, shown when filtering the Timeline view.
-		 */
-		readonly label: string;
-
 		/**
 		 * An optional event to signal that the workspace timeline from this provider has changed.
 		 *
@@ -14785,12 +14759,16 @@ declare module 'vscode' {
 		 *
 		 * To activate your extension when the Timeline view is shown, use the `onView:timeline` activation event.
 		 *
+		 * @param id A unique identifier for this provider. It is passed to commands and used to filter the Timeline view.
+		 * Registering two timeline providers with the same id fails. A {@link WorkspaceTimelineProvider} registered by
+		 * the same extension can use the same id, in which case both are shown as one source of the Timeline view.
+		 * @param label A human-readable name for this provider, shown when filtering the Timeline view.
 		 * @param scheme A scheme or schemes of the resources this provider provides timelines for. Use `*` to
 		 * target all resources.
 		 * @param provider A timeline provider.
 		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerTimelineProvider(scheme: string | readonly string[], provider: TimelineProvider): Disposable;
+		export function registerTimelineProvider(id: string, label: string, scheme: string | readonly string[], provider: TimelineProvider): Disposable;
 
 		/**
 		 * Register a provider for the workspace timeline.
@@ -14801,10 +14779,14 @@ declare module 'vscode' {
 		 *
 		 * To activate your extension when the Timeline view is shown, use the `onView:timeline` activation event.
 		 *
+		 * @param id A unique identifier for this provider. It is passed to commands and used to filter the Timeline view.
+		 * Registering two workspace timeline providers with the same id fails. A {@link TimelineProvider} registered by
+		 * the same extension can use the same id, in which case both are shown as one source of the Timeline view.
+		 * @param label A human-readable name for this provider, shown when filtering the Timeline view.
 		 * @param provider A workspace timeline provider.
 		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerWorkspaceTimelineProvider(provider: WorkspaceTimelineProvider): Disposable;
+		export function registerWorkspaceTimelineProvider(id: string, label: string, provider: WorkspaceTimelineProvider): Disposable;
 
 		/**
 		 * When true, the user has explicitly trusted the contents of the workspace.

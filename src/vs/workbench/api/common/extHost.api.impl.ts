@@ -1477,11 +1477,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'tunnelFactory');
 				return extHostTunnelService.registerTunnelProvider(tunnelProvider, information);
 			},
-			registerTimelineProvider: (scheme: string | readonly string[], provider: vscode.TimelineProvider) => {
-				return extHostTimeline.registerTimelineProvider(scheme, provider, extension.identifier, extHostCommands.converter);
+			registerTimelineProvider: (id: string, label: string, scheme: string | readonly string[], provider: vscode.TimelineProvider) => {
+				return extHostTimeline.registerTimelineProvider(id, label, scheme, provider, extension.identifier, extHostCommands.converter);
 			},
-			registerWorkspaceTimelineProvider: (provider: vscode.WorkspaceTimelineProvider) => {
-				return extHostTimeline.registerWorkspaceTimelineProvider(provider, extension.identifier, extHostCommands.converter);
+			registerWorkspaceTimelineProvider: (id: string, label: string, provider: vscode.WorkspaceTimelineProvider) => {
+				return extHostTimeline.registerWorkspaceTimelineProvider(id, label, provider, extension.identifier, extHostCommands.converter);
 			},
 			get isTrusted() {
 				return extHostWorkspace.trusted;
