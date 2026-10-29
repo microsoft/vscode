@@ -285,7 +285,7 @@ Interaction rules:
 - Dragging owns the pointer until release and suppresses the following click.
 - A wake interaction wakes only.
 - Yapping or other idle-only reactions yield to non-idle base states.
-- Keyboard interaction is disabled while the pet is dead, pointer-controlled, airborne, or on the run.
+- Keyboard interaction is disabled while the pet is dead, pointer-controlled, or airborne.
 - Dizzy consumes the direction-change gesture that triggered it.
 - Confirmation clapping is an attention cue, not a permanent pending-state animation.
 

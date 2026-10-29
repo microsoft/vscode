@@ -18,7 +18,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatPetAccessoryId, ChatPetAccessoryIds, ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
-import { ChatPetVariant, IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
+import { ChatPetAppearanceTarget, ChatPetVariant, IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { ChatPetCustomizationTab } from '../../../../../workbench/contrib/chat/browser/chatPetAchievementsEditorInput.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -131,14 +131,20 @@ suite('Sessions - Account Menu', () => {
 		const selectedAccessory = observableValue<ChatPetAccessoryId | undefined>(store, undefined);
 		const variant = observableValue<ChatPetVariant>(store, 'stable');
 		let selected: ChatPetAccessoryId | undefined;
+		let selectedTarget: ChatPetAppearanceTarget | undefined;
 		const chatPetService = new class extends mock<IChatPetService>() {
 			override readonly enabled = constObservable(true);
 			override readonly unlockedAchievements = constObservable<readonly ChatPetAchievementId[]>([ChatPetAchievementIds.FirstChatMessage]);
 			override readonly selectedAccessory = selectedAccessory;
 			override readonly color = variant;
 
-			override setAccessory(accessory: ChatPetAccessoryId | undefined): void {
+			override getWindowAccessory() {
+				return selectedAccessory;
+			}
+
+			override setAccessory(accessory: ChatPetAccessoryId | undefined, target?: ChatPetAppearanceTarget): void {
 				selected = accessory;
+				selectedTarget = target;
 				selectedAccessory.set(accessory, undefined);
 			}
 		}();
@@ -173,12 +179,14 @@ suite('Sessions - Account Menu', () => {
 		await Promise.resolve();
 		assert.deepStrictEqual({
 			selected,
+			selectedTarget,
 			unlockedButtonCount: parent.querySelectorAll('.sessions-chat-pet-achievement-badge.monaco-button').length,
 			pressed: selectedBadge?.getAttribute('aria-pressed'),
 			label: selectedBadge?.getAttribute('aria-label'),
 			focusedAction: mainWindow.document.activeElement?.getAttribute('aria-label'),
 		}, {
 			selected: ChatPetAccessoryIds.CowboyHat,
+			selectedTarget: undefined,
 			unlockedButtonCount: 1,
 			pressed: 'true',
 			label: 'Welcome to the Wild West achievement badge: Cowboy Hat, wearing',
