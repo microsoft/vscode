@@ -14,11 +14,10 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agent.js';
 import { type IAgentHostManagedWorktree, type IAgentHostWorktreeCleanupStatus } from '../common/agentHostWorktreeCleanup.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
-import { getWorktreesRoot, isWorktreeUnderRepository } from '../common/worktreePaths.js';
+import { AGENT_BRANCH_PREFIX, getWorktreesRoot, isWorktreeUnderRepository } from '../common/worktreePaths.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import { coOwnedWorktreeRemovalOwner, type IPendingWorktreeRemoval, type IWorktreeCoOwner, type IWorktreeCoOwnerState, type IWorktreeRemovalRequest, type WorktreeRemovalMode } from './agentHostWorktreeRemovalDatabase.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, parseSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
-import { AGENT_BRANCH_PREFIX } from './shared/agentBranchNameGenerator.js';
 import { DetachedWorktreeRemovalGuard, IAgentHostWorktreeIsolation, IRecordedWorktree } from './shared/worktreeIsolation.js';
 
 export const IAgentHostWorktreeCleanupService = createDecorator<IAgentHostWorktreeCleanupService>('agentHostWorktreeCleanupService');

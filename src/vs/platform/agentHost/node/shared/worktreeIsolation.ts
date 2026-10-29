@@ -24,9 +24,9 @@ import { ISessionDataService, type ISessionDatabase } from '../../common/session
 import { IAgentHostSessionStateStore, type ISessionStateWorktreeCoOwner, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { getSessionPullRequestUrl, SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { DETACHED_WORKTREE_OWNER_SCHEME, DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX, isAgentDevContainerWorktreeHandle } from '../../common/meta/agentDevContainerWorktreeMeta.js';
-import { getRepositoryRootFromWorktree, getWorktreesRoot } from '../../common/worktreePaths.js';
+import { AGENT_BRANCH_PREFIX, getRepositoryRootFromWorktree, getWorktreesRoot } from '../../common/worktreePaths.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, ResponsePart, ResponsePartKind, Turn } from '../../common/state/sessionState.js';
-import { AGENT_BRANCH_PREFIX, IAgentBranchNameGenerator } from './agentBranchNameGenerator.js';
+import { IAgentBranchNameGenerator } from './agentBranchNameGenerator.js';
 import { IAgentHostPullRequestResolver } from './pullRequestResolver.js';
 import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees } from './sessionAdditionalWorktrees.js';

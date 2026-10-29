@@ -60,6 +60,43 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 	});
 
+	test('excludes non-agent branches from inventory, refreshes, force eligibility, and scheduling', async () => {
+		const eligible = managedWorktree();
+		const excluded = ['component-explorer-1', 'main', 'agents-other', 'custom/agents/task', ''].map((branch, index) => ({
+			...managedWorktree(`/repo.worktrees/foreign-${index}`), branch,
+		}));
+		let inventory = [eligible, ...excluded];
+		const confirmations: string[] = [];
+		const service = disposables.add(createService([], true, () => undefined,
+			undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+			listManagedWorktrees: async () => inventory,
+			canForceWorktreeCleanup: () => true,
+			dialogService: upcastPartial<IDialogService>({ confirm: async options => { confirmations.push(options.message); return { confirmed: true }; } }),
+		}));
+		const initial = await service.getWorktrees(0);
+		inventory = [{ ...eligible, branch: 'component-explorer-1' }];
+		const refreshed = await service.refreshPendingCleanup(initial.map(getWorktreeCleanupId), 0);
+		const foreign: ISessionWorktree = { unlinkedWorktree: excluded[0], sizeBytes: undefined, worktreeCount: 1, cleanupState: 'unlinked', worktreeExists: true, cleanupStatus: { state: 'failed' } };
+		await assert.rejects(service.cleanupWorktrees([foreign]), /branches starting with 'agents\/'/);
+		await assert.rejects(service.forceCleanupWorktrees([foreign]), /cannot be forcibly removed/);
+		assert.deepStrictEqual({
+			initial: initial.map(getWorktreeCleanupId), refreshed: refreshed.map(getWorktreeCleanupId),
+			forceEligible: service.canForceCleanup(foreign), confirmations,
+		}, { initial: [`managed:test:${eligible.worktree}`], refreshed: [], forceEligible: false, confirmations: [] });
+	});
+
+	test('excludes linked worktrees with a known non-agent branch before measuring storage', async () => {
+		const original = createSession('foreign', oldDate());
+		const workspace = original.workspace.get()!;
+		const foreign: ISession = {
+			...original,
+			workspace: constObservable({ ...workspace, folders: workspace.folders.map(folder => ({ ...folder, gitRepository: { ...folder.gitRepository!, branchName: 'component-explorer-1' } })) }),
+		};
+		const measured: string[] = [];
+		const service = disposables.add(createService([foreign], true, session => { measured.push(session.sessionId); return 1; }));
+		assert.deepStrictEqual({ worktrees: await service.getWorktrees(0), measured }, { worktrees: [], measured: [] });
+	});
+
 	test('cleans up an unlinked row explicitly without archiving a fabricated session and verifies removal', async () => {
 		const unlinked = managedWorktree();
 		let inventory = [unlinked];
@@ -81,15 +118,70 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 	});
 
-	test('does not claim removal when an unlinked worktree is no longer listed but its existence is unknown', async () => {
+	test('drops discovered worktrees no longer listed by the host rather than offering stale blocked rows', async () => {
+		const unlinked = managedWorktree();
+		let inventory = [unlinked];
+		const service = disposables.add(createService([], true, () => undefined,
+			undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+			listManagedWorktrees: async () => inventory,
+			managedWorktreeExists: async () => { throw new Error('Unscheduled inventory rows must not be retained'); },
+		}));
+		const worktrees = await service.getWorktrees(0);
+		inventory = [];
+		assert.deepStrictEqual(await service.refreshPendingCleanup(worktrees.map(getWorktreeCleanupId), 0), []);
+	});
+
+	test('marks a scheduled worktree that still exists but is no longer listed as unavailable for cleanup', async () => {
+		const unlinked = managedWorktree();
+		let inventory = [unlinked];
+		const service = disposables.add(createService([], true, () => undefined,
+			undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+			listManagedWorktrees: async () => inventory,
+			managedWorktreeExists: async () => true,
+			cleanupManagedWorktree: async () => { },
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+		}));
+		const worktrees = await service.getWorktrees(0);
+		await service.cleanupWorktrees(worktrees);
+		inventory = [];
+		const refreshed = await service.refreshPendingCleanup(worktrees.map(getWorktreeCleanupId), 0);
+		assert.deepStrictEqual(refreshed.map(worktree => ({ exists: worktree.worktreeExists, listed: worktree.isListedByHost, force: service.canForceCleanup(worktree) })), [
+			{ exists: true, listed: false, force: false },
+		]);
+		await assert.rejects(service.cleanupWorktrees(refreshed), /no longer listed by its host/);
+	});
+
+	test('marks failed cleanup attempts as unlisted when their worktrees leave the managed inventory', async () => {
+		const unlinked = managedWorktree();
+		let inventory = [unlinked];
+		const service = disposables.add(createService([], true, () => undefined,
+			undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+			listManagedWorktrees: async () => inventory,
+			managedWorktreeExists: async () => true,
+			cleanupManagedWorktree: async () => { throw new Error('Scheduling failed'); },
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+		}));
+		const worktrees = await service.getWorktrees(0);
+		await assert.rejects(service.cleanupWorktrees(worktrees), /Scheduling failed/);
+		inventory = [];
+		const refreshed = await service.refreshPendingCleanup(worktrees.map(getWorktreeCleanupId), 0);
+		assert.deepStrictEqual(refreshed.map(worktree => ({ exists: worktree.worktreeExists, listed: worktree.isListedByHost })), [
+			{ exists: true, listed: false },
+		]);
+	});
+
+	test('does not claim removal when a scheduled unlinked worktree is no longer listed but its existence is unknown', async () => {
 		const unlinked = managedWorktree();
 		let inventory = [unlinked];
 		const service = disposables.add(createService([], true, () => undefined,
 			undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
 			listManagedWorktrees: async () => inventory,
 			managedWorktreeExists: async () => undefined,
+			cleanupManagedWorktree: async () => { },
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
 		}));
 		const worktrees = await service.getWorktrees(0, () => { });
+		await service.cleanupWorktrees(worktrees);
 		inventory = [];
 		const refreshed = await service.refreshPendingCleanup(worktrees.map(getWorktreeCleanupId), 0);
 		assert.deepStrictEqual(refreshed.map(worktree => ({
@@ -105,6 +197,8 @@ suite('SessionWorktreeCleanupService', () => {
 		const service = disposables.add(createService([], true, () => undefined,
 			undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
 			listManagedWorktrees: async () => inventory,
+			cleanupManagedWorktree: async () => { },
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
 			managedWorktreeExists: async () => {
 				if (fail) {
 					throw new Error('Host disconnected');
@@ -113,6 +207,7 @@ suite('SessionWorktreeCleanupService', () => {
 			},
 		}));
 		const worktrees = await service.getWorktrees(0);
+		await service.cleanupWorktrees([worktrees[0]]);
 		inventory = [healthy];
 		const failed = await service.refreshPendingCleanup(worktrees.map(getWorktreeCleanupId), 0);
 		fail = false;
@@ -139,6 +234,8 @@ suite('SessionWorktreeCleanupService', () => {
 			const service = disposables.add(createService([], true, () => undefined,
 				undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
 				listManagedWorktrees: async () => inventory,
+				cleanupManagedWorktree: async () => { },
+				dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
 				managedWorktreeExists: async () => {
 					await checking.complete();
 					if (cancelToken) {
@@ -148,6 +245,7 @@ suite('SessionWorktreeCleanupService', () => {
 				},
 			}));
 			const worktrees = await service.getWorktrees(0);
+			await service.cleanupWorktrees(worktrees);
 			inventory = [];
 			const refresh = service.refreshPendingCleanup(worktrees.map(getWorktreeCleanupId), 0, undefined, cancellation.token);
 			await checking.p;

@@ -42,7 +42,7 @@ import { IEditorGroup } from '../../../../workbench/services/editor/common/edito
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { SessionWorktreeCleanupEditorFocusedContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, CLEANUP_THRESHOLD_BYTES, CLEANUP_THRESHOLD_WORKTREES, getWorktreeCleanupDiskUsage, getWorktreeCleanupId, getWorktreeCleanupTitle, ISessionWorktree, ISessionWorktreeCleanupCandidate, ISessionWorktreeCleanupService, ISessionWorktreeMeasurementProgress, SessionWorktreeCleanupProgress, SessionWorktreeCleanupState } from './sessionWorktreeCleanupService.js';
+import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, CLEANUP_THRESHOLD_BYTES, CLEANUP_THRESHOLD_WORKTREES, getWorktreeCleanupDiskUsage, getWorktreeCleanupId, getWorktreeCleanupTitle, ISessionWorktree, ISessionWorktreeCleanupCandidate, ISessionWorktreeCleanupService, ISessionWorktreeMeasurementProgress, isWorktreeCleanupBranchSupported, SessionWorktreeCleanupProgress, SessionWorktreeCleanupState } from './sessionWorktreeCleanupService.js';
 import { SessionWorktreeCleanupEditorInput } from './sessionWorktreeCleanupEditorInput.js';
 import './media/sessionWorktreeCleanupEditor.css';
 
@@ -735,13 +735,13 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	}
 
 	private getDisplayWorktrees(): readonly ISessionWorktree[] {
-		const worktrees = new Map(this.worktrees.filter(worktree => worktree.worktreeExists !== false || this.cleanupBatch.has(getWorktreeCleanupId(worktree))).map(worktree => [getWorktreeCleanupId(worktree), worktree]));
+		const worktrees = new Map(this.worktrees.filter(worktree => isWorktreeCleanupBranchSupported(worktree) && (worktree.worktreeExists !== false || this.cleanupBatch.has(getWorktreeCleanupId(worktree)))).map(worktree => [getWorktreeCleanupId(worktree), worktree]));
 		for (const [sessionId, entry] of this.cleanupBatch) {
-			if (!worktrees.has(sessionId)) {
+			if (!worktrees.has(sessionId) && isWorktreeCleanupBranchSupported(entry.candidate)) {
 				worktrees.set(sessionId, { ...entry.candidate, sizeBytes: entry.state === 'removed' ? 0 : undefined, worktreeExists: entry.state === 'removed' ? false : undefined, cleanupState: 'archived' });
 			}
 		}
-		return [...worktrees.values()];
+		return [...worktrees.values()].filter(worktree => worktree.isListedByHost !== false || worktree.worktreeExists === false);
 	}
 
 	private getMatchingWorktrees(): readonly ISessionWorktree[] {
@@ -760,6 +760,11 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	private renderRows(): void {
 		if (!this.list || !this.summaryMessage || !this.selectAllCheckbox || !this.mainWorktreeTable || !this.unavailableWorktreeTable || !this.progressWorktreeTable || !this.unavailableSection || !this.unavailableSummary || !this.unavailableList) {
 			return;
+		}
+		for (const [id, entry] of this.cleanupBatch) {
+			if (!isWorktreeCleanupBranchSupported(entry.candidate)) {
+				this.cleanupBatch.delete(id);
+			}
 		}
 		const activeElement = dom.getActiveElement();
 		const focusedTable = [this.mainWorktreeTable, this.unavailableWorktreeTable, this.progressWorktreeTable].find(table => this.tableFocusElements.get(table) === activeElement);
@@ -1273,11 +1278,19 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			return;
 		}
 		const worktrees = new Map(this.worktrees.map(worktree => [getWorktreeCleanupId(worktree), worktree]));
-		for (const [sessionId, entry] of this.cleanupBatch) {
+		for (let [sessionId, entry] of this.cleanupBatch) {
+			const worktree = worktrees.get(sessionId);
+			if (worktree && worktree.isListedByHost !== entry.candidate.isListedByHost) {
+				entry = { ...entry, candidate: { ...entry.candidate, isListedByHost: worktree.isListedByHost } };
+				this.cleanupBatch.set(sessionId, entry);
+			}
+			if (worktree?.isListedByHost === false && worktree.worktreeExists !== false) {
+				entry.state = 'attention';
+				continue;
+			}
 			if (entry.schedulingError) {
 				continue;
 			}
-			const worktree = worktrees.get(sessionId);
 			if (!worktree) {
 				if (entry.state !== 'removed') {
 					entry.state = 'attention';
