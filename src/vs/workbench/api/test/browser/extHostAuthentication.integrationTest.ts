@@ -183,6 +183,8 @@ class ContextAuthProvider extends Disposable implements AuthenticationProvider {
 	}
 }
 
+const defaultScopes = ['read:user', 'repo'];
+
 suite('ExtHostAuthentication', () => {
 	let extHostAuthentication: ExtHostAuthentication;
 	let mainInstantiationService: TestInstantiationService;
@@ -221,7 +223,8 @@ suite('ExtHostAuthentication', () => {
 		mainInstantiationService.stub(IOpenerService, {} as Partial<IOpenerService>);
 		mainInstantiationService.stub(ITelemetryService, NullTelemetryService);
 		mainInstantiationService.stub(IBrowserWorkbenchEnvironmentService, TestEnvironmentService);
-		mainInstantiationService.stub(IProductService, TestProductService);
+		// Configured explicitly because browser test runs use the fallback product, which has no provider scopes.
+		mainInstantiationService.stub(IProductService, { ...TestProductService, defaultChatAgent: { ...TestProductService.defaultChatAgent, providerScopes: [defaultScopes] } });
 
 		rpcProtocol = disposables.add(new TestRPCProtocol());
 
@@ -660,11 +663,36 @@ suite('ExtHostAuthentication', () => {
 			}, {
 				passive: undefined,
 				pending: 1,
-				created: [...TestProductService.defaultChatAgent.providerScopes[0], 'gist'],
+				created: [...defaultScopes, 'gist'],
 				silent: created.id,
 				pendingAfterSignIn: [],
 				rejected: `Authentication provider 'test' does not define default scopes.`
 			});
+		});
+
+		test('silently returns the narrowest default scopes token only when one identity is eligible', async () => {
+			const extensionId = extensionDescription.identifier.value;
+			const account = { id: 'octocat', label: 'Octocat' };
+			const exact: AuthenticationSession = { id: 'exact', accessToken: 'exact-token', account, scopes: defaultScopes };
+			const broader: AuthenticationSession = { id: 'broader', accessToken: 'broader-token', account, scopes: [...defaultScopes, 'gist'] };
+			const otherIdentity: AuthenticationSession = { id: 'other', accessToken: 'other-token', account: { id: 'hubot', label: 'Hubot' }, scopes: defaultScopes };
+			const storedSessions = [broader, exact];
+			registerProvider('github', {
+				onDidChangeSessions: Event.None,
+				getSessions: async scopes => storedSessions.filter(session => !scopes || scopes.every(scope => session.scopes.includes(scope))),
+				createSession: async () => { throw new Error('Unexpected sign-in.'); },
+				removeSession: async () => { }
+			}, true);
+			const accessService = mainInstantiationService.get(IAuthenticationAccessService);
+			for (const session of [exact, otherIdentity]) {
+				accessService.updateAllowedExtensions('github', session.account.label, [{ id: extensionId, name: extensionId, allowed: true }]);
+			}
+
+			const sameIdentity = await extHostAuthentication.getSession(extensionDescription, 'github', { defaultScopes: true }, { silent: true });
+			storedSessions.push(otherIdentity);
+			const differentIdentities = await extHostAuthentication.getSession(extensionDescription, 'github', { defaultScopes: true }, { silent: true });
+
+			assert.deepStrictEqual({ sameIdentity: sameIdentity?.id, differentIdentities }, { sameIdentity: 'exact', differentIdentities: undefined });
 		});
 
 		test('keeps default scopes requests and scope lists apart', async () => {
@@ -672,7 +700,7 @@ suite('ExtHostAuthentication', () => {
 			registerProvider('github', provider);
 
 			await extHostAuthentication.getSession(extensionDescription, 'github', { defaultScopes: true }, {});
-			await extHostAuthentication.getSession(extensionDescription, 'github', [...TestProductService.defaultChatAgent.providerScopes[0]], {});
+			await extHostAuthentication.getSession(extensionDescription, 'github', defaultScopes, {});
 
 			assert.strictEqual(getRequests('github', '2_signInRequests').length, 2);
 		});

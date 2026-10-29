@@ -45,6 +45,11 @@ export function reviveAuthenticationSession(session: Dto<AuthenticationSession>)
 	};
 }
 
+/** Identifies the account and issuer of a session, so that tokens with different scopes for one identity compare equal. */
+function getSessionIdentity(session: AuthenticationSession): string {
+	return JSON.stringify([session.account.id, session.authorizationServer?.toString(true)]);
+}
+
 function prepareSessionRequest(options: AuthenticationGetSessionOptions) {
 	// Workbench-only options must never be settable by an extension.
 	const { clearSessionPreference, createIfNone, forceNewSession, silent, ...requestOptions } = withoutWorkbenchOnlySessionOptions(options);
@@ -535,6 +540,10 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		if (!matchingAccountPreferenceSession) {
 			const validSessions = sessions.filter(session => this.authenticationAccessService.isAccessAllowed(providerId, session.account.label, extensionId));
 			if (validSessions.length === 1) {
+				return validSessions[0];
+			}
+			// A default scopes request can match several tokens of one identity. They are ordered narrowest first.
+			if (validSessions.length > 1 && isAuthenticationDefaultScopesRequest(scopeListOrRequest) && new Set(validSessions.map(getSessionIdentity)).size === 1) {
 				return validSessions[0];
 			}
 		}

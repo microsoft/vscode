@@ -321,7 +321,16 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				);
 			}
 			const sessions = await authProvider.getSessions(scopeListOrRequest ? [...scopeListOrRequest] : undefined, { ...options });
-			return requiredScopes ? filterSessionsWithScopes(sessions, requiredScopes) : sessions;
+			if (!requiredScopes) {
+				return sessions;
+			}
+			const eligible = filterSessionsWithScopes(sessions, requiredScopes);
+			if (eligible.length) {
+				return eligible;
+			}
+			// An unscoped lookup can skip sessions that a provider only produces on demand for specific scopes, such as
+			// GitHub sessions restored from a linked Microsoft account that already has a narrower session.
+			return filterSessionsWithScopes(await authProvider.getSessions([...requiredScopes], { ...options }), requiredScopes);
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}

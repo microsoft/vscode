@@ -526,10 +526,10 @@ suite('AuthenticationService - tryActivateProvider', () => {
 
 suite('AuthenticationService - default scopes', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-	// The default scopes come from the product configuration.
-	const defaultScopes = TestProductService.defaultChatAgent.providerScopes[0];
+	// Configured explicitly because browser test runs use the fallback product, which has no provider scopes.
+	const defaultScopes = ['read:user', 'user:email', 'repo', 'workflow'];
 
-	function createService(providerScopes = TestProductService.defaultChatAgent.providerScopes): AuthenticationService {
+	function createService(providerScopes = [defaultScopes, ['user:email'], ['read:user']]): AuthenticationService {
 		const storageService = disposables.add(new TestStorageService());
 		const authenticationAccessService = disposables.add(new AuthenticationAccessService(storageService, TestProductService));
 		const productService = { ...TestProductService, defaultChatAgent: { ...TestProductService.defaultChatAgent, providerScopes } };
@@ -584,6 +584,28 @@ suite('AuthenticationService - default scopes', () => {
 		assert.deepStrictEqual({ sessions: result.map(candidate => candidate.id), requests }, {
 			sessions: ['exact', 'one-extra', 'wide'],
 			requests: [{ operation: 'get', scopes: undefined }]
+		});
+	});
+
+	test('getSessions asks for the resolved scopes when the unscoped lookup has no eligible session', async () => {
+		const service = createService();
+		const requests: (string[] | undefined)[] = [];
+		const restored = session('restored', defaultScopes);
+		service.registerAuthenticationProvider('github', createProvider({
+			id: 'github',
+			// Like a GitHub session restored from a linked Microsoft account, which is only minted for requested scopes.
+			getSessions: async (scopes, options) => {
+				requests.push(scopes);
+				assert.strictEqual(options.silent, true);
+				return scopes ? [restored] : [session('minimal', ['user:email'])];
+			},
+		}));
+
+		const result = await service.getSessions('github', { defaultScopes: true }, { silent: true });
+
+		assert.deepStrictEqual({ sessions: result.map(candidate => candidate.id), requests }, {
+			sessions: ['restored'],
+			requests: [undefined, defaultScopes]
 		});
 	});
 

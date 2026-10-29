@@ -181,7 +181,7 @@ suite('Mission Control sharing service', () => {
 			override readonly onDidChangeWorkspaceFolders = Event.None;
 			override getWorkspace() { return new Workspace('workspace', options.emptyWindow ? [] : [toWorkspaceFolder(workspaceRoot)], false, null, () => false); }
 		}());
-		instantiation.stub(IProductService, { quality: 'insider', defaultChatAgent: TestProductService.defaultChatAgent });
+		instantiation.stub(IProductService, { quality: 'insider', defaultChatAgent: { ...TestProductService.defaultChatAgent, providerScopes: [[...session.scopes]] } });
 		const logService = store.add(new NullLogService());
 		instantiation.stub(ILogService, logService);
 		instantiation.stub(IStorageService, storage);
