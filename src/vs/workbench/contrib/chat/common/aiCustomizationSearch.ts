@@ -30,12 +30,15 @@ function normalizeSeparators(value: string): string {
  * @returns highlight ranges in `target`, or `null` when it does not match.
  */
 export function matchesCustomizationSearchQuery(query: string, target: string): IMatch[] | null {
-	const normalizedQuery = normalizeSeparators(query.trim().replace(/\s+/g, ' '));
-	if (!normalizedQuery) {
+	const trimmedQuery = normalizeSeparators(query.trim());
+	if (!trimmedQuery) {
 		return [];
 	}
 	const normalizedTarget = normalizeSeparators(target);
-	return matchesContiguousSubString(normalizedQuery, normalizedTarget) ?? matchesWords(normalizedQuery, normalizedTarget, true);
+	const collapsedQuery = trimmedQuery.replace(/\s+/g, ' ');
+	return matchesContiguousSubString(trimmedQuery, normalizedTarget)
+		?? (collapsedQuery !== trimmedQuery ? matchesContiguousSubString(collapsedQuery, normalizedTarget) : null)
+		?? matchesWords(collapsedQuery, normalizedTarget, true);
 }
 
 /**
