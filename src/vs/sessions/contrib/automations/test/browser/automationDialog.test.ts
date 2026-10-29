@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { DEFAULT_FONT_FAMILY } from '../../../../../base/browser/fonts.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Dialog } from '../../../../../base/browser/ui/dialog/dialog.js';
@@ -898,7 +899,7 @@ suite('Automation dialog creation', () => {
 			panel.style.width = `${width}px`;
 			panel.style.minWidth = '0';
 			panel.style.maxWidth = 'none';
-			panel.style.fontFamily = 'Arial, sans-serif';
+			panel.style.fontFamily = DEFAULT_FONT_FAMILY;
 			panel.style.setProperty('--vscode-fontSize-label1', '12px');
 			const row = dialog.container.querySelector<HTMLElement>('.automation-form-schedule-row')!;
 			const trigger = row.querySelector<HTMLElement>('.automation-form-schedule-group')!;
