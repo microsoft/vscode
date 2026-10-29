@@ -9,7 +9,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, disposableTimeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -262,8 +262,13 @@ suite('SessionArchiveNudge', () => {
 		));
 		let service = store.add(new SessionArchiveNudgeService(storage, management, telemetry, configuration, viewsService, onboardingService, chatService));
 		const current = observableValue<ISession | undefined>('current', sessions[0]);
-		function createNudge() {
-			const nudge = store.add(new SessionArchiveNudge(current, configuration, entitlement, github, service, commandService));
+		function createNudge(chat?: IObservable<IChat | undefined>) {
+			const target = derived(reader => {
+				const session = current.read(reader);
+				const shownChat = chat ? chat.read(reader) : session?.mainChat.read(reader);
+				return session && shownChat ? { session, chat: shownChat } : undefined;
+			});
+			const nudge = store.add(new SessionArchiveNudge(target, configuration, entitlement, github, service, commandService));
 			store.add(autorun(reader => nudge.options.read(reader)));
 			return nudge;
 		}
@@ -550,6 +555,37 @@ suite('SessionArchiveNudge', () => {
 		context.setPullRequest(1, GitHubPullRequestState.Merged, 'other', 'project');
 		states.push(nudge.options.get()?.pullRequestCount);
 		assert.deepStrictEqual(states, [undefined, undefined, undefined, undefined, undefined, undefined, 1, undefined, 2]);
+	});
+
+	test('scopes pull requests to the chat that recorded them, excluding associations echoed from other chats', () => {
+		const session = createSession();
+		const nestedChat = upcastPartial<IChat>({
+			resource: URI.from({ scheme: 'test-chat', path: '/nested' }),
+			status: observableValue<SessionStatus>('nestedStatus', SessionStatus.Completed),
+			workspace: observableValue<ISessionWorkspace | undefined>('nestedWorkspace', undefined),
+		});
+		session.chats.set([nestedChat], undefined);
+		session.artifacts.set([artifact(1, { chat: nestedChat.resource })], undefined);
+		// Providers echo every chat's records into the workspace associations and can rediscover them from git.
+		setGitHubInfo(session, { owner: 'owner', repo: 'repo', pullRequests: [pullRequestRef(1, { recordedReferenceId: 'pr-1' }), pullRequestRef(1)] });
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const main = context.createNudge();
+		const nested = context.createNudge(constObservable(nestedChat));
+		const counts = () => ({ main: main.options.get()?.pullRequestCount, nested: nested.options.get()?.pullRequestCount });
+		const states = [counts()];
+		session.artifacts.set([artifact(1, { chat: nestedChat.resource }), artifact(2), artifact(3, { chat: nestedChat.resource, link: undefined })], undefined);
+		states.push(counts());
+		context.setPullRequest(2, GitHubPullRequestState.Merged);
+		states.push(counts());
+		assert.deepStrictEqual({ states, requests: context.requests }, {
+			states: [
+				{ main: undefined, nested: 1 },
+				{ main: undefined, nested: undefined },
+				{ main: 1, nested: undefined },
+			],
+			requests: ['owner/repo/1', 'owner/repo/2'],
+		});
 	});
 
 	test('hides during work, input requests, loading, disconnection, and archiving', () => {
