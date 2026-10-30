@@ -264,6 +264,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private readonly _devContainerLifecycle: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle'];
 	private _devContainerIdleSince: number | undefined;
 	private _devContainerIdleCheckRunning = false;
+	private _devContainerArchiveOperations = 0;
 	private readonly _devContainerIdleScheduler = this._register(new RunOnceScheduler(() => {
 		void this._stopDevContainerIfIdle().catch(error =>
 			this._logService.error(`[${this.id}] Failed to stop idle Dev Container.`, error));
@@ -571,6 +572,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			&& envelope.action.type === ActionType.SessionIsArchivedChanged
 			&& envelope.action.isArchived === archived
 		));
+		// Loading the session on a restarted host can outlast a short idle timeout.
+		this._devContainerArchiveOperations++;
+		this._scheduleDevContainerStopIfIdle();
 		try {
 			// The host only confirms to active subscribers, which a restarted host has after loading the session.
 			if (subscription.object.value === undefined) {
@@ -608,6 +612,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			snapshot.cancel();
 			confirmationAction.cancel();
 			subscription.dispose();
+			this._devContainerArchiveOperations--;
+			this._scheduleDevContainerStopIfIdle();
 		}
 	}
 
@@ -634,7 +640,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 	private _isDevContainerIdle(): boolean {
 		const sessions = this.getKnownSessions();
-		return !!this.connection && !sessions.some(session => {
+		return !!this.connection && this._devContainerArchiveOperations === 0 && !sessions.some(session => {
 			const status = session.status.get();
 			return (status === SessionStatus.Untitled && !this._isEmptyDevContainerDraft(session)) || isActiveSessionStatus(status);
 		});

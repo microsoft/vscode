@@ -3494,6 +3494,36 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({ togglesBeforeLoad, archived: session.isArchived.get() }, { togglesBeforeLoad: 0, archived: true });
 	});
 
+	test('does not stop an idle Dev Container while a restarted host loads a session to toggle', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		connection.addSession(createSession('slow-archive', { summary: 'Slow Archive', status: ProtocolSessionStatus.Idle }));
+		connection.addSession(createSession('slow-remaining', { summary: 'Slow Remaining', status: ProtocolSessionStatus.Idle }));
+		let stops = 0;
+		const provider = createProvider(disposables, connection, {
+			configurationService: new TestConfigurationService({ [DevContainerIdleTimeoutSettingId]: 15 }),
+			devContainerLifecycle: { connect: async () => { }, stop: async () => { stops++; return true; }, remove: async () => true },
+		});
+		fireSessionAdded(connection, 'slow-archive', { title: 'Slow Archive' });
+		fireSessionAdded(connection, 'slow-remaining', { title: 'Slow Remaining' });
+		const session = provider.getSessions().find(candidate => candidate.title.get() === 'Slow Archive');
+		assert.ok(session);
+
+		const archive = provider.archiveSession(session.sessionId);
+		await timeout(20 * 1000);
+		const stopsWhileLoading = stops;
+		connection.echoDispatchedActions = true;
+		connection.setSessionState('slow-archive', 'copilotcli', {
+			provider: 'copilotcli', title: 'Slow Archive', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
+		});
+		await archive;
+		await timeout(15 * 1000 - 1);
+		const stopsBeforeDeadline = stops;
+		await timeout(1);
+
+		assert.deepStrictEqual({ stopsWhileLoading, stopsBeforeDeadline, stops, archived: session.isArchived.get() }, {
+			stopsWhileLoading: 0, stopsBeforeDeadline: 0, stops: 1, archived: true,
+		});
+	}));
+
 	test('rejects an archive toggle without dispatching when the host cannot load the session', async () => {
 		connection.addSession(createSession('unloadable-archive', { summary: 'Unloadable Archive' }));
 		const operations: string[] = [];
