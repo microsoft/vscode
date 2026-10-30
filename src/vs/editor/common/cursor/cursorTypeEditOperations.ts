@@ -13,6 +13,7 @@ import { SurroundSelectionCommand } from '../commands/surroundSelectionCommand.j
 import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from '../cursorCommon.js';
 import { WordCharacterClass, getMapForWordSeparators } from '../core/wordCharacterClassifier.js';
 import { Range } from '../core/range.js';
+import { CursorColumns } from '../core/cursorColumns.js';
 import { Selection } from '../core/selection.js';
 import { Position } from '../core/position.js';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from '../editorCommon.js';
@@ -24,6 +25,7 @@ import { EditorAutoClosingStrategy, EditorAutoIndentStrategy } from '../config/e
 import { createScopedLineTokens } from '../languages/supports.js';
 import { getIndentActionForType, getIndentForEnter, getInheritIndentForLine } from '../languages/autoIndent.js';
 import { getEnterAction } from '../languages/enterAction.js';
+import { normalizeIndentationWithLogicalTabs } from '../core/misc/indentation.js';
 import { CompositionOutcome } from './cursorTypeOperations.js';
 
 export class AutoIndentOperation {
@@ -597,18 +599,23 @@ export class EnterOperation {
 		}
 		const r = getEnterAction(config.autoIndent, model, range, config.languageConfigurationService);
 		if (r) {
+			// `r.appendText` contains logical tab markers (one per indentation level),
+			// while `r.indentation` is existing file whitespace rendered at `tabSize`.
+			const normalizeEnterIndentation = (indentation: string, appendText: string) => {
+				return normalizeIndentationWithLogicalTabs(indentation, appendText, config.tabSize, config.indentSize, config.insertSpaces);
+			};
 			if (r.indentAction === IndentAction.None) {
 				// Nothing special
-				return typeCommand(range, '\n' + config.normalizeIndentation(r.indentation + r.appendText), keepPosition);
+				return typeCommand(range, '\n' + normalizeEnterIndentation(r.indentation, r.appendText), keepPosition);
 
 			} else if (r.indentAction === IndentAction.Indent) {
 				// Indent once
-				return typeCommand(range, '\n' + config.normalizeIndentation(r.indentation + r.appendText), keepPosition);
+				return typeCommand(range, '\n' + normalizeEnterIndentation(r.indentation, r.appendText), keepPosition);
 
 			} else if (r.indentAction === IndentAction.IndentOutdent) {
 				// Ultra special
-				const normalIndent = config.normalizeIndentation(r.indentation);
-				const increasedIndent = config.normalizeIndentation(r.indentation + r.appendText);
+				const normalIndent = normalizeEnterIndentation(r.indentation, '');
+				const increasedIndent = normalizeEnterIndentation(r.indentation, r.appendText);
 				const typeText = '\n' + increasedIndent + '\n' + normalIndent;
 				if (keepPosition) {
 					return new ReplaceCommandWithoutChangingPosition(range, typeText, true);
@@ -617,7 +624,7 @@ export class EnterOperation {
 				}
 			} else if (r.indentAction === IndentAction.Outdent) {
 				const actualIndentation = unshiftIndent(config, r.indentation);
-				return typeCommand(range, '\n' + config.normalizeIndentation(actualIndentation + r.appendText), keepPosition);
+				return typeCommand(range, '\n' + normalizeEnterIndentation(actualIndentation, r.appendText), keepPosition);
 			}
 		}
 
@@ -851,9 +858,16 @@ export class TabOperation {
 				const lineText = model.getLineContent(selection.startLineNumber);
 				if (/^\s*$/.test(lineText) && model.tokenization.isCheapToTokenize(selection.startLineNumber)) {
 					let goodIndent = this._goodIndentForLine(config, model, selection.startLineNumber);
-					goodIndent = goodIndent || '\t';
+					// Fall back to one logical indentation level (e.g. on a blank line)
+					goodIndent = goodIndent || ShiftCommand.shiftIndent('', 1, config.tabSize, config.indentSize, config.insertSpaces);
 					const possibleTypeText = config.normalizeIndentation(goodIndent);
-					if (!lineText.startsWith(possibleTypeText)) {
+					// In mixed indentation styles (e.g. tab size 8, indent size 2) the same
+					// indent level can be encoded differently (e.g. '      ' vs '\t'), so
+					// compare the rendered widths instead of the literal characters.
+					const isBeforeGoodIndent = (config.tabSize > config.indentSize)
+						? config.visibleColumnFromColumn(model, selection.getPosition()) < CursorColumns.visibleColumnFromColumn(possibleTypeText, possibleTypeText.length + 1, config.tabSize)
+						: !lineText.startsWith(possibleTypeText);
+					if (isBeforeGoodIndent) {
 						commands[i] = new ReplaceCommand(new Range(selection.startLineNumber, 1, selection.startLineNumber, lineText.length + 1), possibleTypeText, true);
 						continue;
 					}
@@ -904,7 +918,9 @@ export class TabOperation {
 			const maxColumn = model.getLineMaxColumn(lastLineNumber);
 			const expectedEnterAction = getEnterAction(config.autoIndent, model, new Range(lastLineNumber, maxColumn, lastLineNumber, maxColumn), config.languageConfigurationService);
 			if (expectedEnterAction) {
-				indentation = expectedEnterAction.indentation + expectedEnterAction.appendText;
+				// `appendText` contains logical tab markers (one per indentation level),
+				// while `indentation` is existing file whitespace rendered at `tabSize`.
+				indentation = normalizeIndentationWithLogicalTabs(expectedEnterAction.indentation, expectedEnterAction.appendText, config.tabSize, config.indentSize, config.insertSpaces);
 			}
 		}
 		if (action) {
@@ -935,10 +951,11 @@ export class TabOperation {
 		} else {
 			if (config.tabSize > config.indentSize) {
 				// Mixed indentation style (e.g. tab size 8, indent size 2): when the selection is
-				// in the leading whitespace, shift the line instead, which properly inserts as
-				// many tabs as possible and normalizes existing leading whitespace.
+				// empty and in the leading whitespace (or on a blank/whitespace-only line), shift
+				// the line instead, which properly inserts as many tabs as possible and normalizes
+				// existing leading whitespace.
 				const firstNonWhitespace = model.getLineFirstNonWhitespaceColumn(selection.endLineNumber);
-				if (selection.endColumn <= firstNonWhitespace) {
+				if (selection.isEmpty() && (firstNonWhitespace === 0 || selection.endColumn <= firstNonWhitespace)) {
 					return new ShiftCommand(selection, {
 						isUnshift: false,
 						tabSize: config.tabSize,

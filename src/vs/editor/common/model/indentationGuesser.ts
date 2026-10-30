@@ -125,10 +125,13 @@ function detectMixedIndentationUnit(contentLineIndentColumns: number[], linesInd
 	if (linesIndentedWithTabsAndSpacesCount < 2 || linesIndentedWithTabsAndSpacesCount < linesIndentedWithTabsCount * 0.25) {
 		return undefined;
 	}
-	const misalignmentTolerance = contentLineIndentColumns.length * 0.05;
+	// Unindented lines (column 0) support every candidate size and would
+	// inflate the misalignment allowance, so they are excluded.
+	const indentedColumns = contentLineIndentColumns.filter(column => column > 0);
+	const misalignmentTolerance = indentedColumns.length * 0.05;
 	for (let possibleIndentSize = 8; possibleIndentSize >= 2; possibleIndentSize--) {
 		let misalignedCount = 0;
-		for (const column of contentLineIndentColumns) {
+		for (const column of indentedColumns) {
 			if (column % possibleIndentSize !== 0) {
 				misalignedCount++;
 				if (misalignedCount > misalignmentTolerance) {
@@ -137,6 +140,14 @@ function detectMixedIndentationUnit(contentLineIndentColumns: number[], linesInd
 			}
 		}
 		if (misalignedCount <= misalignmentTolerance) {
+			// Require additional evidence that a real multi-level indentation
+			// grid exists, so that files which merely use a few spaces for
+			// continuation-line alignment (which are divisible by many units)
+			// don't override the configured tab size.
+			const distinctLevels = new Set(indentedColumns.filter(column => column % possibleIndentSize === 0));
+			if (distinctLevels.size < 3) {
+				return undefined;
+			}
 			return possibleIndentSize;
 		}
 	}

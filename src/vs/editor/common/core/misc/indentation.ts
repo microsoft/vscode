@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from '../../../../base/common/strings.js';
+import { CharCode } from '../../../../base/common/charCode.js';
 import { CursorColumns } from '../cursorColumns.js';
 
 function _normalizeIndentationFromWhitespace(str: string, indentSize: number, insertSpaces: boolean, tabSize: number): string {
@@ -46,4 +47,26 @@ export function normalizeIndentation(str: string, indentSize: number, insertSpac
 		firstNonWhitespaceIndex = str.length;
 	}
 	return _normalizeIndentationFromWhitespace(str.substring(0, firstNonWhitespaceIndex), indentSize, insertSpaces, tabSize) + str.substring(firstNonWhitespaceIndex);
+}
+
+/**
+ * Combines existing file whitespace (`indentation`, whose tabs are rendered at `tabSize`)
+ * with whitespace that contains logical tab markers (`logicalTabs`, e.g. the `\t` appended
+ * by `getEnterAction` or the tabs used in snippet templates, which each stand for one
+ * indentation level) and normalizes the result.
+ */
+export function normalizeIndentationWithLogicalTabs(indentation: string, logicalTabs: string, tabSize: number, indentSize: number, insertSpaces: boolean): string {
+	let column = CursorColumns.visibleColumnFromColumn(indentation, indentation.length + 1, tabSize);
+	let i = 0;
+	for (let len = logicalTabs.length; i < len; i++) {
+		const charCode = logicalTabs.charCodeAt(i);
+		if (charCode === CharCode.Tab) {
+			column = CursorColumns.nextIndentTabStop(column, indentSize);
+		} else if (charCode === CharCode.Space) {
+			column++;
+		} else {
+			break;
+		}
+	}
+	return normalizeIndentation(' '.repeat(column), indentSize, insertSpaces, tabSize) + logicalTabs.substring(i);
 }

@@ -1795,6 +1795,94 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #5394: backspace within mixed indentation only unshifts the prefix before the caret', () => {
+		const model = createTextModel(
+			'   x',
+			undefined,
+			{
+				insertSpaces: false,
+				tabSize: 8,
+				indentSize: 2
+			},
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			// Backspace after the first two spaces (visible column 2): only the
+			// prefix before the caret is unshifted, the rest of the line is kept
+			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			editor.runCommand(CoreEditingCommands.DeleteLeft, null);
+			assert.strictEqual(model.getLineContent(1), ' x');
+		});
+	});
+
+	test('issue #5394: tab with a partial selection replaces the selection', () => {
+		const model = createTextModel(
+			'        x',
+			undefined,
+			{
+				insertSpaces: false,
+				tabSize: 8,
+				indentSize: 2
+			},
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			// Select the first two spaces of a line indented by a full tab: Tab must
+			// replace the selection with a tab character ('\t' + '      x'), not indent
+			// the whole line (which would produce '\t  x')
+			viewModel.setSelections('test', [new Selection(1, 1, 1, 3)]);
+			editor.runCommand(CoreEditingCommands.Tab, null);
+			assert.strictEqual(model.getLineContent(1), '\t      x');
+		});
+	});
+
+	test('issue #5394: repeated tab on a blank line advances by the indent size', () => {
+		const model = createTextModel(
+			'',
+			undefined,
+			{
+				insertSpaces: false,
+				tabSize: 8,
+				indentSize: 2
+			},
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			// Levels 1-3: spaces only
+			editor.runCommand(CoreEditingCommands.Tab, null);
+			assert.strictEqual(model.getLineContent(1), '  ');
+			editor.runCommand(CoreEditingCommands.Tab, null);
+			assert.strictEqual(model.getLineContent(1), '    ');
+			editor.runCommand(CoreEditingCommands.Tab, null);
+			assert.strictEqual(model.getLineContent(1), '      ');
+			// Level 4: a full tab
+			editor.runCommand(CoreEditingCommands.Tab, null);
+			assert.strictEqual(model.getLineContent(1), '\t');
+			// Level 5: tab + spaces
+			editor.runCommand(CoreEditingCommands.Tab, null);
+			assert.strictEqual(model.getLineContent(1), '\t  ');
+		});
+	});
+
+	test('issue #5394: enter after a line indented with fewer columns than the tab size indents by the indent size', () => {
+		const languageId = setupOnEnterLanguage(IndentAction.Indent);
+		const model = createTextModel(
+			'  if (x) {',
+			languageId,
+			{
+				insertSpaces: false,
+				tabSize: 8,
+				indentSize: 2
+			},
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 11, 1, 11)]);
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '  if (x) {\n    ');
+		});
+	});
+
 	test('issue #23539: Setting model EOL isn\'t undoable', () => {
 		withTestCodeEditor([
 			'Hello',

@@ -175,19 +175,15 @@ export class DeleteOperations {
 			const [useUnshift, deleteRange] = DeleteOperations.getDeleteLeftRange(selections[i], model, config);
 
 			if (useUnshift === true) {
-				// The deleteLeft leads to a decrease in indentation. Use a
-				// shift command instead of a replace command since the required
-				// new indentation level might not constructible by removing
-				// characters from the old indentation (e.g. if tabs with a size
-				// greater than the indent size are involved).
-				commands[i] = new ShiftCommand(selections[i], {
-					isUnshift: true,
-					tabSize: config.tabSize,
-					indentSize: config.indentSize,
-					insertSpaces: config.insertSpaces,
-					useTabStops: config.useTabStops,
-					autoIndent: config.autoIndent
-				}, config.languageConfigurationService);
+				// The deleteLeft leads to a decrease in indentation. Unshift only the
+				// indentation prefix that ends at the caret and preserve the whitespace
+				// after it, since the required new indentation might not be constructible
+				// by removing characters from the old indentation (e.g. if tabs with a
+				// size greater than the indent size are involved).
+				const position = selections[i].getPosition();
+				const lineContent = model.getLineContent(position.lineNumber);
+				const newIndentation = ShiftCommand.unshiftIndent(lineContent, position.column, config.tabSize, config.indentSize, config.insertSpaces);
+				commands[i] = new ReplaceCommand(new Range(position.lineNumber, 1, position.lineNumber, position.column), newIndentation);
 				continue;
 			}
 

@@ -1093,6 +1093,51 @@ suite('Editor Model - TextModel', () => {
 		model.dispose();
 	});
 
+	test('issue #5394: mixed tab/space indentation style is still detected with unindented lines (tab size 8, indent size 2)', () => {
+		// Unindented lines must not skew the misalignment tolerance of the mixed indentation detection
+		const lines: string[] = [];
+		for (let i = 0; i < 200; i++) {
+			lines.push(`int line_${i} = ${i};`);
+		}
+		lines.push(
+			'int main() {',
+			'  if (x) {',
+			'    while (y) {',
+			'\t  frobnicate();',
+			'\t  if (z) {',
+			'\t    do_stuff();',
+			'\t  }',
+			'\t}',
+			'  }',
+			'}',
+		);
+		const model = createTextModel(lines.join('\n'), undefined, { insertSpaces: true, tabSize: 4, detectIndentation: true });
+		const options = model.getOptions();
+
+		assert.strictEqual(options.insertSpaces, false);
+		assert.strictEqual(options.tabSize, 8);
+		assert.strictEqual(options.indentSize, 2);
+
+		model.dispose();
+	});
+
+	test('issue #5394: continuation alignment spaces do not override the configured tab size', () => {
+		// With a configured tab size of 4, the mixed indentation detection must not
+		// conclude tab size 8 / indent size 2 from a few alignment spaces only.
+		const model = createTextModel([
+			'f();',
+			'\tcall(',
+			'\t  a,',
+			'\t  b);',
+		].join('\n'), undefined, { insertSpaces: true, tabSize: 4, detectIndentation: true });
+		const options = model.getOptions();
+
+		assert.strictEqual(options.tabSize, 4);
+		assert.strictEqual(options.indentSize, 4);
+
+		model.dispose();
+	});
+
 	test('getLineFirstNonWhitespaceColumn', () => {
 		const model = createTextModel([
 			'asd',

@@ -439,7 +439,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 
 		let firstLineText = model.getLineContent(startLineNumber);
 		if (!/\S/.test(firstLineText.substring(0, range.startColumn - 1))) {
-			const indentOfFirstLine = getGoodIndentForLine(autoIndent, model, model.getLanguageId(), startLineNumber, indentConverter, this._languageConfigurationService);
+			const indentOfFirstLine = getGoodIndentForLine(autoIndent, model, model.getLanguageId(), startLineNumber, indentConverter, this._languageConfigurationService, { tabSize, indentSize, insertSpaces });
 
 			if (indentOfFirstLine !== null) {
 				const oldIndentation = strings.getLeadingWhitespace(firstLineText);
@@ -499,7 +499,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 					}
 				}
 			};
-			const indentOfSecondLine = getGoodIndentForLine(autoIndent, virtualModel, model.getLanguageId(), startLineNumber + 1, indentConverter, this._languageConfigurationService);
+			const indentOfSecondLine = getGoodIndentForLine(autoIndent, virtualModel, model.getLanguageId(), startLineNumber + 1, indentConverter, this._languageConfigurationService, { tabSize, indentSize, insertSpaces });
 			if (indentOfSecondLine !== null) {
 				const newSpaceCntOfSecondLine = indentUtils.getSpaceCnt(indentOfSecondLine, tabSize);
 				const oldSpaceCntOfSecondLine = indentUtils.getSpaceCnt(strings.getLeadingWhitespace(model.getLineContent(startLineNumber + 1)), tabSize);
