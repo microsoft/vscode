@@ -623,6 +623,24 @@ suite('ExtHostMcp', () => {
 					],
 				});
 			});
+
+			test('forces a new client registration when a cached OAuth token is rejected on a later request', async () => {
+				let tokenRevoked = false;
+				const { handle, tokenRequests, backchannelStopped } = createHandle({
+					respond: (url, init) => {
+						if (url === TEST_MCP_URL && (init.method === 'GET' || tokenRevoked)) {
+							return createMockResponse({ status: init.method === 'GET' ? 405 : 401 });
+						}
+						return respondWithOAuthMetadata(url, init);
+					},
+				});
+				await handle.send('test-message');
+				await backchannelStopped.p;
+				tokenRevoked = true;
+				await handle.send('test-message');
+				// Sign-in after discovery, the notification stream, the cached token, then the forced registration
+				assert.deepStrictEqual(tokenRequests.map(request => request.forceNewRegistration), [false, false, false, true]);
+			});
 		});
 
 		suite('first destinations', () => {

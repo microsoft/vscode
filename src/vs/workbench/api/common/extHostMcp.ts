@@ -384,8 +384,6 @@ export class McpHTTPHandle extends Disposable {
 	private readonly _cts = new CancellationTokenSource();
 	private readonly _abortCtrl = new AbortController();
 	private _authMetadata?: AuthMetadata;
-	/** Request headers whose `Authorization` value was supplied by authentication rather than by the server configuration */
-	private readonly _authenticatedHeaders = new WeakSet<Record<string, string>>();
 	private _didSendClose = false;
 
 	constructor(
@@ -489,7 +487,7 @@ export class McpHTTPHandle extends Disposable {
 		if (sessionId) {
 			headers['Mcp-Session-Id'] = sessionId;
 		}
-		await this._addAuthHeader(headers);
+		const authenticated = await this._addAuthHeader(headers);
 
 		const res = await this._fetchWithAuthRetry(
 			this._launch.uri.toString(true),
@@ -500,6 +498,7 @@ export class McpHTTPHandle extends Disposable {
 			},
 			headers,
 			transportHeaders,
+			authenticated,
 		);
 
 		const wasUnknown = this._mode.value === HttpMode.Unknown;
@@ -618,7 +617,7 @@ export class McpHTTPHandle extends Disposable {
 					...Object.fromEntries(this._launch.headers),
 					...transportHeaders,
 				};
-				await this._addAuthHeader(headers);
+				const authenticated = await this._addAuthHeader(headers);
 
 				if (this._mode.value === HttpMode.Http && this._mode.sessionId !== undefined) {
 					headers['Mcp-Session-Id'] = this._mode.sessionId;
@@ -632,6 +631,7 @@ export class McpHTTPHandle extends Disposable {
 					},
 					headers,
 					transportHeaders,
+					authenticated,
 				);
 			} catch (e) {
 				this._log(LogLevel.Info, `Error connecting to ${this._launch.uri} for async notifications, will retry`);
@@ -680,7 +680,7 @@ export class McpHTTPHandle extends Disposable {
 			...Object.fromEntries(this._launch.headers),
 			...transportHeaders,
 		};
-		await this._addAuthHeader(headers);
+		const authenticated = await this._addAuthHeader(headers);
 
 		let res: CommonResponse;
 		try {
@@ -692,6 +692,7 @@ export class McpHTTPHandle extends Disposable {
 				},
 				headers,
 				transportHeaders,
+				authenticated,
 			);
 			if (res.status >= 300) {
 				this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: `${res.status} status connecting to ${this._launch.uri} as SSE: ${await this._getErrText(res)}` });
@@ -766,8 +767,13 @@ export class McpHTTPHandle extends Disposable {
 		} while (!chunk.done);
 	}
 
-	private async _addAuthHeader(headers: Record<string, string>, options?: { forceNewRegistration?: boolean; errorOnUserInteraction?: boolean }) {
+	/**
+	 * Sets the `Authorization` header to a token from the server's authentication, if one is available.
+	 * @returns Whether authentication supplied the header. Otherwise the header is left unchanged.
+	 */
+	private async _addAuthHeader(headers: Record<string, string>, options?: { forceNewRegistration?: boolean; errorOnUserInteraction?: boolean }): Promise<boolean> {
 		const errorOnUserInteraction = options?.errorOnUserInteraction ?? this._errorOnUserInteraction;
+		let authenticated = false;
 		if (this._authMetadata) {
 			try {
 				const authDetails: IMcpAuthenticationDetails = {
@@ -787,7 +793,7 @@ export class McpHTTPHandle extends Disposable {
 					});
 				if (token) {
 					setHostHeader(headers, 'Authorization', `Bearer ${token}`);
-					this._authenticatedHeaders.add(headers);
+					authenticated = true;
 				}
 			} catch (e) {
 				if (UserInteractionRequiredError.is(e)) {
@@ -812,7 +818,7 @@ export class McpHTTPHandle extends Disposable {
 				);
 				if (token) {
 					setHostHeader(headers, 'Authorization', `Bearer ${token}`);
-					this._authenticatedHeaders.add(headers);
+					authenticated = true;
 					this._log(LogLevel.Info, 'Successfully obtained token from provided authentication config');
 				}
 			} catch (e) {
@@ -823,7 +829,7 @@ export class McpHTTPHandle extends Disposable {
 				this._log(LogLevel.Warning, `Error getting token from provided authentication config: ${String(e)}`);
 			}
 		}
-		return headers;
+		return authenticated;
 	}
 
 	private _log(level: LogLevel, message: string) {
@@ -845,8 +851,9 @@ export class McpHTTPHandle extends Disposable {
 	 * If the initial request returns an auth error and we don't have auth metadata,
 	 * it will populate the auth metadata and retry once.
 	 * If we already have auth metadata, check if the scopes changed and update them.
+	 * @param authenticated Whether authentication supplied the `Authorization` header in `headers`, as reported by `_addAuthHeader`.
 	 */
-	private async _fetchWithAuthRetry(mcpUrl: string, init: MinimalRequestInit, headers: Record<string, string>, transportHeaders?: Readonly<Record<string, string>>): Promise<CommonResponse> {
+	private async _fetchWithAuthRetry(mcpUrl: string, init: MinimalRequestInit, headers: Record<string, string>, transportHeaders?: Readonly<Record<string, string>>, authenticated = false): Promise<CommonResponse> {
 		const doFetch = () => this._fetch(mcpUrl, init, { transportHeaders });
 
 		let res = await doFetch();
@@ -876,7 +883,7 @@ export class McpHTTPHandle extends Disposable {
 					return res;
 				}
 				this._authMetadata = authMetadata;
-				await this._addAuthHeader(headers);
+				authenticated = await this._addAuthHeader(headers) || authenticated;
 				if (headers['Authorization']) {
 					// Update the headers in the init object
 					init.headers = headers;
@@ -885,7 +892,7 @@ export class McpHTTPHandle extends Disposable {
 			} else {
 				// We have auth metadata, but got an auth error. Check if the scopes changed.
 				if (this._authMetadata.update(res.headers)) {
-					await this._addAuthHeader(headers);
+					authenticated = await this._addAuthHeader(headers) || authenticated;
 					if (headers['Authorization']) {
 						// Update the headers in the init object
 						init.headers = headers;
@@ -896,7 +903,7 @@ export class McpHTTPHandle extends Disposable {
 		}
 		// If a token supplied by authentication is still rejected, retry with a new auth registration. A rejected
 		// configured header is not fixed by registering a new OAuth client.
-		if (this._authenticatedHeaders.has(headers) && isAuthStatusCode(res.status)) {
+		if (authenticated && isAuthStatusCode(res.status)) {
 			const errorText = await this._getErrText(res);
 			this._log(LogLevel.Info, `Received ${res.status} status with Authorization header, retrying with new auth registration. Error details: ${errorText || 'no additional details'}`);
 			await this._addAuthHeader(headers, { forceNewRegistration: true });
