@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CanGoBackContext, CanGoForwardContext } from '../../../common/contextkeys.js';
-import { ICustomViewService } from '../../customView/browser/customViewService.js';
+import { ICustomViewOpenRequest, ICustomViewService } from '../../customView/browser/customViewService.js';
 import { ISession, SessionStatus } from '../common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService, IActiveSession } from '../common/sessionsManagement.js';
 import { getRecencyEntryKey, SessionRecencyEntry, SessionsRecencyHistory } from './sessionsRecencyHistory.js';
@@ -68,7 +68,7 @@ export class SessionsNavigation extends Disposable {
 			const customViewOpen = this._customViewService.activeCustomViewOpen.read(reader);
 			if (customViewOpen) {
 				if (customViewOpen.source !== 'history') {
-					this.recordOpened({ kind: 'customView', id: customViewOpen.descriptor.id });
+					this.recordOpened(getCustomViewEntry(customViewOpen));
 				}
 				return;
 			}
@@ -154,9 +154,9 @@ export class SessionsNavigation extends Disposable {
 	}
 
 	private _getActiveEntry(reader?: IReader): SessionRecencyEntry {
-		const customView = this._customViewService.activeCustomView.read(reader);
-		if (customView) {
-			return { kind: 'customView', id: customView.id };
+		const customViewOpen = this._customViewService.activeCustomViewOpen.read(reader);
+		if (customViewOpen) {
+			return getCustomViewEntry(customViewOpen);
 		}
 
 		const session = this._activeSession.read(reader);
@@ -201,8 +201,10 @@ export class SessionsNavigation extends Disposable {
 			if (entry.kind === 'customView') {
 				const previousKey = this._currentKey.get();
 				this._currentKey.set(key, undefined);
-				this._customViewService.showCustomView(entry.id, { source: 'history' });
-				if (this._customViewService.activeCustomView.get()?.id !== entry.id) {
+				this._customViewService.showCustomView(entry.id, { source: 'history', state: entry.state });
+				const opened = this._customViewService.activeCustomViewOpen.get();
+				// A view that cannot show the recorded state, such as a removed item, declines the opening.
+				if (opened?.descriptor.id !== entry.id || opened.state !== entry.state) {
 					this._currentKey.set(previousKey, undefined);
 					this._recency.remove(e => getRecencyEntryKey(e) === key);
 					continue;
@@ -231,4 +233,8 @@ export class SessionsNavigation extends Disposable {
 			return;
 		}
 	}
+}
+
+function getCustomViewEntry(open: ICustomViewOpenRequest): SessionRecencyEntry {
+	return { kind: 'customView', id: open.descriptor.id, ...(open.state !== undefined ? { state: open.state } : {}) };
 }

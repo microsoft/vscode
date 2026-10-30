@@ -144,6 +144,8 @@ Explicit session and chat open actions dismiss the active custom view. Reactive 
 
 Custom views may handle an unparameterized New Session action through their descriptor and host the shared new-session composer. Such composers prepare drafts with `preserveCustomView`; workspace and agent selection must not dismiss their host. Parameterized New Session actions, including opening to the side or supplying a prompt, retain normal session navigation.
 
+Back and Forward history records each opening of a custom view. A view that shows one of several items, such as the pinned canvas page, names the item as the opening's `state`; history reopens the view with that state. Through `acceptsState`, the view declines states it can no longer show, which history then skips.
+
 ## Part lifecycle
 
 The workbench:

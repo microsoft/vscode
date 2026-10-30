@@ -13,7 +13,7 @@ import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../.
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mapsStrictEqualIgnoreOrder, ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { deepClone, equals } from '../../../../../base/common/objects.js';
-import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, mapObservableArrayCached, observableFromEvent, observableSignal, observableSignalFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, mapObservableArrayCached, observableFromEvent, observableSignal, observableSignalFromEvent, observableValueOpts, recomputeInitiallyAndOnChange, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { basename, dirname, extUriIgnorePathCase, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { themeColorFromId, ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -3189,11 +3189,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		});
 	}
 
-	private _createChatCanvasesObservable(chatUriOrObservable: URI | IObservable<URI | undefined>): IObservable<readonly ISessionCanvas[] | undefined> {
+	/** Observes a chat's canvases while `isActiveObs` holds; chats subscribe only while their session is active. */
+	private _createChatCanvasesObservable(chatUriOrObservable: URI | IObservable<URI | undefined>, isActiveObs: IObservable<boolean> = this.isActiveSessionObs): IObservable<readonly ISessionCanvas[] | undefined> {
 		const chatUriObs = URI.isUri(chatUriOrObservable) ? constObservable(chatUriOrObservable) : chatUriOrObservable;
 		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
 			this._options,
-			this.isActiveSessionObs,
+			isActiveObs,
 			StateComponents.Chat,
 			chatUriObs,
 		);
@@ -3204,7 +3205,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const canvasStates = mapObservableArrayCached(this, canvases.map(references => references ?? []), canvas => {
 			const resource = URI.parse(canvas.resource);
 			const stateObs = createActiveSessionSubscriptionObs<CanvasState>(
-				this._options, this.isActiveSessionObs, StateComponents.Canvas, constObservable(resource),
+				this._options, isActiveObs, StateComponents.Canvas, constObservable(resource),
 			);
 			return derived(reader => {
 				const state = stateObs.read(reader).read(reader);
@@ -3218,6 +3219,45 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			}
 			return canvasStates.read(reader).map(canvas => canvas.read(reader));
 		});
+	}
+
+	/**
+	 * Observes the canvases of one chat of this session without the active-session gate, so
+	 * a pinned canvas can find its live canvas again without showing its chat. The host counts
+	 * the chat subscription as a subscriber of this session, so holding the reference keeps it resident.
+	 */
+	observeChatCanvases(backendChat: URI): IReference<IObservable<readonly ISessionCanvas[] | undefined>> {
+		const canvases = this._createChatCanvasesObservable(backendChat, constObservable(true));
+		const keepAlive = recomputeInitiallyAndOnChange(canvases);
+		return { object: canvases, dispose: () => keepAlive.dispose() };
+	}
+
+	/**
+	 * Observes one canvas of this session without the active-session gate. The host
+	 * counts the canvas subscription as a subscriber of its owning session, so holding
+	 * the reference keeps that session resident.
+	 */
+	observeCanvas(canvasResource: URI): IReference<IObservable<ISessionCanvas | undefined>> {
+		const subscription = derived(reader => {
+			const connection = this._options.getConnection(reader);
+			if (!connection) {
+				return undefined;
+			}
+			const reference = reader.store.add(connection.getSubscription(StateComponents.Canvas, canvasResource, 'AgentHostObservedCanvas'));
+			return observableFromEvent(Event.any(reference.object.onDidChange, reference.object.onDidError ?? Event.None),
+				() => reference.object.value as CanvasState | Error | undefined);
+		});
+		const canvas = derived<ISessionCanvas | undefined>(reader => {
+			const state = subscription.read(reader);
+			if (!state) {
+				return undefined;
+			}
+			const value = state.read(reader);
+			// A pending subscription yields a canvas without an instance ID or source.
+			return value instanceof Error ? undefined : this._options.instantiationService.createInstance(AgentHostCanvas, canvasResource, value);
+		});
+		const keepAlive = recomputeInitiallyAndOnChange(canvas);
+		return { object: canvas, dispose: () => keepAlive.dispose() };
 	}
 
 }
@@ -7480,6 +7520,22 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(localize('closeCanvasUnavailable', "Closing canvases is unavailable for this session."));
 		}
 		await connection.closeSessionCanvas(target.session, { resource: canvas.resource }, target.chat);
+	}
+
+	observeCanvas(sessionId: string, chatResource: URI, canvasResource: URI): IReference<IObservable<ISessionCanvas | undefined>> {
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!cached || !this.getBackendChatResource(chatResource)) {
+			return { object: constObservable(undefined), dispose: () => { } };
+		}
+		return cached.observeCanvas(canvasResource);
+	}
+
+	observeChatCanvases(sessionId: string, chatResource: URI): IReference<IObservable<readonly ISessionCanvas[] | undefined>> | undefined {
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const backendChat = this.getBackendChatResource(chatResource);
+		return cached && backendChat ? cached.observeChatCanvases(backendChat) : undefined;
 	}
 
 	/** Resolves the host-supplied backend session and chat that a canvas operation addresses. */

@@ -1373,6 +1373,60 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('observes a canvas of an inactive session while the reference is held', () => {
+		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} }]);
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) });
+		fireSessionAdded(agentHost, 'pinned-owner');
+		const session = provider.getSessions()[0];
+		const resource = 'ahp-canvas:/pinned-owner/plan';
+		const read = (canvas: ISessionCanvas | undefined) => canvas && { instanceId: canvas.instanceId, extensionId: canvas.extensionId, canvasId: canvas.canvasId, title: canvas.title, source: canvas.source?.toString() };
+
+		const reference = provider.observeCanvas(session.sessionId, session.mainChat.get().resource, URI.parse(resource));
+		const pending = read(reference.object.get());
+		agentHost.setCanvasState(resource, { instanceId: 'plan', extensionId: 'user:plan', canvasId: 'plan', title: 'Plan', url: 'https://example.test/plan' });
+		const live = read(reference.object.get());
+		agentHost.setCanvasState(resource, new Error('Canvas closed'));
+		const unavailable = read(reference.object.get());
+		const subscribedWhileHeld = agentHost.sessionSubscribeCounts.get(resource);
+		reference.dispose();
+
+		assert.deepStrictEqual({ pending, live, unavailable, subscribedWhileHeld, unsubscribes: agentHost.sessionUnsubscribeCounts.get(resource) }, {
+			pending: { instanceId: undefined, extensionId: undefined, canvasId: undefined, title: 'Canvas', source: undefined },
+			live: { instanceId: 'plan', extensionId: 'user:plan', canvasId: 'plan', title: 'Plan', source: 'https://example.test/plan' },
+			unavailable: undefined,
+			subscribedWhileHeld: 1,
+			unsubscribes: 1,
+		});
+	});
+
+	test('observes the canvases of an inactive chat, which its chat model leaves unknown, while the reference is held', () => {
+		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} }]);
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) });
+		const rawId = 'pinned-chat-owner';
+		fireSessionAdded(agentHost, rawId);
+		const session = provider.getSessions()[0];
+		// The chat the session listing advertises, which the session never subscribes to while inactive.
+		const chat = buildDefaultChatUri(AgentSession.uri('copilotcli', rawId).toString());
+		const resource = 'ahp-canvas:/pinned-chat-owner/plan';
+		const summary: ChatSummary = { resource: chat, title: 'Main', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
+		agentHost.setChatState(chat, { ...summary, turns: [], canvases: [{ resource }] });
+		agentHost.setCanvasState(resource, { instanceId: 'plan', extensionId: 'user:plan', canvasId: 'plan', title: 'Plan', url: 'https://example.test/plan' });
+		const read = (canvases: readonly ISessionCanvas[] | undefined) => canvases?.map(canvas => ({ resource: canvas.resource.toString(), instanceId: canvas.instanceId }));
+
+		const reference = provider.observeChatCanvases(session.sessionId, session.mainChat.get().resource);
+		const observed = read(reference?.object.get());
+		const chatModel = read(session.mainChat.get().canvases?.get());
+		const subscribedWhileHeld = [agentHost.sessionSubscribeCounts.get(chat), agentHost.sessionSubscribeCounts.get(resource)];
+		reference?.dispose();
+
+		assert.deepStrictEqual({ observed, chatModel, subscribedWhileHeld, unsubscribes: [agentHost.sessionUnsubscribeCounts.get(chat), agentHost.sessionUnsubscribeCounts.get(resource)] }, {
+			observed: [{ resource, instanceId: 'plan' }],
+			chatModel: undefined,
+			subscribedWhileHeld: [1, 1],
+			unsubscribes: [1, 1],
+		});
+	});
+
 	test('rebinds session types when Agent Host starts with a new root subscription', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.clearRootState();
 		const provider = createProvider(disposables, agentHost);

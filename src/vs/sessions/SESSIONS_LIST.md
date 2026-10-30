@@ -17,6 +17,7 @@ This specification defines stable placement and state-ownership rules. Row styli
 | Order of a session's nested chats | The session's provider |
 | Custom groups, group and grouping-section appearance, nesting, automatic-section parents, mixed child order, and session membership | `ISessionGroupsService` |
 | Top-level custom group and grouping-section order | `ISessionSectionOrderService` |
+| Pinned canvas rows after Automations | `IPinnedCanvasService` |
 | Tree composition and presentation | `SessionsView` and `SessionsList` |
 
 List-owned state is local presentation state. It is not synchronized back to a provider and must not mutate provider timestamps or metadata.
@@ -152,6 +153,8 @@ A collapsed session row uses the provider's aggregate status without inspecting 
 ## Persistence
 
 List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace, repository, or environment section, the Chats section, and custom group, pins, automation sessions shown in the list, custom groups with their nesting, automatic-section parents and mixed child order, manual sort keys, and top-level section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
+
+Pinned canvases are not list state: their rows mirror `IPinnedCanvasService`, which persists them per workspace. Like Automations, they appear in the separate navigation list when it is shown, and otherwise directly below Automations in the sessions tree. They are absent while there are no pins.
 
 ## Change policy
 
