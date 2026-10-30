@@ -90,7 +90,7 @@ suite('AgentHostMergeOperationContribution', () => {
 			id: 'merge',
 			group: 'merge',
 			scopes: ['changeset'],
-			confirmation: 'Merge the worktree changes into the parent repository? Any uncommitted worktree changes will be committed first.',
+			confirmation: 'Merge these changes into \'main\'? Uncommitted worktree changes are included.',
 		}]);
 	});
 

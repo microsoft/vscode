@@ -20,6 +20,8 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../platform/context
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { invokeChangesetOperationAndReportErrors } from './changesetOperationInvocation.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ActiveEditorContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -414,10 +416,13 @@ export class ChangesetOperationsActionControllerContribution extends Disposable 
 							return;
 						}
 
-						await changeset?.invokeOperation(operation.id, {
+						if (!changeset) {
+							return;
+						}
+						await invokeChangesetOperationAndReportErrors(changeset, operation, {
 							kind: 'resource',
 							resource: getChangesFileUri(change),
-						});
+						}, accessor.get(INotificationService), accessor.get(ILogService));
 					}
 				}));
 			}
@@ -523,8 +528,11 @@ export class ChangesHeaderChangesetOperationsActionContribution extends Disposab
 						});
 					}
 
-					async run(): Promise<void> {
-						await changeset?.invokeOperation(operation.id);
+					async run(accessor: ServicesAccessor): Promise<void> {
+						if (!changeset) {
+							return;
+						}
+						await invokeChangesetOperationAndReportErrors(changeset, operation, undefined, accessor.get(INotificationService), accessor.get(ILogService));
 					}
 				}));
 			}

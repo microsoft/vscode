@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { tryResolvePrimaryWorktreeRoot, type IAgentHostGitService, type IBranch, type IDefaultBranch } from '../../common/agentHostGitService.js';
+import { tryResolvePrimaryWorktreeRoot, type IAgentHostGitService, type IBranch, type IDefaultBranch, type IGitStash } from '../../common/agentHostGitService.js';
 import { projectFromCopilotContext, projectFromRepository, resolveGitProject } from '../../node/copilot/copilotGitProject.js';
 
 class TestAgentHostGitService implements IAgentHostGitService {
@@ -42,6 +42,10 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async checkout(): Promise<void> { }
 	async hasUncommittedChanges(): Promise<boolean> { return false; }
 	async createStash(): Promise<void> { }
+	async listStashes(): Promise<readonly IGitStash[]> { return []; }
+	async applyStash(): Promise<void> { }
+	async dropStash(): Promise<void> { }
+	async getUnmergedPaths(): Promise<readonly string[]> { return []; }
 	async commitAll(): Promise<void> { }
 	async mergeBranch(): Promise<string> { return ''; }
 	async restore(): Promise<void> { }

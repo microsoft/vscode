@@ -17,7 +17,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead } from '../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IGitStash, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { firstParallel, Limiter, SequencerByKey, timeout } from '../../../base/common/async.js';
 import { derived, observableValueOpts, type IObservable } from '../../../base/common/observable.js';
@@ -628,6 +628,39 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 
 		await this._runGit(workingDirectory, args, { timeout: 60_000, throwOnError: true });
+	}
+
+	async listStashes(workingDirectory: URI): Promise<readonly IGitStash[]> {
+		const output = await this._runGit(workingDirectory, ['stash', 'list', '-z', '--format=%gd%x1f%H%x1f%gs'], { throwOnError: true });
+		return (output ?? '').split('\0').filter(Boolean).map(record => {
+			const [ref, commit, message] = record.split('\x1f');
+			return { ref, commit, message: message ?? '' };
+		});
+	}
+
+	async applyStash(workingDirectory: URI, commit: string): Promise<void> {
+		await this._runGit(workingDirectory, ['stash', 'apply', '--index', commit], { timeout: 60_000, throwOnError: true });
+	}
+
+	async dropStash(workingDirectory: URI, commit: string): Promise<void> {
+		const entry = (await this.listStashes(workingDirectory)).find(stash => stash.commit === commit);
+		if (!entry) {
+			return;
+		}
+		// Another worktree can push a stash between listing and dropping, shifting
+		// positions; verify the dropped commit and put back any other entry.
+		const output = await this._runGit(workingDirectory, ['stash', 'drop', entry.ref], { throwOnError: true });
+		const dropped = /\((?<commit>[0-9a-f]{40,64})\)/.exec(output ?? '')?.groups?.commit;
+		if (dropped && dropped !== commit) {
+			const subject = (await this._runGit(workingDirectory, ['log', '-1', '--format=%s', dropped], { throwOnError: true }))?.trim() ?? '';
+			await this._runGit(workingDirectory, ['stash', 'store', '-m', subject, dropped], { throwOnError: true });
+			throw new Error(`The stash list changed while dropping ${commit}; restored ${dropped}.`);
+		}
+	}
+
+	async getUnmergedPaths(workingDirectory: URI): Promise<readonly string[]> {
+		const output = await this._runGit(workingDirectory, ['diff', '--name-only', '--diff-filter=U', '-z'], { throwOnError: true });
+		return (output ?? '').split('\0').filter(Boolean);
 	}
 
 	async commitAll(workingDirectory: URI, message: string): Promise<void> {

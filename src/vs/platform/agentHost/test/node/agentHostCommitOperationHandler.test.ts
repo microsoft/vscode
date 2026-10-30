@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { buildChatUri, buildDefaultChatUri, SessionStatus, withSessionGitState, type ISessionFileDiff } from '../../common/state/sessionState.js';
-import type { IAgentHostGitService, IBranch, IDefaultBranch } from '../../common/agentHostGitService.js';
+import type { IAgentHostGitService, IBranch, IDefaultBranch, IGitStash } from '../../common/agentHostGitService.js';
 import { AgentHostCommitOperationHandler } from '../../node/agentHostCommitOperationHandler.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
@@ -65,6 +65,10 @@ class TestGitService implements IAgentHostGitService {
 		return this.uncommitted;
 	}
 	async createStash(): Promise<void> { }
+	async listStashes(): Promise<readonly IGitStash[]> { return []; }
+	async applyStash(): Promise<void> { }
+	async dropStash(): Promise<void> { }
+	async getUnmergedPaths(): Promise<readonly string[]> { return []; }
 	async commitAll(workingDirectory: URI, message: string): Promise<void> {
 		this.calls.push(`commitAll:${message}`);
 		this.workingDirectories.push(workingDirectory.toString());

@@ -20,18 +20,23 @@ import { MenuService } from '../../../../../../platform/actions/common/menuServi
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationHandle, INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type AgentHostUriMapper, createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AGENT_MERGE_CHANGESET_ID, buildCompareTurnsChangesetUriTemplate, buildTurnChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
+import { mergeOperationDirtyTargetErrorData, mergeOperationStashTargetChangesMeta, readMergeOperationStashTargetChanges } from '../../../../../../platform/agentHost/common/meta/agentMergeOperationMeta.js';
 import { createPullRequestDetailsResult, createPullRequestOperationMeta, IPullRequestDetails, PREPARE_PULL_REQUEST_OPERATION_ID } from '../../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetFile } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { buildChatUri, buildDefaultChatUri, createChatState, ChangesetStatus, MessageKind, SessionLifecycle, SessionStatus, StateComponents, TurnState, type Changeset, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, type SessionState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IPrompt, IPromptResult } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -1387,6 +1392,71 @@ suite('AgentHostSessionChangesets', () => {
 		});
 	});
 
+	test('offers Stash and Merge for a dirty parent repository, without confirming twice', async () => {
+		const changesetState: ChangesetState = {
+			status: ChangesetStatus.Ready,
+			files: [],
+			operations: [{ id: 'merge', label: 'Merge Changes', confirmation: 'Merge the changes?', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }],
+		};
+		const invoked: Array<Record<string, unknown> | undefined> = [];
+		let overlappingPaths: string[] = [];
+		const subscription = createMutableSubscription(changesetState);
+		const connection = new class extends mock<IAgentConnection>() {
+			override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
+				return { object: subscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
+			}
+			override async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+				invoked.push(params._meta);
+				if (!readMergeOperationStashTargetChanges(params)) {
+					throw new ProtocolError(-32602, 'Commit or stash the changes in the parent repository before merging into \'main\'.', mergeOperationDirtyTargetErrorData('main', overlappingPaths));
+				}
+				return {};
+			}
+		}();
+		const prompts: string[] = [];
+		const promptChoices = [true, false];
+		let confirmations = 0;
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IDialogService, {
+			confirm: async () => { confirmations++; return { confirmed: true }; },
+			prompt: async <T,>(prompt: IPrompt<T>): Promise<IPromptResult<T>> => {
+				prompts.push(`${prompt.message} [${(prompt.buttons ?? []).map(button => button.label).join(', ')}]${typeof prompt.detail === 'string' && prompt.detail.includes('src/index.js') ? ' warns about src/index.js' : ''}`);
+				const button = prompt.buttons?.[0];
+				return { result: promptChoices.shift() && button ? await button.run({ checkboxChecked: undefined }) : undefined };
+			},
+		} as Partial<IDialogService> as IDialogService);
+		const changeset = createChangesets(URI.parse('ahp-session:/session-1'), {
+			icon: Codicon.copilot,
+			environment: 'local',
+			loading: constObservable(false),
+			buildWorkspace: () => undefined,
+			instantiationService,
+			getConnection: () => connection,
+			agentCapabilities: constObservable(undefined),
+			mapBackendSessionResource: resource => resource,
+			getBackendDefaultChat: session => buildDefaultChatUri(session),
+		}, constObservable(true), [{ label: 'Session Changes', changeKind: ChangesetKind.Session, uriTemplate: 'changeset:/session-1' }])[0];
+
+		// Accepting the recovery retries once with the stash request.
+		await changeset.invokeOperation('merge');
+		// Declining it is not a failure, so nothing is reported or rethrown.
+		await changeset.invokeOperation('merge');
+		// When the merge changes a file the parent has edited, the prompt says restoring may conflict there.
+		overlappingPaths = ['src/index.js'];
+		await changeset.invokeOperation('merge');
+
+		assert.deepStrictEqual({ invoked, prompts, confirmations, running: changeset.operations.get().map(operation => operation.status) }, {
+			invoked: [undefined, mergeOperationStashTargetChangesMeta(), undefined, undefined],
+			prompts: [
+				'\'main\' has uncommitted changes [Stash and Merge]',
+				'\'main\' has uncommitted changes [Stash and Merge]',
+				'\'main\' has uncommitted changes [Stash and Merge] warns about src/index.js',
+			],
+			confirmations: 3,
+			running: [SessionChangesetOperationStatus.Idle],
+		});
+	});
+
 	test('marks an invoked operation running locally until the host request settles', async () => {
 		const operationId = 'create-pr-auto-merge';
 		const operationResult = new DeferredPromise<InvokeChangesetOperationResult>();
@@ -1751,6 +1821,14 @@ suite('AgentHostSessionChangesets', () => {
 			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override getSession(): undefined { return undefined; }
 			}());
+			const reportedErrors: string[] = [];
+			instantiationService.stub(INotificationService, new class extends TestNotificationService {
+				override error(message: NotificationMessage): INotificationHandle {
+					reportedErrors.push(String(message));
+					return super.error(message);
+				}
+			}());
+			instantiationService.stub(ILogService, new NullLogService());
 			disposables.add(new SessionSyncChangesContribution(sessionsService, new NullActionViewItemService()));
 			const commandService = new class extends mock<ICommandService>() {
 				override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
@@ -1807,12 +1885,15 @@ suite('AgentHostSessionChangesets', () => {
 				whileRunning,
 				afterCompletion: presentation(),
 				error: result.error,
+				reportedErrors,
 			}, {
 				invocations: [{ operationId: AGENT_HOST_SYNC_CHANGESET_OPERATION_ID, channel, target: undefined, _meta: undefined }],
 				invocationCountWhileRunning: 1,
 				whileRunning: { spinning: true, enabled: false, busy: 'true' },
 				afterCompletion: { spinning: false, enabled: true, busy: 'false' },
-				error: outcome === 'error' ? failure : undefined,
+				// The failure is reported to the user instead of being lost in the action runner.
+				error: undefined,
+				reportedErrors: outcome === 'error' ? ['Sync Changes: Sync failed'] : [],
 			});
 		});
 	}

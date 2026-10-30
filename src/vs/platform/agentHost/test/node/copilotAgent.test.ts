@@ -102,7 +102,7 @@ import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentH
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AgentHostPromptCache, IAgentHostPromptCache } from '../../node/agentHostPromptCache.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../../node/agentHostSessionTitleSignal.js';
-import { IAgentHostGitService, type IAddWorktreeOptions, type IBranch, type IDefaultBranch } from '../../common/agentHostGitService.js';
+import { IAgentHostGitService, type IAddWorktreeOptions, type IBranch, type IDefaultBranch, type IGitStash } from '../../common/agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService, NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
@@ -457,6 +457,10 @@ class TestAgentHostGitService implements IAgentHostGitService {
 		return this.dirtyWorkingDirectories.has(workingDirectory.fsPath);
 	}
 	async createStash(): Promise<void> { }
+	async listStashes(): Promise<readonly IGitStash[]> { return []; }
+	async applyStash(): Promise<void> { }
+	async dropStash(): Promise<void> { }
+	async getUnmergedPaths(): Promise<readonly string[]> { return []; }
 	async commitAll(): Promise<void> { }
 	async mergeBranch(): Promise<string> { return ''; }
 	async restore(): Promise<void> { }

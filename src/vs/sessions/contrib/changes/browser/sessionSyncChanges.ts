@@ -17,6 +17,9 @@ import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/act
 import { AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { invokeChangesetOperationAndReportErrors } from './changesetOperationInvocation.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -95,7 +98,7 @@ class SessionSyncChangesAction extends Action2 {
 			throw new Error(localize('sessions.syncChanges.unavailable', "Sync Changes is no longer available for this session."));
 		}
 
-		await sync.changeset.invokeOperation(sync.operation.id);
+		await invokeChangesetOperationAndReportErrors(sync.changeset, sync.operation, undefined, accessor.get(INotificationService), accessor.get(ILogService));
 	}
 }
 

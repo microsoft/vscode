@@ -1565,6 +1565,73 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		});
 	});
 
+	(hasGit ? test : test.skip)('applyStash restores staged and unstaged changes separately, and dropStash removes only that entry', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		const git = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, encoding: 'utf8' }).trimEnd();
+		// Keep LF on Windows, where git would otherwise convert line endings on checkout.
+		git('config', 'core.autocrlf', 'false');
+		git('config', 'core.eol', 'lf');
+		await fs.writeFile(join(dir, 'tracked.txt'), 'base\n');
+		git('add', 'tracked.txt');
+		git('commit', '-q', '-m', 'add tracked');
+
+		await fs.writeFile(join(dir, 'tracked.txt'), 'base\nstaged\n');
+		git('add', 'tracked.txt');
+		await fs.writeFile(join(dir, 'tracked.txt'), 'base\nstaged\nunstaged\n');
+		await fs.writeFile(join(dir, 'untracked.txt'), 'untracked');
+		await svc!.createStash(URI.file(dir), { message: 'mine (abc12345)', includeUntracked: true });
+		const ours = (await svc!.listStashes(URI.file(dir))).find(stash => stash.message.endsWith(': mine (abc12345)'));
+		assert.ok(ours);
+
+		// Another worktree pushes a stash on top of ours.
+		await fs.writeFile(join(dir, 'other.txt'), 'other');
+		git('stash', 'push', '-u', '-q', '-m', 'other worktree');
+
+		await svc!.applyStash(URI.file(dir), ours.commit);
+		await svc!.dropStash(URI.file(dir), ours.commit);
+
+		assert.deepStrictEqual({
+			status: git('status', '--porcelain').split(/\r?\n/g).sort(),
+			index: git('show', ':tracked.txt'),
+			workingTree: await fs.readFile(join(dir, 'tracked.txt'), 'utf8'),
+			stashes: (await svc!.listStashes(URI.file(dir))).map(stash => stash.message),
+		}, {
+			status: ['?? untracked.txt', 'MM tracked.txt'],
+			index: 'base\nstaged',
+			workingTree: 'base\nstaged\nunstaged\n',
+			stashes: ['On main: other worktree'],
+		});
+	});
+
+	(hasGit ? test : test.skip)('applyStash keeps the stash and reports unmerged paths when restoring conflicts', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		const git = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, encoding: 'utf8' }).trimEnd();
+		// Keep LF on Windows, where git would otherwise convert line endings on checkout.
+		git('config', 'core.autocrlf', 'false');
+		git('config', 'core.eol', 'lf');
+		await fs.writeFile(join(dir, 'tracked.txt'), 'before');
+		git('add', 'tracked.txt');
+		git('commit', '-q', '-m', 'add tracked');
+
+		await fs.writeFile(join(dir, 'tracked.txt'), 'local');
+		await svc!.createStash(URI.file(dir), { message: 'conflicting', includeUntracked: true });
+		const [stash] = await svc!.listStashes(URI.file(dir));
+		await fs.writeFile(join(dir, 'tracked.txt'), 'merged');
+		git('commit', '-q', '-am', 'merged');
+
+		await assert.rejects(svc!.applyStash(URI.file(dir), stash.commit));
+
+		assert.deepStrictEqual({
+			unmerged: await svc!.getUnmergedPaths(URI.file(dir)),
+			stashes: (await svc!.listStashes(URI.file(dir))).map(entry => entry.commit),
+		}, {
+			unmerged: ['tracked.txt'],
+			stashes: [stash.commit],
+		});
+	});
+
 	(hasGit ? test : test.skip)('mergeBranch merges into the current branch', async () => {
 		const dir = initRepo();
 		const fs = await import('fs/promises');
