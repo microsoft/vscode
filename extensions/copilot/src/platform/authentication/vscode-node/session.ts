@@ -12,10 +12,6 @@ import { resolveGitHubSessionUri } from '../common/enterprise';
 
 export const SESSION_LOGIN_MESSAGE = 'You are not signed in to GitHub. Please sign in to use Copilot.';
 
-/**
- * @param defaultScopes The scopes to ask for, or `undefined` for the default GitHub scopes that VS Code defines, which are
- * the same scopes that other GitHub extensions like GitHub Pull Requests use.
- */
 async function getAuthSession(providerId: AuthProviderId, defaultScopes: string[] | undefined, getSilentSession: () => Promise<AuthenticationSession | undefined>, options: AuthenticationGetSessionOptions = {}) {
 	const accounts = await authentication.getAccounts(providerId);
 	let session: AuthenticationSession | undefined;
