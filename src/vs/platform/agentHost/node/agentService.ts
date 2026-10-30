@@ -5638,7 +5638,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		this._startedChatDiscoveryProviders.add(provider.id);
-		void provider.startChatDiscovery().catch(error => {
+		void provider.startChatDiscovery({ migrateLegacyChats: this._isMigrateLegacyEnabled() }).catch(error => {
 			this._startedChatDiscoveryProviders.delete(provider.id);
 			this._logService.warn(`[AgentService] Chat discovery for provider ${provider.id} failed after ${reason}`, error);
 		});
@@ -14726,13 +14726,15 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._invalidateSessionList();
 		const chatStorageResource = (session: string, chat: string, defaultChat: string) => recordedStorage.get(chat) ?? creationTimeChatStorageResource(session, chat, defaultChat);
+		// Adoption decides an adopted legacy session's read state: its normalized catalog row was written before adoption.
+		const restoredDefaultChatIsRead = adoptionListVisible?.isRead ?? (normalizedDefault ? normalizedDefault.isRead : defaultChatIsRead);
 		if (load.kind === 'full') {
 			this._stateManager.restoreSession(summary, mergedTurns, chatStorageResource, {
 				draft: restoredDraft,
 				defaultChatTitle,
 				defaultChatModifiedAt,
 				defaultChatWorkingDirectories,
-				defaultChatIsRead: normalizedDefault ? normalizedDefault.isRead : defaultChatIsRead,
+				defaultChatIsRead: restoredDefaultChatIsRead,
 				defaultChatConfig,
 			});
 		} else {
@@ -14741,7 +14743,7 @@ export class AgentService extends Disposable implements IAgentService {
 				title: defaultChatTitle,
 				modifiedAt: defaultChatModifiedAt,
 				workingDirectories: defaultChatWorkingDirectories,
-				isRead: normalizedDefault ? normalizedDefault.isRead : defaultChatIsRead,
+				isRead: restoredDefaultChatIsRead,
 				draft: restoredDraft,
 				config: defaultChatConfig,
 				providerData: defaultChatProviderData,
