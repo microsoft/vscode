@@ -19,6 +19,8 @@ export type SessionRecencyEntry = {
 } | {
 	readonly kind: 'customView';
 	readonly id: string;
+	/** What the view showed in this opening, when it shows one of several items. */
+	readonly state?: string;
 };
 
 interface ISerializedRecencyEntry {
@@ -33,7 +35,7 @@ export function getRecencyEntryKey(entry: SessionRecencyEntry): string {
 		case 'newSession':
 			return entry.kind;
 		case 'customView':
-			return `${entry.kind}:${entry.id}`;
+			return entry.state === undefined ? `${entry.kind}:${entry.id}` : `${entry.kind}:${entry.id}\u0000${entry.state}`;
 	}
 }
 
