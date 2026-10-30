@@ -346,7 +346,7 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 	}
 
 	if (!guessed?.encoding) {
-		return null;
+		return candidateGuessEncodings ? guessEncodingByCandidates(limitedBuffer, candidateGuessEncodings) : null;
 	}
 
 	const enc = guessed.encoding.toLowerCase();
@@ -355,6 +355,41 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 	}
 
 	return toIconvLiteEncoding(guessed.encoding);
+}
+
+async function guessEncodingByCandidates(buffer: VSBuffer, candidates: string[]): Promise<string | null> {
+	try {
+		// The sample may end in the middle of a UTF-8 character.
+		new TextDecoder('utf-8', { fatal: true }).decode(buffer.buffer, { stream: true });
+		return null;
+	} catch (error) {
+		if (!(error instanceof TypeError)) {
+			throw error;
+		}
+	}
+
+	const iconv = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js');
+	let guessedEncoding: string | null = null;
+
+	for (const candidate of candidates) {
+		const encoding = toIconvLiteEncoding(candidate);
+		if (isUTFEncoding(encoding)) {
+			continue;
+		}
+
+		const decoded = iconv.decode(buffer.buffer, encoding);
+		if (!VSBuffer.wrap(iconv.encode(decoded, encoding)).equals(buffer)) {
+			continue;
+		}
+
+		if (guessedEncoding && guessedEncoding !== encoding) {
+			return null;
+		}
+
+		guessedEncoding = encoding;
+	}
+
+	return guessedEncoding;
 }
 
 const JSCHARDET_TO_ICONV_ENCODINGS: { [name: string]: string } = {

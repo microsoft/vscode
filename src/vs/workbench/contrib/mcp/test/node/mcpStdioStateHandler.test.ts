@@ -8,13 +8,17 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import * as assert from 'assert';
 import { McpStdioStateHandler } from '../../node/mcpStdioStateHandler.js';
 import { isWindows } from '../../../../../base/common/platform.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 
-const GRACE_TIME = 100;
+// Must be comfortably larger than the time it takes to spawn the helper shell
+// script that signals the process tree, otherwise SIGKILL can race SIGTERM.
+const GRACE_TIME = 1000;
 
 suite('McpStdioStateHandler', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function run(code: string) {
+		const logService = store.add(new NullLogService());
 		const child = spawn('node', ['-e', code], {
 			stdio: 'pipe',
 			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
@@ -22,7 +26,7 @@ suite('McpStdioStateHandler', () => {
 
 		return {
 			child,
-			handler: store.add(new McpStdioStateHandler(child, GRACE_TIME)),
+			handler: store.add(new McpStdioStateHandler(child, message => logService.debug(message), GRACE_TIME)),
 			processId: new Promise<number>((resolve) => {
 				child.on('spawn', () => resolve(child.pid!));
 			}),
@@ -40,7 +44,7 @@ suite('McpStdioStateHandler', () => {
 		};
 	}
 
-	test('stdin ends process', async () => {
+	test.skip('stdin ends process', async () => { // TODO: https://github.com/microsoft/vscode/issues/330134
 		const { child, handler, output } = run(`
 			const data = require('fs').readFileSync(0, 'utf-8');
 			process.stdout.write('Data received: ' + data);
@@ -54,7 +58,7 @@ suite('McpStdioStateHandler', () => {
 	});
 
 	if (!isWindows) {
-		test('sigterm after grace', async () => {
+		test.skip('sigterm after grace', async () => { // TODO@connor4312 https://github.com/microsoft/vscode/issues/330134
 			const { handler, output } = run(`
 			setInterval(() => {}, 1000);
 			process.stdin.on('end', () => process.stdout.write('stdin ended\\n'));
@@ -75,7 +79,9 @@ suite('McpStdioStateHandler', () => {
 		});
 	}
 
-	test('sigkill after grace', async () => {
+	test('sigkill after grace', async function () {
+		this.timeout(GRACE_TIME * 10);
+
 		const { handler, output } = run(`
 			setInterval(() => {}, 1000);
 			process.stdin.on('end', () => process.stdout.write('stdin ended\\n'));

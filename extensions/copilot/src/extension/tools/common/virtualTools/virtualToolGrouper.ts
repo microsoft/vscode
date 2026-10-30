@@ -92,6 +92,8 @@ export class VirtualToolGrouper implements IToolCategorization {
 
 		const predictedToolsSw = new StopWatch();
 		const predictedToolsPromise = this._getPredictedTools(query, tools, token).then(tools => ({ tools, durationMs: predictedToolsSw.elapsed() }));
+		// Observe rejections immediately; _addEmbeddingMatchedTools reports the error after grouping completes.
+		predictedToolsPromise.catch(() => { });
 
 		// Separate builtin tools from extension/MCP tools
 		const builtinTools = byToolset[BuiltInToolGroupHandler.BUILT_IN_GROUP_KEY] || [];
@@ -349,7 +351,7 @@ export class VirtualToolGrouper implements IToolCategorization {
 		}
 
 		// compute the embeddings for the query
-		const queryEmbedding = await this.embeddingsComputer.computeEmbeddings(EMBEDDING_TYPE_FOR_TOOL_GROUPING, [query], {}, new TelemetryCorrelationId('VirtualToolGrouper::_getPredictedTools'), token);
+		const queryEmbedding = await this.embeddingsComputer.computeEmbeddings(EMBEDDING_TYPE_FOR_TOOL_GROUPING, [query], { inputType: 'query' }, new TelemetryCorrelationId('VirtualToolGrouper::_getPredictedTools'), token);
 		if (!queryEmbedding || queryEmbedding.values.length === 0) {
 			return [];
 		}

@@ -7,10 +7,9 @@ import type { AgentTaskState } from '@vscode/copilot-api';
 import * as vscode from 'vscode';
 import { getGithubRepoIdFromFetchUrl, GithubRepoId, IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
-import { UriHandlerPaths, UriHandlers } from './chatSessionsUriHandler';
 
 /**
- * Task (v2) lifecycle states in which the cloud agent still owns the turn (or is about to):
+ * Task lifecycle states in which the cloud agent still owns the turn (or is about to):
  * the session must render as active and any live stream keep polling. Terminal states
  * (`completed`/`failed`/`timed_out`/`cancelled`) return false. This is the single source of
  * truth for "is the task still running" so the detail view, the `activeResponseCallback`
@@ -39,7 +38,7 @@ export function isActiveTaskState(state: AgentTaskState): boolean {
 }
 
 /**
- * Task (v2) lifecycle states that represent an unsuccessful terminal outcome. Used to render a
+ * Task lifecycle states that represent an unsuccessful terminal outcome. Used to render a
  * failure notice in the detail view when the task ended without emitting any events (e.g.
  * "Failed to launch agent"), which otherwise leaves the latest turn's session state stuck at
  * `in_progress`/`queued` and shows a perpetual "Session is in progress…" spinner.
@@ -50,9 +49,6 @@ export function isFailedTaskState(state: AgentTaskState): boolean {
 
 export const MAX_PROBLEM_STATEMENT_LENGTH = 30_000 - 50; // 50 character buffer
 export const CONTINUE_TRUNCATION = vscode.l10n.t('Continue with truncation');
-export const body_suffix = vscode.l10n.t('Created from [VS Code](https://code.visualstudio.com/docs/copilot/copilot-coding-agent).');
-// https://github.com/github/sweagentd/blob/main/docs/adr/0001-create-job-api.md
-export const JOBS_API_VERSION = 'v1';
 
 /**
  * Truncation utility to ensure the problem statement sent to Copilot API is under the maximum length.
@@ -106,10 +102,6 @@ export function extractTitle(prompt: string, context: string | undefined): strin
 
 }
 
-export function formatBodyPlaceholder(title: string | undefined): string {
-	return vscode.l10n.t('Cloud agent has begun work on **{0}** and will update this pull request as work progresses.', title || vscode.l10n.t('your request'));
-}
-
 export async function getRepoId(gitService: IGitService): Promise<GithubRepoId[] | undefined> {
 	// Ensure git service is initialized
 	await gitService.initialize();
@@ -135,30 +127,6 @@ export async function getRepoId(gitService: IGitService): Promise<GithubRepoId[]
 	return [];
 }
 
-export namespace SessionIdForPr {
-
-	const prefix = 'pull-session-by-index';
-
-	export function getId(prNumber: number, sessionIndex: number): string {
-		return `${prefix}-${prNumber}-${sessionIndex}`;
-	}
-
-	export function parse(resource: vscode.Uri): { prNumber: number; sessionIndex: number } | undefined {
-		const match = resource.path.match(new RegExp(`^/${prefix}-(\\d+)-(\\d+)$`));
-		if (match) {
-			return {
-				prNumber: parseInt(match[1], 10),
-				sessionIndex: parseInt(match[2], 10)
-			};
-		}
-		return undefined;
-	}
-
-	export function parsePullRequestNumber(resource: vscode.Uri): number {
-		return parseInt(resource.path.slice(1));
-	}
-}
-
 export namespace SessionIdForTask {
 
 	export function getId(taskId: string): string {
@@ -176,16 +144,6 @@ export namespace SessionIdForTask {
 	export function parseTaskId(resource: vscode.Uri): string | undefined {
 		return parse(resource)?.taskId;
 	}
-}
-
-export async function toOpenPullRequestWebviewUri(params: {
-	owner: string;
-	repo: string;
-	pullRequestNumber: number;
-}): Promise<vscode.Uri> {
-	const query = JSON.stringify(params);
-	const extensionId = UriHandlers[UriHandlerPaths.External_OpenPullRequestWebview];
-	return await vscode.env.asExternalUri(vscode.Uri.from({ scheme: vscode.env.uriScheme, authority: extensionId, path: UriHandlerPaths.External_OpenPullRequestWebview, query }));
 }
 
 export function getAuthorDisplayName(author: { login: string } | null): string {

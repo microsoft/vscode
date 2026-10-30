@@ -3,7 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Attachment, SessionEvent, SessionEventPayload, ToolExecutionCompleteContent } from '@github/copilot-sdk';
+import type { Attachment, CopilotClient, SessionEvent, SessionEventPayload, SkillInvokedData, ToolExecutionCompleteContent } from '@github/copilot-sdk';
+import { mock } from '../../../../base/test/common/mock.js';
+
+export function createUnmanagedCopilotSettings(): CopilotClient['rpc']['managedSettings'] {
+	return new class extends mock<CopilotClient['rpc']['managedSettings']>() {
+		override resolve = async () => {
+			return {
+				resolved: { source: 'none' as const, serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] },
+				layers: [], diagnostics: [],
+			};
+		};
+	}();
+}
 
 // =============================================================================
 // Minimal session-event shapes for tests
@@ -46,6 +58,7 @@ export interface ISessionEventToolComplete {
 			/** `content` is result text; `contents` are typed SDK result blocks such as `shell_exit`. */
 			content?: string;
 			contents?: ToolExecutionCompleteContent[];
+			mcpResultMeta?: Record<string, unknown>;
 		};
 		error?: { message: string; code?: string };
 		isUserRequested?: boolean;
@@ -70,7 +83,7 @@ export interface ISessionEventMessage {
 		messageId?: string;
 		interactionId?: string;
 		content?: string;
-		toolRequests?: readonly { toolCallId: string; name: string; arguments?: unknown; type?: 'function' | 'custom'; mcpServerName?: string; mcpToolName?: string; toolDescription?: unknown }[];
+		toolRequests?: readonly { toolCallId: string; name: string; arguments?: unknown; type?: 'function' | 'custom'; mcpServerName?: string; mcpToolName?: string; toolTitle?: string; toolDescription?: unknown }[];
 		reasoningOpaque?: string;
 		reasoningText?: string;
 		encryptedContent?: string;
@@ -82,17 +95,12 @@ export interface ISessionEventMessage {
 	};
 }
 
-/** Minimal event shape for `skill.invoked`, used to synthesize a tool-style render. */
 export interface ISessionEventSkillInvoked {
 	type: 'skill.invoked';
 	id?: string;
 	/** Envelope-level sub-agent instance id. */
 	agentId?: string;
-	data: {
-		name: string;
-		path?: string;
-		description?: string;
-	};
+	data: SkillInvokedData;
 }
 
 export interface ISessionEventSubagentStarted {
@@ -135,6 +143,15 @@ export interface ISessionEventSystemNotification {
 	data: SessionEventPayload<'system.notification'>['data'];
 }
 
+export interface ISessionEventError {
+	type: 'session.error';
+	id?: string;
+	agentId?: string;
+	/** ISO 8601 envelope timestamp; the mapper uses it to restore turn timing. */
+	timestamp?: string;
+	data: SessionEventPayload<'session.error'>['data'];
+}
+
 /** Minimal event shape for session history mapping. */
 export type ISessionEvent =
 	| ISessionEventToolStart
@@ -145,7 +162,8 @@ export type ISessionEvent =
 	| ISessionEventAbort
 	| ISessionEventAssistantTurn
 	| ISessionEventSystemNotification
-	| { type: string; timestamp?: string; data?: unknown };
+	| ISessionEventError
+	| { type: string; agentId?: string; timestamp?: string; data?: unknown };
 
 /**
  * Widens ergonomic {@link ISessionEvent} test fixtures to the real SDK

@@ -8,12 +8,20 @@ import type { IExperimentationService as ITASExperimentationService } from 'vsco
 import { equals } from '../../../util/vs/base/common/arrays';
 import { IntervalTimer } from '../../../util/vs/base/common/async';
 import { Emitter } from '../../../util/vs/base/common/event';
-import { Disposable } from '../../../util/vs/base/common/lifecycle';
+import { Disposable, MutableDisposable, toDisposable } from '../../../util/vs/base/common/lifecycle';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
 import { IConfigurationService } from '../../configuration/common/configurationService';
 import { IVSCodeExtensionContext } from '../../extContext/common/extensionContext';
 import { ILogService } from '../../log/common/logService';
 import { IExperimentationService, TreatmentsChangeEvent } from '../common/nullExperimentationService';
+
+/**
+ * Scope prefix that the new TAS assignments endpoint (`/api/v1/assignments`) prepends to the
+ * feature variable keys it returns (e.g. `/vscode/config.chat...`). The legacy endpoint and
+ * callers query treatments by the bare name, so this prefix must be accounted for when a bare
+ * lookup misses. This is an interim workaround until vscode-tas-client strips the scope itself.
+ */
+const ASSIGNMENTS_SCOPE_PREFIX = '/vscode/';
 
 export class UserInfoStore extends Disposable {
 	private _internalOrg: string | undefined;
@@ -116,7 +124,49 @@ export class UserInfoStore extends Disposable {
 	}
 }
 
-export type TASClientDelegateFn = (globalState: vscode.Memento, userInfoStore: UserInfoStore) => ITASExperimentationService;
+/**
+ * A one-way switch used to neutralize a superseded delegate. `tas-client`'s `dispose()` only
+ * stops polling; an already in-flight fetch can still complete and write shared state. Revoking
+ * the gate makes that delegate's storage/telemetry writes no-ops so it cannot overwrite the
+ * memento (`VSCode.ABExp.FeatureData`) or `abexp.assignmentcontext` after being replaced.
+ */
+export class RevocationGate {
+	private _revoked = false;
+	get isRevoked(): boolean {
+		return this._revoked;
+	}
+	revoke(): void {
+		this._revoked = true;
+	}
+}
+
+/** Wraps a memento so writes are dropped once the gate is revoked (reads still pass through). */
+class RevocableMemento implements vscode.Memento {
+	constructor(
+		private readonly _actual: vscode.Memento,
+		private readonly _gate: RevocationGate,
+	) { }
+
+	keys(): readonly string[] {
+		return this._actual.keys();
+	}
+
+	get<T>(key: string): T | undefined;
+	get<T>(key: string, defaultValue: T): T;
+	get<T>(key: string, defaultValue?: T): T | undefined {
+		return defaultValue === undefined ? this._actual.get<T>(key) : this._actual.get<T>(key, defaultValue);
+	}
+
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	update(key: string, value: any): Thenable<void> {
+		if (this._gate.isRevoked) {
+			return Promise.resolve();
+		}
+		return this._actual.update(key, value);
+	}
+}
+
+export type TASClientDelegateFn = (memento: vscode.Memento, userInfoStore: UserInfoStore, gate: RevocationGate) => ITASExperimentationService;
 
 export class BaseExperimentationService extends Disposable implements IExperimentationService {
 
@@ -124,8 +174,15 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	private readonly _refreshTimer = this._register(new IntervalTimer());
 	private readonly _previouslyReadTreatments = new Map<string, boolean | string | number | undefined>();
 
-	protected readonly _delegate: ITASExperimentationService;
+	protected _delegate: ITASExperimentationService;
 	protected readonly _userInfoStore: UserInfoStore;
+
+	/** Disposes the current delegate (stopping its polling); auto-disposes the previous one on replacement. */
+	private readonly _delegateDisposable = this._register(new MutableDisposable());
+
+	private readonly _delegateFn: TASClientDelegateFn;
+	private readonly _globalState: vscode.Memento;
+	private _delegateGeneration = 0;
 
 	protected _onDidTreatmentsChange = this._register(new Emitter<TreatmentsChangeEvent>());
 	readonly onDidTreatmentsChange = this._onDidTreatmentsChange.event;
@@ -155,16 +212,47 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 			this._signalTreatmentsChangeEvent();
 		}, 60 * 60 * 1000);
 
-		this._delegate = delegateFn(context.globalState, this._userInfoStore);
-		this._delegate.initialFetch.then(() => {
-			this._logService.trace(`[BaseExperimentationService] Initial fetch completed`);
+		this._delegateFn = delegateFn;
+		this._globalState = context.globalState;
+		this._delegate = this._createDelegate();
+	}
+
+	private _createDelegate(): ITASExperimentationService {
+		const generation = ++this._delegateGeneration;
+		const gate = new RevocationGate();
+		const memento = new RevocableMemento(this._globalState, gate);
+		const delegate = this._delegateFn(memento, this._userInfoStore, gate);
+		// Revoke this generation's storage/telemetry writes and stop its polling when it is
+		// superseded (a newer delegate is assigned) or the service is disposed, so a still
+		// in-flight fetch cannot overwrite the shared memento / assignment context afterwards.
+		this._delegateDisposable.value = toDisposable(() => {
+			gate.revoke();
+			delegate.dispose();
 		});
+		delegate.initialFetch.then(() => {
+			if (generation !== this._delegateGeneration || this._store.isDisposed) {
+				return; // superseded by a newer delegate, or the service was disposed
+			}
+			this._logService.trace(`[BaseExperimentationService] Initial fetch completed`);
+			// A replacement delegate (e.g. once the assignments endpoint arrives) may carry
+			// different assignments; announce any changes so experiment-based config updates.
+			this._signalTreatmentsChangeEvent();
+		});
+		return delegate;
+	}
+
+	/**
+	 * Creates a fresh delegate, disposing the previous one (stopping its polling). Used
+	 * when inputs captured at delegate-creation time (e.g. the assignments endpoint) change.
+	 */
+	protected recreateDelegate(): void {
+		this._delegate = this._createDelegate();
 	}
 
 	private _signalTreatmentsChangeEvent = () => {
 		const affectedTreatmentVariables: string[] = [];
 		for (const [key, previousValue] of this._previouslyReadTreatments) {
-			const currentValue = this._delegate.getTreatmentVariable('vscode', key);
+			const currentValue = this._readTreatmentVariable(key);
 			if (currentValue !== previousValue) {
 				this._logService.trace(`[BaseExperimentationService] Treatment changed: ${key} from ${previousValue} to ${currentValue}`);
 				this._previouslyReadTreatments.set(key, currentValue);
@@ -187,8 +275,24 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	}
 
 	getTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
-		const result = this._delegate.getTreatmentVariable('vscode', name) as T;
+		const result = this._readTreatmentVariable<T>(name);
 		this._previouslyReadTreatments.set(name, result);
+		return result;
+	}
+
+	/**
+	 * Reads a treatment, preferring the `/vscode/`-scoped key over the bare key. Interim workaround
+	 * till its fixed upstream: the new TAS assignments endpoint namespaces its returned feature
+	 * variable keys with a `/vscode/` scope that vscode-tas-client does not strip. Reading the
+	 * scoped key first makes the new endpoint win over the legacy (bare) key when both assign a
+	 * treatment - matching the behavior once the scope is stripped upstream - while still resolving
+	 * legacy-only treatments from the bare key.
+	 */
+	private _readTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
+		let result = this._delegate.getTreatmentVariable('vscode', `${ASSIGNMENTS_SCOPE_PREFIX}${name}`) as T | undefined;
+		if (result === undefined) {
+			result = this._delegate.getTreatmentVariable('vscode', name) as T | undefined;
+		}
 		return result;
 	}
 

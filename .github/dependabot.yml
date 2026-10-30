@@ -4,6 +4,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
   - package-ecosystem: "devcontainers" # https://containers.dev/guide/dependabot
     directory: "/"
     schedule:
@@ -12,5 +14,7 @@ updates:
     directory: "/extensions/markdown-language-features"
     schedule:
       interval: "daily"
+      time: "16:00"
+      timezone: "America/Los_Angeles"
     allow:
       - dependency-name: "@vscode/markdown-editor"

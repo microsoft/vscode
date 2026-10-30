@@ -29,6 +29,7 @@ export enum NesDatagenInputFormat {
 }
 
 export const DEFAULT_WORKSPACE_RECORDING_SAMPLE_CAP = 100;
+export const DEFAULT_NES_DATAGEN_ORACLE_EDIT_LIMIT = 10;
 
 /**
  * How to choose the pivot in a continuous recording (only meaningful when
@@ -62,6 +63,12 @@ export type NesDatagen = {
 	readonly sameFileJumpMinBelow: number;
 	/** Maximum number of samples selected from one raw workspace recording. */
 	readonly maxSamplesPerRecording?: number;
+	/** Maximum number of composed, non-touching oracle edits in one sample. */
+	readonly maxOracleEdits?: number;
+	/** Whether to emit scoredEdits viewer files for generated samples. */
+	readonly generateScoredEdits: boolean;
+	/** Internal worker-only directory for staging scoredEdits files. */
+	readonly scoredEditsOutputDirectory?: string;
 	/** Internal worker-only subset of selected workspace-recording operation indices. */
 	readonly workspacePivotOperationIndices?: readonly number[];
 };
@@ -119,7 +126,6 @@ export class SimulationOptions {
 	 * A label for the current simulation run, to be displayed in the UI for distinguishing between runs.
 	 */
 	public readonly label: string;
-	public readonly runServerPoweredNesProvider: boolean;
 	public readonly nes: 'external' | 'coffe' | undefined;
 	public readonly nesUrl: string | undefined;
 	public readonly nesApiKey: string | undefined;
@@ -210,8 +216,6 @@ export class SimulationOptions {
 		this.headless = boolean(argv['headless'], true);
 		this.runNumber = Number(argv['run-number']) || 0;
 
-		this.runServerPoweredNesProvider = boolean(argv['runServerPoweredNesProvider'], false);
-
 		this.nes = SimulationOptions.validateNesArgument(argv['nes']);
 
 		this.nesUrl = argv['nes-url'];
@@ -243,6 +247,13 @@ export class SimulationOptions {
 					'--max-samples-per-recording',
 					DEFAULT_WORKSPACE_RECORDING_SAMPLE_CAP,
 				),
+				maxOracleEdits: SimulationOptions.validatePositiveInteger(
+					argv['max-oracle-edits'],
+					'--max-oracle-edits',
+					DEFAULT_NES_DATAGEN_ORACLE_EDIT_LIMIT,
+				),
+				generateScoredEdits: boolean(argv['generate-scored-edits'], false),
+				scoredEditsOutputDirectory: argv['scored-edits-output-directory'],
 				workspacePivotOperationIndices: SimulationOptions.parseWorkspacePivotOperationIndices(argv['workspace-pivot-operation-indices']),
 			}
 			: undefined;
@@ -296,7 +307,6 @@ export class SimulationOptions {
 			`  --label                            A label for the current simulation run, to be displayed in the UI for distinguishing between runs`,
 			`  --nes-url                           To override endpoint URL for NES (must be used with --nes-api-key)`,
 			`  --nes-api-key                        API key for endpoint URL provided via NES (must be used with --nes-url)`,
-			`  --runServerPoweredNesProvider      Run stests against the http server powered NES provider (server must be run at port 8001)`,
 			`  --disable-tools                    A comma-separated list of tools to disable`,
 			`  --swebench-prompt                  Use the headless swebench prompt for agent mode`,
 			`  --summarize-history                Enable experimental conversation history summarization in agent mode`,
@@ -333,6 +343,9 @@ export class SimulationOptions {
 			`                                       random             → pick a single eligible pivot uniformly at random`,
 			`  --seed                             Integer seed for the continuous pivot RNG (default: random, logged for reproducibility)`,
 			`  --max-samples-per-recording        Maximum samples selected from a workspace recording (default: 100)`,
+			`  --max-oracle-edits                 Maximum composed, non-touching oracle edits per sample (default: 10)`,
+			`  --generate-scored-edits            Generate <sample-id>.scoredEdits.w.json files beside the output JSONL`,
+			`                                     Requires --sample-task=xtab`,
 			`  --sample-task                      Which target to generate (default: xtab)`,
 			`                                     Values: xtab, cursor-same-file, cursor-cross-file, cursor-both`,
 			`                                       xtab               → edit-prediction sample (assistant = an edit)`,
@@ -359,6 +372,7 @@ export class SimulationOptions {
 			`  npm run simulate -- --config-file=config.json nes-datagen --input=continuous.jsonl --input-format=continuous`,
 			`  npm run simulate -- --config-file=config.json nes-datagen --input=continuous.jsonl --input-format=continuous --pivot-strategy=random --seed=42`,
 			`  npm run simulate -- --config-file=config.json nes-datagen --input=current.workspaceRecording.jsonl --input-format=workspace-recording`,
+			`  npm run simulate -- --config-file=config.json nes-datagen --input=current.workspaceRecording.jsonl --input-format=workspace-recording --generate-scored-edits`,
 			``,
 		].join('\n'));
 	}

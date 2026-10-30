@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { equals as arraysEqual } from '../../../../base/common/arrays.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
@@ -13,6 +14,8 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { mcpAutoStartConfig, McpAutoStartValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { MCP_ENABLEMENT_STORAGE_KEY, migrateCustomizationEnablementToApplicationStorage } from '../../chat/common/customizationEnablementStorage.js';
 import { CollisionEnablementModel, EnablementModel, isContributionEnabled } from '../../chat/common/enablement.js';
 import { McpCollisionBehavior, mcpServerCollisionBehaviorSection } from './mcpConfiguration.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
@@ -45,10 +48,12 @@ export class McpService extends Disposable implements IMcpService {
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		super();
 
-		const baseEnablement = this._register(new EnablementModel('mcp.enablement', storageService));
+		migrateCustomizationEnablementToApplicationStorage(storageService, userDataProfileService.currentProfile);
+		const baseEnablement = this._register(new EnablementModel(MCP_ENABLEMENT_STORAGE_KEY, storageService));
 		const collisionBehavior = observableConfigValue(mcpServerCollisionBehaviorSection, McpCollisionBehavior.Disable, configurationService);
 		this.enablementModel = new McpCollisionEnablementModel(baseEnablement, this._mcpRegistry, collisionBehavior);
 
@@ -222,9 +227,11 @@ export class McpService extends Disposable implements IMcpService {
 			nextServers.push({ object });
 		}
 
-		transaction(tx => {
-			this._servers.set(nextServers, tx);
-		});
+		if (!arraysEqual(currentServers, nextServers)) {
+			transaction(tx => {
+				this._servers.set(nextServers, tx);
+			});
+		}
 	}
 
 	public override dispose(): void {

@@ -40,11 +40,12 @@ suite('ChatModeTelemetry', () => {
 			tools: ['read', 'search'],
 		});
 
-		reportChatModeChange(telemetryService, ChatMode.Agent, targetMode, 4);
+		reportChatModeChange(telemetryService, ChatMode.Agent, targetMode, 4, 'claude');
 
 		assert.deepStrictEqual(telemetryService.events, [{
 			name: 'chat.modeChange',
 			data: {
+				provider: 'claude',
 				fromMode: 'agent',
 				mode: String(hash('Reviewer')),
 				requestCount: 4,
@@ -60,8 +61,9 @@ suite('ChatModeTelemetry', () => {
 	test('does not report selecting the current mode', () => {
 		const telemetryService = new TestTelemetryService();
 
-		reportChatModeChange(telemetryService, ChatMode.Agent, ChatMode.Agent, 0);
+		reportChatModeChange(telemetryService, ChatMode.Agent, ChatMode.Agent, 0, undefined);
 
 		assert.deepStrictEqual(telemetryService.events, []);
 	});
+
 });

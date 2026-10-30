@@ -26,12 +26,12 @@ import { CopyPasteController } from '../../dropOrPasteInto/browser/copyPasteCont
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
-const supportsCut = (platform.isNative || document.queryCommandSupported('cut'));
-const supportsCopy = (platform.isNative || document.queryCommandSupported('copy'));
+const supportsCut = (platform.isNative || (document.queryCommandSupported && document.queryCommandSupported('cut')));
+const supportsCopy = (platform.isNative || (document.queryCommandSupported && document.queryCommandSupported('copy')));
 // Firefox only supports navigator.clipboard.readText() in browser extensions.
 // See https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#Browser_compatibility
 // When loading over http, navigator.clipboard can be undefined. See https://github.com/microsoft/monaco-editor/issues/2313
-const supportsPaste = (typeof navigator.clipboard === 'undefined' || browser.isFirefox) ? document.queryCommandSupported('paste') : true;
+const supportsPaste = (typeof navigator.clipboard === 'undefined' || browser.isFirefox) ? document.queryCommandSupported && document.queryCommandSupported('paste') : true;
 
 function registerCommand<T extends Command>(command: T): T {
 	command.register();
@@ -312,10 +312,12 @@ if (PasteAction) {
 					const clipboardText = await clipboardService.readText();
 					if (clipboardText !== '') {
 						const metadata = InMemoryClipboardMetadataManager.INSTANCE.get(clipboardText);
+						let isBlock = false;
 						let pasteOnNewLine = false;
 						let multicursorText: string[] | null = null;
 						let mode: string | null = null;
 						if (metadata) {
+							isBlock = !!metadata.isBlock;
 							pasteOnNewLine = (focusedEditor.getOption(EditorOption.emptySelectionClipboard) && !!metadata.isFromEmptySelection);
 							multicursorText = (typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null);
 							mode = metadata.mode;
@@ -325,6 +327,7 @@ if (PasteAction) {
 							text: clipboardText,
 							pasteOnNewLine,
 							multicursorText,
+							isBlock,
 							mode
 						});
 					}

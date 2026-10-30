@@ -6,6 +6,7 @@
 import './textAreaEditContext.css';
 import * as nls from '../../../../../nls.js';
 import * as browser from '../../../../../base/browser/browser.js';
+import { $ } from '../../../../../base/browser/dom.js';
 import { FastDomNode, createFastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import * as platform from '../../../../../base/common/platform.js';
@@ -291,15 +292,17 @@ export class TextAreaEditContext extends AbstractEditContext {
 		}));
 
 		this._register(this._textAreaInput.onPaste((e: IPasteData) => {
+			let isBlock = false;
 			let pasteOnNewLine = false;
 			let multicursorText: string[] | null = null;
 			let mode: string | null = null;
 			if (e.metadata) {
+				isBlock = !!e.metadata.isBlock;
 				pasteOnNewLine = (this._emptySelectionClipboard && !!e.metadata.isFromEmptySelection);
 				multicursorText = (typeof e.metadata.multicursorText !== 'undefined' ? e.metadata.multicursorText : null);
 				mode = e.metadata.mode;
 			}
-			this._viewController.paste(e.text, pasteOnNewLine, multicursorText, mode);
+			this._viewController.paste(e.text, pasteOnNewLine, multicursorText, mode, isBlock);
 		}));
 
 		this._register(this._textAreaInput.onCut(() => {
@@ -896,12 +899,12 @@ function measureText(targetDocument: Document, text: string, fontInfo: FontInfo,
 		return 0;
 	}
 
-	const container = targetDocument.createElement('div');
+	const container = $<HTMLDivElement>('div');
 	container.style.position = 'absolute';
 	container.style.top = '-50000px';
 	container.style.width = '50000px';
 
-	const regularDomNode = targetDocument.createElement('span');
+	const regularDomNode = $<HTMLSpanElement>('span');
 	applyFontInfo(regularDomNode, fontInfo);
 	regularDomNode.style.whiteSpace = 'pre'; // just like the textarea
 	regularDomNode.style.tabSize = `${tabSize * fontInfo.spaceWidth}px`; // just like the textarea

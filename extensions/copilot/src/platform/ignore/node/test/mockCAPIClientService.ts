@@ -24,7 +24,6 @@ export function rulesResponse(rulesByRepo: ReadonlyMap<string, MockExclusionRule
 	});
 	return { ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve(payload) };
 }
-
 /** Builds a failing response, optionally carrying GitHub's rate limit headers. */
 export function failureResponse(status: number, headers: Record<string, string> = {}): Partial<Response> {
 	return {
@@ -116,4 +115,3 @@ export class MockCAPIClientService {
 		return gate.then(() => ({ ...this._defaultResponse, ...this._responder(repos) }) as unknown as T);
 	}
 }
-

@@ -5,6 +5,7 @@
 
 import { IObservable } from '../../../../base/common/observable.js';
 import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import type { IOnboardingTryoutMetadata } from './onboardingTryout.js';
 
 /**
  * Describes when an onboarding scenario becomes eligible to run automatically.
@@ -117,12 +118,18 @@ export interface IOnboardingScenario<TPayload = unknown> {
 	/** The presentation that renders this scenario plus its payload. */
 	readonly presentation: IOnboardingPresentationRef<TPayload>;
 
+	/** Explicitly exposes a manual-only feature example through the guarded tryout service. */
+	readonly tryout?: IOnboardingTryoutMetadata;
+
 	/**
 	 * Optional experiment that gates and measures this scenario. When present, the scenario
 	 * only runs if the experiment is active (both treatment flags set). See
 	 * {@link IOnboardingExperiment}.
 	 */
 	readonly experiment?: IOnboardingExperiment;
+
+	/** Variations exposed through the onboarding developer-mode variation override. */
+	readonly developerModeVariations?: readonly string[];
 
 	/** When `true`, the scenario runs on every eligible session instead of once per user. */
 	readonly repeatable?: boolean;

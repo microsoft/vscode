@@ -25,7 +25,17 @@ export interface IBaseDialogOptions {
 
 	readonly title?: string;
 	readonly message: string;
-	readonly detail?: string;
+
+	/**
+	 * Supporting copy shown below the message. Can be an {@link IMarkdownString}
+	 * to emphasize part of the text (e.g. a command name) or to offer a
+	 * command link, in addition to plain text.
+	 *
+	 * Native and other non-browser dialog handlers cannot render Markdown and
+	 * degrade a Markdown detail to its plain-text equivalent, stripping
+	 * formatting and link syntax rather than showing it verbatim.
+	 */
+	readonly detail?: string | IMarkdownString;
 
 	readonly checkbox?: ICheckbox;
 
@@ -285,6 +295,14 @@ export interface ICustomDialogOptions {
 	readonly classes?: string[];
 	readonly icon?: ThemeIcon;
 	readonly disableCloseAction?: boolean;
+
+	/**
+	 * Aligns the dialog's icon, message, and buttons vertically (full-width
+	 * stacked buttons) instead of the default horizontal layout. Defaults to
+	 * `'horizontal'`. Implemented by the browser dialog handler via the base
+	 * dialog widget's alignment option.
+	 */
+	readonly alignment?: 'horizontal' | 'vertical';
 }
 
 export interface ICustomDialogMarkdown {
@@ -459,6 +477,9 @@ export abstract class AbstractDialogHandler implements IDialogHandler {
 export interface IDialogService {
 
 	readonly _serviceBrand: undefined;
+
+	/** Whether a modal dialog is showing or queued. */
+	readonly hasDialog: boolean;
 
 	/**
 	 * An event that fires when a dialog is about to show.

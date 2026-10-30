@@ -19,7 +19,7 @@ import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../
 import { PromptBodyAutocompletion } from '../../../../common/promptSyntax/languageProviders/promptBodyAutocompletion.js';
 import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { getLanguageIdForPromptsType, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
+import { getLanguageIdForPromptsType, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
@@ -27,14 +27,24 @@ import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
+import { PromptFileParser } from '../../../../common/promptSyntax/promptFileParser.js';
+import { ITextModel } from '../../../../../../../editor/common/model.js';
+import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
+import { createVSCodeHarnessDescriptor, ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
+import { CompletionModel } from '../../../../../../../editor/contrib/suggest/browser/completionModel.js';
+import { CompletionItem as SuggestCompletionItem } from '../../../../../../../editor/contrib/suggest/browser/suggest.js';
+import { WordDistance } from '../../../../../../../editor/contrib/suggest/browser/wordDistance.js';
+import { EditorOptions } from '../../../../../../../editor/common/config/editorOptions.js';
 
 suite('PromptBodyAutocompletion', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instaService: TestInstantiationService;
 	let completionProvider: PromptBodyAutocompletion;
+	let activeTarget: Target;
 
 	setup(async () => {
+		activeTarget = Target.Undefined;
 		const testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
 		instaService = workbenchInstantiationService({
@@ -73,6 +83,15 @@ suite('PromptBodyAutocompletion', () => {
 		disposables.add(toolService.registerToolData(prExtTool1));
 
 		instaService.set(ILanguageModelToolsService, toolService);
+		const parser = new PromptFileParser();
+		instaService.stub(IPromptsService, {
+			getParsedPromptFile(model: ITextModel) {
+				return parser.parse(model.uri, model.getValue());
+			}
+		});
+		instaService.stub(ICustomizationHarnessService, {
+			getActiveDescriptor: () => ({ ...createVSCodeHarnessDescriptor(), customAgentTarget: activeTarget }),
+		});
 
 		completionProvider = instaService.createInstance(PromptBodyAutocompletion);
 	});
@@ -97,6 +116,83 @@ suite('PromptBodyAutocompletion', () => {
 	}
 
 	suite('prompt body completions', () => {
+		test('github-copilot placeholder suggestions', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'---',
+				'',
+				'Work in {{c'
+			].join('\n');
+
+			const actual = await getCompletions(content, 5, 12, PromptsType.agent);
+
+			assert.deepStrictEqual(actual, [
+				{ label: 'cwd', result: 'Work in {{cwd}}' },
+				{ label: 'homedir', result: 'Work in {{homedir}}' },
+				{ label: 'configDir', result: 'Work in {{configDir}}' },
+				{ label: 'grepToolName', result: 'Work in {{grepToolName}}' },
+				{ label: 'globToolName', result: 'Work in {{globToolName}}' },
+				{ label: 'shellToolName', result: 'Work in {{shellToolName}}' },
+				{ label: 'shellCommandExamples', result: 'Work in {{shellCommandExamples}}' },
+			]);
+		});
+
+		test('github-copilot placeholder completion replaces an existing suffix', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const values = [
+				{ line: 'Work in {{c}}', column: 12 },
+				{ line: 'Work in {{cwd}}', column: 12 },
+			];
+
+			const actual = [];
+			for (const value of values) {
+				const content = ['---', 'description: "Test"', '---', '', value.line].join('\n');
+				actual.push((await getCompletions(content, 5, value.column, PromptsType.agent))[0]);
+			}
+
+			assert.deepStrictEqual(actual, [
+				{ label: 'cwd', result: 'Work in {{cwd}}' },
+				{ label: 'cwd', result: 'Work in {{cwd}}' },
+			]);
+		});
+
+		test('github-copilot placeholder completions remain visible through editor filtering', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = ['---', 'description: "Test"', '---', '', 'Work in {{c'].join('\n');
+			const model = disposables.add(createTextModel(content, getLanguageIdForPromptsType(PromptsType.agent), undefined, URI.parse('test://workspace/filter.agent.md')));
+			const position = new Position(5, 12);
+			const context: CompletionContext = { triggerKind: CompletionTriggerKind.Invoke };
+			const list = await completionProvider.provideCompletionItems(model, position, context, CancellationToken.None);
+			assert.ok(list);
+			const provider = { _debugDisplayName: 'PromptBodyAutocompletion', provideCompletionItems: () => list };
+			const completionModel = new CompletionModel(
+				list.suggestions.map(item => new SuggestCompletionItem(position, item, list, provider)),
+				position.column,
+				{ leadingLineContent: model.getLineContent(position.lineNumber), characterCountDelta: 0 },
+				WordDistance.None,
+				EditorOptions.suggest.defaultValue,
+				EditorOptions.snippetSuggestions.defaultValue,
+				undefined,
+			);
+
+			assert.deepStrictEqual(completionModel.items.map(item => item.completion.label), ['cwd', 'configDir', 'shellCommandExamples']);
+		});
+
+		test('github-copilot does not suggest Local references', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'---',
+				'',
+				'Use #'
+			].join('\n');
+
+			assert.deepStrictEqual(await getCompletions(content, 5, 6, PromptsType.agent), []);
+		});
+
 		test('default suggestions', async () => {
 			const content = [
 				'---',

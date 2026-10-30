@@ -462,6 +462,24 @@ suite('SearchResult', () => {
 		assert.strictEqual(otherFilesMatch.allDownstreamFileMatches().length, 0);
 	});
 
+	test('folder matches are not retained across queries', function () {
+		const testObject = aSearchResult();
+		const disposeSpies = testObject.folderMatches().map(folderMatch => sinon.spy(folderMatch, 'dispose'));
+
+		for (const folder of ['/second', '/third']) {
+			testObject.query = {
+				type: QueryType.Text,
+				contentPattern: { pattern: '' },
+				folderQueries: [{ folder: createFileUriFromPathFromRoot(folder) }]
+			};
+			testObject.add([], 'test', false);
+		}
+
+		testObject.dispose();
+
+		assert.deepStrictEqual(disposeSpies.map(spy => spy.callCount), [1, 1]);
+	});
+
 	test('batchReplace should trigger the onChange event correctly', async function () {
 		const replaceSpy = sinon.spy();
 		instantiationService.stub(IReplaceService, 'replace', (arg: any) => {

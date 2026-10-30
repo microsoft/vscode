@@ -6,7 +6,9 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import { Event } from '../../../../base/common/event.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -18,13 +20,36 @@ import { IProductService } from '../../../product/common/productService.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { IApplicationStorageMainService } from '../../../storage/electron-main/storageMainService.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { DisablementReason, State, StateType } from '../../common/update.js';
+import { DisablementReason, IUpdate, State, StateType } from '../../common/update.js';
 import { AbstractUpdateService, IUpdateURLOptions } from '../../electron-main/abstractUpdateService.js';
+
+class TestMeteredConnectionService extends Disposable implements IMeteredConnectionService {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangeIsConnectionMetered = this._register(new Emitter<boolean>());
+	readonly onDidChangeIsConnectionMetered = this._onDidChangeIsConnectionMetered.event;
+
+	constructor(
+		public isConnectionMetered: boolean,
+		readonly whenConnectionStateInitialized?: Promise<void>,
+	) {
+		super();
+	}
+
+	setIsConnectionMetered(isConnectionMetered: boolean): void {
+		this.isConnectionMetered = isConnectionMetered;
+		this._onDidChangeIsConnectionMetered.fire(isConnectionMetered);
+	}
+}
 
 class TestUpdateService extends AbstractUpdateService {
 
 	private readonly _initialized = new DeferredPromise<void>();
 	get whenInitialized(): Promise<void> { return this._initialized.p; }
+	private readonly _postInitializeStarted = new DeferredPromise<void>();
+	get whenPostInitializeStarted(): Promise<void> { return this._postInitializeStarted.p; }
+	private _postInitializeGate: Promise<void> | undefined;
+	blockPostInitialize(gate: Promise<void>): void { this._postInitializeGate = gate; }
 
 	private _checkCount = 0;
 	get checkCount(): number { return this._checkCount; }
@@ -32,12 +57,20 @@ class TestUpdateService extends AbstractUpdateService {
 	private _cancelCount = 0;
 	get cancelCount(): number { return this._cancelCount; }
 
+	private _downloadCount = 0;
+	get downloadCount(): number { return this._downloadCount; }
+	private _latestVersionResult: Promise<boolean | undefined> | undefined;
+	setLatestVersionResult(result: Promise<boolean | undefined>): void { this._latestVersionResult = result; }
+	deferDownload(update: IUpdate, explicit: boolean): boolean {
+		return this.deferAutomaticDownload(update, explicit);
+	}
+
 	/** When set, `cancelUpdate` blocks on this promise so tests can observe the transient Cancelling state. */
 	private _cancelGate: Promise<void> | undefined;
 	blockCancelUpdate(gate: Promise<void>): void { this._cancelGate = gate; }
 
 	/** Forces the service into a given state so tests can exercise cancellation from a cancellable state. */
-	forceState(state: State): void { this.setState(state); }
+	forceState(state: State, options?: { deferred?: boolean }): void { this.setState(state, options); }
 
 	feedUrl: string | undefined = 'https://update.example/feed';
 
@@ -55,6 +88,23 @@ class TestUpdateService extends AbstractUpdateService {
 
 	protected doCheckForUpdates(): void {
 		this._checkCount++;
+	}
+
+	protected override async doDownloadUpdate(): Promise<void> {
+		this._downloadCount++;
+	}
+
+	checkLatestVersionExplicitly(): Promise<boolean | undefined> {
+		return this.doIsLatestVersion();
+	}
+
+	protected override doIsLatestVersion(commit?: string, token?: CancellationToken): Promise<boolean | undefined> {
+		return this._latestVersionResult ?? super.doIsLatestVersion(commit, token);
+	}
+
+	protected override async postInitialize(): Promise<void> {
+		this._postInitializeStarted.complete();
+		await this._postInitializeGate;
 	}
 
 	protected override async cancelUpdate(): Promise<void> {
@@ -91,10 +141,13 @@ suite('AbstractUpdateService', () => {
 	}
 
 	let configurationService: PolicyTestConfigurationService;
+	let requestCount: number;
+	let meteredConnectionService: TestMeteredConnectionService;
 
-	function createService(mode: string, options?: { isBuilt?: boolean; disableUpdates?: boolean; updateUrl?: string }): TestUpdateService {
+	function createService(mode: string, options?: { isBuilt?: boolean; disableUpdates?: boolean; updateUrl?: string; isConnectionMetered?: boolean; meteredConnectionInitialization?: Promise<void>; postInitializeGate?: Promise<void>; supportsUpdateOverwrite?: boolean }): TestUpdateService {
 		configurationService = new PolicyTestConfigurationService();
 		configurationService.setUserConfiguration('update.mode', mode);
+		requestCount = 0;
 
 		const lifecycleMainService = {
 			when: () => Promise.resolve(),
@@ -109,7 +162,10 @@ suite('AbstractUpdateService', () => {
 		} as unknown as IEnvironmentMainService;
 
 		const requestService = {
-			request: () => Promise.reject(new Error('not expected'))
+			request: () => {
+				requestCount++;
+				return Promise.reject(new Error('not expected'));
+			}
 		} as unknown as IRequestService;
 
 		const productService = {
@@ -126,7 +182,7 @@ suite('AbstractUpdateService', () => {
 			store: () => { }
 		} as unknown as IApplicationStorageMainService;
 
-		const meteredConnectionService = { isConnectionMetered: false } as unknown as IMeteredConnectionService;
+		meteredConnectionService = store.add(new TestMeteredConnectionService(options?.isConnectionMetered ?? false, options?.meteredConnectionInitialization));
 
 		const service = new TestUpdateService(
 			lifecycleMainService,
@@ -138,8 +194,11 @@ suite('AbstractUpdateService', () => {
 			NullTelemetryService,
 			applicationStorageMainService,
 			meteredConnectionService,
-			false
+			options?.supportsUpdateOverwrite ?? false
 		);
+		if (options?.postInitializeGate) {
+			service.blockPostInitialize(options.postInitializeGate);
+		}
 
 		return store.add(service);
 	}
@@ -218,6 +277,225 @@ suite('AbstractUpdateService', () => {
 			await changeMode(service, 'none');
 			await clock.tickAsync(60 * 60 * 1000);
 			assert.strictEqual(service.checkCount, 1, 'none should not schedule further checks');
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('automatic scheduling waits for the initial metered connection state', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const connectionInitialized = new DeferredPromise<void>();
+			const service = createService('default', { meteredConnectionInitialization: connectionInitialized.p });
+
+			await clock.tickAsync(30 * 1000);
+			assert.strictEqual(service.checkCount, 0);
+
+			meteredConnectionService.setIsConnectionMetered(true);
+			connectionInitialized.complete();
+			await service.whenInitialized;
+			await clock.tickAsync(30 * 1000);
+			assert.strictEqual(service.checkCount, 0);
+
+			meteredConnectionService.setIsConnectionMetered(false);
+			await clock.tickAsync(0);
+			assert.strictEqual(service.checkCount, 1);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('unmetering during post-initialization does not start a check', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const postInitializeGate = new DeferredPromise<void>();
+			const service = createService('default', { isConnectionMetered: true, postInitializeGate: postInitializeGate.p });
+			await service.whenPostInitializeStarted;
+
+			meteredConnectionService.setIsConnectionMetered(false);
+			await clock.tickAsync(0);
+			assert.strictEqual(service.checkCount, 0);
+
+			postInitializeGate.complete();
+			await service.whenInitialized;
+			await clock.tickAsync(0);
+			assert.strictEqual(service.checkCount, 0);
+
+			await clock.tickAsync(30 * 1000);
+			assert.strictEqual(service.checkCount, 1);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('metered connections skip automatic update requests but allow explicit actions', async () => {
+		const service = createService('default', { isConnectionMetered: true });
+		await service.whenInitialized;
+
+		await service.checkForUpdates(false);
+		await service.isLatestVersion();
+		await service.checkForUpdates(true);
+		await service.checkLatestVersionExplicitly();
+
+		service.forceState(State.AvailableForDownload({ version: '1.1.0', productVersion: '1.1.0', url: 'https://update.example/download' }));
+		await service.downloadUpdate(false);
+		await service.downloadUpdate(true);
+		meteredConnectionService.setIsConnectionMetered(false);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			checkCount: service.checkCount,
+			downloadCount: service.downloadCount,
+			requestCount,
+		}, {
+			checkCount: 1,
+			downloadCount: 1,
+			requestCount: 1,
+		});
+	});
+
+	test('automatic checks resume when the connection is no longer metered', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const service = createService('start', { isConnectionMetered: true });
+			await service.whenInitialized;
+			await clock.tickAsync(30 * 1000);
+			assert.strictEqual(service.checkCount, 0);
+
+			meteredConnectionService.setIsConnectionMetered(false);
+			await clock.tickAsync(0);
+			assert.strictEqual(service.checkCount, 1);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('completed startup checks do not run again after a metered transition', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const service = createService('start');
+			await service.whenInitialized;
+			await clock.tickAsync(30 * 1000);
+			assert.strictEqual(service.checkCount, 1);
+
+			meteredConnectionService.setIsConnectionMetered(true);
+			meteredConnectionService.setIsConnectionMetered(false);
+			await clock.tickAsync(0);
+
+			assert.strictEqual(service.checkCount, 1);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('only resumes automatic downloads that were deferred by metering', async () => {
+		const service = createService('default');
+		await service.whenInitialized;
+		service.forceState(State.AvailableForDownload({ version: '1.1.0', productVersion: '1.1.0', url: 'https://update.example/download' }));
+
+		meteredConnectionService.setIsConnectionMetered(true);
+		meteredConnectionService.setIsConnectionMetered(false);
+		await timeout(0);
+		const downloadsWithoutDeferredIntent = service.downloadCount;
+
+		meteredConnectionService.setIsConnectionMetered(true);
+		await service.downloadUpdate(false);
+		meteredConnectionService.setIsConnectionMetered(false);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			downloadsWithoutDeferredIntent,
+			downloadsAfterDeferredIntent: service.downloadCount,
+		}, {
+			downloadsWithoutDeferredIntent: 0,
+			downloadsAfterDeferredIntent: 1,
+		});
+	});
+
+	test('resumes an automatic download deferred after an update check', async () => {
+		const service = createService('default', { isConnectionMetered: true });
+		await service.whenInitialized;
+		service.forceState(State.AvailableForDownload({ version: '1.1.0', productVersion: '1.1.0', url: 'https://update.example/download' }), { deferred: true });
+
+		meteredConnectionService.setIsConnectionMetered(false);
+		await timeout(0);
+
+		assert.strictEqual(service.downloadCount, 1);
+	});
+
+	test('defers an automatic download when connection becomes metered during preparation', async () => {
+		const service = createService('default');
+		await service.whenInitialized;
+		const update = { version: '1.1.0', productVersion: '1.1.0', url: 'https://update.example/download' };
+		service.forceState(State.Downloading(update, false, false));
+
+		meteredConnectionService.setIsConnectionMetered(true);
+		const deferred = service.deferDownload(update, false);
+		assert.deepStrictEqual({ deferred, state: service.state.type, downloadCount: service.downloadCount }, {
+			deferred: true,
+			state: StateType.AvailableForDownload,
+			downloadCount: 0,
+		});
+
+		meteredConnectionService.setIsConnectionMetered(false);
+		await timeout(0);
+		assert.strictEqual(service.downloadCount, 1);
+	});
+
+	test('resumes deferred work when automatic mode is re-enabled while unmetered', async () => {
+		const service = createService('manual', { isConnectionMetered: true });
+		await service.whenInitialized;
+		service.forceState(State.AvailableForDownload({ version: '1.1.0', productVersion: '1.1.0', url: 'https://update.example/download' }), { deferred: true });
+
+		meteredConnectionService.setIsConnectionMetered(false);
+		await timeout(0);
+		assert.strictEqual(service.downloadCount, 0);
+
+		configurationService.setUserConfiguration('update.mode', 'default');
+		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as unknown as IConfigurationChangeEvent);
+		await timeout(0);
+		await timeout(0);
+
+		assert.strictEqual(service.downloadCount, 1);
+	});
+
+	test('resumes overwrite checks that were deferred by metering', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const service = createService('default', { isConnectionMetered: true, supportsUpdateOverwrite: true });
+			await service.whenInitialized;
+			service.forceState(State.Ready({ version: 'pending' }, false, false));
+
+			await clock.tickAsync(5 * 60 * 1000);
+			assert.strictEqual(requestCount, 0);
+
+			meteredConnectionService.setIsConnectionMetered(false);
+			await clock.tickAsync(0);
+
+			assert.strictEqual(requestCount, 1);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('defers overwrite continuation when connection becomes metered during latest-version probe', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const latestVersionResult = new DeferredPromise<boolean | undefined>();
+			const service = createService('default', { supportsUpdateOverwrite: true });
+			await service.whenInitialized;
+			service.setLatestVersionResult(latestVersionResult.p);
+			service.forceState(State.Ready({ version: 'pending' }, false, false));
+
+			await clock.tickAsync(5 * 60 * 1000);
+			meteredConnectionService.setIsConnectionMetered(true);
+			latestVersionResult.complete(false);
+			await clock.tickAsync(0);
+			assert.deepStrictEqual({ checkCount: service.checkCount, state: service.state.type }, { checkCount: 0, state: StateType.Ready });
+
+			meteredConnectionService.setIsConnectionMetered(false);
+			await clock.tickAsync(0);
+			assert.deepStrictEqual({ checkCount: service.checkCount, state: service.state.type }, { checkCount: 1, state: StateType.Overwriting });
 		} finally {
 			clock.restore();
 		}

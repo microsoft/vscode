@@ -58,6 +58,10 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 		this._refreshState();
 	}
 
+	layout(): void {
+		this._overlay.value?.layout();
+	}
+
 	hideLock() {
 		this._overlay.value?.lockHide();
 	}

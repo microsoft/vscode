@@ -7,6 +7,19 @@ declare module 'vscode' {
 
 	// TODO - @lramos15 - Issue link
 
+	export enum LanguageModelChatApiType {
+		ChatCompletions = 1,
+		Responses = 2,
+		Messages = 3
+	}
+
+	export interface LanguageModelChatCapabilities {
+		/** The provider's request protocol, used to determine which reasoning blocks can be replayed. Omit when unknown. */
+		readonly apiType?: LanguageModelChatApiType;
+		/** Whether a Messages API model accepts adaptive thinking, including thinking from earlier user turns. */
+		readonly adaptiveThinking?: boolean;
+	}
+
 	export interface LanguageModelChat {
 		/**
 		 * The capabilities of the language model.
@@ -25,6 +38,10 @@ declare module 'vscode' {
 			 * The tools the model prefers for making file edits. See {@link LanguageModelChatCapabilities.editTools}.
 			 */
 			readonly editToolsHint?: readonly string[];
+			/** The provider's request protocol, or undefined when it has not been declared. */
+			readonly apiType?: LanguageModelChatApiType;
+			/** Whether this Messages API model supports adaptive thinking. */
+			readonly supportsAdaptiveThinking?: boolean;
 		};
 	}
 }

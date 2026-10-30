@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { IAction } from '../../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
@@ -15,6 +16,8 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { ILanguageModelsProviderGroup } from '../../../common/languageModelsConfiguration.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
+import { languageModelSourcePresentationRegistry } from '../../../common/languageModelSourcePresentation.js';
+import Severity from '../../../../../../base/common/severity.js';
 
 class MockLanguageModelsService implements ILanguageModelsService {
 	_serviceBrand: undefined;
@@ -23,6 +26,8 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	private models = new Map<string, ILanguageModelChatMetadata>();
 	private modelsByVendor = new Map<string, string[]>();
 	private modelGroups = new Map<string, ILanguageModelsGroup[]>();
+	private hiddenModelIds = new Set<string>();
+	readonly setModelsHiddenCalls: { readonly modelIdentifiers: readonly string[]; readonly hidden: boolean }[] = [];
 
 	private readonly _onDidChangeLanguageModels = new Emitter<string>();
 	readonly onDidChangeLanguageModels = this._onDidChangeLanguageModels.event;
@@ -59,6 +64,10 @@ class MockLanguageModelsService implements ILanguageModelsService {
 		}
 		group.modelIdentifiers.push(identifier);
 		this.modelGroups.set(vendorId, groups);
+	}
+
+	addGroupStatus(vendorId: string, message: string): void {
+		this.modelGroups.get(vendorId)?.push({ modelIdentifiers: [], status: { message, severity: Severity.Error } });
 	}
 
 	registerLanguageModelProvider(vendor: string, provider: ILanguageModelChatProvider): IDisposable {
@@ -172,11 +181,23 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	unpinModel(_modelIdentifier: string): void { }
 	isModelPinned(_modelIdentifier: string): boolean { return false; }
 	onDidChangePinnedModels = Event.None;
-	isModelHidden(_modelIdentifier: string): boolean { return false; }
+	isModelHidden(modelIdentifier: string): boolean { return this.hiddenModelIds.has(modelIdentifier); }
 	isGroupHidden(_vendor: string, _groupName: string): boolean { return false; }
-	setModelHidden(_modelIdentifier: string, _hidden: boolean): void { }
+	setModelHidden(modelIdentifier: string, hidden: boolean): void {
+		this.setModelsHidden([modelIdentifier], hidden);
+	}
+	setModelsHidden(modelIdentifiers: readonly string[], hidden: boolean): void {
+		this.setModelsHiddenCalls.push({ modelIdentifiers: [...modelIdentifiers], hidden });
+		for (const modelIdentifier of modelIdentifiers) {
+			if (hidden) {
+				this.hiddenModelIds.add(modelIdentifier);
+			} else {
+				this.hiddenModelIds.delete(modelIdentifier);
+			}
+		}
+	}
 	setGroupHidden(_vendor: string, _groupName: string, _hidden: boolean): void { }
-	getHiddenModelIds(): string[] { return []; }
+	getHiddenModelIds(): string[] { return [...this.hiddenModelIds]; }
 	onDidChangeModelVisibility = Event.None;
 	getModelsControlManifest(): IModelsControlManifest { return { free: {}, paid: {} }; }
 	restrictedChatParticipants = observableValue('restrictedChatParticipants', Object.create(null));
@@ -188,6 +209,13 @@ suite('ChatModelsViewModel', () => {
 	let viewModel: ChatModelsViewModel;
 
 	setup(async () => {
+		store.add(languageModelSourcePresentationRegistry.register({
+			ownerVendor: 'codex',
+			sourceId: 'chatgptSubscription',
+			label: 'ChatGPT',
+			icon: Codicon.openai,
+			description: 'Models provided by your ChatGPT subscription',
+		}));
 		languageModelsService = new MockLanguageModelsService();
 
 		// Setup test data
@@ -320,7 +348,7 @@ suite('ChatModelsViewModel', () => {
 			maxInputTokens: 8192,
 			maxOutputTokens: 4096,
 			isDefaultForLocation: {},
-			modelGroup: { id: 'chatgpt', source: 'chatgptSubscription' },
+			modelGroup: { id: 'chatgpt', sourceId: 'chatgptSubscription' },
 		});
 		service.addModel('custom', 'custom:gpt-5.6', {
 			extension: new ExtensionIdentifier('example.custom'),
@@ -340,7 +368,7 @@ suite('ChatModelsViewModel', () => {
 		const groups = entries.filter(isLanguageModelProviderEntry).map(entry => ({
 			id: entry.id,
 			label: entry.label,
-			chatgptSubscription: entry.chatgptSubscription,
+			sourcePresentation: entry.sourcePresentation?.sourceId,
 		}));
 		const models = entries.filter(entry => !isLanguageModelProviderEntry(entry) && !isLanguageModelGroupEntry(entry)) as ILanguageModelEntry[];
 
@@ -349,8 +377,8 @@ suite('ChatModelsViewModel', () => {
 			providerLabels: models.map(entry => getManageModelsProviderLabel(entry.model)),
 		}, {
 			groups: [
-				{ id: 'chatgpt-ChatGPT-chatgptSubscription', label: 'ChatGPT', chatgptSubscription: true },
-				{ id: 'custom-ChatGPT-configured', label: 'ChatGPT', chatgptSubscription: false },
+				{ id: 'chatgpt-ChatGPT-chatgptSubscription', label: 'ChatGPT', sourcePresentation: 'chatgptSubscription' },
+				{ id: 'custom-ChatGPT-configured', label: 'ChatGPT', sourcePresentation: undefined },
 			],
 			providerLabels: ['ChatGPT', 'ChatGPT'],
 		});
@@ -370,7 +398,7 @@ suite('ChatModelsViewModel', () => {
 			maxInputTokens: 8192,
 			maxOutputTokens: 4096,
 			isDefaultForLocation: {},
-			modelGroup: { id: 'chatgpt', source: 'chatgptSubscription' },
+			modelGroup: { id: 'chatgpt', sourceId: 'chatgptSubscription' },
 		});
 
 		const model = store.add(new ChatModelsViewModel(service));
@@ -379,11 +407,100 @@ suite('ChatModelsViewModel', () => {
 		assert.deepStrictEqual(model.filter('').map(entry => ({
 			type: entry.type,
 			label: isLanguageModelProviderEntry(entry) ? entry.label : undefined,
-			chatgptSubscription: isLanguageModelProviderEntry(entry) ? entry.chatgptSubscription : undefined,
+			sourcePresentation: isLanguageModelProviderEntry(entry) ? entry.sourcePresentation?.sourceId : undefined,
 		})), [
-			{ type: 'vendor', label: 'ChatGPT', chatgptSubscription: true },
-			{ type: 'model', label: undefined, chatgptSubscription: undefined },
+			{ type: 'vendor', label: 'ChatGPT', sourcePresentation: 'chatgptSubscription' },
+			{ type: 'model', label: undefined, sourcePresentation: undefined },
 		]);
+	});
+
+	test('trusted source presentations are scoped to their owner vendor', async () => {
+		const service = new MockLanguageModelsService();
+		service.addVendor({ vendor: 'other', displayName: 'Other', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addModel('other', 'other:gpt-5.6', {
+			extension: new ExtensionIdentifier('example.other'),
+			id: 'gpt-5.6',
+			name: 'GPT-5.6',
+			family: 'gpt-5.6',
+			version: '1.0',
+			vendor: 'other',
+			maxInputTokens: 8192,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: {},
+			modelGroup: { id: 'chatgpt', sourceId: 'chatgptSubscription' },
+		});
+
+		const model = store.add(new ChatModelsViewModel(service));
+		await model.refresh();
+		const entry = model.filter('').find(candidate => !isLanguageModelProviderEntry(candidate) && !isLanguageModelGroupEntry(candidate)) as ILanguageModelEntry;
+		assert.strictEqual(entry.model.provider.group.name, 'Chatgpt');
+		assert.strictEqual(entry.model.provider.sourcePresentation, undefined);
+	});
+
+	test('group visibility toggles only the exact models rendered in that source group', async () => {
+		const service = new MockLanguageModelsService();
+		service.addVendor({ vendor: 'codex', displayName: 'Codex', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addVendor({ vendor: 'custom', displayName: 'Custom', managementCommand: undefined, when: undefined, configuration: undefined });
+		const metadata = {
+			extension: new ExtensionIdentifier('vscode.codex'),
+			id: 'gpt-5.6',
+			name: 'GPT-5.6',
+			family: 'gpt-5.6',
+			version: '1.0',
+			maxInputTokens: 8192,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: {},
+		};
+		service.addModel('codex', 'codex:gpt-5.6', { ...metadata, vendor: 'codex', modelGroup: { id: 'chatgpt', sourceId: 'chatgptSubscription' } });
+		service.addModel('custom', 'custom:gpt-5.6', { ...metadata, extension: new ExtensionIdentifier('example.custom'), vendor: 'custom' }, 'ChatGPT');
+
+		const model = store.add(new ChatModelsViewModel(service));
+		await model.refresh();
+		const subscriptionGroup = model.filter('').find(entry => isLanguageModelProviderEntry(entry) && entry.sourcePresentation !== undefined);
+		assert.ok(subscriptionGroup && isLanguageModelProviderEntry(subscriptionGroup));
+
+		model.toggleGroupHidden(subscriptionGroup);
+		assert.deepStrictEqual({
+			hiddenModelIds: service.getHiddenModelIds(),
+			setModelsHiddenCalls: service.setModelsHiddenCalls,
+		}, {
+			hiddenModelIds: ['codex:gpt-5.6'],
+			setModelsHiddenCalls: [{ modelIdentifiers: ['codex:gpt-5.6'], hidden: true }],
+		});
+	});
+
+	test('the default provider Auto model is never listed, so a group toggle cannot hide it', async () => {
+		// A non-default provider's Auto does get a row and stays hideable.
+		const service = new MockLanguageModelsService();
+		service.addVendor({ vendor: 'copilot', displayName: 'GitHub Copilot', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addVendor({ vendor: 'copilotcli', displayName: 'Copilot CLI', managementCommand: undefined, when: undefined, configuration: undefined });
+		const metadata = {
+			extension: new ExtensionIdentifier('github.copilot'),
+			name: 'Auto',
+			family: 'auto',
+			version: '1.0',
+			maxInputTokens: 8192,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: {},
+		};
+		service.addModel('copilot', 'copilot/auto', { ...metadata, id: 'auto', vendor: 'copilot' });
+		service.addModel('copilot', 'copilot/gpt-5', { ...metadata, id: 'gpt-5', name: 'GPT-5', family: 'gpt-5', vendor: 'copilot' });
+		service.addModel('copilotcli', 'copilotcli/auto', { ...metadata, id: 'auto', vendor: 'copilotcli' });
+
+		const model = store.add(new ChatModelsViewModel(service));
+		await model.refresh();
+		const copilotGroup = model.filter('').find(entry => isLanguageModelProviderEntry(entry) && entry.vendorEntry.vendor.vendor === 'copilot');
+		assert.ok(copilotGroup && isLanguageModelProviderEntry(copilotGroup));
+
+		model.toggleGroupHidden(copilotGroup);
+
+		assert.deepStrictEqual({
+			renderedModelIds: model.filter('').filter(entry => entry.type === 'model').map(entry => entry.model.identifier),
+			setModelsHiddenCalls: service.setModelsHiddenCalls,
+		}, {
+			renderedModelIds: ['copilot/gpt-5', 'copilotcli/auto'],
+			setModelsHiddenCalls: [{ modelIdentifiers: ['copilot/gpt-5'], hidden: true }],
+		});
 	});
 
 	test('should filter by provider name (vendor ID and display name)', () => {
@@ -964,6 +1081,88 @@ suite('ChatModelsViewModel', () => {
 
 		const models = agentHostViewModel.filter('').filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
 		assert.deepStrictEqual(models.map(m => m.model.metadata.id), ['claude-haiku-4.5']);
+	});
+
+	function addHarnessModel(vendor: string, id: string, targetChatSessionType: string, modelGroup?: string): void {
+		languageModelsService.addModel(vendor, `${vendor}:${id}`, {
+			extension: new ExtensionIdentifier('vscode.chat'),
+			id,
+			name: id,
+			family: id,
+			version: '1.0',
+			vendor,
+			maxInputTokens: 128000,
+			maxOutputTokens: 4096,
+			isUserSelectable: true,
+			targetChatSessionType,
+			...(modelGroup ? { modelGroup: { id: modelGroup } } : {}),
+			capabilities: { toolCalling: true, vision: false, agentMode: true },
+			isDefaultForLocation: {},
+		});
+	}
+
+	test('shows only the selected harness\'s Copilot list', async () => {
+		for (const vendor of ['copilotcli', 'agent-host-copilotcli', 'agent-host-codex', 'agent-host-claude']) {
+			languageModelsService.addVendor({ vendor, displayName: vendor, managementCommand: undefined, when: undefined, configuration: undefined });
+		}
+		addHarnessModel('copilotcli', 'cli', 'copilotcli');
+		addHarnessModel('agent-host-copilotcli', 'ah-cli', 'agent-host-copilotcli', 'copilotcli');
+		addHarnessModel('agent-host-codex', 'codex-copilot', 'agent-host-codex', 'copilot');
+		addHarnessModel('agent-host-claude', 'claude-anthropic', 'agent-host-claude', 'anthropic');
+		await viewModel.refresh();
+
+		const listed: Record<string, string[]> = {};
+		for (const sessionType of [undefined, 'local', 'copilotcli', 'agent-host-copilotcli', 'agent-host-codex', 'agent-host-claude']) {
+			viewModel.setSessionType(sessionType);
+			listed[sessionType ?? 'all'] = viewModel.filter('').filter((r): r is ILanguageModelEntry => r.type === 'model').map(m => m.model.metadata.id).sort();
+		}
+
+		const others = ['claude-anthropic', 'gpt-3.5-turbo', 'gpt-4-vision'];
+		const regularCopilot = ['gpt-4', 'gpt-4o'];
+		assert.deepStrictEqual(listed, {
+			all: ['ah-cli', 'claude-anthropic', 'cli', 'codex-copilot', 'gpt-3.5-turbo', 'gpt-4', 'gpt-4-vision', 'gpt-4o'],
+			local: [...others, ...regularCopilot].sort(),
+			copilotcli: [...others, 'cli'].sort(),
+			'agent-host-copilotcli': [...others, 'ah-cli'].sort(),
+			'agent-host-codex': [...others, 'codex-copilot'].sort(),
+			'agent-host-claude': [...others, ...regularCopilot].sort(),
+		});
+	});
+
+	test('shows a Copilot provider status only for its own harness', async () => {
+		for (const vendor of ['agent-host-copilotcli', 'agent-host-copilot', 'ollama']) {
+			languageModelsService.addVendor({ vendor, displayName: vendor === 'ollama' ? 'Ollama' : 'Copilot', managementCommand: undefined, when: undefined, configuration: undefined });
+		}
+		addHarnessModel('agent-host-copilotcli', 'ah-cli', 'agent-host-copilotcli', 'copilotcli');
+		languageModelsService.addGroupStatus('agent-host-copilot', 'models failed to load');
+		languageModelsService.addGroupStatus('ollama', 'fetch failed');
+		await viewModel.refresh();
+
+		const listed: Record<string, string[]> = {};
+		for (const sessionType of ['local', 'agent-host-copilotcli', 'agent-host-copilot']) {
+			viewModel.setSessionType(sessionType);
+			listed[sessionType] = viewModel.filter('').flatMap(entry => entry.type === 'status' ? [`status: ${entry.message}`] : entry.type === 'model' ? [entry.model.metadata.id] : []);
+		}
+
+		const others = ['status: fetch failed', 'gpt-3.5-turbo', 'gpt-4-vision'];
+		assert.deepStrictEqual(listed, {
+			local: ['gpt-4', 'gpt-4o', ...others],
+			'agent-host-copilotcli': ['ah-cli', ...others],
+			'agent-host-copilot': ['status: models failed to load', ...others],
+		});
+	});
+
+	test('hiding a Copilot group hides only the models listed for the selected harness', async () => {
+		languageModelsService.addVendor({ vendor: 'agent-host-codex', displayName: 'Codex', managementCommand: undefined, when: undefined, configuration: undefined });
+		addHarnessModel('agent-host-codex', 'codex-copilot', 'agent-host-codex', 'copilot');
+		await viewModel.refresh();
+		viewModel.setSessionType('agent-host-codex');
+
+		const copilotGroups = viewModel.filter('').filter(isLanguageModelProviderEntry).filter(entry => entry.label === 'GitHub Copilot');
+		assert.strictEqual(copilotGroups.length, 1);
+		viewModel.toggleGroupHidden(copilotGroups[0]);
+
+		assert.deepStrictEqual(languageModelsService.setModelsHiddenCalls, [{ modelIdentifiers: ['agent-host-codex:codex-copilot'], hidden: true }]);
 	});
 
 });

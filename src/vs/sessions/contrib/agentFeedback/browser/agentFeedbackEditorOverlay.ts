@@ -13,15 +13,20 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { EditorGroupView } from '../../../../workbench/browser/parts/editor/editorGroupView.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { AgentEditorCommentsOverlayWidget } from '../../../../workbench/services/agentEditorComments/browser/agentEditorCommentsOverlayWidget.js';
-import { IAgentFeedbackService } from './agentFeedbackService.js';
+import { IAgentFeedbackService, shouldIncludeRawPRReviewComments } from './agentFeedbackService.js';
 import { hasUnsubmittedAgentFeedback, hasSessionEditorComments, navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from './agentFeedbackEditorActions.js';
-import { getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
+import { getActiveResourceCandidates, getFeedbackSessionCandidates } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../browser/menus.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
+import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
 import { getAcceptedAgentFeedbackCommentCount, getSessionEditorComments } from './sessionEditorComments.js';
 
 export interface IAgentFeedbackOverlayEditorGroup extends IEditorGroup {
 	readonly editorPaneContainer: HTMLElement;
+}
+
+export function getAgentFeedbackOverlayResourceCandidates(input: Parameters<typeof getActiveResourceCandidates>[0]): ReturnType<typeof getActiveResourceCandidates> {
+	return input instanceof EmptyFileEditorInput ? [] : getActiveResourceCandidates(input);
 }
 
 export class AgentFeedbackOverlayController {
@@ -76,6 +81,7 @@ export class AgentFeedbackOverlayController {
 			group.onDidActiveEditorChange,
 			group.onDidModelChange,
 			agentFeedbackService.onDidChangeFeedback,
+			agentFeedbackService.onDidChangeFeedbackVisibility,
 			agentFeedbackService.onDidChangeNavigation,
 			agentFeedbackService.onDidChangeFeedbackScope,
 		));
@@ -83,19 +89,17 @@ export class AgentFeedbackOverlayController {
 		this._store.add(autorun(r => {
 			activeSignal.read(r);
 
-			const candidates = getActiveResourceCandidates(group.activeEditorPane?.input);
+			const activeInput = group.activeEditorPane?.input;
+			const candidates = getAgentFeedbackOverlayResourceCandidates(activeInput);
 			let navigationBearings = undefined;
 			let acceptedFeedbackCount = 0;
-			for (const candidate of candidates) {
-				const sessionResource = agentFeedbackService.getFeedbackSessionResource(candidate);
-				if (!sessionResource) {
-					continue;
-				}
-
+			for (const { sessionResource } of getFeedbackSessionCandidates(candidates, candidate => agentFeedbackService.getFeedbackSessionResource(candidate))) {
 				const comments = getSessionEditorComments(
 					sessionResource,
 					agentFeedbackService.getFeedback(sessionResource),
 					codeReviewService.getPRReviewState(sessionResource).read(r),
+					agentFeedbackService.getVisibleResolvedFeedbackIds(sessionResource),
+					shouldIncludeRawPRReviewComments(agentFeedbackService, sessionResource),
 				);
 				if (comments.length > 0) {
 					navigationBearings = agentFeedbackService.getNavigationBearing(sessionResource, comments);

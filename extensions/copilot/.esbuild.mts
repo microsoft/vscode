@@ -126,23 +126,6 @@ const sanityTestBundlePlugin: esbuild.Plugin = {
 	}
 };
 
-const importMetaPlugin: esbuild.Plugin = {
-	name: 'claudeAgentSdkImportMetaPlugin',
-	setup(build) {
-		// Handle import.meta.url in @anthropic-ai/claude-agent-sdk package
-		build.onLoad({ filter: /node_modules[\/\\]@anthropic-ai[\/\\]claude-agent-sdk[\/\\].*\.mjs$/ }, async (args) => {
-			const contents = await fs.promises.readFile(args.path, 'utf8');
-			return {
-				contents: contents.replace(
-					/import\.meta\.url/g,
-					'require("url").pathToFileURL(__filename).href'
-				),
-				loader: 'js'
-			};
-		});
-	}
-};
-
 const shimVsCodeTypesPlugin: esbuild.Plugin = {
 	name: 'shimVsCodeTypesPlugin',
 	setup(build) {
@@ -185,12 +168,11 @@ const nodeExtHostBuildOptions = {
 		{ in: './src/platform/diff/node/diffWorkerMain.ts', out: 'diffWorker' },
 		{ in: './src/extension/chatSessions/copilotcli/node/copilotCLITodoWorker.ts', out: 'copilotCLITodoWorker' },
 		{ in: './src/extension/onboardDebug/node/copilotDebugWorker/index.ts', out: 'copilotDebugCommand' },
-		{ in: './src/extension/chatSessions/vscode-node/copilotCLIShim.ts', out: 'copilotCLIShim' },
 		{ in: './src/test-extension.ts', out: 'test-extension' },
 		{ in: './src/sanity-test-extension.ts', out: 'sanity-test-extension' },
 	],
 	loader: { '.ps1': 'text' },
-	plugins: [testBundlePlugin, sanityTestBundlePlugin, importMetaPlugin],
+	plugins: [testBundlePlugin, sanityTestBundlePlugin],
 	external: [
 		...baseNodeBuildOptions.external,
 		'vscode'

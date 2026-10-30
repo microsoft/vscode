@@ -5,6 +5,15 @@
 
 import { MenuId } from '../../platform/actions/common/actions.js';
 
+const NEW_SESSION_REPOSITORY_CONFIG_GROUP_PREFIX = 'navigation/';
+
+/**
+ * Returns a stable, ordered group for one action in the new-session repository toolbar.
+ */
+export function getNewSessionRepositoryConfigGroup(order: number, actionId: string): string {
+	return `${NEW_SESSION_REPOSITORY_CONFIG_GROUP_PREFIX}${order.toString().padStart(16, '0')}/${actionId}`;
+}
+
 /**
  * Menu IDs for the Agent Sessions workbench layout.
  */
@@ -18,6 +27,7 @@ export const Menus = {
 	TitleBarCenterRight: new MenuId('SessionsTitleBarCenterRight'),
 	TitleBarSessionTitle: new MenuId('SessionsTitleBarSessionTitle'),
 	TitleBarSessionMenu: new MenuId('SessionsTitleBarSessionMenu'),
+	TitleBarAccessibility: new MenuId('SessionsTitleBarAccessibility'),
 	BlockedSessionsHeader: new MenuId('SessionsBlockedSessionsHeader'),
 	BlockedSessionsItem: new MenuId('SessionsBlockedSessionsItem'),
 	TitleBarRightLayout: new MenuId('SessionsTitleBarRightLayout'),
@@ -25,6 +35,15 @@ export const Menus = {
 	PanelTitle: new MenuId('SessionsPanelTitle'),
 	SidebarTitle: new MenuId('SessionsSidebarTitle'),
 	SidebarSessionsHeader: new MenuId('SessionsSidebarSessionsHeader'),
+	SessionSectionNewSession: new MenuId('SessionsSessionSectionNewSession'),
+	SessionsViewFilter: new MenuId('SessionsViewPaneFilterSubMenu'),
+	SessionsViewOrdering: new MenuId('SessionsViewOrdering'),
+	SessionsViewGrouping: new MenuId('SessionsViewGrouping'),
+	SessionsViewShow: new MenuId('SessionsViewShow'),
+	SessionsViewEnvironment: new MenuId('SessionsViewEnvironment'),
+	SessionsViewSource: new MenuId('SessionsViewSource'),
+	SessionsViewHarness: new MenuId('SessionsViewHarness'),
+	SessionsViewExternalFilter: new MenuId('SessionsViewExternalFilter'),
 	AuxiliaryBarTitle: new MenuId('SessionsAuxiliaryBarTitle'),
 	SidebarFooter: new MenuId('SessionsSidebarFooter'),
 	SidebarCustomizations: new MenuId('SessionsSidebarCustomizations'),
@@ -38,20 +57,95 @@ export const Menus = {
 
 	/** Header actions of the Automations custom view. */
 	CustomViewAutomations: new MenuId('SessionsCustomViewAutomations'),
+	/** Context menu for the Automations sidebar shortcut. */
+	AutomationsContext: new MenuId('SessionsAutomationsContext'),
+	/** Context menu actions for an Automation definition card. */
+	AutomationCardContext: new MenuId('SessionsAutomationCardContext'),
+	/** Unified toolbar for all session-backed Automation history rows. Actions are conditionally shown via sessionItem.status context key. */
+	AutomationsHistoryItem: new MenuId('SessionsAutomationsHistoryItem'),
+	/** Context menu for session-backed Automation history rows. */
+	AutomationsHistoryItemContext: new MenuId('SessionsAutomationsHistoryItemContext'),
+	/** Input toolbar actions in the Automation dialog prompt editor. */
+	AutomationsDialogInputToolbar: new MenuId('AutomationsDialogInputToolbar'),
+	/** Target controls above the Automation dialog prompt editor. */
+	AutomationsDialogTargetToolbar: new MenuId('AutomationsDialogTargetToolbar'),
 
-	NewSessionConfig: new MenuId('NewSessions.SessionConfigMenu'),
+	/** Input toolbar of the new-session and new-chat composers. */
+	NewSessionChatInputToolbar: new MenuId('NewSessions.ChatInputToolbar'),
 	NewSessionControl: new MenuId('NewSessions.SessionControlMenu'),
 	NewSessionRepositoryConfig: new MenuId('NewSessions.RepositoryConfigMenu'),
+	NewSessionWelcome: new MenuId('NewSessions.WelcomeMenu'),
+	NewSessionWelcomeContext: new MenuId('NewSessions.WelcomeContextMenu'),
 	SessionWorkspaceManage: new MenuId('Sessions.SessionWorkspaceManage'),
 	SessionBarToolbar: new MenuId('SessionsSessionBarToolbar'),
+	SessionGridLayout: new MenuId('SessionsGridLayout'),
+	SessionChatTabs: new MenuId('SessionsSessionChatTabs'),
 	SessionConversations: new MenuId('SessionsSessionConversations'),
 	SessionChatTab: new MenuId('SessionsSessionChatTab'),
+	SessionChatItemContext: new MenuId('SessionsSessionChatItemContext'),
+	SessionChatItemToolbar: new MenuId('SessionsSessionChatItemToolbar'),
+	SessionChatBackgroundContext: new MenuId('SessionsSessionChatBackgroundContext'),
+	SessionItemToolbar: new MenuId('SessionItemToolbar'),
+	SessionItemSettings: new MenuId('SessionsSessionItemSettings'),
+	/** Context menu of a section header in the Sessions list. The list merges its own section actions into these groups. */
+	SessionSectionContext: new MenuId('SessionsSessionSectionContext'),
+	/** Context menu of a custom or comparison group header in the Sessions list. The list merges its own group actions into these groups. */
+	SessionGroupContext: new MenuId('SessionsSessionGroupContext'),
 	SessionsEditorHeaderPrimary: new MenuId('SessionsEditorHeaderPrimary'),
-	SessionsEditorHeaderSecondary: new MenuId('SessionsEditorHeaderSecondary'),
+	SessionsEditorHeaderLayout: new MenuId('SessionsEditorHeaderLayout'),
 	SessionsEditorTitle: new MenuId('SessionsEditorTitle'),
+	SessionsDiffEditorView: new MenuId('SessionsDiffEditorView'),
 	SessionsEditorTabsBarContext: new MenuId('SessionsEditorTabsBarContext'),
 	SessionsEditorTabsBarAddTab: new MenuId('SessionsEditorTabsBarAddTab'),
-	SessionHeaderMeta: new MenuId('SessionsSessionHeaderMeta'),
+	SessionsEditorTabsBarAddTabCanvas: new MenuId('SessionsEditorTabsBarAddTabCanvas'),
+	EmptyFileEditorActions: new MenuId('SessionsEmptyFileEditorActions'),
+	EmptySearchEditorActions: new MenuId('SessionsEmptySearchEditorActions'),
+	EmptyBrowserEditorActions: new MenuId('SessionsEmptyBrowserEditorActions'),
+	EmptyChangesActions: new MenuId('SessionsEmptyChangesActions'),
+	/**
+	 * The Add Tab actions listed in place of the watermark in an empty editor
+	 * group. A subset of {@link SessionsEditorTabsBarAddTab}, which still backs
+	 * the group's `+` dropdown.
+	 */
+	SessionsEmptyEditorGroupAddTab: new MenuId('SessionsEmptyEditorGroupAddTab'),
+	/**
+	 * The Session Activity Bar, docked at the right edge of the active chat view, grouped by
+	 * {@link SessionActivityBarGroup}. Each tab entry opens or activates its side pane tab, revealing
+	 * the side pane when it is closed; these entries are gated on availability only. The terminal
+	 * entry reveals the terminal in the panel. The side panel toggle before the tab entries and the
+	 * panel toggle after the terminal leave the title bar while the activity bar shows its layout actions.
+	 */
+	SessionActivityBar: new MenuId('SessionActivityBar'),
+	SessionActivityBarCanvas: new MenuId('SessionActivityBarCanvas'),
+	/** The Session Activity Bar's context menu, shown after the activity bar's own entry actions. */
+	SessionActivityBarContext: new MenuId('SessionActivityBarContext'),
+	ChangesFilesView: new MenuId('SessionsChangesFilesView'),
+	/**
+	 * Entries merged into the dropdown of the changes button bar's primary
+	 * button. A submenu contributed to its `primary` group names a group of
+	 * related actions, takes over the button when it applies, and uses its first
+	 * entry as the primary invocation.
+	 */
+	ChangesOperationsDropdown: new MenuId('SessionsChangesOperationsDropdown'),
+	/** Agent Merge entries whose first visible action is invoked by its primary button. */
+	ChangesAgentMerge: new MenuId('SessionsChangesAgentMerge'),
+	/** Per-session Agent Merge configuration. */
+	ChangesAgentMergeConfigure: new MenuId('SessionsChangesAgentMergeConfigure'),
+	/** Choices for when Agent Merge may merge the pull request. */
+	ChangesAgentMergeMergePullRequest: new MenuId('SessionsChangesAgentMergeMergePullRequest'),
+
 	SessionHeaderContext: MenuId.SessionHeaderContext,
 	SessionItemContextMenu: MenuId.SessionItemContextMenu,
+} as const;
+
+export const SessionHeaderMenus = [Menus.SessionHeaderContext, Menus.SessionBarToolbar] as const;
+
+/** The groups of {@link Menus.SessionActivityBar}, top to bottom, each set apart by a separator. */
+export const SessionActivityBarGroup = {
+	/** The side panel toggle, followed by the entries that open its tabs. */
+	SidePanel: '1_sidePanel',
+	/** The terminal, followed by the panel toggle. */
+	Panel: '2_panel',
+	/** Links to the active chat's pull requests and issues. */
+	GitHub: '3_github',
 } as const;

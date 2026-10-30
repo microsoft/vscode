@@ -7,12 +7,14 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../common/agentHostFileSystemService.js';
-import type { IAgent } from '../common/agentService.js';
+import type { IAgent, IAgentChatContext } from '../common/agent.js';
+import { isCustomizationEnabled, isSkillEligibleForUserInvocation } from '../common/customizationEnablement.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
 import { toSkillCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
-import { CustomizationType, DirectoryCustomization, PluginCustomization, SkillCustomization } from '../common/state/sessionState.js';
-import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
+import { readSkillArgumentHint } from '../common/meta/skillCustomizationMeta.js';
+import { CustomizationType, DirectoryCustomization, PluginCustomization, SkillCustomization, type Customization } from '../common/state/sessionState.js';
+import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider, type IAgentHostCompletionContext } from './agentHostCompletions.js';
 import { extractWhitespaceDelimitedSlashToken, matchesSlashCompletion } from './agentHostSlashCompletion.js';
 
 
@@ -27,11 +29,21 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 
 	constructor(
 		private readonly _getAgent: (session: URI | string) => IAgent | undefined,
+		/** The session's recorded default chat, whose customizations the completions offer, with the host-built context for it. */
+		private readonly _getDefaultChat: (session: URI) => Promise<{ readonly chat: URI; readonly context: IAgentChatContext } | undefined>,
+		/**
+		 * The owning session's last host-published customization snapshot.
+		 * Supplied by Agent Host so the provider hands it to
+		 * `getChatCustomizations` explicitly instead of the agent reading it
+		 * from shared host state. `undefined` when the host has published no
+		 * snapshot for the session yet.
+		 */
+		private readonly _getHostCustomizations: (session: URI | string) => readonly Customization[] | undefined = () => undefined,
 	) {
 		super();
 	}
 
-	async provideCompletionItems(params: CompletionsParams, token: CancellationToken): Promise<readonly CompletionItem[]> {
+	async provideCompletionItems(params: CompletionsParams, _context: IAgentHostCompletionContext, token: CancellationToken): Promise<readonly CompletionItem[]> {
 		const leading = extractWhitespaceDelimitedSlashToken(params.text, params.offset);
 		if (!leading) {
 			return [];
@@ -49,12 +61,13 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 
 		// `/abc` → typed = 'abc'; empty after just '/' → typed = ''.
 		const typed = leading.typed;
+		// A skill's synced-bundle copy has a different URI than its on-disk file, so dedupe by name + description, not URI.
 		const skillsSeen = new Set<string>();
 		return candidates
 			.filter(skill => {
-				const uri = skill.uri;
-				if (matchesSlashCompletion(typed, skill.slashCommandName) && !skillsSeen.has(uri)) {
-					skillsSeen.add(uri);
+				const identity = `${skill.slashCommandName}\0${skill.description ?? ''}`;
+				if (matchesSlashCompletion(typed, skill.slashCommandName) && !skillsSeen.has(identity)) {
+					skillsSeen.add(identity);
 					return true;
 				}
 				return false;
@@ -71,23 +84,25 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 						name: skill.name,
 						displayName: skill.slashCommandName,
 						description: skill.description,
+						argumentHint: skill.argumentHint,
 					}),
 				},
 			}));
 	}
 
 	private async _getCandidates(agent: IAgent, session: URI): Promise<readonly SlashCommmandCandidate[]> {
-		if (!agent.getSessionCustomizations) {
+		const defaultChat = await this._getDefaultChat(session);
+		if (!defaultChat) {
 			return [];
 		}
-		const customizations = await agent.getSessionCustomizations(session);
+		const customizations = await agent.getChatCustomizations(defaultChat.chat, defaultChat.context, this._getHostCustomizations(session));
 		const result: SlashCommmandCandidate[] = [];
 		for (const c of customizations) {
-			if (c.type === CustomizationType.McpServer || !c.enabled || !c.children) {
+			if (c.type === CustomizationType.McpServer || (c.type === CustomizationType.Plugin ? !isCustomizationEnabled(c) : !c.enabled) || !c.children) {
 				continue;
 			}
 			for (const child of c.children) {
-				if (child.type === CustomizationType.Skill) {
+				if (child.type === CustomizationType.Skill && isSkillEligibleForUserInvocation(child)) {
 					result.push(this._toSlashCommandCandidate(c, child));
 				}
 			}
@@ -105,6 +120,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 			slashCommandName: slashCommandName,
 			name: skill.name,
 			description: skill.description,
+			argumentHint: readSkillArgumentHint(skill),
 			uri: skill.uri,
 		};
 	}
@@ -118,5 +134,6 @@ interface SlashCommmandCandidate {
 	readonly slashCommandName: string;
 	readonly name: string;
 	readonly description: string | undefined;
+	readonly argumentHint: string | undefined;
 	readonly uri: string;
 }

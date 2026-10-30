@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Sash, SashState } from '../../../../browser/ui/sash/sash.js';
+import { Orientation, Sash, SashState } from '../../../../browser/ui/sash/sash.js';
 import { IView, LayoutPriority, Sizing, SplitView } from '../../../../browser/ui/splitview/splitview.js';
 import { Emitter } from '../../../../common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
@@ -36,12 +36,26 @@ class TestView implements IView<number> {
 	private readonly _onDidFocus = new Emitter<void>();
 	readonly onDidFocus = this._onDidFocus.event;
 
+	private readonly _onDidSetVisible = new Emitter<boolean>();
+	readonly onDidSetVisible = this._onDidSetVisible.event;
+
 	constructor(
 		private _minimumSize: number,
 		private _maximumSize: number,
 		readonly priority: LayoutPriority = LayoutPriority.Normal
 	) {
 		assert(_minimumSize <= _maximumSize, 'splitview view minimum size must be <= maximum size');
+	}
+
+	/** Change both size constraints at once, as a view with a fixed width does when that width changes. */
+	setSizeConstraints(minimumSize: number, maximumSize: number): void {
+		this._minimumSize = minimumSize;
+		this._maximumSize = maximumSize;
+		this._onDidChange.fire(undefined);
+	}
+
+	setVisible(visible: boolean): void {
+		this._onDidSetVisible.fire(visible);
 	}
 
 	layout(size: number, _offset: number, orthogonalSize: number | undefined): void {
@@ -59,7 +73,12 @@ class TestView implements IView<number> {
 		this._onDidGetElement.dispose();
 		this._onDidLayout.dispose();
 		this._onDidFocus.dispose();
+		this._onDidSetVisible.dispose();
 	}
+}
+
+class PathIndependentTestView extends TestView {
+	readonly pathIndependentLayout = true;
 }
 
 function getSashes(splitview: SplitView): Sash[] {
@@ -333,6 +352,103 @@ suite('Splitview', () => {
 		assert.deepStrictEqual([view1.size, view3.size], [100, 100]);
 	});
 
+	for (const orientation of [Orientation.HORIZONTAL, Orientation.VERTICAL]) {
+		for (const sizing of [Sizing.Distribute, Sizing.Auto(0)]) {
+			test(`${sizing.type} sizing only lays out final sizes when adding and removing views (${orientation})`, () => {
+				const views = [0, 1, 2].map(() => store.add(new PathIndependentTestView(220, Number.POSITIVE_INFINITY)));
+				const splitview = store.add(new SplitView(container, { orientation }));
+				const layouts: number[][] = [[], [], []];
+				views.forEach((view, index) => store.add(view.onDidLayout(event => layouts[index].push(event.size))));
+				const takeLayouts = () => layouts.map(calls => calls.splice(0));
+				splitview.layout(1200);
+				splitview.addView(views[0], 1200);
+				takeLayouts();
+
+				splitview.addView(views[1], sizing);
+				const addedSecond = takeLayouts();
+				splitview.addView(views[2], sizing);
+				const addedThird = takeLayouts();
+				splitview.removeView(2, sizing);
+				const removedThird = takeLayouts();
+				splitview.layout(600);
+
+				assert.deepStrictEqual({ addedSecond, addedThird, removedThird, resized: takeLayouts() }, {
+					addedSecond: [[600], [600], []],
+					addedThird: [[400], [400], [400]],
+					removedThird: [[600], [600], []],
+					resized: [[300], [300], []],
+				});
+			});
+		}
+	}
+
+	test('distribution retains the intermediate layout unless every view is path independent', () => {
+		const first = store.add(new PathIndependentTestView(220, Number.POSITIVE_INFINITY));
+		const second = store.add(new TestView(220, Number.POSITIVE_INFINITY));
+		const splitview = store.add(new SplitView(container));
+		splitview.layout(1200);
+		splitview.addView(first, 1200);
+		const layouts: number[][] = [[], []];
+		[first, second].forEach((view, index) => store.add(view.onDidLayout(event => layouts[index].push(event.size))));
+
+		splitview.addView(second, Sizing.Distribute);
+
+		assert.deepStrictEqual(layouts, [[980, 600], [220, 600]]);
+	});
+
+	test('distributed additions preserve fixed, capped, hidden and prioritized sizes', () => {
+		const fixed = store.add(new PathIndependentTestView(100, 100));
+		const capped = store.add(new PathIndependentTestView(100, 200));
+		const flexible = store.add(new PathIndependentTestView(100, Number.POSITIVE_INFINITY, LayoutPriority.High));
+		const hidden = store.add(new PathIndependentTestView(100, Number.POSITIVE_INFINITY));
+		const added = store.add(new PathIndependentTestView(100, Number.POSITIVE_INFINITY));
+		const splitview = store.add(new SplitView(container));
+		splitview.layout(1000);
+		splitview.addView(fixed, 100);
+		splitview.addView(capped, 200);
+		splitview.addView(flexible, 700);
+		splitview.addView(hidden, Sizing.Invisible(250));
+		const layouts: number[][] = [[], [], [], [], []];
+		[fixed, capped, flexible, hidden, added].forEach((view, index) => store.add(view.onDidLayout(event => layouts[index].push(event.size))));
+
+		splitview.addView(added, Sizing.Distribute);
+
+		assert.deepStrictEqual({
+			layouts,
+			sizes: [0, 1, 2, 3, 4].map(index => splitview.getViewSize(index)),
+			hiddenVisible: splitview.isViewVisible(3),
+			hiddenCachedSize: splitview.getViewCachedVisibleSize(3),
+			contentSize: splitview.contentSize,
+		}, {
+			layouts: [[100], [200], [400], [0], [300]],
+			sizes: [100, 200, 400, 0, 300],
+			hiddenVisible: false,
+			hiddenCachedSize: 250,
+			contentSize: 1000,
+		});
+	});
+
+	test('skipLayout defers a distributed addition without notifying views', () => {
+		const first = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const second = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const splitview = store.add(new SplitView(container));
+		splitview.layout(200);
+		splitview.addView(first, 200);
+		const calls: number[] = [];
+		store.add(first.onDidLayout(event => calls.push(event.size)));
+		store.add(second.onDidLayout(event => calls.push(event.size)));
+
+		splitview.addView(second, Sizing.Distribute, 1, true);
+		const deferredCalls = [...calls];
+		splitview.layout(200);
+
+		assert.deepStrictEqual({ deferredCalls, calls, contentSize: splitview.contentSize }, {
+			deferredCalls: [],
+			calls: [180, 20],
+			contentSize: 200,
+		});
+	});
+
 	test('add views before layout', () => {
 		const view1 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
 		const view2 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
@@ -457,6 +573,32 @@ suite('Splitview', () => {
 
 		splitview.layout(200);
 		assert.deepStrictEqual([view1.size, view2.size, view3.size], [20, 160, 20]);
+	});
+
+	test('view changing its size constraints while a sibling is toggled does not squeeze that sibling (#334167)', () => {
+
+		// Mirrors the workbench with the side bar on the right: the activity bar reports its new fixed width from within the visibility change of the side bar
+		const editor = store.add(new TestView(20, Number.POSITIVE_INFINITY, LayoutPriority.High));
+		const sideBar = store.add(new TestView(20, Number.POSITIVE_INFINITY, LayoutPriority.Low));
+		const activityBar = store.add(new TestView(10, 10));
+		const splitview = store.add(new SplitView(container, { proportionalLayout: false }));
+		splitview.layout(200);
+
+		splitview.addView(editor, 120);
+		splitview.addView(sideBar, 70);
+		splitview.addView(activityBar, 10);
+
+		// `addView` distributes in index order too, so restore the side bar to a known starting point
+		splitview.resizeView(1, 70);
+		assert.deepStrictEqual([editor.size, sideBar.size, activityBar.size], [120, 70, 10]);
+
+		store.add(sideBar.onDidSetVisible(visible => activityBar.setSizeConstraints(visible ? 10 : 12, visible ? 10 : 12)));
+
+		splitview.setViewVisible(1, false);
+		assert.deepStrictEqual([editor.size, sideBar.size, activityBar.size], [188, 0, 12]);
+
+		splitview.setViewVisible(1, true);
+		assert.deepStrictEqual([editor.size, sideBar.size, activityBar.size], [120, 70, 10]);
 	});
 
 	test('context propagates to views', () => {

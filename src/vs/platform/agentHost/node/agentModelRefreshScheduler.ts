@@ -8,7 +8,7 @@ import type { Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IObservable, autorun } from '../../../base/common/observable.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgent } from '../common/agentService.js';
+import { IAgent } from '../common/agent.js';
 
 /**
  * Upper bound on model-catalog staleness for a provider that is actively being

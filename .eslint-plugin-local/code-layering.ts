@@ -36,7 +36,7 @@ export default new class implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		const fileDirname = dirname(context.getFilename());
+		const fileDirname = dirname(context.filename);
 		const parts = fileDirname.split(/\\|\//);
 		const ruleArgs = context.options[0] as Record<string, string[]>;
 		let config: Config | undefined;
@@ -62,7 +62,7 @@ export default new class implements eslint.Rule.RuleModule {
 
 		return createImportRuleListener((node, path) => {
 			if (path[0] === '.') {
-				path = join(dirname(context.getFilename()), path);
+				path = join(dirname(context.filename), path);
 			}
 
 			const parts = dirname(path).split(/\\|\//);

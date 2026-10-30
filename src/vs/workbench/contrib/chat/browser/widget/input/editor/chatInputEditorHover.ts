@@ -18,7 +18,7 @@ import { ChatRequestDynamicVariablePart, extractAgentAndCommand } from '../../..
 import * as nls from '../../../../../../../nls.js';
 import { isImageVariableEntry, type IImageVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../../common/chatImageExtraction.js';
-import { createImageHoverContent } from '../../../attachments/chatAttachmentWidgets.js';
+import { createChatImageHoverContent } from '../../../../../../browser/chatImagePreview.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 
 export class ChatAgentHoverParticipant implements IEditorHoverParticipant<ChatAgentHoverPart> {
@@ -146,7 +146,7 @@ export class ChatAttachmentReferenceHoverParticipant implements IEditorHoverPart
 
 		const hoverPart = hoverParts[0];
 		const resource = hoverPart.attachment.references?.find(reference => URI.isUri(reference.reference))?.reference;
-		const hover = createImageHoverContent(URI.isUri(resource) ? resource : undefined, hoverPart.attachment.fullName ?? hoverPart.attachment.name, hoverPart.buffer, hoverPart.attachment.id, () => context.onContentsChanged());
+		const hover = createChatImageHoverContent(URI.isUri(resource) ? resource : undefined, hoverPart.attachment.fullName ?? hoverPart.attachment.name, hoverPart.buffer, hoverPart.attachment.id, () => context.onContentsChanged());
 		hover.element.setAttribute('aria-label', nls.localize('chat.attachmentReference.imageHover', "Image attachment reference, {0}", hoverPart.attachment.name));
 		context.fragment.appendChild(hover.element);
 		return new RenderedHoverParts([{

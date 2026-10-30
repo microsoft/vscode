@@ -116,10 +116,18 @@ export function truncateMiddle(value: string, maxLength: number, suffix = Ellips
 		return value;
 	}
 
-	const prefixLength = Math.ceil(maxLength / 2) - suffix.length / 2;
-	const suffixLength = Math.floor(maxLength / 2) - suffix.length / 2;
+	let prefixLength = Math.floor(Math.ceil(maxLength / 2) - suffix.length / 2);
+	const suffixLength = Math.ceil(Math.floor(maxLength / 2) - suffix.length / 2);
+	let suffixStart = value.length - suffixLength;
 
-	return `${value.substr(0, prefixLength)}${suffix}${value.substr(value.length - suffixLength)}`;
+	if (isHighSurrogate(value.charCodeAt(prefixLength - 1)) && isLowSurrogate(value.charCodeAt(prefixLength))) {
+		prefixLength--;
+	}
+	if (isHighSurrogate(value.charCodeAt(suffixStart - 1)) && isLowSurrogate(value.charCodeAt(suffixStart))) {
+		suffixStart++;
+	}
+
+	return `${value.substring(0, prefixLength)}${suffix}${value.substring(suffixStart)}`;
 }
 
 /**
@@ -388,7 +396,10 @@ export function compareSubstringIgnoreCase(a: string, b: string, aStart: number 
 
 		if (codeA >= 128 || codeB >= 128) {
 			// not ASCII letters -> fallback to lower-casing strings
-			return compareSubstring(a.toLowerCase(), b.toLowerCase(), aStart, aEnd, bStart, bEnd);
+			return compare(
+				a.substring(aStart, aEnd).toLowerCase(),
+				b.substring(bStart, bEnd).toLowerCase()
+			);
 		}
 
 		// mapper lower-case ascii letter onto upper-case varinats

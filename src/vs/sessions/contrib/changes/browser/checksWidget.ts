@@ -148,9 +148,9 @@ class CICheckListRenderer implements IListRenderer<ICICheckListItem, ICICheckTem
  */
 export class CIStatusWidget extends Disposable {
 
-	static readonly HEADER_HEIGHT = 32; // total header height in px (5px section margin + 6px header margin + 28px header)
-	static readonly MIN_BODY_HEIGHT = 3 * CICheckListDelegate.ITEM_HEIGHT + 2; // at least 3 checks (3 * 28) + 2px
-	static readonly PREFERRED_BODY_HEIGHT = 112; // preferred 4 checks (4 * 28)
+	static readonly HEADER_HEIGHT = 34; // 6px header margin-top + 8px header padding + 20px header min-height
+	static readonly MIN_BODY_HEIGHT = 5 * CICheckListDelegate.ITEM_HEIGHT;
+	static readonly PREFERRED_BODY_HEIGHT = 5 * CICheckListDelegate.ITEM_HEIGHT;
 	static readonly MAX_BODY_HEIGHT = 240; // at most ~8 checks
 
 	private readonly _domNode: HTMLElement;
@@ -267,7 +267,6 @@ export class CIStatusWidget extends Disposable {
 
 			if (!this._model) {
 				this._checkCount = 0;
-				this._setCollapsed(false);
 				this._renderBody([]);
 				this._domNode.style.display = 'none';
 				this._onDidChangeHeight.fire();
@@ -278,7 +277,6 @@ export class CIStatusWidget extends Disposable {
 
 			if (checks.length === 0) {
 				this._checkCount = 0;
-				this._setCollapsed(false);
 				this._renderBody([]);
 				this._domNode.style.display = 'none';
 				this._onDidChangeHeight.fire();
@@ -344,9 +342,16 @@ export class CIStatusWidget extends Disposable {
 	}
 
 	private _toggleCollapsed(): void {
-		this._setCollapsed(!this._collapsed);
-		this._onDidToggleCollapsed.fire(this._collapsed);
-		// Also fires onDidChangeHeight so the SplitView pane updates its min/max constraints
+		this.setCollapsed(!this._collapsed);
+	}
+
+	/** Sets the collapsed state and notifies the SplitView layout. */
+	setCollapsed(collapsed: boolean): void {
+		if (this._collapsed === collapsed) {
+			return;
+		}
+		this._setCollapsed(collapsed);
+		this._onDidToggleCollapsed.fire(collapsed);
 		this._onDidChangeHeight.fire();
 	}
 
@@ -355,12 +360,7 @@ export class CIStatusWidget extends Disposable {
 	 * parent pane restores its size. No-op when already expanded.
 	 */
 	expand(): void {
-		if (!this._collapsed) {
-			return;
-		}
-		this._setCollapsed(false);
-		this._onDidToggleCollapsed.fire(false);
-		this._onDidChangeHeight.fire();
+		this.setCollapsed(false);
 	}
 
 	/**

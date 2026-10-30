@@ -6,7 +6,27 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { gitAutoApproveRules } from '../../../terminal/common/autoApprove/gitAutoApproveRules.js';
 import { CommandAutoApprover, type ICommandApprovalEvaluation } from '../../node/commandAutoApprover.js';
+
+suite('CommandAutoApprover initialization', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('initializes concurrent approvers', async () => {
+		const approvers = Array.from({ length: 20 }, () => disposables.add(new CommandAutoApprover(new NullLogService())));
+
+		await Promise.all(approvers.map(approver => approver.initialize()));
+
+		assert.deepStrictEqual(
+			approvers.map(approver => [
+				approver.shouldAutoApprove('ls'),
+				approver.shouldAutoApprove('Get-ChildItem', { language: 'powershell' }),
+			]),
+			Array.from({ length: approvers.length }, () => ['approved', 'approved']),
+		);
+	});
+});
 
 suite('CommandAutoApprover', () => {
 
@@ -61,6 +81,7 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove('git status'),
 				approver.shouldAutoApprove('git log --oneline'),
 				approver.shouldAutoApprove('git diff HEAD'),
+				approver.shouldAutoApprove('git diff --output-indicator-new=+ HEAD'),
 				approver.shouldAutoApprove('git show HEAD'),
 				approver.shouldAutoApprove('git show --format=%B HEAD'),
 				approver.shouldAutoApprove('git --no-pager show HEAD'),
@@ -69,6 +90,7 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove('git ls-files'),
 				approver.shouldAutoApprove('git branch'),
 			], [
+				'approved',
 				'approved',
 				'approved',
 				'approved',
@@ -88,12 +110,26 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove('git branch -D main'),
 				approver.shouldAutoApprove('git branch --delete main'),
 				approver.shouldAutoApprove('git log --output=/tmp/out'),
+				approver.shouldAutoApprove('git diff --output=changes.diff HEAD'),
+				approver.shouldAutoApprove('git diff --output changes.diff HEAD'),
+				approver.shouldAutoApprove('git diff --stat --output=changes.diff HEAD'),
+				approver.shouldAutoApprove('git --no-pager diff --output=changes.diff HEAD'),
+				approver.shouldAutoApprove('git -C repo diff --output changes.diff HEAD'),
+				approver.shouldAutoApprove('git diff --out\\put=changes.diff HEAD'),
+				approver.shouldAutoApprove('git diff --out"put"=changes.diff HEAD'),
 				approver.shouldAutoApprove('git show --output=message.txt HEAD'),
 				approver.shouldAutoApprove('git show --output message.txt HEAD'),
 				approver.shouldAutoApprove('git show --format=%B --output=message.txt HEAD'),
 				approver.shouldAutoApprove('git --no-pager show --output=message.txt HEAD'),
 				approver.shouldAutoApprove('git -C repo show --output message.txt HEAD'),
 			], [
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
 				'denied',
 				'denied',
 				'denied',
@@ -113,11 +149,78 @@ suite('CommandAutoApprover', () => {
 			assert.strictEqual(approver.shouldAutoApprove('find . -exec rm {} ;'), 'denied');
 		});
 
+		test('handles sort with blocked args', () => {
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('sort input.txt'),
+				approver.shouldAutoApprove('sort --check input.txt'),
+				approver.shouldAutoApprove('sort --check=quiet input.txt'),
+				approver.shouldAutoApprove('sort "--check" input.txt'),
+				approver.shouldAutoApprove('sort --buffer-size=1K input.txt'),
+				approver.shouldAutoApprove('sort -o output.txt input.txt'),
+				approver.shouldAutoApprove('sort -S 1G input.txt'),
+				approver.shouldAutoApprove('sort --compress-program=/bin/sh input.txt'),
+				approver.shouldAutoApprove('sort --compress-program /bin/sh input.txt'),
+				approver.shouldAutoApprove('sort --compress-prog=/bin/sh input.txt'),
+				approver.shouldAutoApprove('sort --compress-p=/bin/sh input.txt'),
+				approver.shouldAutoApprove('sort --com=/bin/sh input.txt'),
+				approver.shouldAutoApprove('sort --co=/bin/sh input.txt'),
+				approver.shouldAutoApprove('sort "--compress-program=/bin/sh" input.txt'),
+				approver.shouldAutoApprove('sort \'--compress-prog=/bin/sh\' input.txt'),
+				approver.shouldAutoApprove('sort \\-\\-compress-program=/bin/sh input.txt'),
+				approver.shouldAutoApprove('sort --compress-program\\=/bin/sh input.txt'),
+				approver.shouldAutoApprove('sort --"compress-program=/bin/sh" input.txt'),
+				approver.shouldAutoApprove('sort $\'--compress-program=/bin/sh\' input.txt'),
+			], [
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+			]);
+		});
+
 		test('handles sed with blocked args', () => {
 			assert.deepStrictEqual([
 				approver.shouldAutoApprove('sed "s/foo/bar/g" file.txt'),
 				approver.shouldAutoApprove('sed -e "s/foo/bar/"'),
 				approver.shouldAutoApprove('sed --expression "s/foo/bar/"'),
+				approver.shouldAutoApprove('sed "s/foo/bar/e"'),
+				approver.shouldAutoApprove('sed "s/foo/bar/w"'),
+				approver.shouldAutoApprove('sed "1e id > /tmp/SECURITY_TEST_pwned"'),
+				approver.shouldAutoApprove('sed "1w /tmp/SECURITY_TEST_pwned_file" input.txt'),
+				approver.shouldAutoApprove('sed "1r /etc/passwd" input.txt'),
+				approver.shouldAutoApprove('sed "1W /tmp/x" input.txt'),
+				approver.shouldAutoApprove('sed "e id"'),
+				approver.shouldAutoApprove('sed "s/a/b/;e id"'),
+				approver.shouldAutoApprove('sed "/pat/e id"'),
+				approver.shouldAutoApprove('sed -n "1e id" file.txt'),
+				approver.shouldAutoApprove('sed 1e id'),
+				approver.shouldAutoApprove('sed "s/a/b/; e id"'),
+				approver.shouldAutoApprove('sed "s/a/\'/;e id"'),
+				approver.shouldAutoApprove('sed /pat/e input.txt'),
+				approver.shouldAutoApprove('sed "1 e id"'),
+				approver.shouldAutoApprove('sed "1!e id"'),
+				approver.shouldAutoApprove('sed "1, 3 w /tmp/x" input.txt'),
+				approver.shouldAutoApprove('sed -l 80 "e id" input.txt'),
+				approver.shouldAutoApprove('sed --line-length 80 "1w /tmp/x" input.txt'),
+				approver.shouldAutoApprove('sed --line-length=80 "1r /etc/passwd" input.txt'),
+				approver.shouldAutoApprove('sed "s/a/\\"/;e id" input.txt'),
+				approver.shouldAutoApprove('sed "/x/p;//e id" input.txt'),
+				approver.shouldAutoApprove('sed e'),
 				approver.shouldAutoApprove('sed -i "s/foo/bar/" file.txt'),
 				approver.shouldAutoApprove('sed -I "s/foo/bar/" file.txt'),
 				approver.shouldAutoApprove('sed -ni "s/foo/bar/" file.txt'),
@@ -127,6 +230,29 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove('sed --in-place=.bak "s/foo/bar/" file.txt'),
 			], [
 				'approved',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
 				'denied',
 				'denied',
 				'denied',
@@ -154,6 +280,71 @@ suite('CommandAutoApprover', () => {
 			assert.strictEqual(approver.shouldAutoApprove('npm ci'), 'approved');
 			assert.strictEqual(approver.shouldAutoApprove('npm ls'), 'approved');
 			assert.strictEqual(approver.shouldAutoApprove('npm audit'), 'approved');
+		});
+
+		test('requires approval for package manager install options', () => {
+			const exactCommands = [
+				'npm ci',
+				'npm ci   ',
+				'yarn install --frozen-lockfile',
+				'yarn  install  --frozen-lockfile   ',
+				'pnpm install --frozen-lockfile',
+				'pnpm  install  --frozen-lockfile   ',
+			];
+			const commandsWithOptions = [
+				'npm ci --prefix /outside/project',
+				'npm ci --workspace other',
+				'npm ci -w other',
+				'npm ci --workspaces',
+				'npm ci --script-shell=/tmp/payload',
+				'yarn install --frozen-lockfile --cwd /outside/project',
+				'yarn install --frozen-lockfile --modules-folder /outside/modules',
+				'yarn install --frozen-lockfile --focus',
+				'yarn install --frozen-lockfile --no-lockfile',
+				'pnpm install --frozen-lockfile -C /outside/project',
+				'pnpm install --frozen-lockfile --dir /outside/project',
+				'pnpm install --frozen-lockfile --filter other',
+				'pnpm install --frozen-lockfile --workspace-root',
+				'pnpm install --frozen-lockfile --no-frozen-lockfile',
+			];
+			const forwardedRules = {
+				'npm ci': true,
+				'/^npm\\s+ci\\s+\\S/': false,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\b/': true,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': true,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
+			};
+
+			for (const options of [undefined, { autoApproveRules: forwardedRules }]) {
+				assert.deepStrictEqual(exactCommands.map(command => approver.shouldAutoApprove(command, options)), exactCommands.map(() => 'approved'));
+				assert.deepStrictEqual(commandsWithOptions.map(command => approver.shouldAutoApprove(command, options)), commandsWithOptions.map(() => 'denied'));
+			}
+		});
+
+		test('preserves persisted legacy package manager overrides', () => {
+			const rules = {
+				'npm ci': true,
+				'/^npm\\s+ci\\s+\\S/': false,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\b/': true,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': true,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
+			};
+			const exactCommands = ['npm ci', 'yarn install --frozen-lockfile', 'pnpm install --frozen-lockfile'];
+			const commandsWithOptions = ['npm ci --prefix other', 'yarn install --frozen-lockfile --cwd other', 'pnpm install --frozen-lockfile --dir other'];
+
+			assert.deepStrictEqual(exactCommands.map(command => approver.shouldAutoApprove(command, { autoApproveRules: rules })), exactCommands.map(() => 'approved'));
+			assert.deepStrictEqual(commandsWithOptions.map(command => approver.shouldAutoApprove(command, { autoApproveRules: rules })), commandsWithOptions.map(() => 'denied'));
+
+			const nullOverrides = {
+				...rules,
+				'npm ci': null,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\b/': null,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': null,
+			};
+			assert.deepStrictEqual(exactCommands.map(command => approver.shouldAutoApprove(command, { autoApproveRules: nullOverrides })), exactCommands.map(() => 'noMatch'));
+			assert.deepStrictEqual(commandsWithOptions.map(command => approver.shouldAutoApprove(command, { autoApproveRules: nullOverrides })), commandsWithOptions.map(() => 'denied'));
 		});
 
 		// Unknown commands get noMatch
@@ -231,6 +422,67 @@ suite('CommandAutoApprover', () => {
 			], ['approved', 'approved', 'approved']);
 		});
 
+		test('keeps the Git directory option case-sensitive in PowerShell', () => {
+			const pwsh = { language: 'powershell' } as const;
+			const safeSubcommands = ['status', 'log', 'show', 'diff', 'ls-files', 'grep needle', 'branch'];
+			const commands = [
+				...safeSubcommands.map(subcommand => `git -C repo ${subcommand}`),
+				'GIT -C repo DIFF',
+				...safeSubcommands.map(subcommand => `git -c key=value ${subcommand}`),
+				'git --no-pager -c core.pager=program log',
+				'git -C repo -c diff.external=program diff',
+			];
+			const expected = [
+				...safeSubcommands.map(() => 'approved'),
+				'approved',
+				...safeSubcommands.map(() => 'noMatch'),
+				'noMatch',
+				'noMatch',
+			];
+
+			assert.deepStrictEqual(commands.map(command => approver.shouldAutoApprove(command, pwsh)), expected);
+			assert.deepStrictEqual(commands.map(command => approver.shouldAutoApprove(command, { ...pwsh, autoApproveRules: gitAutoApproveRules })), expected);
+		});
+
+		test('requires confirmation for Git grep pager options', () => {
+			const approvedCommands = [
+				'git grep needle',
+				'git grep -n needle',
+				'git grep -o needle',
+				'git grep -e TODO',
+				'git grep -eTODO',
+				'git grep --only-matching needle',
+				'git -C repo grep needle',
+				'git --no-pager grep needle',
+			];
+			const deniedCommands = [
+				'git grep -O needle',
+				'git grep -Osh -e needle',
+				'git grep -nOsh -e needle',
+				'git grep --open-files-in-pager -e needle',
+				'git grep --open-files-in-pager=sh -e needle',
+				'git --no-pager -C repo grep --"op=sh" -e needle',
+				'git --no-pager -C repo grep --\'op=sh\' -e needle',
+			];
+			const options = [
+				undefined,
+				{ language: 'powershell' } as const,
+				{ autoApproveRules: gitAutoApproveRules },
+				{ language: 'powershell', autoApproveRules: gitAutoApproveRules } as const,
+			];
+
+			for (const option of options) {
+				assert.deepStrictEqual(
+					approvedCommands.map(command => approver.shouldAutoApprove(command, option)),
+					approvedCommands.map(() => 'approved')
+				);
+				assert.deepStrictEqual(
+					deniedCommands.map(command => approver.shouldAutoApprove(command, option)),
+					deniedCommands.map(() => 'denied')
+				);
+			}
+		});
+
 		test('does not auto-approve arbitrary PowerShell cmdlets by verb', () => {
 			const pwsh = { language: 'powershell' } as const;
 			assert.deepStrictEqual([
@@ -298,6 +550,8 @@ suite('CommandAutoApprover', () => {
 			assert.strictEqual(approver.shouldAutoApprove('echo hello > /dev/stderr'), 'approved');
 			assert.strictEqual(approver.shouldAutoApprove('echo hello 2>&1'), 'approved');
 			assert.strictEqual(approver.shouldAutoApprove('ls 2>&1 > /dev/null'), 'approved');
+			assert.notStrictEqual(approver.shouldAutoApprove('echo hello > "&1"'), 'approved');
+			assert.notStrictEqual(approver.shouldAutoApprove('echo hello > \'&1\''), 'approved');
 		});
 
 		// Mixing a safe redirect with an unsafe one still requires
@@ -342,6 +596,65 @@ suite('CommandAutoApprover', () => {
 			seen.length = 0;
 			assert.strictEqual(approver.shouldAutoApprove('echo hi > /dev/null 2>&1', opts), 'approved');
 			assert.deepStrictEqual(seen, []);
+		});
+
+		test('checks the destination of combined stdout and stderr redirects', () => {
+			const destinations: string[] = [];
+			const opts = {
+				isWriteDestApproved: (dest: string) => {
+					destinations.push(dest);
+					return !dest.startsWith('/');
+				},
+			};
+			assert.deepStrictEqual({
+				results: [
+					approver.shouldAutoApprove('echo hi >& /outside/file', opts),
+					approver.shouldAutoApprove('echo hi >&/outside/file', opts),
+					approver.shouldAutoApprove('echo hi 1>& /outside/file', opts),
+					approver.shouldAutoApprove('echo hi >& "/outside/file"', opts),
+					approver.shouldAutoApprove('echo hi >& out.txt', opts),
+					approver.shouldAutoApprove('echo hi 2>&1', opts),
+				],
+				destinations,
+			}, {
+				results: ['noMatch', 'noMatch', 'noMatch', 'noMatch', 'approved', 'approved'],
+				destinations: ['/outside/file', '/outside/file', '/outside/file', '/outside/file', 'out.txt'],
+			});
+		});
+
+		test('requires confirmation for redirect pathname globs', () => {
+			const allowAllDestinations = { isWriteDestApproved: () => true };
+			const powershell = { language: 'powershell', isWriteDestApproved: () => true } as const;
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('echo hi > *.txt', allowAllDestinations),
+				approver.shouldAutoApprove('echo hi > ?ut.txt', allowAllDestinations),
+				approver.shouldAutoApprove('echo hi > .[e]nv', allowAllDestinations),
+				approver.shouldAutoApprove(`echo hi > '*.txt'`, allowAllDestinations),
+				approver.shouldAutoApprove(`echo hi > "?.txt"`, allowAllDestinations),
+				approver.shouldAutoApprove(`echo hi > '[x].txt'`, allowAllDestinations),
+				approver.shouldAutoApprove(`echo hi > "packag"[e]".json"`, allowAllDestinations),
+				approver.shouldAutoApprove(`Write-Host hi >'.[m]cp.json'`, powershell),
+				approver.shouldAutoApprove(`Write-Host hi >".[c]odex/hooks.json"`, powershell),
+			], ['noMatch', 'noMatch', 'noMatch', 'approved', 'approved', 'approved', 'noMatch', 'noMatch', 'noMatch']);
+		});
+
+		test('preserves quote stripping for non-glob redirect destinations', () => {
+			const destinations: string[] = [];
+			const opts = {
+				isWriteDestApproved: (dest: string) => {
+					destinations.push(dest);
+					return false;
+				},
+			};
+			const results = [
+				approver.shouldAutoApprove('echo hi > "/outside/"report".txt"', opts),
+				approver.shouldAutoApprove(`echo hi >> '/outside/'report'.txt'`, opts),
+				approver.shouldAutoApprove(`Write-Host hi > '/outside/report''s.txt'`, { ...opts, language: 'powershell' }),
+			];
+			assert.deepStrictEqual({ results, destinations }, {
+				results: ['noMatch', 'noMatch', 'noMatch'],
+				destinations: ['/outside/"report".txt', `/outside/'report'.txt`, `/outside/report''s.txt`],
+			});
 		});
 	});
 
@@ -410,6 +723,32 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove('Get-ChildItem | Where-Object { Remove-Item $_ }', pwsh),
 				approver.shouldAutoApprove('Get-ChildItem | ForEach-Object { Invoke-Expression $_ }', pwsh),
 			], ['denied', 'denied']);
+		});
+
+		// Reported PowerShell wrapper shapes: an outer allowed cmdlet must not
+		// hide nested denied/non-allowed commands inside a script block. The Bash
+		// grammar keeps `{ ... }` opaque, so the same rules can incorrectly
+		// approve the line when the wrong dialect is selected.
+		test('does not auto-approve denied commands nested in Measure-Command script blocks', () => {
+			const rules = {
+				...pwsh,
+				autoApproveRules: {
+					'Measure-Command': true,
+					'Where-Object': true,
+					'Set-Content': false,
+					'Start-Process': false,
+					'Invoke-Expression': false,
+				},
+			};
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('Measure-Command { Set-Content -Path out.txt -Value pwned }', rules),
+				approver.shouldAutoApprove('Measure-Command { Invoke-Expression "Write-Output hi" }', rules),
+				approver.shouldAutoApprove('Get-ChildItem | Where-Object { Start-Process notepad }', rules),
+				// Visible separators already rejected nested denied commands.
+				approver.shouldAutoApprove('Write-Host hi; Set-Content -Path out.txt -Value pwned', rules),
+				// The wrong dialect demonstrates the opaque-block bypass.
+				approver.shouldAutoApprove('Measure-Command { Set-Content -Path out.txt -Value pwned }', { language: 'bash', autoApproveRules: rules.autoApproveRules }),
+			], ['denied', 'denied', 'denied', 'denied', 'approved']);
 		});
 
 		// An unquoted `$null` discards PowerShell output; both the spaced form (a

@@ -13,10 +13,9 @@ import { IChatDebugFileLoggerService } from '../../../../platform/chat/common/ch
 import { ModelDetailsInfo } from '../../../../platform/chat/common/chatModelDetails';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { INTEGRATION_ID } from '../../../../platform/endpoint/common/licenseAgreement';
-import { INativeEnvService } from '../../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
-import { FileType, RelativePattern } from '../../../../platform/filesystem/common/fileTypes';
+import { FileType } from '../../../../platform/filesystem/common/fileTypes';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { deriveCopilotCliOTelEnv } from '../../../../platform/otel/common/agentOTelEnv';
 import { IOTelService } from '../../../../platform/otel/common/otelService';
@@ -25,12 +24,12 @@ import { IExperimentationService } from '../../../../platform/telemetry/common/n
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { createServiceIdentifier } from '../../../../util/common/services';
 import { coalesce } from '../../../../util/vs/base/common/arrays';
-import { disposableTimeout, raceCancellation, raceCancellationError, SequencerByKey, ThrottledDelayer } from '../../../../util/vs/base/common/async';
+import { disposableTimeout, Limiter, raceCancellation, raceCancellationError, SequencerByKey } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { Lazy } from '../../../../util/vs/base/common/lazy';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, RefCountedDisposable, toDisposable } from '../../../../util/vs/base/common/lifecycle';
-import { basename, dirname, joinPath } from '../../../../util/vs/base/common/resources';
+import { Disposable, DisposableMap, IDisposable, IReference, RefCountedDisposable, toDisposable } from '../../../../util/vs/base/common/lifecycle';
+import { dirname, joinPath } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -55,10 +54,44 @@ import { ICopilotCLIMCPHandler, McpServerMappings, remapCustomAgentTools } from 
 
 
 const COPILOT_CLI_WORKSPACE_JSON_FILE_KEY = 'github.copilot.cli.workspaceSessionFile';
-const AGENT_HOST_ENABLED_SETTING_ID = 'chat.agentHost.enabled';
-const AGENT_HOST_DEFAULT_SESSIONS_PROVIDER_SETTING_ID = 'chat.agentHost.defaultSessionsProvider';
-const COPILOT_CLI_HIDE_EXTENSION_HOST_EDITOR_SETTING_ID = 'chat.editor.copilotCli.hideExtensionHost';
 const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
+
+/**
+ * How many persisted sessions may be turned into list items concurrently.
+ *
+ * Building a list item can stream a session's whole event log to derive a title, so an
+ * unbounded fan-out over a large session history reads hundreds of event logs at once and
+ * can exhaust the extension host's memory.
+ */
+const SESSION_LIST_MAX_PARALLELISM = 10;
+
+/**
+ * How many list items the session item providers build concurrently. Building an item is
+ * mostly cached lookups and main-thread calls, so this keeps them pipelined without fanning
+ * out over every session at once.
+ */
+export const CHAT_SESSION_ITEM_MAX_PARALLELISM = 32;
+
+/**
+ * Lists only session ids and times; details are read later, and only for sessions VS Code created.
+ *
+ * `includeDetached: false` is required: when detached sessions are included, the SDK reads
+ * every session's event log (all at once) to detect them, regardless of `metadataLimit`. With
+ * it off and `metadataLimit: 0`, the SDK only checks for a detached marker file per session and
+ * opens no `events.jsonl` or `workspace.yaml`. Detached sessions are never created by VS Code,
+ * so they would be filtered out as external anyway.
+ */
+const SESSION_LIST_OPTIONS = { metadataLimit: 0, includeDetached: false } as const;
+
+interface IEnrichedSessionMetadataCacheEntry {
+	/** SDK `modifiedTime`, which tracks `events.jsonl`. */
+	readonly modifiedTime: number;
+	/** `workspace.yaml` mtime; renames and context changes do not touch `events.jsonl`. */
+	readonly workspaceFileModifiedTime: number | undefined;
+	/** `undefined` when the SDK pruned the session as empty. */
+	readonly metadata: LocalSessionMetadata | undefined;
+}
+
 export const COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE = 'You are an AI assistant using Copilot CLI runtime in VS Code. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.';
 
 type SDKPackage = Awaited<ReturnType<ICopilotCLISDK['getPackage']>>;
@@ -96,7 +129,7 @@ export interface ICopilotCLISessionService {
 	onDidChangeSession: Event<ICopilotCLISessionItem>;
 	onDidCreateSession: Event<ICopilotCLISessionItem>;
 
-	getSessionWorkingDirectory(sessionId: string): Uri | undefined;
+	getSessionWorkingDirectory(sessionId: string): Promise<Uri | undefined>;
 
 	// Session metadata querying
 	getSessionItem(sessionId: string, token: CancellationToken): Promise<ICopilotCLISessionItem | undefined>;
@@ -147,16 +180,16 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 	private readonly _sessionTracker: CopilotCLISessionWorkspaceTracker;
 	private readonly _sessionWorkingDirectories = new Map<string, Uri | undefined>();
-	private readonly _onDidChangeSessionsThrottler = this._register(new ThrottledDelayer<void>(500));
-	private readonly _sessionFileMonitor = this._register(new MutableDisposable<IDisposable>());
 	private readonly _cachedSessionItems = new Map<string, ICopilotCLISessionItem>();
-	private readonly _sessionsBeingCreatedViaFork = new Set<string>();
+	/** Details read via `enrichSessionMetadata`, reused while the session's files are unchanged. */
+	private readonly _enrichedSessionMetadata = new Map<string, IEnrichedSessionMetadataCacheEntry>();
 	private readonly _newSessionIds = new Set<string>();
+	/** Sessions created or forked by this window. The origin metadata write is async, so treat them as local right away. */
+	private readonly _vscodeOriginSessionIds = new Set<string>();
 	/** Bridge processor that forwards SDK native OTel spans to the debug panel. */
 	private _bridgeProcessor: CopilotCliBridgeSpanProcessor | undefined;
 	/** Whether we've attempted to install the bridge (only try once). */
 	private _bridgeInstalled = false;
-	private showExternalSessions: boolean;
 	private _customAgentLookupChanged: boolean = false;
 	private _customAgentLookupRebuild: Promise<void> | undefined;
 	private readonly _customAgentLookup = new Map<string, [ChatCustomAgent, Lazy<Promise<string>>]>();
@@ -164,7 +197,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		@ILogService protected readonly logService: ILogService,
 		@ICopilotCLISDK private readonly copilotCLISDK: ICopilotCLISDK,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@INativeEnvService private readonly nativeEnv: INativeEnvService,
 		@IFileSystemService private readonly fileSystem: IFileSystemService,
 		@ICopilotCLIMCPHandler private readonly mcpHandler: ICopilotCLIMCPHandler,
 		@ICopilotCLIAgents private readonly agents: ICopilotCLIAgents,
@@ -186,22 +218,12 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		@IVSCodeExtensionContext private readonly _vscodeExtensionContext?: IVSCodeExtensionContext,
 	) {
 		super();
-		this.showExternalSessions = this.configurationService.getConfig(ConfigKey.Advanced.CLIShowExternalSessions);
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ConfigKey.Advanced.CLIShowExternalSessions.fullyQualifiedId)) {
-				this.showExternalSessions = this.configurationService.getConfig(ConfigKey.Advanced.CLIShowExternalSessions);
-			}
-			if (e.affectsConfiguration(AGENT_HOST_ENABLED_SETTING_ID) || e.affectsConfiguration(this.sessionFileMonitoringDisabledSettingId)) {
-				this.updateSessionFileMonitoring();
-			}
-		}));
 		this._register(this._promptsService.onDidChangeCustomAgents(() => {
 			this._customAgentLookupChanged = true;
 			if (this._cachedSessionItems.size > 0) {
 				void this.createCustomAgentLookup();
 			}
 		}));
-		this.updateSessionFileMonitoring();
 		this._sessionManager = new Lazy<Promise<internal.LocalSessionManager>>(async () => {
 			try {
 				const sdkPackage = await this.getSDKPackage();
@@ -237,32 +259,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			}
 		});
 		this._sessionTracker = this.instantiationService.createInstance(CopilotCLISessionWorkspaceTracker);
-	}
-
-	private shouldMonitorSessionFiles(): boolean {
-		if (this.configurationService.getNonExtensionConfig<boolean>(AGENT_HOST_ENABLED_SETTING_ID) !== true) {
-			return true;
-		}
-
-		return this.configurationService.getNonExtensionConfig<boolean>(this.sessionFileMonitoringDisabledSettingId) !== true;
-	}
-
-	private get sessionFileMonitoringDisabledSettingId(): string {
-		return this._agentSessionsWorkspace.isAgentSessionsWorkspace
-			? AGENT_HOST_DEFAULT_SESSIONS_PROVIDER_SETTING_ID
-			: COPILOT_CLI_HIDE_EXTENSION_HOST_EDITOR_SETTING_ID;
-	}
-
-	private updateSessionFileMonitoring(): void {
-		const shouldMonitor = this.shouldMonitorSessionFiles();
-		if (shouldMonitor === !!this._sessionFileMonitor.value) {
-			return;
-		}
-		if (shouldMonitor) {
-			this.monitorSessionFiles();
-		} else {
-			this._sessionFileMonitor.clear();
-		}
 	}
 
 	private async getSDKPackage(): Promise<SDKPackage> {
@@ -302,17 +298,24 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		}));
 	}
 
-	getSessionWorkingDirectory(sessionId: string): Uri | undefined {
-		return this._sessionWorkingDirectories.get(sessionId);
-	}
-
-	private triggerSessionsChangeEvent() {
-		// If we're busy fetching sessions, then do not trigger change event as we'll trigger one after we're done fetching sessions.
-		if (this._isGettingSessions > 0) {
-			return;
+	async getSessionWorkingDirectory(sessionId: string): Promise<Uri | undefined> {
+		if (this._sessionWorkingDirectories.has(sessionId) || isUntitledSessionId(sessionId)) {
+			return this._sessionWorkingDirectories.get(sessionId);
 		}
-
-		this._onDidChangeSessionsThrottler.trigger(() => Promise.resolve(this._onDidChangeSessions.fire()));
+		// Listing only records working directories for sessions VS Code created, so resolve
+		// any other session (e.g. an external one opened directly) on demand.
+		try {
+			const sessionManager = await this.getSessionManager();
+			const metadata = await sessionManager.getSessionMetadata({ sessionId });
+			const workingDirectory = metadata?.context?.cwd ? URI.file(metadata.context.cwd) : undefined;
+			if (workingDirectory) {
+				this._sessionWorkingDirectories.set(sessionId, workingDirectory);
+			}
+			return workingDirectory;
+		} catch (error) {
+			this.logService.warn(`[CopilotCLISession] Failed to resolve working directory for session ${sessionId}: ${error}`);
+			return undefined;
+		}
 	}
 
 	public createNewSessionId(): string {
@@ -325,75 +328,19 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		return this._newSessionIds.has(sessionId);
 	}
 
-	protected monitorSessionFiles(): void {
-		const disposables = new DisposableStore();
-		try {
-			const sessionDir = joinPath(this.nativeEnv.userHome, '.copilot', 'session-state');
-			const watcher = disposables.add(this.fileSystem.createFileSystemWatcher(new RelativePattern(sessionDir, '**/*.jsonl')));
-			disposables.add(watcher.onDidCreate(async (e) => {
-				const sessionId = extractSessionIdFromEventPath(sessionDir, e);
-				if (sessionId && this._sessionsBeingCreatedViaFork.has(sessionId)) {
-					return;
-				}
-				this.triggerSessionsChangeEvent();
-				const sessionItem = sessionId ? await this.getSessionItemImpl(sessionId, 'disk', CancellationToken.None) : undefined;
-				if (sessionItem) {
-					this._onDidChangeSession.fire(sessionItem);
-				}
-			}));
-			disposables.add(watcher.onDidDelete(e => {
-				const sessionId = extractSessionIdFromEventPath(sessionDir, e);
-				if (sessionId) {
-					this._cachedSessionItems.delete(sessionId);
-					this._onDidDeleteSession.fire(sessionId);
-				}
-				this.triggerSessionsChangeEvent();
-			}));
-			disposables.add(watcher.onDidChange((e) => {
-				// If we're busy fetching sessions, then do not trigger change event as we'll trigger one after we're done fetching sessions.
-				if (this._isGettingSessions > 0) {
-					return;
-				}
-
-				const sessionId = extractSessionIdFromEventPath(sessionDir, e);
-				if (sessionId && this._sessionsBeingCreatedViaFork.has(sessionId)) {
-					return;
-				}
-
-				// If we're already working on a session that we're aware of then no need to trigger a refresh.
-				if (Array.from(this._sessionWrappers.keys()).some(sessionId => e.path.includes(sessionId))) {
-					return;
-				}
-				if (sessionId) {
-					this.triggerOnDidChangeSessionItem(sessionId, 'fileSystemChange');
-				}
-				this.triggerSessionsChangeEvent();
-			}));
-		} catch (error) {
-			disposables.dispose();
-			this.logService.error('Failed to monitor Copilot CLI session files:', error);
-			return;
-		}
-		this._sessionFileMonitor.value = disposables;
-	}
 	async getSessionManager() {
 		return this._sessionManager.value;
 	}
 
-	private _sessionChangeNotifierByKey = new SequencerByKey<string>();
-	private triggerOnDidChangeSessionItem(sessionId: string, reason: 'fileSystemChange' | 'statusChange') {
+	private readonly _sessionChangeNotifierByKey = new SequencerByKey<string>();
+	private triggerOnDidChangeSessionItem(sessionId: string, reason: 'fileSystemChange' | 'statusChange'): void {
 		this._sessionChangeNotifierByKey.queue(sessionId, async () => {
-			// lets wait for 500ms, as we could get a lot of change events in a short period of time.
-			// E.g. if you have a session running in integrated terminal, then its possible we will see a lot of updates.
-			// In such cases its best to just delay (throttle) by 500ms (we get that via the sequncer and this delay)
 			if (reason === 'fileSystemChange') {
 				await new Promise<void>(resolve => disposableTimeout(resolve, 500, this._store));
-				// If already getting all sessions, no point in triggering individual change event.
 				if (this._isGettingSessions > 0) {
 					return;
 				}
 			}
-
 			const sessionItem = await this.getSessionItemImpl(sessionId, reason === 'statusChange' ? 'inMemorySession' : 'disk', CancellationToken.None);
 			if (sessionItem) {
 				this._onDidChangeSession.fire(sessionItem);
@@ -412,6 +359,11 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	}
 
 	public async getSessionItemImpl(sessionId: string, source: 'inMemorySession' | 'disk', token: CancellationToken): Promise<ICopilotCLISessionItem | undefined> {
+		// Checked up front so that a loaded external session cannot slip in via the wrapper below.
+		if (await this.isExternalSession(sessionId)) {
+			return;
+		}
+
 		const wrappedSession = this._sessionWrappers.get(sessionId);
 		// Give preference to the session we have in memory, as this contains the latest information.
 		if (wrappedSession && (source === 'inMemorySession' || wrappedSession.object.status === ChatSessionStatus.InProgress)) {
@@ -536,26 +488,82 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		}
 	}
 
+	/**
+	 * Reads a session's summary, name, client name and context via the SDK, reusing the previous
+	 * result while neither `events.jsonl` (the SDK `modifiedTime`) nor `workspace.yaml` changed.
+	 * Returns `undefined` for sessions the SDK prunes as empty (no user message and no name),
+	 * matching what a full `listSessions()` would have returned.
+	 */
+	private async getEnrichedSessionMetadata(sessionManager: internal.LocalSessionManager, listed: LocalSessionMetadata): Promise<{ readonly metadata: LocalSessionMetadata | undefined; readonly fromCache: boolean }> {
+		const sessionId = listed.sessionId;
+		const modifiedTime = listed.modifiedTime.getTime();
+		// Stat before reading so a concurrent write is picked up by the next listing rather than lost.
+		const workspaceFileModifiedTime = await this.getWorkspaceFileModifiedTime(sessionId);
+		const cached = this._enrichedSessionMetadata.get(sessionId);
+		if (cached && cached.modifiedTime === modifiedTime && cached.workspaceFileModifiedTime === workspaceFileModifiedTime) {
+			return { metadata: cached.metadata, fromCache: true };
+		}
+		const [enriched] = await sessionManager.enrichSessionMetadata([listed]);
+		const metadata = enriched?.sessionId === sessionId ? enriched : undefined;
+		this._enrichedSessionMetadata.set(sessionId, { modifiedTime, workspaceFileModifiedTime, metadata });
+		return { metadata, fromCache: false };
+	}
+
+	private async getWorkspaceFileModifiedTime(sessionId: string): Promise<number | undefined> {
+		try {
+			return (await this.fileSystem.stat(joinPath(URI.file(getCopilotCLISessionDir(sessionId)), 'workspace.yaml'))).mtime;
+		} catch {
+			return undefined;
+		}
+	}
+
 	async _getAllSessions(token: CancellationToken): Promise<readonly ICopilotCLISessionItem[]> {
 		this._isGettingSessions++;
 		try {
 			const sessionManager = await raceCancellationError(this.getSessionManager(), token);
-			const sessionMetadataList = await raceCancellationError(sessionManager.listSessions(), token);
+			// Ids and times only: every expensive read below is limited to sessions VS Code created.
+			const sessionMetadataList = await raceCancellationError(sessionManager.listSessions(SESSION_LIST_OPTIONS), token);
 
 			await this._sessionTracker.initialize();
 
 			// Skip sessions the agent host already lists (both surfaces share `~/.copilot/session-state/`).
+			// Read fresh on every listing (never cached) so a session adopted by the agent host drops
+			// out of this list on the next refresh.
 			const agentHostDataDir = this._getAgentHostSessionDataDir();
-			const sessionsWithoutAgentHostClientName = sessionMetadataList.filter(metadata => metadata.clientName !== AGENT_HOST_COPILOT_CLIENT_NAME);
-			const agentHostOwnedSessionIds = sessionsWithoutAgentHostClientName.length > 0
+			const agentHostOwnedSessionIds = sessionMetadataList.length > 0
 				? await this._getAgentHostOwnedSessionIds(agentHostDataDir)
 				: new Set<string>();
 
+			let agentHostOwnedCount = 0;
+			let externalCount = 0;
+			let readCount = 0;
+			let cachedCount = 0;
+
 			// Convert SessionMetadata to ICopilotCLISession
+			const limiter = new Limiter<ICopilotCLISessionItem | undefined>(SESSION_LIST_MAX_PARALLELISM);
 			const diskSessions: ICopilotCLISessionItem[] = coalesce(await Promise.all(
-				sessionMetadataList.map(async (metadata): Promise<ICopilotCLISessionItem | undefined> => {
-					const sanitizedSessionId = metadata.sessionId.replace(/[^a-zA-Z0-9_.-]/g, '-');
-					if (metadata.clientName === AGENT_HOST_COPILOT_CLIENT_NAME || agentHostOwnedSessionIds.has(sanitizedSessionId)) {
+				sessionMetadataList.map(listed => limiter.queue(async (): Promise<ICopilotCLISessionItem | undefined> => {
+					const sanitizedSessionId = listed.sessionId.replace(/[^a-zA-Z0-9_.-]/g, '-');
+					if (agentHostOwnedSessionIds.has(sanitizedSessionId)) {
+						agentHostOwnedCount++;
+						return;
+					}
+					// Cheap (in-memory or a single small file read) and checked before any SDK read,
+					// so sessions created outside VS Code never have their event logs opened.
+					if (await this.isExternalSession(listed.sessionId)) {
+						externalCount++;
+						return;
+					}
+					if (token.isCancellationRequested) {
+						return;
+					}
+					const { metadata, fromCache } = await this.getEnrichedSessionMetadata(sessionManager, listed);
+					if (fromCache) {
+						cachedCount++;
+					} else {
+						readCount++;
+					}
+					if (!metadata || metadata.clientName === AGENT_HOST_COPILOT_CLIENT_NAME) {
 						return;
 					}
 					const workingDirectory = metadata.context?.cwd ? URI.file(metadata.context.cwd) : undefined;
@@ -563,10 +571,23 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					if (!await this.shouldShowSession(metadata.sessionId, metadata.context)) {
 						return;
 					}
+					// A legacy session stays in this list until it is opened: opening adopts it
+					// into the agent host, which then owns it (and this provider drops it via
+					// `agentHostOwnedSessionIds` above). Until then the agent host does not
+					// surface un-adopted legacy rows, so there is nothing to stand down for here.
 					const id = metadata.sessionId;
 					const startTime = metadata.startTime.getTime();
 					const endTime = metadata.modifiedTime.getTime();
-					const label = await this.getSessionTitleImpl(metadata.sessionId, metadata, token);
+					// Never drop an on-disk session that passed `shouldShowSession` just because its
+					// title could not be resolved; fall back to its folder name / a generic label.
+					// A freshly-created, still-empty session is a live wrapper with no derivable
+					// title — leave it to the in-progress path below rather than surfacing it here
+					// with a synthetic label.
+					const resolvedTitle = await this.getSessionTitleImpl(metadata.sessionId, metadata, token);
+					const label = resolvedTitle
+						|| (this._sessionWrappers.has(metadata.sessionId)
+							? undefined
+							: metadata.context?.cwd?.split(/[\\/]/).filter(Boolean).pop() || l10n.t("Copilot CLI session"));
 					if (!label) {
 						return;
 					}
@@ -576,8 +597,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 						timing: { created: startTime, startTime, endTime },
 						workingDirectory
 					};
-				})
+				}))
 			));
+			this.logService.trace(`[CopilotCLISession] Listed ${sessionMetadataList.length} sessions: ${agentHostOwnedCount} agent host owned, ${externalCount} external, ${readCount} read, ${cachedCount} cached, ${diskSessions.length} shown`);
 
 			const diskSessionIds = new Set(diskSessions.map(s => s.id));
 			// If we have a new session that has started, then return that as well.
@@ -586,6 +608,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				.filter(session => !diskSessionIds.has(session.object.sessionId))
 				.filter(session => session.object.status === ChatSessionStatus.InProgress)
 				.map(async (session): Promise<ICopilotCLISessionItem | undefined> => {
+					if (await this.isExternalSession(session.object.sessionId)) {
+						return;
+					}
 					const label = session.object.title ?? await this.customSessionTitleService.getCustomSessionTitle(session.object.sessionId) ?? labelFromPrompt(session.object.pendingPrompt ?? '');
 					if (!label) {
 						return;
@@ -704,6 +729,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			session.object.add(mcpGateway);
 
 			// Set origin
+			this._vscodeOriginSessionIds.add(session.object.sessionId);
 			void this._chatSessionMetadataStore.setSessionOrigin(session.object.sessionId);
 
 			// Set session parent id
@@ -766,17 +792,27 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		}
 	}
 
+	/**
+	 * Sessions created outside VS Code (e.g. started from the terminal CLI) are never surfaced by
+	 * this provider. The Agent Host owns external session visibility via
+	 * `chat.agentSessions.showExternalAgentSessions`.
+	 */
+	private async isExternalSession(sessionId: string): Promise<boolean> {
+		if (isUntitledSessionId(sessionId) || this._vscodeOriginSessionIds.has(sessionId)) {
+			return false;
+		}
+		return await this._chatSessionMetadataStore.getSessionOrigin(sessionId) !== 'vscode';
+	}
+
 	private async shouldShowSession(sessionId: string, context?: SessionContext): Promise<boolean> {
 		if (isUntitledSessionId(sessionId)) {
 			return true;
 		}
 
-		if (!this.showExternalSessions) {
-			const sessionOrigin = await this._chatSessionMetadataStore.getSessionOrigin(sessionId);
-			if (sessionOrigin !== 'vscode') {
-				return false;
-			}
+		if (await this.isExternalSession(sessionId)) {
+			return false;
 		}
+
 		// If we're in an empty workspace then show all sessions.
 		if (this.workspaceService.getWorkspaceFolders().length === 0) {
 			return true;
@@ -867,7 +903,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		}
 		allOptions.systemMessage = systemMessage;
 		allOptions.sessionCapabilities = new Set(['plan-mode', 'memory', 'cli-documentation', 'ask-user', 'interactive-mode', 'system-notifications']);
-		if (options.reasoningEffort && this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled)) {
+		if (options.reasoningEffort) {
 			allOptions.reasoningEffort = options.reasoningEffort;
 		}
 		if (options.contextTier) {
@@ -891,8 +927,8 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		const fileSystemSetting = rawFileSystemSetting && typeof rawFileSystemSetting === 'object'
 			? rawFileSystemSetting as IAgentSandboxFileSystemSettings
 			: undefined;
-		const allowedHosts = readStringArraySetting(this.configurationService, 'chat.agent.allowedNetworkDomains');
-		const blockedHosts = readStringArraySetting(this.configurationService, 'chat.agent.deniedNetworkDomains');
+		const allowedHosts = readStringArraySetting(this.configurationService, 'chat.agent.sandbox.network.allowedDomains');
+		const blockedHosts = readStringArraySetting(this.configurationService, 'chat.agent.sandbox.network.deniedDomains');
 		return buildSandboxConfigForCLI(process.platform, sandboxSetting, fileSystemSetting, { allowedHosts, blockedHosts });
 	}
 
@@ -1134,24 +1170,20 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		}
 
 		const { sessionId: newSessionId } = await sessionManager.forkSession(sessionId, toEventId);
-		this._sessionsBeingCreatedViaFork.add(newSessionId);
-		try {
-			const forkedTitlePrefix = l10n.t("Forked: ");
-			const customTitle = title.startsWith(forkedTitlePrefix) ? title : l10n.t("Forked: {0}", title);
-			await this._chatSessionMetadataStore.storeForkedSessionMetadata(sessionId, newSessionId, customTitle);
+		const forkedTitlePrefix = l10n.t("Forked: ");
+		const customTitle = title.startsWith(forkedTitlePrefix) ? title : l10n.t("Forked: {0}", title);
+		this._vscodeOriginSessionIds.add(newSessionId);
+		await this._chatSessionMetadataStore.storeForkedSessionMetadata(sessionId, newSessionId, customTitle);
 
-			this._onDidChangeSessions.fire();
-			this._onDidCreateSession.fire({
-				id: newSessionId,
-				label: customTitle,
-				timing: { created: Date.now(), startTime: Date.now() },
-				workingDirectory: getWorkingDirectory(workspace)
-			});
+		this._onDidChangeSessions.fire();
+		this._onDidCreateSession.fire({
+			id: newSessionId,
+			label: customTitle,
+			timing: { created: Date.now(), startTime: Date.now() },
+			workingDirectory: getWorkingDirectory(workspace)
+		});
 
-			return newSessionId;
-		} finally {
-			this._sessionsBeingCreatedViaFork.delete(newSessionId);
-		}
+		return newSessionId;
 	}
 	public async tryGetPartialSessionHistory(sessionId: string): Promise<readonly (ChatRequestTurn2 | ChatResponseTurn2)[] | undefined> {
 		const cached = this._partialSessionHistories.get(sessionId);
@@ -1184,6 +1216,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		}
 
 		let firstUserMessage: string | undefined;
+		let eventsFileUnreadable = false;
 		try {
 			const events = await raceCancellation(readSessionEventsFile(sessionId, 'user.message'), token);
 			if (events?.length) {
@@ -1191,10 +1224,21 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				firstUserMessage = events.find((msg: SessionEvent) => msg.type === 'user.message')?.data.content;
 			}
 		} catch (error) {
+			eventsFileUnreadable = true;
 			this.logService.warn(`[CopilotCLISession] Failed to get session title for session ${sessionId}: ${error}`);
 		}
 
-		if (!firstUserMessage) {
+		// Don't cache a title derived from a cancelled read, otherwise the empty result is
+		// stored and every later lookup returns it instead of re-reading the event log.
+		if (token.isCancellationRequested) {
+			return firstUserMessage;
+		}
+
+		// Only fall back to the SDK when the event log could not be read at all. The SDK reads
+		// that same log, and the scan above already covers the whole file whenever it finds no
+		// user message, so going through the SDK would open a full session and deserialize the
+		// entire history just to rediscover that there is no title to derive.
+		if (!firstUserMessage && eventsFileUnreadable) {
 			try {
 				const { events } = await this.getChatHistoryImpl({ sessionId, workspace: emptyWorkspaceInfo() }, token);
 				firstUserMessage = events.find((msg: SessionEvent) => msg.type === 'user.message')?.data.content;
@@ -1256,8 +1300,10 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 	public async deleteSession(sessionId: string): Promise<void> {
 		this._sessionLabels.delete(sessionId);
+		this._enrichedSessionMetadata.delete(sessionId);
 		this._partialSessionHistories.delete(sessionId);
 		this._sessionWorkingDirectories.delete(sessionId);
+		this._vscodeOriginSessionIds.delete(sessionId);
 		try {
 			{
 				const session = this._sessionWrappers.get(sessionId);
@@ -1312,6 +1358,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	public async renameSession(sessionId: string, title: string): Promise<void> {
 		await this.updateSdkSessionMetadata(sessionId, title, sdkSession => sdkSession.renameSession(title));
 		this._sessionLabels.delete(sessionId);
+		this._enrichedSessionMetadata.delete(sessionId);
 		this._onDidChangeSessions.fire();
 	}
 
@@ -1321,6 +1368,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		// can pick up the freshly-written summary instead of returning a stale
 		// label that was extracted from session history on a prior pass.
 		this._sessionLabels.delete(sessionId);
+		this._enrichedSessionMetadata.delete(sessionId);
 		this._onDidChangeSessions.fire();
 	}
 }
@@ -1416,22 +1464,6 @@ export class CopilotCLISessionWorkspaceTracker {
 function labelFromPrompt(prompt: string): string {
 	// Strip system reminders from the prompt
 	return stripReminders(prompt);
-}
-
-/**
- * Extracts the session ID from a deleted events.jsonl file path.
- * Expected path format: <sessionDir>/<sessionId>/events.jsonl
- */
-function extractSessionIdFromEventPath(sessionDir: URI, deletedFileUri: URI): string | undefined {
-	if (basename(deletedFileUri) !== 'events.jsonl') {
-		return undefined;
-	}
-	const parentDir = dirname(deletedFileUri);
-	const parentOfParent = dirname(parentDir);
-	if (parentOfParent.path !== sessionDir.path) {
-		return undefined;
-	}
-	return basename(parentDir);
 }
 
 export class Mutex {

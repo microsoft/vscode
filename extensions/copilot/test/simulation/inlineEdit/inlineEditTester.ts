@@ -150,6 +150,8 @@ export class InlineEditTester {
 			}
 		})();
 
+		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, 0);
+
 		if (stestRuntime) {
 			const nesUserEditHistory: ISerializedNesUserEditsHistory = {
 				edits: history.documents.map((doc): ISerializedFileEdit => ({
@@ -169,7 +171,7 @@ export class InlineEditTester {
 
 		const historyContext = historyContextProvider.getHistoryContext(docId)!;
 		const activeDocument = historyContext.getMostRecentDocument(); // TODO
-		const context: NESInlineCompletionContext = { triggerKind: 1, selectedCompletionInfo: undefined, requestUuid: generateUuid(), requestIssuedDateTime: Date.now(), earliestShownDateTime: Date.now() + 200, enforceCacheDelay: false };
+		const context: NESInlineCompletionContext = { triggerKind: 1, selectedCompletionInfo: undefined, requestUuid: generateUuid(), requestIssuedDateTime: Date.now(), earliestShownDateTime: Date.now() + 200 };
 		const logContext = new InlineEditRequestLogContext(activeDocument.docId.toString(), 1, context);
 		const telemetryBuilder = new NextEditProviderTelemetryBuilder(gitExtensionService, notebookService, workspaceService, nextEditProvider.ID, workspace.getDocument(activeDocument.docId)!);
 

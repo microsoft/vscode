@@ -1,0 +1,48 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "ARCHIVED_INCLUDED_READY".
+    response:
+      content: ARCHIVED_INCLUDED_READY
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with workspace "${workdir}" and includeArchived true, then reply exactly "listed".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: mcp__host__list_sessions
+          input:
+            workspace: ${workdir}
+            includeArchived: true
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with workspace "${workdir}" and includeArchived true, then reply exactly "listed".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: mcp__host__list_sessions
+              input:
+                workspace: ${workdir}
+                includeArchived: true
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"sessions":[{"session":"claude:/${uuid_0}","openLink":"agent-host-session://claude/${uuid_0}","title":"Call list_sessions exactly once with workspace \"${workdir}\" and includeArchived true, then reply exactly \"listed","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-09-24T04:50:59.130Z","modifiedAt":"2026-09-24T04:51:01.587Z","changes":{"additions":0,"deletions":0,"files":0}},{"session":"claude:/${uuid_1}","openLink":"agent-host-session://claude/${uuid_1}","title":"Reply exactly \"ARCHIVED_INCLUDED_READY\".","status":"idle,archived","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-09-24T04:50:59.234Z","modifiedAt":"2026-09-24T04:51:01.196Z","changes":{"additions":0,"deletions":0,"files":0}}]}'
+    response:
+      content: listed
+      stopReason: end_turn

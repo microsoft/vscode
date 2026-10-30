@@ -202,6 +202,10 @@ If `start-watch-tasks` is already running, use its diagnostics. Start it or run 
 - **Event-driven**: Extensive use of VS Code's event system and disposables
 - **Layered**: Clear separation between platform services and extension features
 
+### Dependency Boundaries
+- Do not import directly from the repository's root `src/vs/` tree. The extension is compiled and bundled from its own `src/` tree, and root VS Code internals are not an extension dependency.
+- Use the corresponding implementation under `extensions/copilot/src/` or the vendored compatibility code under `extensions/copilot/src/util/vs/` when it is already available. Keep shared behavior behind the extension's own platform abstractions.
+
 ### Testing Standards
 - **Unit Tests**: Vitest for isolated component testing
 - **Integration Tests**: VS Code extension host tests for API integration
@@ -267,7 +271,6 @@ The extension uses numerous proposed VS Code APIs for advanced functionality:
 - **GitHub**: Authentication and API access
 - **Azure**: Cloud services and experimentation
 - **OpenAI**: Language model API
-- **Anthropic**: Claude model integration - See **[src/extension/agents/claude/AGENTS.md](../src/extension/agents/claude/AGENTS.md)** for complete Claude Agent SDK integration documentation including architecture, components, and registries
 - **Telemetry**: Usage analytics and performance monitoring
 
 ## Development Workflow
@@ -276,14 +279,6 @@ The extension uses numerous proposed VS Code APIs for advanced functionality:
 - `npm install`: Install dependencies
 - `npm run compile`: Development build
 - `npm run watch:*`: Various watch modes for development
-
-### Updating Dependencies
-
-**Anthropic SDK Packages:**
-When updating `@anthropic-ai/claude-agent-sdk` or `@anthropic-ai/sdk`, you **MUST** follow the upgrade guide in **[src/extension/agents/claude/AGENTS.md](../src/extension/agents/claude/AGENTS.md#upgrading-anthropic-sdk-packages)**. This includes:
-1. Reviewing changelogs for breaking changes
-2. Checking compilation errors in key Claude integration files
-3. Running through the testing checklist for core functionality, tools, hooks, and slash commands
 
 ### Testing
 - `npm run test:unit`: Unit tests

@@ -103,7 +103,7 @@ suite('TerminalVoiceSession', () => {
 				stateEmitter.fire(state);
 				return finalText;
 			}
-			override cancel(): void { }
+			override async cancel(): Promise<void> { }
 		});
 	}
 
@@ -127,6 +127,25 @@ suite('TerminalVoiceSession', () => {
 		await new Promise(resolve => setTimeout(resolve, 0));
 
 		assert.ok(sentTexts.some(t => t.includes('echo hello')), `expected dictated text to be sent, got ${JSON.stringify(sentTexts)}`);
+		session.dispose();
+	});
+
+	test('falls back to the speech provider when built-in dictation is not configured', async () => {
+		let providerStarts = 0;
+		instantiationService.stub(ISpeechService, new class extends mock<ISpeechService>() {
+			override async createSpeechToTextSession() {
+				providerStarts++;
+				return { onDidChange: Event.None };
+			}
+		});
+		instantiationService.stub(IChatSpeechToTextService, new class extends mock<IChatSpeechToTextService>() {
+			override readonly isConfigured = false;
+		});
+
+		const session = TerminalVoiceSession.getInstance(instantiationService as unknown as IInstantiationService);
+		await session.start();
+
+		assert.strictEqual(providerStarts, 1);
 		session.dispose();
 	});
 });

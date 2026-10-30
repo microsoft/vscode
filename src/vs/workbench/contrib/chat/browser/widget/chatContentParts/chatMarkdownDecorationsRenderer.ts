@@ -8,9 +8,12 @@ import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
-import { DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ILinkPresentationService } from '../../../../../../platform/dataChannel/common/dataChannel.js';
+import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
@@ -22,11 +25,14 @@ import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameS
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../common/widget/chatColors.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, chatSubcommandLeader, IParsedChatRequest, IParsedChatRequestPart } from '../../../common/requestParser/chatParserTypes.js';
 import { IChatMarkdownContent, IChatService } from '../../../common/chatService/chatService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
+import { ISessionSummaryHoverService } from '../../agentSessions/sessionSummaryHoverService.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from '../chatAgentHover.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
-import { InlineAnchorWidget } from './chatInlineAnchorWidget.js';
+import { InlineAnchorWidget, renderFileAnchor } from './chatInlineAnchorWidget.js';
+import { ChatRichLinkDecorator } from './chatRichLink.js';
 
 /** For rendering slash commands, variables */
 const decorationRefUrl = `http://_vscodedecoration_`;
@@ -73,9 +79,19 @@ interface ISlashCommandWidgetArgs {
 
 export interface IDecorationWidgetArgs {
 	title?: string;
+	/** The index of the request part whose attachment is shown as a pill in place of the decoration. */
+	inlineAttachment?: number;
 }
 
-export class ChatMarkdownDecorationsRenderer {
+/**
+ * Renders the attachment of a request part as a pill inline with the request's
+ * text, see {@link ChatMarkdownDecorationsRenderer.convertParsedRequestToMarkdown}.
+ * Returns `undefined` when the part has no pill, so it shows as a decoration.
+ */
+export type ChatInlineAttachmentRenderer = (partIndex: number, store: DisposableStore) => HTMLElement | undefined;
+
+export class ChatMarkdownDecorationsRenderer extends Disposable {
+	private readonly richLinkDecorator: Lazy<ChatRichLinkDecorator>;
 
 	constructor(
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -89,24 +105,34 @@ export class ChatMarkdownDecorationsRenderer {
 		@ILabelService private readonly labelService: ILabelService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
-	) { }
+		@ILinkPresentationService linkPresentationService: ILinkPresentationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ISessionSummaryHoverService sessionSummaryHoverService: ISessionSummaryHoverService,
+	) {
+		super();
+		this.richLinkDecorator = new Lazy(() => this._register(new ChatRichLinkDecorator(linkPresentationService, hoverService, sessionSummaryHoverService)));
+	}
 
-	convertParsedRequestToMarkdown(sessionResource: URI, parsedRequest: IParsedChatRequest): string {
+	/**
+	 * @param inlineAttachmentParts The indices of the parts whose attachments are
+	 * shown as pills inline with the text, by a {@link ChatInlineAttachmentRenderer}.
+	 */
+	convertParsedRequestToMarkdown(sessionResource: URI, parsedRequest: IParsedChatRequest, inlineAttachmentParts?: ReadonlySet<number>): string {
 		let result = '';
-		for (const part of parsedRequest.parts) {
+		parsedRequest.parts.forEach((part, index) => {
 			if (part instanceof ChatRequestTextPart) {
 				result += part.text;
 			} else if (part instanceof ChatRequestAgentPart) {
 				result += this.instantiationService.invokeFunction(accessor => agentToMarkdown(part.agent, sessionResource, false, accessor));
 			} else {
-				result += this.genericDecorationToMarkdown(part);
+				result += this.genericDecorationToMarkdown(part, inlineAttachmentParts?.has(index) ? index : undefined);
 			}
-		}
+		});
 
 		return result;
 	}
 
-	private genericDecorationToMarkdown(part: IParsedChatRequestPart): string {
+	private genericDecorationToMarkdown(part: IParsedChatRequestPart, inlineAttachment: number | undefined): string {
 		const uri = part instanceof ChatRequestDynamicVariablePart && part.data instanceof URI ?
 			part.data :
 			undefined;
@@ -117,15 +143,25 @@ export class ChatMarkdownDecorationsRenderer {
 						part instanceof ChatRequestToolPart ? (this.toolsService.getTool(part.toolId)?.userDescription) :
 							'';
 
-		const args: IDecorationWidgetArgs = { title };
-		const text = part.text;
+		const args: IDecorationWidgetArgs = inlineAttachment === undefined ? { title } : { title, inlineAttachment };
+		// The text of an attachment shown as a pill, such as a terminal command, can contain brackets that would end the link.
+		const text = inlineAttachment === undefined ? part.text : part.text.replace(/[\\[\]]/g, '\\$&');
 		return `[${text}](${decorationRefUrl}?${encodeURIComponent(JSON.stringify(args))})`;
 	}
 
-	walkTreeAndAnnotateReferenceLinks(content: IChatMarkdownContent, element: HTMLElement): IDisposable {
+	/**
+	 * @param renderInlineAttachment Renders the pills of decorations that stand
+	 * for an attachment shown inline with a request's text.
+	 */
+	walkTreeAndAnnotateReferenceLinks(content: IChatMarkdownContent, element: HTMLElement, renderInlineAttachment?: ChatInlineAttachmentRenderer): IDisposable {
 		const store = new DisposableStore();
+		const fileWidgetOptions = { linkTypes: ['markdown-preview'] };
+		const richLinksEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.RichLinks);
 		// eslint-disable-next-line no-restricted-syntax
 		element.querySelectorAll('a').forEach(a => {
+			if (renderFileAnchor(a, this.instantiationService, this.chatMarkdownAnchorService, store, fileWidgetOptions)) {
+				return;
+			}
 			const href = a.getAttribute('data-href');
 			if (href) {
 				if (href.startsWith(agentRefUrl)) {
@@ -156,11 +192,14 @@ export class ChatMarkdownDecorationsRenderer {
 						args = JSON.parse(decodeURIComponent(href.slice(decorationRefUrl.length + 1)));
 					} catch (e) { }
 
-					a.replaceWith(this.renderResourceWidget(a.textContent!, args, store));
+					const pill = typeof args?.inlineAttachment === 'number' ? renderInlineAttachment?.(args.inlineAttachment, store) : undefined;
+					a.replaceWith(pill ?? this.renderResourceWidget(a.textContent!, args, store));
 				} else if (href.startsWith(contentRefUrl)) {
 					this.renderFileWidget(content, href, a, store);
 				} else if (href.startsWith('command:')) {
 					this.injectKeybindingHint(a, href, this.keybindingService);
+				} else if (richLinksEnabled || href.toLowerCase().startsWith(`${AGENT_HOST_SESSION_LINK_SCHEME}:`)) {
+					this.richLinkDecorator.value.decorate(a, href, store);
 				}
 			}
 		});

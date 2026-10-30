@@ -14,8 +14,13 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { localize } from '../../../../../nls.js';
 import { AgentsVoiceStorageKeys } from '../../../../contrib/agentsVoice/common/agentsVoice.js';
 import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 
 export const IMicCaptureService = createDecorator<IMicCaptureService>('micCaptureService');
+
+export function getMediaCaptureWindow(targetWindow: Window & typeof globalThis): Window & typeof globalThis {
+	return targetWindow === mainWindow ? targetWindow : mainWindow;
+}
 
 /** Number of samples buffered per 32 ms voice capture chunk at 16 kHz, matching one Silero VAD frame. */
 export const MIC_CAPTURE_CHUNK_SIZE = 512;
@@ -113,6 +118,9 @@ export interface IMicCaptureService {
 
 	/** The AnalyserNode for visualisation, available while capturing. */
 	readonly analyserNode: AnalyserNode | undefined;
+
+	/** The captured microphone stream, available after {@link startCapture}. */
+	readonly mediaStream: MediaStream | undefined;
 
 	// --- PTT ---
 	/**
@@ -233,16 +241,30 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 
 	get isCapturing(): boolean { return this._isCapturing; }
 	get analyserNode(): AnalyserNode | undefined { return this._analyserNode; }
+	get mediaStream(): MediaStream | undefined { return this._micStream ?? undefined; }
 
 	get isMuted(): boolean { return this._isMuted; }
-	set isMuted(value: boolean) { this._isMuted = value; }
+	set isMuted(value: boolean) {
+		this._isMuted = value;
+		this._updateTrackEnabled();
+	}
+
+	private _updateTrackEnabled(): void {
+		for (const track of this._micStream?.getAudioTracks() ?? []) {
+			track.enabled = !this._isMuted && this._pttStreaming;
+		}
+	}
 
 	suppressUntil(timestamp: number): void {
 		this._suppressUntilTs = timestamp;
 	}
 
+	protected getMediaCaptureWindow(targetWindow: Window & typeof globalThis): Window & typeof globalThis {
+		return getMediaCaptureWindow(targetWindow);
+	}
+
 	prepare(window: Window & typeof globalThis): void {
-		this._window = window;
+		this._window = this.getMediaCaptureWindow(window);
 	}
 
 	async pttDown(turnId: string, passive: boolean = false): Promise<void> {
@@ -269,7 +291,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		this._pttHeld = true;
 		this._pttStreaming = true;
 		this._pttReleasedDuringAcquire = false;
-		this._isMuted = false;
+		this.isMuted = false;
 
 		if (this._isCapturing) {
 			this._onPttStart.fire(passive);
@@ -288,6 +310,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 			this._pttHeld = false;
 			this._pttStreaming = false;
 			this._pttReleasedDuringAcquire = false;
+			this._updateTrackEnabled();
 			throw err;
 		} finally {
 			if (pttGeneration === this._pttGeneration) {
@@ -366,18 +389,20 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		this._pttHeld = false;
 		this._pttStreaming = false;
 		this._pttReleasedDuringAcquire = false;
+		this._updateTrackEnabled();
 		// Still emit the per-press diagnostic (keyed by turnId), matching pttUp.
 		this._diagPttUpTs = Date.now();
 		this._scheduleDiagnosticFire();
 	}
 
 	async startCapture(window: Window & typeof globalThis): Promise<void> {
-		this._window = window;
+		const captureWindow = this.getMediaCaptureWindow(window);
+		this._window = captureWindow;
 		if (this._isCapturing) { return; }
 		if (this._capturePromise) {
 			return this._capturePromise;
 		}
-		const capturePromise = this._startCapture(window);
+		const capturePromise = this._startCapture(captureWindow);
 		this._capturePromise = capturePromise;
 		try {
 			await capturePromise;
@@ -432,6 +457,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 			return;
 		}
 		this._micStream = micStream;
+		this._updateTrackEnabled();
 
 		const cleanupFailedCapture = () => {
 			if (this._micStream === micStream) {
@@ -642,6 +668,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		this._pttDrainSamplesSent = 0;
 		if (this._pttStreaming && !this._pttHeld) {
 			this._pttStreaming = false;
+			this._updateTrackEnabled();
 			this._onPttEnd.fire();
 		}
 	}

@@ -23,6 +23,7 @@ const enum CharCode {
 let outputChannel: vscode.OutputChannel;
 
 const SLOWED_DOWN_CONNECTION_DELAY = 800;
+const agentHostBridgeConnectionTokenEnvironmentVariable = 'VSCODE_AGENT_HOST_BRIDGE_CONNECTION_TOKEN';
 
 function isExpectedSocketCloseError(error: NodeJS.ErrnoException): boolean {
 	return error.code === 'ECONNRESET' || error.code === 'EPIPE' || error.code === 'ECONNABORTED';
@@ -146,7 +147,7 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 
 			const { updateUrl, commit, quality, serverDataFolderName, serverApplicationName, dataFolderName } = getProductConfiguration();
-			const commandArgs = ['--host=127.0.0.1', '--port=0', '--disable-telemetry', '--disable-experiments', '--use-host-proxy', '--accept-server-license-terms'];
+			const commandArgs = ['--host=127.0.0.1', '--port=0', '--disable-telemetry', '--disable-experiments', '--use-host-proxy', '--accept-server-license-terms', '--force-disable-user-env'];
 			const env = getNewEnv();
 			const remoteDataDir = process.env['TESTRESOLVER_DATA_FOLDER'] || path.join(os.homedir(), `${serverDataFolderName || dataFolderName}-testresolver`);
 			const logsDir = process.env['TESTRESOLVER_LOGS_FOLDER'];
@@ -190,7 +191,7 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 			const agentHostBridgeToken = getConfiguration('agentHostBridgeConnectionToken');
 			if (typeof agentHostBridgeToken === 'string' && agentHostBridgeToken) {
-				commandArgs.push('--agent-host-bridge-connection-token', agentHostBridgeToken);
+				env[agentHostBridgeConnectionTokenEnvironmentVariable] = agentHostBridgeToken;
 			}
 
 			if (!commit) { // dev mode
@@ -582,7 +583,7 @@ async function tunnelFactory(tunnelOptions: vscode.TunnelOptions, tunnelCreation
 	}
 
 	function createTunnelService(): Promise<vscode.Tunnel> {
-		return new Promise<vscode.Tunnel>((res, _rej) => {
+		return new Promise<vscode.Tunnel>((res, rej) => {
 			const proxyServer = net.createServer(proxySocket => {
 				const remoteSocket = net.createConnection({ host: tunnelOptions.remoteAddress.host, port: tunnelOptions.remoteAddress.port });
 				remoteSocket.pipe(proxySocket);
@@ -600,14 +601,17 @@ async function tunnelFactory(tunnelOptions: vscode.TunnelOptions, tunnelCreation
 			}
 
 			if (localPort === tunnelOptions.remoteAddress.port) {
-				localPort += 1;
+				// The adjacent port may be occupied or excluded by Windows. Let the OS pick a free port.
+				localPort = 0;
 			}
 
 			// The test resolver can't actually handle privileged ports, it only pretends to.
 			if (localPort < 1024 && process.platform !== 'win32') {
 				localPort = 0;
 			}
+			proxyServer.once('error', rej);
 			proxyServer.listen(localPort, '127.0.0.1', () => {
+				proxyServer.off('error', rej);
 				const localPort = (<net.AddressInfo>proxyServer.address()).port;
 				outputChannel.appendLine(`New test resolver tunnel service: Remote ${tunnelOptions.remoteAddress.port} -> local ${localPort}`);
 				const tunnel = newTunnel({ host: '127.0.0.1', port: localPort });

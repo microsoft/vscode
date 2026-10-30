@@ -7,17 +7,18 @@ import { AsyncReader, AsyncReaderEndOfStream } from '../../../../../base/common/
 import { CachedFunction } from '../../../../../base/common/cache.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IObservableWithChange, ISettableObservable, observableValue, runOnChange } from '../../../../../base/common/observable.js';
-import { AnnotatedStringEdit, IEditData, StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
+import { AnnotatedStringEdit, IEditData } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { StringText } from '../../../../../editor/common/core/text/abstractText.js';
-import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
+import { IEditorWorkerService, IStringEditFromDiff } from '../../../../../editor/common/services/editorWorker.js';
 import { TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IObservableDocument } from './observableWorkspace.js';
 import { iterateObservableChanges, mapObservableDelta } from './utils.js';
 
 export interface IDocumentWithAnnotatedEdits<TEditData extends IEditData<TEditData> = EditKeySourceData> {
-	readonly value: IObservableWithChange<StringText, { edit: AnnotatedStringEdit<TEditData> }>;
-	waitForQueue(): Promise<void>;
+	readonly value: IObservableWithChange<StringText, { edit: AnnotatedStringEdit<TEditData>; coarseDiffCount?: number }>;
+	/** Drains edits observed at the call boundary, invoking the callback before later edits are published. */
+	waitForQueue(onDrained?: () => void | Promise<void>): Promise<void>;
 }
 
 /**
@@ -42,8 +43,8 @@ export class DocumentWithSourceAnnotatedEdits extends Disposable implements IDoc
 		}));
 	}
 
-	public waitForQueue(): Promise<void> {
-		return Promise.resolve();
+	public waitForQueue(onDrained?: () => void | Promise<void>): Promise<void> {
+		return Promise.resolve(onDrained?.());
 	}
 }
 
@@ -121,7 +122,9 @@ export abstract class EditSourceBase {
 				return this._cache.get(new UnknownEditSource());
 
 			case 'Chat.applyEdits':
-				return this._cache.get(new ChatEditSource('sidebar'));
+				return '$origin' in data && data.$origin === 'agentHost'
+					? this._cache.get(new AgentHostEditSource())
+					: this._cache.get(new ChatEditSource('sidebar'));
 			case 'inlineChat.applyEdits':
 				return this._cache.get(new ChatEditSource('inline'));
 			case 'cursor':
@@ -134,7 +137,7 @@ export abstract class EditSourceBase {
 	public abstract getColor(): string;
 }
 
-export type EditSource = InlineSuggestEditSource | ChatEditSource | IdeEditSource | UserEditSource | UnknownEditSource | ExternalEditSource;
+export type EditSource = InlineSuggestEditSource | ChatEditSource | AgentHostEditSource | IdeEditSource | UserEditSource | UnknownEditSource | ExternalEditSource;
 
 export class InlineSuggestEditSource extends EditSourceBase {
 	public readonly category = 'ai';
@@ -159,6 +162,15 @@ class ChatEditSource extends EditSourceBase {
 	) { super(); }
 
 	override toString() { return `${this.category}/${this.feature}/${this.kind}`; }
+
+	public getColor(): string { return '#00ff0066'; }
+}
+
+class AgentHostEditSource extends EditSourceBase {
+	public readonly category = 'agentHost';
+	public readonly feature = 'chat';
+
+	override toString() { return `${this.category}/${this.feature}`; }
 
 	public getColor(): string { return '#00ff0066'; }
 }
@@ -203,8 +215,8 @@ class UnknownEditSource extends EditSourceBase {
 }
 
 export class CombineStreamedChanges<TEditData extends (EditKeySourceData | EditSourceData) & IEditData<TEditData>> extends Disposable implements IDocumentWithAnnotatedEdits<TEditData> {
-	private readonly _value: ISettableObservable<StringText, { edit: AnnotatedStringEdit<TEditData> }>;
-	readonly value: IObservableWithChange<StringText, { edit: AnnotatedStringEdit<TEditData> }>;
+	private readonly _value: ISettableObservable<StringText, { edit: AnnotatedStringEdit<TEditData>; coarseDiffCount?: number }>;
+	readonly value: IObservableWithChange<StringText, { edit: AnnotatedStringEdit<TEditData>; coarseDiffCount?: number }>;
 	private readonly _runStore = this._register(new DisposableStore());
 	private _runQueue: Promise<void> = Promise.resolve();
 
@@ -222,12 +234,12 @@ export class CombineStreamedChanges<TEditData extends (EditKeySourceData | EditS
 
 	}
 
-	async _restart(): Promise<void> {
+	private _restart(onDrained?: () => void | Promise<void>): Promise<void> {
 		this._runStore.clear();
 		const iterator = iterateObservableChanges(this._originalDoc.value, this._runStore)[Symbol.asyncIterator]();
-		const p = this._runQueue;
-		this._runQueue = this._runQueue.then(() => this._run(iterator));
-		await p;
+		const drained = this._runQueue.then(() => onDrained?.());
+		this._runQueue = drained.then(() => this._run(iterator));
+		return drained;
 	}
 
 	private async _run(iterator: AsyncIterator<{ value: StringText; prevValue: StringText; change: { edit: AnnotatedStringEdit<TEditData> }[] }, any, any>) {
@@ -256,20 +268,27 @@ export class CombineStreamedChanges<TEditData extends (EditKeySourceData | EditS
 				if (!chatEdit.isEmpty()) {
 					const data = chatEdit.replacements[0].data;
 					const diffEdit = await this._diffService.computeDiff(first.prevValue.value, last.value.value);
-					const edit = diffEdit.mapData(_e => data);
-					this._value.set(last.value, undefined, { edit });
+					const edit = diffEdit.edit.mapData(_e => data);
+					this._value.set(last.value, undefined, { edit, coarseDiffCount: diffEdit.isCoarse ? 1 : 0 });
 				}
 			} else {
 				reader.readBufferedOrThrow();
-				const e = AnnotatedStringEdit.compose(peeked.change.map(c => c.edit));
-				this._value.set(peeked.value, undefined, { edit: e });
+				let e = AnnotatedStringEdit.compose(peeked.change.map(c => c.edit));
+				let coarseDiffCount = 0;
+				if (!e.isEmpty() && e.replacements.every(r => r.data.source.category === 'external')) {
+					// Diff each reload separately so correlation keeps its before/after snapshots.
+					const data = e.replacements[0].data;
+					const diffEdit = await this._diffService.computeDiff(peeked.prevValue.value, peeked.value.value);
+					e = diffEdit.edit.mapData(() => data);
+					coarseDiffCount = diffEdit.isCoarse ? 1 : 0;
+				}
+				this._value.set(peeked.value, undefined, { edit: e, coarseDiffCount });
 			}
 		}
 	}
 
-	async waitForQueue(): Promise<void> {
-		await this._originalDoc.waitForQueue();
-		await this._restart();
+	waitForQueue(onDrained?: () => void | Promise<void>): Promise<void> {
+		return this._originalDoc.waitForQueue(() => this._restart(onDrained));
 	}
 }
 
@@ -279,8 +298,8 @@ export class DiffService {
 	) {
 	}
 
-	public async computeDiff(original: string, modified: string): Promise<StringEdit> {
-		const diffEdit = await this._editorWorkerService.computeStringEditFromDiff(original, modified, { maxComputationTimeMs: 500 }, 'advanced');
+	public async computeDiff(original: string, modified: string): Promise<IStringEditFromDiff> {
+		const diffEdit = await this._editorWorkerService.computeStringEditFromDiffWithMetadata(original, modified, { maxComputationTimeMs: 500 }, 'advanced');
 		return diffEdit;
 	}
 }
@@ -295,7 +314,7 @@ function isChatEdit(next: { value: StringText; change: { edit: AnnotatedStringEd
 }
 
 export class MinimizeEditsProcessor<TEditData extends IEditData<TEditData>> extends Disposable implements IDocumentWithAnnotatedEdits<TEditData> {
-	readonly value: IObservableWithChange<StringText, { edit: AnnotatedStringEdit<TEditData> }>;
+	readonly value: IObservableWithChange<StringText, { edit: AnnotatedStringEdit<TEditData>; coarseDiffCount?: number }>;
 
 	constructor(
 		private readonly _originalDoc: IDocumentWithAnnotatedEdits<TEditData>,
@@ -311,12 +330,12 @@ export class MinimizeEditsProcessor<TEditData extends IEditData<TEditData>> exte
 			const e = eComposed.removeCommonSuffixAndPrefix(prevValue);
 			prevValue = val.value;
 
-			v.set(val, undefined, { edit: e });
+			v.set(val, undefined, { edit: e, coarseDiffCount: edits.reduce((sum, change) => sum + (change.coarseDiffCount ?? 0), 0) });
 		}));
 	}
 
-	async waitForQueue(): Promise<void> {
-		await this._originalDoc.waitForQueue();
+	waitForQueue(onDrained?: () => void | Promise<void>): Promise<void> {
+		return this._originalDoc.waitForQueue(onDrained);
 	}
 }
 
@@ -325,8 +344,8 @@ export class MinimizeEditsProcessor<TEditData extends IEditData<TEditData>> exte
  */
 export function createDocWithJustReason(docWithAnnotatedEdits: IDocumentWithAnnotatedEdits<EditSourceData>, store: DisposableStore): IDocumentWithAnnotatedEdits<EditKeySourceData> {
 	const docWithJustReason: IDocumentWithAnnotatedEdits<EditKeySourceData> = {
-		value: mapObservableDelta(docWithAnnotatedEdits.value, edit => ({ edit: edit.edit.mapData(d => d.data.toEditSourceData()) }), store),
-		waitForQueue: () => docWithAnnotatedEdits.waitForQueue(),
+		value: mapObservableDelta(docWithAnnotatedEdits.value, edit => ({ edit: edit.edit.mapData(d => d.data.toEditSourceData()), coarseDiffCount: edit.coarseDiffCount }), store),
+		waitForQueue: onDrained => docWithAnnotatedEdits.waitForQueue(onDrained),
 	};
 	return docWithJustReason;
 }

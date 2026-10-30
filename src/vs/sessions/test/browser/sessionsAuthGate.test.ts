@@ -4,54 +4,58 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isWeb } from '../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { shouldShowDiscoveredConfigNudge } from '../../browser/sessionsAuthGate.js';
+import { ConditionalAuthState, conditionalAuthState, resolveSignedOutWindowGate, shouldShowGitHubWorkspaceGroupSignIn, SignedOutWindowGate } from '../../browser/sessionsAuthGate.js';
+import { SessionTypeAuthRequirement } from '../../services/sessions/common/session.js';
 
 suite('Sessions - Auth Gate', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('shows the discovered-config nudge only when signed out, opted in, the type is usable without GitHub, and not muted', () => {
-		// Independent source of truth: the nudge is the calm inverse of the gate —
-		// it appears iff the user is signed out AND the opt-in is on AND that type
-		// is usable without GitHub AND the user has not muted it. Of all 16 input
-		// combinations only one satisfies every condition.
+	test('blocking sign-in allows native providers or initialization without GitHub', () => {
+		assert.deepStrictEqual({
+			initializesWithoutGitHub: resolveSignedOutWindowGate([SessionTypeAuthRequirement.GitHub], true),
+			initializationBeforeProviders: resolveSignedOutWindowGate([], true),
+			providersUnresolved: resolveSignedOutWindowGate([]),
+			allRequireGitHub: resolveSignedOutWindowGate([SessionTypeAuthRequirement.GitHub, SessionTypeAuthRequirement.GitHub]),
+			nativeProvider: resolveSignedOutWindowGate([SessionTypeAuthRequirement.GitHub, SessionTypeAuthRequirement.None]),
+			nativeProviderInitializing: resolveSignedOutWindowGate([SessionTypeAuthRequirement.GitHub, SessionTypeAuthRequirement.Unusable]),
+		}, {
+			initializesWithoutGitHub: SignedOutWindowGate.Proceed,
+			initializationBeforeProviders: SignedOutWindowGate.Unresolved,
+			providersUnresolved: isWeb ? SignedOutWindowGate.ForceGitHubSignIn : SignedOutWindowGate.Unresolved,
+			allRequireGitHub: SignedOutWindowGate.ForceGitHubSignIn,
+			nativeProvider: isWeb ? SignedOutWindowGate.ForceGitHubSignIn : SignedOutWindowGate.Proceed,
+			nativeProviderInitializing: isWeb ? SignedOutWindowGate.ForceGitHubSignIn : SignedOutWindowGate.Proceed,
+		});
+	});
+
+	test('GitHub workspace group offers sign-in only for signed-out users', () => {
+		assert.deepStrictEqual([
+			shouldShowGitHubWorkspaceGroupSignIn(false),
+			shouldShowGitHubWorkspaceGroupSignIn(true),
+		], [!isWeb, false]);
+	});
+
+	test('conditionalAuthState treats an unresolved account as unknown, never signed out', () => {
+		// The root-cause distinction: before the account resolves, its snapshot is
+		// null for signed-in and signed-out users alike, so `accountResolved: false`
+		// must map to Unresolved regardless of the (untrustworthy) signedIn snapshot —
+		// otherwise the conditional-auth UI flashes a sign-in modal at a signed-in
+		// user during startup.
 		const cases = [
-			{ signedIn: true, allowSignedOutWhenUsable: false, usableWithoutGitHub: false, muted: false },
-			{ signedIn: true, allowSignedOutWhenUsable: false, usableWithoutGitHub: false, muted: true },
-			{ signedIn: true, allowSignedOutWhenUsable: false, usableWithoutGitHub: true, muted: false },
-			{ signedIn: true, allowSignedOutWhenUsable: false, usableWithoutGitHub: true, muted: true },
-			{ signedIn: true, allowSignedOutWhenUsable: true, usableWithoutGitHub: false, muted: false },
-			{ signedIn: true, allowSignedOutWhenUsable: true, usableWithoutGitHub: false, muted: true },
-			{ signedIn: true, allowSignedOutWhenUsable: true, usableWithoutGitHub: true, muted: false },
-			{ signedIn: true, allowSignedOutWhenUsable: true, usableWithoutGitHub: true, muted: true },
-			{ signedIn: false, allowSignedOutWhenUsable: false, usableWithoutGitHub: false, muted: false },
-			{ signedIn: false, allowSignedOutWhenUsable: false, usableWithoutGitHub: false, muted: true },
-			{ signedIn: false, allowSignedOutWhenUsable: false, usableWithoutGitHub: true, muted: false },
-			{ signedIn: false, allowSignedOutWhenUsable: false, usableWithoutGitHub: true, muted: true },
-			{ signedIn: false, allowSignedOutWhenUsable: true, usableWithoutGitHub: false, muted: false },
-			{ signedIn: false, allowSignedOutWhenUsable: true, usableWithoutGitHub: false, muted: true },
-			{ signedIn: false, allowSignedOutWhenUsable: true, usableWithoutGitHub: true, muted: false },
-			{ signedIn: false, allowSignedOutWhenUsable: true, usableWithoutGitHub: true, muted: true },
+			{ accountResolved: false, signedIn: false },
+			{ accountResolved: false, signedIn: true },
+			{ accountResolved: true, signedIn: false },
+			{ accountResolved: true, signedIn: true },
 		];
 
-		assert.deepStrictEqual(cases.map(shouldShowDiscoveredConfigNudge), [
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			true,
-			false,
+		assert.deepStrictEqual(cases.map(c => conditionalAuthState(c.accountResolved, c.signedIn)), [
+			ConditionalAuthState.Unresolved,
+			ConditionalAuthState.Unresolved,
+			ConditionalAuthState.SignedOut,
+			ConditionalAuthState.SignedIn,
 		]);
 	});
 });

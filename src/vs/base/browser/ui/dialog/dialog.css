@@ -84,6 +84,11 @@
 	align-self: baseline;
 }
 
+.monaco-dialog-box .dialog-message-row > .dialog-icon.custom-icon {
+	display: flex;
+	flex: 0 0 auto;
+}
+
 .monaco-dialog-box:not(.align-vertical) .dialog-message-row .dialog-message-container {
 	align-self: stretch; /* fill row height so overflow-y scrolling works */
 }
@@ -142,7 +147,8 @@
 	white-space: pre-wrap;
 }
 
-.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus {
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus,
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail a:focus {
 	outline-width: 1px;
 	outline-style: solid;
 }

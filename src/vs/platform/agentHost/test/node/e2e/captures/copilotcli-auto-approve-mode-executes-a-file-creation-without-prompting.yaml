@@ -1,0 +1,39 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Create approved.txt containing exactly APPROVED_CONTENT using your file creation tool, then reply exactly "created".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: create
+          input:
+            path: ${workdir}/approved.txt
+            file_text: APPROVED_CONTENT
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Create approved.txt containing exactly APPROVED_CONTENT using your file creation tool, then reply exactly "created".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: create
+              input:
+                path: ${workdir}/approved.txt
+                file_text: APPROVED_CONTENT
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Created file ${workdir}/approved.txt with 16 characters
+    response:
+      content: created
+      stopReason: end_turn

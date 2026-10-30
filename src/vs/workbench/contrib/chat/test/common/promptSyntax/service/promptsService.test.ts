@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
@@ -22,8 +22,8 @@ import { IModelService } from '../../../../../../../editor/common/services/model
 import { ModelService } from '../../../../../../../editor/common/services/modelService.js';
 import { IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
-import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { ExtensionIdentifier, IChatFileContribution, IExtensionDescription, TargetPlatform } from '../../../../../../../platform/extensions/common/extensions.js';
+import { IFileContent, IFileService, IReadFileOptions } from '../../../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -40,25 +40,29 @@ import { toUserDataProfile } from '../../../../../../../platform/userDataProfile
 import { TestContextService, TestUserDataProfileService, TestWorkspaceTrustManagementService } from '../../../../../../test/common/workbenchTestServices.js';
 import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ComputeAutomaticInstructions, newInstructionsCollectionEvent, newInstructionsCollectionDebugInfo } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
+import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
+import { MockChatSessionsService } from '../../mockChatSessionsService.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
-import { IAgentDiscoveryResult, IAgentSource, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { IAgentDiscoveryResult, IAgentSource, ICustomAgent, IPromptFileContext, IPromptPath, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
 import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../services/search/common/search.js';
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
+import { ExtensionMessageCollector, ExtensionsRegistry } from '../../../../../../services/extensions/common/extensionsRegistry.js';
 import { IRemoteAgentService } from '../../../../../../services/remote/common/remoteAgentService.js';
 import { ChatConfiguration, ChatModeKind } from '../../../../common/constants.js';
 import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
 import { IContextKeyChangeEvent, IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginAgent, IAgentPluginAutomation, IAgentPluginCommand, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
 import { PluginFormat } from '../../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 import { COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { ChatPromptFilesExtensionPointHandler } from '../../../../common/promptSyntax/chatPromptFilesContribution.js';
 
 class TestPromptContextKeyService extends MockContextKeyService {
 	private readonly _onDidChangeContextEmitter = new Emitter<IContextKeyChangeEvent>();
@@ -100,10 +104,12 @@ suite('PromptsService', () => {
 	let fileService: IFileService;
 	let testPluginsObservable: ISettableObservable<readonly IAgentPlugin[]>;
 	let workspaceTrustService: TestWorkspaceTrustManagementService;
+	let logService: NullLogService;
 
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
-		instaService.stub(ILogService, new NullLogService());
+		logService = new NullLogService();
+		instaService.stub(ILogService, logService);
 
 		workspaceContextService = new TestContextService();
 		instaService.stub(IWorkspaceContextService, workspaceContextService);
@@ -124,6 +130,7 @@ suite('PromptsService', () => {
 		instaService.stub(IWorkbenchEnvironmentService, {});
 		instaService.stub(IUserDataProfileService, new TestUserDataProfileService());
 		instaService.stub(ITelemetryService, NullTelemetryService);
+		instaService.stub(IChatSessionsService, new MockChatSessionsService());
 		instaService.stub(IStorageService, InMemoryStorageService);
 		instaService.stub(IExtensionService, {
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true),
@@ -211,11 +218,32 @@ suite('PromptsService', () => {
 
 		instaService.stub(IAgentPluginService, {
 			plugins: testPluginsObservable,
-			enablementModel: { readEnabled: () => 2 /* EnabledProfile */, setEnabled: () => { }, remove: () => { } },
+			enablementModel: { readEnabled: () => 2 /* EnabledProfile */, readProfileEnabled: () => true, setEnabled: () => { }, remove: () => { } },
 		});
 
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);
+	});
+
+	test('lists local prompt files relative to an explicit root and its parent repository', async () => {
+		const parentRoot = URI.file('/parent-repo');
+		const explicitRoot = URI.joinPath(parentRoot, 'packages/explicit-root');
+		const siblingRoot = URI.file('/sibling-root');
+		workspaceContextService.setWorkspace(testWorkspace(explicitRoot, siblingRoot));
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, true);
+		await mockFiles(fileService, [
+			{ path: '/parent-repo/.git/HEAD', contents: ['ref: refs/heads/main'] },
+			{ path: '/parent-repo/.github/prompts/parent.prompt.md', contents: ['parent'] },
+			{ path: '/parent-repo/packages/explicit-root/.github/prompts/explicit.prompt.md', contents: ['explicit'] },
+			{ path: '/sibling-root/.github/prompts/sibling.prompt.md', contents: ['sibling'] },
+		]);
+
+		const files = await service.listPromptFilesForStorage(PromptsType.prompt, PromptsStorage.local, CancellationToken.None, explicitRoot);
+
+		assert.deepStrictEqual(files.map(file => file.uri.path), [
+			'/parent-repo/packages/explicit-root/.github/prompts/explicit.prompt.md',
+			'/parent-repo/.github/prompts/parent.prompt.md',
+		]);
 	});
 
 	suite('IAgentSource.isEquals', () => {
@@ -907,6 +935,242 @@ suite('PromptsService', () => {
 	suite('getCustomAgents', () => {
 		teardown(() => {
 			sinon.restore();
+		});
+
+		const getPluginAgentPreToolUseHooks = async (pluginUri: URI, format: PluginFormat, hookProperties: readonly string[]) => {
+			const workspaceUri = URI.file('/workspace');
+			const agentUri = URI.joinPath(pluginUri, 'agents', 'reviewer.md');
+			workspaceContextService.setWorkspace(testWorkspace(workspaceUri));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			await mockFiles(fileService, [{
+				path: agentUri.path,
+				contents: [
+					'---',
+					'name: reviewer',
+					'hooks:',
+					'  PreToolUse:',
+					'    - type: command',
+					...hookProperties.map(property => `      ${property}`),
+					'      env:',
+					'        EXISTING: "value"',
+					'---',
+				],
+			}]);
+
+			const plugin: IAgentPlugin = {
+				uri: pluginUri,
+				format,
+				label: 'test-plugin',
+				enablement: observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
+				hooks: observableValue('testPluginHooks', []),
+				commands: observableValue('testPluginCommands', []),
+				skills: observableValue('testPluginSkills', []),
+				agents: observableValue<readonly IAgentPluginAgent[]>('testPluginAgents', [{ uri: agentUri, name: 'reviewer' }]),
+				instructions: observableValue('testPluginInstructions', []),
+				mcpServerDefinitions: observableValue('testPluginMcpServers', []),
+				automations: observableValue('testPluginAutomations', []),
+			};
+			testPluginsObservable.set([plugin], undefined);
+
+			const agents = await service.getCustomAgents(CancellationToken.None);
+			return { hooks: agents[0]?.hooks?.[HookType.PreToolUse], workspaceUri };
+		};
+
+		test('reads agent files with bounded concurrency', async () => {
+			const rootFolder = '/custom-agents-concurrency';
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const agentCount = 40;
+			await mockFiles(fileService, Array.from({ length: agentCount }, (_, index) => ({
+				path: `${rootFolder}/.github/agents/agent${index}.agent.md`,
+				contents: [
+					'---',
+					`description: 'Agent file ${index}.'`,
+					'---',
+				]
+			})));
+
+			let inFlight = 0;
+			let maxInFlight = 0;
+			const readFile = fileService.readFile.bind(fileService);
+			sinon.stub(fileService, 'readFile').callsFake(async (resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent> => {
+				inFlight++;
+				maxInFlight = Math.max(maxInFlight, inFlight);
+				try {
+					// Yield so that overlapping reads are observable.
+					await timeout(0);
+					return await readFile(resource, options, token);
+				} finally {
+					inFlight--;
+				}
+			});
+
+			const agents = await service.getCustomAgents(CancellationToken.None);
+
+			assert.strictEqual(agents.length, agentCount, 'Must discover every agent file.');
+			assert.ok(maxInFlight > 1, 'Must read agent files concurrently.');
+			assert.ok(
+				maxInFlight < agentCount,
+				`Must not read all ${agentCount} agent files at once, but read ${maxInFlight} concurrently.`,
+			);
+
+			// A discovery pass can be invalidated while it is still running, which
+			// starts a second pass alongside the first. Both passes must share the
+			// same quota, otherwise the number of open files grows with the number
+			// of passes.
+			const singlePassPeak = maxInFlight;
+			maxInFlight = 0;
+
+			const firstPass = service.getCustomAgents(CancellationToken.None);
+			const contributedAgent = URI.joinPath(rootFolderUri, '.github/agents/agent0.agent.md');
+			const registered = service.registerContributedFile(
+				PromptsType.agent,
+				contributedAgent,
+				{ identifier: new ExtensionIdentifier('test.extension'), name: 'test' } as IExtensionDescription,
+				undefined,
+				undefined,
+			);
+			const secondPass = service.getCustomAgents(CancellationToken.None);
+			await Promise.all([firstPass, secondPass]);
+			registered.dispose();
+
+			assert.ok(
+				maxInFlight <= singlePassPeak,
+				`Overlapping discovery passes must share one quota, but read ${maxInFlight} concurrently versus ${singlePassPeak} for a single pass.`,
+			);
+		});
+
+		test('does not cache partially completed canceled agent discovery', async () => {
+			const rootFolder = '/custom-agents-cancellation';
+			const rootFolderUri = URI.file(rootFolder);
+			const firstAgent = URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md');
+			const secondAgent = URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md');
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await mockFiles(fileService, [
+				{ path: firstAgent.path, contents: ['---', 'description: First agent.', '---'] },
+				{ path: secondAgent.path, contents: ['---', 'description: Second agent.', '---'] },
+			]);
+
+			const firstReadCompleted = new DeferredPromise<void>();
+			const secondReadStarted = new DeferredPromise<void>();
+			const releaseSecondRead = new DeferredPromise<void>();
+			const readFile = fileService.readFile.bind(fileService);
+			const readFileStub = sinon.stub(fileService, 'readFile').callsFake(async (resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent> => {
+				if (resource.toString() === firstAgent.toString()) {
+					const result = await readFile(resource, options, token);
+					firstReadCompleted.complete();
+					return result;
+				}
+				if (resource.toString() === secondAgent.toString()) {
+					secondReadStarted.complete();
+					await releaseSecondRead.p;
+				}
+				return readFile(resource, options, token);
+			});
+
+			const cancellationTokenSource = disposables.add(new CancellationTokenSource());
+			const canceledDiscovery = service.getCustomAgents(cancellationTokenSource.token);
+			await Promise.all([firstReadCompleted.p, secondReadStarted.p]);
+			cancellationTokenSource.cancel();
+			await assert.rejects(canceledDiscovery, CancellationError);
+			releaseSecondRead.complete();
+			await timeout(0);
+			readFileStub.restore();
+
+			const agents = await service.getCustomAgents(CancellationToken.None);
+
+			assert.deepStrictEqual(
+				agents.map(agent => agent.name).sort(),
+				['agent1', 'agent2'],
+			);
+		});
+
+		test('resolves CLAUDE_PLUGIN_ROOT in hooks from Claude plugin agents', async () => {
+			const pluginUri = URI.file('/plugins/claude-plugin');
+			const { hooks, workspaceUri } = await getPluginAgentPreToolUseHooks(
+				pluginUri,
+				PluginFormat.Claude,
+				['command: "${CLAUDE_PLUGIN_ROOT}/scripts/pre-tool.sh"'],
+			);
+
+			assert.deepStrictEqual(hooks, [{
+				type: 'command',
+				command: `${pluginUri.fsPath}/scripts/pre-tool.sh`,
+				cwd: workspaceUri,
+				env: {
+					EXISTING: 'value',
+					CLAUDE_PLUGIN_ROOT: pluginUri.fsPath,
+				},
+			}]);
+		});
+
+		test('resolves and quotes PLUGIN_ROOT aliases in hooks from Open Plugin agents', async () => {
+			const pluginUri = URI.file('/plugins/open plugin');
+			const { hooks, workspaceUri } = await getPluginAgentPreToolUseHooks(
+				pluginUri,
+				PluginFormat.OpenPlugin,
+				[
+					'bash: "${PLUGIN_ROOT}/scripts/pre-tool.sh"',
+					'powershell: "${PLUGIN_ROOT}/scripts/pre-tool.ps1"',
+				],
+			);
+			const quotedScript = (name: string) => `'${pluginUri.fsPath}/scripts/${name}'`;
+
+			assert.deepStrictEqual(hooks, [{
+				type: 'command',
+				windows: quotedScript('pre-tool.ps1'),
+				linux: quotedScript('pre-tool.sh'),
+				osx: quotedScript('pre-tool.sh'),
+				windowsSource: 'powershell',
+				linuxSource: 'bash',
+				osxSource: 'bash',
+				cwd: workspaceUri,
+				env: {
+					EXISTING: 'value',
+					PLUGIN_ROOT: pluginUri.fsPath,
+				},
+			}]);
+		});
+
+		test('resolves PLUGIN_ROOT in hooks from Copilot plugin agents', async () => {
+			const pluginUri = URI.file('/plugins/copilot-plugin');
+			const { hooks, workspaceUri } = await getPluginAgentPreToolUseHooks(
+				pluginUri,
+				PluginFormat.Copilot,
+				['command: "echo ${PLUGIN_ROOT}"'],
+			);
+
+			assert.deepStrictEqual(hooks, [{
+				type: 'command',
+				command: `echo ${pluginUri.fsPath}`,
+				cwd: workspaceUri,
+				env: {
+					EXISTING: 'value',
+					PLUGIN_ROOT: pluginUri.fsPath,
+				},
+			}]);
+		});
+
+		test('resolves PLUGIN_ROOT in hooks from Agent Plugin agents', async () => {
+			const pluginUri = URI.file('/plugins/agent-plugin');
+			const { hooks, workspaceUri } = await getPluginAgentPreToolUseHooks(
+				pluginUri,
+				PluginFormat.AgentPlugin,
+				['command: "echo ${PLUGIN_ROOT}"'],
+			);
+
+			assert.deepStrictEqual(hooks, [{
+				type: 'command',
+				command: `echo ${pluginUri.fsPath}`,
+				cwd: workspaceUri,
+				env: {
+					EXISTING: 'value',
+					PLUGIN_ROOT: pluginUri.fsPath,
+				},
+			}]);
 		});
 
 
@@ -1830,8 +2094,17 @@ suite('PromptsService', () => {
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			const userPromptsFolder = '/user-data/prompts';
+			const userPromptsFolder = '/home/user/user-data-prompts';
 			const userPromptsFolderUri = URI.file(userPromptsFolder);
+			testConfigService.setUserConfiguration(PromptsConfig.PROMPT_LOCATIONS_KEY, {
+				[PROMPT_DEFAULT_SOURCE_FOLDER]: true,
+				'~/.copilot/prompts': true,
+				'~/shared-prompts': true,
+				'/home/user/shared-prompts': true,
+				'~/user-data-prompts': true,
+				[userPromptsFolder]: true,
+				[`${userPromptsFolder}/team`]: true,
+			});
 
 			// Override the user data profile service
 			const customUserDataProfileService = {
@@ -1849,7 +2122,7 @@ suite('PromptsService', () => {
 			service.dispose();
 			const testService = disposables.add(instaService.createInstance(PromptsService));
 
-			// Create prompt files in both workspace and user data folder
+			// Create prompt files in workspace, User Data, and a configured personal folder.
 			await mockFiles(fileService, [
 				// Workspace prompt
 				{
@@ -1870,21 +2143,100 @@ suite('PromptsService', () => {
 						'---',
 						'I am a user data prompt.',
 					]
+				},
+				{
+					path: '/home/user/shared-prompts/shared.prompt.md',
+					contents: [
+						'---',
+						'description: \'Shared configured prompt.\'',
+						'---',
+						'I am configured for both storages.',
+					]
+				},
+				{
+					path: `${userPromptsFolder}/team/team.prompt.md`,
+					contents: [
+						'---',
+						'description: \'Nested user data prompt.\'',
+						'---',
+						'I am a nested user data prompt.',
+					]
+				},
+				{
+					path: '/home/user/.copilot/prompts/personal.prompt.md',
+					contents: [
+						'---',
+						'description: \'Personal prompt.\'',
+						'---',
+						'I am a personal prompt.',
+					]
 				}
 			]);
 
-			const result = await testService.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+			const [allPrompts, userPrompts, workspacePrompts] = await Promise.all([
+				testService.listPromptFiles(PromptsType.prompt, CancellationToken.None),
+				testService.listPromptFilesForStorage(PromptsType.prompt, PromptsStorage.user, CancellationToken.None),
+				testService.listPromptFilesForStorage(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
+			]);
+			const summarize = (prompts: readonly IPromptPath[]) => prompts
+				.map(prompt => ({ file: basename(prompt.uri), storage: prompt.storage, source: prompt.source }))
+				.sort((a, b) => `${a.file}:${a.storage}`.localeCompare(`${b.file}:${b.storage}`));
 
-			// Should find prompts from both workspace and user data
-			assert.strictEqual(result.length, 2, 'Should find 2 prompts (1 workspace + 1 user data)');
+			assert.deepStrictEqual({
+				allPrompts: summarize(allPrompts),
+				userPrompts: summarize(userPrompts),
+				workspacePrompts: summarize(workspacePrompts),
+			}, {
+				allPrompts: [
+					{ file: 'personal.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.ConfigPersonal },
+					{ file: 'shared.prompt.md', storage: PromptsStorage.local, source: PromptFileSource.ConfigWorkspace },
+					{ file: 'shared.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.ConfigPersonal },
+					{ file: 'team.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.UserData },
+					{ file: 'user-prompt.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.UserData },
+					{ file: 'workspace-prompt.prompt.md', storage: PromptsStorage.local, source: PromptFileSource.GitHubWorkspace },
+				],
+				userPrompts: [
+					{ file: 'personal.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.ConfigPersonal },
+					{ file: 'shared.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.ConfigPersonal },
+					{ file: 'team.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.UserData },
+					{ file: 'user-prompt.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.UserData },
+				],
+				workspacePrompts: [
+					{ file: 'shared.prompt.md', storage: PromptsStorage.local, source: PromptFileSource.ConfigWorkspace },
+					{ file: 'workspace-prompt.prompt.md', storage: PromptsStorage.local, source: PromptFileSource.GitHubWorkspace },
+				],
+			});
+		});
 
-			const workspacePrompt = result.find(p => p.storage === PromptsStorage.local);
-			assert.ok(workspacePrompt, 'Should find workspace prompt');
-			assert.ok(workspacePrompt.uri.path.includes('workspace-prompt.prompt.md'));
+		test('does not cache canceled prompt discovery', async () => {
+			const rootFolder = '/prompts-discovery-cancellation';
+			const rootFolderUri = URI.file(rootFolder);
 
-			const userPrompt = result.find(p => p.storage === PromptsStorage.user);
-			assert.ok(userPrompt, 'Should find user data prompt');
-			assert.ok(userPrompt.uri.path.includes('user-prompt.prompt.md'));
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/prompts/workspace-prompt.prompt.md`,
+					contents: [
+						'---',
+						'description: \'Workspace prompt.\'',
+						'---',
+						'I am a workspace prompt.',
+					]
+				},
+			]);
+
+			const cancellationTokenSource = disposables.add(new CancellationTokenSource());
+			cancellationTokenSource.cancel();
+
+			await assert.rejects(service.listPromptFiles(PromptsType.prompt, cancellationTokenSource.token), CancellationError);
+
+			const prompts = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+
+			assert.deepStrictEqual(
+				prompts.map(prompt => basename(prompt.uri)),
+				['workspace-prompt.prompt.md'],
+			);
 		});
 	});
 
@@ -1896,8 +2248,13 @@ suite('PromptsService', () => {
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			const userPromptsFolder = '/user-data/prompts';
+			const userPromptsFolder = '/home/user/user-data-prompts';
 			const userPromptsFolderUri = URI.file(userPromptsFolder);
+			testConfigService.setUserConfiguration(PromptsConfig.INSTRUCTIONS_LOCATION_KEY, {
+				[INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true,
+				'~/': true,
+				'/home/user': true,
+			});
 
 			// Override the user data profile service
 			const customUserDataProfileService = {
@@ -1941,18 +2298,31 @@ suite('PromptsService', () => {
 				}
 			]);
 
-			const result = await testService.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			const [allInstructions, userInstructions, workspaceInstructions] = await Promise.all([
+				testService.listPromptFiles(PromptsType.instructions, CancellationToken.None),
+				testService.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.user, CancellationToken.None),
+				testService.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.local, CancellationToken.None),
+			]);
+			const summarize = (instructions: readonly IPromptPath[]) => instructions
+				.map(instruction => ({ file: basename(instruction.uri), storage: instruction.storage, source: instruction.source }))
+				.sort((a, b) => a.file.localeCompare(b.file));
 
-			// Should find instructions from both workspace and user data
-			assert.strictEqual(result.length, 2, 'Should find 2 instructions (1 workspace + 1 user data)');
-
-			const workspaceInstructions = result.find(p => p.storage === PromptsStorage.local);
-			assert.ok(workspaceInstructions, 'Should find workspace instructions');
-			assert.ok(workspaceInstructions.uri.path.includes('workspace-instructions.instructions.md'));
-
-			const userInstructions = result.find(p => p.storage === PromptsStorage.user);
-			assert.ok(userInstructions, 'Should find user data instructions');
-			assert.ok(userInstructions.uri.path.includes('user-instructions.instructions.md'));
+			assert.deepStrictEqual({
+				allInstructions: summarize(allInstructions),
+				userInstructions: summarize(userInstructions),
+				workspaceInstructions: summarize(workspaceInstructions),
+			}, {
+				allInstructions: [
+					{ file: 'user-instructions.instructions.md', storage: PromptsStorage.user, source: PromptFileSource.UserData },
+					{ file: 'workspace-instructions.instructions.md', storage: PromptsStorage.local, source: PromptFileSource.GitHubWorkspace },
+				],
+				userInstructions: [
+					{ file: 'user-instructions.instructions.md', storage: PromptsStorage.user, source: PromptFileSource.UserData },
+				],
+				workspaceInstructions: [
+					{ file: 'workspace-instructions.instructions.md', storage: PromptsStorage.local, source: PromptFileSource.GitHubWorkspace },
+				],
+			});
 		});
 	});
 
@@ -2363,6 +2733,119 @@ suite('PromptsService', () => {
 			assert.strictEqual(actualAfterDispose.length, 0);
 		});
 
+		test('Canceled prompt file provider is skipped without logging', async () => {
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+			const logErrorSpy = sinon.spy(logService, 'error');
+			const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, {
+				providePromptFiles: async () => { throw new CancellationError(); }
+			});
+
+			try {
+				const files = await service.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.extension, CancellationToken.None);
+				assert.deepStrictEqual({ files, errorCalls: logErrorSpy.callCount }, { files: [], errorCalls: 0 });
+			} finally {
+				registered.dispose();
+				logErrorSpy.restore();
+			}
+		});
+
+		test('Prompt file provider error is logged and skipped', async () => {
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+			const logErrorSpy = sinon.spy(logService, 'error');
+			const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, {
+				providePromptFiles: async () => { throw new Error('provider failed'); }
+			});
+
+			try {
+				const files = await service.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.extension, CancellationToken.None);
+				assert.deepStrictEqual({ files, errorCalls: logErrorSpy.callCount }, { files: [], errorCalls: 1 });
+			} finally {
+				registered.dispose();
+				logErrorSpy.restore();
+			}
+		});
+
+		test('Canceled provider listing stops without logging an error', async () => {
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+			const cancellationTokenSource = disposables.add(new CancellationTokenSource());
+			let secondProviderCalled = false;
+			disposables.add(service.registerPromptFileProvider(extension, PromptsType.agent, {
+				providePromptFiles: async () => {
+					cancellationTokenSource.cancel();
+					throw new CancellationError();
+				}
+			}));
+			disposables.add(service.registerPromptFileProvider(extension, PromptsType.agent, {
+				providePromptFiles: async () => {
+					secondProviderCalled = true;
+					return [];
+				}
+			}));
+			const errorSpy = sinon.spy(logService, 'error');
+
+			try {
+				// Cancellation must surface as an error rather than an empty result,
+				// otherwise it gets cached as "no prompt files".
+				await assert.rejects(
+					service.listPromptFiles(PromptsType.agent, cancellationTokenSource.token),
+					CancellationError,
+				);
+
+				assert.deepStrictEqual({
+					secondProviderCalled,
+					errorCount: errorSpy.callCount,
+				}, {
+					secondProviderCalled: false,
+					errorCount: 0,
+				});
+			} finally {
+				errorSpy.restore();
+			}
+		});
+
+		test('does not cache a partial result when a provider swallows cancellation', async () => {
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+			// Block standalone files so the provider is the only cancellation source.
+			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
+			fireConfigChange(testConfigService, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG);
+
+			const agentUri = URI.parse('file://extensions/my-extension/provided.agent.md');
+			const cancellationTokenSource = disposables.add(new CancellationTokenSource());
+			let providerCalls = 0;
+			disposables.add(service.registerPromptFileProvider(extension, PromptsType.agent, {
+				providePromptFiles: async () => {
+					providerCalls++;
+					if (providerCalls === 1) {
+						// Cancel without throwing, the way the provider loop bails out.
+						cancellationTokenSource.cancel();
+						return [];
+					}
+					return [{ uri: agentUri }];
+				}
+			}));
+
+			await assert.rejects(service.listPromptFiles(PromptsType.agent, cancellationTokenSource.token), CancellationError);
+
+			const files = await service.listPromptFiles(PromptsType.agent, CancellationToken.None);
+
+			assert.deepStrictEqual(
+				files.map(file => file.uri.toString()),
+				[agentUri.toString()],
+			);
+		});
+
 		test('Contributed agent file that does not exist should not crash', async () => {
 			const nonExistentUri = URI.parse('file://extensions/my-extension/nonexistent.agent.md');
 			const existingUri = URI.parse('file://extensions/my-extension/existing.agent.md');
@@ -2586,6 +3069,212 @@ suite('PromptsService', () => {
 				for (const registration of registrations) {
 					registration.dispose();
 				}
+			}
+		});
+	});
+
+	suite('extension contribution updates', () => {
+		const contributionPoints = [
+			{ name: 'chatPromptFiles', type: PromptsType.prompt, path: 'test.prompt.md' },
+			{ name: 'chatInstructions', type: PromptsType.instructions, path: 'test.instructions.md' },
+			{ name: 'chatAgents', type: PromptsType.agent, path: 'test.agent.md' },
+			{ name: 'chatSkills', type: PromptsType.skill, path: 'test-skill/SKILL.md' },
+		] as const;
+
+		setup(() => {
+			disposables.add(instaService.createInstance(ChatPromptFilesExtensionPointHandler));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+		});
+
+		teardown(() => {
+			for (const { name } of contributionPoints) {
+				ExtensionsRegistry.getExtensionPoints().find(point => point.name === name)!.acceptUsers([]);
+			}
+		});
+
+		function extension(version: string, location = `/extensions/test.extension-${version}`): IExtensionDescription {
+			return {
+				identifier: new ExtensionIdentifier('test.extension'),
+				name: 'extension',
+				publisher: 'test',
+				description: 'Extension description',
+				version,
+				engines: { vscode: '*' },
+				targetPlatform: TargetPlatform.UNDEFINED,
+				isBuiltin: false,
+				isUserBuiltin: false,
+				isUnderDevelopment: false,
+				preRelease: false,
+				extensionLocation: URI.file(location),
+			};
+		}
+
+		function acceptContribution(name: string, description: IExtensionDescription, path: string) {
+			acceptContributions(name, description, [{ path, sessionTypes: [description.version] }]);
+		}
+
+		function acceptContributions(name: string, description: IExtensionDescription, files: readonly IChatFileContribution[]) {
+			const point = ExtensionsRegistry.getExtensionPoints().find(point => point.name === name)!;
+			point.acceptUsers([{
+				description,
+				value: files,
+				collector: new ExtensionMessageCollector(message => assert.fail(message.message), description, name),
+			}]);
+		}
+
+		async function writeContribution(description: IExtensionDescription, path: string) {
+			await mockFiles(fileService, [{
+				path: URI.joinPath(description.extensionLocation, path).path,
+				contents: ['---', 'name: test-skill', `description: Version ${description.version}`, '---', description.version],
+			}]);
+		}
+
+		for (const { name, type, path } of contributionPoints) {
+			test(`refreshes ${name} after an extension version update`, async () => {
+				const original = extension('1.0.0');
+				const updated = extension('2.0.0');
+				await writeContribution(original, path);
+				await writeContribution(updated, path);
+				acceptContribution(name, original, path);
+				await service.listPromptFiles(type, CancellationToken.None);
+
+				acceptContribution(name, updated, path);
+				const files = await service.listPromptFilesForStorage(type, PromptsStorage.extension, CancellationToken.None);
+				assert.deepStrictEqual(files.map(file => ({
+					uri: file.uri.path,
+					sessionTypes: file.sessionTypes,
+				})), [{
+					uri: URI.joinPath(updated.extensionLocation, path).path,
+					sessionTypes: ['2.0.0'],
+				}]);
+			});
+
+			test(`diffs individual ${name} files without reregistering unchanged files`, async () => {
+				const description = extension('1.0.0');
+				const removedPath = `removed/${path}`;
+				const changedPath = `changed/${path}`;
+				const addedPath = `added/${path}`;
+				for (const filePath of [path, removedPath, changedPath, addedPath]) {
+					await writeContribution(description, filePath);
+				}
+				const register = sinon.spy(service, 'registerContributedFile');
+				try {
+					acceptContributions(name, description, [
+						{ path },
+						{ path: removedPath },
+						{ path: changedPath, sessionTypes: ['old'] },
+					]);
+					await service.listPromptFilesForStorage(type, PromptsStorage.extension, CancellationToken.None);
+					const unchangedDispose = sinon.spy(register.getCall(0).returnValue, 'dispose');
+					const removedDispose = sinon.spy(register.getCall(1).returnValue, 'dispose');
+					const changedDispose = sinon.spy(register.getCall(2).returnValue, 'dispose');
+					try {
+						register.resetHistory();
+						acceptContributions(name, { ...description }, [
+							{ path: `./${path}` },
+							{ path: addedPath },
+							{ path: changedPath, sessionTypes: ['new'] },
+						]);
+						const files = await service.listPromptFilesForStorage(type, PromptsStorage.extension, CancellationToken.None);
+						assert.deepStrictEqual({
+							registered: register.args.map(([, uri]) => uri.path),
+							disposed: [unchangedDispose.callCount, removedDispose.callCount, changedDispose.callCount],
+							files: files.map(file => ({ uri: file.uri.path, sessionTypes: file.sessionTypes })),
+						}, {
+							registered: [
+								URI.joinPath(description.extensionLocation, addedPath).path,
+								URI.joinPath(description.extensionLocation, changedPath).path,
+							],
+							disposed: [0, 1, 1],
+							files: [
+								{ uri: URI.joinPath(description.extensionLocation, path).path, sessionTypes: undefined },
+								{ uri: URI.joinPath(description.extensionLocation, addedPath).path, sessionTypes: undefined },
+								{ uri: URI.joinPath(description.extensionLocation, changedPath).path, sessionTypes: ['new'] },
+							],
+						});
+					} finally {
+						unchangedDispose.restore();
+						removedDispose.restore();
+						changedDispose.restore();
+					}
+				} finally {
+					register.restore();
+				}
+			});
+		}
+
+		test('invalidates cached skills and slash commands after an extension update', async () => {
+			const path = 'test-skill/SKILL.md';
+			const original = extension('1.0.0');
+			const updated = extension('2.0.0');
+			await writeContribution(original, path);
+			await writeContribution(updated, path);
+			acceptContribution('chatSkills', original, path);
+			await service.findAgentSkills(CancellationToken.None);
+			await service.getPromptSlashCommands(CancellationToken.None);
+
+			acceptContribution('chatSkills', updated, path);
+			const skills = await service.findAgentSkills(CancellationToken.None);
+			const commands = await service.getPromptSlashCommands(CancellationToken.None);
+			const expected = [{
+				uri: URI.joinPath(updated.extensionLocation, path).path,
+				description: 'Version 2.0.0',
+			}];
+			assert.deepStrictEqual({
+				skills: skills?.map(skill => ({ uri: skill.uri.path, description: skill.description })),
+				commands: commands.map(command => ({ uri: command.uri.path, description: command.description })),
+			}, { skills: expected, commands: expected });
+		});
+
+		test('replaces contributions at the same location before registering the new version', async () => {
+			const path = 'test-skill/SKILL.md';
+			const original = extension('1.0.0', '/extensions/test.extension');
+			const updated = { ...extension('2.0.0', '/extensions/test.extension'), description: 'Updated extension description' };
+			await writeContribution(original, path);
+			acceptContribution('chatSkills', original, path);
+			await service.findAgentSkills(CancellationToken.None);
+
+			await writeContribution(updated, path);
+			acceptContribution('chatSkills', updated, path);
+			const skills = await service.findAgentSkills(CancellationToken.None);
+			assert.deepStrictEqual(skills?.map(skill => skill.description), ['Version 2.0.0']);
+		});
+
+		test('refreshes contributions when the installation location changes without a version change', async () => {
+			const path = 'test-skill/SKILL.md';
+			const original = extension('1.0.0', '/extensions/original');
+			const updated = extension('1.0.0', '/extensions/relocated');
+			await writeContribution(original, path);
+			await writeContribution(updated, path);
+			acceptContribution('chatSkills', original, path);
+			await service.findAgentSkills(CancellationToken.None);
+
+			acceptContribution('chatSkills', updated, path);
+			const skills = await service.findAgentSkills(CancellationToken.None);
+			assert.deepStrictEqual(skills?.map(skill => skill.uri.path), ['/extensions/relocated/test-skill/SKILL.md']);
+		});
+
+		test('does not reregister recreated extension metadata and removes uninstalled contributions', async () => {
+			const path = 'test-skill/SKILL.md';
+			const description = extension('1.0.0');
+			await writeContribution(description, path);
+			acceptContribution('chatSkills', description, path);
+			await service.findAgentSkills(CancellationToken.None);
+			const register = sinon.spy(service, 'registerContributedFile');
+			try {
+				acceptContribution('chatSkills', {
+					...description,
+					identifier: new ExtensionIdentifier('TEST.extension'),
+					description: 'Updated extension description',
+				}, path);
+				ExtensionsRegistry.getExtensionPoints().find(point => point.name === 'chatSkills')!.acceptUsers([]);
+				assert.deepStrictEqual({
+					registrations: register.callCount,
+					skills: await service.findAgentSkills(CancellationToken.None),
+				}, { registrations: 0, skills: [] });
+			} finally {
+				register.restore();
 			}
 		});
 	});
@@ -3718,6 +4407,34 @@ suite('PromptsService', () => {
 		});
 	});
 
+	suite('getPromptSlashCommands - prompt discovery', () => {
+		teardown(() => {
+			sinon.restore();
+		});
+
+		test('CancellationError from parseNew is skipped without logging', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
+
+			const promptUri = URI.parse('file://extensions/my-extension/cancelled.prompt.md');
+			const logErrorSpy = sinon.spy(logService, 'error');
+			sinon.stub(service, 'listPromptFiles').callsFake(async (type: PromptsType) => {
+				return type === PromptsType.prompt
+					? [{ uri: promptUri, storage: PromptsStorage.local, type: PromptsType.prompt } as IPromptPath]
+					: [];
+			});
+			sinon.stub(service, 'parseNew').rejects(new CancellationError());
+
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+			const discoveryInfo = await service.getDiscoveryInfo(PromptsType.prompt, CancellationToken.None);
+
+			assert.deepStrictEqual(slashCommands, []);
+			assert.strictEqual(logErrorSpy.called, false);
+			assert.strictEqual(discoveryInfo.files.length, 1);
+			assert.strictEqual(discoveryInfo.files[0].status, 'skipped');
+			assert.strictEqual(discoveryInfo.files[0].skipReason, 'parse-error');
+		});
+	});
+
 	suite('getPromptSlashCommands - skills', () => {
 		teardown(() => {
 			sinon.restore();
@@ -4536,13 +5253,14 @@ suite('PromptsService', () => {
 				format: PluginFormat.Copilot,
 				label: 'my-plugin',
 				enablement,
-				remove: () => { },
+				remove: async () => true,
 				hooks: observableValue('testPluginHooks', []),
 				commands: observableValue('testPluginCommands', []),
 				skills: observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', [{ uri: skillUri, name: 'deploy' }]),
 				agents: observableValue('testPluginAgents', []),
 				instructions: observableValue('testPluginInstructions', []),
 				mcpServerDefinitions: observableValue('testPluginMcpServerDefinitions', []),
+				automations: observableValue('testPluginAutomations', []),
 			};
 
 			testPluginsObservable.set([plugin], undefined);
@@ -4582,13 +5300,14 @@ suite('PromptsService', () => {
 				format: PluginFormat.Copilot,
 				label: 'devtools',
 				enablement,
-				remove: () => { },
+				remove: async () => true,
 				hooks: observableValue('testPluginHooks', []),
 				commands: observableValue('testPluginCommands', []),
 				skills: observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', [{ uri: skillUri, name: 'ci' }]),
 				agents: observableValue('testPluginAgents', []),
 				instructions: observableValue('testPluginInstructions', []),
 				mcpServerDefinitions: observableValue('testPluginMcpServerDefinitions', []),
+				automations: observableValue('testPluginAutomations', []),
 			};
 
 			testPluginsObservable.set([plugin], undefined);
@@ -4635,13 +5354,14 @@ suite('PromptsService', () => {
 				format: PluginFormat.Copilot,
 				label: 'datadog',
 				enablement,
-				remove: () => { },
+				remove: async () => true,
 				hooks: observableValue('testPluginHooks', []),
 				commands: observableValue('testPluginCommands', []),
 				skills: observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', [{ uri: skillUri, name: 'ddsetup' }]),
 				agents: observableValue('testPluginAgents', []),
 				instructions: observableValue('testPluginInstructions', []),
 				mcpServerDefinitions: observableValue('testPluginMcpServerDefinitions', []),
+				automations: observableValue('testPluginAutomations', []),
 			};
 
 			testPluginsObservable.set([plugin], undefined);
@@ -4722,6 +5442,7 @@ suite('PromptsService', () => {
 				agents: observableValue('lockdownPluginAgents', []),
 				instructions: observableValue('lockdownPluginInstructions', []),
 				mcpServerDefinitions: observableValue('lockdownPluginMcpServers', []),
+				automations: observableValue('lockdownPluginAutomations', []),
 			};
 			testPluginsObservable.set([plugin], undefined);
 
@@ -4757,6 +5478,7 @@ suite('PromptsService', () => {
 				agents: observableValue('lockdownInstructionPluginAgents', []),
 				instructions: observableValue<readonly IAgentPluginInstruction[]>('lockdownPluginInstructions', [{ uri: pluginInstructionUri, name: 'plugin' }]),
 				mcpServerDefinitions: observableValue('lockdownInstructionPluginMcpServers', []),
+				automations: observableValue('lockdownInstructionPluginAutomations', []),
 			};
 			testPluginsObservable.set([plugin], undefined);
 
@@ -4845,6 +5567,7 @@ suite('PromptsService', () => {
 				agents: observableValue<readonly IAgentPluginAgent[]>('managedPluginAgents', [{ uri: agentUri, name: 'reviewer' }]),
 				instructions: observableValue('managedPluginInstructions', []),
 				mcpServerDefinitions: observableValue('managedPluginMcpServers', []),
+				automations: observableValue('managedPluginAutomations', []),
 			};
 			testPluginsObservable.set([plugin], undefined);
 			fireConfigChange(testConfigService, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, ChatConfiguration.EnabledPlugins);
@@ -4864,6 +5587,7 @@ suite('PromptsService', () => {
 			const agents = observableValue<readonly IAgentPluginAgent[]>('testPluginAgents', []);
 			const instructions = observableValue<readonly IAgentPluginInstruction[]>('testPluginInstructions', []);
 			const mcpServerDefinitions = observableValue<readonly IAgentPluginMcpServerDefinition[]>('testPluginMcpServerDefinitions', []);
+			const automations = observableValue<readonly IAgentPluginAutomation[]>('testPluginAutomations', []);
 
 			return {
 				plugin: {
@@ -4871,13 +5595,14 @@ suite('PromptsService', () => {
 					format: PluginFormat.Copilot,
 					label: basename(URI.file(path)),
 					enablement,
-					remove: () => { },
+					remove: async () => true,
 					hooks,
 					commands,
 					skills,
 					agents,
 					instructions,
 					mcpServerDefinitions,
+					automations,
 				},
 				hooks,
 			};
@@ -5137,6 +5862,7 @@ suite('PromptsService', () => {
 			const agents = observableValue<readonly IAgentPluginAgent[]>('testPluginAgents', []);
 			const instructions = observableValue<readonly IAgentPluginInstruction[]>('testPluginInstructions', initialInstructions);
 			const mcpServerDefinitions = observableValue<readonly IAgentPluginMcpServerDefinition[]>('testPluginMcpServerDefinitions', []);
+			const automations = observableValue<readonly IAgentPluginAutomation[]>('testPluginAutomations', []);
 
 			return {
 				plugin: {
@@ -5144,13 +5870,14 @@ suite('PromptsService', () => {
 					format: PluginFormat.Copilot,
 					label: basename(URI.file(path)),
 					enablement,
-					remove: () => { },
+					remove: async () => true,
 					hooks,
 					commands,
 					skills,
 					agents,
 					instructions,
 					mcpServerDefinitions,
+					automations,
 				},
 				instructions,
 			};

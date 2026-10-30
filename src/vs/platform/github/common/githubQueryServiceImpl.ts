@@ -1,0 +1,949 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { raceCancellationError } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { ISettableObservable, observableValue } from '../../../base/common/observable.js';
+import { hasKey } from '../../../base/common/types.js';
+import { ILogService } from '../../log/common/log.js';
+import { getGraphQLErrorKind } from './client/graphql.js';
+import {
+	GitHubCommit,
+	GitHubCommitRef,
+	GitHubCommitResource,
+	GitHubCommitSubscription,
+	GitHubHydratableResourceRef,
+	GitHubIssue,
+	GitHubIssueRef,
+	GitHubIssueResource,
+	GitHubIssueSubscription,
+	GitHubQueryApi,
+	GitHubRepository,
+	GitHubRepositoryRef,
+	GitHubRepositoryResource,
+	GitHubRepositorySubscription,
+	GitHubResourcePriority,
+	GitHubResourceSubscriptionOptions,
+} from './githubQueryService.js';
+import { FragmentState, GitHubActor } from './githubPullRequestService.js';
+import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
+import { IGitHubCapabilities } from './githubHostCapabilitiesService.js';
+import { arrayProperty, asObject, idProperty, nullableStringProperty, numberProperty, objectProperty, optionalObjectProperty, requiredNumber, requiredString, stringProperty } from './githubResponse.js';
+import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
+import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
+import { BackoffPolicy, backoffDelay } from './backoff.js';
+import { IGitHubEndpointProvider } from './githubTypes.js';
+import { PullRequestScheduler } from './pullRequestScheduler.js';
+import { AccountHandle } from './types.js';
+
+export interface GitHubEntityPollingPolicy {
+	readonly dormantGrace: number;
+	readonly maximumDormantEntries: number;
+	readonly visible: number;
+	readonly background: number;
+	readonly failureBackoff: BackoffPolicy;
+	readonly jitter: number;
+}
+
+const defaultPollingPolicy: GitHubEntityPollingPolicy = {
+	dormantGrace: 120_000,
+	maximumDormantEntries: 50,
+	visible: 60_000,
+	background: 300_000,
+	failureBackoff: { immediateRetries: 0, base: 60_000, maximum: 900_000, jitter: 5_000 },
+	jitter: 5_000,
+};
+
+const maximumHydrationBatchSize = 25;
+const repositoryHydrationFields = `
+	nameWithOwner
+	primaryLanguage { name }
+	stargazerCount
+`;
+const issueHydrationFields = `
+	id
+	number
+	title
+	body
+	url
+	state
+	stateReason
+	author { login ... on Node { id } }
+	assignees(first: 100) { nodes { id login } }
+	labels(first: 100) { nodes { name } }
+	createdAt
+	updatedAt
+	closedAt
+`;
+type EntityKind = 'repository' | 'issue' | 'commit';
+type EntityRef = GitHubRepositoryRef | GitHubIssueRef | GitHubCommitRef;
+type EntityValue = GitHubRepository | GitHubIssue | GitHubCommit;
+
+interface IEntityOperation {
+	readonly controller: AbortController;
+	readonly promise: Promise<void>;
+	requestSignal?: AbortSignal;
+}
+
+class EntityEntry<TRef extends EntityRef, TValue extends EntityValue> {
+
+	readonly state: ISettableObservable<FragmentState<TValue>>;
+	readonly resource: GitHubRepositoryResource | GitHubIssueResource | GitHubCommitResource;
+	readonly subscriptions = new Set<EntitySubscription<TRef, TValue>>();
+	readonly keys = new Set<string>();
+	operation: IEntityOperation | undefined;
+	dormantAt: number | undefined;
+	/** Consecutive refresh failures, so repeated trouble is retried further apart. */
+	failureCount = 0;
+	generation = 0;
+	disposed = false;
+
+	constructor(
+		readonly id: number,
+		readonly kind: EntityKind,
+		ref: TRef,
+	) {
+		this.ref = ref;
+		this.state = observableValue(this, { status: 'missing', complete: false });
+		this.resource = kind === 'repository'
+			? new RepositoryResourceImpl(this as EntityEntry<GitHubRepositoryRef, GitHubRepository>)
+			: kind === 'issue'
+				? new IssueResourceImpl(this as EntityEntry<GitHubIssueRef, GitHubIssue>)
+				: new CommitResourceImpl(this as EntityEntry<GitHubCommitRef, GitHubCommit>);
+	}
+
+	setLoading(attemptedAt: string): void {
+		this.state.set({
+			...this.state.get(),
+			status: 'loading',
+			complete: false,
+			attemptedAt,
+			error: undefined,
+		}, undefined);
+	}
+
+	setError(error: NonNullable<FragmentState<TValue>['error']>): void {
+		this.state.set({
+			...this.state.get(),
+			status: 'error',
+			complete: false,
+			error,
+		}, undefined);
+	}
+
+	ref: TRef;
+}
+
+class RepositoryResourceImpl implements GitHubRepositoryResource {
+
+	constructor(private readonly _entry: EntityEntry<GitHubRepositoryRef, GitHubRepository>) { }
+
+	get ref(): GitHubRepositoryRef {
+		return this._entry.ref;
+	}
+
+	get state(): ISettableObservable<FragmentState<GitHubRepository>> {
+		return this._entry.state;
+	}
+}
+
+class IssueResourceImpl implements GitHubIssueResource {
+
+	constructor(private readonly _entry: EntityEntry<GitHubIssueRef, GitHubIssue>) { }
+
+	get ref(): GitHubIssueRef {
+		return this._entry.ref;
+	}
+
+	get state(): ISettableObservable<FragmentState<GitHubIssue>> {
+		return this._entry.state;
+	}
+}
+
+class CommitResourceImpl implements GitHubCommitResource {
+
+	constructor(private readonly _entry: EntityEntry<GitHubCommitRef, GitHubCommit>) { }
+
+	get ref(): GitHubCommitRef {
+		return this._entry.ref;
+	}
+
+	get state(): ISettableObservable<FragmentState<GitHubCommit>> {
+		return this._entry.state;
+	}
+}
+
+class EntitySubscription<TRef extends EntityRef, TValue extends EntityValue> {
+
+	private _disposed = false;
+
+	constructor(
+		readonly resource: TRef extends GitHubIssueRef ? GitHubIssueResource : TRef extends GitHubCommitRef ? GitHubCommitResource : GitHubRepositoryResource,
+		readonly entry: EntityEntry<TRef, TValue>,
+		private readonly _service: GitHubQueryService,
+		options: GitHubResourceSubscriptionOptions,
+	) {
+		this.options = options;
+	}
+
+	options: GitHubResourceSubscriptionOptions;
+
+	update(options: GitHubResourceSubscriptionOptions): void {
+		if (this._disposed || this.entry.disposed) {
+			throw new Error('GitHub resource subscription has been disposed');
+		}
+		this.options = options;
+		this._service.updateEntitySubscription(this.entry);
+	}
+
+	refresh(token: CancellationToken = CancellationToken.None): Promise<void> {
+		if (this._disposed || this.entry.disposed) {
+			return Promise.reject(new Error('GitHub resource subscription has been disposed'));
+		}
+		return this._service.refreshEntity(this.entry, token);
+	}
+
+	dispose(): void {
+		if (this._disposed) {
+			return;
+		}
+		this._disposed = true;
+		this._service.removeEntitySubscription(this);
+	}
+}
+
+export class GitHubQueryService extends Disposable implements GitHubQueryApi {
+
+	private readonly _entriesByKey = new Map<string, EntityEntry<EntityRef, EntityValue>>();
+	private readonly _entries = new Set<EntityEntry<EntityRef, EntityValue>>();
+	private readonly _dormant = new Map<number, EntityEntry<EntityRef, EntityValue>>();
+	private readonly _unsupportedGraphQLQueries = new Set<string>();
+	private readonly _scheduler: PullRequestScheduler;
+	private readonly _clock: IRequestScheduler;
+	private _entryId = 0;
+
+	constructor(
+		scheduler: IRequestScheduler | undefined,
+		private readonly _policy: GitHubEntityPollingPolicy = defaultPollingPolicy,
+		private readonly _credentials: IGitHubCredentials,
+		private readonly _transport: IGitHubTransport,
+		private readonly _endpoint: IGitHubEndpointProvider,
+		private readonly _capabilities: IGitHubCapabilities,
+		private readonly _logService: ILogService,
+	) {
+		super();
+		this._clock = scheduler ?? systemRequestScheduler;
+		this._scheduler = this._register(new PullRequestScheduler(this._clock));
+		this._register(this._credentials.onDidInvalidate(event => this._handleCredentialInvalidation(event)));
+	}
+
+	subscribeRepository(ref: GitHubRepositoryRef, options: GitHubResourceSubscriptionOptions): GitHubRepositorySubscription {
+		const normalized = normalizeRepositoryRef(ref);
+		const entry = this._getOrCreateEntity<GitHubRepositoryRef, GitHubRepository>('repository', normalized);
+		const subscription = new EntitySubscription(entry.resource as GitHubRepositoryResource, entry, this, options);
+		entry.subscriptions.add(subscription);
+		this._logService.trace(`[GitHubQueryService] Added repository subscription for ${formatEntityRef(entry.ref)} (entry ${entry.id}, subscriptions: ${entry.subscriptions.size})`);
+		this._activateEntity(entry);
+		return subscription;
+	}
+
+	async hydrateResources(refs: readonly GitHubHydratableResourceRef[], signal: AbortSignal): Promise<void> {
+		for (let index = 0; index < refs.length; index += maximumHydrationBatchSize) {
+			await this._hydrateResourceBatch(refs.slice(index, index + maximumHydrationBatchSize), signal);
+		}
+	}
+
+	private async _hydrateResourceBatch(refs: readonly GitHubHydratableResourceRef[], signal: AbortSignal): Promise<void> {
+		if (refs.length === 0) {
+			return;
+		}
+		const resources = refs.map(item => ({
+			item,
+			entry: item.kind === 'repository'
+				? this._getOrCreateEntity<GitHubRepositoryRef, GitHubRepository>('repository', normalizeRepositoryRef(item.ref))
+				: this._getOrCreateEntity<GitHubIssueRef, GitHubIssue>('issue', normalizeIssueRef(item.ref)),
+		})).filter(resource => {
+			const status = resource.entry.state.get().status;
+			return status !== 'ready' && status !== 'loading';
+		}).map(resource => ({ ...resource, generation: ++resource.entry.generation }));
+		if (resources.length === 0) {
+			return;
+		}
+		const firstRef = resources[0].item.ref;
+		if (resources.some(resource => !sameAccount(resource.item.ref, { account: firstRef }))) {
+			throw new GitHubRequestError('GitHub hydration batch spans multiple accounts', 'validation');
+		}
+
+		const attemptedAt = new Date(this._clock.now()).toISOString();
+		for (const { entry } of resources) {
+			this._scheduler.cancel(this._entityTaskKey(entry));
+			entry.setLoading(attemptedAt);
+		}
+
+		const definitions: string[] = [];
+		const selections: string[] = [];
+		const variables: Record<string, unknown> = {};
+		for (let index = 0; index < resources.length; index++) {
+			const item = resources[index].item;
+			definitions.push(`$owner${index}: String!`, `$repo${index}: String!`);
+			variables[`owner${index}`] = item.ref.owner;
+			variables[`repo${index}`] = item.ref.repo;
+			if (item.kind === 'repository') {
+				selections.push(`r${index}: repository(owner: $owner${index}, name: $repo${index}) { ${repositoryHydrationFields} }`);
+			} else {
+				definitions.push(`$number${index}: Int!`);
+				variables[`number${index}`] = item.ref.number;
+				selections.push(`r${index}: repository(owner: $owner${index}, name: $repo${index}) { issue(number: $number${index}) { ${issueHydrationFields} } }`);
+			}
+		}
+		const query = `query HydrateGitHubResources(${definitions.join(', ')}) { ${selections.join('\n')} rateLimit { limit remaining used resetAt } }`;
+		let data: object;
+		try {
+			const credential = await this._credentials.getCredential(signal);
+			if (!sameAccount(firstRef, credential)) {
+				throw new GitHubRequestError('GitHub query account does not match the current credential', 'authentication');
+			}
+			const combinedSignal = AbortSignal.any([signal, credential.signal]);
+			let responseData: unknown;
+			try {
+				const capabilities = await this._capabilities.getCapabilities(credential, combinedSignal);
+				if (!capabilities.graphql) {
+					throw new GitHubRequestError('GitHub GraphQL is unavailable on this host', 'schema');
+				}
+				const queryKey = `${credential.account.host.toLowerCase()}\x00${query}`;
+				if (this._unsupportedGraphQLQueries.has(queryKey)) {
+					throw new GitHubRequestError('GitHub GraphQL query is unsupported on this host', 'schema');
+				}
+				try {
+					const response = await this._transport.graphql<unknown>(
+						credential.account,
+						credential.token,
+						this._endpoint.getGraphQlUri(),
+						query,
+						variables,
+						combinedSignal,
+						'interactive',
+						{ caller: 'github.query' },
+					);
+					throwGraphQLErrors(response.errors);
+					responseData = response.data;
+				} catch (error) {
+					if (error instanceof GitHubRequestError && error.kind === 'schema') {
+						this._unsupportedGraphQLQueries.add(queryKey);
+					}
+					throw error;
+				}
+			} catch (error) {
+				this._credentials.handleRequestError(credential, error);
+				throw error;
+			}
+			data = asObject(responseData, 'GitHub hydration response was malformed');
+		} catch (error) {
+			for (const { entry, generation } of resources) {
+				if (entry.disposed || entry.generation !== generation) {
+					continue;
+				}
+				entry.setError(toFragmentError(error));
+				if (entry.subscriptions.size > 0) {
+					this._scheduleEntity(entry, this._clock.now());
+				} else {
+					this._makeEntityDormant(entry);
+				}
+			}
+			throw error;
+		}
+		const observedAt = new Date(this._clock.now()).toISOString();
+		let hydratedCount = 0;
+
+		for (let index = 0; index < resources.length; index++) {
+			const { item, entry, generation } = resources[index];
+			if (entry.disposed || entry.generation !== generation) {
+				continue;
+			}
+			const repositoryValue = optionalObjectProperty(data, `r${index}`);
+			try {
+				if (item.kind === 'repository') {
+					if (!repositoryValue) {
+						this._handleMissingHydrationResult(entry);
+						continue;
+					}
+					const value = toGraphQLRepository(repositoryValue);
+					const repositoryEntry = this._getOrCreateEntity<GitHubRepositoryRef, GitHubRepository>('repository', normalizeRepositoryRef(item.ref));
+					repositoryEntry.state.set({ value, status: 'ready', complete: true, observedAt, attemptedAt: observedAt }, undefined);
+					this._canonicalizeRepository(repositoryEntry, value);
+					if (repositoryEntry.subscriptions.size === 0) {
+						this._makeEntityDormant(repositoryEntry);
+					} else {
+						this._scheduleEntity(repositoryEntry, this._clock.now() + this._pollDelay(repositoryEntry));
+					}
+					hydratedCount++;
+				} else {
+					const issueValue = repositoryValue ? optionalObjectProperty(repositoryValue, 'issue') : undefined;
+					if (!issueValue) {
+						this._handleMissingHydrationResult(entry);
+						continue;
+					}
+					const value = toGraphQLIssue(issueValue);
+					const issueEntry = this._getOrCreateEntity<GitHubIssueRef, GitHubIssue>('issue', normalizeIssueRef(item.ref));
+					issueEntry.state.set({ value, status: 'ready', complete: true, observedAt, attemptedAt: observedAt }, undefined);
+					if (issueEntry.subscriptions.size === 0) {
+						this._makeEntityDormant(issueEntry);
+					} else if (this._shouldPollEntity(issueEntry)) {
+						this._scheduleEntity(issueEntry, this._clock.now() + this._pollDelay(issueEntry));
+					}
+					hydratedCount++;
+				}
+			} catch (error) {
+				this._handleHydrationError(entry, error);
+			}
+		}
+		this._logService.trace(`[GitHubQueryService] Hydrated ${hydratedCount} of ${resources.length} resource(s) in one GraphQL request`);
+	}
+
+	private _handleHydrationError(entry: EntityEntry<EntityRef, EntityValue>, error: unknown): void {
+		entry.state.set({
+			...entry.state.get(),
+			status: 'error',
+			complete: false,
+			error: toFragmentError(error),
+		}, undefined);
+		if (entry.subscriptions.size > 0) {
+			this._scheduleEntity(entry, this._clock.now());
+		} else {
+			this._makeEntityDormant(entry);
+		}
+	}
+
+	private _handleMissingHydrationResult(entry: EntityEntry<EntityRef, EntityValue>): void {
+		entry.state.set({
+			...entry.state.get(),
+			status: 'error',
+			complete: false,
+			error: { kind: 'notFound', message: 'GitHub resource was not found' },
+		}, undefined);
+		if (entry.subscriptions.size === 0) {
+			this._makeEntityDormant(entry);
+		}
+	}
+
+	subscribeIssue(ref: GitHubIssueRef, options: GitHubResourceSubscriptionOptions): GitHubIssueSubscription {
+		const normalized = normalizeIssueRef(ref);
+		const entry = this._getOrCreateEntity<GitHubIssueRef, GitHubIssue>('issue', normalized);
+		const subscription = new EntitySubscription(entry.resource as GitHubIssueResource, entry, this, options);
+		entry.subscriptions.add(subscription);
+		this._logService.trace(`[GitHubQueryService] Added issue subscription for ${formatEntityRef(entry.ref)} (entry ${entry.id}, subscriptions: ${entry.subscriptions.size})`);
+		this._activateEntity(entry);
+		return subscription;
+	}
+
+	subscribeCommit(ref: GitHubCommitRef, options: GitHubResourceSubscriptionOptions): GitHubCommitSubscription {
+		const normalized = normalizeCommitRef(ref);
+		const entry = this._getOrCreateEntity<GitHubCommitRef, GitHubCommit>('commit', normalized);
+		const subscription = new EntitySubscription(entry.resource as GitHubCommitResource, entry, this, options);
+		entry.subscriptions.add(subscription);
+		this._logService.trace(`[GitHubQueryService] Added commit subscription for ${formatEntityRef(entry.ref)} (entry ${entry.id}, subscriptions: ${entry.subscriptions.size})`);
+		this._activateEntity(entry);
+		return subscription;
+	}
+
+	updateEntitySubscription(entry: EntityEntry<EntityRef, EntityValue>): void {
+		if (entry.operation?.requestSignal) {
+			this._transport.promote(entry.operation.requestSignal, toRequestPriority(this._effectivePriority(entry)));
+		}
+		if (this._shouldPollEntity(entry)) {
+			this._scheduleEntity(entry, this._clock.now() + this._pollDelay(entry));
+		}
+	}
+
+	async refreshEntity(entry: EntityEntry<EntityRef, EntityValue>, token: CancellationToken): Promise<void> {
+		if (entry.disposed || entry.subscriptions.size === 0) {
+			return;
+		}
+		this._scheduler.cancel(this._entityTaskKey(entry));
+		if (entry.operation) {
+			await raceCancellationError(entry.operation.promise, token);
+			return;
+		}
+		const controller = new AbortController();
+		entry.generation++;
+		const operation: IEntityOperation = {
+			controller,
+			promise: this._runEntityFetch(entry, controller).finally(() => {
+				if (entry.operation === operation) {
+					entry.operation = undefined;
+				}
+			}),
+		};
+		entry.operation = operation;
+		await raceCancellationError(operation.promise, token);
+	}
+
+	removeEntitySubscription(subscription: EntitySubscription<EntityRef, EntityValue>): void {
+		const entry = subscription.entry;
+		if (!entry.subscriptions.delete(subscription)) {
+			return;
+		}
+		if (entry.subscriptions.size > 0) {
+			this.updateEntitySubscription(entry);
+			return;
+		}
+		this._makeEntityDormant(entry);
+	}
+
+	private _makeEntityDormant(entry: EntityEntry<EntityRef, EntityValue>): void {
+		entry.dormantAt = this._clock.now();
+		this._logService.trace(`[GitHubQueryService] ${entry.kind} ${formatEntityRef(entry.ref)} became dormant (entry ${entry.id})`);
+		this._scheduler.cancel(this._entityTaskKey(entry));
+		entry.operation?.controller.abort(new Error('GitHub resource became dormant'));
+		entry.operation = undefined;
+		this._dormant.set(entry.id, entry);
+		this._scheduler.schedule(this._dormantTaskKey(entry), this._clock.now() + this._policy.dormantGrace, () => {
+			if (entry.dormantAt !== undefined) {
+				this._disposeEntity(entry);
+			}
+		});
+		this._trimDormant();
+	}
+
+	override dispose(): void {
+		for (const entry of [...this._entries]) {
+			this._disposeEntity(entry);
+		}
+		this._scheduler.clear();
+		this._unsupportedGraphQLQueries.clear();
+		super.dispose();
+	}
+
+	private _getOrCreateEntity<TRef extends EntityRef, TValue extends EntityValue>(kind: EntityKind, ref: TRef): EntityEntry<TRef, TValue> {
+		const key = entityKey(kind, ref);
+		const existing = this._entriesByKey.get(key);
+		if (existing) {
+			return existing as EntityEntry<TRef, TValue>;
+		}
+		const entry = new EntityEntry<TRef, TValue>(this._entryId++, kind, ref);
+		entry.keys.add(key);
+		this._entriesByKey.set(key, entry as EntityEntry<EntityRef, EntityValue>);
+		this._entries.add(entry as EntityEntry<EntityRef, EntityValue>);
+		this._logService.debug(`[GitHubQueryService] Created ${kind} resource ${formatEntityRef(ref)} (entry ${entry.id})`);
+		return entry;
+	}
+
+	private _activateEntity(entry: EntityEntry<EntityRef, EntityValue>): void {
+		let resumed = false;
+		if (entry.dormantAt !== undefined) {
+			entry.dormantAt = undefined;
+			this._dormant.delete(entry.id);
+			this._scheduler.cancel(this._dormantTaskKey(entry));
+			resumed = true;
+		}
+		const state = entry.state.get();
+		if (state.status === 'missing'
+			|| state.status === 'stale'
+			|| state.status === 'error'
+			|| resumed && entry.operation === undefined && state.status !== 'ready') {
+			this._scheduleEntity(entry, this._clock.now());
+		} else if (resumed && this._shouldPollEntity(entry)) {
+			this._scheduleEntity(entry, this._clock.now() + this._pollDelay(entry));
+		}
+	}
+
+	private async _runEntityFetch(entry: EntityEntry<EntityRef, EntityValue>, controller: AbortController): Promise<void> {
+		const previous = entry.state.get();
+		entry.state.set({
+			...previous,
+			status: 'loading',
+			complete: false,
+			attemptedAt: new Date(this._clock.now()).toISOString(),
+			error: undefined,
+		}, undefined);
+		let credential: GitHubCredential | undefined;
+		const startedAt = this._clock.now();
+		this._logService.trace(`[GitHubQueryService] Refreshing ${entry.kind} ${formatEntityRef(entry.ref)} (entry ${entry.id})`);
+		try {
+			credential = await this._credentials.getCredential(controller.signal);
+			if (!sameAccount(entry.ref, credential)) {
+				throw new GitHubRequestError('GitHub resource account does not match the current credential', 'authentication');
+			}
+			const route = entry.kind === 'repository'
+				? ''
+				: entry.kind === 'issue'
+					? `issues/${(entry.ref as GitHubIssueRef).number}`
+					: `commits/${encodeURIComponent((entry.ref as GitHubCommitRef).sha)}`;
+			const signal = AbortSignal.any([controller.signal, credential.signal]);
+			if (entry.operation?.controller === controller) {
+				entry.operation.requestSignal = signal;
+			}
+			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.query',
+				method: 'GET',
+				url: this._restUrl(entry.ref, route),
+				etag: true,
+				priority: toRequestPriority(this._effectivePriority(entry)),
+			}, signal);
+			if (entry.disposed || controller.signal.aborted || entry.subscriptions.size === 0) {
+				return;
+			}
+			const value = entry.kind === 'repository'
+				? toRepository(response.data)
+				: entry.kind === 'issue'
+					? toIssue(response.data)
+					: toCommit(response.data);
+			entry.state.set({
+				value,
+				status: 'ready',
+				complete: true,
+				observedAt: new Date(this._clock.now()).toISOString(),
+				attemptedAt: new Date(this._clock.now()).toISOString(),
+			}, undefined);
+			if (entry.kind === 'repository') {
+				this._canonicalizeRepository(entry as EntityEntry<GitHubRepositoryRef, GitHubRepository>, value as GitHubRepository);
+			}
+			this._logService.trace(`[GitHubQueryService] Refreshed ${entry.kind} ${formatEntityRef(entry.ref)} in ${this._clock.now() - startedAt}ms (entry ${entry.id})`);
+			entry.failureCount = 0;
+			if (this._shouldPollEntity(entry)) {
+				this._scheduleEntity(entry, this._clock.now() + this._pollDelay(entry) + this._clock.jitter(this._policy.jitter));
+			}
+		} catch (error) {
+			if (credential && sameAccount(entry.ref, credential)) {
+				this._credentials.handleRequestError(credential, error);
+			}
+			if (!entry.disposed && !controller.signal.aborted && entry.subscriptions.size > 0) {
+				if (credential?.signal.aborted) {
+					this._scheduleEntity(entry, this._clock.now());
+					throw error;
+				}
+				entry.state.set({
+					...previous,
+					status: 'error',
+					complete: false,
+					attemptedAt: new Date(this._clock.now()).toISOString(),
+					error: toFragmentError(error),
+				}, undefined);
+				if (!(error instanceof GitHubRequestError) || error.kind !== 'authentication') {
+					this._scheduleAfterFailure(entry);
+				}
+			}
+			this._logService.debug(`[GitHubQueryService] Refresh ${entry.kind} ${formatEntityRef(entry.ref)} ${controller.signal.aborted ? 'cancelled' : 'failed'} after ${this._clock.now() - startedAt}ms (${queryErrorKind(error)})`);
+			throw error;
+		}
+	}
+
+	private _canonicalizeRepository(entry: EntityEntry<GitHubRepositoryRef, GitHubRepository>, repository: GitHubRepository): void {
+		const [owner, repo, extra] = repository.nameWithOwner.split('/');
+		if (!owner || !repo || extra) {
+			return;
+		}
+		entry.ref = { ...entry.ref, owner, repo };
+		const alias = entityKey('repository', entry.ref);
+		if (!this._entriesByKey.has(alias)) {
+			this._entriesByKey.set(alias, entry as EntityEntry<EntityRef, EntityValue>);
+			entry.keys.add(alias);
+			this._logService.debug(`[GitHubQueryService] Canonicalized repository ${formatEntityRef(entry.ref)} (entry ${entry.id}, aliases: ${entry.keys.size})`);
+		}
+	}
+
+	private _handleCredentialInvalidation(event: GitHubCredentialInvalidation): void {
+		this._logService.debug(`[GitHubQueryService] Handling credential invalidation (${event.reason}) for ${this._entries.size} resource(s)`);
+		for (const entry of [...this._entries]) {
+			if (!event.credential || sameAccount(entry.ref, event.credential)) {
+				if (event.reason === 'replacement' || event.reason === 'authentication') {
+					const current = entry.state.get();
+					entry.state.set({
+						...current,
+						status: current.value ? 'stale' : 'missing',
+						complete: false,
+						error: undefined,
+					}, undefined);
+					if (entry.subscriptions.size > 0) {
+						this._scheduleEntity(entry, this._clock.now());
+					}
+				} else {
+					this._disposeEntity(entry);
+				}
+			}
+		}
+	}
+
+	private _disposeEntity(entry: EntityEntry<EntityRef, EntityValue>): void {
+		if (entry.disposed) {
+			return;
+		}
+		entry.disposed = true;
+		this._logService.trace(`[GitHubQueryService] Disposing ${entry.kind} ${formatEntityRef(entry.ref)} (entry ${entry.id})`);
+		entry.operation?.controller.abort(new Error('GitHub resource was disposed'));
+		this._scheduler.cancel(this._entityTaskKey(entry));
+		this._scheduler.cancel(this._dormantTaskKey(entry));
+		for (const key of entry.keys) {
+			if (this._entriesByKey.get(key) === entry) {
+				this._entriesByKey.delete(key);
+			}
+		}
+		entry.subscriptions.clear();
+		this._dormant.delete(entry.id);
+		this._entries.delete(entry);
+	}
+
+	private _trimDormant(): void {
+		while (this._dormant.size > this._policy.maximumDormantEntries) {
+			const oldest = [...this._dormant.values()]
+				.sort((left, right) => (left.dormantAt ?? 0) - (right.dormantAt ?? 0) || left.id - right.id)[0];
+			this._disposeEntity(oldest);
+		}
+	}
+
+	private _scheduleEntity(entry: EntityEntry<EntityRef, EntityValue>, dueAt: number): void {
+		if (entry.disposed || entry.subscriptions.size === 0) {
+			return;
+		}
+		this._scheduler.schedule(this._entityTaskKey(entry), dueAt, () => {
+			void this.refreshEntity(entry, CancellationToken.None).catch(error => {
+				if (!entry.disposed && entry.subscriptions.size > 0) {
+					this._logService.warn(`[GitHubQueryService] Failed to refresh ${entry.kind} ${entry.ref.owner}/${entry.ref.repo}`, error);
+				}
+			});
+		});
+	}
+
+	private _effectivePriority(entry: EntityEntry<EntityRef, EntityValue>): GitHubResourcePriority {
+		let result: GitHubResourcePriority = 'background';
+		for (const subscription of entry.subscriptions) {
+			if (subscription.options.priority === 'interactive') {
+				return 'interactive';
+			}
+			if (subscription.options.priority === 'visible') {
+				result = 'visible';
+			}
+		}
+		return result;
+	}
+
+	private _pollDelay(entry: EntityEntry<EntityRef, EntityValue>): number {
+		return this._effectivePriority(entry) === 'background' ? this._policy.background : this._policy.visible;
+	}
+
+	/**
+	 * Retries a failed refresh no sooner than its poll cadence and further apart
+	 * the longer the trouble lasts, so a GitHub outage is not met with the same
+	 * request rate from every subscriber for its whole duration.
+	 */
+	private _scheduleAfterFailure(entry: EntityEntry<EntityRef, EntityValue>): void {
+		entry.failureCount++;
+		const delay = backoffDelay(this._policy.failureBackoff, this._clock, entry.failureCount, this._pollDelay(entry));
+		this._scheduleEntity(entry, this._clock.now() + delay);
+	}
+
+	private _shouldPollEntity(entry: EntityEntry<EntityRef, EntityValue>): boolean {
+		if (entry.kind === 'repository') {
+			return true;
+		}
+		if (entry.kind === 'commit') {
+			return entry.state.get().status !== 'ready';
+		}
+		const state = entry.state.get();
+		return state.status !== 'ready' || (state.value as GitHubIssue | undefined)?.state === 'open';
+	}
+
+	private _entityTaskKey(entry: EntityEntry<EntityRef, EntityValue>): string {
+		return `entity\x00${entry.id}`;
+	}
+
+	private _dormantTaskKey(entry: EntityEntry<EntityRef, EntityValue>): string {
+		return `entity-dormant\x00${entry.id}`;
+	}
+
+	private _restUrl(ref: GitHubRepositoryRef, route: string): string {
+		const suffix = route ? `/${route}` : '';
+		return `${this._endpoint.getApiBaseUri()}/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}${suffix}`;
+	}
+}
+
+function normalizeRepositoryRef(ref: GitHubRepositoryRef): GitHubRepositoryRef {
+	const host = ref.host.trim().toLowerCase();
+	const accountId = ref.accountId.trim();
+	const owner = ref.owner.trim();
+	const repo = ref.repo.trim();
+	if (!host || !accountId || !owner || !repo) {
+		throw new Error('GitHub repository reference is incomplete');
+	}
+	return { host, accountId, owner, repo };
+}
+
+function normalizeIssueRef(ref: GitHubIssueRef): GitHubIssueRef {
+	const repository = normalizeRepositoryRef(ref);
+	if (!Number.isInteger(ref.number) || ref.number <= 0) {
+		throw new Error('GitHub issue reference requires a positive number');
+	}
+	return { ...repository, number: ref.number };
+}
+
+function normalizeCommitRef(ref: GitHubCommitRef): GitHubCommitRef {
+	const repository = normalizeRepositoryRef(ref);
+	const sha = ref.sha.trim();
+	if (!sha) {
+		throw new Error('GitHub commit reference requires a SHA');
+	}
+	return { ...repository, sha };
+}
+
+function entityKey(kind: EntityKind, ref: EntityRef): string {
+	return [
+		kind,
+		ref.host.toLowerCase(),
+		ref.accountId,
+		ref.owner.toLowerCase(),
+		ref.repo.toLowerCase(),
+		hasKey(ref, { number: true }) ? ref.number : '',
+		hasKey(ref, { sha: true }) ? ref.sha.toLowerCase() : '',
+	].join('\x00');
+}
+
+function sameAccount(
+	ref: AccountHandle,
+	credential: { readonly account: { readonly host: string; readonly accountId: string } },
+): boolean {
+	return ref.host.toLowerCase() === credential.account.host.toLowerCase() && ref.accountId === credential.account.accountId;
+}
+
+function toRequestPriority(priority: GitHubResourcePriority): 'interactive' | 'visible' | 'background' {
+	return priority;
+}
+
+function toRepository(value: unknown): GitHubRepository {
+	const item = asObject(value, 'GitHub repository response was malformed');
+	const language = nullableStringProperty(item, 'language');
+	const stars = numberProperty(item, 'stargazers_count');
+	return {
+		nameWithOwner: requiredString(item, 'full_name'),
+		...(language !== undefined ? { language } : {}),
+		...(stars !== undefined ? { stars } : {}),
+	};
+}
+
+function toGraphQLRepository(value: object): GitHubRepository {
+	const primaryLanguage = optionalObjectProperty(value, 'primaryLanguage');
+	const stars = numberProperty(value, 'stargazerCount');
+	return {
+		nameWithOwner: requiredString(value, 'nameWithOwner'),
+		...(primaryLanguage ? { language: requiredString(primaryLanguage, 'name') } : {}),
+		...(stars !== undefined ? { stars } : {}),
+	};
+}
+
+function toGraphQLIssue(value: object): GitHubIssue {
+	const author = optionalObjectProperty(value, 'author');
+	const assignees = objectProperty(value, 'assignees');
+	const labels = objectProperty(value, 'labels');
+	const stateReason = nullableStringProperty(value, 'stateReason')?.toLowerCase();
+	return {
+		id: idProperty(value, 'id'),
+		number: requiredNumber(value, 'number'),
+		title: requiredString(value, 'title'),
+		body: nullableStringProperty(value, 'body') ?? '',
+		url: requiredString(value, 'url'),
+		state: requiredString(value, 'state') === 'CLOSED' ? 'closed' : 'open',
+		stateReason: stateReason === 'completed' || stateReason === 'not_planned' || stateReason === 'duplicate' || stateReason === 'reopened'
+			? stateReason
+			: undefined,
+		author: author ? requiredActor(author) : { login: 'ghost' },
+		assignees: arrayProperty(assignees, 'nodes').filter(isObject).map(requiredActor),
+		labels: arrayProperty(labels, 'nodes').filter(isObject).map(label => requiredString(label, 'name')),
+		createdAt: requiredString(value, 'createdAt'),
+		updatedAt: requiredString(value, 'updatedAt'),
+		closedAt: nullableStringProperty(value, 'closedAt'),
+	};
+}
+
+function toIssue(value: unknown): GitHubIssue {
+	const item = asObject(value, 'GitHub issue response was malformed');
+	if (Reflect.has(item, 'pull_request')) {
+		throw new GitHubRequestError('Requested GitHub issue is a pull request', 'validation');
+	}
+	const author = optionalObjectProperty(item, 'user');
+	return {
+		id: idProperty(item, 'node_id') ?? idProperty(item, 'id'),
+		number: requiredNumber(item, 'number'),
+		title: requiredString(item, 'title'),
+		body: nullableStringProperty(item, 'body') ?? '',
+		url: requiredString(item, 'html_url'),
+		state: stringProperty(item, 'state') === 'closed' ? 'closed' : 'open',
+		stateReason: enumProperty(item, 'state_reason', ['completed', 'not_planned', 'duplicate', 'reopened']),
+		author: author ? requiredActor(author) : { login: 'ghost' },
+		assignees: arrayProperty(item, 'assignees').filter(isObject).map(requiredActor),
+		labels: arrayProperty(item, 'labels').flatMap(label => {
+			if (typeof label === 'string') {
+				return [label];
+			}
+			if (isObject(label)) {
+				const name = stringProperty(label, 'name');
+				return name ? [name] : [];
+			}
+			return [];
+		}),
+		createdAt: requiredString(item, 'created_at'),
+		updatedAt: requiredString(item, 'updated_at'),
+		closedAt: nullableStringProperty(item, 'closed_at'),
+	};
+}
+
+function toCommit(value: unknown): GitHubCommit {
+	const item = asObject(value, 'GitHub commit response was malformed');
+	const commit = objectProperty(item, 'commit');
+	const author = optionalObjectProperty(item, 'author');
+	const commitAuthor = objectProperty(commit, 'author');
+	return {
+		sha: requiredString(item, 'sha'),
+		message: requiredString(commit, 'message'),
+		url: requiredString(item, 'html_url'),
+		author: author ? requiredActor(author) : { login: requiredString(commitAuthor, 'name') },
+		committedAt: requiredString(commitAuthor, 'date'),
+	};
+}
+
+function throwGraphQLErrors(errors: readonly GitHubGraphQLError[]): void {
+	if (errors.length === 0) {
+		return;
+	}
+	throw new GitHubRequestError(
+		`GitHub GraphQL query failed: ${errors.map(error => error.message ?? error.type ?? 'unknown error').join('; ')}`,
+		getGraphQLErrorKind(errors),
+		200,
+		undefined,
+		errors,
+	);
+}
+
+function isObject(value: unknown): value is object {
+	return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function enumProperty<T extends string>(value: object, key: string, allowed: readonly T[]): T | undefined {
+	const property = stringProperty(value, key);
+	return property && allowed.includes(property as T) ? property as T : undefined;
+}
+
+function requiredActor(value: object): GitHubActor {
+	const login = requiredString(value, 'login');
+	const id = idProperty(value, 'databaseId') ?? idProperty(value, 'id');
+	return id ? { id, login } : { login };
+}
+
+function toFragmentError(error: unknown): { readonly message: string; readonly kind: import('./types.js').RequestErrorKind; readonly statusCode?: number } {
+	if (error instanceof GitHubRequestError) {
+		return { message: error.message, kind: error.kind, statusCode: error.statusCode };
+	}
+	return { message: error instanceof Error ? error.message : String(error), kind: 'unknown' };
+}
+
+function formatEntityRef(ref: EntityRef): string {
+	return `${ref.host}/${ref.owner}/${ref.repo}${hasKey(ref, { number: true }) ? `#${ref.number}` : ''}${hasKey(ref, { sha: true }) ? `@${ref.sha}` : ''}`;
+}
+
+function queryErrorKind(error: unknown): string {
+	if (error instanceof GitHubRequestError) {
+		return `${error.kind}${error.statusCode === undefined ? '' : `:${error.statusCode}`}`;
+	}
+	return error instanceof Error ? error.name : typeof error;
+}

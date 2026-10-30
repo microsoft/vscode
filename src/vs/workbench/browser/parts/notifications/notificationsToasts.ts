@@ -14,6 +14,7 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { NOTIFICATIONS_TOAST_BORDER, NOTIFICATIONS_BACKGROUND } from '../../../common/theme.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
+import { asCssVariable } from '../../../../platform/theme/common/colorRegistry.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { INotificationsToastController } from './notificationsCommands.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -29,6 +30,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../../platform/window/common/window.js';
 import { PendingNotificationToasts } from './pendingNotificationToasts.js';
+import { onDidChangeNotificationRowHeight } from './notificationsViewer.js';
 
 interface INotificationToast {
 	readonly item: INotificationViewItem;
@@ -101,8 +103,18 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			callback => scheduleAtNextAnimationFrame(getWindow(this.container), callback)
 		));
 		this._register(toDisposable(() => this.removeToasts()));
+		this._register(onDidChangeNotificationRowHeight(() => this.updateNotificationHeights()));
 
 		this.registerListeners();
+	}
+
+	private updateNotificationHeights(): void {
+		this.mapNotificationToToast.forEach(({ list }) => list.updateNotificationHeights());
+
+		const maxDimensions = this.computeMaxDimensions();
+		if (maxDimensions.height) {
+			this.layoutContainer(maxDimensions.height);
+		}
 	}
 
 	private registerListeners(): void {
@@ -268,6 +280,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 		// Create toast with item and show
 		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToast, {
+			telemetrySurface: 'toast',
 			verticalScrollMode: ScrollbarVisibility.Hidden,
 			widgetAriaLabel: (() => {
 				if (!item.source) {
@@ -315,6 +328,11 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 				case NotificationViewItemContentChangeKind.MESSAGE:
 					if (item.expanded) {
 						notificationList.updateNotificationHeight(item);
+					}
+					break;
+				case NotificationViewItemContentChangeKind.PROGRESS:
+					if (e.activeProgressChanged) {
+						notificationList.updateNotificationsList(0, 1, [item]);
 					}
 					break;
 			}
@@ -561,8 +579,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 	override updateStyles(): void {
 		this.mapNotificationToToast.forEach(({ toast }) => {
-			const backgroundColor = this.getColor(NOTIFICATIONS_BACKGROUND);
-			toast.style.background = backgroundColor ? backgroundColor : '';
+			toast.style.background = asCssVariable(NOTIFICATIONS_BACKGROUND);
 
 			const borderColor = this.getColor(NOTIFICATIONS_TOAST_BORDER);
 			toast.style.border = borderColor ? `1px solid ${borderColor}` : '';
@@ -650,15 +667,20 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		let singleToastHeightToGive = heightToGive;
 		let multipleToastsHeightToGive = Math.round(heightToGive * 0.618);
 
-		let visibleToasts = 0;
-		for (const toast of this.getToasts(ToastVisibility.HIDDEN_OR_VISIBLE)) {
-
+		const toasts = this.getToasts(ToastVisibility.HIDDEN_OR_VISIBLE);
+		for (const toast of toasts) {
 			// In order to measure the client height, the element cannot have display: none
 			toast.container.style.opacity = '0';
 			this.updateToastVisibility(toast, true);
+		}
 
-			singleToastHeightToGive -= toast.container.offsetHeight;
-			multipleToastsHeightToGive -= toast.container.offsetHeight;
+		const toastHeights = toasts.map(toast => toast.container.offsetHeight);
+		let visibleToasts = 0;
+		for (let i = 0; i < toasts.length; i++) {
+			const toast = toasts[i];
+			const toastHeight = toastHeights[i];
+			singleToastHeightToGive -= toastHeight;
+			multipleToastsHeightToGive -= toastHeight;
 
 			let makeVisible = false;
 			if (visibleToasts === NotificationsToasts.MAX_NOTIFICATIONS) {
@@ -670,6 +692,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			// Hide or show toast based on context
 			this.updateToastVisibility(toast, makeVisible);
 			toast.container.style.opacity = '';
+			toast.list.setTelemetryVisibility(makeVisible);
 
 			if (makeVisible) {
 				visibleToasts++;
@@ -678,6 +701,9 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	}
 
 	private updateToastVisibility(toast: INotificationToast, visible: boolean): void {
+		if (!visible) {
+			toast.list.setTelemetryVisibility(false);
+		}
 		if (this.isToastInDOM(toast) === visible) {
 			return;
 		}

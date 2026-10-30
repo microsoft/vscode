@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isCustomizationEnabled } from '../../../../common/customizationEnablement.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../../files/common/files.js';
+import { createInMemoryFileService } from '../../../../../files/test/common/inMemoryFileService.js';
 import { CustomizationType, McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { scanClaudeMcpServers } from '../../../../node/claude/customizations/scan/claudeMcpScan.js';
-import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, createInMemoryFileService, seedFile } from '../claudeCustomizationTestUtils.js';
+import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, seedFile } from '../claudeCustomizationTestUtils.js';
 
 suite('claudeMcpScan', () => {
 
@@ -36,7 +38,7 @@ suite('claudeMcpScan', () => {
 		const servers = await scanClaudeMcpServers(workspace, userHome, fileService);
 
 		assert.deepStrictEqual(
-			servers.map(s => ({ type: s.type, uri: s.uri, name: s.name, enabled: s.enabled, state: s.state })),
+			servers.map(s => ({ type: s.type, uri: s.uri, name: s.name, enabled: isCustomizationEnabled(s), state: s.state })),
 			[{ type: CustomizationType.McpServer, uri: settings.toString(), name: 'srv', enabled: true, state: { kind: McpServerStatus.Stopped } }],
 		);
 	});

@@ -90,6 +90,79 @@ export type DiffHistoryOptions = {
 	readonly useRelativePaths: boolean;
 };
 
+export enum RejectedEditsMemoryMode {
+	/** Rejected hunks are tagged with `<|rejected/|>` and the prompt gets an instruction explaining the tag. */
+	DiffWithTags = 'diffWithTags',
+	/**
+	 * Rejected hunks are rendered as ordinary edit history (applied, then undone by the developer),
+	 * with no tag and no instruction. Only rejections in the active document are used.
+	 */
+	AppliedThenUndone = 'appliedThenUndone',
+}
+
+/**
+ * Default for {@link PromptMemoryOptions.rejectedEditsMaxEditsAfter}. Offline, the effect of a rejection on repeated
+ * suggestions fades as later edits push it back (with the cursor on the rejected lines, repeats fall from 87% to
+ * 79% at four later edits and to 83% at eight), so older rejections are dropped to save prompt tokens.
+ */
+export const DEFAULT_REJECTED_EDITS_MAX_EDITS_AFTER = 4;
+
+/** Where a rejection is placed in the edit history. */
+export enum RejectedEditsPlacement {
+	/** At the position where the rejection happened, so later edits push it back like any other entry. */
+	InPlace = 'inPlace',
+	/** As the newest entries on every request, for as long as the rejection is used. */
+	Newest = 'newest',
+}
+
+/** Which cached suggestions are marked as rejected when the user rejects a suggestion. */
+export enum RejectedEditsCacheScope {
+	/** Every cached suggestion from the same model request, including ones that were never shown. */
+	Request = 'request',
+	/** Only the suggestion that was rejected. */
+	Edit = 'edit',
+	/** No cached suggestion is marked as rejected. */
+	None = 'none',
+}
+
+export type PromptMemoryOptions = {
+	readonly rejectedEdits?: RejectedEditsMemoryMode;
+	/**
+	 * A rejection is no longer used once more than this many edit-history entries follow it (consecutive edits to the
+	 * same line count once). Applies to every `rejectedEdits` mode.
+	 * Defaults to {@link DEFAULT_REJECTED_EDITS_MAX_EDITS_AFTER}.
+	 */
+	readonly rejectedEditsMaxEditsAfter?: number;
+	/** Where rejections are placed in the edit history. Applies to every `rejectedEdits` mode. Defaults to {@link RejectedEditsPlacement.InPlace}. */
+	readonly rejectedEditsPlacement?: RejectedEditsPlacement;
+	/** How many times the applied-then-undone pair is written. Only for {@link RejectedEditsMemoryMode.AppliedThenUndone}. Defaults to 1. */
+	readonly rejectedEditsRepetitions?: number;
+	/** At most this many of the most recent rejections are used. Applies to every `rejectedEdits` mode. Defaults to all recorded rejections. */
+	readonly rejectedEditsMaxCount?: number;
+	/**
+	 * Which cached suggestions are marked as rejected when a suggestion is rejected. Applies to every `rejectedEdits` mode;
+	 * without `rejectedEdits` the whole request is always marked. Defaults to {@link RejectedEditsCacheScope.Request}.
+	 */
+	readonly rejectedEditsCacheScope?: RejectedEditsCacheScope;
+	/**
+	 * When true, a rejection is recorded only if the whole suggested edit was inside the visible editor area, so the user
+	 * could have seen all of it. Applies to every `rejectedEdits` mode. Defaults to false: every rejection is recorded.
+	 */
+	readonly rejectedEditsOnlyFullyVisible?: boolean;
+};
+
+export namespace PromptMemoryOptions {
+	export const VALIDATOR: IValidator<PromptMemoryOptions> = vObj({
+		'rejectedEdits': vUnion(vEnum(RejectedEditsMemoryMode.DiffWithTags, RejectedEditsMemoryMode.AppliedThenUndone), vUndefined()),
+		'rejectedEditsMaxEditsAfter': vUnion(vNumber(), vUndefined()),
+		'rejectedEditsPlacement': vUnion(vEnum(RejectedEditsPlacement.InPlace, RejectedEditsPlacement.Newest), vUndefined()),
+		'rejectedEditsRepetitions': vUnion(vNumber(), vUndefined()),
+		'rejectedEditsMaxCount': vUnion(vNumber(), vUndefined()),
+		'rejectedEditsCacheScope': vUnion(vEnum(RejectedEditsCacheScope.Request, RejectedEditsCacheScope.Edit, RejectedEditsCacheScope.None), vUndefined()),
+		'rejectedEditsOnlyFullyVisible': vUnion(vBoolean(), vUndefined()),
+	});
+}
+
 /**
  * Parts that are rendered by the global-budget cascade and listed in `order`.
  * Lint output is intentionally excluded and keeps its own per-part shape.
@@ -478,6 +551,8 @@ export namespace EditIntent {
 	}
 }
 
+export type EagernessPrompt = 'aggressionHighLow' | 'aggressionLowMedium';
+
 export type PromptOptions = {
 	readonly promptingStrategy: PromptingStrategy | undefined /* default */;
 	readonly currentFile: CurrentFileOptions;
@@ -486,8 +561,10 @@ export type PromptOptions = {
 	readonly languageContext: LanguageContextOptions;
 	readonly neighborFiles: NeighborFilesOptions;
 	readonly diffHistory: DiffHistoryOptions;
+	readonly memory: PromptMemoryOptions | undefined;
 	readonly includePostScript: boolean;
 	readonly lintOptions: LintOptions | undefined;
+	readonly eagernessPrompt: EagernessPrompt | undefined;
 	/**
 	 * When set, parts share a single pool of `totalTokens` and unused budget from
 	 * earlier parts in `order` cascades to later parts. When `undefined`, each
@@ -524,6 +601,15 @@ export enum PromptingStrategy {
 	PatchBased02 = 'patchBased02',
 	/** PatchBased02 variant: line numbers on recent docs. */
 	PatchBased02WithRecentLineNumbers = 'patchBased02WithRecentLineNumbers',
+	/**
+	 * PatchBased02 variant, with line numbers on recent docs, for a model that also handles inline
+	 * completions itself: it bakes in the client and latency knobs that treatment was tuned for.
+	 */
+	PatchBased02Unified = 'patchBased02Unified',
+	/** PatchBased02 unified variant trained for eagerness prompting. */
+	PatchBased02UnifiedEagerness = 'patchBased02UnifiedEagerness',
+	/** Unified eagerness prompting for low/medium; high uses timing instead. */
+	PatchBased02UnifiedEagernessLowMedium = 'patchBased02UnifiedEagernessLowMedium',
 	/** PatchBased02 variant: no line numbers on recent docs. */
 	PatchBased02WithoutRecentLineNumbers = 'patchBased02WithoutRecentLineNumbers',
 	/**
@@ -544,12 +630,30 @@ export function isPromptingStrategy(value: string): value is PromptingStrategy {
 	return (Object.values(PromptingStrategy) as string[]).includes(value);
 }
 
-export function isAggressivenessStrategy(strategy: PromptingStrategy | undefined): boolean {
-	return strategy === PromptingStrategy.XtabAggressiveness
-		|| strategy === PromptingStrategy.Xtab275Aggressiveness
-		|| strategy === PromptingStrategy.Xtab275AggressivenessHighLow
-		|| strategy === PromptingStrategy.Xtab275EditIntent
-		|| strategy === PromptingStrategy.Xtab275EditIntentShort;
+export function isEagernessPrompt(options: PromptOptions, aggressivenessLevel: AggressivenessLevel): boolean {
+	if (options.promptingStrategy === undefined) {
+		return false;
+	}
+	const usesEagernessPrompt = options.eagernessPrompt === 'aggressionHighLow'
+		|| (options.eagernessPrompt === 'aggressionLowMedium' && aggressivenessLevel !== AggressivenessLevel.High);
+	return (usesEagernessPrompt && [
+		PromptingStrategy.PatchBased02,
+		PromptingStrategy.PatchBased02WithRecentLineNumbers,
+		PromptingStrategy.PatchBased02Unified,
+		PromptingStrategy.PatchBased02UnifiedEagerness,
+		PromptingStrategy.PatchBased02UnifiedEagernessLowMedium,
+		PromptingStrategy.PatchBased02WithoutRecentLineNumbers,
+	].includes(options.promptingStrategy)) // eagerness prompt option is only supported for patch-based strategies
+		|| [PromptingStrategy.XtabAggressiveness,
+		PromptingStrategy.Xtab275Aggressiveness,
+		PromptingStrategy.Xtab275AggressivenessHighLow,
+		PromptingStrategy.Xtab275EditIntent,
+		PromptingStrategy.Xtab275EditIntentShort,
+		].includes(options.promptingStrategy); // first-class aggressiveness strategies
+}
+
+export function isRejectedEditMemoryEnabled(options: { readonly memory?: PromptMemoryOptions }): boolean {
+	return options.memory?.rejectedEdits !== undefined;
 }
 
 export enum ResponseFormat {
@@ -577,6 +681,9 @@ export namespace ResponseFormat {
 			case PromptingStrategy.PatchBased01:
 			case PromptingStrategy.PatchBased02:
 			case PromptingStrategy.PatchBased02WithRecentLineNumbers:
+			case PromptingStrategy.PatchBased02Unified:
+			case PromptingStrategy.PatchBased02UnifiedEagerness:
+			case PromptingStrategy.PatchBased02UnifiedEagernessLowMedium:
 			case PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 				return ResponseFormat.CustomDiffPatch;
 			case PromptingStrategy.Xtab275EditIntent:
@@ -595,6 +702,7 @@ export namespace ResponseFormat {
 
 export const DEFAULT_OPTIONS: PromptOptions = {
 	promptingStrategy: undefined,
+	eagernessPrompt: undefined,
 	currentFile: {
 		maxTokens: 1500,
 		includeTags: true,
@@ -630,6 +738,7 @@ export const DEFAULT_OPTIONS: PromptOptions = {
 		onlyForDocsInPrompt: false,
 		useRelativePaths: false,
 	},
+	memory: undefined,
 	lintOptions: undefined,
 	includePostScript: true,
 };
@@ -650,17 +759,111 @@ export const LANGUAGE_CONTEXT_ENABLED_LANGUAGES: LanguageContextLanguages = {
 	'chatagent': true,
 };
 
+/**
+ * Shape of the predicted output we send to the patch-based model along with the prompt.
+ * In every example below, `{currentLineNumber}` is 0-based — matching `Patch.lineNumZeroBased`
+ * parsed by `XtabCustomDiffPatchResponseHandler`.
+ */
+export enum PatchModelPrediction {
+	/**
+	 * Expects changes in the current file but doesn't expect where (line number is not specified).
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * path/to/file:
+	 * ```
+	 */
+	FilePath = 'filePath',
+	/**
+	 * Predicts the file path, cursor line number, and a deletion of the current line.
+	 * The model is free to follow with further `-`/`+` lines as needed.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * path/to/file:{currentLineNumber}
+	 * -	class Foo {
+	 * ```
+	 */
+	CurrentLine = 'currentLine',
+	/**
+	 * Expects the current line to be replaced.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * path/to/file:{currentLineNumber}
+	 * -	class Foo {
+	 * +
+	 * ```
+	 */
+	CurrentLineReplaced = 'currentLineReplaced',
+	/**
+	 * Expects the current line to be completed.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * path/to/file:{currentLineNumber}
+	 * -	class Foo
+	 * +	class Foo
+	 * ```
+	 */
+	CurrentLineCompleted = 'currentLineCompleted',
+}
+
+export namespace PatchModelPrediction {
+	export const VALIDATOR = vEnum(
+		PatchModelPrediction.FilePath,
+		PatchModelPrediction.CurrentLine,
+		PatchModelPrediction.CurrentLineReplaced,
+		PatchModelPrediction.CurrentLineCompleted
+	);
+}
+
+const REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
+type ReasoningEffort = typeof REASONING_EFFORTS[number];
+
 export interface ModelConfiguration {
 	modelName: string;
+	/** Reasoning effort sent to the endpoint. Omitted to use the endpoint default. */
+	reasoningEffort?: ReasoningEffort;
+	/** Output token budget, including reasoning tokens. Replaces max_tokens when useMaxTokens is enabled; ignored when usePrediction is enabled. */
+	maxCompletionTokens?: number;
 	promptingStrategy: PromptingStrategy | undefined /* default */;
+	eagernessPrompt?: EagernessPrompt;
 	includeTagsInCurrentFile: boolean;
 	includePostScript?: boolean;
 	currentFile?: Partial<CurrentFileOptions>;
 	recentlyViewedDocuments?: Partial<RecentlyViewedDocumentsOptions>;
+	memory?: PromptMemoryOptions;
 	lintOptions: Partial<LintOptions> | undefined;
 	supportsNextCursorLinePrediction?: boolean;
 	/** Whether import-only edits are allowed. `undefined` is treated as {@link ImportChanges.None}. */
 	allowImportChanges?: ImportChanges;
+	/** Shape of the predicted output for patch-based responses. `undefined` falls back to the experiment default. */
+	patchModelPredictionKind?: PatchModelPrediction;
+	/** Whether to split patches on diff boundaries. `undefined` falls back to the experiment default. */
+	splitPatchOnDiff?: boolean;
+	/** Whether to fast-yield the line containing the cursor when parsing patches. `undefined` falls back to the experiment default. */
+	patchFastYieldLineWithCursor?: boolean;
+	/** Extra debounce (ms) applied when the cursor is at the end of a line. `undefined` falls back to the experiment default. */
+	extraDebounceEndOfLine?: number;
+	/** Whether cached suggestions should mimic ghost-text rendering behavior. `undefined` falls back to the experiment default. */
+	nesMimicGhostTextBehavior?: boolean;
+	/** Minimum response delay (ms) enforced for cached edits. `undefined` falls back to the experiment default. */
+	cacheDelay?: number;
+	/** Minimum response delay (ms) enforced for rebased cached edits. `undefined` falls back to the experiment default. */
+	rebasedCacheDelay?: number;
+	/** Base debounce (ms) applied before issuing a request. `undefined` falls back to the experiment default. */
+	debounce?: number;
+	/**
+	 * Whether this model handles inline completions itself, so the separate completions provider
+	 * should be suppressed and the client should run as the single unified provider. `undefined`
+	 * falls back to the experiment/deployment toggles.
+	 */
+	supportsUnifiedCompletions?: boolean;
 }
 
 /**
@@ -668,19 +871,37 @@ export interface ModelConfiguration {
  * declares values here, those values override anything provided by the upstream
  * model configuration. A strategy without an entry contributes no overrides.
  */
+const PATCH_BASED_02_WITH_RECENT_LINE_NUMBERS_CONFIG: Partial<ModelConfiguration> = {
+	includeTagsInCurrentFile: false,
+	includePostScript: true,
+	currentFile: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
+	recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
+	supportsNextCursorLinePrediction: false,
+	allowImportChanges: ImportChanges.All,
+};
+
+const PATCH_BASED_02_UNIFIED_CONFIG: Partial<ModelConfiguration> = {
+	...PATCH_BASED_02_WITH_RECENT_LINE_NUMBERS_CONFIG,
+	patchModelPredictionKind: PatchModelPrediction.CurrentLineCompleted,
+	splitPatchOnDiff: true,
+	patchFastYieldLineWithCursor: true,
+	extraDebounceEndOfLine: 0,
+	nesMimicGhostTextBehavior: true,
+	cacheDelay: 200,
+	rebasedCacheDelay: 0,
+	debounce: 0,
+	supportsUnifiedCompletions: true,
+};
+
 const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfiguration>>> = {
 	// proxy /models doesn't know about includeTagsInCurrentFile field as of now, so hard-code it for CopilotNesXtab
 	[PromptingStrategy.CopilotNesXtab]: {
 		includeTagsInCurrentFile: true,
 	},
-	[PromptingStrategy.PatchBased02WithRecentLineNumbers]: {
-		includeTagsInCurrentFile: false,
-		includePostScript: true,
-		currentFile: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
-		recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
-		supportsNextCursorLinePrediction: false,
-		allowImportChanges: ImportChanges.All,
-	},
+	[PromptingStrategy.PatchBased02WithRecentLineNumbers]: PATCH_BASED_02_WITH_RECENT_LINE_NUMBERS_CONFIG,
+	// Inherits everything from PatchBased02WithRecentLineNumbers and additionally bakes in the
+	// client/latency knobs that this unified model was tuned to run with.
+	[PromptingStrategy.PatchBased02Unified]: PATCH_BASED_02_UNIFIED_CONFIG,
 	[PromptingStrategy.PatchBased02WithoutRecentLineNumbers]: {
 		includeTagsInCurrentFile: false,
 		includePostScript: true,
@@ -688,6 +909,14 @@ const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfigurat
 		recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.None },
 		supportsNextCursorLinePrediction: false,
 		allowImportChanges: ImportChanges.All,
+	},
+	[PromptingStrategy.PatchBased02UnifiedEagerness]: {
+		...PATCH_BASED_02_UNIFIED_CONFIG,
+		eagernessPrompt: 'aggressionHighLow',
+	},
+	[PromptingStrategy.PatchBased02UnifiedEagernessLowMedium]: {
+		...PATCH_BASED_02_UNIFIED_CONFIG,
+		eagernessPrompt: 'aggressionLowMedium',
 	},
 };
 
@@ -718,16 +947,41 @@ export const LINT_OPTIONS_VALIDATOR: IValidator<Partial<LintOptions>> = vObj({
 	'nRecentFiles': vNumber(),
 });
 
+const MAX_COMPLETION_TOKENS_VALIDATOR: IValidator<number> = {
+	validate(content) {
+		if (typeof content !== 'number' || !Number.isInteger(content) || content <= 0) {
+			return { content: undefined, error: { message: 'Expected a finite positive integer' } };
+		}
+		return { content, error: undefined };
+	},
+	toSchema() {
+		return { type: 'integer', minimum: 1 };
+	},
+};
+
 export const MODEL_CONFIGURATION_VALIDATOR: IValidator<ModelConfiguration> = vObj({
 	'modelName': vRequired(vString()),
+	'reasoningEffort': vUnion(vEnum(...REASONING_EFFORTS), vUndefined()),
+	'maxCompletionTokens': vUnion(MAX_COMPLETION_TOKENS_VALIDATOR, vUndefined()),
 	'promptingStrategy': vUnion(vEnum(...Object.values(PromptingStrategy)), vUndefined()),
+	'eagernessPrompt': vUnion(vEnum<EagernessPrompt[]>('aggressionHighLow', 'aggressionLowMedium'), vUndefined()),
 	'includeTagsInCurrentFile': vRequired(vBoolean()),
 	'includePostScript': vUnion(vBoolean(), vUndefined()),
 	'currentFile': vUnion(CurrentFileOptions.VALIDATOR, vUndefined()),
 	'recentlyViewedDocuments': vUnion(RecentlyViewedDocumentsOptions.VALIDATOR, vUndefined()),
+	'memory': vUnion(PromptMemoryOptions.VALIDATOR, vUndefined()),
 	'lintOptions': vUnion(LINT_OPTIONS_VALIDATOR, vUndefined()),
 	'supportsNextCursorLinePrediction': vUnion(vBoolean(), vUndefined()),
 	'allowImportChanges': vUnion(ImportChanges.VALIDATOR, vUndefined()),
+	'patchModelPredictionKind': vUnion(PatchModelPrediction.VALIDATOR, vUndefined()),
+	'splitPatchOnDiff': vUnion(vBoolean(), vUndefined()),
+	'patchFastYieldLineWithCursor': vUnion(vBoolean(), vUndefined()),
+	'extraDebounceEndOfLine': vUnion(vNumber(), vUndefined()),
+	'nesMimicGhostTextBehavior': vUnion(vBoolean(), vUndefined()),
+	'cacheDelay': vUnion(vNumber(), vUndefined()),
+	'rebasedCacheDelay': vUnion(vNumber(), vUndefined()),
+	'debounce': vUnion(vNumber(), vUndefined()),
+	'supportsUnifiedCompletions': vUnion(vBoolean(), vUndefined()),
 });
 
 export function parseLintOptionString(optionString: string, defaults: LintOptions): LintOptions {
@@ -939,67 +1193,4 @@ export enum SpeculativeRequestsAutoExpandEditWindowLines {
 
 export namespace SpeculativeRequestsAutoExpandEditWindowLines {
 	export const VALIDATOR = vEnum(SpeculativeRequestsAutoExpandEditWindowLines.Off, SpeculativeRequestsAutoExpandEditWindowLines.Smart, SpeculativeRequestsAutoExpandEditWindowLines.Always);
-}
-
-/**
- * Shape of the predicted output we send to the patch-based model along with the prompt.
- * In every example below, `{currentLineNumber}` is 0-based — matching `Patch.lineNumZeroBased`
- * parsed by `XtabCustomDiffPatchResponseHandler`.
- */
-export enum PatchModelPrediction {
-	/**
-	 * Expects changes in the current file but doesn't expect where (line number is not specified).
-	 *
-	 * Example:
-	 *
-	 * ```
-	 * path/to/file:
-	 * ```
-	 */
-	FilePath = 'filePath',
-	/**
-	 * Predicts the file path, cursor line number, and a deletion of the current line.
-	 * The model is free to follow with further `-`/`+` lines as needed.
-	 *
-	 * Example:
-	 *
-	 * ```
-	 * path/to/file:{currentLineNumber}
-	 * -	class Foo {
-	 * ```
-	 */
-	CurrentLine = 'currentLine',
-	/**
-	 * Expects the current line to be replaced.
-	 *
-	 * Example:
-	 *
-	 * ```
-	 * path/to/file:{currentLineNumber}
-	 * -	class Foo {
-	 * +
-	 * ```
-	 */
-	CurrentLineReplaced = 'currentLineReplaced',
-	/**
-	 * Expects the current line to be completed.
-	 *
-	 * Example:
-	 *
-	 * ```
-	 * path/to/file:{currentLineNumber}
-	 * -	class Foo
-	 * +	class Foo
-	 * ```
-	 */
-	CurrentLineCompleted = 'currentLineCompleted',
-}
-
-export namespace PatchModelPrediction {
-	export const VALIDATOR = vEnum(
-		PatchModelPrediction.FilePath,
-		PatchModelPrediction.CurrentLine,
-		PatchModelPrediction.CurrentLineReplaced,
-		PatchModelPrediction.CurrentLineCompleted
-	);
 }

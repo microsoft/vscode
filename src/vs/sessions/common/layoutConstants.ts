@@ -3,5 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const AGENTS_FLOATING_PANEL_GAP = 5;
+export { AGENTS_FLOATING_PANEL_GAP } from '../../workbench/common/agentsSizes.js';
 export const AGENTS_CENTERED_CONTENT_MAX_WIDTH = 950;
+/** Horizontal padding of the session view's centered content; `--session-view-content-horizontal-padding` in `sessionView.css`. */
+export const AGENTS_CONTENT_HORIZONTAL_PADDING = 24;

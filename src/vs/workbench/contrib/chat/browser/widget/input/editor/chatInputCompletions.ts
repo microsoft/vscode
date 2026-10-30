@@ -19,6 +19,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../../base/common/uuid.js';
 import { ICodeEditor, getCodeEditor, isCodeEditor } from '../../../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../../../editor/browser/services/codeEditorService.js';
+import { EditorOption } from '../../../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { IWordAtPosition } from '../../../../../../../editor/common/core/wordHelper.js';
@@ -33,18 +34,20 @@ import { IConfigurationService } from '../../../../../../../platform/configurati
 import { FileKind, IFileService } from '../../../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
+import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { Registry } from '../../../../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../../../common/contributions.js';
 import { EditorsOrder, isDiffEditorInput } from '../../../../../../common/editor.js';
+import { IsSessionsWindowContext } from '../../../../../../common/contextkeys.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IHistoryService } from '../../../../../../services/history/common/history.js';
 import { LifecyclePhase } from '../../../../../../services/lifecycle/common/lifecycle.js';
 import { ISearchService } from '../../../../../../services/search/common/search.js';
 import { McpPromptArgumentPick } from '../../../../../mcp/browser/mcpPromptArgumentPick.js';
 import { IMcpPrompt, IMcpPromptMessage, IMcpServer, IMcpService, McpResourceURI } from '../../../../../mcp/common/mcpTypes.js';
-import { searchFilesAndFolders } from '../../../../../search/browser/searchChatContext.js';
+import { MAX_CHAT_FILE_COMPLETION_RESULTS, searchFilesAndFolders } from '../../../../../search/browser/searchChatContext.js';
 import { IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../../../common/participants/chatAgents.js';
 import { getAttachableImageExtension } from '../../../../common/model/chatModel.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../../../common/requestParser/chatParserTypes.js';
@@ -62,7 +65,8 @@ import { resizeImage } from '../../../chatImageUtils.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
-import { attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionFilterText, IChatCompletionRangeResult, isEmptyUpToCompletionWord } from './chatInputCompletionUtils.js';
+import { attachedContextCompletionAdditionalTriggerCharacters, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionMatch, getAttachedContextCompletionSortText, getCompletionRangeWord, getPromptSlashCommandFilterText, IChatCompletionRangeResult, isEmptyUpToCompletionWord } from './chatInputCompletionUtils.js';
+import { InputEditorCommandArgumentHint } from './chatInputCommandArgumentHint.js';
 import { getAgentSessionProviderIcon, AgentSessionProviders } from '../../../agentSessions/agentSessions.js';
 
 /**
@@ -75,29 +79,45 @@ const SlashCommandWord = /\/[\p{L}0-9_.:-]*/gu;
  * Regex matching an agent-or-slash command word (e.g. `@agent` or `/cmd`).
  */
 const AgentOrSlashCommandWord = /(@|\/)[\p{L}0-9_.:-]*/gu;
+const acceptCommandArgumentHintCommandId = '_chat.acceptCommandArgumentHint';
+
+interface IAcceptCommandArgumentHintContext {
+	readonly widget: IChatWidget;
+	readonly sessionResource: URI;
+	readonly model: ITextModel;
+	readonly range: Range;
+	readonly prefix: string;
+	readonly argumentHint: string;
+}
 
 /**
  * Returns `true` when the widget's chat session is backed by an agent
  * host (local or remote). For these sessions, completions are delegated
  * to the agent host via `AgentHostInputCompletions`, and the workbench's
- * default in-process providers (file/symbol/tool/agent) short-circuit.
+ * default in-process file/symbol/tool providers short-circuit.
  */
 function isAgentHostBackedWidget(widget: IChatWidget): boolean {
 	const sessionResource = widget.viewModel?.model.sessionResource;
 	return !!sessionResource && isAgentHostTarget(getChatSessionType(sessionResource));
 }
 
-class SlashCommandCompletions extends Disposable {
+export class SlashCommandCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IChatService chatService: IChatService,
-		@IChatSessionsService chatSessionsService: IChatSessionsService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IMcpService mcpService: IMcpService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+
+		this._register(CommandsRegistry.registerCommand(acceptCommandArgumentHintCommandId, (_accessor: ServicesAccessor, context: IAcceptCommandArgumentHintContext) => {
+			context.widget.getContrib<InputEditorCommandArgumentHint>(InputEditorCommandArgumentHint.ID)
+				?.showLocalHint(context.sessionResource, context.model, context.range, context.prefix, context.argumentHint);
+		}));
 
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'globalSlashCommands',
@@ -130,11 +150,23 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				const sessionType = getChatSessionType(widget.viewModel.model.sessionResource);
+				const sessionResource = widget.viewModel.model.sessionResource;
+				const sessionType = getChatSessionType(sessionResource);
+				let forkSupported = false;
+				if (isAgentHostBackedWidget(widget) && slashCommands.some(command => command.command === 'fork')) {
+					try {
+						forkSupported = !!(await this.chatSessionsService.getOrCreateChatSession(sessionResource, _token)).forkSession;
+					} catch (error) {
+						this.logService.error(error, 'Failed to determine whether the chat session supports forking');
+					}
+				}
 
 				return {
 					suggestions: slashCommands
 						.filter(c => {
+							if (isAgentHostBackedWidget(widget) && c.command === 'fork' && !forkSupported) {
+								return false;
+							}
 							// silent commands are client-side only... so they're not "attaching anything"
 							// so this check can be scoped to when the command _does_ attach something before
 							// checking if the widget supports attachments at all
@@ -155,17 +187,41 @@ class SlashCommandCompletions extends Disposable {
 							}
 							return true;
 						})
-						.map((c, i): CompletionItem => {
+						.flatMap((c, i): CompletionItem[] => {
 							const withSlash = `/${c.command}`;
-							return {
-								label: { label: withSlash, description: c.detail },
-								insertText: c.executeImmediately ? '' : `${withSlash} `,
-								documentation: c.detail,
-								range,
-								sortText: c.sortText ?? 'a'.repeat(i + 1),
-								kind: CompletionItemKind.Text, // The icons are disabled here anyway,
-								command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` } satisfies IChatExecuteActionContext] } : undefined,
-							};
+							const variants = isAgentHostBackedWidget(widget)
+								? (c.completionVariants ?? [{ label: withSlash, insertText: c.executeImmediately ? '' : `${withSlash} `, executeImmediately: c.executeImmediately }])
+								: [{ label: withSlash, insertText: c.executeImmediately ? '' : `${withSlash} `, executeImmediately: c.executeImmediately }];
+							return variants.map((variant, variantIndex) => {
+								const prefix = variant.insertText.trimEnd();
+								const prefixRange = new Range(range.replace.startLineNumber, range.replace.startColumn, range.replace.startLineNumber, range.replace.startColumn + prefix.length);
+								const command = variant.executeImmediately
+									? { id: ChatSubmitAction.ID, title: variant.label, arguments: [{ widget, inputValue: `${withSlash} ` } satisfies IChatExecuteActionContext] }
+									: variant.argumentHint
+										? {
+											id: acceptCommandArgumentHintCommandId,
+											title: variant.label,
+											arguments: [{
+												widget,
+												sessionResource,
+												model,
+												range: prefixRange,
+												prefix,
+												argumentHint: variant.argumentHint,
+											} satisfies IAcceptCommandArgumentHintContext]
+										}
+										: undefined;
+								return {
+									label: { label: variant.label, description: variant.detail ?? c.detail },
+									insertText: variant.insertText,
+									filterText: withSlash,
+									documentation: variant.detail ?? c.detail,
+									range,
+									sortText: `${c.sortText ?? 'a'.repeat(i + 1)}${variantIndex}`,
+									kind: CompletionItemKind.Text,
+									command,
+								};
+							});
 						})
 				};
 			}
@@ -278,9 +334,7 @@ class SlashCommandCompletions extends Disposable {
 							insertText: `${displayLabel} `,
 							documentation: c.description,
 							range,
-							// Allow matching by either the space form (what the user sees) or the
-							// colon form (so legacy `/chronicle:tips` typing still filters).
-							filterText: hasSubcommand ? `${colonLabel} ${displayLabel}` : undefined,
+							filterText: getPromptSlashCommandFilterText(c.name),
 							sortText: 'a'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
 						};
@@ -340,7 +394,7 @@ class SlashCommandCompletions extends Disposable {
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SlashCommandCompletions, LifecyclePhase.Eventually);
 
-class AgentCompletions extends Disposable {
+export class AgentCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
@@ -360,7 +414,8 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
-				if (isAgentHostBackedWidget(widget)) {
+				const agentHostSession = isAgentHostBackedWidget(widget);
+				if (agentHostSession && (widget.location !== ChatAgentLocation.Chat || IsSessionsWindowContext.getValue(widget.scopedContextKeyService))) {
 					return;
 				}
 
@@ -370,7 +425,7 @@ class AgentCompletions extends Disposable {
 				}
 
 				const usedAgent = this.getCurrentAgentForWidget(widget);
-				if (!usedAgent || usedAgent.command) {
+				if (!usedAgent || usedAgent.command || (agentHostSession && (usedAgent.agent.isCore || usedAgent.agent.isDefault || this.chatSessionsService.getChatSessionContribution(usedAgent.agent.id)))) {
 					// Only one allowed
 					return;
 				}
@@ -401,11 +456,11 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
-				if (isAgentHostBackedWidget(widget)) {
+				const agentHostSession = isAgentHostBackedWidget(widget);
+				if (agentHostSession && (widget.location !== ChatAgentLocation.Chat || IsSessionsWindowContext.getValue(widget.scopedContextKeyService))) {
 					return;
 				}
-
-				if (widget.lockedAgentId) {
+				if (widget.lockedAgentId && !agentHostSession) {
 					return null;
 				}
 
@@ -420,7 +475,8 @@ class AgentCompletions extends Disposable {
 				}
 
 				const agents = this.chatAgentService.getAgents()
-					.filter(a => a.locations.includes(widget.location));
+					.filter(a => a.locations.includes(widget.location))
+					.filter(a => !agentHostSession || (!a.isCore && !a.isDefault));
 
 				// Filter out chatSessions contributions for slash command completions
 				const chatSessionContributions = this.chatSessionsService.getAllChatSessionContributions();
@@ -613,7 +669,7 @@ class AgentCompletions extends Disposable {
 	}
 
 	private getCurrentAgentForWidget(widget: IChatWidget): { agent: IChatAgentData; command?: string } | undefined {
-		if (widget.lockedAgentId) {
+		if (widget.lockedAgentId && !isAgentHostBackedWidget(widget)) {
 			const usedAgent = this.chatAgentService.getAgent(widget.lockedAgentId);
 			return usedAgent && { agent: usedAgent };
 		}
@@ -734,7 +790,7 @@ class StartParameterizedPromptAction extends Action2 {
 				after: {
 					content: ' ',
 					inlineClassNameAffectsLetterSpacing: true,
-					inlineClassName: ThemeIcon.asClassName(ThemeIcon.modify(Codicon.loading, 'spin')) + ' chat-prompt-spinner',
+					inlineClassName: ThemeIcon.asClassName(ThemeIcon.modify(Codicon.loadingCompact, 'spin')) + ' chat-prompt-spinner',
 				}
 			});
 			store.add(toDisposable(() => {
@@ -901,9 +957,15 @@ class BuiltinDynamicCompletions extends Disposable {
 			}
 
 			const typedLeader = range.varWord?.word?.charAt(0) === chatAgentLeader ? chatAgentLeader : chatVariableLeader;
-			const suggestions = widget.attachmentModel.attachments
+			const typedWord = getCompletionRangeWord(range) ?? typedLeader;
+			const suggestOptions = widget.inputEditor.getOption(EditorOption.suggest);
+			const suggestions = coalesce(widget.attachmentModel.attachments
 				.filter(attachment => !attachment.range)
-				.map((attachment): CompletionItem => {
+				.map((attachment): CompletionItem | undefined => {
+					const match = getAttachedContextCompletionMatch(typedWord, typedLeader, attachment.name, attachment.kind, suggestOptions);
+					if (!match) {
+						return undefined;
+					}
 					const text = `${typedLeader}attachment:${attachment.name}`;
 					const referenceRange = {
 						startLineNumber: range.replace.startLineNumber,
@@ -913,7 +975,7 @@ class BuiltinDynamicCompletions extends Disposable {
 					};
 					return {
 						label: { label: attachment.name, description: localize('attachedContext', 'Attached context') },
-						filterText: getAttachedContextCompletionFilterText(typedLeader, attachment.name, attachment.kind),
+						filterText: match.filterText,
 						insertText: range.varWord?.endColumn === range.replace.endColumn ? `${text} ` : text,
 						range,
 						kind: attachment.kind === 'directory'
@@ -921,17 +983,17 @@ class BuiltinDynamicCompletions extends Disposable {
 							: attachment.kind === 'file' || attachment.kind === 'image'
 								? CompletionItemKind.File
 								: CompletionItemKind.Reference,
-						sortText: attachedContextCompletionSortText,
+						sortText: getAttachedContextCompletionSortText(match.score),
 						command: {
 							id: BuiltinDynamicCompletions.addReferenceCommand,
 							title: '',
 							arguments: [new ReferenceArgument(widget, toAttachedContextDynamicVariable(attachment, referenceRange))]
 						}
 					};
-				});
+				}));
 
-			return { suggestions };
-		}, BuiltinDynamicCompletions.VariableNameDef, true);
+			return { suggestions, incomplete: true };
+		}, BuiltinDynamicCompletions.VariableNameDef, true, attachedContextCompletionAdditionalTriggerCharacters);
 
 		// File/Folder completions in one go and m
 		const fileWordPattern = new RegExp(`[${escapeForCharClass(chatVariableLeader)}${escapeForCharClass(chatAgentLeader)}][^\\s]*`, 'g');
@@ -1031,7 +1093,7 @@ class BuiltinDynamicCompletions extends Disposable {
 				// User has typed #session: — fetch all sessions and show them inline
 				const allSessions: { title: string; sessionResource: URI; lastMessageDate: number; icon: ThemeIcon }[] = [];
 
-				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.Claude, AgentSessionProviders.AgentHostCopilot];
+				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.AgentHostCopilot];
 				for await (const group of this.chatSessionsService.getChatSessionItems(sessionProviderFilter, token)) {
 					if (token.isCancellationRequested) {
 						return;
@@ -1119,10 +1181,10 @@ class BuiltinDynamicCompletions extends Disposable {
 		return undefined;
 	}
 
-	private registerVariableCompletions(debugName: string, provider: (details: IVariableCompletionsDetails, token: CancellationToken) => ProviderResult<CompletionList>, wordPattern: RegExp = BuiltinDynamicCompletions.VariableNameDef, includeAgentHost = false) {
+	private registerVariableCompletions(debugName: string, provider: (details: IVariableCompletionsDetails, token: CancellationToken) => ProviderResult<CompletionList>, wordPattern: RegExp = BuiltinDynamicCompletions.VariableNameDef, includeAgentHost = false, additionalTriggerCharacters: readonly string[] = []) {
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: `chatVarCompletions-${debugName}`,
-			triggerCharacters: [chatVariableLeader, chatAgentLeader],
+			triggerCharacters: [chatVariableLeader, chatAgentLeader, ...additionalTriggerCharacters],
 			provideCompletionItems: async (model: ITextModel, position: Position, context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget) {
@@ -1222,7 +1284,7 @@ class BuiltinDynamicCompletions extends Disposable {
 			const workspaces = this.workspaceContextService.getWorkspace().folders.map(folder => folder.uri);
 
 			for (const workspace of workspaces) {
-				const { folders, files } = await searchFilesAndFolders(workspace, pattern, true, token, cacheKey.key, this.configurationService, this.searchService);
+				const { folders, files } = await searchFilesAndFolders(workspace, pattern, true, token, cacheKey.key, this.configurationService, this.searchService, MAX_CHAT_FILE_COMPLETION_RESULTS);
 				for (const file of files) {
 					if (!seen.has(file)) {
 						result.suggestions.push(makeCompletionItem(file, FileKind.FILE));

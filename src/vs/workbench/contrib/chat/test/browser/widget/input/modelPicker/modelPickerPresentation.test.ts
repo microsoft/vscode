@@ -6,7 +6,9 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../../../platform/extensions/common/extensions.js';
-import { getModelPickerUnavailableReason, isAutoModel, ModelPickerUnavailableReason, shouldShowCacheBreakHint } from '../../../../../browser/widget/input/modelPicker/modelPickerPresentation.js';
+import { ChatEntitlement } from '../../../../../../../services/chat/common/chatEntitlementService.js';
+import { getAutoModeTierLabel, getFusionAutoModeTierLabel } from '../../../../../../../../platform/agentHost/common/autoModeTiers.js';
+import { getFusionTierLabel, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint } from '../../../../../browser/widget/input/modelPicker/modelPickerPresentation.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../common/languageModels.js';
 
 function model(identifier: string, metadataId: string): ILanguageModelChatMetadataAndIdentifier {
@@ -42,6 +44,38 @@ suite('ModelPickerPresentation', () => {
 		});
 	});
 
+	test('recognizes HydraFusion models only from Copilot CLI', () => {
+		const inGroup = (metadataId: string, group: string | undefined) => {
+			const base = model(`provider/${metadataId}`, metadataId);
+			return isHydraFusionModel({ ...base, metadata: { ...base.metadata, ...(group && { modelGroup: { id: group } }) } });
+		};
+		assert.deepStrictEqual({
+			hydraFusion: inGroup('hydrafusion', 'copilotcli'),
+			max: inGroup('hydrafusion-max', 'copilotcli'),
+			otherProvider: inGroup('hydrafusion-max', 'claude'),
+			ungrouped: inGroup('hydrafusion', undefined),
+			ordinary: inGroup('gpt-5', 'copilotcli'),
+		}, { hydraFusion: true, max: true, otherProvider: false, ungrouped: false, ordinary: false });
+	});
+
+	test('Fusion names HydraFusion by the provider tier it offers, without renaming Auto or changing runtime values', () => {
+		const fusion: ILanguageModelChatMetadataAndIdentifier['metadata'] = { ...model('copilot/auto', 'auto').metadata, autoModelFusion: true, configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'] } } } };
+		const withoutHydraFusionTier: ILanguageModelChatMetadataAndIdentifier['metadata'] = { ...fusion, configurationSchema: { properties: { tier: { type: 'string', enum: ['balance'] } } } };
+		assert.deepStrictEqual({
+			fusion: ['balance', 'hydrafusion', 'hydrafusion-max'].map(getFusionAutoModeTierLabel),
+			auto: ['efficiency', 'balance', 'intelligence'].map(getAutoModeTierLabel),
+			providerTiers: ['hydrafusion', 'hydrafusion-max'].map(id => getFusionTierLabel(fusion, id)),
+			notOffered: getFusionTierLabel(withoutHydraFusionTier, 'hydrafusion'),
+			notFusion: getFusionTierLabel(model('copilot/auto', 'auto').metadata, 'hydrafusion-max'),
+		}, {
+			fusion: ['Standard', 'High', 'Max'],
+			auto: ['Efficiency', 'Balance', 'Intelligence'],
+			providerTiers: ['High', 'Max'],
+			notOffered: undefined,
+			notFusion: undefined,
+		});
+	});
+
 	test('computes unavailable picker state from trust, setup, and live models', () => {
 		const gpt = model('copilot/gpt', 'gpt');
 		const reason = (trusted: boolean, requiresSetup: boolean, pickerModels: ILanguageModelChatMetadataAndIdentifier[] = [], liveModelIds: Iterable<string> = []) => getModelPickerUnavailableReason({
@@ -64,6 +98,36 @@ suite('ModelPickerPresentation', () => {
 			live: undefined,
 			staleCache: ModelPickerUnavailableReason.SetupRequired,
 			uninitialized: undefined,
+		});
+	});
+
+	test('requires setup only when setup opens a sign-in or sign-up dialog', () => {
+		const cases = [
+			{ name: 'Unknown', entitlement: ChatEntitlement.Unknown, anonymous: false, hasByokModels: false },
+			{ name: 'Unknown + anonymous', entitlement: ChatEntitlement.Unknown, anonymous: true, hasByokModels: false },
+			{ name: 'Unknown + BYOK', entitlement: ChatEntitlement.Unknown, anonymous: false, hasByokModels: true },
+			{ name: 'Available', entitlement: ChatEntitlement.Available, anonymous: false, hasByokModels: false },
+			{ name: 'Available + BYOK', entitlement: ChatEntitlement.Available, anonymous: false, hasByokModels: true },
+			{ name: 'Unavailable', entitlement: ChatEntitlement.Unavailable, anonymous: false, hasByokModels: false },
+			{ name: 'Unresolved', entitlement: ChatEntitlement.Unresolved, anonymous: false, hasByokModels: false },
+			{ name: 'Free', entitlement: ChatEntitlement.Free, anonymous: false, hasByokModels: false },
+			{ name: 'Pro', entitlement: ChatEntitlement.Pro, anonymous: false, hasByokModels: false },
+			{ name: 'EDU', entitlement: ChatEntitlement.EDU, anonymous: false, hasByokModels: false },
+			{ name: 'Enterprise', entitlement: ChatEntitlement.Enterprise, anonymous: false, hasByokModels: false },
+		];
+
+		assert.deepStrictEqual(Object.fromEntries(cases.map(c => [c.name, modelPickerRequiresSetup(c)])), {
+			'Unknown': true,
+			'Unknown + anonymous': false,
+			'Unknown + BYOK': false,
+			'Available': true,
+			'Available + BYOK': true,
+			'Unavailable': false,
+			'Unresolved': false,
+			'Free': false,
+			'Pro': false,
+			'EDU': false,
+			'Enterprise': false,
 		});
 	});
 

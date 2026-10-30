@@ -5,6 +5,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
@@ -28,7 +29,7 @@ import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEdito
 import { IDocumentDiffItemWithMultiDiffEditorItem, MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState, parseChatMultiDiffUri, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME } from '../../common/editing/chatEditingService.js';
+import { findChatEditingSessionEntry, IChatEditReviewSession, IChatEditingService, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState, parseChatMultiDiffUri, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME } from '../../common/editing/chatEditingService.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ctxCursorInChangeRange, ctxHasEditorModification, ctxHasRequestInProgress, ctxIsCurrentlyBeingModified, ctxIsGlobalEditingSession, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
 import { ChatEditingExplanationWidgetManager } from './chatEditingExplanationWidget.js';
@@ -63,20 +64,19 @@ abstract class ChatEditingEditorAction extends Action2 {
 			return;
 		}
 
-		const session = chatEditingService.editingSessionsObs.get()
-			.find(candidate => candidate.getEntry(uri));
+		const match = findChatEditingSessionEntry(chatEditingService.editingSessionsObs.get(), uri);
 
-		if (!session) {
+		if (!match) {
 			return;
 		}
 
-		const entry = session.getEntry(uri)!;
+		const { session, entry } = match;
 		const ctrl = entry.getEditorIntegration(editorService.activeEditorPane);
 
 		return instaService.invokeFunction(this.runChatEditingCommand.bind(this), session, entry, ctrl, ...args);
 	}
 
-	abstract runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, integration: IModifiedFileEntryEditorIntegration, ...args: unknown[]): Promise<void> | void;
+	abstract runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditReviewSession, entry: IModifiedFileEntry, integration: IModifiedFileEntryEditorIntegration, ...args: unknown[]): Promise<void> | void;
 }
 
 abstract class NavigateAction extends ChatEditingEditorAction {
@@ -111,7 +111,7 @@ abstract class NavigateAction extends ChatEditingEditorAction {
 		});
 	}
 
-	override async runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, ctrl: IModifiedFileEntryEditorIntegration): Promise<void> {
+	override async runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditReviewSession, entry: IModifiedFileEntry, ctrl: IModifiedFileEntryEditorIntegration): Promise<void> {
 
 		const instaService = accessor.get(IInstantiationService);
 
@@ -135,22 +135,25 @@ abstract class NavigateAction extends ChatEditingEditorAction {
 	}
 }
 
-async function openNextOrPreviousChange(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, next: boolean) {
+async function openNextOrPreviousChange(accessor: ServicesAccessor, session: IChatEditReviewSession, entry: IModifiedFileEntry, next: boolean, previousEntries = session.entries.get()) {
 
 	const editorService = accessor.get(IEditorService);
 
 	const entries = session.entries.get();
-	let idx = entries.indexOf(entry);
+	const candidates = previousEntries.map(previous => entries.find(current => isEqual(current.modifiedURI, previous.modifiedURI)) ?? previous);
+	candidates.push(...entries.filter(current => !candidates.includes(current)));
+	const index = previousEntries.indexOf(entry);
 
-	let newEntry: IModifiedFileEntry;
-	while (true) {
-		idx = (idx + (next ? 1 : -1) + entries.length) % entries.length;
-		newEntry = entries[idx];
-		if (newEntry.state.get() === ModifiedFileEntryState.Modified) {
+	let newEntry: IModifiedFileEntry | undefined;
+	for (let offset = 1; offset <= candidates.length; offset++) {
+		const candidate = candidates[(index + (next ? offset : -offset) + candidates.length) % candidates.length];
+		if (!isEqual(candidate.modifiedURI, entry.modifiedURI) && entries.includes(candidate) && candidate.state.get() === ModifiedFileEntryState.Modified) {
+			newEntry = candidate;
 			break;
-		} else if (newEntry === entry) {
-			return false;
 		}
+	}
+	if (!newEntry) {
+		return false;
 	}
 
 	const pane = await editorService.openEditor({
@@ -208,19 +211,21 @@ abstract class KeepOrUndoAction extends ChatEditingEditorAction {
 		});
 	}
 
-	override async runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration): Promise<void> {
+	override async runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditReviewSession, entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration): Promise<void> {
 
 		const instaService = accessor.get(IInstantiationService);
 		const configService = accessor.get(IConfigurationService);
+		const previousEntries = session.entries.get();
 
 		if (this._keep) {
-			session.accept(entry.modifiedURI);
+			await session.accept(entry.modifiedURI);
 		} else {
-			session.reject(entry.modifiedURI);
+			await session.reject(entry.modifiedURI);
 		}
 
-		if (configService.getValue<boolean>(ChatConfiguration.RevealNextChangeOnResolve)) {
-			await instaService.invokeFunction(openNextOrPreviousChange, session, entry, true);
+		if (configService.getValue<boolean>(ChatConfiguration.RevealNextChangeOnResolve)
+			&& (!session.entries.get().includes(entry) || entry.state.get() !== ModifiedFileEntryState.Modified)) {
+			await instaService.invokeFunction(openNextOrPreviousChange, session, entry, true, previousEntries);
 		}
 	}
 }
@@ -270,10 +275,11 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 		);
 	}
 
-	override async runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, ctrl: IModifiedFileEntryEditorIntegration, ...args: unknown[]): Promise<void> {
+	override async runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditReviewSession, entry: IModifiedFileEntry, ctrl: IModifiedFileEntryEditorIntegration, ...args: unknown[]): Promise<void> {
 
 		const instaService = accessor.get(IInstantiationService);
 		const configService = accessor.get(IConfigurationService);
+		const previousEntries = session.entries.get();
 
 		if (this._accept) {
 			await ctrl.acceptNearestChange(args[0] as IModifiedFileEntryChangeHunk | undefined);
@@ -281,9 +287,10 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 			await ctrl.rejectNearestChange(args[0] as IModifiedFileEntryChangeHunk | undefined);
 		}
 
-		if (configService.getValue<boolean>(ChatConfiguration.RevealNextChangeOnResolve) && entry.changesCount.get() === 0) {
+		if (configService.getValue<boolean>(ChatConfiguration.RevealNextChangeOnResolve)
+			&& (!session.entries.get().includes(entry) || entry.changesCount.get() === 0)) {
 			// no more changes, move to next file
-			await instaService.invokeFunction(openNextOrPreviousChange, session, entry, true);
+			await instaService.invokeFunction(openNextOrPreviousChange, session, entry, true, previousEntries);
 		}
 	}
 }
@@ -335,7 +342,7 @@ class ToggleDiffAction extends ChatEditingEditorAction {
 		});
 	}
 
-	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, _entry: IModifiedFileEntry, integration: IModifiedFileEntryEditorIntegration, ...args: unknown[]): Promise<void> | void {
+	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditReviewSession, _entry: IModifiedFileEntry, integration: IModifiedFileEntryEditorIntegration, ...args: unknown[]): Promise<void> | void {
 		integration.toggleDiff(args[0] as IModifiedFileEntryChangeHunk | undefined);
 	}
 }
@@ -355,7 +362,7 @@ class ToggleAccessibleDiffViewAction extends ChatEditingEditorAction {
 		});
 	}
 
-	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, _entry: IModifiedFileEntry, integration: IModifiedFileEntryEditorIntegration): Promise<void> | void {
+	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditReviewSession, _entry: IModifiedFileEntry, integration: IModifiedFileEntryEditorIntegration): Promise<void> | void {
 		integration.enableAccessibleDiffView();
 	}
 }
@@ -376,7 +383,7 @@ export class ReviewChangesAction extends ChatEditingEditorAction {
 		});
 	}
 
-	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ..._args: unknown[]): void {
+	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditReviewSession, entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ..._args: unknown[]): void {
 		entry.enableReviewModeUntilSettled();
 	}
 }
@@ -401,7 +408,7 @@ export class AcceptAllEditsAction extends ChatEditingEditorAction {
 		});
 	}
 
-	override async runChatEditingCommand(_accessor: ServicesAccessor, session: IChatEditingSession, _entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ..._args: unknown[]): Promise<void> {
+	override async runChatEditingCommand(_accessor: ServicesAccessor, session: IChatEditReviewSession, _entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ..._args: unknown[]): Promise<void> {
 		await session.accept();
 	}
 }

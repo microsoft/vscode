@@ -18,6 +18,7 @@ const mockNotification = {
 	message: '',
 	description: '',
 	actions: [] as { label: string; commandId: string; commandArgs?: unknown[] }[],
+	sessionTypes: undefined as readonly string[] | undefined,
 	show: vi.fn(),
 	hide: vi.fn(),
 	dispose: vi.fn(),
@@ -99,6 +100,7 @@ describe('ByokUtilityModelNotificationContribution', () => {
 		mockNotification.message = '';
 		mockNotification.description = '';
 		mockNotification.actions = [];
+		mockNotification.sessionTypes = undefined;
 		mockWorkspace.isAgentSessionsWorkspace = false;
 		selectChatModelsMock.mockResolvedValue([{ vendor: 'ollama', id: 'llama3' }]);
 	});
@@ -120,6 +122,7 @@ describe('ByokUtilityModelNotificationContribution', () => {
 		expect(mockNotification.actions).toHaveLength(1);
 		expect(mockNotification.actions[0].commandId).toBe('workbench.action.openSettings');
 		expect(mockNotification.actions[0].commandArgs).toEqual(['chat.byokUtilityModelDefault']);
+		expect(mockNotification.sessionTypes).toEqual(['local']);
 	});
 
 	test('does not show notification in the Agents window', async () => {
@@ -166,6 +169,30 @@ describe('ByokUtilityModelNotificationContribution', () => {
 		await flushAsync();
 
 		expect(mockNotification.show).not.toHaveBeenCalled();
+	});
+
+	test('does not warn when querying models is canceled', async () => {
+		const cancellationError = new Error('Canceled');
+		cancellationError.name = 'Canceled';
+		selectChatModelsMock.mockRejectedValue(cancellationError);
+		const { authService } = createAuthService({ anyGitHubSession: undefined });
+		const { configService } = createConfigService();
+		contribution = new ByokUtilityModelNotificationContribution(authService, configService, noopLog);
+
+		await flushAsync();
+
+		expect(noopLog.warn).not.toHaveBeenCalled();
+	});
+
+	test('warns when querying models fails unexpectedly', async () => {
+		selectChatModelsMock.mockRejectedValue(new Error('model query failed'));
+		const { authService } = createAuthService({ anyGitHubSession: undefined });
+		const { configService } = createConfigService();
+		contribution = new ByokUtilityModelNotificationContribution(authService, configService, noopLog);
+
+		await flushAsync();
+
+		expect(noopLog.warn).toHaveBeenCalledWith('[ByokUtilityModelNotification] Failed to query language models: Error: model query failed');
 	});
 
 	test('does not show notification when both utility settings are configured', async () => {

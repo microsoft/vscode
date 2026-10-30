@@ -8,15 +8,16 @@ import * as sinon from 'sinon';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { AgentSignal } from '../../common/agentService.js';
+import type { AgentSignal } from '../../common/agent.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolResultContentType } from '../../common/state/sessionState.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/protocol/state.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from '../../node/claude/claudeMapSessionEvents.js';
 import { CLAUDE_USER_DECLINED_MESSAGE } from '../../node/claude/claudeToolDenial.js';
-import { encodeForwardedChatError, PROXY_ERROR_PREFIX } from '../../node/shared/forwardedChatError.js';
+import { encodeForwardedChatError, PROXY_ERROR_PREFIX } from '../../node/shared/proxyChatError.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
+import { SessionClientToolsModel } from '../../node/claude/clientTools/claudeSessionClientToolsModel.js';
 import {
 	makeAssistantMessage,
 	makeContentBlockStartText,
@@ -92,6 +93,37 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(signals, []);
 	});
 
+	test('canonical assistant message reports one completed model call', () => {
+		const signals = mapSDKMessageToAgentSignals(
+			makeAssistantMessage(SESSION_ID, []),
+			SESSION,
+			TURN_ID,
+			new ClaudeMapperState(),
+			new NullLogService(),
+			r(),
+		);
+
+		assert.deepStrictEqual(signals, [{
+			kind: 'model_call_completed',
+			resource: SESSION,
+			turnId: TURN_ID,
+			modelCallId: 'msg_test',
+		}]);
+	});
+
+	test('aborted canonical assistant message does not report a completed model call', () => {
+		const signals = mapSDKMessageToAgentSignals(
+			{ ...makeAssistantMessage(SESSION_ID, []), aborted: true as const },
+			SESSION,
+			TURN_ID,
+			new ClaudeMapperState(),
+			new NullLogService(),
+			r(),
+		);
+
+		assert.deepStrictEqual(signals, []);
+	});
+
 	test('error_during_execution result emits a ChatError carrying duration and _meta', () => {
 		const marker = encodeForwardedChatError({ fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded', message: 'You have exceeded your monthly quota' } } });
 		const signals = mapSDKMessageToAgentSignals(
@@ -108,7 +140,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		const errorSignal = signals.find(s => s.kind === 'action' && s.action.type === ActionType.ChatError);
 		assert.ok(errorSignal && errorSignal.kind === 'action' && errorSignal.action.type === ActionType.ChatError);
 		assert.strictEqual(errorSignal.action.duration, 123);
-		const error = errorSignal.action.error;
+		const error = errorSignal.action.part.error;
 		const meta = error._meta as { chatError?: { fetchError?: { type?: string } } } | undefined;
 		assert.strictEqual(meta?.chatError?.fetchError?.type, 'quotaExceeded');
 		assert.ok(!error.message.includes(PROXY_ERROR_PREFIX), 'proxy marker should be stripped from the human-readable message');
@@ -128,7 +160,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		const errorSignal = signals.find(s => s.kind === 'action' && s.action.type === ActionType.ChatError);
 		assert.ok(errorSignal && errorSignal.kind === 'action' && errorSignal.action.type === ActionType.ChatError);
-		const meta = errorSignal.action.error._meta as { chatError?: { fetchError?: { type?: string } } } | undefined;
+		const meta = errorSignal.action.part.error._meta as { chatError?: { fetchError?: { type?: string } } } | undefined;
 		assert.strictEqual(meta?.chatError?.fetchError?.type, 'quotaExceeded');
 	});
 
@@ -242,6 +274,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 				toolCallId: 'tu_1',
 				toolName: 'Read',
 				displayName: 'Read file',
+				_meta: { toolKind: 'read' },
 			},
 		}]);
 		assert.deepStrictEqual(log.warns, []);
@@ -257,6 +290,8 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		const log = new CapturingLogService();
 		const state = new ClaudeMapperState();
 		const CLIENT_ID = 'client-abc';
+		const clientTools = new SessionClientToolsModel();
+		clientTools.setTools(CLIENT_ID, [{ name: 'problems', inputSchema: { type: 'object' } }]);
 
 		const signals = mapSDKMessageToAgentSignals(
 			makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_c', 'mcp__client__problems')),
@@ -265,7 +300,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			state,
 			log,
 			r(),
-			() => CLIENT_ID,
+			clientTools,
 		);
 
 		assert.deepStrictEqual(signals, [{
@@ -443,7 +478,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 				type: ActionType.ChatToolCallReady,
 				turnId: TURN_ID,
 				toolCallId: 'tu_write',
-				invocationMessage: { markdown: 'Editing [new.ts](file:///src/new.ts)' },
+				invocationMessage: { markdown: 'Edit [new.ts](file:///src/new.ts)' },
 				toolInput: '{\n  "file_path": "/src/new.ts",\n  "content": "one\\ntwo"\n}',
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			}],
@@ -453,6 +488,8 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 	test('client tools with Claude built-in names preserve client semantics throughout the lifecycle', () => {
 		const state = new ClaudeMapperState();
 		const resolver = r();
+		const clientTools = new SessionClientToolsModel();
+		clientTools.setTools('client-1', [{ name: 'Write', inputSchema: { type: 'object' } }]);
 		const start = mapSDKMessageToAgentSignals(
 			makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_client_write', 'mcp__client__Write')),
 			SESSION,
@@ -460,7 +497,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			state,
 			new NullLogService(),
 			resolver,
-			() => 'client-1',
+			clientTools,
 		);
 
 		const delta = mapSDKMessageToAgentSignals(
@@ -777,7 +814,12 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			r(),
 		);
 
-		assert.deepStrictEqual(signals, []);
+		assert.deepStrictEqual(signals, [{
+			kind: 'model_call_completed',
+			resource: SESSION,
+			turnId: TURN_ID,
+			modelCallId: 'msg_test',
+		}]);
 		assert.deepStrictEqual(log.warns, []);
 	});
 
@@ -795,7 +837,12 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			r(),
 		);
 
-		assert.deepStrictEqual(signals, []);
+		assert.deepStrictEqual(signals, [{
+			kind: 'model_call_completed',
+			resource: SESSION,
+			turnId: TURN_ID,
+			modelCallId: 'msg_test',
+		}]);
 		assert.deepStrictEqual(log.warns, []);
 	});
 
@@ -836,6 +883,10 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 						outputTokens: 34,
 						cacheReadTokens: 5,
 						model: 'claude-test',
+						_meta: {
+							turnTokenTotals: [{ model: 'claude-test', inputTokens: 12, cachedTokens: 5, outputTokens: 34 }],
+							directTurnTokenTotals: [{ model: 'claude-test', inputTokens: 12, cachedTokens: 5, outputTokens: 34 }],
+						},
 					},
 				},
 			},

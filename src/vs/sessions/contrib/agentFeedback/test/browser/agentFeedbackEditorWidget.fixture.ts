@@ -20,7 +20,7 @@ import { ICodeReviewService, ICodeReviewSuggestion } from '../../../codeReview/b
 import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
 import { ISessionEditorComment, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionFileChange } from '../../../../services/sessions/common/session.js';
 
 const sessionResource = URI.parse('vscode-agent-session://fixture/session-1');
 const fileResource = URI.parse('inmemory://model/agent-feedback-widget.ts');
@@ -85,7 +85,7 @@ function createFeedbackComment(id: string, text: string, startLineNumber: number
 		text,
 		suggestion,
 		canConvertToAgentFeedback: false,
-		replies,
+		replies: replies?.map(text => ({ text, author: 'user' as const })),
 	};
 }
 
@@ -106,12 +106,19 @@ function createPRReviewComment(id: string, text: string, startLineNumber: number
 function createMockAgentFeedbackService(): IAgentFeedbackService {
 	return new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
+		override readonly onDidChangeFeedbackVisibility = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
 		override readonly onDidChangeFeedbackScope = Event.None;
+		override readonly onDidRevealSessionComment = Event.None;
 		override readonly onDidAddFeedback = Event.None;
 		override readonly onDidConvertFeedback = Event.None;
 		override readonly onDidAddReply = Event.None;
 		override readonly onDidSubmitFeedback = Event.None;
+		override isAgentHostSession(): boolean { return false; }
+
+		override getVisibleResolvedFeedbackIds(): ReadonlySet<string> {
+			return new Set();
+		}
 
 		override addFeedback(): IAgentFeedback {
 			throw new Error('Not implemented for fixture');
@@ -274,12 +281,23 @@ function renderViaContribution(context: ComponentFixtureContext, code: string, c
 
 	const agentFeedbackService = new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
+		override readonly onDidChangeFeedbackVisibility = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
 		override readonly onDidChangeFeedbackScope = Event.None;
+		override readonly onDidRevealSessionComment = Event.None;
+		override isAgentHostSession(): boolean { return false; }
+
+		override getVisibleResolvedFeedbackIds(): ReadonlySet<string> {
+			return new Set();
+		}
 
 		override getSessionForFile(resourceUri: URI): ISession | undefined {
 			// eslint-disable-next-line local/code-no-dangerous-type-assertions
 			return resourceUri.toString() === fileResource.toString() ? { resource: sessionResource } as ISession : undefined;
+		}
+
+		override getChatChanges(): readonly ISessionFileChange[] {
+			return [];
 		}
 
 		override getFeedbackSessionResource(resourceUri: URI): URI | undefined {

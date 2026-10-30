@@ -1,0 +1,24 @@
+<!---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+---------------------------------------------------------------------------------------------->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="./style.css">
+	<title>Task Progress</title>
+</head>
+<body>
+	<main>
+		<div class="task-progress-summary" aria-live="polite" aria-atomic="true">
+			<strong id="progress-label">Loading task progress...</strong>
+		</div>
+		<div id="progress" class="task-progress" role="progressbar" aria-labelledby="progress-label" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0">
+			<div class="task-progress-value"></div>
+		</div>
+	</main>
+	<script type="module" src="./dist/main.js"></script>
+</body>
+</html>

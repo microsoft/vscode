@@ -9,7 +9,7 @@ import { IPickerQuickAccessItem } from '../../quickinput/browser/pickerQuickAcce
 import { Event } from '../../../base/common/event.js';
 import { IAction } from '../../../base/common/actions.js';
 import { IQuickPickItem } from '../../quickinput/common/quickInput.js';
-import { IDisposable, Disposable } from '../../../base/common/lifecycle.js';
+import { IDisposable, Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 
 export const IAccessibleViewService = createDecorator<IAccessibleViewService>('accessibleViewService');
 
@@ -18,9 +18,15 @@ export const enum AccessibleViewProviderId {
 	TerminalChat = 'terminal-chat',
 	TerminalHelp = 'terminal-help',
 	DiffEditor = 'diffEditor',
+	MultiDiffEditorFileList = 'multiDiffEditorFileList',
 	MergeEditor = 'mergeEditor',
 	PanelChat = 'panelChat',
+	CustomizationMigrations = 'customizationMigrations',
+	CustomizationDiscovery = 'customizationDiscovery',
+	Remotes = 'remotes',
+	McpServerConfiguration = 'mcpServerConfiguration',
 	ChatTerminalOutput = 'chatTerminalOutput',
+	ChatBackgroundShellOutput = 'chatBackgroundShellOutput',
 	ChatThinking = 'chatThinking',
 	InlineChat = 'inlineChat',
 	AgentChat = 'agentChat',
@@ -39,18 +45,32 @@ export const enum AccessibleViewProviderId {
 	ReplHelp = 'replHelp',
 	RunAndDebug = 'runAndDebug',
 	Walkthrough = 'walkthrough',
+	ReleaseNotes = 'releaseNotes',
 	SourceControl = 'scm',
 	EditorFindHelp = 'editorFindHelp',
 	SearchHelp = 'searchHelp',
 	TerminalFindHelp = 'terminalFindHelp',
 	WebviewFindHelp = 'webviewFindHelp',
 	OutputFindHelp = 'outputFindHelp',
+	ChatFindHelp = 'chatFindHelp',
 	ProblemsFilterHelp = 'problemsFilterHelp',
 	SessionsChat = 'sessionsChat',
+	ArtifactDetails = 'artifactDetails',
+	SessionsStorageCleanup = 'sessionsStorageCleanup',
 	SessionsChanges = 'sessionsChanges',
+	EmptyFileEditorSearch = 'emptyFileEditorSearch',
+	SessionsListNotification = 'sessionsListNotification',
+	SessionsGetStarted = 'sessionsGetStarted',
+	SessionCanvas = 'sessionCanvas',
 	Survey = 'survey',
 	Automations = 'automations',
+	InboxNotifications = 'inboxNotifications',
+	AgentsWindowExtensions = 'agentsWindowExtensions',
+	ConnectionDiagnostics = 'connectionDiagnostics',
 	BrowserElementCommenting = 'browserElementCommenting',
+	ChatPetAchievements = 'chatPetAchievements',
+	/** Shared by the jump game's accessibility help and current-state view. */
+	ChatPetJumpGame = 'chatPetJumpGame',
 }
 
 export const enum AccessibleViewType {
@@ -166,13 +186,16 @@ export type AccesibleViewContentProvider = AccessibleContentProvider | Extension
 
 export class AccessibleContentProvider extends Disposable implements IAccessibleViewContentProvider {
 
+	/** Releases caller-owned state on teardown, including context-view replacement without onClose. */
+	onDispose?: () => void;
+
 	constructor(
 		public id: AccessibleViewProviderId,
 		public options: IAccessibleViewOptions,
 		public provideContent: () => string,
 		public onClose: () => void,
 		public verbositySettingKey: string,
-		public onOpen?: () => void,
+		public onOpen?: () => IDisposable | void,
 		public actions?: IAction[],
 		public provideNextContent?: () => string | undefined,
 		public providePreviousContent?: () => string | undefined,
@@ -182,6 +205,7 @@ export class AccessibleContentProvider extends Disposable implements IAccessible
 		public onDidRequestClearLastProvider?: Event<AccessibleViewProviderId>,
 	) {
 		super();
+		this._register(toDisposable(() => this.onDispose?.()));
 	}
 }
 
@@ -220,7 +244,8 @@ export interface IBasicContentProvider extends IDisposable {
 	options: IAccessibleViewOptions;
 	onClose(): void;
 	provideContent(): string;
-	onOpen?(): void;
+	/** May return resources that are released when this showing of the view ends. */
+	onOpen?(): IDisposable | void;
 	actions?: IAction[];
 	providePreviousContent?(): void;
 	provideNextContent?(): void;

@@ -4,11 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../../base/common/network.js';
-import { env } from '../../../../base/common/process.js';
-import type { IProcessEnvironment } from '../../../../base/common/platform.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { getCopilotHomePath } from '../../../../platform/agentHost/common/copilotHome.js';
 import { parseRemoteAgentHostSessionTypeAuthority } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostConnectionInfo } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -22,6 +19,8 @@ import { IRemoteAgentHostConnectionInfo } from '../../../../platform/agentHost/c
 const COPILOT_CLI_PROVIDER = 'copilotcli';
 export const COPILOT_CLI_LOCAL_AH_SCHEME = `agent-host-${COPILOT_CLI_PROVIDER}`;
 export const COPILOT_CLI_EH_SCHEME = COPILOT_CLI_PROVIDER;
+/** Agent-host provider id for Copilot CLI, used to build backend (AHP channel) session URIs. */
+export const COPILOT_CLI_AGENT_PROVIDER = COPILOT_CLI_PROVIDER;
 
 /**
  * Builds the local `events.jsonl` URI under `<COPILOT_HOME>/session-state/<rawId>/`.
@@ -30,22 +29,22 @@ export const COPILOT_CLI_EH_SCHEME = COPILOT_CLI_PROVIDER;
  * extension-host Copilot CLI provider, which share the same on-disk layout
  * and the same chat session URI shape (`copilotcli:/<rawId>`).
  */
-export function buildLocalEventsUri(userHome: URI, rawSessionId: string, environment: IProcessEnvironment = env): URI {
-	return joinPath(buildLocalCopilotHomeUri(userHome, environment), 'session-state', rawSessionId, 'events.jsonl');
+export function buildLocalEventsUri(copilotHome: URI, rawSessionId: string): URI {
+	return joinPath(copilotHome, 'session-state', rawSessionId, 'events.jsonl');
 }
 
 /**
  * Builds the local `<COPILOT_HOME>/logs` directory URI.
  */
-export function buildLocalCopilotLogsUri(userHome: URI, environment: IProcessEnvironment = env): URI {
-	return joinPath(buildLocalCopilotHomeUri(userHome, environment), 'logs');
+export function buildLocalCopilotLogsUri(copilotHome: URI): URI {
+	return joinPath(copilotHome, 'logs');
 }
 
 /**
  * Builds the local `<COPILOT_HOME>/session-state` directory URI.
  */
-export function buildLocalSessionStateUri(userHome: URI, environment: IProcessEnvironment = env): URI {
-	return joinPath(buildLocalCopilotHomeUri(userHome, environment), 'session-state');
+export function buildLocalSessionStateUri(copilotHome: URI): URI {
+	return joinPath(copilotHome, 'session-state');
 }
 
 /**
@@ -114,6 +113,94 @@ export function getCopilotCliSessionRawId(sessionResource: URI | undefined): str
 	return getRawSessionId(sessionResource);
 }
 
+/**
+ * Lists each Copilot CLI session that has both a legacy extension-host row and a
+ * local agent-host row once.
+ *
+ * The agent-host row wins once the session has been adopted. While it is still
+ * un-opened (`isUnopenedTwin`), the legacy row wins instead: the extension host
+ * still owns the conversation, so its row tracks a run in progress and its
+ * archive state, and opening it probes adoption with a fallback to the legacy
+ * session. With no legacy row (its provider retired), the agent-host row stays.
+ *
+ * Only `copilotcli:` rows are ever matched against `agent-host-copilotcli:` rows.
+ * A remote agent-host session (`remote-<authority>-copilotcli:`) shares the
+ * Copilot CLI session type and can carry the same raw id as a local one, but is
+ * a different session and must never be deduped against it.
+ */
+export function dedupeMigratedCopilotCliSessions<T>(items: readonly T[], resourceOf: (item: T) => URI, isUnopenedTwin: (item: T) => boolean = () => false): T[] {
+	let legacyRawIds: Set<string> | undefined;
+	for (const item of items) {
+		const resource = resourceOf(item);
+		if (resource.scheme === COPILOT_CLI_EH_SCHEME) {
+			const rawId = getCopilotCliSessionRawId(resource);
+			if (rawId) {
+				(legacyRawIds ??= new Set<string>()).add(rawId);
+			}
+		}
+	}
+	if (!legacyRawIds) {
+		return items.slice();
+	}
+	const migratedRawIds = new Set<string>();
+	const supersededTwins = new Set<T>();
+	for (const item of items) {
+		const resource = resourceOf(item);
+		if (resource.scheme !== COPILOT_CLI_LOCAL_AH_SCHEME) {
+			continue;
+		}
+		const rawId = getCopilotCliSessionRawId(resource);
+		if (!rawId || !legacyRawIds.has(rawId)) {
+			continue;
+		}
+		if (isUnopenedTwin(item)) {
+			supersededTwins.add(item);
+		} else {
+			migratedRawIds.add(rawId);
+		}
+	}
+	return items.filter(item => {
+		if (supersededTwins.has(item)) {
+			return false;
+		}
+		const resource = resourceOf(item);
+		if (resource.scheme !== COPILOT_CLI_EH_SCHEME) {
+			return true;
+		}
+		const rawId = getCopilotCliSessionRawId(resource);
+		return !rawId || !migratedRawIds.has(rawId);
+	});
+}
+
+/**
+ * The local agent-host resource a legacy extension-host Copilot CLI session
+ * would migrate to, or `undefined` when `resource` is not such a session.
+ * Synchronous by design: open paths must not pay a round-trip for the
+ * overwhelmingly common case of a session that is not legacy.
+ */
+export function migratedCopilotCliResource(resource: URI | undefined): URI | undefined {
+	if (resource?.scheme !== COPILOT_CLI_EH_SCHEME) {
+		return undefined;
+	}
+	const rawId = getCopilotCliSessionRawId(resource);
+	return rawId ? URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: `/${rawId}` }) : undefined;
+}
+
+/**
+ * The legacy extension-host resource a local agent-host Copilot CLI session
+ * was migrated from, or `undefined` when `resource` is not such a session.
+ * The inverse of {@link migratedCopilotCliResource}; never maps a remote
+ * agent-host session, which is a different session, or a peer chat (a URI
+ * fragment), which never existed in the legacy session.
+ */
+export function legacyCopilotCliResource(resource: URI | undefined): URI | undefined {
+	if (resource?.scheme !== COPILOT_CLI_LOCAL_AH_SCHEME || resource.fragment || resource.query) {
+		return undefined;
+	}
+	const rawId = getCopilotCliSessionRawId(resource);
+	return rawId ? URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: `/${rawId}` }) : undefined;
+}
+
 export type ResolveEventsUriResult =
 	| { readonly kind: 'ok'; readonly resource: URI }
 	| { readonly kind: 'no-session' }
@@ -128,9 +215,8 @@ export type ResolveEventsUriResult =
  */
 export function resolveEventsUri(
 	sessionResource: URI | undefined,
-	userHome: URI,
+	copilotHome: URI,
 	getConnectionByAuthority: (authority: string) => IRemoteAgentHostConnectionInfo | undefined,
-	environment: IProcessEnvironment = env,
 ): ResolveEventsUriResult {
 	if (!sessionResource) {
 		return { kind: 'no-session' };
@@ -141,7 +227,7 @@ export function resolveEventsUri(
 	}
 
 	if (sessionResource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME || sessionResource.scheme === COPILOT_CLI_EH_SCHEME) {
-		return { kind: 'ok', resource: buildLocalEventsUri(userHome, rawId, environment) };
+		return { kind: 'ok', resource: buildLocalEventsUri(copilotHome, rawId) };
 	}
 
 	const remoteAuthority = parseRemoteAuthorityFromScheme(sessionResource.scheme);
@@ -183,11 +269,10 @@ function getRawSessionId(sessionResource: URI): string | undefined {
  */
 export function buildHostLocalEventsPath(
 	sessionResource: URI | undefined,
-	userHome: URI,
+	copilotHome: URI,
 	getConnectionByAuthority: (authority: string) => IRemoteAgentHostConnectionInfo | undefined,
-	environment: IProcessEnvironment = env,
 ): string | undefined {
-	const result = resolveEventsUri(sessionResource, userHome, getConnectionByAuthority, environment);
+	const result = resolveEventsUri(sessionResource, copilotHome, getConnectionByAuthority);
 	if (result.kind !== 'ok') {
 		return undefined;
 	}
@@ -199,8 +284,4 @@ export function buildHostLocalEventsPath(
 	// the leading slash from a Windows drive-letter path (`/c:/…` → `c:/…`) so the
 	// injected path is usable by host-side tooling; POSIX paths are left as-is.
 	return fromAgentHostUri(result.resource).path.replace(/^\/([a-zA-Z]:)/, '$1');
-}
-
-function buildLocalCopilotHomeUri(userHome: URI, environment: IProcessEnvironment): URI {
-	return URI.file(getCopilotHomePath(userHome.fsPath, environment));
 }

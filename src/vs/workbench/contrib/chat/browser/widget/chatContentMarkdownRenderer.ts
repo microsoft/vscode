@@ -8,7 +8,9 @@ import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../base/br
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { type MarkedExtension } from '../../../../../base/common/marked/marked.js';
+import { type MarkedExtension, type Token, type Tokens } from '../../../../../base/common/marked/marked.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IMarkdownRenderer, IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -19,7 +21,29 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../../../../platform/agentHost/common/openSessionLink.js';
 
-const _remoteImageDisallowed = () => false;
+const trustedChatImageSources = new Map([
+	['raw.githubusercontent.com', '/'],
+	['private-user-images.githubusercontent.com', '/'],
+	['avatars.githubusercontent.com', '/'],
+	['gist.github.com', '/assets/'],
+	['github.com', '/user-attachments/assets/'],
+]);
+
+/**
+ * Matches Copilot web's production image sources, restricted to HTTPS without credentials or non-default ports.
+ */
+function isRemoteImageAllowed(uri: URI): boolean {
+	try {
+		// Validate the browser URL after the same serialization used when rewriting image sources.
+		const url = new URL(uri.toString(true));
+		const trustedPath = trustedChatImageSources.get(url.hostname);
+		return url.protocol === `${Schemas.https}:`
+			&& !url.username && !url.password && !url.port
+			&& trustedPath !== undefined && url.pathname.startsWith(trustedPath);
+	} catch {
+		return false;
+	}
+}
 
 const nonPlainTextMarkdownSyntax = /[\\`*_[\]<>|&$]/;
 const gfmAutolink = /\b(?:https?:\/\/|www\.)/i;
@@ -38,6 +62,39 @@ const literalSingleTildeExtension: MarkedExtension = {
 		},
 	}]
 };
+
+const htmlLineBreak = /^<br\s*\/?>$/i;
+
+function replaceHtmlLineBreaks(tokens: Token[]): void {
+	for (let i = 0; i < tokens.length; i++) {
+		const token = tokens[i];
+		if (token.type === 'html' && htmlLineBreak.test(token.raw)) {
+			tokens[i] = { type: 'br', raw: token.raw } satisfies Tokens.Br;
+		} else {
+			const children = (token as Tokens.Generic).tokens;
+			if (children) {
+				replaceHtmlLineBreaks(children);
+			}
+		}
+	}
+}
+
+/**
+ * GFM table cells cannot contain newlines, so `<br>` is the conventional way to break lines
+ * inside them. Chat renders without `supportHtml`, which would otherwise show the tag as text.
+ */
+const tableCellLineBreakExtension: MarkedExtension = {
+	walkTokens: token => {
+		if (token.type === 'table') {
+			const table = token as Tokens.Table;
+			for (const cell of [...table.header, ...table.rows.flat()]) {
+				replaceHtmlLineBreaks(cell.tokens);
+			}
+		}
+	}
+};
+
+const chatMarkedExtensions: readonly MarkedExtension[] = [literalSingleTildeExtension, tableCellLineBreakExtension];
 
 function renderPlainTextMarkdown(markdown: IMarkdownString, outElement?: HTMLElement): IRenderedMarkdown | undefined {
 	const value = markdown.value;
@@ -99,9 +156,10 @@ export const allowedChatMarkdownHtmlTags = Object.freeze([
 export function getChatMarkdownRenderOptions(options?: MarkdownRenderOptions): MarkdownRenderOptions {
 	return {
 		...options,
-		markedExtensions: options?.markedExtensions?.includes(literalSingleTildeExtension)
-			? options.markedExtensions
-			: [...(options?.markedExtensions ?? []), literalSingleTildeExtension],
+		markedExtensions: [
+			...(options?.markedExtensions ?? []),
+			...chatMarkedExtensions.filter(extension => !options?.markedExtensions?.includes(extension)),
+		],
 		sanitizerConfig: {
 			replaceWithPlaintext: true,
 			allowedTags: {
@@ -109,7 +167,8 @@ export function getChatMarkdownRenderOptions(options?: MarkdownRenderOptions): M
 			},
 			...options?.sanitizerConfig,
 			allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill', Schemas.vscodeBrowser, AGENT_HOST_SCHEME, AGENT_HOST_SESSION_LINK_SCHEME] },
-			remoteImageIsAllowed: _remoteImageDisallowed,
+			remoteImageIsAllowed: uri => isRemoteImageAllowed(uri)
+				|| (uri.scheme === AGENT_HOST_SCHEME && options?.sanitizerConfig?.remoteImageIsAllowed?.(uri) === true),
 		}
 	};
 }
@@ -124,6 +183,7 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@ILabelService private readonly labelService: ILabelService,
 	) { }
 
 	render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IRenderedMarkdown {
@@ -162,7 +222,12 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 		// eslint-disable-next-line no-restricted-syntax
 		result.element.querySelectorAll('a').forEach((element) => {
 			if (element.title) {
-				const title = element.title;
+				let title = element.title;
+				if (title === element.dataset.href && title.startsWith(`${AGENT_HOST_SCHEME}:`)) {
+					const uri = URI.parse(title);
+					const label = this.labelService.getUriLabel(uri);
+					title = uri.fragment ? `${label}#${uri.fragment}` : label;
+				}
 				element.title = '';
 				store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, title));
 			}

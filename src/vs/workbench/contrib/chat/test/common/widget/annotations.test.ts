@@ -9,7 +9,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IChatMarkdownContent, IChatResponseCodeblockUriPart } from '../../../common/chatService/chatService.js';
-import { annotateSpecialMarkdownContent, extractCodeblockUrisFromText, extractSubAgentInvocationIdFromText, extractVulnerabilitiesFromText, hasEditCodeblockUriTag, isInsideCodeContext } from '../../../common/widget/annotations.js';
+import { annotateSpecialMarkdownContent, extractCodeblockUrisFromText, extractEditCodeblockUrisFromText, extractSubAgentInvocationIdFromText, extractVulnerabilitiesFromText, hasEditCodeblockUriTag, isInsideCodeContext } from '../../../common/widget/annotations.js';
 
 function content(str: string): IChatMarkdownContent {
 	return { kind: 'markdownContent', content: new MarkdownString(str) };
@@ -17,6 +17,13 @@ function content(str: string): IChatMarkdownContent {
 
 suite('Annotations', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('extracts every edit resource without counting non-edit codeblocks', () => {
+		const first = URI.file('/workspace/First.ts');
+		const second = URI.file('/workspace/Second.ts');
+		const text = `<vscode_codeblock_uri isEdit>${first}</vscode_codeblock_uri>\n\`\`\`ts\nfirst\n\`\`\`\n<vscode_codeblock_uri>${URI.file('/workspace/Example.ts')}</vscode_codeblock_uri>\n<vscode_codeblock_uri isEdit>${second}</vscode_codeblock_uri>`;
+		assert.deepStrictEqual(extractEditCodeblockUrisFromText(text).map(uri => uri.toString()), [first, second].map(uri => uri.toString()));
+	});
 
 	test('voice progress is not renderable', () => {
 		assert.deepStrictEqual(

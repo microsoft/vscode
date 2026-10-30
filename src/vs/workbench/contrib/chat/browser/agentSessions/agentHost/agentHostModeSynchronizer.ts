@@ -6,7 +6,7 @@
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { agentHostAgentPickerStorageKey } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
@@ -15,7 +15,6 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IChatWidget, IChatWidgetService } from '../../chat.js';
 import { ChatMode, IChatMode, IChatModes } from '../../../common/chatModes.js';
-import { ChatModeKind } from '../../../common/constants.js';
 import type { IChatModeChangeEvent } from '../../widget/input/chatInputPart.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 
@@ -32,6 +31,7 @@ export class AgentHostModeSynchronizer extends Disposable implements IWorkbenchC
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisionalSessionService: IAgentHostUntitledProvisionalSessionService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 	) {
 		super();
 		if (environmentService.isSessionsWindow) {
@@ -42,6 +42,7 @@ export class AgentHostModeSynchronizer extends Disposable implements IWorkbenchC
 			this._attachWidget(widget);
 		}
 		this._register(this._chatWidgetService.onDidAddWidget(widget => this._attachWidget(widget)));
+		this._register(this._chatWidgetService.onDidRemoveWidget(widget => this._widgetListeners.deleteAndDispose(widget)));
 		this._register(this._chatWidgetService.onDidChangeFocusedSession(() => {
 			const widget = this._chatWidgetService.lastFocusedWidget;
 			if (widget) {
@@ -147,7 +148,7 @@ export class AgentHostModeSynchronizer extends Disposable implements IWorkbenchC
 	}
 
 	private _agentUriFromMode(mode: IChatMode): string | undefined {
-		if (mode.kind !== ChatModeKind.Agent || mode.id === ChatMode.Agent.id || mode.isBuiltin) {
+		if (mode.id === ChatMode.Agent.id || mode.isBuiltin) {
 			return undefined;
 		}
 
@@ -179,8 +180,7 @@ export class AgentHostModeSynchronizer extends Disposable implements IWorkbenchC
 			return undefined;
 		}
 
-		const provider = sessionResource.scheme.substring(AGENT_HOST_SESSION_SCHEME_PREFIX.length);
-		return provider ? AgentSession.uri(provider, sessionResource.path.substring(1)) : undefined;
+		return this._connectionsService.resolveSessionResourceIdentity(sessionResource)?.backendSession;
 	}
 }
 

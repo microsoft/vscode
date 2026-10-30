@@ -167,6 +167,8 @@ function modelsEqual(a: readonly IByokLmModelInfo[], b: readonly IByokLmModelInf
 			&& m.name === n.name
 			&& m.modelIdentifier === n.modelIdentifier
 			&& m.maxContextWindowTokens === n.maxContextWindowTokens
+			&& m.maxPromptTokens === n.maxPromptTokens
+			&& m.maxOutputTokens === n.maxOutputTokens
 			&& m.supportsVision === n.supportsVision
 			&& m.defaultReasoningEffort === n.defaultReasoningEffort
 			&& arraysEqual(m.supportedReasoningEfforts, n.supportedReasoningEfforts);

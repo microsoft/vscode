@@ -6,15 +6,21 @@
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { AGENT_HOST_LABEL_FORMATTER, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_LABEL_FORMATTER, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { TestEnvironmentService, TestLifecycleService, TestPathService, TestRemoteAgentService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { TestContextService, TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { LabelService } from '../../../../../workbench/services/label/common/labelService.js';
 import { getChangesEditorFileStats, getChangesEditorLabels } from '../../browser/changesEditorLabels.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { extUri } from '../../../../../base/common/resources.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 
 suite('ChangesEditorLabels', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const uriIdentityService = new class extends mock<IUriIdentityService>() {
+		override readonly extUri = extUri;
+	};
 
 	function createLabelService(): LabelService {
 		const labelService = disposables.add(new LabelService(
@@ -23,7 +29,8 @@ suite('ChangesEditorLabels', () => {
 			new TestPathService(URI.file('/Users/test')),
 			new TestRemoteAgentService(),
 			disposables.add(new TestStorageService()),
-			disposables.add(new TestLifecycleService())
+			disposables.add(new TestLifecycleService()),
+			uriIdentityService
 		));
 		disposables.add(labelService.registerFormatter(AGENT_HOST_LABEL_FORMATTER));
 		return labelService;
@@ -72,6 +79,27 @@ suite('ChangesEditorLabels', () => {
 			label: 'hello_count.txt',
 			description: '',
 		});
+	});
+
+	test('opaque snapshots label same-named files by their own paths before and after reopen', () => {
+		const labelService = createLabelService();
+		const content = URI.parse('opaque-content://store/7f3a');
+		const resources = ['src', 'docs'].map(folder =>
+			toAgentHostContentUri(content, 'remotehost', URI.file(`/repo/${folder}/index.html`)));
+
+		assert.deepStrictEqual(resources.map(resource => ({
+			initial: getChangesEditorLabels(resource, labelService),
+			reopened: getChangesEditorLabels(URI.parse(resource.toString()), labelService),
+		})), [
+			{
+				initial: { label: 'index.html', description: '/repo/src' },
+				reopened: { label: 'index.html', description: '/repo/src' },
+			},
+			{
+				initial: { label: 'index.html', description: '/repo/docs' },
+				reopened: { label: 'index.html', description: '/repo/docs' },
+			},
+		]);
 	});
 
 	test('file stats resolve from canonical, modified, and original resources', () => {

@@ -241,7 +241,7 @@ export class SymbolAtCursor extends PromptElement<SymbolAtCursorProps, SymbolAtC
 				{Boolean(state.definitions.length) && <>Here are some relevant definitions for the symbols in my code:<br /></>}
 				{Boolean(state.definitions.length) && <PrioritizedList priority={this.props.priority} descending={true}>{state.definitions.map(def => <CodeBlock uri={state.document.uri} languageId={state.document.languageId} code={def.text} />)}</PrioritizedList >}
 				{/* Priority for references should be lower than priority for definitions */}
-				{Boolean(state.references.length) && <><br />Here are some places where the the symbols in my code are referenced:<br /></>}
+				{Boolean(state.references.length) && <><br />Here are some places where the symbols in my code are referenced:<br /></>}
 				{Boolean(state.references.length) &&
 					<PrioritizedList priority={this.props.priority - state.definitions.length} descending={true}>
 						{state.references.map(ref => <>

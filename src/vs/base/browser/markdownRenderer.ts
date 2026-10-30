@@ -4,19 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from '../common/errors.js';
-import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
+import { isUNC } from '../common/extpath.js';
+import { escapeDoubleQuotes, IMarkdownString, isPortableLinkTarget, parseHrefAndDimensions, removeMarkdownEscapes, resolveWithBaseUri } from '../common/htmlContent.js';
 import { markdownEscapeEscapedIcons } from '../common/iconLabels.js';
 import { defaultGenerator } from '../common/idGenerator.js';
 import { KeyCode } from '../common/keyCodes.js';
 import { DisposableStore, IDisposable } from '../common/lifecycle.js';
 import * as marked from '../common/marked/marked.js';
 import { parse } from '../common/marshalling.js';
-import { FileAccess, Schemas } from '../common/network.js';
+import { FileAccess, matchesSomeScheme, Schemas } from '../common/network.js';
 import { cloneAndChange } from '../common/objects.js';
 import { basename as pathBasename } from '../common/path.js';
-import { basename, dirname, resolvePath } from '../common/resources.js';
+import { basename } from '../common/resources.js';
 import { escape } from '../common/strings.js';
-import { URI, UriComponents } from '../common/uri.js';
+import { URI } from '../common/uri.js';
 import * as DOM from './dom.js';
 import * as domSanitize from './domSanitize.js';
 import { convertTagToPlaintext } from './domSanitize.js';
@@ -64,6 +65,9 @@ export interface MarkdownSanitizerConfig {
 		readonly override: ReadonlyArray<string | domSanitize.SanitizeAttributeRule>;
 	};
 	readonly allowedLinkSchemes?: {
+		readonly augment: readonly string[];
+	};
+	readonly allowedMediaSchemes?: {
 		readonly augment: readonly string[];
 	};
 	readonly remoteImageIsAllowed?: (uri: URI) => boolean;
@@ -235,6 +239,10 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		};
 		const tokens = markedInstance.lexer(value, opts);
 		const newTokens = fillInIncompleteTokens(tokens);
+		// Unlike parse(), lexer() and parser() skip extension walkTokens hooks
+		if (opts.walkTokens) {
+			markedInstance.walkTokens(newTokens, opts.walkTokens);
+		}
 		renderedMarkdown = markedInstance.parser(newTokens, opts);
 	} else {
 		renderedMarkdown = markedInstance.parse(value, { ...options?.markedOptions, renderer, async: false });
@@ -251,12 +259,16 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	domSanitize.safeSetInnerHtml(renderedContent, renderedMarkdown, sanitizerConfig);
 
 	// Rewrite links and images before potentially inserting them into the real dom
-	rewriteRenderedLinks(markdown, options, renderedContent);
+	rewriteRenderedLinks(markdown, options, renderedContent, disposables);
 
 	let outElement: HTMLElement;
 	if (target) {
 		outElement = target;
-		DOM.reset(target, ...renderedContent.childNodes);
+		if (syncCodeBlocks.some(([, element]) => target.contains(element))) {
+			replaceChildrenPreservingCodeBlocks(target, renderedContent, syncCodeBlocks);
+		} else {
+			DOM.reset(target, ...renderedContent.childNodes);
+		}
 	} else {
 		outElement = renderedContent;
 	}
@@ -283,7 +295,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		const placeholderElements = outElement.querySelectorAll<HTMLDivElement>(`div[data-code]`);
 		for (const placeholderElement of placeholderElements) {
 			const renderedElement = renderedElements.get(placeholderElement.dataset['code'] ?? '');
-			if (renderedElement) {
+			if (renderedElement && (placeholderElement.childNodes.length !== 1 || placeholderElement.firstChild !== renderedElement)) {
 				DOM.reset(placeholderElement, renderedElement);
 			}
 		}
@@ -319,6 +331,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			}
 			activateLink(markdown, options, keyboardEvent);
 		}));
+
 	}
 
 	// Remove/disable inputs
@@ -349,7 +362,91 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	};
 }
 
-function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRenderOptions, root: HTMLElement) {
+/** Keeps reused code blocks and their matching ancestors connected so embedded iframes do not reload. */
+function replaceChildrenPreservingCodeBlocks(target: HTMLElement, source: HTMLElement, codeBlocks: readonly [string, HTMLElement][]): void {
+	const renderedElements = new Map(codeBlocks);
+	const replacements = new Map<HTMLElement, HTMLElement>();
+	const existingToNew = new Map<HTMLElement, HTMLElement>();
+	const preservedCodeBlocks = new Set<HTMLElement>();
+
+	// eslint-disable-next-line no-restricted-syntax
+	for (const placeholder of source.querySelectorAll<HTMLElement>('div[data-code]')) {
+		const renderedElement = renderedElements.get(placeholder.dataset.code ?? '');
+		if (!renderedElement || !target.contains(renderedElement)) {
+			continue;
+		}
+
+		let existing = renderedElement.parentElement;
+		if (!existing?.hasAttribute('data-code') || existing.childNodes.length !== 1) {
+			continue;
+		}
+
+		let incoming: HTMLElement | null = placeholder;
+		const ancestors: [HTMLElement, HTMLElement][] = [];
+		while (existing && incoming && existing !== target && incoming !== source
+			&& existing.tagName === incoming.tagName
+			&& (!replacements.has(incoming) || replacements.get(incoming) === existing)
+			&& (!existingToNew.has(existing) || existingToNew.get(existing) === incoming)) {
+			ancestors.push([incoming, existing]);
+			existing = existing.parentElement;
+			incoming = incoming.parentElement;
+		}
+
+		if (existing === target && incoming === source) {
+			for (const [newElement, existingElement] of ancestors) {
+				replacements.set(newElement, existingElement);
+				existingToNew.set(existingElement, newElement);
+			}
+			preservedCodeBlocks.add(placeholder);
+		}
+	}
+
+	if (replacements.size === 0) {
+		DOM.reset(target, ...source.childNodes);
+		return;
+	}
+
+	const updateChildren = (parent: HTMLElement, newParent: HTMLElement): void => {
+		const children = Array.from(newParent.childNodes, child => {
+			if (!DOM.isHTMLElement(child)) {
+				return child;
+			}
+			const replacement = replacements.get(child);
+			if (!replacement) {
+				return child;
+			}
+
+			for (const name of replacement.getAttributeNames()) {
+				if (!child.hasAttribute(name)) {
+					replacement.removeAttribute(name);
+				}
+			}
+			DOM.copyAttributes(child, replacement);
+			if (!preservedCodeBlocks.has(child)) {
+				updateChildren(replacement, child);
+			}
+			return replacement;
+		});
+		const retainedChildren = new Set(children);
+		for (const child of Array.from(parent.childNodes)) {
+			if (!retainedChildren.has(child)) {
+				parent.removeChild(child);
+			}
+		}
+		let cursor = parent.firstChild;
+		for (const child of children) {
+			if (cursor === child) {
+				cursor = cursor.nextSibling;
+			} else {
+				parent.insertBefore(child, cursor);
+			}
+		}
+	};
+
+	updateChildren(target, source);
+}
+
+function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRenderOptions, root: HTMLElement, disposables: DisposableStore) {
 	// eslint-disable-next-line no-restricted-syntax
 	for (const el of root.querySelectorAll('img, audio, video, source')) {
 		const src = el.getAttribute('src'); // Get the raw 'src' attribute value as text, not the resolved 'src'
@@ -361,13 +458,29 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 				}
 			} catch (err) { }
 
-			el.setAttribute('src', massageHref(markdown, href, true));
-
-			if (options.sanitizerConfig?.remoteImageIsAllowed) {
-				const uri = URI.parse(href);
-				if (uri.scheme !== Schemas.file && uri.scheme !== Schemas.data && !options.sanitizerConfig.remoteImageIsAllowed(uri)) {
-					el.replaceWith(DOM.$('', undefined, el.outerHTML));
-				}
+			const uri = URI.revive(markdown.uris?.[href]) ?? URI.parse(href);
+			if (!matchesSomeScheme(uri, Schemas.http, Schemas.https, Schemas.data)) {
+				// The browser loads other resources through a transport URL, so keep the resource the element shows
+				el.setAttribute('data-src', uri.toString());
+			}
+			const resolved = FileAccess.resolveBrowserUri(uri);
+			if (resolved) {
+				el.removeAttribute('src');
+				void resolved.then(ref => {
+					if (disposables.isDisposed) {
+						ref.dispose();
+						return;
+					}
+					disposables.add(ref);
+					el.setAttribute('src', ref.object.toString(true));
+				}, error => {
+					if (!disposables.isDisposed) {
+						el.dispatchEvent(new ErrorEvent('error', { error }));
+						options.asyncRenderCallback?.();
+					}
+				});
+			} else {
+				el.setAttribute('src', massageHref(markdown, href, true));
 			}
 		}
 	}
@@ -388,9 +501,18 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 				resolvedHref = resolveWithBaseUri(URI.from(markdown.baseUri), href);
 			}
 			el.dataset.href = resolvedHref;
+
+			// Leaving `href` empty makes the browser resolve it against the workbench document
+			// when serializing a copy, so every pasted link became a `workbench.html` URL. Only
+			// restore it where an action handler intercepts clicks and routes them through the
+			// opener; without one the anchor would navigate natively.
+			if (options.actionHandler && isPortableLinkTarget(resolvedHref)) {
+				el.setAttribute('href', resolvedHref);
+			}
 		}
 	}
 }
+
 
 function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
 	const renderer = new marked.Renderer(options.markedOptions);
@@ -538,23 +660,38 @@ function postProcessCodeBlockLanguageId(lang: string | undefined): string {
 	return lang;
 }
 
-function resolveWithBaseUri(baseUri: URI, href: string): string {
-	const hasScheme = /^\w[\w\d+.-]*:/.test(href);
-	if (hasScheme) {
-		return href;
-	}
+type MdStrConfig = Pick<IMarkdownString, 'isTrusted' | 'baseUri' | 'uris'>;
 
-	if (baseUri.path.endsWith('/')) {
-		return resolvePath(baseUri, href).toString();
-	} else {
-		return resolvePath(dirname(baseUri), href).toString();
-	}
+function isLocalFileUri(uri: URI): boolean {
+	return uri.scheme === Schemas.file && !uri.authority && !isUNC(uri.fsPath);
 }
 
-type MdStrConfig = {
-	readonly isTrusted?: boolean | MarkdownStringTrustedOptions;
-	readonly baseUri?: UriComponents;
-};
+function isMediaSourceAllowed(mdStrConfig: MdStrConfig, source: string, remoteImageIsAllowed: (uri: URI) => boolean, customSchemes: readonly string[]): boolean {
+	let uri: URI;
+	let mappedUri: URI | undefined;
+	try {
+		const baseUri = mdStrConfig.baseUri ? URI.from(mdStrConfig.baseUri) : undefined;
+		const hasScheme = /^\w[\w\d+.-]*:/.test(source);
+		if (!hasScheme && baseUri?.scheme === Schemas.file && !isLocalFileUri(baseUri)) {
+			return false;
+		}
+		const href = baseUri ? resolveWithBaseUri(baseUri, source) : source;
+		uri = URI.parse(href);
+		mappedUri = href.startsWith(`${Schemas.data}:`) ? undefined : URI.revive(mdStrConfig.uris?.[href]);
+		if (customSchemes.includes(uri.scheme)) {
+			return remoteImageIsAllowed(mappedUri ?? uri);
+		}
+	} catch {
+		return false;
+	}
+
+	const isAllowed = (uri: URI) => isLocalFileUri(uri) || uri.scheme === Schemas.data || remoteImageIsAllowed(uri);
+	// Remote extension host RPC maps local files to the same file on its remote authority.
+	const isRemoteFileMapping = isLocalFileUri(uri) && mappedUri?.scheme === Schemas.vscodeRemote
+		&& mappedUri.path === uri.path && mappedUri.query === uri.query && mappedUri.fragment === uri.fragment;
+	// Some media attributes are not rewritten, so both the source and its mapped destination must be safe.
+	return isAllowed(uri) && (!mappedUri || isRemoteFileMapping || isAllowed(mappedUri));
+}
 
 function sanitizeRenderedMarkdown(
 	renderedMarkdown: string,
@@ -607,7 +744,7 @@ export const allowedMarkdownHtmlAttributes = Object.freeze<Array<string | domSan
 		shouldKeep: (element, data) => {
 			if (element.tagName === 'SPAN') {
 				if (data.attrName === 'style') {
-					return /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(border-radius:[0-9]+px;)?$/.test(data.attrValue);
+					return /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(display\:inline-block;)?(border-radius:[0-9]+px;)?$/.test(data.attrValue);
 				}
 			}
 			return false;
@@ -630,6 +767,7 @@ export const allowedMarkdownHtmlAttributes = Object.freeze<Array<string | domSan
 
 function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSanitizerConfig): domSanitize.DomSanitizerConfig {
 	const isTrusted = mdStrConfig.isTrusted ?? false;
+	const remoteImageIsAllowed = options.remoteImageIsAllowed;
 	const allowedLinkSchemes = [
 		Schemas.http,
 		Schemas.https,
@@ -675,9 +813,11 @@ function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSaniti
 				Schemas.vscodeFileResource,
 				Schemas.vscodeRemote,
 				Schemas.vscodeRemoteResource,
+				...(options.allowedMediaSchemes?.augment ?? []),
 			]
 		},
 		allowRelativeMediaPaths: !!mdStrConfig.baseUri,
+		mediaSourceIsAllowed: remoteImageIsAllowed ? source => isMediaSourceAllowed(mdStrConfig, source, remoteImageIsAllowed, options.allowedMediaSchemes?.augment ?? []) : undefined,
 		replaceWithPlaintext: options.replaceWithPlaintext,
 	};
 }
@@ -692,6 +832,16 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	readonly includeCodeBlocksFences?: boolean;
 	/** Controls if we want to format empty links from "Link [](file)" to "Link file" */
 	readonly useLinkFormatter?: boolean;
+	/**
+	 * Controls whether markdown syntax is reduced to its text everywhere, rather than only where
+	 * the renderer already does so.
+	 *
+	 * By default a list item is emitted as its raw source, so inline syntax survives into the
+	 * output — a link keeps its target, as in `- Added [src/](/some/path)`, and `**bold**` keeps
+	 * its asterisks. Enable this for callers that need the text a reader actually sees. Off by
+	 * default because it changes long-standing output for every caller.
+	 */
+	readonly omitMarkdownSyntax?: boolean;
 }) {
 	if (typeof str === 'string') {
 		return str;
@@ -709,6 +859,12 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	}
 	if (options?.useLinkFormatter) {
 		renderer.link = linkFormatter;
+	}
+	if (options?.omitMarkdownSyntax) {
+		renderer.listitem = parsedListItem;
+		// A tight list item's content arrives as a block-level text token carrying the inline
+		// tokens, so the list item alone is not enough to reach the inline renderers.
+		renderer.text = parsedText;
 	}
 
 	const html = marked.parse(value, { async: false, renderer });
@@ -804,6 +960,22 @@ const linkFormatter = ({ text, href }: marked.Tokens.Link): string => {
 		return text.trim() || pathBasename(href);
 	}
 	return text;
+};
+
+/**
+ * Renders a list item from its parsed tokens rather than its raw source, so inline markdown is
+ * reduced to text the way it already is in a paragraph. Opt-in via `omitMarkdownSyntax`.
+ *
+ * Parses as top-level so a tight item's text becomes a paragraph: without that boundary an item
+ * holding a nested list would run straight into it, as in `outerinner link`.
+ */
+const parsedListItem = function (this: marked.Renderer, { tokens }: marked.Tokens.ListItem): string {
+	return this.parser.parse(tokens, true);
+};
+
+/** Renders a block-level text token through its inline tokens. Opt-in via `omitMarkdownSyntax`. */
+const parsedText = function (this: marked.Renderer, token: marked.Tokens.Text): string {
+	return token.tokens ? this.parser.parseInline(token.tokens) : token.text;
 };
 
 function mergeRawTokenText(tokens: marked.Token[]): string {

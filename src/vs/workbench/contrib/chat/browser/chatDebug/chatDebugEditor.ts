@@ -11,7 +11,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../../../../../platform/agentHost/common/agentService.js';
-import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -27,7 +27,7 @@ import { IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { AgentHostAgentDebugLogEnabledSettingId, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING } from '../../common/promptSyntax/promptTypes.js';
 import { IChatWidgetService } from '../chat.js';
-import { ViewState, IChatDebugEditorOptions, CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST } from './chatDebugTypes.js';
+import { ViewState, IChatDebugEditorOptions } from './chatDebugTypes.js';
 import { ChatDebugFilterState, registerFilterMenuItems } from './chatDebugFilters.js';
 import { isAgentHostSession } from './agentHostLogSources.js';
 import { isChatDebugLoggingEnabledForSession, isWireLogLoggingEnabled, renderChatDebugLoggingDisabledMessage, renderWireLogLoggingDisabledMessage } from './chatDebugEnablement.js';
@@ -37,6 +37,7 @@ import { ChatDebugLogsView, LogsNavigation } from './chatDebugLogsView.js';
 import { ChatDebugFlowChartView, FlowChartNavigation } from './chatDebugFlowChartView.js';
 import { ChatDebugCacheExplorerView, CacheExplorerNavigation } from './chatDebugCacheExplorerView.js';
 import { ChatDebugWireLogView, WireLogNavigation } from './chatDebugWireLogView.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 
 const $ = DOM.$;
 
@@ -73,7 +74,6 @@ export class ChatDebugEditor extends EditorPane {
 	private filterState: ChatDebugFilterState | undefined;
 
 	private _scopedContextKeyService: IContextKeyService | undefined;
-	private _activeSessionIsAgentHostContextKey: IContextKey<boolean> | undefined;
 
 	/**
 	 * Shared overlay shown in place of a session sub-view (Logs, Flow Chart,
@@ -100,7 +100,6 @@ export class ChatDebugEditor extends EditorPane {
 			this.chatDebugService.endSession(sessionResource);
 		}
 		this.chatDebugService.activeSessionResource = undefined;
-		this._activeSessionIsAgentHostContextKey?.set(false);
 	}
 
 	constructor(
@@ -110,6 +109,7 @@ export class ChatDebugEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
+		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatService private readonly chatService: IChatService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -126,7 +126,6 @@ export class ChatDebugEditor extends EditorPane {
 		this.filterState = this._register(new ChatDebugFilterState());
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.container));
 		this._scopedContextKeyService = scopedContextKeyService;
-		this._activeSessionIsAgentHostContextKey = CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST.bindTo(scopedContextKeyService);
 		this._register(registerFilterMenuItems(this.filterState, scopedContextKeyService));
 
 		// Create sub-views via DI
@@ -306,7 +305,7 @@ export class ChatDebugEditor extends EditorPane {
 			&& !isChatDebugLoggingEnabledForSession(this.configurationService, session);
 		const wireLogDisabled = state === ViewState.WireLog
 			&& isAgentHostSession(session)
-			&& !isWireLogLoggingEnabled(this.configurationService);
+			&& !isWireLogLoggingEnabled(this.configurationService, session ? this.agentHostConnectionsService.resolveSessionResource(session)?.connection : undefined);
 
 		if (state === ViewState.Home) {
 			this.homeView?.show();
@@ -375,7 +374,6 @@ export class ChatDebugEditor extends EditorPane {
 		}
 
 		this.chatDebugService.activeSessionResource = sessionResource;
-		this._activeSessionIsAgentHostContextKey?.set(isAgentHostSession(sessionResource));
 		if (!this.chatDebugService.hasInvokedProviders(sessionResource)) {
 			this.chatDebugService.invokeProviders(sessionResource);
 		}

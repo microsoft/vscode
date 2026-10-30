@@ -5,31 +5,37 @@
 
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../base/common/event.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChat, ISession, SessionStatus } from '../../common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { ISessionListModelChangeEvent, SessionListModelChangeKind, SessionsListModelService } from '../../browser/sessionsListModelService.js';
+import { ISessionListModelChangeEvent, SessionListModelChangeKind, SessionSortEntry, SessionsListModelService } from '../../browser/sessionsListModelService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 
-function createSession(id: string, status: SessionStatus = SessionStatus.Completed, opts?: { createdAt?: Date; updatedAt?: Date }): ISession {
+function createSession(id: string, status: SessionStatus = SessionStatus.Completed, opts?: { createdAt?: Date; updatedAt?: Date; createdBySession?: URI; isAutomation?: boolean }): ISession {
 	return {
 		sessionId: id,
 		resource: URI.parse(`session://${id}`),
 		providerId: 'test',
 		sessionType: 'test',
+		harness: 'copilot',
+		environment: 'local',
+		application: constObservable({ id: 'vscode', label: 'VS Code' }),
 		icon: Codicon.account,
 		createdAt: opts?.createdAt ?? new Date(),
 		workspace: observableValue(`workspace-${id}`, undefined),
+		isAutomation: observableValue(`isAutomation-${id}`, opts?.isAutomation ?? false),
+		createdBySession: constObservable(opts?.createdBySession ? { session: opts.createdBySession } : undefined),
 		title: observableValue(`title-${id}`, id),
 		updatedAt: observableValue(`updatedAt-${id}`, opts?.updatedAt ?? new Date()),
 		status: observableValue(`status-${id}`, status),
-		changesets: observableValue(`changesets-${id}`, []),
-		changes: observableValue(`changes-${id}`, []),
 		modelId: observableValue(`modelId-${id}`, undefined),
 		mode: observableValue(`mode-${id}`, undefined),
 		loading: observableValue(`loading-${id}`, false),
@@ -49,18 +55,65 @@ suite('SessionsListModelService', () => {
 	let service: SessionsListModelService;
 	let sessionsChangedEmitter: Emitter<ISessionsChangeEvent>;
 	let sessionDeletedEmitter: Emitter<ISession>;
+	let sessions: ISession[];
+	let instantiationService: TestInstantiationService;
+	let storageService: InMemoryStorageService;
+	let configurationService: TestConfigurationService;
 
 	setup(() => {
-		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+		instantiationService = disposables.add(new TestInstantiationService());
+		storageService = disposables.add(new InMemoryStorageService());
+		instantiationService.stub(IStorageService, storageService);
+		configurationService = new TestConfigurationService();
+		instantiationService.stub(IConfigurationService, configurationService);
 		sessionsChangedEmitter = disposables.add(new Emitter<ISessionsChangeEvent>());
 		sessionDeletedEmitter = disposables.add(new Emitter<ISession>());
+		sessions = [];
 		instantiationService.stub(ISessionsManagementService, {
 			...mock<ISessionsManagementService>(),
+			getSessions: () => sessions,
+			getSession: resource => sessions.find(session => session.resource.toString() === resource.toString()),
 			onDidChangeSessions: sessionsChangedEmitter.event,
 			onDidDeleteSession: sessionDeletedEmitter.event,
 		});
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+	});
+
+	test('untitled sessions ignore the completed-state icon', () => {
+		const completedStateIcon = Codicon.gitPullRequest;
+		const readIcon = service.getStatusIcon(SessionStatus.Untitled, true, false, completedStateIcon);
+		const unreadIcon = service.getStatusIcon(SessionStatus.Untitled, false, false, completedStateIcon);
+
+		assert.deepStrictEqual({
+			read: { id: readIcon.id, color: readIcon.color?.id },
+			unread: { id: unreadIcon.id, color: unreadIcon.color?.id },
+		}, {
+			read: { id: Codicon.circleSmallFilled.id, color: 'agentSessionReadIndicator.foreground' },
+			unread: { id: Codicon.circleFilled.id, color: 'textLink.foreground' },
+		});
+	});
+
+	test('unread state takes precedence over the completed-state icon', () => {
+		const completedStateIcon = Codicon.gitPullRequest;
+		const unreadIcon = service.getStatusIcon(SessionStatus.Completed, false, false, completedStateIcon);
+		const readIcon = service.getStatusIcon(SessionStatus.Completed, true, false, completedStateIcon);
+
+		assert.deepStrictEqual({
+			unread: { id: unreadIcon.id, color: unreadIcon.color?.id },
+			read: { id: readIcon.id, color: readIcon.color?.id },
+		}, {
+			unread: { id: Codicon.circleFilled.id, color: 'textLink.foreground' },
+			read: { id: Codicon.gitPullRequest.id, color: undefined },
+		});
+	});
+
+	test('uses the report-question icon when a session needs attention', () => {
+		const icon = service.getStatusIcon(SessionStatus.NeedsInput, true, false);
+
+		assert.deepStrictEqual(
+			{ id: icon.id, color: icon.color?.id },
+			{ id: Codicon.reportQuestion.id, color: 'list.warningForeground' },
+		);
 	});
 
 	// -- Pinning --
@@ -142,6 +195,140 @@ suite('SessionsListModelService', () => {
 		assert.strictEqual(changeCount, 0);
 	});
 
+	// -- Automation sessions --
+
+	test('lists automation sessions only while they are shown and persists the shown state', () => {
+		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
+		const otherAutomation = createSession('other-automation', SessionStatus.Completed, { isAutomation: true });
+		const regular = createSession('regular');
+		const events: ISessionListModelChangeEvent[] = [];
+		disposables.add(service.onDidChange(e => events.push(e)));
+		const listed = () => [automation, otherAutomation, regular].filter(session => service.isSessionListed(session)).map(session => session.sessionId);
+		const stored = () => storageService.get('sessionsListControl.shownAutomationSessions', StorageScope.PROFILE);
+
+		const initial = listed();
+		service.showAutomationSessions([automation, automation]);
+		service.showAutomationSessions([automation]);
+		const shown = { listed: listed(), stored: stored() };
+		service.hideAutomationSessions([automation, otherAutomation]);
+
+		assert.deepStrictEqual({ initial, shown, hidden: { listed: listed(), stored: stored() }, events }, {
+			initial: ['regular'],
+			shown: { listed: ['automation', 'regular'], stored: JSON.stringify(['automation']) },
+			hidden: { listed: ['regular'], stored: undefined },
+			events: [
+				{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] },
+				{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] },
+			],
+		});
+	});
+
+	test('tracks automation provenance and the shown state through the reader', () => {
+		const isAutomation = observableValue('isAutomation', false);
+		const session: ISession = { ...createSession('session'), isAutomation };
+		const states: boolean[] = [];
+		disposables.add(autorun(reader => { states.push(service.isSessionListed(session, reader)); }));
+
+		isAutomation.set(true, undefined);
+		service.showAutomationSessions([session]);
+		service.hideAutomationSessions([session]);
+
+		assert.deepStrictEqual(states, [true, false, true, false]);
+	});
+
+	test('keeps a shown automation session across eviction and reconstruction until it is deleted', () => {
+		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
+		service.showAutomationSessions([automation]);
+		sessionsChangedEmitter.fire({ added: [], removed: [automation], changed: [] });
+		const afterEviction = service.isSessionListed(automation);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		const afterReconstruction = service.isSessionListed(automation);
+		const events: ISessionListModelChangeEvent[] = [];
+		disposables.add(service.onDidChange(e => events.push(e)));
+
+		sessionDeletedEmitter.fire(automation);
+
+		assert.deepStrictEqual({
+			afterEviction,
+			afterReconstruction,
+			afterDeletion: service.isSessionListed(automation),
+			stored: storageService.get('sessionsListControl.shownAutomationSessions', StorageScope.PROFILE),
+			events,
+		}, {
+			afterEviction: true,
+			afterReconstruction: true,
+			afterDeletion: false,
+			stored: undefined,
+			events: [{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] }],
+		});
+	});
+
+	test('lists every automation session the user did not hide when the setting is always', () => {
+		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
+		sessions = [automation, createSession('regular')];
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const setMode = (mode: AutomationSessionsListMode) => {
+			configurationService.setUserConfiguration(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, mode);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: key => key === SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING,
+				affectedKeys: new Set([SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]),
+				change: { keys: [SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING], overrides: [] },
+				source: ConfigurationTarget.USER,
+			});
+		};
+		const events: ISessionListModelChangeEvent[] = [];
+		disposables.add(service.onDidChange(e => events.push(e)));
+		const listed: boolean[] = [service.isSessionListed(automation)];
+
+		setMode(AutomationSessionsListMode.Always);
+		listed.push(service.isSessionListed(automation));
+		service.hideAutomationSessions([automation]);
+		listed.push(service.isSessionListed(automation));
+		setMode(AutomationSessionsListMode.Never);
+		listed.push(service.isSessionListed(automation));
+		service.showAutomationSessions([automation]);
+		listed.push(service.isSessionListed(automation));
+		setMode(AutomationSessionsListMode.Always);
+		listed.push(service.isSessionListed(automation));
+
+		const change = { changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] };
+		assert.deepStrictEqual({ listed, events }, {
+			listed: [false, true, false, false, true, true],
+			events: [change, change, change],
+		});
+	});
+
+	test('a message does not show an automation session the user hid, across reloads, until the user shows it again', () => {
+		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
+		const reload = () => {
+			service.dispose();
+			service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		};
+		const stored = () => storageService.get('sessionsListControl.hiddenAutomationSessions', StorageScope.PROFILE);
+
+		service.showRepliedAutomationSession(automation);
+		const afterReply = service.isSessionListed(automation);
+		service.hideAutomationSessions([automation]);
+		reload();
+		service.showRepliedAutomationSession(automation);
+		const afterHiddenReply = { listed: service.isSessionListed(automation), stored: stored() };
+		service.showAutomationSessions([automation]);
+		service.hideAutomationSessions([automation]);
+		service.showAutomationSessions([automation]);
+		reload();
+		const afterExplicitShow = { listed: service.isSessionListed(automation), stored: stored() };
+		service.hideAutomationSessions([automation]);
+		sessionDeletedEmitter.fire(automation);
+
+		assert.deepStrictEqual({ afterReply, afterHiddenReply, afterExplicitShow, afterDeletion: stored() }, {
+			afterReply: true,
+			afterHiddenReply: { listed: false, stored: JSON.stringify(['automation']) },
+			afterExplicitShow: { listed: true, stored: undefined },
+			afterDeletion: undefined,
+		});
+	});
+
 	// -- onDidChange --
 
 	test('onDidChange includes changes array with sessionId and kind', () => {
@@ -156,6 +343,271 @@ suite('SessionsListModelService', () => {
 			{ changes: [{ sessionId: 's1', kind: SessionListModelChangeKind.Pinned }] },
 			{ changes: [{ sessionId: 's1', kind: SessionListModelChangeKind.Pinned }] },
 		]);
+	});
+
+	test('places a created session after its creator once and preserves later user ordering', () => {
+		const creator = createSession('creator', SessionStatus.Completed, {
+			createdAt: new Date('2024-06-03'),
+			updatedAt: new Date('2024-06-03'),
+		});
+		const next = createSession('next', SessionStatus.Completed, {
+			createdAt: new Date('2024-06-01'),
+			updatedAt: new Date('2024-06-01'),
+		});
+		const createdSession = createSession('created', SessionStatus.Completed, {
+			createdAt: new Date('2024-06-04'),
+			updatedAt: new Date('2024-06-04'),
+			createdBySession: creator.resource,
+		});
+		sessions = [createdSession, creator, next];
+
+		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+		const initialCreatedKey = service.getSortKey(createdSession, 'created');
+		const initialUpdatedKey = service.getSortKey(createdSession, 'updated');
+		service.applySortChanges('created', new Map([[createdSession.sessionId, creator.createdAt.getTime() + 60_000]]), []);
+		sessionsChangedEmitter.fire({ added: [], removed: [createdSession], changed: [] });
+		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+
+		assert.deepStrictEqual({
+			initialCreatedBetweenCreatorAndNext: creator.createdAt.getTime() > initialCreatedKey && initialCreatedKey > next.createdAt.getTime(),
+			initialUpdatedBetweenCreatorAndNext: creator.updatedAt.get().getTime() > initialUpdatedKey && initialUpdatedKey > next.updatedAt.get().getTime(),
+			createdAfterUserReorderAndReadd: service.getSortKey(createdSession, 'created'),
+		}, {
+			initialCreatedBetweenCreatorAndNext: true,
+			initialUpdatedBetweenCreatorAndNext: true,
+			createdAfterUserReorderAndReadd: creator.createdAt.getTime() + 60_000,
+		});
+	});
+
+	test('batches default sort placement and is idempotent', () => {
+		const creator = createSession('creator', SessionStatus.Completed, { createdAt: new Date('2024-06-03') });
+		const createdSession = createSession('created', SessionStatus.Completed, {
+			createdAt: new Date('2024-06-04'),
+			createdBySession: creator.resource,
+		});
+		sessions = [createdSession, creator];
+		const events: ISessionListModelChangeEvent[] = [];
+		disposables.add(service.onDidChange(event => events.push(event)));
+
+		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [createdSession] });
+
+		assert.deepStrictEqual(events, [{
+			changes: [{ sessionId: createdSession.sessionId, kind: SessionListModelChangeKind.Sort }],
+		}]);
+	});
+
+	test('updated default placement expires when the created session becomes more recent', () => {
+		const updatedAt = observableValue('created-updatedAt', new Date('2024-06-04'));
+		const creator = createSession('creator', SessionStatus.Completed, {
+			updatedAt: new Date('2024-06-03'),
+		});
+		const next = createSession('next', SessionStatus.Completed, {
+			updatedAt: new Date('2024-06-01'),
+		});
+		const createdSession: ISession = {
+			...createSession('created', SessionStatus.Completed, { createdBySession: creator.resource }),
+			updatedAt,
+		};
+		sessions = [createdSession, creator, next];
+		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+
+		updatedAt.set(new Date('2024-06-05'), undefined);
+		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [createdSession] });
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+
+		assert.deepStrictEqual({
+			hasOverride: service.hasSortOverride(createdSession.sessionId, 'updated'),
+			sortKey: service.getSortKey(createdSession, 'updated'),
+		}, {
+			hasOverride: false,
+			sortKey: new Date('2024-06-05').getTime(),
+		});
+	});
+
+	test('places a created session when creation metadata arrives after add', () => {
+		const creator = createSession('creator', SessionStatus.Completed, { createdAt: new Date('2024-06-03') });
+		const next = createSession('next', SessionStatus.Completed, { createdAt: new Date('2024-06-01') });
+		const createdBySession = observableValue<{ readonly session: URI } | undefined>('createdBySession', undefined);
+		const createdSession: ISession = { ...createSession('created', SessionStatus.Completed, { createdAt: new Date('2024-06-04') }), createdBySession };
+		sessions = [createdSession, creator, next];
+
+		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+		createdBySession.set({ session: creator.resource }, undefined);
+		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [createdSession] });
+
+		const createdSessionKey = service.getSortKey(createdSession, 'created');
+		assert.strictEqual(creator.createdAt.getTime() > createdSessionKey && createdSessionKey > next.createdAt.getTime(), true);
+	});
+
+	test('places created sessions that predate service construction', () => {
+		const creator = createSession('creator', SessionStatus.Completed, { createdAt: new Date('2024-06-03') });
+		const next = createSession('next', SessionStatus.Completed, { createdAt: new Date('2024-06-01') });
+		const createdSession = createSession('created', SessionStatus.Completed, {
+			createdAt: new Date('2024-06-04'),
+			createdBySession: creator.resource,
+		});
+		sessions = [createdSession, creator, next];
+		service.dispose();
+
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+
+		const createdSessionKey = service.getSortKey(createdSession, 'created');
+		assert.strictEqual(creator.createdAt.getTime() > createdSessionKey && createdSessionKey > next.createdAt.getTime(), true);
+	});
+
+	test('places a created session when its creator arrives later', () => {
+		const creator = createSession('creator', SessionStatus.Completed, { createdAt: new Date('2024-06-03') });
+		const next = createSession('next', SessionStatus.Completed, { createdAt: new Date('2024-06-01') });
+		const createdSession = createSession('created', SessionStatus.Completed, {
+			createdAt: new Date('2024-06-04'),
+			createdBySession: creator.resource,
+		});
+		sessions = [createdSession, next];
+		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+
+		sessions = [createdSession, creator, next];
+		sessionsChangedEmitter.fire({ added: [creator], removed: [], changed: [] });
+
+		const createdSessionKey = service.getSortKey(createdSession, 'created');
+		assert.strictEqual(creator.createdAt.getTime() > createdSessionKey && createdSessionKey > next.createdAt.getTime(), true);
+	});
+
+	test('initializes reversed creation chains creator-first', () => {
+		const root = createSession('root', SessionStatus.Completed, { createdAt: new Date('2024-06-03') });
+		const child = createSession('child', SessionStatus.Completed, {
+			createdAt: new Date('2024-06-04'),
+			createdBySession: root.resource,
+		});
+		const grandchild = createSession('grandchild', SessionStatus.Completed, {
+			createdAt: new Date('2024-06-05'),
+			createdBySession: child.resource,
+		});
+		sessions = [grandchild, child, root];
+		service.dispose();
+
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+
+		assert.strictEqual(
+			service.getSortKey(root, 'created') > service.getSortKey(child, 'created')
+			&& service.getSortKey(child, 'created') > service.getSortKey(grandchild, 'created'),
+			true,
+		);
+	});
+
+	test('does not create overrides for cyclic creation provenance', () => {
+		const firstCreatedBy = observableValue<{ readonly session: URI } | undefined>('firstCreatedBy', undefined);
+		const secondCreatedBy = observableValue<{ readonly session: URI } | undefined>('secondCreatedBy', undefined);
+		const first: ISession = { ...createSession('first'), createdBySession: firstCreatedBy };
+		const second: ISession = { ...createSession('second'), createdBySession: secondCreatedBy };
+		firstCreatedBy.set({ session: second.resource }, undefined);
+		secondCreatedBy.set({ session: first.resource }, undefined);
+		sessions = [first, second];
+		let changeCount = 0;
+		disposables.add(service.onDidChange(() => changeCount++));
+
+		sessionsChangedEmitter.fire({ added: [first, second], removed: [], changed: [] });
+
+		assert.deepStrictEqual({
+			firstCreated: service.hasSortOverride(first.sessionId, 'created'),
+			firstUpdated: service.hasSortOverride(first.sessionId, 'updated'),
+			secondCreated: service.hasSortOverride(second.sessionId, 'created'),
+			secondUpdated: service.hasSortOverride(second.sessionId, 'updated'),
+			changeCount,
+		}, {
+			firstCreated: false,
+			firstUpdated: false,
+			secondCreated: false,
+			secondUpdated: false,
+			changeCount: 0,
+		});
+	});
+
+	test('does not create overrides for self-referential creation provenance', () => {
+		const createdBySession = observableValue<{ readonly session: URI } | undefined>('createdBySession', undefined);
+		const session: ISession = { ...createSession('self'), createdBySession };
+		createdBySession.set({ session: session.resource }, undefined);
+		sessions = [session];
+
+		sessionsChangedEmitter.fire({ added: [session], removed: [], changed: [] });
+
+		assert.deepStrictEqual({
+			created: service.hasSortOverride(session.sessionId, 'created'),
+			updated: service.hasSortOverride(session.sessionId, 'updated'),
+		}, {
+			created: false,
+			updated: false,
+		});
+	});
+
+	test('keeps an explicit natural-order placement across service reconstruction', () => {
+		const creator = createSession('creator', SessionStatus.Completed, { createdAt: new Date('2024-06-03') });
+		const createdSession = createSession('created', SessionStatus.Completed, {
+			createdAt: new Date('2024-06-04'),
+			createdBySession: creator.resource,
+		});
+		sessions = [createdSession, creator];
+		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+
+		service.applySortChanges('created', new Map(), [createdSession.sessionId]);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+
+		assert.deepStrictEqual({
+			hasOverride: service.hasSortOverride(createdSession.sessionId, 'created'),
+			sortKey: service.getSortKey(createdSession, 'created'),
+		}, {
+			hasOverride: true,
+			sortKey: createdSession.createdAt.getTime(),
+		});
+	});
+
+	test('clearing a normal session override restores absence and is idempotent', () => {
+		const session = createSession('normal');
+		sessions = [session];
+		service.applySortChanges('created', new Map([[session.sessionId, 42]]), []);
+		let changeCount = 0;
+		disposables.add(service.onDidChange(() => changeCount++));
+
+		service.applySortChanges('created', new Map(), [session.sessionId]);
+		service.applySortChanges('created', new Map(), [session.sessionId]);
+
+		assert.deepStrictEqual({
+			hasOverride: service.hasSortOverride(session.sessionId, 'created'),
+			changeCount,
+		}, {
+			hasOverride: false,
+			changeCount: 1,
+		});
+	});
+
+	test('preserves a persisted mode override while filling only the missing mode', () => {
+		const creator = createSession('creator', SessionStatus.Completed, {
+			createdAt: new Date('2024-06-03'),
+			updatedAt: new Date('2024-06-03'),
+		});
+		const createdSession = createSession('created', SessionStatus.Completed, {
+			createdAt: new Date('2024-06-04'),
+			updatedAt: new Date('2024-06-04'),
+			createdBySession: creator.resource,
+		});
+		sessions = [createdSession, creator];
+		const persistedCreatedKey = 123;
+		storageService.store('sessionsListControl.sortOverrides', JSON.stringify({
+			created: { [createdSession.sessionId]: persistedCreatedKey },
+		}), StorageScope.PROFILE, StorageTarget.USER);
+		service.dispose();
+
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+
+		assert.deepStrictEqual({
+			createdKey: service.getSortKey(createdSession, 'created'),
+			hasUpdatedOverride: service.hasSortOverride(createdSession.sessionId, 'updated'),
+		}, {
+			createdKey: persistedCreatedKey,
+			hasUpdatedOverride: true,
+		});
 	});
 
 	// -- Cleanup --
@@ -175,6 +627,28 @@ suite('SessionsListModelService', () => {
 		]);
 	});
 
+	test('deletion removes created and updated sort overrides', () => {
+		const creator = createSession('creator');
+		const createdSession = createSession('created', SessionStatus.Completed, { createdBySession: creator.resource });
+		sessions = [creator, createdSession];
+		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+		assert.strictEqual(service.hasSortOverride(createdSession.sessionId, 'created'), true);
+		assert.strictEqual(service.hasSortOverride(createdSession.sessionId, 'updated'), true);
+
+		sessionDeletedEmitter.fire(createdSession);
+		service.dispose();
+		sessions = [creator];
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+
+		assert.deepStrictEqual({
+			created: service.hasSortOverride(createdSession.sessionId, 'created'),
+			updated: service.hasSortOverride(createdSession.sessionId, 'updated'),
+		}, {
+			created: false,
+			updated: false,
+		});
+	});
+
 	test('pin survives a session being evicted from the provider list', () => {
 		const session = createSession('s1');
 		service.pinSession(session);
@@ -188,6 +662,32 @@ suite('SessionsListModelService', () => {
 
 		assert.strictEqual(service.isSessionPinned(session), true);
 		assert.strictEqual(changeCount, 0);
+	});
+
+	test('sort overrides survive temporary provider eviction', () => {
+		const creator = createSession('creator');
+		const createdSession = createSession('created', SessionStatus.Completed, { createdBySession: creator.resource });
+		sessions = [creator, createdSession];
+		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+		const createdKey = service.getSortKey(createdSession, 'created');
+		const updatedKey = service.getSortKey(createdSession, 'updated');
+		let changeCount = 0;
+		disposables.add(service.onDidChange(() => changeCount++));
+
+		sessions = [creator];
+		sessionsChangedEmitter.fire({ added: [], removed: [createdSession], changed: [] });
+		sessions = [creator, createdSession];
+		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+
+		assert.deepStrictEqual({
+			createdKey: service.getSortKey(createdSession, 'created'),
+			updatedKey: service.getSortKey(createdSession, 'updated'),
+			changeCount,
+		}, {
+			createdKey,
+			updatedKey,
+			changeCount: 0,
+		});
 	});
 
 	test('deletion does not fire when session has no state', () => {
@@ -214,6 +714,19 @@ suite('SessionsListModelService', () => {
 
 	// -- Storage persistence --
 
+	test('persists independent comparison sort keys without changing participant timestamps', () => {
+		const comparison: SessionSortEntry = { sessionId: 'group:comparison', createdAt: new Date(100), updatedAt: constObservable(new Date(200)) };
+		service.applySortChanges('created', new Map([[comparison.sessionId, 300]]), []);
+		service.applySortChanges('updated', new Map([[comparison.sessionId, 400]]), []);
+		const restored = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual({
+			created: restored.getSortKey(comparison, 'created'),
+			updated: restored.getSortKey(comparison, 'updated'),
+			naturalCreated: restored.getNaturalSortKey(comparison, 'created'),
+			naturalUpdated: restored.getNaturalSortKey(comparison, 'updated'),
+		}, { created: 300, updated: 400, naturalCreated: 100, naturalUpdated: 200 });
+	});
+
 	test('state is loaded from storage on construction', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 
@@ -222,7 +735,8 @@ suite('SessionsListModelService', () => {
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
-		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
 
 		assert.strictEqual(loadedService.isSessionPinned(createSession('s1')), true);
@@ -235,11 +749,54 @@ suite('SessionsListModelService', () => {
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
-		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
 
 		// Should not throw and should return empty state
 		assert.strictEqual(loadedService.isSessionPinned(createSession('s1')), false);
+	});
+
+	test('corrupt sort storage falls back to default placement', () => {
+		const creator = createSession('creator');
+		const createdSession = createSession('created', SessionStatus.Completed, { createdBySession: creator.resource });
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store('sessionsListControl.sortOverrides', 'not-valid-json{', StorageScope.PROFILE, StorageTarget.USER);
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(ISessionsManagementService, {
+			...mock<ISessionsManagementService>(),
+			getSessions: () => [createdSession, creator],
+			getSession: resource => resource.toString() === creator.resource.toString() ? creator : undefined,
+			onDidChangeSessions: Event.None,
+			onDidDeleteSession: disposables.add(new Emitter<ISession>()).event,
+		});
+
+		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
+
+		assert.deepStrictEqual({
+			created: loadedService.hasSortOverride(createdSession.sessionId, 'created'),
+			updated: loadedService.hasSortOverride(createdSession.sessionId, 'updated'),
+		}, {
+			created: true,
+			updated: true,
+		});
+	});
+
+	test('removes the retired list-owned nested chat order on construction, which a second construction leaves removed', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store('sessionsListControl.chatOrder', JSON.stringify({ created: { s1: ['chat://a', 'chat://b'] }, updated: {} }), StorageScope.PROFILE, StorageTarget.USER);
+		const createService = () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IStorageService, storageService);
+			instantiationService.stub(IConfigurationService, new TestConfigurationService());
+			instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
+			disposables.add(instantiationService.createInstance(SessionsListModelService));
+			return storageService.get('sessionsListControl.chatOrder', StorageScope.PROFILE);
+		};
+
+		assert.deepStrictEqual([createService(), createService()], [undefined, undefined]);
 	});
 
 	// -- Legacy read-state migration --
@@ -260,8 +817,12 @@ suite('SessionsListModelService', () => {
 			const unreadMarks: string[] = [];
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IStorageService, storage);
+			instantiationService.stub(IConfigurationService, new TestConfigurationService());
 			instantiationService.stub(ISessionsManagementService, {
 				...mock<ISessionsManagementService>(),
+				getSessions: () => [],
+				getSession: () => undefined,
+				onDidChangeSessions: Event.None,
 				onDidDeleteSession: disposables.add(new Emitter<ISession>()).event,
 				markRead: async (session: ISession) => { readMarks.push(session.sessionId); },
 				markUnread: async (session: ISession) => { unreadMarks.push(session.sessionId); },
@@ -315,8 +876,12 @@ suite('SessionsListModelService', () => {
 			const makeService = () => {
 				const instantiationService = disposables.add(new TestInstantiationService());
 				instantiationService.stub(IStorageService, storage);
+				instantiationService.stub(IConfigurationService, new TestConfigurationService());
 				instantiationService.stub(ISessionsManagementService, {
 					...mock<ISessionsManagementService>(),
+					getSessions: () => [],
+					getSession: () => undefined,
+					onDidChangeSessions: Event.None,
 					onDidDeleteSession: disposables.add(new Emitter<ISession>()).event,
 					markRead: async (session: ISession) => { readMarks.push(session.sessionId); },
 					markUnread: async (session: ISession) => { unreadMarks.push(session.sessionId); },
