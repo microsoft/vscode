@@ -586,6 +586,28 @@ suite('Buffer', () => {
 			}
 		});
 
+		test('encodes and decodes base64 variants and large payloads', () => {
+			const payload = new Uint8Array(257);
+			for (let i = 0; i < payload.length; i++) {
+				payload[i] = (i * 131 + 17) & 0xff;
+			}
+			for (const len of [0, 1, 2, 3, 63, 64, 65, 255, 256, 257]) {
+				const slice = VSBuffer.wrap(payload.subarray(0, len));
+				for (const padded of [true, false]) {
+					for (const urlSafe of [true, false]) {
+						const encoded = encodeBase64(slice, padded, urlSafe);
+						assert.strictEqual(encoded.includes('='), padded && len % 3 !== 0);
+						if (urlSafe) {
+							assert.strictEqual(/[+/]/.test(encoded), false);
+						} else {
+							assert.strictEqual(/[-_]/.test(encoded), false);
+						}
+						assert.deepStrictEqual(new Uint8Array(decodeBase64(encoded).buffer), new Uint8Array(slice.buffer));
+					}
+				}
+			}
+		});
+
 		test('decodes, base64', () => {
 			for (const [expected, encoded] of testCases) {
 				assert.deepStrictEqual(new Uint8Array(decodeBase64(encoded).buffer), expected);
@@ -606,7 +628,9 @@ suite('Buffer', () => {
 
 		test('throws error on invalid encoding', () => {
 			assert.throws(() => decodeBase64('invalid!'));
+			assert.throws(() => decodeBase64('a'.repeat(64) + ' '));
 			assert.throws(() => decodeHex('invalid!'));
+			assert.throws(() => decodeHex('abc'));
 		});
 	});
 });

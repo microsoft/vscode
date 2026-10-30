@@ -13,6 +13,16 @@ interface NodeBuffer {
 	from(data: string): Uint8Array;
 }
 
+interface Uint8ArrayWithEncoding extends Uint8Array {
+	toBase64?(options?: { alphabet?: 'base64' | 'base64url'; omitPadding?: boolean }): string;
+	toHex?(): string;
+}
+
+interface Uint8ArrayConstructorWithEncoding {
+	fromBase64?(string: string, options?: { alphabet?: 'base64' | 'base64url'; lastChunkHandling?: 'loose' | 'strict' | 'stop-before-partial' }): Uint8Array;
+	fromHex?(string: string): Uint8Array;
+}
+
 declare const Buffer: NodeBuffer;
 
 const hasBuffer = (typeof Buffer !== 'undefined');
@@ -364,6 +374,16 @@ export function prefixedBufferStream(prefix: VSBuffer, stream: VSBufferReadableS
 
 /** Decodes base64 to a uint8 array. URL-encoded and unpadded base64 is allowed. */
 export function decodeBase64(encoded: string) {
+	const fromBase64 = (Uint8Array as unknown as Uint8ArrayConstructorWithEncoding).fromBase64;
+	if (typeof fromBase64 === 'function' && encoded.length >= 64 && !/[\t\n\f\r ]/.test(encoded)) {
+		try {
+			const alphabet = (encoded.includes('-') || encoded.includes('_')) ? 'base64url' : 'base64';
+			return VSBuffer.wrap(fromBase64.call(Uint8Array, encoded, { alphabet, lastChunkHandling: 'loose' }));
+		} catch {
+			// Fall back to the permissive character loop below (e.g. mixed alphabet or trailing chars after '=').
+		}
+	}
+
 	let building = 0;
 	let remainder = 0;
 	let bufi = 0;
@@ -429,6 +449,11 @@ const base64UrlSafeAlphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvw
 
 /** Encodes a buffer to a base64 string. */
 export function encodeBase64({ buffer }: VSBuffer, padded = true, urlSafe = false) {
+	const toBase64 = (buffer as Uint8ArrayWithEncoding).toBase64;
+	if (typeof toBase64 === 'function') {
+		return toBase64.call(buffer, { alphabet: urlSafe ? 'base64url' : 'base64', omitPadding: !padded });
+	}
+
 	const dictionary = urlSafe ? base64UrlSafeAlphabet : base64Alphabet;
 	let output = '';
 
@@ -465,6 +490,11 @@ export function encodeBase64({ buffer }: VSBuffer, padded = true, urlSafe = fals
 
 const hexChars = '0123456789abcdef';
 export function encodeHex({ buffer }: VSBuffer): string {
+	const toHex = (buffer as Uint8ArrayWithEncoding).toHex;
+	if (typeof toHex === 'function') {
+		return toHex.call(buffer);
+	}
+
 	let result = '';
 	for (let i = 0; i < buffer.length; i++) {
 		const byte = buffer[i];
@@ -475,6 +505,11 @@ export function encodeHex({ buffer }: VSBuffer): string {
 }
 
 export function decodeHex(hex: string): VSBuffer {
+	const fromHex = (Uint8Array as unknown as Uint8ArrayConstructorWithEncoding).fromHex;
+	if (typeof fromHex === 'function') {
+		return VSBuffer.wrap(fromHex.call(Uint8Array, hex));
+	}
+
 	if (hex.length % 2 !== 0) {
 		throw new SyntaxError('Hex string must have an even length');
 	}
