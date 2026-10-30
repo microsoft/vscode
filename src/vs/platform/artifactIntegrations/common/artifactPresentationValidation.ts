@@ -73,7 +73,8 @@ export function hasValidArtifactPresentationReferences(view: ArtifactContributio
 }
 
 function isItemActionDescriptor(value: unknown): value is ArtifactItemActionDescriptor {
-	return isRecord(value) && strings(value, 'id', 'label') && isArtifactIcon({ id: value.iconId });
+	return isRecord(value) && strings(value, 'id', 'label') && isArtifactIcon({ id: value.iconId })
+		&& (value.actionId === undefined || (typeof value.actionId === 'string' && value.actionId.length > 0));
 }
 
 function isUniqueStringList(value: unknown): value is readonly string[] {

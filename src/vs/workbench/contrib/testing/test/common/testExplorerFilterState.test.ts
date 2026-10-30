@@ -4,23 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { TestExplorerFilterState, TestFilterTerm } from '../../common/testExplorerFilterState.js';
 
 suite('TestExplorerFilterState', () => {
 	let t: TestExplorerFilterState;
-	let ds: DisposableStore;
-
-	teardown(() => {
-		ds.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
-		ds = new DisposableStore();
 		t = ds.add(new TestExplorerFilterState(ds.add(new InMemoryStorageService())));
 	});
 

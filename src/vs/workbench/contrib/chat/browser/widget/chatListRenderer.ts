@@ -56,7 +56,7 @@ import { checkModeOption } from '../../common/chat.js';
 import { IChatAgentMetadata } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatProgressResponseContent, IChatTextEditGroup } from '../../common/model/chatModel.js';
-import { chatSubcommandLeader } from '../../common/requestParser/chatParserTypes.js';
+import { chatSubcommandLeader, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { TerminalToolId } from '../../common/tools/terminalToolIds.js';
 import { ChatAgentVoteDirection, ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatExternalEdit, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPlanReview, IChatPlanReviewResult, IChatPullRequestContent, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsageModelTotal, isChatFollowup } from '../../common/chatService/chatService.js';
 import { ChatPlanReviewData } from '../../common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -127,7 +127,8 @@ import { ChatWorkspaceEditContentPart } from './chatContentParts/chatWorkspaceEd
 import { ChatExternalEditContentPart } from './chatContentParts/chatExternalEditContentPart.js';
 import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatImageGenerationBatchPart } from './chatContentParts/chatImageGenerationBatchPart.js';
-import { ChatMarkdownDecorationsRenderer } from './chatContentParts/chatMarkdownDecorationsRenderer.js';
+import { ChatInlineAttachmentRenderer, ChatMarkdownDecorationsRenderer } from './chatContentParts/chatMarkdownDecorationsRenderer.js';
+import { getInlineRequestAttachments, recoverAttachmentMentions } from '../../common/attachments/chatInlineAttachments.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { autorun, autorunPerKeyedItem, autorunSelfDisposable, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
@@ -152,6 +153,7 @@ const DEFAULT_CHAT_ITEM_HORIZONTAL_PADDING = 40;
 export interface IChatListItemTemplate {
 	currentElement?: ChatTreeItem;
 	renderedReadOnly?: boolean;
+	renderedInputRequests?: boolean;
 	renderedPersistentProgress?: boolean;
 	renderedStickyProgress?: boolean;
 	/** The persistent progress verbosity the template was rendered with, if persistent progress was on. */
@@ -1066,8 +1068,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	public updateOptions(options: IChatListItemRendererOptions): void {
 		const wasReadOnly = this.rendererOptions.readOnly;
+		const renderedInputRequests = this.rendererOptions.renderInputRequests;
 		this.rendererOptions = { ...this.rendererOptions, ...options };
-		if (wasReadOnly !== this.rendererOptions.readOnly) {
+		if (wasReadOnly !== this.rendererOptions.readOnly || renderedInputRequests !== this.rendererOptions.renderInputRequests) {
 			this.observeToolConfirmations();
 		}
 		this.updateStickyProgressContent();
@@ -1426,7 +1429,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private observeToolConfirmations(): void {
 		this.toolConfirmationObservation.clear();
 		const viewModel = this.viewModel;
-		if (!viewModel || this.rendererOptions.readOnly) {
+		if (!viewModel || this.rendererOptions.readOnly || this.rendererOptions.renderInputRequests === false) {
 			return;
 		}
 
@@ -1865,6 +1868,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.checkpointRestoreToolbar.context = undefined;
 		templateData.currentElement = undefined;
 		templateData.renderedReadOnly = undefined;
+		templateData.renderedInputRequests = undefined;
 		templateData.renderedPersistentProgress = undefined;
 		templateData.renderedStickyProgress = undefined;
 		templateData.renderedProgressVerbosity = undefined;
@@ -1880,10 +1884,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.pendingHeightUpdates.deleteAndDispose(templateData);
 		}
 		const readOnly = !!this.rendererOptions.readOnly;
+		const renderInputRequests = this.rendererOptions.renderInputRequests !== false;
 		const persistentProgress = this.rendererOptions.renderStyle !== 'minimal' && this.isPersistentProgressEnabled();
 		const stickyProgress = this.isStickyProgressEnabled();
 		const progressVerbosity = persistentProgress ? this.getPersistentProgressVerbosity() : undefined;
-		if (templateData.currentElement && (templateData.currentElement.id !== element.id || templateData.renderedReadOnly !== readOnly || templateData.renderedPersistentProgress !== persistentProgress || templateData.renderedStickyProgress !== stickyProgress || templateData.renderedProgressVerbosity !== progressVerbosity)) {
+		if (templateData.currentElement && (templateData.currentElement.id !== element.id || templateData.renderedReadOnly !== readOnly || templateData.renderedInputRequests !== renderInputRequests || templateData.renderedPersistentProgress !== persistentProgress || templateData.renderedStickyProgress !== stickyProgress || templateData.renderedProgressVerbosity !== progressVerbosity)) {
 			this.traceLayout('renderChatTreeItem', () => `Rendering a different element or presentation state into the template, index=${index}`, index);
 			const mappedTemplateData = this.templateDataByRequestId.get(templateData.currentElement.id);
 			if (mappedTemplateData && (mappedTemplateData.currentElement?.id !== templateData.currentElement.id)) {
@@ -1895,6 +1900,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		templateData.currentElement = element;
 		templateData.renderedReadOnly = readOnly;
+		templateData.renderedInputRequests = renderInputRequests;
 		templateData.renderedPersistentProgress = persistentProgress;
 		templateData.renderedStickyProgress = stickyProgress;
 		templateData.renderedProgressVerbosity = progressVerbosity;
@@ -2898,13 +2904,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		let content: IChatRendererContent[] = [];
-		const explicitFileOrImageVariables = element.variables.filter(isExplicitFileOrImageVariableEntry);
+		// Attachments shown as pills inline with the request text are not repeated above it.
+		const inlineAttachments = this.getInlineRequestAttachments(element);
+		const inlineAttachmentIds = new Set(Array.from(inlineAttachments.values(), attachment => attachment.id));
+		const variables = inlineAttachmentIds.size ? element.variables.filter(variable => !inlineAttachmentIds.has(variable.id)) : element.variables;
+		const explicitFileOrImageVariables = variables.filter(isExplicitFileOrImageVariableEntry);
 		const explicitImageVariables = explicitFileOrImageVariables.filter(variable => variable.kind === 'image');
-		const explicitFileOrDirectoryVariables = element.variables.filter(variable => variable.kind === 'file' || variable.kind === 'directory' || isPasteVariableEntry(variable));
-		const otherVariables = element.variables.filter(variable => !isExplicitFileOrImageVariableEntry(variable) && !isPasteVariableEntry(variable));
+		const explicitFileOrDirectoryVariables = variables.filter(variable => variable.kind === 'file' || variable.kind === 'directory' || isPasteVariableEntry(variable));
+		const otherVariables = variables.filter(variable => !isExplicitFileOrImageVariableEntry(variable) && !isPasteVariableEntry(variable));
 		const isStickyAndEditing = !element.confirmation && isStickyScrollRow && element.id === this.viewModel?.editing?.id;
 		if (!element.confirmation && !isStickyAndEditing) {
-			const requestMarkdown = isStickyScrollRow && requestSummary ? requestSummary : this.getRequestMarkdown(element, explicitFileOrImageVariables);
+			const requestMarkdown = isStickyScrollRow && requestSummary ? requestSummary : this.getRequestMarkdown(element, explicitFileOrImageVariables, new Set(inlineAttachments.keys()));
 			if (requestMarkdown) {
 				content = [{ content: new MarkdownString(requestMarkdown), kind: 'markdownContent' }];
 			}
@@ -3046,6 +3056,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const context: IChatContentPartRenderContext = {
 				element,
 				readOnly: this.rendererOptions.readOnly,
+				renderInputRequests: this.rendererOptions.renderInputRequests,
 				elementIndex: index,
 				contentIndex: contentIndex,
 				content: content,
@@ -3152,14 +3163,66 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	private getRequestMarkdown(element: IChatRequestViewModel, explicitFileOrImageVariables = element.variables.filter(isExplicitFileOrImageVariableEntry)): string | undefined {
+	/**
+	 * @param inlineAttachmentParts The parts of the request whose attachments are
+	 * shown as pills inline with its text, see {@link getInlineRequestAttachments}.
+	 */
+	private getRequestMarkdown(element: IChatRequestViewModel, explicitFileOrImageVariables = element.variables.filter(isExplicitFileOrImageVariableEntry), inlineAttachmentParts?: ReadonlySet<number>): string | undefined {
 		const markdown = isChatFollowup(element.message)
 			? element.message.message
-			: this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, element.message);
+			: this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, this.getRenderedRequestMessage(element.message, element.variables), inlineAttachmentParts);
 		const attachmentSummary = !element.messageText.trim() && !explicitFileOrImageVariables.length
 			? getExplicitFileOrImageAttachmentSummary(element.variables)
 			: undefined;
 		return markdown.trim() ? markdown : attachmentSummary;
+	}
+
+	/**
+	 * The message of a request as it is rendered. With inline attachments, a
+	 * request whose history kept its text but not its references, as an agent
+	 * host's history does, gets the mentions of its attachments back as
+	 * references, which show as pills.
+	 */
+	private getRenderedRequestMessage(message: IParsedChatRequest, variables: readonly IChatRequestVariableEntry[]): IParsedChatRequest {
+		return this.configService.getValue<boolean>(ChatConfiguration.InlineAttachmentsEnabled) ? recoverAttachmentMentions(message, variables) : message;
+	}
+
+	/**
+	 * The attachments of a request that are shown as pills inline with its text
+	 * when {@link ChatConfiguration.InlineAttachmentsEnabled} is enabled, by the
+	 * index of the part of the request that stands for them.
+	 */
+	private getInlineRequestAttachments(element: IChatRequestViewModel): ReadonlyMap<number, IChatRequestVariableEntry> {
+		if (isChatFollowup(element.message) || !this.configService.getValue<boolean>(ChatConfiguration.InlineAttachmentsEnabled)) {
+			return new Map();
+		}
+		return getInlineRequestAttachments(this.getRenderedRequestMessage(element.message, element.variables).parts, element.variables, element.message.text);
+	}
+
+	private createInlineRequestAttachmentRenderer(element: IChatRequestViewModel): ChatInlineAttachmentRenderer | undefined {
+		const attachments = this.getInlineRequestAttachments(element);
+		if (!attachments.size) {
+			return undefined;
+		}
+		return (partIndex, store) => {
+			const attachment = attachments.get(partIndex);
+			if (!attachment) {
+				return undefined;
+			}
+			const part = store.add(this.instantiationService.createInstance(ChatAttachmentsContentPart, {
+				variables: [attachment],
+				sessionResource: element.sessionResource,
+				contentReferences: element.contentReferences,
+				modelId: element.modelId,
+				resolvedModelId: element.resolvedModelId,
+				domNode: dom.$('span.chat-attached-context.chat-request-inline-attachment'),
+			}));
+			// Clicking the text of a request edits it, while clicking a pill is for the pill alone.
+			if (part.domNode) {
+				store.add(dom.addDisposableListener(part.domNode, dom.EventType.CLICK, e => e.stopPropagation()));
+			}
+			return part.domNode;
+		};
 	}
 
 	private requestHasStickyScrollContent(element: IChatRequestViewModel): boolean {
@@ -3807,6 +3870,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const context: IChatContentPartRenderContext = {
 				element,
 				readOnly: this.rendererOptions.readOnly,
+				renderInputRequests: this.rendererOptions.renderInputRequests,
 				elementIndex: elementIndex,
 				content: contentForThisTurn,
 				contentIndex: contentIndex,
@@ -4852,6 +4916,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderChatContentPart(content: IChatRendererContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext, batchedSubagentParts?: Set<ChatSubagentContentPart>, retainedToolParts?: DisposableMap<string, IDisposable>): IChatContentPart | undefined {
 		try {
+			if (context.renderInputRequests === false && (
+				content.kind === 'confirmation' || content.kind === 'questionCarousel' || content.kind === 'planReview'
+				|| content.kind === 'elicitation2' || content.kind === 'elicitationSerialized'
+				|| content.kind === 'mcpServersStarting' || content.kind === 'mcpAuthenticationRequired'
+			)) {
+				return this.renderNoContent(other => other.kind === content.kind);
+			}
 			if (isEmptyThinkingPart(content)) {
 				const renderedParts = templateData.renderedParts;
 				const renderPass = renderedParts && this.thinkingRenderPasses.get(renderedParts);
@@ -5296,7 +5367,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		retainedToolParts?.deleteAndLeak(toolInvocation.toolCallId);
 		// Watch for future confirmation transitions and route to carousel. The part itself keeps its
 		// transcript copy hidden while the carousel hosts the confirmation.
-		if (this.configService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel) &&
+		if (context.renderInputRequests !== false && this.configService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel) &&
 			toolInvocation.kind === 'toolInvocation' && isResponseVM(context.element) &&
 			!isMcpToolInvocation(toolInvocation)) {
 			const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource);
@@ -5325,7 +5396,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		context: IChatContentPartRenderContext,
 		templateData: IChatListItemTemplate
 	): void {
-		if (toolInvocation.kind !== 'toolInvocation') {
+		if (context.renderInputRequests === false || toolInvocation.kind !== 'toolInvocation') {
 			return;
 		}
 
@@ -5970,7 +6041,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
 		const codeBlockStartIndex = context.codeBlockStartIndex;
-		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.chatContentMarkdownRenderer, undefined, () => this._currentLayoutWidth.get(), { codeBlockRenderOptions: this.rendererOptions.codeBlockRenderOptions });
+		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.chatContentMarkdownRenderer, undefined, () => this._currentLayoutWidth.get(), {
+			codeBlockRenderOptions: this.rendererOptions.codeBlockRenderOptions,
+			renderInlineAttachment: isRequestVM(element) ? this.createInlineRequestAttachmentRenderer(element) : undefined,
+		});
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => this.fireItemHeightChange(templateData)));
 		if (isRequestVM(element)) {
 			markdownPart.domNode.tabIndex = 0;

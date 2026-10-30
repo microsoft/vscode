@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
@@ -58,10 +58,8 @@ class RecordingLogService extends NullLogService {
 
 suite('ReconnectingTransport', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('forwards messages and close events from the established transport', async () => {
 		const innerTransport = new TestProtocolTransport();

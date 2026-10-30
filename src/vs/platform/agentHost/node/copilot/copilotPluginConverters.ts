@@ -5,9 +5,11 @@
 
 import { spawn } from 'child_process';
 import type { CustomAgentConfig, MCPServerConfig, SessionHooks } from '@github/copilot-sdk';
+import { StringSHA1 } from '../../../../base/common/hash.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { dirname } from '../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { joinPath, relativePath } from '../../../../base/common/resources.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { parseFrontMatter, type MarkdownNode, type YamlNode } from '../../../../base/common/yaml.js';
@@ -98,6 +100,21 @@ function toSdkMcpServer(_name: string, config: IMcpServerConfiguration, defaultC
 // Custom agents
 // ---------------------------------------------------------------------------
 
+/** A forwarded definition with an optional SDK name resolved from its logical plugin source. */
+export interface ISdkCustomAgentResource extends INamedPluginResource {
+	readonly sdkName?: string;
+}
+
+/** Keeps forwarded SDK identities independent of authored names and materialized cache locations. */
+export function getSdkCustomAgentName(uri: URI, plugin?: { readonly sourceUri?: URI; readonly pluginDir?: URI; readonly resourceDir?: URI }): string {
+	const root = plugin?.pluginDir ?? plugin?.resourceDir;
+	const relative = root && plugin?.sourceUri ? relativePath(root, uri) : undefined;
+	const identity = relative !== undefined && plugin?.sourceUri ? joinPath(plugin.sourceUri, relative) : uri;
+	const hash = new StringSHA1();
+	hash.update(identity.toString());
+	return `vscode-agent-${hash.digest()}`;
+}
+
 const customAgentReasoningEfforts = ['low', 'medium', 'high', 'xhigh', 'max'] as const satisfies readonly NonNullable<CustomAgentConfig['reasoningEffort']>[];
 type CustomAgentReasoningEffort = (typeof customAgentReasoningEfforts)[number];
 
@@ -168,12 +185,16 @@ function getCustomAgentHooks(md: MarkdownNode): CustomAgentConfig['hooks'] {
 	return hooks.length > 0 ? Object.fromEntries(hooks) : undefined;
 }
 
+function customAgentDescription(name: string, description?: string): string {
+	return (description ? `${name}: ${description}` : name).replace(/\s+/g, ' ').trim();
+}
+
 /**
  * Converts parsed plugin agents into the SDK's `customAgents` config.
  *
  * Each agent file is read and (when present) its YAML frontmatter is parsed:
- *  - `name` falls back to the agent's resource name (filename stem).
- *  - `description` is forwarded verbatim.
+ *  - `name` is derived from the resource URI; `displayName` retains the authored name.
+ *  - `description` includes the authored name on one line so the model can discover the agent.
  *  - Extension-qualified `tools` references are translated to their SDK registration names;
  *    an empty / missing array becomes `null` so the SDK grants the agent access to all tools.
  *  - `reasoning-effort` is forwarded when it is a supported runtime value.
@@ -181,7 +202,7 @@ function getCustomAgentHooks(md: MarkdownNode): CustomAgentConfig['hooks'] {
  *    full file content when there is no frontmatter).
  */
 export async function toSdkCustomAgents(
-	agents: readonly INamedPluginResource[],
+	agents: readonly ISdkCustomAgentResource[],
 	fileService: IFileService,
 	availableModelIds?: ReadonlySet<string>,
 	clientToolNames?: ReadonlyMap<string, string>,
@@ -194,15 +215,13 @@ export async function toSdkCustomAgents(
 			const md = parseFrontMatter(raw);
 			if (!md) {
 				configs.push({
-					name: agent.name,
+					name: agent.sdkName ?? getSdkCustomAgentName(agent.uri),
+					displayName: agent.name,
+					description: customAgentDescription(agent.name),
 					prompt: raw,
 				});
 			} else {
-				// Match `parseAgentFile`'s name derivation (trim + falsy fallback) so
-				// the SDK config name equals the `resolvedAgentName` resolved from the
-				// parsed plugin agent; otherwise a whitespace-padded frontmatter `name`
-				// would make the SDK reject the session-start `agent:` as not found.
-				const name = md.getStringValue('name')?.trim() || agent.name;
+				const displayName = md.getStringValue('name')?.trim() || agent.name;
 				const description = md.getStringValue('description');
 				const tools = md.getStringArrayValue('tools');
 				const skills = md.getStringArrayValue('skills');
@@ -218,8 +237,9 @@ export async function toSdkCustomAgents(
 				const models = md.getStringArrayValue('model') ?? undefined;
 				const model = scalarModel ?? models?.find(model => availableModelIds?.has(model)) ?? models?.[0];
 				configs.push({
-					name,
-					...(description ? { description } : {}),
+					name: agent.sdkName ?? getSdkCustomAgentName(agent.uri),
+					displayName,
+					description: customAgentDescription(displayName, description),
 					...(model ? { model } : {}),
 					...(isCustomAgentReasoningEffort(reasoningEffort) ? { reasoningEffort } : {}),
 					tools: tools && tools.length > 0 ? tools : null,
@@ -247,7 +267,7 @@ export function mapCopilotCustomAgentTools<T extends CustomAgentConfig>(agents: 
 
 /** The agents contributed by a plugin. */
 export interface IPluginAgentsForSdk {
-	readonly agents: readonly INamedPluginResource[];
+	readonly agents: readonly ISdkCustomAgentResource[];
 }
 
 /**
@@ -583,7 +603,7 @@ export function toSdkHooks(
 	return hooks;
 }
 
-type ComparablePlugin = IParsedPlugin & { readonly pluginDir?: URI; readonly resourceDir?: URI; readonly nonce?: string };
+type ComparablePlugin = IParsedPlugin & { readonly sourceUri?: URI; readonly pluginDir?: URI; readonly resourceDir?: URI; readonly nonce?: string };
 
 /**
  * Compares SDK configuration, preserving plugin order. A plugin with a content nonce compares relative to its own
@@ -597,29 +617,32 @@ export function parsedPluginsEqual(a: readonly ComparablePlugin[], b: readonly C
 			const rootPattern = roots.length
 				? new RegExp(`(?<![\\w/\\\\.-])(?:${roots.map(escapeRegExpCharacters).join('|')})(?=$|[/\\\\\\s"'\\x60);|&<>:])`, 'g')
 				: undefined;
-			return JSON.stringify({
-				format: p.format,
-				nonce: p.nonce,
-				hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
-				mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration, defaultCwd: m.defaultCwd?.toString() })),
-				skills: p.skills.map(s => ({
-					uri: s.uri.toString(),
-					name: s.name,
-					disableModelInvocation: s.disableModelInvocation,
-					disableUserInvocation: s.disableUserInvocation,
-				})),
-				agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name })),
-				instructions: p.instructions.map(i => ({ uri: i.uri.toString(), name: i.name })),
-			}, (_key, value) => {
-				// Tagged segments distinguish a relocated root from literal placeholder text.
-				if (rootPattern && typeof value === 'string') {
-					const segments = value.split(rootPattern);
-					if (segments.length > 1) {
-						return { pluginRootRelative: segments };
+			return {
+				sourceUri: p.agents.length > 0 ? p.sourceUri?.toString() : undefined,
+				configuration: JSON.stringify({
+					format: p.format,
+					nonce: p.nonce,
+					hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
+					mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration, defaultCwd: m.defaultCwd?.toString() })),
+					skills: p.skills.map(s => ({
+						uri: s.uri.toString(),
+						name: s.name,
+						disableModelInvocation: s.disableModelInvocation,
+						disableUserInvocation: s.disableUserInvocation,
+					})),
+					agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name })),
+					instructions: p.instructions.map(i => ({ uri: i.uri.toString(), name: i.name })),
+				}, (_key, value) => {
+					// Tagged segments distinguish a relocated root from literal placeholder text.
+					if (rootPattern && typeof value === 'string') {
+						const segments = value.split(rootPattern);
+						if (segments.length > 1) {
+							return { pluginRootRelative: segments };
+						}
 					}
-				}
-				return value;
-			});
+					return value;
+				}),
+			};
 		}));
 	};
 	return serialize(a) === serialize(b);
@@ -632,7 +655,8 @@ export function findRelocatedAgentName(applied: readonly ComparablePlugin[], pub
 		// Applied and published sets can come from different chat anchors, so their plugin positions can differ.
 		const equivalent = index >= 0 ? applied.find(candidate => parsedPluginsEqual([candidate], [plugin])) : undefined;
 		if (equivalent) {
-			return equivalent.agents[index]?.name;
+			const agent = equivalent.agents[index];
+			return agent ? getSdkCustomAgentName(agent.uri, equivalent) : undefined;
 		}
 	}
 	return undefined;
