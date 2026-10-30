@@ -2407,13 +2407,13 @@ suite('CopilotAgent', () => {
 	for (const scenario of [
 		{ name: 'disabled target and unrelated failure', enabled: false, statuses: ['disabled'], succeeds: false, expectedError: /After disabling 'preview', this chat couldn't finish updating canvas extensions because 'other' failed to start. This chat may not match your Canvas extension settings/ },
 		{ name: 'running target and unrelated failure', enabled: true, statuses: ['running'], succeeds: true, expectedError: undefined },
-		{ name: 'target still running', enabled: false, statuses: ['running'], succeeds: false, expectedError: undefined },
+		{ name: 'target still running', enabled: false, statuses: ['running'], succeeds: false, expectedError: /After disabling 'preview', this chat couldn't finish updating canvas extensions because 'preview' couldn't be stopped/ },
 		{ name: 'target still starting', enabled: true, statuses: ['starting'], succeeds: false, expectedError: /After enabling 'preview', this chat couldn't finish updating canvas extensions because 'other' failed to start. This chat may not match your Canvas extension settings/ },
-		{ name: 'target failed', enabled: true, statuses: ['failed'], succeeds: false, expectedError: undefined },
-		{ name: 'target absent', enabled: false, statuses: [], succeeds: false, expectedError: undefined },
-		{ name: 'conflicting duplicate target states', enabled: false, statuses: ['disabled', 'running'], succeeds: false, expectedError: undefined },
-		{ name: 'verification unavailable', enabled: false, statuses: ['disabled'], succeeds: false, expectedError: undefined },
-		{ name: 'disposed during verification', enabled: true, statuses: ['running'], succeeds: false, expectedError: undefined },
+		{ name: 'target failed', enabled: true, statuses: ['failed'], succeeds: false, expectedError: /After enabling 'preview', this chat couldn't finish updating canvas extensions because 'preview' failed to start/ },
+		{ name: 'target absent', enabled: false, statuses: [], succeeds: false, expectedError: /After disabling 'preview', this chat couldn't finish updating canvas extensions because 'preview' couldn't be stopped/ },
+		{ name: 'conflicting duplicate target states', enabled: false, statuses: ['disabled', 'running'], succeeds: false, expectedError: /After disabling 'preview', this chat couldn't finish updating canvas extensions because 'preview' couldn't be stopped/ },
+		{ name: 'verification unavailable', enabled: false, statuses: ['disabled'], succeeds: false, expectedError: /Canvas extension 'preview' was disabled in settings/ },
+		{ name: 'disposed during verification', enabled: true, statuses: ['running'], succeeds: false, expectedError: /Canvas extension 'preview' was enabled in settings/ },
 	] as const) {
 		test(`verifies extension enablement after reconciliation failure: ${scenario.name}`, async () => {
 			const client = new TestCopilotClient([]);
@@ -2449,7 +2449,7 @@ suite('CopilotAgent', () => {
 				if (scenario.succeeds) {
 					await mutation;
 				} else {
-					await assert.rejects(mutation, scenario.expectedError ?? /Canvas extension 'preview' was (?:enabled|disabled) in settings/);
+					await assert.rejects(mutation, scenario.expectedError);
 				}
 				assert.deepStrictEqual({
 					persisted: scenario.enabled ? client.extensionEnableRequests : client.extensionDisableRequests,
@@ -2662,7 +2662,7 @@ suite('CopilotAgent', () => {
 				originalReconcileCalls,
 				replacementReconcileCalls,
 			}, {
-				errorMessage: 'Canvas extension \'Preview\' was disabled in settings, but couldn\'t be stopped in this chat. The selected chat stopped or was replaced before its extension state could be updated.',
+				errorMessage: 'After disabling \'Preview\', the Canvas extension change couldn\'t be confirmed because the selected chat stopped or was replaced. \'Preview\' is disabled in settings.',
 				disableRequests: [{ ids: ['user:preview'] }],
 				originalReconcileCalls: 0,
 				replacementReconcileCalls: 0,

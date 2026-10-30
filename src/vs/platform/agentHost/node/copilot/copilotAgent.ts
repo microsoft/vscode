@@ -561,6 +561,8 @@ class CopilotExtensionReconciliationError extends Error {
 	}
 }
 
+class CopilotExtensionReconcileTargetUnavailableError extends Error { }
+
 class CopilotSessionConfigurationBusyError extends Error {
 	constructor(readonly session: CopilotAgentSession) {
 		super('Cannot refresh Copilot session configuration while the session has an active turn.');
@@ -3026,11 +3028,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 			await this._queueChat(targetSessionId, targetSessionId, 'reconcileExtensions', () => {
 				const currentSession = this._findPluginOperationSession(session, chat);
 				if (!currentSession || currentSession.sessionId !== targetSessionId) {
-					throw new Error(localize('copilot.extensionReconcileTargetUnavailable', "The selected chat stopped or was replaced before its extension state could be updated."));
+					throw new CopilotExtensionReconcileTargetUnavailableError();
 				}
 				return this._reconcileExtensionEnablement(currentSession, extensionId, enabled);
 			});
 		} catch (error) {
+			if (error instanceof CopilotExtensionReconcileTargetUnavailableError) {
+				throw new Error(enabled
+					? localize('copilot.extensionEnableTargetUnavailable', "After enabling '{0}', the Canvas extension change couldn't be confirmed because the selected chat stopped or was replaced. '{0}' is enabled in settings.", extension.name)
+					: localize('copilot.extensionDisableTargetUnavailable', "After disabling '{0}', the Canvas extension change couldn't be confirmed because the selected chat stopped or was replaced. '{0}' is disabled in settings.", extension.name));
+			}
 			if (error instanceof CopilotExtensionReconciliationError && error.failedExtensions.length > 0) {
 				if (enabled) {
 					throw new Error(error.failedExtensions.length === 1
@@ -3058,6 +3065,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 						"After disabling '{0}', this chat couldn't finish updating canvas extensions because other Canvas extensions failed to start. This chat may not match your Canvas extension settings.",
 						extension.name,
 					));
+			}
+			if (error instanceof CopilotExtensionReconciliationError) {
+				throw new Error(enabled
+					? localize('copilot.extensionEnableTargetFailed', "After enabling '{0}', this chat couldn't finish updating canvas extensions because '{0}' failed to start. This chat may not match your Canvas extension settings.", extension.name)
+					: localize('copilot.extensionDisableTargetFailed', "After disabling '{0}', this chat couldn't finish updating canvas extensions because '{0}' couldn't be stopped. This chat may not match your Canvas extension settings.", extension.name));
 			}
 			throw new Error(enabled
 				? localize('copilot.extensionEnableReconcileFailed', "Canvas extension '{0}' was enabled in settings, but couldn't be started in this chat. {1}", extension.name, getErrorMessage(error))
