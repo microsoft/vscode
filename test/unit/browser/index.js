@@ -948,9 +948,7 @@ testModules.then(async modules => {
 	}
 
 	// With --runList, only as many workers as the listed test files that run need, see getWorkerCountForFiles
-	const workers = workersApply && runList ? getWorkerCountForFiles(workerCount, modules.length) : workerCount;
-	// Without workers for a few listed test files, the browsers run as without --workers
-	const useWorkers = workersApply && (!runList || workers > 1);
+	const workers = !workersApply ? 1 : runList ? getWorkerCountForFiles(workerCount, modules.length) : workerCount;
 
 	// run tests in selected browsers
 	const browsers = Array.isArray(args.browser)
@@ -960,11 +958,11 @@ testModules.then(async modules => {
 	let didFail = false;
 
 	try {
-		// The workers of a browser already use the CPUs, so browsers run one at a time with them, also when the cap allows only one
-		if (args.sequential || useWorkers) {
+		// The workers of a browser already use the CPUs, so browsers run one at a time with them, also when the cap or a short --runList leaves only one
+		if (args.sequential || workersApply) {
 			for (const browser of browsers) {
 				const [browserType, browserChannel] = browser.split('-');
-				messages.push(await runTestsWithReruns(modules, browserType, browserChannel, useWorkers ? workers : 1));
+				messages.push(await runTestsWithReruns(modules, browserType, browserChannel, workers));
 			}
 		} else {
 			messages = await Promise.all(browsers.map(async browser => {
