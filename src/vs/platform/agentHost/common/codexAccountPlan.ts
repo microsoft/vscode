@@ -23,6 +23,8 @@ const chatgptPlanTiers = {
 	edu: 'edu',
 	edu_plus: 'edu',
 	edu_pro: 'edu',
+	sci: 'unknown',
+	sci_plus: 'unknown',
 	unknown: 'unknown',
 } as const satisfies Record<string, NonNullable<ICodexAccountTelemetryContext['chatgptPlanTier']>>;
 
