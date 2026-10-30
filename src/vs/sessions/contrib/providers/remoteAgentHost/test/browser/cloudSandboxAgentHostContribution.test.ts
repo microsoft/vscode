@@ -2595,25 +2595,27 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		assert.deepStrictEqual(batches, [undefined, undefined, ['one', 'two']]);
 	});
 
-	test('frequent task hints cannot postpone the safety poll indefinitely', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const batches: (readonly string[] | undefined)[] = [];
-		const harness = await createContribution(store, [], {
-			sessionFeed: { connected: true, start: async () => { }, dispose: () => { } },
-			listSessions: async (_token, options) => {
-				batches.push(options?.taskIds);
-				return options?.incremental
-					? { kind: 'incremental', sessions: [], removedTaskIds: [] }
-					: { kind: 'complete', sessions: [discoveredSession()] };
-			},
-		});
-		for (let i = 0; i < 4; i++) {
-			await timeout(60_000);
-			await harness.contribution.refreshTasks(['one']);
-		}
-		await timeout(60_001);
-		await harness.contribution.checkForUpdates();
-		assert.deepStrictEqual(batches, [undefined, ['one'], ['one'], ['one'], ['one'], undefined]);
-	}));
+	for (const connected of [false, true]) {
+		test(`task hints never postpone the inventory poll and a connected feed replaces it (connected=${connected})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const batches: (readonly string[] | undefined)[] = [];
+			const harness = await createContribution(store, [], {
+				sessionFeed: { connected, start: async () => { }, dispose: () => { } },
+				listSessions: async (_token, options) => {
+					batches.push(options?.taskIds);
+					return options?.incremental
+						? { kind: 'incremental', sessions: [], removedTaskIds: [] }
+						: { kind: 'complete', sessions: [discoveredSession()] };
+				},
+			});
+			for (let i = 0; i < 4; i++) {
+				await timeout(60_000);
+				await harness.contribution.refreshTasks(['one']);
+			}
+			await timeout(60_001);
+			await harness.contribution.checkForUpdates();
+			assert.deepStrictEqual(batches, [undefined, ['one'], ['one'], ['one'], ['one'], ...connected ? [] : [undefined]]);
+		}));
+	}
 
 	test('shares overlapping full refreshes without an unnecessary follow-up scan', async () => {
 		const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
@@ -2793,7 +2795,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 			disconnected: harness.disconnectedFrom,
 		}, {
 			polling: { starts: 1, disposals: 1, modes: [false, false, true] },
-			starts: 2, disposals: 1, modes: [false, false, true, false, true],
+			starts: 2, disposals: 1, modes: [false, false, true, false],
 			sameProvider: true, providerDisposed: false, disconnected: [],
 		});
 	}));
@@ -2830,7 +2832,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		assert.deepStrictEqual({ negotiations, modes: harness.discoveryModes }, { negotiations: 0, modes: [] });
 	});
 
-	test('polls on the same jittered interval with or without a connected feed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('does not poll while the feed is connected and resumes jittered polling once it drops', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		let connected = true;
 		let disposed = false;
 		const harness = await createContribution(store, [discoveredSession()], {
@@ -2841,10 +2843,8 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 			},
 		});
 		harness.contribution.pollJitter = 30_000;
-		await timeout(5 * 60_000 - 1);
-		const beforePoll = harness.discoveryModes.length;
-		await timeout(2);
-		const afterPoll = harness.discoveryModes.length;
+		await timeout(5 * 60_000 + 1);
+		const whileConnected = harness.discoveryModes.length;
 		connected = false;
 		await timeout(5 * 60_000 + 30_000 - 2);
 		const beforeJitteredPoll = harness.discoveryModes.length;
@@ -2852,8 +2852,8 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		const afterJitteredPoll = harness.discoveryModes.length;
 		await harness.setEnabled(false);
 		await timeout(10 * 60_000);
-		assert.deepStrictEqual({ beforePoll, afterPoll, beforeJitteredPoll, afterJitteredPoll, afterDisable: harness.discoveryModes.length, disposed }, {
-			beforePoll: 1, afterPoll: 2, beforeJitteredPoll: 2, afterJitteredPoll: 3, afterDisable: 3, disposed: true,
+		assert.deepStrictEqual({ whileConnected, beforeJitteredPoll, afterJitteredPoll, afterDisable: harness.discoveryModes.length, disposed }, {
+			whileConnected: 1, beforeJitteredPoll: 1, afterJitteredPoll: 2, afterDisable: 2, disposed: true,
 		});
 	}));
 
