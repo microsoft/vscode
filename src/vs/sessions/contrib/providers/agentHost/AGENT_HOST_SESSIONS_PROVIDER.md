@@ -24,6 +24,8 @@ Current chat summaries encode archiving in `SessionStatus.IsArchived`. The share
 
 The shared base owns session adaptation, draft creation, catalog publication, request routing, and provider operations. Concrete providers own connection lifetime and environment-specific capabilities.
 
+Providers may expose `resolveCustomAgent` to correlate a client draft source with its advertised host agent. Pickers use this optional resolution for remembered selections; the published host URI remains authoritative.
+
 ## Extended contract
 
 Agent Host providers implement `IAgentHostSessionsProvider`, which extends `ISessionsProvider` with:
