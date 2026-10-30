@@ -7,16 +7,19 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY } from '../../../../../platform/chat/common/agentsWindowInvitation.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { NEW_SESSION_BANNERS_MIN_CREATED_SESSIONS, NewSessionBannerPriority, NewSessionBanners } from '../../../chat/common/newSessionBanners.js';
 import { WorktreeSuggestionVariant } from '../../common/worktreeSuggestion.js';
 import { WorktreeSuggestionController } from '../../browser/worktreeSuggestionController.js';
 import { IWorktreeSuggestionService, WorktreeSpotlightChoice } from '../../browser/worktreeSuggestionService.js';
@@ -25,7 +28,7 @@ import { TestWorktreeSuggestionService } from './worktreeSuggestionTestUtils.js'
 suite('WorktreeSuggestionController', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createController(variant: WorktreeSuggestionVariant, options: { isolationPicker?: boolean } = {}) {
+	function createController(variant: WorktreeSuggestionVariant, options: { isolationPicker?: boolean; createdSessions?: number } = {}) {
 		const service = new TestWorktreeSuggestionService(variant);
 		const session = new class extends mock<IActiveSession>() { override readonly sessionId = 'draft'; }();
 		const composer: string[] = [];
@@ -40,6 +43,9 @@ suite('WorktreeSuggestionController', () => {
 		// Attached, so that focus can move between the hint and the input.
 		const container = mainWindow.document.body.appendChild(document.createElement('div'));
 		store.add(toDisposable(() => container.remove()));
+		const storage = store.add(new InMemoryStorageService());
+		storage.store(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, options.createdSessions ?? NEW_SESSION_BANNERS_MIN_CREATED_SESSIONS, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const banners = store.add(new NewSessionBanners(storage));
 		const controller = store.add(instantiationService.createInstance(WorktreeSuggestionController, container, {
 			session: constObservable(session),
 			pickerVisibility,
@@ -49,6 +55,7 @@ suite('WorktreeSuggestionController', () => {
 			focusInput: () => composer.push('focusInput'),
 			revealIsolationPicker: () => composer.push('revealIsolationPicker'),
 			openIsolationPicker: () => composer.push('openIsolationPicker'),
+			banners,
 		}));
 		const hint = container.querySelector<HTMLElement>('.new-session-worktree-suggestion')!;
 		return {
@@ -56,12 +63,14 @@ suite('WorktreeSuggestionController', () => {
 			service,
 			pickerVisibility,
 			composer,
+			banners,
 			type: (text: string) => {
 				input = text;
 				onDidChangeInput.fire();
 			},
 			hint: () => hint.style.display === 'none' ? undefined : hint.querySelector('.new-session-worktree-suggestion-message')?.textContent,
 			clickUseWorktree: () => hint.querySelector<HTMLElement>('.monaco-button')!.click(),
+			focusUseWorktree: () => hint.querySelector<HTMLElement>('.monaco-button')!.focus(),
 			filesLink: () => hint.querySelector<HTMLElement>('.new-session-worktree-suggestion-message .monaco-link')!,
 			clickClose: () => hint.querySelector<HTMLElement>('.monaco-action-bar .action-label')!.click(),
 			/** Presses Escape on the focused Use Worktree button, which handles Escape itself. */
@@ -112,6 +121,38 @@ suite('WorktreeSuggestionController', () => {
 			escaped: { hint: undefined, composer: ['openIsolationPicker', 'focusInput'], calls: ['shown:inlineHint', 'opened:inlineHint', 'declined:inlineHint'], closedForGood: false },
 			closeLabel: 'Close and Don\'t Show Again',
 			closed: { hint: undefined, calls: ['shown:inlineHint', 'hintClosed'], closedForGood: true },
+		});
+	});
+
+	test('the inline hint waits until the user started 3 sessions, unless it is a developer preview', () => {
+		const { service, type, hint } = createController(WorktreeSuggestionVariant.InlineHint, { createdSessions: 2 });
+		type('Add a dark theme');
+		const twoSessions = hint();
+		service.isPreviewing.set(true, undefined);
+
+		assert.deepStrictEqual({ twoSessions, preview: hint() }, {
+			twoSessions: undefined,
+			preview: 'main has 3 uncommitted files. Worktrees allow agents to run on a separate copy of the files.',
+		});
+	});
+
+	test('the inline hint shows instead of lower banners below the input, and makes way for a higher one', () => {
+		const { banners, type, hint, focusUseWorktree, composer } = createController(WorktreeSuggestionVariant.InlineHint);
+		const migration = store.add(banners.register(NewSessionBannerPriority.Migration, constObservable(true)));
+		const higherWantsToShow = observableValue('higherWantsToShow', false);
+		store.add(banners.register(NewSessionBannerPriority.WorktreeSuggestion + 1, higherWantsToShow));
+		type('Add a dark theme');
+		const shown = { hint: !!hint(), migration: migration.isShowing.get() };
+		focusUseWorktree();
+		higherWantsToShow.set(true, undefined);
+		const outranked = { hint: !!hint(), composer: [...composer] };
+		higherWantsToShow.set(false, undefined);
+
+		assert.deepStrictEqual({ shown, outranked, back: !!hint() }, {
+			shown: { hint: true, migration: false },
+			// Focus inside the hint returns to the input as it makes way.
+			outranked: { hint: false, composer: ['focusInput'] },
+			back: true,
 		});
 	});
 

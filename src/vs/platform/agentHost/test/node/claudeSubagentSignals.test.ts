@@ -13,6 +13,7 @@ import { ToolCallConfirmationReason, ToolCallContributorKind } from '../../commo
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from '../../node/claude/claudeMapSessionEvents.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { buildTopLevelSubagentReadyAction, mapSubagentSystemMessage } from '../../node/claude/claudeSubagentSignals.js';
+import { SessionClientToolsModel } from '../../node/claude/clientTools/claudeSessionClientToolsModel.js';
 import {
 	makeAssistantMessage,
 	makeContentBlockStartText,
@@ -270,7 +271,9 @@ suite('claudeSubagentSignals — Phase 12 emission', () => {
 			{ type: 'tool_use', id: 'toolu_inner_client', name: 'mcp__client__Bash', input: { command: 'echo client' } },
 		]);
 		innerAssistant.parent_tool_use_id = parentToolCallId;
-		const fromAssistant = mapSDKMessageToAgentSignals(innerAssistant, SESSION, TURN_ID, state, log, registry, () => 'client-1');
+		const clientTools = new SessionClientToolsModel();
+		clientTools.setTools('client-1', [{ name: 'Bash', inputSchema: { type: 'object' } }]);
+		const fromAssistant = mapSDKMessageToAgentSignals(innerAssistant, SESSION, TURN_ID, state, log, registry, clientTools);
 		const innerToolResult = makeUserToolResultMessage(SESSION_ID, 'toolu_inner_client', 'done');
 		innerToolResult.parent_tool_use_id = parentToolCallId;
 		const fromResult = mapSDKMessageToAgentSignals(innerToolResult, SESSION, TURN_ID, state, log, registry);

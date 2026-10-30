@@ -32,6 +32,8 @@ When changing harness descriptor interfaces or factory functions, verify both co
 
 Principle: the UI widgets read everything from the descriptor — no harness-specific conditionals in widget code.
 
+Search: every Customizations search must go through the shared matcher in `src/vs/workbench/contrib/chat/common/aiCustomizationSearch.ts`, never ad-hoc `toLowerCase().includes()`. See the Search section of `.github/instructions/ai-customization.instructions.md`.
+
 ## Extension API (`chatSessionCustomizationProvider`)
 
 The proposed API in `src/vscode-dts/vscode.proposed.chatSessionCustomizationProvider.d.ts` lets extensions register customization providers. Changes to `ICustomizationItem` or `ICustomizationItemProvider` must be kept in sync across the full chain:

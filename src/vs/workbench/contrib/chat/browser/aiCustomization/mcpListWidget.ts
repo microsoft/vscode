@@ -65,6 +65,7 @@ import { IOutputService } from '../../../../services/output/common/output.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IMcpServerCustomizationMigrationCandidate } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { getAvailableCustomizationMarketplaceInstallTelemetryContext, runCustomizationMarketplaceInstallWithTelemetry } from '../../common/customizationMarketplaceInstallTelemetry.js';
+import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
 import { getCustomizationDisabledReason, getCustomizationEnablementDecision, getCustomizationScopeEnablement, type CustomizationDisabledReason } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { createAgentHostEnablePluginAction, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -1436,7 +1437,7 @@ export function createProviderMcpEntries(
 		}
 		const resource = installation.resource;
 		const name = target.name ?? target.id!;
-		if (normalizedQuery && ![name, resource.displayName, resource.description].some(value => value.toLowerCase().includes(normalizedQuery))) {
+		if (!customizationSearchMatchesAny(normalizedQuery, [name, resource.displayName, resource.description])) {
 			continue;
 		}
 		for (const key of matchKeys) {
@@ -2865,9 +2866,7 @@ export class McpListWidget extends Disposable {
 	}
 
 	private matchesGalleryServerQuery(server: IWorkbenchMcpServer, query: string): boolean {
-		return server.label.toLowerCase().includes(query)
-			|| server.description.toLowerCase().includes(query)
-			|| server.publisherDisplayName?.toLowerCase().includes(query) === true;
+		return customizationSearchMatchesAny(query, [server.label, server.description, server.publisherDisplayName]);
 	}
 
 	private renderMcpTree(): void {
@@ -3365,10 +3364,7 @@ export class McpListWidget extends Disposable {
 		], query);
 
 		if (query) {
-			this.filteredServers = localServers.filter(server =>
-				server.label.toLowerCase().includes(query) ||
-				(server.description?.toLowerCase().includes(query))
-			);
+			this.filteredServers = localServers.filter(server => customizationSearchMatchesAny(query, [server.label, server.description]));
 		} else {
 			this.filteredServers = [...localServers];
 		}
@@ -3379,7 +3375,7 @@ export class McpListWidget extends Disposable {
 		const builtinServers = runtimeServers
 			.filter(s => !localIds.has(s.definition.id))
 			.filter(s => isMcpServerCollectionVisible(s.collection.id, hiddenCollectionIds))
-			.filter(s => !query || s.definition.label.toLowerCase().includes(query));
+			.filter(s => customizationSearchMatchesAny(query, [s.definition.label]));
 
 		const groups: { entries: Array<IMcpServerItemEntry | IMcpSessionServerItemEntry> }[] = [
 			{ entries: [] },
@@ -3433,11 +3429,11 @@ export class McpListWidget extends Disposable {
 		const connectorMcpEntries = this.isConnectorsEnabled()
 			? this.connectorsService.connectedMcpServers
 				.filter(server => !regularMatchKeys.has(server.serverName.toLowerCase()))
-				.filter(server => !query || [
+				.filter(server => customizationSearchMatchesAny(query, [
 					server.connector.displayName,
 					server.connector.description,
 					server.serverName,
-				].some(value => value.toLowerCase().includes(query)))
+				]))
 				.map(server => createConnectorMcpEntry(server, activeSessionMatcher.takeConnector([server.serverName], [server.connector.name, server.connector.displayName])))
 			: [];
 		const activeSessionOnlyServers = activeSessionMatcher.unmatched(query);

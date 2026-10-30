@@ -321,7 +321,7 @@ type WorkspaceState = { readonly kind: 'ready'; readonly checkout: Checkout } | 
 /**
  * The baseline of the first repair while merging only unchanged pull requests: the head it started from and, when the
  * repair chat had one, its verified checkout. A repair without a verified checkout records an empty directory and
- * commit, which older checkpoints never do; they also lack `headSha`.
+ * commit, which older checkpoints never do; they also lack `headSha` until the next repair records the head it starts from.
  */
 type RepairCheckpoint = { readonly runId: string; readonly chat: string; readonly directory: string; readonly commit: string; readonly headSha?: string };
 /** `operation` is recorded immediately before a merge or enqueue is dispatched; older checkpoints lack it. */
@@ -852,11 +852,16 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		const checkout = await this.checkout(chat, core);
 		const configuration = this.context.configuration.get();
 		if (configuration.values.merge === 'ifUnchanged') {
-			await this.writeCheckpoint(previous => ({
-				...previous, generation: configuration.generations.merge,
-				repair: previous.generation === configuration.generations.merge && previous.repair ? previous.repair
-					: { runId: context.run.id, chat, directory: checkout?.directory ?? '', commit: checkout?.commit ?? '', headSha: core.headSha },
-			}));
+			await this.writeCheckpoint(previous => {
+				const repair = previous.generation === configuration.generations.merge ? previous.repair : null;
+				return {
+					...previous, generation: configuration.generations.merge,
+					// A checkpoint from before heads were recorded keeps its local baseline. It still needs the head this repair
+					// starts from, because the repair can push from another checkout without changing that baseline.
+					repair: repair ? { ...repair, headSha: repair.headSha ?? core.headSha }
+						: { runId: context.run.id, chat, directory: checkout?.directory ?? '', commit: checkout?.commit ?? '', headSha: core.headSha },
+				};
+			});
 		}
 		const quote = (text: string) => text.split(/\r?\n/).map(line => `> ${line}`).join('\n');
 		const target = { repository: core.headRepositoryNameWithOwner ?? core.repositoryNameWithOwner, branch: core.headRef };

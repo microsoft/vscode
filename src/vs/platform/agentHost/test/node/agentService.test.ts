@@ -25459,21 +25459,40 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('rejects restoring a session that has been explicitly deleted (tombstoned) without resurrecting it', async () => {
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database));
 			const agent = disposables.add(new MockAgent('copilot'));
+			const cliAgent = disposables.add(new MockAgent('copilotcli'));
 			registerTestAgentProvider(svc, agent);
+			registerTestAgentProvider(svc, cliAgent);
 
 			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const cliSession = await svc.createSession({ legacyChatUris: false, provider: 'copilotcli' });
+			const cliSessionId = AgentSession.id(cliSession);
+			const poisonedSubagentSession = AgentSession.uri('copilotcli', cliSessionId).with({ query: 'subagentChatResource=ahp-chat%3A%2Fchild' });
+			await database.registerRuntimeSession(poisonedSubagentSession.toString(), { provider: 'copilotcli', startTime: 1, source: 'restore' }, { checkTombstone: false });
 			await svc.disposeSession(session);
-			assert.deepStrictEqual(await svc.getRegisteredSessions(), []);
+			await svc.disposeSession(cliSession);
+			assert.deepStrictEqual((await svc.getRegisteredSessions()).map(entry => entry.toString()), [poisonedSubagentSession.toString()]);
 
-			await assert.rejects(
-				() => svc.restoreSession(session),
-				(error: unknown) => error instanceof ProtocolError && error.code === AHP_SESSION_NOT_FOUND,
-			);
+			for (const target of [session, cliSession, AgentSession.uri('copilotcli', cliSessionId), poisonedSubagentSession]) {
+				await assert.rejects(
+					() => svc.restoreSession(target),
+					(error: unknown) => error instanceof ProtocolError && error.code === AHP_SESSION_NOT_FOUND && /Session was explicitly deleted/.test(error.message),
+				);
+			}
 
-			assert.deepStrictEqual(await svc.getRegisteredSessions(), []);
 			assert.strictEqual(getStateManager(svc).getSessionState(session.toString()), undefined, 'a rejected restore must not have populated any state');
+			assert.strictEqual(getStateManager(svc).getSessionState(cliSession.toString()), undefined);
+			assert.strictEqual(getStateManager(svc).getSessionState(poisonedSubagentSession.toString()), undefined);
+
+			// An explicitly registered standard session still restores even if an unrelated legacy URI with the same ID was previously tombstoned.
+			const reusedStandardSession = AgentSession.uri('ahp-session', 'reused-after-legacy-tombstone');
+			await database.tombstoneAndUnregisterSession(AgentSession.uri('copilotcli', 'reused-after-legacy-tombstone').toString());
+			await database.registerRuntimeSession(reusedStandardSession.toString(), { provider: 'copilotcli', startTime: 2, source: 'explicit' }, { checkTombstone: false });
+			await createAgentSession(cliAgent, { session: reusedStandardSession });
+			await svc.restoreSession(reusedStandardSession);
+			assert.strictEqual(!!getStateManager(svc).getSessionState(reusedStandardSession.toString()), true);
 		});
 
 		suite('initial provider migration race (#331648)', () => {

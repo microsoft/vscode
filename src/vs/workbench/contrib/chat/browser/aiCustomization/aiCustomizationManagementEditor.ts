@@ -3641,6 +3641,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 	//#endregion
 
 	/**
+	 * Opens Discover with fresh filters and optionally applies a search query.
+	 */
+	public showDiscover(searchQuery?: string): void {
+		this.showWelcomePage({ resetFilters: true });
+		if (searchQuery !== undefined) {
+			this.setSearchQuery(searchQuery);
+		}
+	}
+
+	/**
 	 * Navigates to the welcome page (no section selected).
 	 */
 	public showWelcomePage(options?: { resetFilters?: boolean; preserveFocus?: boolean }): void {

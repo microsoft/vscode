@@ -30,10 +30,10 @@ import { GitHubPullRequestModel } from '../../../github/browser/models/githubPul
 import { GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequestReviewThread } from '../../../github/common/types.js';
 import { toPRContentUri } from '../../../github/common/utils.js';
 import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
-import { IChat, IGitHubInfo, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { IChat, IGitHubInfo, SessionStatus, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { commentableRightLines, mapCurrentLineToPullRequestLine, mapCurrentRangeToPullRequestRange, ICodeReviewService, CodeReviewService, PRReviewStateKind } from '../../browser/codeReviewService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ICreateNewChatInSessionOptions, IActiveSession, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
@@ -736,6 +736,7 @@ suite('Code Review Contributions', () => {
 		const session = {
 			resource: sessionResource,
 			capabilities: constObservable({ supportsMultipleChats: true }),
+			status: constObservable(SessionStatus.Untitled),
 		} as ISession;
 		let sentQuery: string | undefined;
 		const testInstantiationService = store.add(new TestInstantiationService());
@@ -760,6 +761,45 @@ suite('Code Review Contributions', () => {
 		await testInstantiationService.invokeFunction((accessor: ServicesAccessor) => command.handler(accessor, editorResource));
 
 		assert.strictEqual(sentQuery, '/code-review');
+	});
+	test('Run Code Review sends into a new chat of an existing multi-chat session', async () => {
+		const sessionResource = URI.parse('session:existing');
+		const session = {
+			resource: sessionResource,
+			capabilities: constObservable({ supportsMultipleChats: true }),
+			status: constObservable(SessionStatus.Completed),
+		} as ISession;
+		const newChat = { resource: URI.parse('chat:new') } as IChat;
+		const calls: string[] = [];
+		const testInstantiationService = store.add(new TestInstantiationService());
+		testInstantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override getSession(): ISession | undefined {
+				return session;
+			}
+			override async sendNewChatRequest(): Promise<void> {
+				throw new Error('Cannot start a session that is no longer pending');
+			}
+			override async createNewChatInSession(_session: ISession, options?: ICreateNewChatInSessionOptions): Promise<IChat | undefined> {
+				calls.push(`createNewChatInSession:forceNew=${options?.forceNew}`);
+				return newChat;
+			}
+			override async sendRequest(_session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
+				calls.push(`sendRequest:${chat.resource.toString()}:${options.query}`);
+			}
+		});
+		testInstantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { });
+		testInstantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() { });
+		testInstantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+			override getSessionResource(): URI | undefined {
+				return undefined;
+			}
+		});
+		const command = CommandsRegistry.getCommand('sessions.codeReview.run');
+		assert.ok(command);
+
+		await testInstantiationService.invokeFunction((accessor: ServicesAccessor) => command.handler(accessor, sessionResource));
+
+		assert.deepStrictEqual(calls, ['createNewChatInSession:forceNew=true', 'sendRequest:chat:new:/code-review']);
 	});
 });
 

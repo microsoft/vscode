@@ -6,6 +6,7 @@
 import type { Query, SDKControlInterruptResponse, SDKMessage, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
@@ -255,6 +256,8 @@ suite('ClaudeSdkPipeline', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	teardown(() => sinon.restore());
+
 	suite('reloadPlugins', () => {
 
 		test('forwards to the SDK Query', async () => {
@@ -341,6 +344,23 @@ suite('ClaudeSdkPipeline', () => {
 	});
 
 	suite('rematerializer wiring', () => {
+
+		test('rebind moves the queue abort subscription to the new controller', async () => {
+			const { pipeline, controller } = createPipeline(disposables);
+			const replacement = new AbortController();
+			const oldRemoved = sinon.spy(controller.signal, 'removeEventListener');
+			const newAdded = sinon.spy(replacement.signal, 'addEventListener');
+			const newRemoved = sinon.spy(replacement.signal, 'removeEventListener');
+			pipeline.attachRematerializer(async () => ({ warm: new FakeWarmQuery(), abortController: replacement }));
+			await pipeline.rebindForRestart();
+			const afterRebind = { oldRemoved: oldRemoved.callCount, newAdded: newAdded.callCount, newRemoved: newRemoved.callCount };
+			pipeline.dispose();
+			assert.deepStrictEqual({ afterRebind, newRemoved: newRemoved.callCount, aborted: replacement.signal.aborted }, {
+				afterRebind: { oldRemoved: 1, newAdded: 1, newRemoved: 0 },
+				newRemoved: 1,
+				aborted: true,
+			});
+		});
 
 		test('after abort, send invokes the attached rematerializer in "recover" mode and clears the rebind flag', async () => {
 			const { pipeline } = createPipeline(disposables);

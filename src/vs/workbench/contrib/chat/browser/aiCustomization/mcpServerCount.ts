@@ -6,6 +6,7 @@
 import { IReader } from '../../../../../base/common/observable.js';
 import { getCustomizationScopeEnablement, type CustomizationDisabledReason } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { isContributionEnabled } from '../../common/enablement.js';
+import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { IMcpServer } from '../../../mcp/common/mcpTypes.js';
 
@@ -66,7 +67,7 @@ export class ActiveSessionMcpServerMatcher {
 	}
 
 	unmatched(query: string): AgentHostMcpServer[] {
-		return this.servers.filter(server => !this.matchedIds.has(server.id) && (!query || [server.name, server.displayName].some(value => value?.toLowerCase().includes(query))));
+		return this.servers.filter(server => !this.matchedIds.has(server.id) && customizationSearchMatchesAny(query, [server.name, server.displayName]));
 	}
 }
 

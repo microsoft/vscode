@@ -2174,7 +2174,9 @@ export class CopilotAgentSession extends Disposable {
 			storage: this._storageUri,
 			getConfigWriteTarget: () => this._configWriteTarget(),
 			platform: options.platform ?? process.platform,
-			getSession: () => this._wrapper?.session,
+			getSession: () => !this._store.isDisposed && this._wrapper?.lifecycleState === 'active' ? this._wrapper.session : undefined,
+			// Only the session of a closing wrapper counts as closed, so a replacement SDK session from a relaunch is still configured.
+			isSessionClosed: session => this._store.isDisposed || (session !== undefined && this._wrapper?.session === session && this._wrapper.lifecycleState !== 'active'),
 			getHostSupport: () => this._launchPlan.client.rpc.sandbox.getHostSupport(),
 			getCertificateStatus: config => options.sandboxCertificate.getStatus(this._launchPlan.client.rpc.sandbox.proxyCa, config),
 			installCertificate: (getConfig, scopeId) => options.sandboxCertificate.install(this._launchPlan.client.rpc.sandbox.proxyCa, getConfig, scopeId),
@@ -2182,6 +2184,8 @@ export class CopilotAgentSession extends Disposable {
 			removeCertificate: async (scopeId, validate) => { await options.sandboxCertificate.remove(this._launchPlan.client.rpc.sandbox.proxyCa, scopeId, validate); },
 			getShellInitDirectory: () => this._shellInitScriptMaterialized ? this._shellInitScriptDirectory() : undefined,
 			getAppliedPluginDirectories: () => this._appliedPluginDirectories,
+			getWorkingDirectory: () => this._workingDirectory,
+			getAdditionalWorkingDirectories: () => this._appliedAdditionalDirectories,
 			shellManager: options.shellManager,
 			onDidChangeRuntimeConfig: () => this._recordRuntimeMutation('sandboxUpdate'),
 		}));
@@ -5859,7 +5863,9 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const turn = this._currentTurn.value;
 		this._hostInstructions = hostInstructions;
-		this._pendingSnapshotReminder = this._snapshotReadonlyReminder(attachments);
+		// Attaching a file or folder lets this chat's sandbox read it; `_prepareSdkTurn` applies the grant before the turn runs.
+		this._sandbox.addAttachments(attachments);
+		this._pendingSnapshotReminder = this._attachmentReminder(attachments);
 		if (this._tryStartDevelopmentRecoverableError(prompt)) {
 			return;
 		}
@@ -5923,6 +5929,40 @@ export class CopilotAgentSession extends Disposable {
 	 * on steering) rather than the attachment, because the runtime drops a file
 	 * attachment's `displayName` for text snapshots.
 	 */
+	private _attachmentReminder(attachments: readonly MessageAttachment[] | undefined): string | undefined {
+		const parts = [this._snapshotReadonlyReminder(attachments), this._sandboxBlockedAttachmentReminder(attachments)].filter(isDefined);
+		return parts.length ? parts.join('\n\n') : undefined;
+	}
+
+	/**
+	 * Names attachments the effective sandbox policy keeps unreadable (a denied path, or
+	 * outside a managed read-only list), so the model tells the user the policy blocks
+	 * them instead of asking the user to change a policy they may not control.
+	 */
+	private _sandboxBlockedAttachmentReminder(attachments: readonly MessageAttachment[] | undefined): string | undefined {
+		const { blocked, containsWritable } = this._sandbox.getUnreadableAttachments(attachments);
+		if (!blocked.length && !containsWritable.length) {
+			return undefined;
+		}
+		this._logService.info(`[Copilot:${this.sessionId}] Sandbox keeps ${blocked.length} attachment(s) unreadable by policy and ${containsWritable.length} folder(s) containing a writable folder ungranted`);
+		const parts: string[] = [];
+		if (blocked.length) {
+			parts.push('The sandbox policy for this session does not allow reading the following attached paths, '
+				+ 'because they are denied or outside the read-only paths set by the sandbox policy:\n'
+				+ blocked.map(path => `- ${path}`).join('\n')
+				+ '\nIf you need their contents, tell the user that the sandbox policy blocks access to them and ask them to paste the relevant content instead. '
+				+ 'Do not ask the user to change the sandbox policy, which may be managed by their organization.');
+		}
+		if (containsWritable.length) {
+			parts.push('The following attached folders contain the session\'s working directory or another writable folder, '
+				+ 'so the sandbox does not make them readable as a whole, which could make that folder read-only:\n'
+				+ containsWritable.map(path => `- ${path}`).join('\n')
+				+ '\nFiles inside the writable folders stay readable. If you need other files in these folders, ask the user to attach those files or subfolders directly. '
+				+ 'Do not ask the user to change the sandbox policy.');
+		}
+		return parts.join('\n\n');
+	}
+
 	private _snapshotReadonlyReminder(attachments: readonly MessageAttachment[] | undefined): string | undefined {
 		if (!attachments?.length) {
 			return undefined;
@@ -6684,12 +6724,17 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(`[Copilot:${this.sessionId}] Sending steering message: "${steeringMessage.message.text.substring(0, 100)}"`);
 		try {
 			await this._reconcileMcpServerEnablement();
+			if (this._sandbox.addAttachments(steeringMessage.message.attachments)) {
+				// Steering joins the running turn, so its attachments must be granted before it is sent, even when an
+				// earlier message recorded the same path and its update is still in flight. An unchanged config isn't re-sent.
+				await this._sandbox.applyConfig(false);
+			}
 			const sdkAttachments = await this._toSdkAttachments(steeringMessage.message.attachments);
 			// Steering is injected into the active turn and never fires the SDK's `user-prompt-submitted`
 			// hook, so the read-only snapshot signal can't ride `additionalContext` here. Fold it into the
 			// prompt as a `<reminder>` block instead: the runtime forwards it to the model, and the host's
 			// `stripPromptScaffolding` removes it from the displayed message (#331154).
-			const snapshotReminder = this._snapshotReadonlyReminder(steeringMessage.message.attachments);
+			const snapshotReminder = this._attachmentReminder(steeringMessage.message.attachments);
 			const steeringPrompt = snapshotReminder
 				? `${steeringMessage.message.text}\n\n<reminder>\n${snapshotReminder}\n</reminder>`
 				: steeringMessage.message.text;
@@ -8114,14 +8159,21 @@ export class CopilotAgentSession extends Disposable {
 		}));
 	}
 
+	private _isInactiveForBackgroundConfigSync(): boolean {
+		return this._store.isDisposed || (this._wrapper !== undefined && this._wrapper.lifecycleState !== 'active');
+	}
+
 	private async _syncImageGenerationAfterConfigChange(): Promise<void> {
-		if (!this._wrapper) {
+		if (!this._wrapper || this._isInactiveForBackgroundConfigSync()) {
 			// Wrapper initialization applies the latest preference before the session becomes usable.
 			return;
 		}
 		try {
 			await this._syncImageGeneration();
 		} catch (error) {
+			if (this._isInactiveForBackgroundConfigSync()) {
+				return;
+			}
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to apply image generation setting`);
 			const turn = this._currentTurn.value ?? this._resumingTurnAwaitingProviderStart;
 			if (turn) {
@@ -8149,6 +8201,9 @@ export class CopilotAgentSession extends Disposable {
 
 	private _syncImageGeneration(): Promise<void> {
 		return this._imageGenerationSequencer.queue(async () => {
+			if (this._isInactiveForBackgroundConfigSync()) {
+				return;
+			}
 			const enabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGeneration) === true;
 			const watermark = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGenerationWatermark) === true;
 			if (enabled === this._appliedImageGenerationEnabled && watermark === this._appliedImageGenerationWatermark) {
@@ -8165,7 +8220,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _syncShellInitScript(recorder?: IAgentProviderSendStageRecorder): Promise<void> {
-		if (this._shellInitScriptDisposing) {
+		if (this._shellInitScriptDisposing || this._isInactiveForBackgroundConfigSync()) {
 			return Promise.resolve();
 		}
 		return measureAgentProviderOperation(recorder, 'shell', () => this._applyEffectiveShellInitScripts(recorder), this._shellInitScriptSequencer);
@@ -8177,6 +8232,9 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _syncPermissionModeAfterConfigChange(event?: IAgentChatConfigurationChangeEvent): Promise<void> {
+		if (this._isInactiveForBackgroundConfigSync()) {
+			return;
+		}
 		const sandboxChange = this._sandbox.prepareConfigChange(event);
 		try {
 			if (this.hasActiveTurn && (!sandboxChange.sessionCommand || (event && Object.hasOwn(event.config, SessionConfigKey.AutoApprove)))) {
@@ -8184,6 +8242,9 @@ export class CopilotAgentSession extends Disposable {
 			}
 			await sandboxChange.apply();
 		} catch (error) {
+			if (this._isInactiveForBackgroundConfigSync()) {
+				return;
+			}
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to apply permission config change${this.hasActiveTurn ? '; aborting active turn' : ''}`);
 			sandboxChange.reject(error);
 			if (!this.hasActiveTurn) {
@@ -8199,6 +8260,9 @@ export class CopilotAgentSession extends Disposable {
 
 	syncPermissionMode(source: 'config-change' | 'turn-start', recorder?: IAgentProviderSendStageRecorder): Promise<void> {
 		return measureAgentProviderOperation(recorder, 'permission', async () => {
+			if (source === 'config-change' && this._isInactiveForBackgroundConfigSync()) {
+				return;
+			}
 			const { mode, configuredLevel } = this._approvalPolicy.resolveSelection(this._getApprovalInputs());
 			this._logService.info(`[Copilot:${this.sessionId}] Syncing permission mode: source=${source}, agentMode=${this._getConfiguredAgentMode()}, configuredLevel=${configuredLevel}, sdkMode=${mode}, previousSdkMode=${this._lastAppliedPermissionMode ?? 'unknown'}, globalAutoApprove=${this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true}`);
 			const experimentalModeEnabled = mode === 'assisted' || this._isHydraFusionEnabled();
@@ -8294,7 +8358,7 @@ export class CopilotAgentSession extends Disposable {
 	 * Best-effort: failures are logged and retried on the next turn.
 	 */
 	private async _applyEffectiveShellInitScripts(recorder?: IAgentProviderSendStageRecorder): Promise<void> {
-		if (this._shellInitScriptDisposing) {
+		if (this._shellInitScriptDisposing || this._isInactiveForBackgroundConfigSync()) {
 			return;
 		}
 		try {
@@ -8320,6 +8384,9 @@ export class CopilotAgentSession extends Disposable {
 				// The file and its sandbox grant stay until dispose, so a command
 				// that already captured the path can still source it.
 				if (this._registeredShellInitScriptPath) {
+					if (this._shellInitScriptDisposing || this._isInactiveForBackgroundConfigSync()) {
+						return;
+					}
 					const result = await measureAgentProviderOperation(recorder, 'shellRpc', () => this._wrapper.session.rpc.options.update({ shell: { initScripts: [] } }));
 					if (!result.success) {
 						throw new Error('Copilot SDK rejected shell init script update');
@@ -8332,7 +8399,7 @@ export class CopilotAgentSession extends Disposable {
 
 			this._shellInitScriptMaterialized = true;
 			const ref = await measureAgentProviderOperation(recorder, 'shellFile', () => this._materializeShellInitScript(scripts[0]));
-			if (!ref) {
+			if (!ref || this._shellInitScriptDisposing || this._isInactiveForBackgroundConfigSync()) {
 				// Leave the cache unchanged so the next turn retries.
 				return;
 			}
@@ -8341,6 +8408,9 @@ export class CopilotAgentSession extends Disposable {
 			if (ref.path !== this._registeredShellInitScriptPath) {
 				// The SDK requires init scripts to be readable when registered.
 				await this._sandbox.applyConfig(true, undefined, recorder);
+				if (this._shellInitScriptDisposing || this._isInactiveForBackgroundConfigSync()) {
+					return;
+				}
 				const result = await measureAgentProviderOperation(recorder, 'shellRpc', () => this._wrapper.session.rpc.options.update({ shell: { initScripts: [ref] } }));
 				if (!result.success) {
 					throw new Error('Copilot SDK rejected shell init script update');
@@ -8350,6 +8420,9 @@ export class CopilotAgentSession extends Disposable {
 			this._lastAppliedShellInitScripts = serialized;
 			this._logService.trace(`[Copilot:${this.sessionId}] Applied shell init script`);
 		} catch (err) {
+			if (this._shellInitScriptDisposing || this._isInactiveForBackgroundConfigSync()) {
+				return;
+			}
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to update shell init scripts`, err);
 		}
 	}

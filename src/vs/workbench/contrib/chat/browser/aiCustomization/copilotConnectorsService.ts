@@ -10,6 +10,7 @@ import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { matchesFuzzy2 } from '../../../../../base/common/filters.js';
+import { splitCustomizationSearchWords } from '../../common/aiCustomizationSearch.js';
 import { Disposable, DisposableStore, IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -937,7 +938,7 @@ export class CopilotConnectorsMarketplaceProvider implements ICustomizationMarke
 			return { items: [], total: 0 };
 		}
 		const text = options.query?.trim() ?? '';
-		const words = text ? text.toLowerCase().split(/\s+/) : [];
+		const words = splitCustomizationSearchWords(text);
 		const requestedPageSize = options.pageSize ?? 30;
 		if (text.length > maxSearchQueryLength || words.length > maxSearchWords || !Number.isSafeInteger(requestedPageSize) || requestedPageSize <= 0) {
 			throw new CopilotConnectorsError(localize('copilotConnectors.invalidQuery', "Use a positive page size and at most {0} characters and {1} words to search Copilot connectors.", maxSearchQueryLength, maxSearchWords));
@@ -1024,7 +1025,7 @@ function connectorSignInRequired(): CopilotConnectorsError {
 /** Exact names score 100; otherwise average each word's best name (70-95), keyword (40-65), or descriptive (10-35) match. */
 function scoreConnector(connector: ICopilotConnector, words: readonly string[]): number | undefined {
 	const names = [connector.name, connector.displayName];
-	if (names.some(name => name.toLowerCase().replace(/\s+/g, ' ') === words.join(' '))) {
+	if (names.some(name => splitCustomizationSearchWords(name).join(' ') === words.join(' '))) {
 		return 100;
 	}
 	const fields = [
