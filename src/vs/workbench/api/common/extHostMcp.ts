@@ -18,9 +18,10 @@ import { ConfigurationTarget } from '../../../platform/configuration/common/conf
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { canLog, ILogService, LogLevel } from '../../../platform/log/common/log.js';
+import { McpServerPolicyValues } from '../../../platform/mcp/common/allowedMcpServers.js';
 import product from '../../../platform/product/common/product.js';
 import { StorageScope } from '../../../platform/storage/common/storage.js';
-import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerStaticMetadata, McpServerStaticToolAvailability, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
+import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerEnvironmentVariableExpansion, McpServerLaunch, McpServerStaticMetadata, McpServerStaticToolAvailability, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtHostMcpShape, IMcpAuthenticationDetails, IAuthMetadataSource, IStartMcpOptions, MainContext, MainThreadMcpShape, IAuthResourceMetadataSource, IAuthServerMetadataSource } from './extHost.protocol.js';
@@ -131,6 +132,18 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 			name: folder.name,
 			index: folder.index,
 		}, value) as T;
+	}
+
+	/**
+	 * Hosts without a process environment, such as the web worker extension host,
+	 * leave references verbatim, as the Copilot runtime does without an environment.
+	 */
+	async $expandEnvironmentVariables(launch: McpServerLaunch.Serialized, _expansion: McpServerEnvironmentVariableExpansion): Promise<McpServerLaunch.Serialized> {
+		return launch;
+	}
+
+	async $resolveMcpPolicyVariables(values: readonly string[]): Promise<McpServerPolicyValues> {
+		return Object.fromEntries(values.map(value => [value, value]));
 	}
 
 	$stopMcp(id: number): void {

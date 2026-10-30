@@ -37,7 +37,8 @@ suite('Codex continuation coordination', () => {
 		const order: string[] = [];
 		const activity = { listSessions: 0 };
 		const backend = AgentSession.uri('codex', 'existing');
-		const session: { session: URI; startTime: number; modifiedTime: number; model?: { id: string } } = { session: backend, startTime: 1, modifiedTime: 2, model: { id: source.id } };
+		const session: { session: URI; provider?: string; startTime: number; modifiedTime: number; model?: { id: string } } = { session: backend, startTime: 1, modifiedTime: 2, model: { id: source.id } };
+		const registered = new Map<string, URI>();
 		const notifications = store.add(new Emitter<INotification>());
 		const root = new class extends mock<IAgentSubscription<RootState>>() {
 			override onDidChange = Event.None;
@@ -51,7 +52,15 @@ suite('Codex continuation coordination', () => {
 		}();
 		const connections = new class extends mock<IAgentHostConnectionsService>() {
 			override ambientConnection = agent;
-			override getSessionResource(): URI | undefined { return canMapSession ? URI.parse('agent-host-codex:/existing') : undefined; }
+			override getSessionResource(resource: URI): URI | undefined {
+				return canMapSession ? registered.get(resource.toString()) ?? (resource.scheme === 'codex' ? URI.parse('agent-host-codex:/existing') : undefined) : undefined;
+			}
+			override registerSessionResource(resource: URI, _authority?: string, provider?: string): URI {
+				assert.strictEqual(provider, 'codex');
+				const frontend = resource.with({ scheme: `agent-host-${provider}` });
+				registered.set(resource.toString(), frontend);
+				return frontend;
+			}
 		}();
 		const accountChanged = store.add(new Emitter<ICodexAccountInfo>());
 		const account = new class extends mock<ICodexAccountService>() {
@@ -87,7 +96,20 @@ suite('Codex continuation coordination', () => {
 
 		const service = store.add(new CodexContinuationService(agent, connections, account, entitlement, host, storage, telemetry, config, environment));
 		service.setSelectableModels([{ id: target.id, vendor: 'agent-host-codex' }]);
-		return { service, order, telemetry, config, host, account, accountChanged, entitlement, session, activity, notifications, quotaChanged };
+		return { service, order, telemetry, config, host, account, accountChanged, entitlement, session, activity, notifications, quotaChanged, registered };
+	}
+
+	for (const resource of ['ahp-session:/existing', 'session-store://tenant/opaque?revision=2']) {
+		test(`continuation registers the exact host-listed Codex identity ${resource}`, () => runWithFakedTimers({}, async () => {
+			const { service, session, registered } = create(store.add(new InMemoryStorageService()));
+			session.session = URI.parse(resource);
+			session.provider = 'codex';
+			const candidate = await service.resolve();
+			assert.deepStrictEqual({
+				candidate: candidate?.session.session.toString(),
+				frontend: registered.get(session.session.toString())?.toString(),
+			}, { candidate: session.session.toString(), frontend: session.session.with({ scheme: 'agent-host-codex' }).toString() });
+		}));
 	}
 
 	test('changing the threshold setting re-evaluates an existing quota observation', () => runWithFakedTimers({}, async () => {

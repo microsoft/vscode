@@ -33,7 +33,7 @@ class MyService extends Disposable {
     }
 
 	setData1() {
-		this._myData1.set(42, undefined); // use set to update the value. The second paramater is the transaction, which is undefined here.
+		this._myData1.set(42, undefined); // use set to update the value. The second parameter is the transaction, which is undefined here.
 	}
 
 	setData2() {

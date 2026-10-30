@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize2 } from '../../../../nls.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -21,8 +23,15 @@ import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../..
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { getAgentHostProviderForTelemetry, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { Menus } from '../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
+import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { COMPARE_SESSION_MODELS_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionModelSelection } from './sessionModelSelection.js';
@@ -55,14 +64,17 @@ export class ModelPicker extends Disposable {
 		@ISessionModelSelection private readonly _selectionModel: ISessionModelSelection,
 		@IChatPetService private readonly _chatPetService: IChatPetService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
+		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 	) {
 		super();
 		const currentModel = derived(this, reader => this._selectionModel.state.read(reader).currentModel);
 
 		this._delegate = {
-			workflow: this._selectionModel.workflow,
+			comparison: this._selectionModel.comparison,
+			comparisonBusy: this._selectionModel.comparisonBusy,
 			currentModel,
 			modelConfiguration: this._selectionModel.modelConfiguration,
+			focusInput: () => this._newChatModelPickerService.focusInput(),
 			setModel: model => {
 				const previousModel = this._selectionModel.state.get().currentModel;
 				if (this._selectionModel.selectModel(model.identifier)) {
@@ -83,11 +95,14 @@ export class ModelPicker extends Disposable {
 				this._selectionModel.selectModel(model.identifier, false);
 			},
 			getModels: () => [...this._selectionModel.state.get().models],
+			getComparisonModels: () => [...(this._selectionModel.getComparisonModels?.() ?? this._selectionModel.state.get().models)],
 			getProvider: () => getAgentHostProviderForTelemetry(this._sessionContext.session.get()?.sessionType, this._chatSessionsService),
 			getSessionType: () => {
 				const state = this._selectionModel.state.get();
 				return (state.currentModel ?? state.models[0])?.metadata.targetChatSessionType;
 			},
+			// On-device models are offered only by the local Agent Host.
+			getLocalModelConnection: () => this._sessionContext.session.get()?.providerId === LOCAL_AGENT_HOST_PROVIDER_ID ? this._agentHostService : undefined,
 			getPresentationOptions: () => ({
 				...this._selectionModel.state.get().options,
 				showModelIcon: true,
@@ -110,6 +125,11 @@ export class ModelPicker extends Disposable {
 		this._register(this._newChatModelPickerService.registerModelPicker({
 			getDomNode: () => this._container,
 			open: () => this._modelPicker.openModelPicker(),
+			openComparison: () => {
+				if (this._selectionModel.comparison?.available.get()) {
+					this._modelPicker.show(undefined, { startComparison: true });
+				}
+			},
 			switchToModel: modelIdentifier => this.switchToModel(modelIdentifier),
 		}));
 
@@ -188,18 +208,33 @@ export class ModelPicker extends Disposable {
 
 registerAction2(class extends Action2 {
 	constructor() {
+		const precondition = ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ModelComparisonAvailableContext);
+		super({
+			id: COMPARE_SESSION_MODELS_COMMAND_ID,
+			title: localize2('sessions.compareModels', "Compare Models"),
+			f1: true,
+			precondition,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyM,
+				when: ContextKeyExpr.and(precondition, ContextKeyExpr.or(ChatContextKeys.inputHasFocus, ChatContextKeys.inChatComposer, ModelComparisonPickerFocusedContext)),
+			},
+		});
+	}
+	override run(accessor: ServicesAccessor): void {
+		const sessions = accessor.get(ISessionsService);
+		const parts = accessor.get(ISessionsPartService);
+		(parts.getFocusedSessionView() ?? parts.getSessionView(sessions.activeSession.get()?.sessionId))?.openModelComparison();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
 		super({
 			id: 'sessions.modelPicker',
 			title: localize2('sessionsModelPicker', "Model"),
 			f1: false,
 			menu: [{
-				id: Menus.NewSessionConfig,
-				group: 'navigation',
-				order: 1,
-				// Hidden on phone when the active provider supplies a combined
-				// mode + model picker instead (see MobileChatInputConfigPicker).
-				when: ContextKeyExpr.or(IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate()),
-			}, {
 				id: Menus.AutomationsDialogInputToolbar,
 				group: 'navigation',
 				order: 1,
@@ -208,6 +243,13 @@ registerAction2(class extends Action2 {
 					ChatContextKeys.inAutomationsDialog,
 					ContextKeyExpr.or(IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate()),
 				),
+			}, {
+				id: Menus.NewSessionChatInputToolbar,
+				group: 'navigation',
+				order: 1,
+				// Hidden on phone when the active provider supplies a combined
+				// mode + model picker instead (see MobileChatInputConfigPicker).
+				when: ContextKeyExpr.or(IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate()),
 			}],
 		});
 	}
@@ -243,19 +285,22 @@ export class ModelPickerActionViewItem extends BaseActionViewItem {
 	}
 }
 
-class AutomationModelPickerContribution extends Disposable implements IWorkbenchContribution {
-	static readonly ID = 'sessions.contrib.automationModelPicker';
+/** Renders the Agents window model picker in the composer and Automations dialog toolbars. */
+export class ModelPickerToolbarsContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'sessions.contrib.modelPickerToolbars';
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 	) {
 		super();
-		this._register(actionViewItemService.register(Menus.AutomationsDialogInputToolbar, 'sessions.modelPicker', (_action, _options, instantiationService) => {
-			const compact = observableValue(this, false);
-			const picker = instantiationService.createInstance(ModelPicker, compact);
-			return new ModelPickerActionViewItem(picker, compact);
-		}));
+		for (const menu of [Menus.AutomationsDialogInputToolbar, Menus.NewSessionChatInputToolbar]) {
+			this._register(actionViewItemService.register(menu, 'sessions.modelPicker', (_action, _options, instantiationService) => {
+				const compact = observableValue(this, false);
+				const picker = instantiationService.createInstance(ModelPicker, compact);
+				return new ModelPickerActionViewItem(picker, compact);
+			}));
+		}
 	}
 }
 
-registerWorkbenchContribution2(AutomationModelPickerContribution.ID, AutomationModelPickerContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ModelPickerToolbarsContribution.ID, ModelPickerToolbarsContribution, WorkbenchPhase.AfterRestored);

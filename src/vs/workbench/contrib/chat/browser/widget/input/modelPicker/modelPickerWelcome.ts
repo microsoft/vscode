@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { asCSSUrl } from '../../../../../../../base/browser/cssValue.js';
 import { Button } from '../../../../../../../base/browser/ui/button/button.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
@@ -13,7 +14,8 @@ import { IModelPickerDestination } from './modelPickerTabs.js';
 
 /**
  * The body shown when a destination has no models: each waiting provider's icon
- * and name, why it is empty, and the action that fills it, e.g. signing in.
+ * and name, why it is empty, and the action that fills it, e.g. signing in or
+ * trusting the workspace.
  */
 export class ModelPickerWelcome extends DisposableStore {
 
@@ -22,11 +24,17 @@ export class ModelPickerWelcome extends DisposableStore {
 	constructor(destination: IModelPickerDestination) {
 		super();
 		for (const placeholder of destination.placeholders) {
-			const icon = destination.placeholders.length === 1
+			const icon = placeholder.icon ?? (destination.placeholders.length === 1
 				? destination.icon
-				: getProviderIconForIdentity(`${placeholder.label} ${placeholder.vendor}`);
+				: getProviderIconForIdentity(`${placeholder.label} ${placeholder.vendor}`));
 			const entry = dom.append(this.element, dom.$('.chat-model-picker-welcome-provider'));
-			dom.append(entry, dom.$(`span.chat-model-picker-welcome-icon${ThemeIcon.asCSSSelector(icon)}`));
+			if (ThemeIcon.isThemeIcon(icon)) {
+				dom.append(entry, dom.$(`span.chat-model-picker-welcome-icon${ThemeIcon.asCSSSelector(icon)}`));
+			} else {
+				const image = dom.append(entry, dom.$('span.chat-model-picker-welcome-icon.image-icon'));
+				image.style.setProperty('--chat-model-picker-welcome-icon-light', asCSSUrl(icon.light));
+				image.style.setProperty('--chat-model-picker-welcome-icon-dark', asCSSUrl(icon.dark));
+			}
 			dom.append(entry, dom.$('.chat-model-picker-welcome-title', undefined, placeholder.label));
 			dom.append(entry, dom.$('.chat-model-picker-welcome-message', undefined, placeholder.message));
 			if (placeholder.action) {

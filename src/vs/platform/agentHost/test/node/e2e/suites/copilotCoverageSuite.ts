@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
@@ -20,12 +20,15 @@ import { CompletionItemKind, type CompletionsResult, type SubscribeResult } from
 import { McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallContentChangedAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallStatus, ToolResultContentType, type ChangesetState, type SessionState } from '../../../../common/state/sessionState.js';
+import { CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallStatus, ToolResultContentType, type ChangesetState, type ChatState, type SessionState } from '../../../../common/state/sessionState.js';
 import type { TerminalCommandPart, TerminalState } from '../../../../common/state/protocol/channels-terminal/state.js';
 import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveChatTurnToCompletion, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo, resolveGitHubToken, terminalResourceFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { expandShellToolName } from '../harness/shellToolNames.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
+import { fullOnlyTest } from '../../agentHostTestProfile.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
+import { newTestChatUri } from '../../hostDefaultChats.js';
 
 const nodeRequire = createRequire(import.meta.url);
 
@@ -81,7 +84,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		await context.restartServer();
 		await initialize('compact-restored', workspace);
 		await context.client.call('subscribe', { channel: sessionUri });
-		await context.client.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		await context.client.call('subscribe', { channel: defaultChatChannel(sessionUri) });
 		const response = await driveTurnToCompletion(context.client, sessionUri, 'compact-persist-followup',
 			'What exact project code word did I ask you to remember? Reply with only that word.', 1);
 		assert.strictEqual(response.responseText.trim(), 'PERSISTED_COMPACTION');
@@ -102,7 +105,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 	}
 
 	async function createWorkspacelessSession(prefix: string): Promise<string> {
-		const clientWorkingDirectory = mkdtempSync(join(tmpdir(), `ahp-${prefix}-client-`));
+		const clientWorkingDirectory = createTestDirectory(join(tmpdir(), `ahp-${prefix}-client-`));
 		tempDirs.push(clientWorkingDirectory);
 		await initialize(`${prefix}-client`, clientWorkingDirectory);
 		const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
@@ -113,13 +116,13 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		}, 30_000);
 		createdSessions.push(sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		await context.client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
 		context.client.clearReceived();
 		return sessionUri;
 	}
 
 	async function createWorkspaceSession(prefix: string, beforeCreateSession?: () => Promise<void>): Promise<{ sessionUri: string; workspace: string }> {
-		const workspace = mkdtempSync(join(tmpdir(), `ahp-${prefix}-`));
+		const workspace = createTestDirectory(join(tmpdir(), `ahp-${prefix}-`));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `${prefix}-client`, createdSessions, URI.file(workspace), beforeCreateSession);
 		return { sessionUri, workspace };
@@ -143,7 +146,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 	}
 
 	async function driveToolSearchTurn(sessionUri: string, turnId: string, toolSearchResult: string): Promise<{ toolNames: string[]; responseText: string }> {
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const starts = new Map<string, string>();
 		const seen = new Set<object>();
 		let clientSeq = 10;
@@ -253,7 +256,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		this.timeout(180_000);
 		const { sessionUri } = await createWorkspaceSession('config-slash-completions');
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-config-slash-ready', 'Reply exactly "ready".', 1);
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const before = await context.client.call<CompletionsResult>('completions', {
 			channel: chatUri,
 			kind: CompletionItemKind.UserMessage,
@@ -296,12 +299,17 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-goal-config-slash', '/goal Reply exactly "GOAL_MODE". Do not use tools.', 1);
 		const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 		const state = subscribed.snapshot!.state as SessionState;
+		// Mode is a chat's own setting: the command sets the chat's, not its session's.
+		const chat = await context.client.call<SubscribeResult>('subscribe', { channel: state.defaultChat! });
+		const chatState = chat.snapshot!.state as ChatState;
 
 		assert.deepStrictEqual({
-			mode: state.config?.values['mode'],
+			chatMode: chatState.config?.values['mode'],
+			sessionMode: state.config?.values['mode'],
 			response: result.responseText.trim(),
 		}, {
-			mode: 'plan',
+			chatMode: 'plan',
+			sessionMode: 'interactive',
 			response: 'GOAL_MODE',
 		});
 	});
@@ -335,7 +343,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 				},
 			}, 100);
 			// Materialize without a model turn so the recorded tool call cannot race MCP startup.
-			const chatUri = buildChatUri(sessionUri, 'root-mcp');
+			const chatUri = newTestChatUri();
 			await context.client.call('createChat', { channel: sessionUri, chat: chatUri }, 30_000);
 			await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
 			await context.client.waitForNotification(n => {
@@ -462,7 +470,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		}
 	});
 
-	test('view range returns only the requested workspace lines', async function () {
+	fullOnlyTest('view range returns only the requested workspace lines', async function () {
 		this.timeout(180_000);
 		const { sessionUri, workspace } = await createWorkspaceSession('view-range');
 		writeFileSync(join(workspace, 'range.txt'), 'RANGE_ONE\nRANGE_TWO\nRANGE_THREE\nRANGE_FOUR\nRANGE_FIVE\n');
@@ -492,7 +500,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		});
 	});
 
-	test('grep searches workspace content through the provider tool', async function () {
+	fullOnlyTest('grep searches workspace content through the provider tool', async function () {
 		this.timeout(180_000);
 		const { sessionUri, workspace } = await createWorkspaceSession('grep-tool');
 		writeFileSync(join(workspace, 'needle.txt'), 'COPILOT_E2E_NEEDLE\n');
@@ -500,7 +508,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		await driveTurnToCompletion(context.client, sessionUri, turnId, 'Use grep exactly once to find COPILOT_E2E_NEEDLE in the workspace, then reply exactly "found".', 1);
 
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(sessionUri),
+			channel: defaultChatChannel(sessionUri),
 			turnId,
 			toolNames: ['grep'],
 			workspace,
@@ -508,7 +516,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		});
 	});
 
-	test('glob finds a nested workspace file through the provider tool', async function () {
+	fullOnlyTest('glob finds a nested workspace file through the provider tool', async function () {
 		this.timeout(180_000);
 		const { sessionUri, workspace } = await createWorkspaceSession('glob-tool');
 		mkdirSync(join(workspace, 'nested'));
@@ -517,7 +525,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		await driveTurnToCompletion(context.client, sessionUri, turnId, 'Use glob exactly once to find files matching **/*.unique, then reply exactly "found".', 1);
 
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(sessionUri),
+			channel: defaultChatChannel(sessionUri),
 			turnId,
 			toolNames: ['glob'],
 			workspace,
@@ -567,7 +575,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		const outputState = output.snapshot!.state as TerminalState;
 		const outputText = outputState.content.map(part => part.type === 'command' ? part.output : part.value).join('');
 		assert.strictEqual(outputText, expected);
-		context.client.notify('unsubscribe', { channel: buildDefaultChatUri(sessionUri) });
+		context.client.notify('unsubscribe', { channel: defaultChatChannel(sessionUri) });
 		const snapshot = await fetchSessionWithChat(context.client, sessionUri);
 		const restoredCall = snapshot.turns.flatMap(turn => turn.responseParts)
 			.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === shellStart?.toolCallId);
@@ -635,7 +643,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		await driveTurnToCompletion(context.client, sessionUri, turnId,
 			'Run exactly `node -e "console.log(\'https://github.com/github/copilot-sdk/pull/1\')"` with your shell tool. Then reply exactly "DONE".', 1);
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(sessionUri),
+			channel: defaultChatChannel(sessionUri),
 			turnId,
 			toolNames: [config.shellToolName],
 			workspace,
@@ -769,7 +777,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 
 	test('commit changeset operation generates a message and commits mixed changes', async function () {
 		this.timeout(240_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-changeset-commit-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-changeset-commit-'));
 		tempDirs.push(workspace);
 		initTestGitRepo(workspace);
 		writeFileSync(join(workspace, 'edited.txt'), 'before\n');

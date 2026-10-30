@@ -148,6 +148,15 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		}
 	}
 
+	/**
+	 * Maps the original to the modified document with `edit` until their diff
+	 * is computed, so that a user edit meanwhile applies to the original where
+	 * it should. Otherwise the mapping is the last diff's.
+	 */
+	public setOriginalToModifiedEdit(edit: StringEdit): void {
+		this._originalToModifiedEdit = edit;
+	}
+
 	private updateLineChangeCount(diff: IDocumentDiff) {
 		this.lineChangeCount = 0;
 		this.linesAdded = 0;

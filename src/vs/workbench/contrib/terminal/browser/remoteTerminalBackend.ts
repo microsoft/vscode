@@ -205,7 +205,8 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			shouldPersist,
 			cols,
 			rows,
-			unicodeVersion
+			unicodeVersion,
+			remoteEnv.os
 		);
 		const pty = this._instantiationService.createInstance(RemotePty, result.persistentTerminalId, shouldPersist, this._remoteTerminalChannel);
 		this._ptys.set(result.persistentTerminalId, pty);

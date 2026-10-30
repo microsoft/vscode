@@ -269,7 +269,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		const states: { id: AgentSessionStatus; label: string }[] = [
 			{ id: AgentSessionStatus.Completed, label: localize('agentSessionStatus.completed', "Completed") },
 			{ id: AgentSessionStatus.InProgress, label: localize('agentSessionStatus.inProgress', "In Progress") },
-			{ id: AgentSessionStatus.NeedsInput, label: localize('agentSessionStatus.needsInput', "Input Needed") },
+			{ id: AgentSessionStatus.NeedsInput, label: localize('agentSessionStatus.needsInput', "Attention Needed") },
 			{ id: AgentSessionStatus.Failed, label: localize('agentSessionStatus.failed', "Failed") },
 		];
 

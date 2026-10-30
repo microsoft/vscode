@@ -15,10 +15,10 @@ import { AgentHostCodexAgentBinaryArgsEnvVar } from '../../../common/agentServic
 import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatToolCallReadyAction } from '../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, customizationId, CustomizationType, ROOT_STATE_URI, ToolCallCancellationReason, ToolCallConfirmationReason, type ClientPluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { customizationId, CustomizationType, ROOT_STATE_URI, ToolCallCancellationReason, ToolCallConfirmationReason, type ClientPluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { CODEX_SDK_ROOT } from '../e2e/providers/codexTestConfiguration.js';
 import { dispatchTurn } from '../providerIntegrationTestHelpers.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type IServerHandle, startRealServer, stopServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type IServerHandle, startRealServer, stopServer, TestProtocolClient, defaultChatChannel } from '../serverIntegrationTestHelpers.js';
 
 const SKILL_MARKER = 'CODEX_ESCALATION_SKILL_DESCRIPTION';
 
@@ -160,7 +160,7 @@ suite('Agent Host Provider Integration — Codex Permissions', function () {
 			activeClient: { clientId: 'codex-permissions', tools: [], customizations },
 		}, 30_000);
 		await c.call('subscribe', { channel: sessionUri });
-		await c.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		await c.call('subscribe', { channel: defaultChatChannel(sessionUri) });
 		if (withSkill) {
 			await retry(async () => {
 				const session = await fetchSessionWithChat(c, sessionUri!);

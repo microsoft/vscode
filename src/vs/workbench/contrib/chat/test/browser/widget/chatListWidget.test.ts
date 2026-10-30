@@ -4,38 +4,52 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
+import * as dom from '../../../../../../base/browser/dom.js';
+import { OverlayLayoutElement } from '../../../../../../base/browser/overlayLayoutElement.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
-import { retry, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
+import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
+import { EditSuggestionId } from '../../../../../../editor/common/textModelEditSource.js';
 import { IAccessibleViewService } from '../../../../../../platform/accessibility/browser/accessibleView.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { WorkbenchListSupportsFind } from '../../../../../../platform/list/browser/listService.js';
 import { scrollbarShadow } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
+import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestFileService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IChatAccessibilityService, isChatContextMenuActionContext } from '../../../browser/chat.js';
+import { IChatOutputRendererService } from '../../../browser/chatOutputItemRenderer.js';
+import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions, getChatContextMenuTargetContext, isChatBackgroundContextMenuTarget, shouldShowChatLinkOpenWith } from '../../../browser/widget/chatListWidget.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
-import { IChatService } from '../../../common/chatService/chatService.js';
-import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatListItemRenderer } from '../../../browser/widget/chatListRenderer.js';
+import { ChatWidget } from '../../../browser/widget/chatWidget.js';
+import { ChatRequestQueueKind, IChatService } from '../../../common/chatService/chatService.js';
+import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, ThinkingDisplayMode } from '../../../common/constants.js';
-import { ChatModel } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -45,11 +59,19 @@ import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
 import { MockLanguageModelToolsService } from '../../common/tools/mockLanguageModelToolsService.js';
 import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../common/promptTimeline.js';
 import { katexContainerClassName } from '../../../../markdown/common/markedKatexExtension.js';
+import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import '../../../browser/widget/media/chat.css';
+
+class TestChatListWidget extends ChatListWidget {
+	override getOverlayClippingContainer(): HTMLElement {
+		return super.getOverlayClippingContainer();
+	}
+}
 
 function nextFrame(): Promise<void> {
 	return new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
@@ -75,6 +97,7 @@ async function waitForStableLayout(widget: ChatListWidget, maxFrames = 120): Pro
 
 suite('ChatListWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
 
 	test('identifies transcript background context menu targets', () => {
 		const row = mainWindow.document.createElement('div');
@@ -150,7 +173,8 @@ suite('ChatListWidget', () => {
 				},
 			}],
 		});
-		const { model, container, widget } = createWidget({}, undefined, false, contextMenuService, editorResolverService);
+		const { model, container, widget, contextKeyService } = createWidget({}, undefined, false, contextMenuService, editorResolverService);
+		const createOverlay = sinon.spy(contextKeyService, 'createOverlay');
 		const requestText = 'Show documentation';
 		const request = model.addRequest({
 			text: requestText,
@@ -170,6 +194,7 @@ suite('ChatListWidget', () => {
 		link.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
 
 		const menuDelegate = contextMenuDelegate as IContextMenuMenuDelegate | undefined;
+		const withoutSelection = new Map(createOverlay.lastCall.args[0]).get(ChatContextKeys.contextMenuHasResponseSelection.key);
 		const actionContext = menuDelegate?.getActionsContext?.();
 		if (!isChatContextMenuActionContext(actionContext)) {
 			assert.fail('Expected a chat context menu action context.');
@@ -181,6 +206,27 @@ suite('ChatListWidget', () => {
 			linkTarget: 'file:///workspace/README.md',
 			itemKind: 'response',
 		});
+
+		const selection = mainWindow.getSelection();
+		assert.ok(selection);
+		store.add(toDisposable(() => selection.removeAllRanges()));
+		const range = mainWindow.document.createRange();
+		range.selectNodeContents(link);
+		selection.removeAllRanges();
+		selection.addRange(range);
+		link.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+		const selectionDelegate = contextMenuDelegate as IContextMenuMenuDelegate | undefined;
+		const selectionContext = selectionDelegate?.getActionsContext?.();
+		if (!isChatContextMenuActionContext(selectionContext)) {
+			assert.fail('Expected a chat context menu action context.');
+		}
+		selection.removeAllRanges();
+		assert.deepStrictEqual({
+			text: selectionContext.responseSelection?.text,
+			response: selectionContext.responseSelection?.response === selectionContext.item,
+			hasSelection: new Map(createOverlay.lastCall.args[0]).get(ChatContextKeys.contextMenuHasResponseSelection.key),
+			withoutSelection,
+		}, { text: 'Documentation', response: true, hasSelection: true, withoutSelection: false });
 	});
 
 	test('shows Open With only for resources backed by a file system provider', () => {
@@ -210,10 +256,14 @@ suite('ChatListWidget', () => {
 		});
 	});
 
-	function createWidget(options: IChatListWidgetOptions = {}, configure?: (configurationService: TestConfigurationService) => void, isSessionsWindow = false, contextMenuService?: IContextMenuService, editorResolverService?: IEditorResolverService) {
+	function createWidget(options: IChatListWidgetOptions = {}, configure?: (configurationService: TestConfigurationService) => void, isSessionsWindow = false, contextMenuService?: IContextMenuService, editorResolverService?: IEditorResolverService, sessionResource?: URI) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('editor', { fontFamily: 'monospace', fontLigatures: false, accessibilitySupport: 'off' });
+		configurationService.setUserConfiguration('chat', {
+			editor: { fontSize: 13, fontFamily: 'default', fontWeight: 'normal', lineHeight: 0, wordWrap: 'on' },
+		});
 		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
 		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
@@ -233,6 +283,20 @@ suite('ChatListWidget', () => {
 		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 		instantiationService.stub(IChatAttachmentWidgetRegistry, new ChatAttachmentWidgetRegistry());
+		instantiationService.stub(IAiEditTelemetryService, { createSuggestionId: () => EditSuggestionId.newId() });
+		instantiationService.stub(IChatOutputRendererService, {
+			_serviceBrand: undefined,
+			registerRenderer: () => toDisposable(() => { }),
+			hasCodeBlockRenderer: () => false,
+			renderOutputPart: async () => { throw new Error('Unexpected output render'); },
+			renderCodeBlock: async () => { throw new Error('Unexpected code block render'); },
+		});
+		instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
+		instantiationService.stub(IViewDescriptorService, {
+			onDidChangeLocation: Event.None,
+			onDidChangeContainer: Event.None,
+			getViewLocationById: () => null,
+		});
 		instantiationService.stub(IAccessibleViewService, { getOpenAriaHint: () => '' });
 		instantiationService.stub(IChatAccessibilityService, {
 			acceptRequest: () => { },
@@ -248,7 +312,7 @@ suite('ChatListWidget', () => {
 			} as Partial<IChatSideChatService>);
 		}
 
-		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true, resource: sessionResource }));
 		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
 		const container = mainWindow.document.createElement('div');
 		container.style.position = 'absolute';
@@ -268,16 +332,452 @@ suite('ChatListWidget', () => {
 		}
 		disposables.add(toDisposable(() => container.remove()));
 
-		const widget = disposables.add(instantiationService.createInstance(ChatListWidget, container, {
+		const editorOptions = disposables.add(instantiationService.createInstance(ChatEditorOptions, undefined, 'foreground', 'chat.requestEditor.background', 'chat.responseEditor.background'));
+		const widget = disposables.add(instantiationService.createInstance(TestChatListWidget, container, {
 			currentChatMode: () => ChatModeKind.Agent,
 			location: ChatAgentLocation.Chat,
-			editorOptions: {} as ChatEditorOptions,
+			editorOptions,
 			...options,
 		}));
 		widget.setViewModel(viewModel);
 		widget.setVisible(true);
-		return { disposables, model, viewModel, container, widget, contextKeyService: instantiationService.get(IContextKeyService) };
+		return { disposables, instantiationService, configurationService, model, viewModel, container, widget, contextKeyService: instantiationService.get(IContextKeyService) };
 	}
+
+	for (const complete of [false, true]) {
+		test(`renders a newly opened large response once when measured preceding rows push it out of the initial viewport (complete=${complete})`, async () => {
+			const { instantiationService, model, viewModel, widget, container } = createWidget({ defaultElementHeight: 40 }, configuration => {
+				configuration.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
+			}, true, undefined, undefined, URI.from({ scheme: SessionType.AgentHostCopilot, path: '/large-response' }));
+			instantiationService.stub(IChatResponseFileChangesService, {
+				getChangesForRequest: () => constObservable([]),
+				getFileEditsForRequest: () => constObservable([]),
+			});
+			const addRequest = (text: string) => model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			}, { variables: [] }, 0);
+			const earlier = addRequest('Earlier request');
+			model.acceptResponseProgress(earlier, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 60 }, (_, index) => `- Earlier result ${index}`).join('\n')) });
+			earlier.response!.complete();
+			const latest = addRequest('Latest request');
+			model.acceptResponseProgress(latest, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 100 }, (_, index) => `- Latest result ${index}`).join('\n')) });
+			if (complete) {
+				latest.response!.complete();
+			}
+			const response = viewModel.getItems().find(item => isResponseVM(item) && item.requestId === latest.id);
+			assert.ok(response);
+			const rendered = sinon.spy(ChatListItemRenderer.prototype, 'renderElement');
+			widget.layout(300, 500);
+			widget.refresh();
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				renders: rendered.getCalls().filter(call => call.args[0].element === response).length,
+				finalVisible: container.textContent?.includes('Latest result 99'),
+				atBottom: widget.isScrolledToBottom,
+			}, { renders: 1, finalVisible: true, atBottom: true });
+		});
+	}
+
+	test('consumed steering messages have no empty response or checkpoint spacer between them', async () => {
+		const { model, viewModel, container, widget } = createWidget({}, configuration => {
+			configuration.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, true);
+			configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+		}, true);
+		container.style.setProperty('--vscode-chat-font-size-body-m', '13px');
+		container.style.setProperty('--vscode-spacing-size160', '16px');
+		container.style.setProperty('--vscode-spacing-size60', '6px');
+		const message = (text: string) => ({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+		});
+		for (const text of ['say bar', 'say baz']) {
+			model.addPendingRequest(new ChatRequestModel({
+				session: model, message: message(text), variableData: { variables: [] }, timestamp: 0,
+			}), ChatRequestQueueKind.Steering, {});
+		}
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		const gap = () => {
+			const bubbles = container.querySelectorAll('.monaco-list-row .interactive-request .rendered-markdown');
+			assert.strictEqual(bubbles.length, 2);
+			return bubbles[1].getBoundingClientRect().top - bubbles[0].getBoundingClientRect().bottom;
+		};
+		const pendingGap = gap();
+		model.replacePendingRequests([]);
+		const first = model.addRequest(message('say bar'), { variables: [] }, 0);
+		first.response!.complete();
+		const second = model.addRequest(message('say baz'), { variables: [] }, 0);
+		model.acceptResponseProgress(second, { kind: 'markdownContent', content: new MarkdownString('bar and baz') });
+		second.response!.complete();
+		widget.refresh();
+		await waitForStableLayout(widget);
+		const timestampHeight = container.querySelector('.monaco-list-row .interactive-request .chat-request-timestamp-container')!.getBoundingClientRect().height;
+		assert.deepStrictEqual({
+			messages: viewModel.getItems().filter(isRequestVM).map(request => request.messageText),
+			responseCount: viewModel.getItems().filter(isResponseVM).length,
+			compact: Math.abs(gap() - pendingGap - timestampHeight) <= 1,
+		}, { messages: ['say bar', 'say baz'], responseCount: 1, compact: true }, `Bubble gap: pending=${pendingGap}, timestamp=${timestampHeight}, consumed=${gap()}`);
+	});
+
+	for (const { kind, isSystemInitiated } of [
+		{ kind: ChatRequestQueueKind.Queued, isSystemInitiated: false },
+		{ kind: ChatRequestQueueKind.Steering, isSystemInitiated: false },
+		{ kind: ChatRequestQueueKind.Steering, isSystemInitiated: true },
+	]) {
+		test(`pending messages retain their existing fractional row measurements (${kind}, system=${isSystemInitiated})`, async () => {
+			const { model, container, widget } = createWidget({}, undefined, true);
+			const message = (text: string) => ({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			});
+			const request = model.addRequest(message('Review the changes'), { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Reviewing the changes.') });
+			model.addPendingRequest(new ChatRequestModel({
+				session: model,
+				message: message('Summarize the findings'),
+				variableData: { variables: [] },
+				isSystemInitiated,
+			}), kind, { isSystemInitiated });
+			widget.refresh();
+			widget.layout(600, 500);
+			await waitForStableLayout(widget);
+			const rows = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')];
+			assert.strictEqual(rows.length, 4);
+			const content = rows.map(row => row.querySelector<HTMLElement>('.interactive-item-container')!);
+			for (const element of content) {
+				element.style.height = `${Math.ceil(element.getBoundingClientRect().height) + 0.25}px`;
+			}
+			widget.layout(600, 501);
+			assert.deepStrictEqual({
+				fractions: content.map(element => element.getBoundingClientRect().height % 1),
+				allocatedHeights: rows.map(row => row.getBoundingClientRect().height),
+			}, {
+				fractions: content.map(() => 0.25),
+				allocatedHeights: content.map(element => element.offsetHeight),
+			});
+		});
+	}
+
+	test('empty intermediate responses retain errors, cancellation, and streaming state', () => {
+		const { model, viewModel } = createWidget();
+		const addRequest = () => model.addRequest({
+			text: 'test', parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'test')],
+		}, { variables: [] }, 0);
+		const empty = addRequest();
+		empty.response!.complete();
+		const failed = addRequest();
+		failed.response!.setResult({ errorDetails: { message: 'Request failed' } });
+		failed.response!.complete();
+		const cancelled = addRequest();
+		cancelled.response!.cancel();
+		const streaming = addRequest();
+		const final = addRequest();
+		final.response!.complete();
+		assert.deepStrictEqual(viewModel.getItems().filter(isResponseVM).map(response => response.requestId), [
+			failed.id, cancelled.id, streaming.id, final.id,
+		]);
+	});
+
+	suite('generated image preview retention', () => {
+		for (const { imageCount, fraction } of [1, 3].flatMap(imageCount => [undefined, 0.25, 0.75].map(fraction => ({ imageCount, fraction })))) {
+			test(`image generation preserves scroll position on every frame before expansion (${imageCount} calls, fraction=${fraction ?? 'natural'})`, async () => {
+				const { disposables, instantiationService, model, viewModel, container, widget } = createWidget({}, configuration => {
+					configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+					configuration.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Working'] });
+				}, true);
+				container.classList.remove('monaco-reduce-motion');
+				container.classList.add('interactive-list', 'monaco-enable-motion');
+				container.style.fontSize = '13px';
+				for (const [token, value] of [
+					['--vscode-chat-font-size-body-m', '13px'],
+					['--vscode-chat-font-size-body-s', '0.923em'],
+					['--vscode-chat-font-size-body-xs', '0.846em'],
+					['--vscode-spacing-size40', '4px'],
+					['--vscode-spacing-size80', '8px'],
+					['--vscode-spacing-size120', '12px'],
+					['--vscode-spacing-size160', '16px'],
+					['--vscode-spacing-size240', '24px'],
+					['--vscode-codiconFontSize-compact', '12px'],
+					['--vscode-strokeThickness', '1px'],
+				]) {
+					container.style.setProperty(token, value);
+				}
+				instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+					override isMotionReduced() { return false; }
+				}());
+				const canvas = mainWindow.document.createElement('canvas');
+				canvas.width = 600;
+				canvas.height = 400;
+				const context = canvas.getContext('2d')!;
+				context.fillStyle = '#4682b4';
+				context.fillRect(0, 0, canvas.width, canvas.height);
+				const imageData = decodeBase64(canvas.toDataURL('image/png').split(',')[1]);
+				const imageBytes = new DeferredPromise<typeof imageData>();
+				disposables.add(toDisposable(() => {
+					if (!imageBytes.isSettled) {
+						void imageBytes.complete(imageData);
+					}
+				}));
+				instantiationService.stub(IFileService, disposables.add(new class extends TestFileService {
+					override async readFile(resource: URI) {
+						return { ...await super.readFile(resource), value: await imageBytes.p };
+					}
+				}()));
+				const text = 'Generate a landscape.';
+				const request = model.addRequest({
+					text,
+					parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+				}, { variables: [] }, 0);
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('I will generate the requested landscape.') });
+				const tools = Array.from({ length: imageCount }, (_, index) => new ChatToolInvocation({
+					invocationMessage: 'Generating image', pastTenseMessage: 'Generated image',
+				}, {
+					id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+				}, `image-${index}`, undefined, {}, {}, request.id));
+				for (const tool of tools) {
+					model.acceptResponseProgress(request, tool);
+				}
+				widget.refresh();
+				widget.layout(300, 500);
+				await waitForStableLayout(widget);
+				if (fraction !== undefined) {
+					const row = container.querySelector<HTMLElement>('.interactive-response')!;
+					const markdown = row.querySelector<HTMLElement>('.chat-markdown-part')!;
+					const height = row.getBoundingClientRect().height;
+					markdown.style.height = `${markdown.getBoundingClientRect().height + Math.ceil(height) - height + fraction}px`;
+					await waitForStableLayout(widget);
+					assert.strictEqual(row.getBoundingClientRect().height % 1, fraction);
+				}
+				widget.scrollToEnd();
+				await waitForStableLayout(widget);
+				assert.ok(widget.scrollTop > 0);
+				const response = viewModel.getItems().filter(isResponseVM)[0];
+				const surface = container.querySelector<HTMLCanvasElement>('.chat-image-loading-glyphs')!;
+				const capture = () => {
+					const bounds = container.querySelector('.chat-image-generation-line')!.getBoundingClientRect();
+					return { scrollTop: widget.scrollTop, scrollHeight: widget.scrollHeight, rowHeight: response.currentRenderedHeight, top: bounds.top, height: bounds.height };
+				};
+				const running = capture();
+				const scrollHeights: number[] = [];
+				const heightListener = disposables.add(widget.onDidChangeContentHeight(() => scrollHeights.push(widget.scrollHeight)));
+				await tools[0].didExecuteTool({
+					content: [],
+					toolSpecificData: { kind: 'generatedImage' },
+					toolResultDetails: { input: '{}', output: [{ type: 'ref', uri: URI.parse('generated-images:/handoff.png'), mimeType: 'image/png' }] },
+				});
+				widget.refresh();
+				const frames = [capture()];
+				for (let frame = 0; frame < 6; frame++) {
+					await nextFrame();
+					frames.push(capture());
+				}
+				const sameSurface = container.querySelector('.chat-image-loading-glyphs') === surface;
+				heightListener.dispose();
+				await imageBytes.complete(imageData);
+				await retry(async () => assert.ok(container.querySelector('.chat-image-reveal.revealing')), 10, 50);
+				disposables.dispose();
+				assert.deepStrictEqual({
+					frames: frames.map(({ scrollTop, scrollHeight, rowHeight }) => ({ scrollTop, scrollHeight, rowHeight })),
+					boundsUnchanged: frames.every(frame => Math.abs(frame.top - running.top) <= 1 / 64 && Math.abs(frame.height - running.height) <= 1 / 64),
+					sameSurface,
+					maxScrollHeightChange: Math.max(0, ...scrollHeights.map(height => Math.abs(height - running.scrollHeight))),
+					disposedSurface: !surface.isConnected && surface.width === 0 && surface.height === 0,
+				}, {
+					frames: Array.from({ length: 7 }, () => ({ scrollTop: running.scrollTop, scrollHeight: running.scrollHeight, rowHeight: running.rowHeight })),
+					boundsUnchanged: true,
+					sameSurface: true,
+					maxScrollHeightChange: 0,
+					disposedSurface: true,
+				});
+			});
+		}
+
+		for (const width of [280, 500]) {
+			test(`virtualized images retain their row and scroll height while reloading (${width}px)`, async () => {
+				const { disposables, instantiationService, model, viewModel, container, widget } = createWidget({}, undefined, true);
+				container.style.width = `${width}px`;
+				container.classList.add('interactive-list');
+				const canvas = mainWindow.document.createElement('canvas');
+				canvas.width = 800;
+				canvas.height = 1600;
+				const imageData = decodeBase64(canvas.toDataURL('image/png').split(',')[1]);
+				const imageResource = URI.parse('generated-images:/virtualized/image.png');
+				const reloadedImage = new DeferredPromise<typeof imageData>();
+				let delayReads = false;
+				disposables.add(toDisposable(() => {
+					if (!reloadedImage.isSettled) {
+						void reloadedImage.complete(imageData);
+					}
+				}));
+				instantiationService.stub(IFileService, disposables.add(new class extends TestFileService {
+					override async readFile(resource: URI) {
+						const file = await super.readFile(resource);
+						return isEqual(resource, imageResource)
+							? { ...file, value: delayReads ? await reloadedImage.p : imageData }
+							: file;
+					}
+				}()));
+				const addRequest = (text: string) => model.addRequest({
+					text,
+					parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+				}, { variables: [] }, 0);
+				const request = addRequest('Generate a portrait image.');
+				const tool = new ChatToolInvocation({
+					invocationMessage: 'Generating image',
+					pastTenseMessage: 'Generated image',
+				}, {
+					id: 'image_generation',
+					displayName: 'Generate Image',
+					modelDescription: 'Generate Image',
+					source: ToolDataSource.Internal,
+				}, 'virtualized-image', undefined, {}, {}, request.id);
+				await tool.didExecuteTool({
+					content: [],
+					toolSpecificData: { kind: 'generatedImage' },
+					toolResultDetails: { input: '{}', output: [{ type: 'ref', uri: imageResource, mimeType: 'image/png' }] },
+				});
+				model.acceptResponseProgress(request, tool);
+				request.response?.complete();
+				widget.refresh();
+				widget.layout(300, width);
+				const selector = '.chat-generated-image-result img';
+				const firstImage = container.querySelector<HTMLImageElement>(selector);
+				assert.ok(firstImage);
+				await retry(async () => assert.ok(firstImage.complete && firstImage.naturalWidth > 0), 20, 50);
+				await waitForStableLayout(widget);
+				const response = viewModel.getItems().filter(isResponseVM)[0];
+				const measuredHeight = response.currentRenderedHeight;
+				const loadedHeight = firstImage.getBoundingClientRect().height;
+				for (let index = 0; index < 8; index++) {
+					const followup = addRequest(`Follow-up ${index}`);
+					model.acceptResponseProgress(followup, { kind: 'markdownContent', content: new MarkdownString(`Response ${index}.\n\n`.repeat(20)) });
+					followup.response?.complete();
+				}
+				widget.refresh();
+				widget.scrollToEnd();
+				await waitForStableLayout(widget);
+				const wasVirtualized = !firstImage.isConnected;
+				const scrollHeight = widget.scrollHeight;
+				const scrollHeights: number[] = [];
+				disposables.add(widget.onDidChangeContentHeight(() => scrollHeights.push(widget.scrollHeight)));
+				delayReads = true;
+				widget.reveal(response, 0);
+				const readerScrollTop = widget.scrollTop;
+				const nextImage = container.querySelector<HTMLImageElement>(selector);
+				assert.ok(nextImage);
+				const pendingHeight = nextImage.getBoundingClientRect().height;
+				await waitForStableLayout(widget);
+				const beforeLoad = { rowHeight: response.currentRenderedHeight, scrollTop: widget.scrollTop, busy: nextImage.closest('.image-attachment')?.getAttribute('aria-busy') };
+				await reloadedImage.complete(imageData);
+				await retry(async () => assert.ok(nextImage.complete && nextImage.naturalWidth > 0), 20, 50);
+				await waitForStableLayout(widget);
+
+				assert.deepStrictEqual({
+					wasVirtualized,
+					remounted: nextImage !== firstImage,
+					reservedImageHeight: Math.abs(pendingHeight - loadedHeight) <= 1,
+					beforeLoad,
+					finalRowHeight: response.currentRenderedHeight,
+					finalScrollTop: widget.scrollTop,
+					maxScrollHeightChange: Math.max(0, ...scrollHeights.map(height => Math.abs(height - scrollHeight))),
+				}, {
+					wasVirtualized: true,
+					remounted: true,
+					reservedImageHeight: true,
+					beforeLoad: { rowHeight: measuredHeight, scrollTop: readerScrollTop, busy: 'true' },
+					finalRowHeight: measuredHeight,
+					finalScrollTop: readerScrollTop,
+					maxScrollHeightChange: 0,
+				});
+			});
+		}
+
+		for (const toolId of ['image_generation', 'image_gen.imagegen']) {
+			for (const height of [300, 650]) {
+				test(`${toolId} preserves a loaded image while a follow-up starts and streams (height=${height})`, async () => {
+					const { model, container, widget } = createWidget({}, configuration => {
+						configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+					}, true);
+					container.style.height = `${height}px`;
+					container.classList.add('interactive-list');
+					const text = 'Generate a portrait image.';
+					const request = model.addRequest({
+						text,
+						parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+					}, { variables: [] }, 0);
+					model.acceptResponseProgress(request, { kind: 'thinking', value: 'Evaluating image generation skills', id: 'thinking' });
+					const tool = new ChatToolInvocation({
+						invocationMessage: 'Generating image',
+						pastTenseMessage: 'Generated image',
+					}, {
+						id: toolId,
+						displayName: 'Generate Image',
+						modelDescription: 'Generate Image',
+						source: ToolDataSource.Internal,
+					}, 'image', undefined, {}, {}, request.id);
+					const canvas = mainWindow.document.createElement('canvas');
+					canvas.width = 800;
+					canvas.height = 1200;
+					const imageData = canvas.toDataURL('image/png').split(',')[1];
+					model.acceptResponseProgress(request, tool);
+					await tool.didExecuteTool({
+						content: [],
+						toolSpecificData: { kind: 'generatedImage' },
+						toolResultDetails: { input: '{}', output: [{ type: 'embed', value: imageData, mimeType: 'image/png' }] },
+					});
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Task completed: Generated the requested image.') });
+					request.response?.complete();
+					widget.refresh();
+					widget.layout(height, 500);
+					const imageSelector = '.chat-generated-image-result img';
+					const image = container.querySelector<HTMLImageElement>(imageSelector);
+					assert.ok(image);
+					await image.decode();
+					await waitForStableLayout(widget);
+					widget.scrollToEnd();
+					await waitForStableLayout(widget);
+					const source = image.src;
+					const capture = () => ({
+						sameImage: container.querySelector(imageSelector) === image,
+						connected: image.isConnected,
+						sameSource: image.src === source,
+						loaded: image.complete && image.naturalWidth === 800,
+						busy: image.closest('.image-attachment')?.getAttribute('aria-busy'),
+					});
+					const states = [capture()];
+
+					const followupText = 'Thanks';
+					const followup = model.addRequest({
+						text: followupText,
+						parts: [new ChatRequestTextPart(new OffsetRange(0, followupText.length), new Range(1, 1, 1, followupText.length + 1), followupText)],
+					}, { variables: [] }, 0);
+					widget.refresh();
+					widget.scrollToEnd();
+					states.push(capture());
+					await waitForStableLayout(widget);
+					states.push(capture());
+					model.acceptResponseProgress(followup, { kind: 'markdownContent', content: new MarkdownString('You are welcome.') });
+					widget.refresh();
+					await waitForStableLayout(widget);
+					states.push(capture());
+					followup.response?.complete();
+					widget.refresh();
+					await waitForStableLayout(widget);
+					states.push(capture());
+
+					assert.deepStrictEqual(states, Array.from({ length: 5 }, () => ({
+						sameImage: true,
+						connected: true,
+						sameSource: true,
+						loaded: true,
+						busy: 'false',
+					})));
+				});
+			}
+		}
+	});
 
 	test('updates a request summary after rendering without changing the request or resetting user expansion', async () => {
 		const { model, container, widget } = createWidget();
@@ -308,6 +808,124 @@ suite('ChatListWidget', () => {
 			collapsed: true, expanded: true, restored: true, label: 'Updated Instructions',
 			removed: true, fullTextVisible: true, message: text,
 		});
+	});
+
+	test('updates the most recent response when the tail changes without changing response data IDs', async () => {
+		const { model, viewModel, container, widget } = createWidget();
+		const addTurn = (text: string, attempt: number) => {
+			const request = model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			}, { variables: [] }, attempt);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`${text} response`) });
+			request.response?.complete();
+			return request;
+		};
+		const getMostRecentStates = () => Array.from(container.querySelectorAll<HTMLElement>('.interactive-response'))
+			.map(row => row.classList.contains('chat-most-recent-response'));
+
+		const firstRequest = addTurn('First request', 0);
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		const firstResponse = viewModel.getItems().filter(isResponseVM)[0];
+		const firstDataId = firstResponse.dataId;
+		const initialMostRecent = getMostRecentStates();
+
+		const secondRequest = addTurn('Second request', 1);
+		widget.refresh();
+		await waitForStableLayout(widget);
+		const afterAppendMostRecent = getMostRecentStates();
+		const dataIdAfterAppend = firstResponse.dataId;
+
+		model.removeRequest(secondRequest.id);
+		widget.refresh();
+		await waitForStableLayout(widget);
+
+		assert.deepStrictEqual({
+			initialMostRecent,
+			afterAppendMostRecent,
+			afterRemoveMostRecent: getMostRecentStates(),
+			firstDataId,
+			dataIdAfterAppend,
+			dataIdAfterRemove: firstResponse.dataId,
+			remainingRequestId: viewModel.getItems().filter(isRequestVM)[0].id,
+		}, {
+			initialMostRecent: [true],
+			afterAppendMostRecent: [false, true],
+			afterRemoveMostRecent: [true],
+			firstDataId,
+			dataIdAfterAppend: firstDataId,
+			dataIdAfterRemove: firstDataId,
+			remainingRequestId: firstRequest.id,
+		});
+	});
+
+	test('restores the row at the top of the viewport after switching to another chat and back', async () => {
+		const { disposables, instantiationService, model, viewModel, widget } = createWidget();
+		const other = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		for (const target of [model, other]) {
+			for (let index = 0; index < 6; index++) {
+				const text = `question ${index}`;
+				const request = target.addRequest({
+					text,
+					parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+				}, { variables: [] }, 0);
+				target.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 30 }, (_, line) => `answer ${index} line ${line}`).join('\n\n')) });
+				request.response!.complete();
+			}
+		}
+		// Agent host sessions come back with the same request IDs, but new response IDs.
+		const data = model.toJSON();
+		const restoredModel = disposables.add(instantiationService.createInstance(ChatModel, { value: { ...data, requests: data.requests.map(request => ({ ...request, responseId: undefined })) }, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		// Hosts save and restore the view state through ChatWidget, around binding a new view model for each chat.
+		const chatWidget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), { listWidget: widget });
+		let bound: ChatViewModel = viewModel;
+		// Like ChatWidget.setModel: the outgoing view model is disposed, which empties the list, then a new one is bound.
+		const switchTo = (target: ChatModel) => {
+			bound.dispose();
+			widget.refresh();
+			bound = disposables.add(instantiationService.createInstance(ChatViewModel, target, undefined));
+			widget.setViewModel(bound);
+			widget.refresh();
+			return bound;
+		};
+		const topOfViewport = (viewModel: ChatViewModel) => {
+			const items = viewModel.getItems();
+			const row = items.findLastIndex(item => widget.getElementTop(item)! <= widget.scrollTop);
+			return { row, offset: widget.scrollTop - widget.getElementTop(items[row])! };
+		};
+
+		widget.layout(300, 500);
+		const first = switchTo(model);
+		await waitForStableLayout(widget);
+		// Read down to the fourth response, which renders and measures every row above it.
+		const items = first.getItems();
+		for (const item of items.slice(0, 8)) {
+			widget.reveal(item, 0);
+			await waitForStableLayout(widget);
+		}
+		widget.scrollTop = widget.getElementTop(items[7])! + 150;
+		const saved = topOfViewport(first);
+		const viewState = chatWidget.getViewState();
+
+		switchTo(other);
+		chatWidget.restoreViewState({ scrollTop: 0, isAtBottom: true });
+		await waitForStableLayout(widget);
+		const restored = switchTo(restoredModel);
+		chatWidget.restoreViewState(viewState);
+		await waitForStableLayout(widget);
+
+		assert.deepStrictEqual({
+			saved,
+			restored: topOfViewport(restored),
+			responseIdsChanged: restored.getItems().filter(isResponseVM).every(response => !items.some(item => item.id === response.id)),
+		}, {
+			saved: { row: 7, offset: 150 },
+			restored: { row: 7, offset: 150 },
+			responseIdsChanged: true,
+		});
+		disposables.dispose();
 	});
 
 	async function measureFirstRequestPushOut(firstText: string) {
@@ -470,6 +1088,88 @@ suite('ChatListWidget', () => {
 			{ showButton: true, atBottom: false },
 		]);
 	});
+
+	for (const isSessionsWindow of [false, true]) {
+		for (const activation of ['click', 'Enter', ' '] as const) {
+			test(`scroll arrow returns to the bottom with ${activation === ' ' ? 'Space' : activation} in ${isSessionsWindow ? 'sessions' : 'workbench'} chat`, async () => {
+				const { model, container, widget } = createWidget({}, undefined, isSessionsWindow);
+				container.classList.add('interactive-session');
+				container.style.setProperty('--vscode-editorWidget-border', 'rgb(40, 50, 60)');
+				container.style.setProperty('--vscode-editorWidget-background', 'rgb(10, 20, 30)');
+				container.style.setProperty('--vscode-icon-foreground', 'rgb(70, 80, 90)');
+				const button = container.querySelector<HTMLElement>('.chat-scroll-down');
+				assert.ok(button);
+				const buttonStyle = mainWindow.getComputedStyle(button);
+				assert.deepStrictEqual({
+					label: button.textContent?.trim(),
+					ariaLabel: button.getAttribute('aria-label'),
+					role: button.getAttribute('role'),
+					tabIndex: button.tabIndex,
+					iconHidden: button.querySelector('.codicon')?.getAttribute('aria-hidden'),
+					display: button.style.display,
+					borderColor: buttonStyle.borderColor,
+					borderWidth: buttonStyle.borderWidth,
+					borderStyle: buttonStyle.borderStyle,
+					background: buttonStyle.backgroundColor,
+					foreground: buttonStyle.color,
+				}, {
+					label: '',
+					ariaLabel: 'Scroll to Latest',
+					role: 'button',
+					tabIndex: 0,
+					iconHidden: 'true',
+					display: 'none',
+					borderColor: 'rgb(40, 50, 60)',
+					borderWidth: '1px',
+					borderStyle: 'solid',
+					background: 'rgb(10, 20, 30)',
+					foreground: 'rgb(70, 80, 90)',
+				});
+
+				for (let i = 0; i < 10; i++) {
+					const text = `question ${i}`;
+					const request = model.addRequest({
+						text,
+						parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+					}, { variables: [] }, 0);
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`response ${i}`) });
+				}
+				widget.refresh();
+				widget.layout(300, 500);
+				await waitForStableLayout(widget);
+				widget.setScrollLock(false);
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+
+				assert.deepStrictEqual({
+					overflows: widget.scrollHeight > widget.renderHeight,
+					atBottom: widget.isScrolledToBottom,
+					display: button.style.display,
+				}, { overflows: true, atBottom: false, display: 'flex' });
+
+				if (activation === 'click') {
+					button.click();
+				} else {
+					button.focus();
+					const event = new KeyboardEvent('keydown', {
+						key: activation,
+						code: activation === 'Enter' ? 'Enter' : 'Space',
+						bubbles: true,
+					});
+					// StandardKeyboardEvent reads keyCode; mirror its tests without relying on KeyboardEventInit support.
+					Object.defineProperty(event, 'keyCode', { get: () => activation === 'Enter' ? 13 : 32 });
+					button.dispatchEvent(event);
+				}
+				await waitForStableLayout(widget);
+
+				assert.deepStrictEqual({
+					atBottom: widget.isScrolledToBottom,
+					scrollLock: widget.scrollLock,
+					display: button.style.display,
+				}, { atBottom: true, scrollLock: true, display: 'none' });
+			});
+		}
+	}
 
 	// The bottom padding counts towards the scroll height, so `scrollToEnd` has to
 	// scroll through it or the list never reports being at the bottom - which both
@@ -1017,6 +1717,409 @@ suite('ChatListWidget', () => {
 		});
 	});
 
+	suite('sticky content retention', () => {
+		async function createTranscript(text = 'Keep this request visible while its response changes and the transcript is resized. '.repeat(3), completeResponse = true) {
+			const context = createWidget({}, configurationService => {
+				configurationService.setUserConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING, true);
+				configurationService.setUserConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled, true);
+				configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
+			}, true);
+			const { model, container, widget, viewModel } = context;
+			container.classList.add('interactive-list');
+			// Pin the workbench font size so prompt wrapping doesn't depend on the body font, which the full suite changes to 11px.
+			container.style.fontSize = '13px';
+			container.style.setProperty('--vscode-spacing-size80', '8px');
+			const request = model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			}, { variables: [] }, 0);
+			model.acceptResponseProgress(request, {
+				kind: 'markdownContent',
+				content: new MarkdownString('```typescript\nconst answer = 42;\n```\n\n' + Array.from({ length: 40 }, (_, index) => `Response paragraph ${index}.`).join('\n\n')),
+			});
+			if (completeResponse) {
+				request.response?.complete();
+			}
+			widget.refresh();
+			widget.layout(300, 500);
+			await waitForStableLayout(widget);
+			const response = viewModel.getItems().find(isResponseVM);
+			assert.ok(response);
+			const responseTop = widget.getElementTop(response);
+			assert.notStrictEqual(responseTop, undefined);
+			widget.scrollTop = responseTop! + 200;
+			await waitForStableLayout(widget);
+			await nextFrame();
+			const row = container.querySelector<HTMLElement>('.monaco-tree-sticky-row');
+			const bubble = row?.querySelector<HTMLElement>('.chat-markdown-part');
+			assert.ok(row && bubble);
+			return { ...context, request, row, bubble };
+		}
+
+		function getOverlayClipBounds(container: HTMLElement) {
+			const list = container.querySelector<HTMLElement>('.monaco-list');
+			const clip = container.querySelector<HTMLElement>('.chat-list-overlay-clip');
+			assert.ok(list && clip && clip.parentElement === list);
+			const listBounds = list.getBoundingClientRect();
+			const clipBounds = clip.getBoundingClientRect();
+			return {
+				top: Math.round(clipBounds.top - listBounds.top),
+				right: Math.round(listBounds.right - clipBounds.right),
+				bottom: Math.round(listBounds.bottom - clipBounds.bottom),
+				left: Math.round(clipBounds.left - listBounds.left),
+			};
+		}
+
+		test('does not attach an MCP clipping anchor for a transcript without apps', async () => {
+			const { container, widget } = await createTranscript();
+			const pinned = container.querySelector('.chat-list-overlay-clip');
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				pinned,
+				unpinned: container.querySelector('.chat-list-overlay-clip'),
+			}, { pinned: null, unpinned: null });
+		});
+
+		test('lazily attaches one clipping anchor without hiding or collapsing the overlay', async () => {
+			const { container, widget } = await createTranscript();
+			const clip = widget.getOverlayClippingContainer();
+			const overlay = store.add(new OverlayLayoutElement());
+			mainWindow.document.body.appendChild(overlay.root);
+			overlay.setAnchorElement(container, { clippingContainer: clip });
+			await nextFrame();
+
+			const clipBounds = clip.getBoundingClientRect();
+			const overlayBounds = overlay.root.getBoundingClientRect();
+			const hitX = clipBounds.left + clipBounds.width / 2;
+			const hitY = clipBounds.top + clipBounds.height / 2;
+			const hitTarget = mainWindow.document.elementFromPoint(hitX, hitY);
+			assert.deepStrictEqual({
+				sameClip: widget.getOverlayClippingContainer() === clip,
+				clipCount: container.querySelectorAll('.chat-list-overlay-clip').length,
+				clipVisibility: mainWindow.getComputedStyle(clip).visibility,
+				overlayVisibility: mainWindow.getComputedStyle(overlay.content).visibility,
+				overlayHitTestable: hitTarget === overlay.content,
+				hasGeometry: clipBounds.width > 0 && clipBounds.height > 0,
+				inset: {
+					top: Math.round(overlayBounds.top - clipBounds.top),
+					right: Math.round(clipBounds.right - overlayBounds.right),
+					bottom: Math.round(clipBounds.bottom - overlayBounds.bottom),
+					left: Math.round(overlayBounds.left - clipBounds.left),
+				},
+				clipPath: mainWindow.getComputedStyle(overlay.root).clipPath,
+				stickyInset: getOverlayClipBounds(container).top,
+			}, {
+				sameClip: true,
+				clipCount: 1,
+				clipVisibility: 'visible',
+				overlayVisibility: 'visible',
+				overlayHitTestable: true,
+				hasGeometry: true,
+				inset: { top: 0, right: 0, bottom: 0, left: 0 },
+				clipPath: 'content-box',
+				stickyInset: widget.stickyScrollDomNode!.offsetHeight,
+			});
+		});
+
+		test('clips MCP app overlays below appearing, resized and hidden sticky prompts', async () => {
+			const { container, widget } = await createTranscript('Keep the MCP app visible while scrolling the transcript.');
+			widget.getOverlayClippingContainer();
+			const stickyNode = widget.stickyScrollDomNode;
+			assert.ok(stickyNode);
+			const pinnedScrollTop = widget.scrollTop;
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const initial = getOverlayClipBounds(container);
+			const initialStickyHeight = stickyNode.offsetHeight;
+
+			widget.scrollTop = pinnedScrollTop;
+			await waitForStableLayout(widget);
+			const pinned = getOverlayClipBounds(container);
+			const pinnedStickyHeight = stickyNode.offsetHeight;
+
+			container.style.width = '150px';
+			widget.layout(300, 150);
+			await waitForStableLayout(widget);
+			const narrowed = getOverlayClipBounds(container);
+			const narrowedStickyHeight = stickyNode.offsetHeight;
+
+			container.style.width = '500px';
+			widget.layout(300, 500);
+			await waitForStableLayout(widget);
+			const restored = getOverlayClipBounds(container);
+			const restoredStickyHeight = stickyNode.offsetHeight;
+
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				initial,
+				initialStickyHeight,
+				pinned,
+				promptAppeared: pinnedStickyHeight > 0,
+				narrowed,
+				promptGrew: narrowedStickyHeight > pinnedStickyHeight,
+				restored,
+				promptHeightRestored: restoredStickyHeight === pinnedStickyHeight,
+				sameStickyNode: widget.stickyScrollDomNode === stickyNode,
+				hidden: getOverlayClipBounds(container),
+				hiddenStickyHeight: stickyNode.offsetHeight,
+			}, {
+				initial: { top: 0, right: 0, bottom: 0, left: 0 },
+				initialStickyHeight: 0,
+				pinned: { top: pinnedStickyHeight, right: 0, bottom: 0, left: 0 },
+				promptAppeared: true,
+				narrowed: { top: narrowedStickyHeight, right: 0, bottom: 0, left: 0 },
+				promptGrew: true,
+				restored: { top: pinnedStickyHeight, right: 0, bottom: 0, left: 0 },
+				promptHeightRestored: true,
+				sameStickyNode: true,
+				hidden: { top: 0, right: 0, bottom: 0, left: 0 },
+				hiddenStickyHeight: 0,
+			});
+		});
+
+		test('rebinds MCP app overlay clipping after sticky scroll toggles and preserves scrolling to the first prompt', async () => {
+			const { container, widget, viewModel, instantiationService } = await createTranscript();
+			widget.getOverlayClippingContainer();
+			const configurationService = instantiationService.get(IConfigurationService);
+			assert.ok(configurationService instanceof TestConfigurationService);
+			const originalStickyNode = widget.stickyScrollDomNode;
+			const originalClip = container.querySelector('.chat-list-overlay-clip');
+			assert.ok(originalStickyNode && originalClip);
+			const pinnedScrollTop = widget.scrollTop;
+			const snapshotTranscript = () => ({
+				scrollHeight: widget.scrollHeight,
+				contentHeight: widget.contentHeight,
+				items: viewModel.getItems().map(item => ({
+					id: item.id,
+					text: isRequestVM(item) ? item.messageText : isResponseVM(item) ? item.response.toString() : '',
+				})),
+				firstPromptTop: container.querySelector('.monaco-list-rows .interactive-request .chat-markdown-part')?.getBoundingClientRect().top,
+			});
+			const setStickyScrollEnabled = async (enabled: boolean) => {
+				await configurationService.setUserConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled, enabled);
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+					affectedKeys: new Set([ChatConfiguration.ExperimentalStickyScrollEnabled]),
+					affectsConfiguration: key => key === ChatConfiguration.ExperimentalStickyScrollEnabled,
+				}));
+				await waitForStableLayout(widget);
+			};
+
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const initialTranscript = snapshotTranscript();
+			assert.notStrictEqual(initialTranscript.firstPromptTop, undefined);
+			widget.scrollTop = pinnedScrollTop;
+			await waitForStableLayout(widget);
+			const scrollHeights = [widget.scrollHeight];
+
+			await setStickyScrollEnabled(false);
+			const disabled = {
+				bounds: getOverlayClipBounds(container),
+				nodeRemoved: widget.stickyScrollDomNode === undefined && !originalStickyNode.isConnected,
+			};
+			scrollHeights.push(widget.scrollHeight);
+
+			await setStickyScrollEnabled(true);
+			const replacementStickyNode = widget.stickyScrollDomNode;
+			assert.ok(replacementStickyNode);
+			const enabled = {
+				bounds: getOverlayClipBounds(container),
+				nodeReplaced: replacementStickyNode !== originalStickyNode,
+				promptVisible: replacementStickyNode.offsetHeight > 0,
+			};
+			const replacementStickyHeight = replacementStickyNode.offsetHeight;
+			scrollHeights.push(widget.scrollHeight);
+
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				disabled,
+				enabled,
+				sameClip: container.querySelector('.chat-list-overlay-clip') === originalClip,
+				scrollHeights,
+				returnedScrollTop: widget.scrollTop,
+				returnedBounds: getOverlayClipBounds(container),
+				returnedTranscript: snapshotTranscript(),
+			}, {
+				disabled: { bounds: { top: 0, right: 0, bottom: 0, left: 0 }, nodeRemoved: true },
+				enabled: { bounds: { top: replacementStickyHeight, right: 0, bottom: 0, left: 0 }, nodeReplaced: true, promptVisible: true },
+				sameClip: true,
+				scrollHeights: [initialTranscript.scrollHeight, initialTranscript.scrollHeight, initialTranscript.scrollHeight],
+				returnedScrollTop: 0,
+				returnedBounds: { top: 0, right: 0, bottom: 0, left: 0 },
+				returnedTranscript: initialTranscript,
+			});
+		});
+
+		for (const partiallyVisible of [false, true]) {
+			test(`multi-paragraph sticky requests retain their width when rendered (source partially visible: ${partiallyVisible})`, async () => {
+				const { container, widget } = await createTranscript('Short introduction.\n\n' + 'A longer continuation determines the width of the request bubble. '.repeat(12));
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+				const source = container.querySelector<HTMLElement>('.monaco-list-rows .interactive-request .chat-markdown-part');
+				assert.ok(source);
+				const sourceBounds = source.getBoundingClientRect();
+				const scrollTop = partiallyVisible
+					? Math.max(0, sourceBounds.top - container.getBoundingClientRect().top - 8) + 1
+					: sourceBounds.bottom + 200;
+				const measure = () => {
+					const row = container.querySelector<HTMLElement>('.monaco-tree-sticky-row');
+					const bubble = row?.querySelector<HTMLElement>('.chat-markdown-part');
+					assert.ok(row && bubble);
+					const bounds = bubble.getBoundingClientRect();
+					return {
+						matchesSourceWidth: Math.abs(bounds.width - sourceBounds.width) < 1,
+						matchesSourceLeft: Math.abs(bounds.left - sourceBounds.left) < 1,
+						partiallyVisible: row.classList.contains('source-node-partially-visible'),
+					};
+				};
+
+				widget.scrollTop = scrollTop;
+				const samples = [measure()];
+				await waitForStableLayout(widget);
+				samples.push(measure());
+				for (let render = 0; render < 3; render++) {
+					widget.rerender();
+					samples.push(measure());
+					await nextFrame();
+					samples.push(measure());
+				}
+
+				assert.deepStrictEqual(samples, samples.map(() => ({
+					matchesSourceWidth: true,
+					matchesSourceLeft: true,
+					partiallyVisible,
+				})));
+			});
+		}
+
+		test('streaming and completion preserve the width of an offscreen sticky request', async () => {
+			const { container, widget, model, request } = await createTranscript('Short introduction.\n\n' + 'A longer continuation determines the width of the request bubble. '.repeat(12), false);
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const source = container.querySelector<HTMLElement>('.monaco-list-rows .interactive-request .chat-markdown-part');
+			assert.ok(source);
+			const sourceWidth = source.getBoundingClientRect().width;
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			assert.strictEqual(container.querySelector('.monaco-list-rows .interactive-request'), null);
+			const initialBubble = container.querySelector('.monaco-tree-sticky-row .chat-markdown-part');
+			assert.ok(initialBubble);
+			const widths: number[] = [];
+			const measure = () => {
+				const stickyBubble = container.querySelector<HTMLElement>('.monaco-tree-sticky-row .chat-markdown-part');
+				assert.ok(stickyBubble);
+				widths.push(stickyBubble.getBoundingClientRect().width);
+			};
+			measure();
+
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\nNew response content.') });
+			widget.refresh();
+			measure();
+			for (let frame = 0; frame < 3; frame++) {
+				await nextFrame();
+				measure();
+			}
+			request.response?.complete();
+			widget.refresh();
+			measure();
+			for (let frame = 0; frame < 3; frame++) {
+				await nextFrame();
+				measure();
+			}
+
+			assert.deepStrictEqual({
+				replaced: container.querySelector('.monaco-tree-sticky-row .chat-markdown-part') !== initialBubble,
+				widths,
+			}, {
+				replaced: true,
+				widths: widths.map(() => sourceWidth),
+			});
+		});
+
+		test('unchanged and height-only layouts preserve sticky DOM, focus and reading position without measuring', async () => {
+			const { container, widget, model, row, bubble } = await createTranscript();
+			const boundsReads = sinon.spy(bubble, 'getBoundingClientRect');
+			const heightReads = sinon.spy(row, 'offsetHeight', ['get']).get;
+			const scrollTop = widget.scrollTop;
+			const editors = [...widget.editorsInUse()];
+			widget.stickyScrollDomNode?.focus();
+			for (const height of [300, 300, 320, 280, 300]) {
+				widget.layout(height, 500);
+				await nextFrame();
+			}
+			assert.deepStrictEqual({
+				sameRow: container.querySelector('.monaco-tree-sticky-row') === row,
+				sameBubble: row.querySelector('.chat-markdown-part') === bubble,
+				focused: mainWindow.document.activeElement === widget.stickyScrollDomNode,
+				anchored: widget.scrollTop === scrollTop,
+				sameEditors: editors.every((editor, index) => [...widget.editorsInUse()][index] === editor),
+				requests: model.getRequests().length,
+				boundsReads: boundsReads.callCount, heightReads: heightReads.callCount,
+			}, {
+				sameRow: true, sameBubble: true, focused: true, anchored: true, sameEditors: true,
+				requests: 1, boundsReads: 0, heightReads: 0,
+			});
+		});
+
+		test('width changes keep sticky templates and code editors while updating measured geometry', async () => {
+			const { container, widget, row, bubble } = await createTranscript();
+			const beforeBounds = bubble.getBoundingClientRect();
+			const editors = [...widget.editorsInUse()];
+			const boundsReads = sinon.spy(bubble, 'getBoundingClientRect');
+			container.style.width = '320px';
+			widget.layout(300, 320);
+			await waitForStableLayout(widget);
+			const measured = boundsReads.callCount > 0;
+			const afterBounds = bubble.getBoundingClientRect();
+			assert.deepStrictEqual({
+				sameRow: container.querySelector('.monaco-tree-sticky-row') === row,
+				sameBubble: row.querySelector('.chat-markdown-part') === bubble,
+				measured,
+				narrower: afterBounds.width < beforeBounds.width,
+				sameHeight: afterBounds.height === beforeBounds.height,
+				visible: row.getBoundingClientRect().height > 0,
+				sameEditors: editors.length > 0 && editors.every((editor, index) => [...widget.editorsInUse()][index] === editor),
+			}, { sameRow: true, sameBubble: true, measured: true, narrower: true, sameHeight: true, visible: true, sameEditors: true });
+		});
+
+		test('streaming and hidden content updates do not replace an unchanged pinned request', async () => {
+			const { container, widget, model, row, bubble } = await createTranscript();
+			const scrollTop = widget.scrollTop;
+			const text = 'A later streaming request';
+			const request = model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			}, { variables: [] }, 0);
+			for (let index = 0; index < 3; index++) {
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 10 }, (_, paragraph) => `Streaming chunk ${index}, paragraph ${paragraph}.`).join('\n\n') + '\n\n') });
+				widget.refresh();
+				await nextFrame();
+			}
+			widget.setVisible(false);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Updated while hidden.') });
+			request.response?.complete();
+			widget.refresh();
+			widget.setVisible(true);
+			widget.refresh();
+			widget.layout(300, 500);
+			await waitForStableLayout(widget);
+			const retained = container.querySelector('.monaco-tree-sticky-row') === row && row.querySelector('.chat-markdown-part') === bubble;
+			const anchored = widget.scrollTop === scrollTop;
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				retained, anchored, requests: model.getRequests().length,
+				updated: container.textContent?.includes('Updated while hidden.'),
+				newStickyRequest: container.querySelector('.monaco-tree-sticky-row')?.textContent?.includes(text),
+			}, { retained: true, anchored: true, requests: 2, updated: true, newStickyRequest: true });
+		});
+	});
+
 	test('does not create an empty sticky row for an attachment-only request', async () => {
 		const { disposables, model, container, widget } = createWidget({}, configurationService => {
 			configurationService.setUserConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING, true);
@@ -1089,7 +2192,7 @@ suite('ChatListWidget', () => {
 
 		const requestValue = container.querySelector<HTMLElement>('.monaco-list-rows > .monaco-list-row.request .interactive-item-container > .value');
 		assert.ok(requestValue);
-		const children = Array.from(requestValue.children);
+		const children = Array.from(requestValue.children).filter(child => child.checkVisibility());
 		assert.deepStrictEqual({
 			attachmentIndex: children.findIndex(child => child.classList.contains('chat-attached-context')),
 			messageIndex: children.findIndex(child => child.classList.contains('rendered-markdown')),
@@ -1373,14 +2476,858 @@ suite('ChatListWidget', () => {
 		});
 	});
 
+	suite('sticky progress', () => {
+		async function createTranscript({ pills = false, floating = true, incremental = false, stickyScroll = false, options = {} }: { pills?: boolean; floating?: boolean; incremental?: boolean; stickyScroll?: boolean; options?: IChatListWidgetOptions } = {}) {
+			const result = createWidget({ stickyProgress: true, paddingBottom: 32, ...options }, configuration => {
+				configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+				configuration.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+				configuration.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Working'] });
+				configuration.setUserConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING, stickyScroll);
+				configuration.setUserConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled, stickyScroll);
+			}, true);
+			const { disposables, model, viewModel, container, widget } = result;
+			const session = container.parentElement!;
+			session.style.cssText = 'position: absolute; top: 0; left: 0; width: 500px; height: 400px;';
+			session.style.setProperty('--vscode-chat-font-size-body-m', '13px');
+			session.style.setProperty('--vscode-chat-font-size-body-s', '12px');
+			session.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+			session.style.setProperty('--vscode-strokeThickness', '1px');
+			session.style.setProperty('--vscode-chat-list-background', '#202020');
+			for (const size of [2, 4, 6, 8, 12, 16, 24, 40]) {
+				session.style.setProperty(`--vscode-spacing-size${size * 10}`, `${size}px`);
+			}
+			session.classList.toggle('chat-floating-persistent-content', floating);
+			container.classList.add('interactive-list');
+			const inputPart = dom.append(session, dom.$('.interactive-input-part'));
+			inputPart.style.cssText = 'position: absolute; top: 300px; width: 500px; margin: 0;';
+			const persistentContent = dom.append(inputPart, dom.$('.chat-input-persistent-content'));
+			const pillRow = dom.append(persistentContent, dom.$('.chat-pills'));
+			pillRow.style.height = '32px';
+			const input = dom.append(inputPart, dom.$('.chat-input-container'));
+			input.style.height = '80px';
+			const setPillsVisible = (visible: boolean) => {
+				pillRow.style.display = visible ? '' : 'none';
+				pillRow.classList.toggle('hidden', !visible);
+				persistentContent.classList.toggle('chat-persistent-content-visible', visible);
+			};
+			setPillsVisible(pills);
+			widget.setStickyProgressContainer(persistentContent);
+			disposables.add(Event.runAndSubscribe(Event.accumulate(viewModel.onDidChange), () => widget.refresh()));
+			const addRequest = () => model.addRequest({
+				text: 'test',
+				parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'test')],
+			}, { variables: [] }, 0);
+			const previous = addRequest();
+			model.acceptResponseProgress(previous, {
+				kind: 'markdownContent',
+				content: new MarkdownString(Array.from({ length: 20 }, (_, index) => `Earlier paragraph ${index}.`).join('\n\n')),
+			});
+			previous.response?.complete();
+			const request = addRequest();
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Starting response.') });
+			widget.refresh();
+			widget.layout(300, 500);
+			await waitForStableLayout(widget);
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			const progress = session.querySelector<HTMLElement>('.chat-working-progress');
+			const sticky = persistentContent.querySelector<HTMLElement>('.chat-sticky-progress');
+			const anchor = container.querySelector<HTMLElement>('.chat-working-progress-anchor');
+			assert.ok(progress && sticky && anchor && widget.scrollTop > 0);
+			return { ...result, session, inputPart, persistentContent, pillRow, input, request, progress, sticky, anchor, setPillsVisible };
+		}
+
+		function addPendingRequests(model: ChatModel, kind = ChatRequestQueueKind.Queued): void {
+			for (let index = 0; index < 10; index++) {
+				const text = `Queued instruction ${index}`;
+				model.addPendingRequest(new ChatRequestModel({
+					session: model,
+					message: {
+						text,
+						parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+					},
+					variableData: { variables: [] },
+					timestamp: 0,
+				}), kind, {});
+			}
+		}
+
+		for (const incremental of [false, true]) {
+			for (const paddingBottom of [0, 32]) {
+				test(`one scroll arrow click reaches the bottom after an offscreen response grows (incremental=${incremental}, padding=${paddingBottom})`, async () => {
+					const { model, request, container, widget, progress, sticky } = await createTranscript({ pills: paddingBottom > 0, incremental, options: { paddingBottom } });
+					widget.setScrollLock(false);
+					widget.scrollTop = 0;
+					await waitForStableLayout(widget);
+					assert.strictEqual(progress.parentElement, sticky);
+					model.acceptResponseProgress(request, {
+						kind: 'markdownContent',
+						content: new MarkdownString('\n\n' + Array.from({ length: 20 }, (_, index) => `New response paragraph ${index}.`).join('\n\n') + '\n\n'),
+					});
+					widget.refresh();
+					await waitForStableLayout(widget);
+					const beforeClick = widget.scrollTop;
+
+					widget.scrollDownButtonDomNode.click();
+					await retry(async () => assert.ok(container.textContent?.includes('New response paragraph 19.')), 10, 500);
+					await waitForStableLayout(widget);
+					assert.deepStrictEqual({
+						beforeClick,
+						distanceFromBottom: widget.scrollHeight - widget.renderHeight - widget.scrollTop,
+						arrowVisible: widget.scrollDownButtonDomNode.style.display,
+						progressInline: !!progress.closest('.chat-working-progress-anchor'),
+					}, { beforeClick: 0, distanceFromBottom: 0, arrowVisible: 'none', progressInline: true });
+				});
+			}
+
+			for (const layout of ['pills', 'no pills', 'regular input'] as const) {
+				test(`hands off at the composer edge and returns the same component (${layout}, incremental=${incremental})`, async () => {
+					const { session, container, widget, progress, sticky, anchor } = await createTranscript({
+						pills: layout === 'pills', floating: layout !== 'regular input', incremental,
+					});
+					assert.ok(anchor.contains(progress));
+					const initialBottom = progress.getBoundingClientRect().bottom;
+					const boundary = sticky.getBoundingClientRect().bottom;
+					const scrollHeight = widget.scrollHeight;
+					widget.scrollTop -= boundary - initialBottom - 1;
+					await nextFrame();
+					const beforeEdge = anchor.contains(progress);
+					widget.scrollTop -= 2;
+					await nextFrame();
+					const atEdge = {
+						pinned: progress.parentElement === sticky,
+						bottom: progress.getBoundingClientRect().bottom,
+						placeholderHeight: anchor.getBoundingClientRect().height,
+						height: progress.getBoundingClientRect().height,
+						scrollHeight: widget.scrollHeight,
+					};
+					widget.scrollTop = 0;
+					await waitForStableLayout(widget);
+					const offscreen = { anchorMounted: anchor.isConnected, progressMounted: progress.isConnected, pinned: progress.parentElement === sticky };
+					widget.scrollToEnd();
+					await waitForStableLayout(widget);
+					assert.deepStrictEqual({
+						beforeEdge,
+						atEdge,
+						offscreen,
+						restored: !!progress.closest('.chat-working-progress-anchor'),
+						initialPositionRestored: Math.abs(progress.getBoundingClientRect().bottom - initialBottom) < 1,
+						copies: session.querySelectorAll('.chat-working-progress').length,
+						inlineCopies: container.querySelectorAll('.chat-working-progress').length,
+					}, {
+						beforeEdge: true,
+						atEdge: { pinned: true, bottom: boundary - 2, placeholderHeight: atEdge.height, height: atEdge.height, scrollHeight },
+						offscreen: { anchorMounted: false, progressMounted: true, pinned: true },
+						restored: true,
+						initialPositionRestored: true,
+						copies: 1,
+						inlineCopies: 1,
+					});
+				});
+			}
+		}
+
+		for (const layout of ['pills', 'no pills', 'regular input'] as const) {
+			test(`centers the scroll arrow on the padded sticky progress row (${layout})`, async () => {
+				const { model, request, session, inputPart, container, widget, progress, sticky, setPillsVisible } = await createTranscript({
+					pills: layout === 'pills', floating: layout !== 'regular input',
+				});
+				const button = widget.scrollDownButtonDomNode;
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+				const isCentered = () => {
+					const row = sticky.getBoundingClientRect();
+					const arrow = button.getBoundingClientRect();
+					return Math.abs((row.top + row.bottom) / 2 - (arrow.top + arrow.bottom) / 2) < 0.5;
+				};
+				const arrowBounds = button.getBoundingClientRect();
+				const pointerTarget = dom.getWindow(button).document.elementFromPoint(arrowBounds.left + arrowBounds.width / 2, arrowBounds.top + arrowBounds.height / 2);
+				const pinned = {
+					centered: isCentered(),
+					topPadding: progress.getBoundingClientRect().top - sticky.getBoundingClientRect().top,
+					bottomPadding: sticky.getBoundingClientRect().bottom - progress.getBoundingClientRect().bottom,
+					clickable: !!pointerTarget && button.contains(pointerTarget),
+				};
+
+				setPillsVisible(layout !== 'pills');
+				await waitForStableLayout(widget);
+				const pillsChanged = isCentered();
+				inputPart.style.top = container.style.height = '260px';
+				widget.layout(260, 500);
+				await waitForStableLayout(widget);
+				const resizedInput = isCentered();
+
+				model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Waiting for the remaining workspace operations and their verification to finish.') });
+				session.style.width = inputPart.style.width = container.style.width = '240px';
+				widget.layout(260, 240);
+				await waitForStableLayout(widget);
+				const label = progress.querySelector<HTMLElement>('.progress-step');
+				const wrapped = {
+					centered: isCentered(),
+					multipleLines: progress.getBoundingClientRect().height > 22,
+					textClearOfArrow: !!label && label.getBoundingClientRect().right < button.getBoundingClientRect().left,
+				};
+				request.response?.complete();
+				await waitForStableLayout(widget);
+				assert.deepStrictEqual({
+					pinned,
+					pillsChanged,
+					resizedInput,
+					wrapped,
+					completed: isCentered(),
+				}, {
+					pinned: { centered: true, topPadding: 2, bottomPadding: 2, clickable: true },
+					pillsChanged: true,
+					resizedInput: true,
+					wrapped: { centered: true, multipleLines: true, textClearOfArrow: true },
+					completed: true,
+				});
+			});
+		}
+
+		for (const layout of ['pills', 'no pills', 'regular input'] as const) {
+			test(`keeps the scroll arrow in the progress row after progress ends (${layout})`, async () => {
+				const { request, inputPart, container, pillRow, widget, sticky } = await createTranscript({
+					pills: layout === 'pills', floating: layout !== 'regular input',
+				});
+				const button = widget.scrollDownButtonDomNode;
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+				const pinnedArrowTop = button.getBoundingClientRect().top;
+				request.response?.complete();
+				await waitForStableLayout(widget);
+				const row = sticky.getBoundingClientRect();
+				const arrow = button.getBoundingClientRect();
+				const target = dom.getWindow(sticky).document.elementFromPoint(row.left + 20, (row.top + row.bottom) / 2);
+				assert.deepStrictEqual({
+					hidden: sticky.classList.contains('hidden'),
+					rowBottom: row.bottom,
+					rowHeight: row.height,
+					centered: Math.abs((row.top + row.bottom) / 2 - (arrow.top + arrow.bottom) / 2) < 0.5,
+					arrowTop: arrow.top,
+					clickThrough: !!target && container.contains(target),
+				}, {
+					hidden: true,
+					rowBottom: (layout === 'pills' ? pillRow : inputPart).getBoundingClientRect().top,
+					rowHeight: 26,
+					centered: true,
+					arrowTop: pinnedArrowTop,
+					clickThrough: true,
+				});
+			});
+		}
+
+		test('clamps the scroll arrow to a short transcript when sticky progress wraps', async () => {
+			const { model, request, session, inputPart, container, widget, progress } = await createTranscript();
+			widget.scrollTop = 0;
+			model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Waiting for background operations and their verification. '.repeat(8)) });
+			session.style.width = inputPart.style.width = container.style.width = '240px';
+			inputPart.style.top = container.style.height = '40px';
+			widget.layout(40, 240);
+			await waitForStableLayout(widget);
+			const button = widget.scrollDownButtonDomNode;
+			const aboveViewport = {
+				wrappedBeyondViewport: progress.getBoundingClientRect().height > widget.renderHeight,
+				arrowTop: button.getBoundingClientRect().top,
+				bottom: Number.parseFloat(button.style.bottom),
+			};
+
+			inputPart.style.top = '400px';
+			widget.layout(40, 240);
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				aboveViewport,
+				belowViewportBottom: button.getBoundingClientRect().bottom,
+				belowViewportOffset: button.style.bottom,
+			}, {
+				aboveViewport: { wrappedBeyondViewport: true, arrowTop: container.getBoundingClientRect().top, bottom: 40 - button.offsetHeight },
+				belowViewportBottom: container.getBoundingClientRect().bottom,
+				belowViewportOffset: '0px',
+			});
+		});
+
+		test('follows pills appearing and disappearing without moving the pills or input', async () => {
+			const { widget, progress, sticky, pillRow, input, setPillsVisible } = await createTranscript();
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const inputTop = input.getBoundingClientRect().top;
+			const withoutPills = progress.getBoundingClientRect().bottom;
+			setPillsVisible(true);
+			await waitForStableLayout(widget);
+			const withPills = { bottom: progress.getBoundingClientRect().bottom, pillTop: pillRow.getBoundingClientRect().top };
+			setPillsVisible(false);
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				withPills,
+				restored: progress.getBoundingClientRect().bottom,
+				inputTop: input.getBoundingClientRect().top,
+				pinned: progress.parentElement === sticky,
+			}, {
+				withPills: { bottom: withPills.pillTop - 2, pillTop: withPills.pillTop },
+				restored: withoutPills,
+				inputTop,
+				pinned: true,
+			});
+		});
+
+		test('restores the inline footprint after opening a running conversation above its latest response', async () => {
+			const { viewModel, session, widget, container } = await createTranscript({ pills: true });
+			widget.setViewModel(undefined);
+			widget.refresh();
+			widget.setViewModel(viewModel);
+			widget.refresh();
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const progress = session.querySelector<HTMLElement>('.chat-working-progress');
+			assert.ok(progress && progress.parentElement?.classList.contains('chat-sticky-progress'));
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			const anchor = container.querySelector<HTMLElement>('.chat-working-progress-anchor');
+			assert.deepStrictEqual({
+				restored: anchor?.contains(progress),
+				reservedHeight: anchor?.getBoundingClientRect().height,
+				progressHeight: progress.getBoundingClientRect().height,
+				atBottom: widget.isScrolledToBottom,
+			}, {
+				restored: true,
+				reservedHeight: progress.getBoundingClientRect().height,
+				progressHeight: progress.getBoundingClientRect().height,
+				atBottom: true,
+			});
+		});
+
+		test('retains its action and keyboard focus through virtualization and return', async () => {
+			let calls = 0;
+			const { widget, progress, sticky } = await createTranscript({
+				options: { rendererOptions: { progressMessageAction: constObservable({ label: 'Show Log', run: () => { calls++; } }) } },
+			});
+			const action = progress.querySelector<HTMLElement>('.chat-progress-action a');
+			assert.ok(action);
+			action.focus();
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const pinned = { focused: dom.getActiveElement() === action, scrollTop: widget.scrollTop, hosted: progress.parentElement === sticky };
+			action.click();
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				pinned,
+				focused: dom.getActiveElement() === action,
+				inline: !!progress.closest('.chat-working-progress-anchor'),
+				calls,
+			}, {
+				pinned: { focused: true, scrollTop: 0, hosted: true },
+				focused: true,
+				inline: true,
+				calls: 1,
+			});
+		});
+
+		test('updates provider progress while its response is virtualized and survives a narrower composer', async () => {
+			const { model, request, session, inputPart, container, widget, progress, sticky } = await createTranscript({ pills: true });
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const message = 'Checking the workspace and waiting for the remaining background operations to finish.';
+			model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString(message) });
+			session.style.width = inputPart.style.width = container.style.width = '240px';
+			widget.layout(300, 240);
+			await waitForStableLayout(widget);
+			const bounds = progress.getBoundingClientRect();
+			assert.deepStrictEqual({
+				text: progress.querySelector('.progress-step')?.textContent,
+				pinned: progress.parentElement === sticky,
+				visible: bounds.height > 0 && bounds.top >= container.getBoundingClientRect().top && bounds.bottom + 2 === sticky.getBoundingClientRect().bottom,
+				contained: bounds.left >= container.getBoundingClientRect().left && bounds.right <= container.getBoundingClientRect().right,
+				background: dom.getWindow(sticky).getComputedStyle(sticky).backgroundColor,
+				copies: session.querySelectorAll('.chat-working-progress').length,
+			}, {
+				text: message,
+				pinned: true,
+				visible: true,
+				contained: true,
+				background: 'rgb(32, 32, 32)',
+				copies: 1,
+			});
+		});
+
+		test('switches between sticky progress and the progress border without duplicate indicators', async () => {
+			const { configurationService, session, container, widget, sticky } = await createTranscript();
+			const setProgressBorder = async (enabled: boolean) => {
+				await configurationService.setUserConfiguration(ChatConfiguration.ProgressBorder, enabled);
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+					affectsConfiguration: section => section === ChatConfiguration.ProgressBorder,
+				}));
+				await waitForStableLayout(widget);
+			};
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const initialSticky = sticky.querySelectorAll('.chat-working-progress').length;
+			await setProgressBorder(true);
+			const borderEnabled = sticky.childElementCount;
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			const normalInline = container.querySelectorAll('.chat-working-progress').length;
+			const normalAnchors = container.querySelectorAll('.chat-working-progress-anchor').length;
+			await setProgressBorder(false);
+			const restoredInline = container.querySelectorAll('.chat-working-progress-anchor > .chat-working-progress').length;
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				initialSticky, borderEnabled, normalInline, normalAnchors, restoredInline,
+				restoredSticky: sticky.querySelectorAll('.chat-working-progress').length,
+				copies: session.querySelectorAll('.chat-working-progress').length,
+			}, {
+				initialSticky: 1, borderEnabled: 0, normalInline: 1, normalAnchors: 0, restoredInline: 1,
+				restoredSticky: 1, copies: 1,
+			});
+		});
+
+		for (const pills of [false, true]) {
+			test(`keeps editor progress horizontally aligned during the sticky handoff (pills=${pills})`, async () => {
+				const { inputPart, widget, progress, sticky } = await createTranscript({ pills });
+				inputPart.style.margin = '';
+				inputPart.style.width = 'calc(100% - 24px)';
+				widget.layout(300, 500);
+				await waitForStableLayout(widget);
+				const positions = () => [
+					progress.getBoundingClientRect().left,
+					progress.querySelector('.chat-progress-icon')?.getBoundingClientRect().left,
+					progress.querySelector('.progress-step')?.getBoundingClientRect().left,
+				];
+				const inline = positions();
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+				assert.strictEqual(progress.parentElement, sticky);
+				const pinned = positions();
+				widget.scrollToEnd();
+				await waitForStableLayout(widget);
+				assert.deepStrictEqual({ pinned, restored: positions() }, { pinned: inline, restored: inline });
+			});
+		}
+
+		test('can be disabled and re-enabled without a duplicate inline indicator', async () => {
+			const { configurationService, session, widget, progress, sticky } = await createTranscript();
+			const setAnimation = async (animation: ChatProgressAnimation) => {
+				await configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, animation);
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+					affectsConfiguration: section => section === ChatConfiguration.PersistentProgress,
+				}));
+				await waitForStableLayout(widget);
+			};
+			await setAnimation(ChatProgressAnimation.Off);
+			const disabled = { originalConnected: progress.isConnected, copies: session.querySelectorAll('.chat-working-progress').length };
+			await setAnimation(ChatProgressAnimation.Draw);
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				disabled,
+				copies: session.querySelectorAll('.chat-working-progress').length,
+				stickyCopies: sticky.querySelectorAll('.chat-working-progress').length,
+			}, {
+				disabled: { originalConnected: false, copies: 0 },
+				copies: 1,
+				stickyCopies: 1,
+			});
+		});
+
+		test('keeps progress visible while preparation makes the transcript read-only', async () => {
+			const { widget, progress, sticky } = await createTranscript();
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			widget.updateRendererOptions({ readOnly: true });
+			widget.refresh();
+			await waitForStableLayout(widget);
+			assert.strictEqual(progress.parentElement, sticky);
+		});
+
+		test('stays visible when queued messages push the active response above the viewport', async () => {
+			const { model, viewModel, widget, progress, sticky } = await createTranscript();
+			addPendingRequests(model);
+			widget.refresh();
+			await waitForStableLayout(widget);
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			const response = viewModel.getItems().findLast(isResponseVM);
+			assert.ok(response);
+			const top = widget.getElementTop(response);
+			assert.deepStrictEqual({
+				responseAboveViewport: top !== undefined && top + (response.currentRenderedHeight ?? 0) <= widget.scrollTop,
+				pinned: progress.parentElement === sticky,
+			}, { responseAboveViewport: true, pinned: true });
+		});
+
+		for (const kind of [ChatRequestQueueKind.Queued, ChatRequestQueueKind.Steering]) {
+			test(`pins progress while its inline anchor is covered by the sticky prompt (${kind})`, async () => {
+				const { model, viewModel, container, widget, progress, sticky } = await createTranscript({ stickyScroll: true });
+				addPendingRequests(model, kind);
+				widget.refresh();
+				await waitForStableLayout(widget);
+				const response = viewModel.getItems().findLast(isResponseVM);
+				assert.ok(response);
+				widget.reveal(response, 0);
+				await waitForStableLayout(widget);
+				const anchor = container.querySelector<HTMLElement>('.chat-working-progress-anchor');
+				assert.ok(anchor);
+				const viewport = container.getBoundingClientRect();
+				widget.scrollTop += anchor.getBoundingClientRect().top - viewport.top - 1;
+				await waitForStableLayout(widget);
+				const bounds = anchor.getBoundingClientRect();
+				const header = widget.stickyScrollDomNode?.getBoundingClientRect();
+				assert.deepStrictEqual({
+					anchorInViewport: bounds.top >= viewport.top && bounds.bottom <= viewport.bottom,
+					anchorUnderHeader: !!header && header.height > 0 && bounds.top < header.bottom,
+					progressPinned: progress.parentElement === sticky,
+				}, { anchorInViewport: true, anchorUnderHeader: true, progressPinned: true });
+			});
+		}
+
+		test('hides with the view and restores the same progress when shown', async () => {
+			const { widget, progress, sticky } = await createTranscript();
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			widget.setVisible(false);
+			const hidden = progress.isConnected;
+			widget.setVisible(true);
+			assert.deepStrictEqual({ hidden, restored: progress.parentElement === sticky }, { hidden: false, restored: true });
+		});
+
+		test('does not keep a hidden composer in the layout after progress finishes', async () => {
+			const { inputPart, request, widget, sticky } = await createTranscript({ floating: false });
+			inputPart.classList.add('chat-input-hidden');
+			request.response?.complete();
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				empty: sticky.childElementCount,
+				hidden: sticky.classList.contains('hidden'),
+				inputDisplay: dom.getWindow(inputPart).getComputedStyle(inputPart).display,
+			}, { empty: 0, hidden: true, inputDisplay: 'none' });
+		});
+
+		test('remounts above a rebuilt composer without losing its action focus', async () => {
+			const { inputPart, persistentContent, widget, progress, sticky } = await createTranscript({
+				options: { rendererOptions: { progressMessageAction: constObservable({ label: 'Show Log', run: () => { } }) } },
+			});
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const action = progress.querySelector<HTMLElement>('.chat-progress-action a');
+			assert.ok(action);
+			action.focus();
+			const replacement = dom.prepend(inputPart, dom.$('.chat-input-persistent-content'));
+			widget.setStickyProgressContainer(replacement);
+			persistentContent.remove();
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				hosted: replacement.firstChild === sticky && sticky.contains(progress),
+				focused: dom.getActiveElement() === action,
+			}, { hosted: true, focused: true });
+		});
+
+		for (const stop of ['complete', 'cancel', 'clear', 'minimal', 'dispose'] as const) {
+			test(`removes sticky progress on ${stop}`, async () => {
+				const { disposables, request, widget, sticky, progress } = await createTranscript();
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+				assert.strictEqual(progress.parentElement, sticky);
+				switch (stop) {
+					case 'complete': request.response?.complete(); break;
+					case 'cancel': request.response?.cancel(); break;
+					case 'clear': widget.setViewModel(undefined); break;
+					case 'minimal': widget.updateRendererOptions({ renderStyle: 'minimal' }); break;
+					case 'dispose': disposables.dispose(); break;
+				}
+				await timeout(0);
+				assert.deepStrictEqual({ stickyChildren: sticky.childElementCount, oldProgressConnected: progress.isConnected }, { stickyChildren: 0, oldProgressConnected: false });
+			});
+		}
+	});
+
+	suite('persistent progress streaming', () => {
+		async function createStreamingProgress(fontSize: number, incrementalRendering: boolean, pendingKind?: ChatRequestQueueKind) {
+			const { disposables, model, viewModel, container, widget } = createWidget({ paddingBottom: 32 }, configurationService => {
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+				configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incrementalRendering);
+				configurationService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'paragraph');
+				configurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Evaluating'] });
+			}, true);
+			disposables.add(Event.runAndSubscribe(Event.accumulate(viewModel.onDidChange), () => widget.refresh()));
+			container.classList.add('interactive-list');
+			container.style.fontSize = `${fontSize}px`;
+			container.style.setProperty('--vscode-chat-font-size-body-m', `${fontSize}px`);
+			container.style.setProperty('--vscode-chat-font-size-body-s', `${fontSize - 1}px`);
+			container.style.setProperty('--vscode-spacing-size160', '16px');
+			container.style.setProperty('--vscode-spacing-size60', '6px');
+			const addRequest = () => model.addRequest({
+				text: 'test',
+				parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'test')],
+			}, { variables: [] }, 0);
+			const previousRequest = addRequest();
+			model.acceptResponseProgress(previousRequest, {
+				kind: 'markdownContent',
+				content: new MarkdownString(Array.from({ length: 16 }, (_, index) => `Earlier paragraph ${index}.`).join('\n\n')),
+			});
+			previousRequest.response?.complete();
+			const request = addRequest();
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Starting response.') });
+			widget.refresh();
+			widget.layout(300, 500);
+			await retry(async () => assert.ok(container.textContent?.includes('Starting response.')), 10, 100);
+			if (pendingKind !== undefined) {
+				const text = 'Pending request';
+				model.addPendingRequest(new ChatRequestModel({
+					session: model,
+					message: {
+						text,
+						parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+					},
+					variableData: { variables: [] },
+					timestamp: Date.now(),
+				}), pendingKind, {});
+				widget.refresh();
+			}
+			await waitForStableLayout(widget);
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			const response = viewModel.getItems().findLast(isResponseVM);
+			const progress = container.querySelector<HTMLElement>('.chat-working-progress');
+			const label = progress?.querySelector<HTMLElement>('.progress-step');
+			const icon = progress?.querySelector<HTMLElement>('.chat-progress-icon');
+			assert.ok(response && progress && label && icon && widget.scrollTop > 0 && widget.isScrolledToBottom);
+			assert.ok(progress.getBoundingClientRect().height > 0 && label.textContent === 'Evaluating');
+			const measure = () => ({
+				progress: progress.getBoundingClientRect().top,
+				label: label.getBoundingClientRect().top,
+				icon: icon.getBoundingClientRect().top,
+			});
+			return { disposables, model, viewModel, container, widget, request, response, progress, measure };
+		}
+
+		for (const incrementalRendering of [false, true]) {
+			test(`progress alignment avoids a synchronous row measurement on refresh (incremental: ${incrementalRendering})`, async () => {
+				const { disposables, model, widget, request, progress } = await createStreamingProgress(13, incrementalRendering);
+				const row = progress.closest<HTMLElement>('.interactive-response');
+				assert.ok(row);
+				const measurement = sinon.spy(row, 'getBoundingClientRect');
+				disposables.add(toDisposable(() => measurement.restore()));
+
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(' ') });
+				widget.refresh();
+
+				assert.deepStrictEqual({
+					synchronousMeasurements: measurement.callCount,
+					rowRounding: row.style.getPropertyValue('--chat-response-height-rounding'),
+					progressHasRounding: progress.style.getPropertyValue('--chat-response-height-rounding') !== '',
+				}, {
+					synchronousMeasurements: 0,
+					rowRounding: '',
+					progressHasRounding: true,
+				});
+			});
+
+			test(`restores cached alignment when progress is replaced without resizing the row (incremental: ${incrementalRendering})`, async () => {
+				const { disposables, model, container, widget, request, progress } = await createStreamingProgress(13, incrementalRendering);
+				const row = progress.closest<HTMLElement>('.interactive-response');
+				assert.ok(row);
+				const height = row.getBoundingClientRect().height;
+				widget.updateRendererOptions({ readOnly: true });
+				const measurement = sinon.spy(row, 'getBoundingClientRect');
+				disposables.add(toDisposable(() => measurement.restore()));
+
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(' ') });
+				widget.refresh();
+
+				const synchronousMeasurements = measurement.callCount;
+				const replacement = container.querySelector<HTMLElement>('.chat-working-progress');
+				assert.deepStrictEqual({
+					replaced: !!replacement && replacement !== progress,
+					sameRow: replacement?.closest('.interactive-response') === row,
+					height: row.getBoundingClientRect().height,
+					synchronousMeasurements,
+					rounding: replacement?.style.getPropertyValue('--chat-response-height-rounding'),
+				}, {
+					replaced: true,
+					sameRow: true,
+					height,
+					synchronousMeasurements: 0,
+					rounding: `${Math.ceil(height) - height}px`,
+				});
+			});
+
+			test(`restores progress alignment in the first frame after virtualization (incremental: ${incrementalRendering})`, async () => {
+				const { container, widget, progress, measure } = await createStreamingProgress(13, incrementalRendering);
+				const before = measure();
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+				assert.ok(!progress.isConnected, 'The streaming progress must actually leave the DOM');
+
+				widget.scrollToEnd();
+				const reconnected = container.querySelector<HTMLElement>('.chat-working-progress');
+				const reconnectedRow = reconnected?.closest<HTMLElement>('.interactive-response');
+				const reconnectedMarkdown = reconnectedRow?.querySelector<HTMLElement>('.chat-markdown-part');
+				assert.ok(reconnected && reconnectedRow && reconnectedMarkdown);
+				const reconnectedHeight = reconnectedRow.getBoundingClientRect().height;
+				const staleRounding = reconnected.style.getPropertyValue('--chat-response-height-rounding');
+				const expectedHeight = Math.ceil(reconnectedHeight) - (staleRounding === '0px' ? 0.5 : 0);
+				const expectedRounding = `${Math.ceil(expectedHeight) - expectedHeight}px`;
+				// Settle to a different fractional height before the first paint, without changing the rounded scroll height.
+				reconnectedMarkdown.style.height = `${reconnectedMarkdown.getBoundingClientRect().height + expectedHeight - reconnectedHeight}px`;
+				assert.notStrictEqual(reconnected.style.getPropertyValue('--chat-response-height-rounding'), expectedRounding);
+
+				const positions = [];
+				for (let frame = 0; frame < 4; frame++) {
+					await nextFrame();
+					await timeout(0);
+					const current = container.querySelector<HTMLElement>('.chat-working-progress');
+					const row = current?.closest<HTMLElement>('.interactive-response');
+					const label = current?.querySelector<HTMLElement>('.progress-step');
+					const icon = current?.querySelector<HTMLElement>('.chat-progress-icon');
+					assert.ok(current && row && label && icon);
+					const height = row.getBoundingClientRect().height;
+					positions.push({
+						progress: current.getBoundingClientRect().top,
+						label: label.getBoundingClientRect().top,
+						icon: icon.getBoundingClientRect().top,
+						height,
+						rounding: current.style.getPropertyValue('--chat-response-height-rounding'),
+						corrected: current.style.getPropertyValue('--chat-response-height-rounding') === `${Math.ceil(height) - height}px`,
+						atBottom: widget.isScrolledToBottom,
+					});
+				}
+				assert.deepStrictEqual(positions, Array.from({ length: 4 }, () => ({ ...before, height: expectedHeight, rounding: expectedRounding, corrected: true, atBottom: true })));
+			});
+		}
+
+		for (const { fontSize, pendingKind } of [13, 14].flatMap(fontSize => [undefined, ChatRequestQueueKind.Queued, ChatRequestQueueKind.Steering].map(pendingKind => ({ fontSize, pendingKind })))) {
+			for (const incrementalRendering of [false, true]) {
+				test(`keeps the bottom progress position while paragraphs stream (font size: ${fontSize}, incremental: ${incrementalRendering}, pending: ${pendingKind ?? 'none'})`, async () => {
+					const { model, viewModel, container, widget, request, progress, measure } = await createStreamingProgress(fontSize, incrementalRendering, pendingKind);
+					const before = measure();
+					const positions = [before];
+					for (let index = 0; index < 6; index++) {
+						const text = `Streamed paragraph ${index}.`;
+						model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`\n\n${text}\n\n`) });
+						widget.refresh();
+						for (let frame = 0; frame < 4; frame++) {
+							await nextFrame();
+							await timeout(0);
+							positions.push(measure());
+						}
+						await retry(async () => assert.ok(container.textContent?.includes(text)), 10, 100);
+						await waitForStableLayout(widget);
+						positions.push(measure());
+					}
+					widget.scrollTop -= 80;
+					await waitForStableLayout(widget);
+					const away = { scrollTop: widget.scrollTop, top: progress.getBoundingClientRect().top, height: progress.parentElement!.getBoundingClientRect().height };
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\nStreamed while scrolled away.\n\n') });
+					widget.refresh();
+					await retry(async () => assert.ok(container.textContent?.includes('Streamed while scrolled away.')), 10, 100);
+					await waitForStableLayout(widget);
+					const scrolledAway = {
+						scrollTop: pendingKind === undefined ? widget.scrollTop : undefined,
+						atBottom: widget.isScrolledToBottom,
+						movedWithContent: Math.abs(progress.getBoundingClientRect().top - away.top + widget.scrollTop - away.scrollTop - (progress.parentElement!.getBoundingClientRect().height - away.height)) < 0.01,
+					};
+					widget.scrollToEnd();
+					await waitForStableLayout(widget);
+					const returnedToBottom = measure();
+					const toolPositions = [];
+					for (const toolId of ['search', 'read_file']) {
+						const tool = new ChatToolInvocation(
+							{ invocationMessage: `Running ${toolId}` },
+							{ id: toolId, displayName: toolId, modelDescription: toolId, source: ToolDataSource.Internal },
+							toolId, undefined, {},
+						);
+						model.acceptResponseProgress(request, tool);
+						widget.refresh();
+						await waitForStableLayout(widget);
+						toolPositions.push(measure());
+					}
+					assert.deepStrictEqual({
+						positions,
+						scrolledAway,
+						returnedToBottom,
+						toolPositions,
+						pendingKinds: viewModel.getItems().filter(isRequestVM).flatMap(item => item.pendingKind === undefined ? [] : [item.pendingKind]),
+						atBottom: widget.isScrolledToBottom,
+						sameProgress: container.querySelector('.chat-working-progress') === progress,
+					}, {
+						positions: Array.from({ length: 31 }, () => ({ ...before })),
+						scrolledAway: { scrollTop: pendingKind === undefined ? away.scrollTop : undefined, atBottom: false, movedWithContent: true },
+						returnedToBottom: before,
+						toolPositions: [{ ...before }, { ...before }],
+						pendingKinds: pendingKind === undefined ? [] : [pendingKind],
+						atBottom: true,
+						sameProgress: true,
+					});
+				});
+			}
+		}
+
+		test('keeps retained progress aligned while completed buffered content drains', async () => {
+			const { disposables, model, container, widget, request, response, progress, measure } = await createStreamingProgress(13, false);
+			const before = measure();
+			const text = Array.from({ length: 30 }, (_, index) => `Buffered paragraph ${index}.`).join('\n\n');
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`\n\n${text}\n\n`) });
+			const timings = response.contentUpdateTimings;
+			assert.ok(timings);
+			const streamTimings = sinon.stub(response, 'contentUpdateTimings').get(() => ({ ...timings, impliedWordLoadRate: 80 }));
+			disposables.add(toDisposable(() => streamTimings.restore()));
+			response.renderData = { lastRenderTime: Date.now(), renderedWordCount: 2, renderedParts: [] };
+			request.response?.complete();
+			widget.refresh();
+			assert.ok(response.isComplete && response.renderData && progress.isConnected);
+
+			const samples: ReturnType<typeof measure>[] = [];
+			const heights = new Set<number>();
+			const fractions = new Set<number>();
+			const row = progress.closest<HTMLElement>('.interactive-response');
+			assert.ok(row);
+			await retry(async () => {
+				await nextFrame();
+				await timeout(0);
+				// Only sample sizes already reconciled with the list, not pending resize notifications.
+				if (progress.isConnected && Math.ceil(row.getBoundingClientRect().height) === response.currentRenderedHeight) {
+					samples.push(measure());
+					const height = progress.parentElement!.getBoundingClientRect().height;
+					heights.add(height);
+					fractions.add(height % 1);
+				}
+				assert.strictEqual(progress.isConnected, false);
+			}, 10, 200);
+			assert.deepStrictEqual({
+				renderedSeveralHeights: heights.size > 1,
+				fractions: [...fractions].sort(),
+				progressPositions: [...new Set(samples.map(sample => sample.progress))],
+				labelPositions: [...new Set(samples.map(sample => sample.label))],
+				iconPositions: [...new Set(samples.map(sample => sample.icon))],
+				progressRemoved: !progress.isConnected,
+				renderingFinished: response.renderData === undefined,
+				finalText: container.textContent?.includes('Buffered paragraph 29.'),
+			}, {
+				renderedSeveralHeights: true,
+				fractions: [0, 0.5],
+				progressPositions: [before.progress],
+				labelPositions: [before.label],
+				iconPositions: [before.icon],
+				progressRemoved: true,
+				renderingFinished: true,
+				finalText: true,
+			});
+		});
+	});
+
 	suite('persistent progress completion', () => {
 		for (const incrementalRendering of [false, true]) {
 			for (const atBottom of [false, true]) {
 				test(`replaces progress without moving the list (incremental: ${incrementalRendering}, at bottom: ${atBottom})`, async () => {
-					const { model, container, widget } = createWidget({ paddingBottom: 32 }, configurationService => {
+					const { instantiationService, model, container, widget } = createWidget({ paddingBottom: 32 }, configurationService => {
 						configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 						configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incrementalRendering);
-					}, true);
+					}, true, undefined, undefined, URI.from({ scheme: SessionType.AgentHostCopilot, path: '/footer-layout' }));
+					instantiationService.stub(IChatResponseFileChangesService, {
+						getChangesForRequest: () => undefined,
+						getChangeStatsForRequest: () => constObservable({ files: 0, insertions: 0, deletions: 0 }),
+					});
 					container.classList.add('interactive-list');
 					container.style.fontSize = '13px';
 					container.style.setProperty('--vscode-chat-font-size-body-m', '13px');
@@ -1442,12 +3389,14 @@ suite('ChatListWidget', () => {
 						paragraphPositions: [...new Set(samples.map(sample => sample.paragraphTop))],
 						progressRows: response.querySelectorAll('.chat-working-progress').length,
 						toolbarVisible: response.querySelector<HTMLElement>('.chat-footer-toolbar')!.getBoundingClientRect().height > 0,
+						turnSummaryHidden: response.querySelector<HTMLElement>('.chat-turn-pills-part')?.getBoundingClientRect().height === 0,
 					}, {
 						scrollPositions: [before.scrollTop],
 						heights: [before.height],
 						paragraphPositions: [before.paragraphTop],
 						progressRows: 0,
 						toolbarVisible: true,
+						turnSummaryHidden: true,
 					});
 				});
 			}
@@ -1455,7 +3404,7 @@ suite('ChatListWidget', () => {
 	});
 
 	suite('persistent progress collapse anchoring', () => {
-		async function createPreview(kind: 'thinking' | 'tools', incrementalRendering = false, paddingBottom = 0, toolCount = 3, stickyScroll = false) {
+		async function createPreview(kind: 'thinking' | 'tools', incrementalRendering = false, paddingBottom = 0, toolCount = 3, stickyScroll = false, text = 'Keep the earlier content in place') {
 			const context = createWidget({ paddingBottom }, configurationService => {
 				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, ChatProgressVerbosity.Compact);
@@ -1467,7 +3416,6 @@ suite('ChatListWidget', () => {
 			}, true);
 			const { model, container, widget } = context;
 			container.classList.add('interactive-list');
-			const text = 'Keep the earlier content in place';
 			const request = model.addRequest({
 				text,
 				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
@@ -1525,6 +3473,52 @@ suite('ChatListWidget', () => {
 			request.response?.complete();
 			widget.refresh();
 			await waitForStableLayout(widget);
+		}
+
+		for (const incrementalRendering of [false, true]) {
+			test(`streaming tool collapse retains the sticky bubble and its source width (incremental: ${incrementalRendering})`, async () => {
+				const { model, request, container, widget } = await createPreview('tools', incrementalRendering, 0, 3, true,
+					'Short introduction.\n\n' + 'A longer continuation determines the width of the request bubble. '.repeat(12));
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+				const source = container.querySelector<HTMLElement>('.monaco-list-rows .interactive-request .chat-markdown-part');
+				assert.ok(source);
+				const sourceWidth = source.getBoundingClientRect().width;
+				widget.scrollToEnd();
+				await waitForStableLayout(widget);
+				const initialBubble = container.querySelector('.monaco-tree-sticky-row .chat-markdown-part');
+				const preview = container.querySelector<HTMLElement>('.chat-thinking-box');
+				assert.ok(initialBubble && preview);
+				const measure = () => {
+					const bubble = container.querySelector<HTMLElement>('.monaco-tree-sticky-row .chat-markdown-part');
+					assert.ok(bubble);
+					return {
+						sameBubble: bubble === initialBubble,
+						width: bubble.getBoundingClientRect().width,
+					};
+				};
+				const samples = [measure()];
+				const previewHeight = preview.getBoundingClientRect().height;
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The next response.') });
+				widget.refresh();
+				samples.push(measure());
+				for (let frame = 0; frame < 6; frame++) {
+					await nextFrame();
+					samples.push(measure());
+				}
+				await waitForStableLayout(widget);
+				samples.push(measure());
+
+				assert.deepStrictEqual({
+					collapsed: preview.classList.contains('chat-used-context-collapsed'),
+					shrank: preview.getBoundingClientRect().height < previewHeight,
+					samples,
+				}, {
+					collapsed: true,
+					shrank: true,
+					samples: samples.map(() => ({ sameBubble: true, width: sourceWidth })),
+				});
+			});
 		}
 
 		for (const kind of ['thinking', 'tools'] as const) {
@@ -1718,15 +3712,25 @@ suite('ChatListWidget', () => {
 							content: new MarkdownString(Array.from({ length: 20 }, (_, index) => `Following paragraph ${index}.`).join('\n\n')),
 						});
 						widget.refresh();
-						await timeout(40);
+						// Hold the 180ms collapse 40ms in. A real 40ms timer can fire after the transition
+						// has already ended on a loaded machine, and then the response no longer completes mid-collapse.
 						const animations = preview.getAnimations({ subtree: true });
-						const runningTransition = animations.some(animation => animation.playState === 'running');
+						for (const animation of animations) {
+							animation.pause();
+							animation.currentTime = 40;
+						}
+						await nextFrame();
+						await nextFrame();
+						const runningTransition = animations.some(animation => Number(animation.currentTime) < Number(animation.effect?.getTiming().duration));
 						if (canceled) {
 							request.response?.cancel();
 						} else {
 							request.response?.complete();
 						}
 						widget.refresh();
+						for (const animation of animations) {
+							animation.play();
+						}
 						await Promise.all(animations.map(animation => animation.finished));
 						await waitForStableLayout(widget);
 

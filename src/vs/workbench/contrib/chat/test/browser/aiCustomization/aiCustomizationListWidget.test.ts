@@ -21,7 +21,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getTargetedCreateActionLabel, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
+import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getMultiRootWorkspaceRelativeFilename, getTargetedCreateActionLabel, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
 import { AICustomizationItemNormalizer, IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, splitPathLabel, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
@@ -35,6 +35,8 @@ import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from '../../../browser/aiCustomization/customizationCardList.js';
+import { getAICustomizationWorkspaceGroupForResource, getAICustomizationWorkspaceGroups } from '../../../browser/aiCustomization/aiCustomizationWorkspaceGroups.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 
 suite('aiCustomizationListWidget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -70,6 +72,96 @@ suite('aiCustomizationListWidget', () => {
 			hooks: [PromptsStorage.local, PromptsStorage.user],
 			filtered: [],
 			prompts: [PromptsStorage.local, PromptsStorage.user],
+		});
+
+	});
+
+	test('search filter matches dashed and spaced queries with highlights', () => {
+		const items = [
+			{ id: '1', uri: URI.file('/skills/typescript-setup/SKILL.md'), name: 'typescript-setup', filename: 'SKILL.md', description: 'Set up TypeScript', promptType: PromptsType.skill, storage: PromptsStorage.local },
+			{ id: '2', uri: URI.file('/skills/other/SKILL.md'), name: 'other', filename: 'SKILL.md', description: 'Unrelated', promptType: PromptsType.skill, storage: PromptsStorage.local },
+		] as unknown as IAICustomizationListItem[];
+		const filter = (searchQuery: string) => (AICustomizationListWidget.prototype as unknown as {
+			applySearchFilter(this: { searchQuery: string }, items: readonly IAICustomizationListItem[]): IAICustomizationListItem[];
+		}).applySearchFilter.call({ searchQuery }, items).map(item => [item.name, item.nameMatches]);
+
+		assert.deepStrictEqual({
+			spaced: filter('typescript setup'),
+			dashed: filter('typescript-setup'),
+			underscored: filter('TypeScript_Setup'),
+		}, {
+			spaced: [['typescript-setup', [{ start: 0, end: 10 }, { start: 11, end: 16 }]]],
+			dashed: [['typescript-setup', [{ start: 0, end: 16 }]]],
+			underscored: [['typescript-setup', [{ start: 0, end: 16 }]]],
+		});
+	});
+
+	test('splits workspace groups only for multi-root workspaces', () => {
+		const firstUri = URI.file('/workspace/first');
+		const secondUri = URI.file('/workspace/second');
+		const createWorkspaceService = (folders: IWorkspaceFolder[]) => new class extends mock<IWorkspaceContextService>() {
+			override getWorkspace() {
+				return { id: 'test', folders };
+			}
+			override getWorkspaceFolder(resource: URI) {
+				return folders.find(folder => resource.path.startsWith(folder.uri.path)) ?? null;
+			}
+		}();
+		const singleRoot = createWorkspaceService([{ uri: firstUri, name: 'First', index: 0, toResource: path => URI.joinPath(firstUri, path) }]);
+		const multiRoot = createWorkspaceService([
+			{ uri: firstUri, name: 'First', index: 0, toResource: path => URI.joinPath(firstUri, path) },
+			{ uri: secondUri, name: 'Second', index: 1, toResource: path => URI.joinPath(secondUri, path) },
+		]);
+
+		assert.deepStrictEqual({
+			singleRoot: getAICustomizationWorkspaceGroups(singleRoot),
+			multiRoot: getAICustomizationWorkspaceGroups(multiRoot).map(group => ({ label: group.label, uri: group.uri.path })),
+			secondOwner: getAICustomizationWorkspaceGroupForResource(URI.joinPath(secondUri, '.github/skills/review/SKILL.md'), multiRoot)?.label,
+		}, {
+			singleRoot: [],
+			multiRoot: [
+				{ label: 'First', uri: '/workspace/first' },
+				{ label: 'Second', uri: '/workspace/second' },
+			],
+			secondOwner: 'Second',
+		});
+	});
+
+	test('removes the workspace prefix from paths only in multi-root workspaces', () => {
+		const firstUri = URI.file('/workspace/first');
+		const secondUri = URI.file('/workspace/second');
+		const createWorkspaceService = (folders: IWorkspaceFolder[]) => new class extends mock<IWorkspaceContextService>() {
+			override getWorkspace() {
+				return { id: 'test', folders };
+			}
+			override getWorkspaceFolder(resource: URI) {
+				return folders.find(folder => resource.path.startsWith(folder.uri.path)) ?? null;
+			}
+		}();
+		const firstFolder = { uri: firstUri, name: 'First', index: 0, toResource: (path: string) => URI.joinPath(firstUri, path) };
+		const secondFolder = { uri: secondUri, name: 'Second', index: 1, toResource: (path: string) => URI.joinPath(secondUri, path) };
+		const item: IAICustomizationListItem = {
+			id: 'agents',
+			uri: URI.joinPath(firstUri, 'AGENTS.md'),
+			name: 'AGENTS.md',
+			filename: 'First \u2022 AGENTS.md',
+			source: PromptsStorage.local,
+			promptType: PromptsType.instructions,
+			disabled: false,
+		};
+		const labelService = new class extends mock<ILabelService>() {
+			override getUriLabel(resource: URI, options?: Parameters<ILabelService['getUriLabel']>[1]): string {
+				assert.deepStrictEqual(options, { relative: true, noPrefix: true });
+				return resource.path.slice(firstUri.path.length + 1);
+			}
+		}();
+
+		assert.deepStrictEqual({
+			singleRoot: getMultiRootWorkspaceRelativeFilename(item, createWorkspaceService([firstFolder]), labelService),
+			multiRoot: getMultiRootWorkspaceRelativeFilename(item, createWorkspaceService([firstFolder, secondFolder]), labelService),
+		}, {
+			singleRoot: 'First \u2022 AGENTS.md',
+			multiRoot: 'AGENTS.md',
 		});
 	});
 
@@ -667,8 +759,8 @@ suite('aiCustomizationListWidget', () => {
 				welcomePageFeatures: { showGettingStartedBanner: false },
 				getSkillUIIntegrations: () => new Map(),
 				hasOverrideProjectRoot: observableValue('test', false),
-				commitFiles: async () => { },
-				deleteFiles: async () => { },
+				commitFiles: async () => true,
+				deleteFiles: async () => true,
 				generateCustomization: async () => { },
 				setOverrideProjectRoot: () => { },
 				clearOverrideProjectRoot: () => { },
@@ -724,6 +816,25 @@ suite('aiCustomizationListWidget', () => {
 			widget.dispose();
 			const result = await widget.generateDebugReport();
 			assert.strictEqual(result, '');
+		});
+
+		test('shared creation actions preserve generation and user creation without a workspace', () => {
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			const events: { type: PromptsType; target: string }[] = [];
+			disposables.add(widget.onDidRequestCreateManual(({ type, target }) => events.push({ type, target })));
+			const actions = widget.getCreateActions();
+			actions.find(action => action.target === 'user')?.run();
+
+			assert.deepStrictEqual({
+				actions: actions.map(action => ({ label: action.label, enabled: action.enabled, target: action.target })),
+				events,
+			}, {
+				actions: [
+					{ label: 'Generate with AI', enabled: true, target: undefined },
+					{ label: 'New Agent (User)', enabled: true, target: 'user' },
+				],
+				events: [{ type: PromptsType.agent, target: 'user' }],
+			});
 		});
 
 		test('uses the rendered container height for list layout when available', () => {

@@ -5,7 +5,8 @@
 
 import '../../../workbench/browser/parts/panel/media/panelpart.css';
 import './media/panelPart.css';
-import { IAction } from '../../../base/common/actions.js';
+import { localize } from '../../../nls.js';
+import { IAction, SubmenuAction } from '../../../base/common/actions.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { ActivePanelContext, PanelFocusContext } from '../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts, Position } from '../../../workbench/services/layout/browser/layoutService.js';
@@ -23,7 +24,8 @@ import { assertReturnsDefined } from '../../../base/common/types.js';
 import { IExtensionService } from '../../../workbench/services/extensions/common/extensions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../workbench/common/views.js';
 import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
-import { IMenuService } from '../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId } from '../../../platform/actions/common/actions.js';
+import { getContextMenuActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Menus } from '../menus.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../../../workbench/browser/parts/paneCompositePart.js';
 import { Part } from '../../../workbench/browser/part.js';
@@ -33,6 +35,16 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { mainWindow } from '../../../base/browser/window.js';
+import { getSessionsPartFrameInset } from './agentsPartCard.js';
+import { EditorHeaderControl } from '../../../workbench/browser/parts/editor/editorHeaderControl.js';
+
+function getPanelTabBarHeight(showLabels: boolean, compact: boolean): number | undefined {
+	if (!showLabels) {
+		return undefined;
+	}
+
+	return compact ? EditorHeaderControl.COMPACT_HEIGHT : EditorHeaderControl.DEFAULT_HEIGHT;
+}
 
 /**
  * Panel part specifically for agent sessions workbench.
@@ -90,7 +102,14 @@ export class PanelPart extends AbstractPaneCompositePart {
 	) {
 		super(
 			Parts.PANEL_PART,
-			{ hasTitle: true, trailingSeparator: true },
+			{
+				hasTitle: true,
+				trailingSeparator: true,
+				titleHeight: () => getPanelTabBarHeight(
+					configurationService.getValue('workbench.panel.showLabels') !== false,
+					configurationService.getValue<'default' | 'compact'>('window.density.editorTabHeight') === 'compact'
+				)
+			},
 			PanelPart.activePanelSettingsKey,
 			ActivePanelContext.bindTo(contextKeyService),
 			PanelFocusContext.bindTo(contextKeyService),
@@ -117,13 +136,19 @@ export class PanelPart extends AbstractPaneCompositePart {
 		);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.panel.showLabels')) {
-				this.updateCompositeBar(true);
+			const panelLabelsChanged = e.affectsConfiguration('workbench.panel.showLabels');
+			const editorTabHeightChanged = e.affectsConfiguration('window.density.editorTabHeight');
+			if (panelLabelsChanged || editorTabHeightChanged) {
+				this.updatePanelTabBarStyles();
+				if (panelLabelsChanged) {
+					this.updateCompositeBar(true);
+				}
+				this.relayoutForInsets();
 			}
 		}));
 		this._register(this.layoutService.onDidChangePanelAlignment(() => this.relayoutForInsets()));
 		this._register(this.layoutService.onDidChangePartVisibility(e => {
-			if (e.partId === Parts.SIDEBAR_PART || e.partId === Parts.EDITOR_PART || e.partId === Parts.AUXILIARYBAR_PART) {
+			if (e.partId === Parts.SIDEBAR_PART || e.partId === Parts.EDITOR_PART || e.partId === Parts.AUXILIARYBAR_PART || e.partId === Parts.SESSIONS_PART) {
 				this.relayoutForInsets();
 			}
 		}));
@@ -133,6 +158,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 		super.updateStyles();
 
 		const container = assertReturnsDefined(this.getContainer());
+		this.updatePanelTabBarStyles();
 
 		// Store background and border as CSS variables for the card styling on .part
 		container.style.setProperty('--part-background', this.getColor(agentsPanelBackground) || '');
@@ -144,6 +170,19 @@ export class PanelPart extends AbstractPaneCompositePart {
 		container.style.borderTopColor = '';
 		container.style.borderTopStyle = '';
 		container.style.borderTopWidth = '';
+	}
+
+	private updatePanelTabBarStyles(): void {
+		const container = this.getContainer();
+		const showLabels = this.configurationService.getValue('workbench.panel.showLabels') !== false;
+		container?.classList.toggle('panel-labels', showLabels);
+
+		const tabBarHeight = getPanelTabBarHeight(showLabels, this.configurationService.getValue<'default' | 'compact'>('window.density.editorTabHeight') === 'compact');
+		if (tabBarHeight === undefined) {
+			this.titleArea?.style.removeProperty('height');
+		} else {
+			this.titleArea?.style.setProperty('height', `${tabBarHeight}px`);
+		}
 	}
 
 	protected getCompositeBarOptions(): IPaneCompositeBarOptions {
@@ -158,6 +197,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			activityHoverOptions: {
 				position: () => this.layoutService.getPanelPosition() === Position.BOTTOM && !this.layoutService.isPanelMaximized() ? HoverPosition.ABOVE : HoverPosition.BELOW,
 			},
+			transformContextMenuActionsForComposite: actions => this.transformContextMenuActionsForComposite(actions),
 			fillExtraContextMenuActions: actions => this.fillExtraContextMenuActions(actions),
 			compositeSize: 0,
 			iconSize: 16,
@@ -176,6 +216,20 @@ export class PanelPart extends AbstractPaneCompositePart {
 		};
 	}
 
+	private transformContextMenuActionsForComposite(actions: IAction[]): IAction[] {
+		if (isPhoneLayout(this.layoutService)) {
+			return actions;
+		}
+
+		const alignmentActions = getContextMenuActions(
+			this.menuService.getMenuActions(MenuId.PanelAlignmentMenu, this.contextKeyService, { shouldForwardArgs: true })
+		).secondary.filter(action => action.id === 'workbench.action.alignPanelCenter' || action.id === 'workbench.action.alignPanelJustify');
+
+		return actions.map(action => action.id === 'moveToMenu'
+			? new SubmenuAction('workbench.action.panel.align', localize('alignPanel', "Align Panel"), alignmentActions)
+			: action);
+	}
+
 	private fillExtraContextMenuActions(_actions: IAction[]): void { }
 
 	override layout(width: number, height: number, top: number, left: number): void {
@@ -186,7 +240,10 @@ export class PanelPart extends AbstractPaneCompositePart {
 		// Layout content with reduced dimensions to account for visual margins and border.
 		const compact = this.layoutService.isModernUICompact();
 		const borderTotal = compact ? 0 : 2;
-		const marginTop = compact ? 0 : PanelPart.MARGIN_TOP;
+		const sessionFrameInset = this.layoutService.isVisible(Parts.SESSIONS_PART)
+			? getSessionsPartFrameInset(this.layoutService.mainContainer)
+			: 0;
+		const marginTop = compact ? 0 : Math.max(0, PanelPart.MARGIN_TOP - sessionFrameInset);
 		const marginLeft = !compact && !isPhoneLayout(this.layoutService) && !this.layoutService.isVisible(Parts.SIDEBAR_PART)
 			? AGENTS_FLOATING_PANEL_GAP
 			: 0;

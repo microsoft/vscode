@@ -13,6 +13,12 @@ import { IToolEmbeddingsCache } from './toolEmbeddingsComputer';
 
 export const EMBEDDING_TYPE_FOR_TOOL_GROUPING = EmbeddingType.metis_1024_I16_Binary;
 
+/**
+ * CAPI does not serve Metis to anonymous (`no_auth_limited_copilot`) tokens, which includes
+ * HMAC/proxy-authenticated eval runs, so tool search uses text3small for them instead.
+ */
+export const EMBEDDING_TYPE_FOR_NO_AUTH_TOOL_SEARCH = EmbeddingType.text3small_512;
+
 type ToolEmbeddingCacheData =
 	| Record<string, { readonly embedding: EmbeddingVector }>
 	| readonly { readonly key: string; readonly embedding: EmbeddingVector }[];
@@ -22,12 +28,13 @@ export class PreComputedToolEmbeddingsCache implements IToolEmbeddingsCache {
 	private embeddingsMap: Map<string, Embedding> | undefined;
 
 	constructor(
+		embeddingType: EmbeddingType,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEnvService envService: IEnvService
 	) {
 		const cacheVersion = sanitizeVSCodeVersion(envService.getEditorInfo().version);
-		this.cache = instantiationService.createInstance(RemoteEmbeddingsCache, EmbeddingCacheType.GLOBAL, 'toolEmbeddings', cacheVersion, EMBEDDING_TYPE_FOR_TOOL_GROUPING, RemoteCacheType.Tools);
+		this.cache = instantiationService.createInstance(RemoteEmbeddingsCache, EmbeddingCacheType.GLOBAL, 'toolEmbeddings', cacheVersion, embeddingType, RemoteCacheType.Tools);
 	}
 
 	public get embeddingType(): EmbeddingType {

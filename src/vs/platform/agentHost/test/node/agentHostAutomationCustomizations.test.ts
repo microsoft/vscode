@@ -12,6 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
 import { CustomizationType, MessageKind, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
@@ -29,8 +30,7 @@ suite('AgentHostAutomationCustomizations', () => {
 	const ref: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'bundle', uri: 'virtual:/bundle', name: 'Bundle', nonce: 'one' };
 
 	setup(() => {
-		fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
+		fileService = createInMemoryFileService(store, Schemas.file);
 		store.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, store.add(new InMemoryFileSystemProvider())));
 		customizations = new AgentHostAutomationCustomizations(hostPath, fileService, new NullLogService(), URI.file('/home'));
 	});

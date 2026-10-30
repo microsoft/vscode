@@ -47,6 +47,8 @@ export interface IReplayedSession {
 	 * History without either retains the legacy `<session>/chat` fallback.
 	 */
 	readonly defaultChat: string;
+	/** Whether the default chat has recorded chat-channel actions rather than only a synthesized state. */
+	readonly hasRecordedDefaultChat?: boolean;
 	/** Timestamp of the last persisted event, ISO 8601. */
 	readonly modifiedAt: string;
 }
@@ -235,18 +237,39 @@ function decodeEvents(events: readonly unknown[]): Map<string, ISessionReplaySta
 function foldSession(session: string, entry: ISessionReplayState): IReplayedSession {
 	let state = seedSessionState();
 	const chats = new Map<string, ChatState>();
-	let hasChatCatalogueEvidence = false;
+	// Catalogue evidence the reducer cannot keep. A chat created together with its session is only
+	// ever announced in the subscribe snapshot, which the mirror never sees, so its later
+	// `session/chatUpdated` frames name a chat the folded catalogue lacks and the reducer drops
+	// them. Such a mention still attests that the host has the chat; only a removal rules it out.
+	// `removed` outlives the catalogue too: a removal whose addition predates the mirror leaves
+	// the folded catalogue untouched.
+	const mentioned = new Set<string>();
+	const removed = new Set<string>();
 
 	for (const envelope of entry.envelopes) {
 		const channel = envelope.channel;
 		const action: StateAction = envelope.action;
 
 		if (action.type.startsWith('session/') && channel === session) {
-			hasChatCatalogueEvidence ||= action.type === ActionType.SessionChatAdded
-				|| action.type === ActionType.SessionChatRemoved
-				|| action.type === ActionType.SessionChatUpdated
-				|| action.type === ActionType.SessionChatsReordered;
-			state = sessionReducer(state, action as SessionAction);
+			const sessionAction = action as SessionAction;
+			switch (sessionAction.type) {
+				case ActionType.SessionChatAdded:
+					removed.delete(sessionAction.summary.resource);
+					break;
+				case ActionType.SessionChatUpdated:
+					mentioned.add(sessionAction.chat);
+					break;
+				case ActionType.SessionChatsReordered:
+					for (const chat of sessionAction.chats) {
+						mentioned.add(chat);
+					}
+					break;
+				case ActionType.SessionChatRemoved:
+					mentioned.delete(sessionAction.chat);
+					removed.add(sessionAction.chat);
+					break;
+			}
+			state = sessionReducer(state, sessionAction);
 			continue;
 		}
 		if (action.type.startsWith('chat/')) {
@@ -257,18 +280,46 @@ function foldSession(session: string, entry: ISessionReplayState): IReplayedSess
 		// are intentionally skipped.
 	}
 
-	const [recordedChat] = chats.keys();
-	const unambiguousChat = chats.size === 1
-		&& (!hasChatCatalogueEvidence || state.chats.length === 1)
-		&& state.chats.every(chat =>
-			chat.resource === recordedChat && (!chat.origin || chat.origin.kind === ChatOriginKind.User))
-		? recordedChat : undefined;
+	const catalogue = new Map(state.chats.map(chat => [chat.resource, chat]));
+	const isPeer = (chat: string) => {
+		const origin = catalogue.get(chat)?.origin;
+		return !!origin && origin.kind !== ChatOriginKind.User;
+	};
+	const candidates = [...chats.keys()].filter(chat => !removed.has(chat) && !isPeer(chat));
+	const [candidate] = candidates;
+	const reachesCandidateCache = new Map<string, boolean>();
+	const reachesCandidate = (chat: string): boolean => {
+		const visited = new Set<string>();
+		let current = chat;
+		while (current !== candidate && !reachesCandidateCache.has(current)) {
+			if (visited.has(current) || removed.has(current)) {
+				break;
+			}
+			visited.add(current);
+			const origin = catalogue.get(current)?.origin;
+			if (origin?.kind !== ChatOriginKind.Tool && origin?.kind !== ChatOriginKind.Fork && origin?.kind !== ChatOriginKind.SideChat) {
+				break;
+			}
+			current = origin.chat;
+		}
+		const result = current === candidate || reachesCandidateCache.get(current) === true;
+		for (const resource of visited) {
+			reachesCandidateCache.set(resource, result);
+		}
+		return result;
+	};
+	// Only infer a default when every retained peer's ancestry leads to the candidate.
+	const unambiguousChat = candidates.length === 1
+		&& state.chats.every(chat => reachesCandidate(chat.resource))
+		&& [...mentioned].every(reachesCandidate)
+		? candidate : undefined;
 	const defaultChat = state.defaultChat || unambiguousChat || `${session}/chat`;
+	const hasRecordedDefaultChat = chats.has(defaultChat);
 	if (!chats.has(defaultChat)) {
 		chats.set(defaultChat, seedChatState(defaultChat, entry.modifiedAt));
 	}
 
-	return { session, state, chats, defaultChat, modifiedAt: entry.modifiedAt };
+	return { session, state, chats, defaultChat, hasRecordedDefaultChat, modifiedAt: entry.modifiedAt };
 }
 
 /**

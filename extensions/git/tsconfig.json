@@ -15,6 +15,7 @@
 		"../../src/vscode-dts/vscode.proposed.canonicalUriProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.editSessionIdentityProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.envIsConnectionMetered.d.ts",
+		"../../src/vscode-dts/vscode.proposed.notificationTelemetry.d.ts",
 		"../../src/vscode-dts/vscode.proposed.quickDiffProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.quickPickSortByLabel.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmActionButton.d.ts",
@@ -30,7 +31,6 @@
 		"../../src/vscode-dts/vscode.proposed.tabInputMultiDiff.d.ts",
 		"../../src/vscode-dts/vscode.proposed.tabInputTextMerge.d.ts",
 		"../../src/vscode-dts/vscode.proposed.textEditorDiffInformation.d.ts",
-		"../../src/vscode-dts/vscode.proposed.timeline.d.ts",
 		"../../src/vscode-dts/vscode.proposed.workspaceTrust.d.ts",
 		"../types/lib.textEncoder.d.ts"
 	]

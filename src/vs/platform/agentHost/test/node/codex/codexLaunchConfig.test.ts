@@ -5,7 +5,8 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile, codexPermissionProfileOverrides, codexPermissionProfileReadRoots } from '../../../node/codex/codexLaunchConfig.js';
+import { CODEX_COPILOT_MODEL_PROVIDER } from '../../../common/codexModelSelection.js';
+import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile, codexPermissionProfileOverrides, codexPermissionProfileReadRoots, codexServiceTierOverride } from '../../../node/codex/codexLaunchConfig.js';
 
 suite('CodexLaunchConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -17,6 +18,7 @@ suite('CodexLaunchConfig', () => {
 		assert.ok(!config.args.some(argument => argument.startsWith('model_provider=')));
 		assert.ok(config.args.includes('model_providers.vscode-proxy.requires_openai_auth=false'));
 		assert.ok(config.args.includes('features.image_generation=false'));
+		assert.ok(config.args.includes('features.cwd_relative_turn_diffs=true'));
 		assert.ok(config.args.includes('shell_environment_policy.set.AI_AGENT="github_copilot_vscode_agent"'));
 		assert.ok(config.args.includes('--log-level=debug'));
 		assert.ok(config.args.indexOf('analytics.enabled=true') < config.args.lastIndexOf('analytics.enabled=false'));
@@ -130,6 +132,20 @@ suite('CodexLaunchConfig', () => {
 		});
 	});
 
+	test('clears the service tier only for the Copilot provider', () => {
+		assert.deepStrictEqual({
+			copilot: codexServiceTierOverride(CODEX_COPILOT_MODEL_PROVIDER),
+			native: codexServiceTierOverride('openai'),
+			custom: codexServiceTierOverride('custom-provider'),
+			unspecified: codexServiceTierOverride(undefined),
+		}, {
+			copilot: { serviceTier: null },
+			native: {},
+			custom: {},
+			unspecified: {},
+		});
+	});
+
 	test('resume explicitly binds each session model and provider', () => {
 		assert.deepStrictEqual(buildCodexResumeParams({ modelProvider: 'openai', modelId: 'native-model' }, 'thread-a', {}, undefined, {}, undefined, true), {
 			threadId: 'thread-a',
@@ -137,10 +153,11 @@ suite('CodexLaunchConfig', () => {
 			modelProvider: 'openai',
 			config: { 'features.default_mode_request_user_input': true, 'features.image_generation': true },
 		});
-		assert.deepStrictEqual(buildCodexResumeParams({ modelProvider: 'vscode-proxy', modelId: 'copilot-model' }, 'thread-b', { GitHub: { url: 'https://api.githubcopilot.com/mcp/' } }), {
+		assert.deepStrictEqual(buildCodexResumeParams({ modelProvider: CODEX_COPILOT_MODEL_PROVIDER, modelId: 'copilot-model' }, 'thread-b', { GitHub: { url: 'https://api.githubcopilot.com/mcp/' } }), {
 			threadId: 'thread-b',
 			model: 'copilot-model',
-			modelProvider: 'vscode-proxy',
+			modelProvider: CODEX_COPILOT_MODEL_PROVIDER,
+			serviceTier: null,
 			config: { 'features.default_mode_request_user_input': true, 'features.image_generation': false, mcp_servers: { GitHub: { url: 'https://api.githubcopilot.com/mcp/' } } },
 		});
 		assert.deepStrictEqual(buildCodexResumeParams({ modelProvider: 'openai', modelId: 'native-model' }, 'thread-c', {}, undefined, {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -34,18 +35,20 @@ import { AgentHostFilterContribution } from '../../browser/hostFilter.contributi
 suite('AgentHostFilterContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function createPicker(menuId: MenuId) {
+	async function createPicker(menuId: MenuId, labels = ['First', 'Second'], status = AgentHostFilterConnectionStatus.Connected) {
 		const container = document.body.appendChild(document.createElement('div'));
 		container.classList.add('monaco-workbench');
 		disposables.add({ dispose: () => container.remove() });
 		const changed = disposables.add(new Emitter<void>());
 		const discovering = disposables.add(new Emitter<void>());
-		let hosts: readonly IAgentHostFilterEntry[] = ['First', 'Second'].map(label => ({
+		let hosts: readonly IAgentHostFilterEntry[] = labels.map(label => ({
 			id: label, label, providerIds: [label], grouped: false, address: label,
-			icon: Codicon.remote, status: AgentHostFilterConnectionStatus.Connected, connectable: true,
+			icon: Codicon.remote, status, connectable: true,
 		}));
 		let selectedHostId = 'First';
 		let isDiscovering = false;
+		const operations: string[] = [];
+		let menuActions: readonly IAction[] = [];
 		const filterService = upcastPartial<IAgentHostFilterService>({
 			onDidChange: changed.event,
 			onDidChangeDiscovering: discovering.event,
@@ -54,6 +57,9 @@ suite('AgentHostFilterContribution', () => {
 			get selectedHost() { return hosts.find(host => host.id === selectedHostId); },
 			get isDiscovering() { return isDiscovering; },
 			setSelectedHostId: id => { selectedHostId = id; changed.fire(); },
+			reconnect: async id => { operations.push(`connect:${id}`); },
+			disconnect: async id => { operations.push(`disconnect:${id}`); },
+			rediscover: async () => { operations.push('rediscover'); return true; },
 		});
 		const descriptor = getSingletonServiceDescriptors().find(([id]) => id === IActionViewItemService)?.[1];
 		assert.ok(descriptor);
@@ -86,6 +92,7 @@ suite('AgentHostFilterContribution', () => {
 			onDidHideContextMenu: Event.None,
 			showContextMenu: delegate => {
 				assert.ok(delegate.getActions);
+				menuActions = delegate.getActions();
 				handler.showContextMenu({ ...delegate, getActions: delegate.getActions });
 			},
 		});
@@ -96,7 +103,7 @@ suite('AgentHostFilterContribution', () => {
 		assert.ok(container.querySelector('.agent-host-filter-combo'), 'cold-start registration replaces the default action view item');
 		disposables.add({ dispose: () => contextView.hideContextView() });
 		return {
-			container, contextView, filterService,
+			container, contextView, filterService, operations, getMenuActions: () => menuActions,
 			updateStatus: () => {
 				hosts = hosts.map(host => ({ ...host, status: AgentHostFilterConnectionStatus.Connecting }));
 				changed.fire();
@@ -108,6 +115,42 @@ suite('AgentHostFilterContribution', () => {
 			},
 		};
 	}
+
+	for (const { status, label, operation, enabled } of [
+		{ status: AgentHostFilterConnectionStatus.Disconnected, label: 'Connect', operation: 'connect:First', enabled: true },
+		{ status: AgentHostFilterConnectionStatus.Connected, label: 'Disconnect', operation: 'disconnect:First', enabled: true },
+		{ status: AgentHostFilterConnectionStatus.Connecting, label: 'Connect', operation: undefined, enabled: false },
+	]) {
+		test(`single-host sidebar exposes refresh and ${status} connection controls`, async () => {
+			const { container, getMenuActions, operations } = await createPicker(Menus.SidebarAgentHost, ['First'], status);
+			const button = container.querySelector<HTMLElement>('.agent-host-filter-button');
+			assert.ok(button);
+			button.click();
+			const actions = getMenuActions();
+			const connection = actions.find(action => action.id === 'agentHostFilter.connection');
+			const refresh = actions.find(action => action.id === 'agentHostFilter.rediscover');
+			assert.ok(connection && refresh);
+			if (connection.enabled) {
+				await connection.run();
+			}
+			await refresh.run();
+			assert.deepStrictEqual({
+				popup: button.getAttribute('aria-haspopup'),
+				label: connection.label, enabled: connection.enabled, operations,
+			}, { popup: 'menu', label, enabled, operations: operation ? [operation, 'rediscover'] : ['rediscover'] });
+		});
+	}
+
+	test('multi-host sidebar refreshes discovery without changing the selected host', async () => {
+		const { container, getMenuActions, operations, filterService } = await createPicker(Menus.SidebarAgentHost);
+		const button = container.querySelector<HTMLElement>('.agent-host-filter-button');
+		assert.ok(button);
+		button.click();
+		const refresh = getMenuActions().find(action => action.id === 'agentHostFilter.rediscover');
+		assert.ok(refresh);
+		await refresh.run();
+		assert.deepStrictEqual({ selected: filterService.selectedHostId, operations }, { selected: 'First', operations: ['rediscover'] });
+	});
 
 	test('sidebar menu survives host and discovery updates and still selects a host', async () => {
 		const { container, contextView, filterService, updateStatus, setDiscovering } = await createPicker(Menus.SidebarAgentHost);

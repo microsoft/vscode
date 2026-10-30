@@ -5,6 +5,7 @@
 
 import { execFile, exec } from 'child_process';
 import { AutoOpenBarrier, ProcessTimeRunOnceScheduler, Promises, Queue, timeout } from '../../../base/common/async.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IProcessEnvironment, isWindows, OperatingSystem, OS } from '../../../base/common/platform.js';
@@ -139,11 +140,11 @@ export class PtyService extends Disposable implements IPtyService {
 	readonly onDidChangeProperty = this._traceEvent('_onDidChangeProperty', this._onDidChangeProperty.event);
 
 	private _traceEvent<T>(name: string, event: Event<T>): Event<T> {
-		event(e => {
+		this._register(event(e => {
 			if (this._logService.getLevel() === LogLevel.Trace) {
 				this._logService.trace(`[RPC Event] PtyService#${name}.fire(${JSON.stringify(e)})`);
 			}
-		});
+		}));
 		return event;
 	}
 
@@ -364,9 +365,13 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	@traceRpc
-	async attachToProcess(id: number): Promise<void> {
+	async attachToProcess(id: number, pid?: number): Promise<void> {
 		try {
-			await this._throwIfNoPty(id).attach();
+			const persistentProcess = this._throwIfNoPty(id);
+			if (pid !== undefined && persistentProcess.pid !== pid) {
+				throw new ErrorNoTelemetry(`Pty ${id} has pid ${persistentProcess.pid}, expected ${pid}`);
+			}
+			await persistentProcess.attach();
 			this._logService.info(`Persistent process reconnection "${id}"`);
 		} catch (e) {
 			this._logService.warn(`Persistent process reconnection "${id}" failed`, e.message);
@@ -387,6 +392,11 @@ export class PtyService extends Disposable implements IPtyService {
 	@traceRpc
 	async clearBuffer(id: number): Promise<void> {
 		this._throwIfNoPty(id).clearBuffer();
+	}
+
+	@traceRpc
+	async setParentWindow(id: number, handle: VSBuffer): Promise<void> {
+		this._throwIfNoPty(id).setParentWindow(handle);
 	}
 
 	@traceRpc
@@ -917,6 +927,9 @@ class PersistentTerminalProcess extends Disposable {
 	async clearBuffer(): Promise<void> {
 		this._serializer.clearBuffer();
 		this._terminalProcess.clearBuffer();
+	}
+	setParentWindow(handle: VSBuffer): void {
+		this._terminalProcess.setParentWindow(handle);
 	}
 	setUnicodeVersion(version: '6' | '11'): void {
 		this.unicodeVersion = version;

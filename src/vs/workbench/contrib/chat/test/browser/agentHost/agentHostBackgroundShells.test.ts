@@ -11,8 +11,9 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { toStoppableBackgroundWorkMeta } from '../../../../../../platform/agentHost/common/meta/agentHostBackgroundWorkStopMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { BackgroundWorkKind, TerminalClaimKind, TerminalLifecycleStatus, type TerminalState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { BackgroundWorkKind, TerminalClaimKind, TerminalLifecycleStatus, type BackgroundWork, type TerminalState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ComponentToState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { AgentHostBackgroundShellOutputs } from '../../../browser/agentSessions/agentHost/agentHostBackgroundShells.js';
 import type { ChatBackgroundShellOutput } from '../../../common/sessionChatPills.js';
@@ -92,6 +93,42 @@ suite('AgentHostBackgroundShellOutputs', () => {
 				{ status: 'exited', text: 'ready\n', exitCode: 1 },
 			],
 			released: [URI.parse(terminal).toString()],
+		});
+	});
+
+	test('offers a stable stop handle only for shells the host marks stoppable, addressed to the chat that lists them', async () => {
+		const stopped: string[] = [];
+		const connection = new class extends mock<IAgentConnection>() {
+			override async stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
+				stopped.push(`${chat.toString()} ${id}`);
+				return true;
+			}
+		}();
+		const outputs = new AgentHostBackgroundShellOutputs(() => connection);
+		// A conforming host can use any chat URI and opaque entry IDs; only the VS Code extension offers Stop.
+		const chat = URI.parse('remote-chat://host-b/chats/7');
+		const startedAt = new Date(0).toISOString();
+		const work: BackgroundWork[] = [
+			{ kind: BackgroundWorkKind.Shell, id: 'remote-entry-1', label: 'Serve', command: 'serve', startedAt, _meta: toStoppableBackgroundWorkMeta() },
+			{ kind: BackgroundWorkKind.Shell, id: 'remote-entry-2', label: 'Build', command: 'build', startedAt, _meta: { 'vscode.stopBackgroundWork': 'true' } },
+			{ kind: BackgroundWorkKind.Shell, id: 'remote-entry-3', label: 'Watch', command: 'watch', startedAt },
+		];
+		const first = outputs.project(work, chat);
+		const second = outputs.project(work, chat);
+		const result = await first[0].stop?.();
+
+		assert.deepStrictEqual({
+			stoppable: first.map(shell => !!shell.stop),
+			stable: first[0].stop === second[0].stop,
+			withoutChat: outputs.project(work).map(shell => !!shell.stop),
+			result,
+			stopped,
+		}, {
+			stoppable: [true, false, false],
+			stable: true,
+			withoutChat: [false, false, false],
+			result: true,
+			stopped: ['remote-chat://host-b/chats/7 remote-entry-1'],
 		});
 	});
 });

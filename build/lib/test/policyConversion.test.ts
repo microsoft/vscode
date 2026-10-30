@@ -554,8 +554,8 @@ suite('Policy E2E conversion', () => {
 	test('ObjectPolicy.from accepts a union type (e.g. array | null)', () => {
 		const category: CategoryDto = { key: 'Extensions', name: { key: 'Extensions', value: 'Extensions' } };
 		const policy: PolicyDto = {
-			key: 'chat.plugins.strictMarketplaces',
-			name: 'ChatStrictMarketplaces',
+			key: 'test.nullableArray',
+			name: 'TestNullableArray',
 			category: 'Extensions',
 			minimumVersion: '1.0',
 			localization: { description: { key: 'desc', value: 'desc' } },

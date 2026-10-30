@@ -10,10 +10,10 @@ import { OpenerService } from '../../../browser/services/openerService.js';
 import { TestCodeEditorService } from '../editorTestServices.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { NullCommandService } from '../../../../platform/commands/test/common/nullCommandService.js';
-import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { ITextEditorOptions, ViewColumn } from '../../../../platform/editor/common/editor.js';
 import { matchesScheme, matchesSomeScheme } from '../../../../base/common/network.js';
 import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
-import { defaultExternalUriOpenerId } from '../../../../platform/opener/common/opener.js';
+import { defaultExternalUriOpenerId, IExternalOpener } from '../../../../platform/opener/common/opener.js';
 
 suite('OpenerService', function () {
 	const themeService = new TestThemeService();
@@ -195,6 +195,64 @@ suite('OpenerService', function () {
 				`contributed:${resolvedUri.toString()}:${sourceUri.toString()}`,
 			],
 		});
+	});
+
+	test('external URI opener contexts normalize placement without forwarding openToSide', async () => {
+		const openerService = new OpenerService(editorService, commandService);
+		const sourceUri = URI.parse('https://source.example.com');
+		const contexts: Parameters<IExternalOpener['openExternal']>[1][] = [];
+		store.add(openerService.registerExternalOpener({
+			async openExternal(_href, context) {
+				contexts.push(context);
+				return true;
+			}
+		}));
+
+		for (const options of [
+			{ openToSide: true },
+			{ openToSide: false },
+			{}
+		]) {
+			await openerService.open(sourceUri, { ...options, allowContributedOpeners: true });
+		}
+
+		assert.deepStrictEqual(contexts, [
+			{ sourceUri, sourceHref: sourceUri.toString(), preferredOpenerId: undefined, viewColumn: ViewColumn.Beside },
+			{ sourceUri, sourceHref: sourceUri.toString(), preferredOpenerId: undefined, viewColumn: undefined },
+			{ sourceUri, sourceHref: sourceUri.toString(), preferredOpenerId: undefined, viewColumn: undefined }
+		]);
+	});
+
+	test('external URI openers receive the original URL before port forwarding', async () => {
+		const openerService = new OpenerService(editorService, commandService);
+		const sourceHref = 'http://localhost:3000/a%2Fb?q=hi&value=a%26b%3Dc&space=a%20b#part%23one';
+		const forwardedUri = URI.parse('http://127.0.0.1:4000/forwarded');
+		const opened: { href: string; sourceHref: string }[] = [];
+		store.add(openerService.registerExternalUriResolver({
+			async resolveExternalUri() {
+				return { resolved: forwardedUri, dispose() { } };
+			}
+		}));
+		const opener: IExternalOpener = {
+			async openExternal(href, context) {
+				opened.push({ href, sourceHref: context.sourceHref });
+				return true;
+			}
+		};
+		store.add(openerService.registerExternalOpener(opener));
+		openerService.setDefaultExternalOpener(opener);
+
+		await openerService.open(sourceHref, { allowContributedOpeners: true });
+		await openerService.open(sourceHref);
+		await openerService.open(URI.parse('http://localhost:3000/?q=hi'), { allowContributedOpeners: true });
+		await openerService.open(URI.parse('http://localhost:3000/a%23b%3Fc?q=hi'), { allowContributedOpeners: true });
+
+		assert.deepStrictEqual(opened, [
+			{ href: forwardedUri.toString(), sourceHref },
+			{ href: forwardedUri.toString(), sourceHref },
+			{ href: forwardedUri.toString(), sourceHref: 'http://localhost:3000/?q=hi' },
+			{ href: forwardedUri.toString(), sourceHref: 'http://localhost:3000/a%23b%3Fc?q=hi' },
+		]);
 	});
 
 	test('external URI fallback validates the resolved URI', async function () {

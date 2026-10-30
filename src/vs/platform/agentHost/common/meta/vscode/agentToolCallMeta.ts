@@ -5,7 +5,11 @@
 
 import type { Mutable } from '../../../../../base/common/types.js';
 import { hasAgentMetadata } from '../metadata.js';
+import { imageGenerationToolMetaKey, readImageGenerationToolMetadata, type IImageGenerationToolMetadata } from './agentImageGenerationMeta.js';
 import { ISandboxNetworkRestrictions, isSandboxNetworkRestrictions } from '../../../../sandbox/common/sandboxSettingsResolutionHelper.js';
+import { isSandboxPathGrant, type ISandboxPathGrant } from '../../sandboxPathGrant.js';
+
+export const copilotCliToolInputContract = 'copilot-cli-v1';
 
 /** Anything carrying a tool call's `_meta` bag (persisted state or wire actions). */
 interface IHasToolCallMeta {
@@ -19,9 +23,15 @@ interface IHasToolCallMeta {
  * wrong-typed values.
  */
 export interface IToolCallMeta {
+	readonly [imageGenerationToolMetaKey]?: IImageGenerationToolMetadata;
+	/** Provider-measured execution duration for display, in milliseconds. */
+	readonly 'vscode.toolCallDurationMs'?: number;
+	/** Declares the input schema of a native tool, never a client- or MCP-contributed implementation. */
+	readonly 'vscode.toolInputContract'?: typeof copilotCliToolInputContract;
 	/** Trusted Copilot host snapshot for integrated-browser client tools. Absent for other tools and harnesses. */
 	readonly 'vscode.copilotSandboxNetworkRestrictions'?: ISandboxNetworkRestrictions;
 	readonly 'agentHost.sandboxBypass'?: boolean;
+	readonly 'vscode.sandboxPathGrant'?: ISandboxPathGrant;
 	/**
 	 * VS Code rendering hint. `terminal` routes the call to the command/output
 	 * renderer, `subagent` to the subagent UI, `search` to the search renderer,
@@ -65,7 +75,11 @@ export type AgentFusionPhaseStatus = typeof fusionPhaseStatuses[number];
 const knownFusionPhaseStatuses: ReadonlySet<string> = new Set(fusionPhaseStatuses);
 
 const toolCallMetaKeys = [
+	imageGenerationToolMetaKey,
+	'vscode.toolCallDurationMs',
+	'vscode.toolInputContract',
 	'vscode.copilotSandboxNetworkRestrictions',
+	'vscode.sandboxPathGrant',
 	'agentHost.sandboxBypass', 'toolKind', 'language', 'subagentDescription', 'subagentAgentName', 'subagentChatUri',
 	'mcpServerName', 'mcpToolName', 'autoApproveBySetting', 'autoApproveRuleResolvable', 'toolSearchCandidates', 'progressMessage', 'fusionPhase',
 ] as const;
@@ -171,11 +185,19 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 		return {};
 	}
 	const result: Mutable<IToolCallMeta> = {};
+	const durationMs = meta['vscode.toolCallDurationMs'];
+	if (typeof durationMs === 'number' && Number.isFinite(durationMs) && durationMs >= 0) {
+		result['vscode.toolCallDurationMs'] = durationMs;
+	}
+	if (meta['vscode.toolInputContract'] === copilotCliToolInputContract) {
+		result['vscode.toolInputContract'] = copilotCliToolInputContract;
+	}
 	const networkRestrictions = meta['vscode.copilotSandboxNetworkRestrictions'];
 	if (isSandboxNetworkRestrictions(networkRestrictions)) {
 		result['vscode.copilotSandboxNetworkRestrictions'] = networkRestrictions;
 	}
 	if (typeof meta['agentHost.sandboxBypass'] === 'boolean') { result['agentHost.sandboxBypass'] = meta['agentHost.sandboxBypass']; }
+	if (isSandboxPathGrant(meta['vscode.sandboxPathGrant'])) { result['vscode.sandboxPathGrant'] = meta['vscode.sandboxPathGrant']; }
 	if (isToolKind(meta.toolKind)) { result.toolKind = meta.toolKind; }
 	if (typeof meta.language === 'string') { result.language = meta.language; }
 	if (typeof meta.subagentDescription === 'string') { result.subagentDescription = meta.subagentDescription; }
@@ -184,6 +206,8 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	if (typeof meta.mcpServerName === 'string') { result.mcpServerName = meta.mcpServerName; }
 	if (typeof meta.mcpToolName === 'string') { result.mcpToolName = meta.mcpToolName; }
 	if (typeof meta.progressMessage === 'string') { result.progressMessage = meta.progressMessage; }
+	const imageGeneration = readImageGenerationToolMetadata(source);
+	if (imageGeneration) { result[imageGenerationToolMetaKey] = imageGeneration; }
 	const fusionPhase = readFusionPhase(meta.fusionPhase);
 	if (fusionPhase) { result.fusionPhase = fusionPhase; }
 	if (typeof meta.autoApproveBySetting === 'boolean') { result.autoApproveBySetting = meta.autoApproveBySetting; }

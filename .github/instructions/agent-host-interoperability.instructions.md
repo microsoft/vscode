@@ -10,3 +10,9 @@ AHP clients communicate with any conforming Agent Host, not only the local VS Co
 Use standard AHP fields and negotiated capabilities for shared behavior. If VS Code needs an optional extension, use a namespaced `_meta` value with a typed reader that validates its shape before use. Do not make the extension a requirement for other hosts, and do not use `_meta` to replace a standard protocol field or to justify assuming a particular host implementation.
 
 When changing an AHP client, cover a conforming host that advertises valid but different URIs and identifiers, as well as absent optional extensions. Test the behavior at the client boundary, not only against the local VS Code host.
+
+## Native session identity
+
+Follow the [Agent Host session identity contract](../../src/vs/sessions/contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md#identity). Backend identities are mixed and immutable: negotiate addressing only for new allocations, never rewrite restored, discovered, adopted, or continued conversations. Keep frontend resources, session IDs, and chat fragments stable; carry the advertised provider and exact backend resource through caches and owning-connection resolution. `ahp-session` carries no provider identity and must never imply Copilot.
+
+Back changes with boundary tests for both version-skew directions, mixed legacy/standard resources, reconnects, opaque advertised chats, and cache reloads. Restart tests must use fresh provider instances, and discovery/deletion tests must preserve provider/backing identity rather than equating raw IDs across providers. Scope legacy visibility to positively identified legacy VS Code connections; unmarked conforming peers must not be classified as legacy.

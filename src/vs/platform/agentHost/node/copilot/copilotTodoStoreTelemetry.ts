@@ -5,7 +5,7 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import type { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import { AgentSession, type AgentSubagentKind } from '../../common/agent.js';
+import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, type AgentSubagentKind } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { isSubagentSession } from '../../common/state/sessionState.js';
 import { toInitiatorTelemetry, toSubagentKindTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry, type IAgentHostSubagentKindClassification } from '../agentHostTelemetryReporter.js';
@@ -55,7 +55,7 @@ export function reportCopilotTodoStoreOperation(telemetryService: ITelemetryServ
 		...toInitiatorTelemetry(clientContext),
 		...operation,
 		toolCallId,
-		provider: session.scheme,
+		provider: COPILOT_CLI_AGENT_PROVIDER_ID,
 		agentSessionId: AgentSession.id(session),
 		isSubagentSession: isSubagent,
 		...toSubagentKindTelemetry(isSubagent, subagentKind),

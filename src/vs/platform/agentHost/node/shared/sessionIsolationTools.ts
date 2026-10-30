@@ -21,6 +21,7 @@ export function createSessionIsolationToolGroup(accessor?: ISessionIsolationTool
 			description: 'Move only the current chat to a new Git worktree when the user wants to continue this task without changing its current checkout. This preserves the chat and its history; it does not create a separate task or move other chats, even those sharing the same folder. The session workspace will include the new worktree. The original folder is unchanged, and uncommitted edits are not copied except configured worktree include-files. Requires a chat working in one local Git folder. Follow the tool confirmation flow. Make this the final tool call and end the turn after it succeeds; the host then moves this chat and continues its task automatically. Do not poll or repeat the request.',
 			inputSchema: { type: 'object', properties: {} },
 			topLevelChatOnly: true,
+			deferLoading: true,
 		}],
 		isEnabled: () => true,
 		isEnabledForSession: (_tool, session) => accessor?.supportsChatIsolation(URI.parse(session)) === true,

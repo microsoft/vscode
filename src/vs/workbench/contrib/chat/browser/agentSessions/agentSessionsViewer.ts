@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/agentsessionsviewer.css';
-import { clearNode, h, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, clearNode, h, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import { IIdentityProvider, IListVirtualDelegate, NotSelectableGroupId, NotSelectableGroupIdType } from '../../../../../base/browser/ui/list/list.js';
 import { AriaRole } from '../../../../../base/browser/ui/aria/aria.js';
@@ -42,7 +42,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
-import { AgentSessionProviders } from './agentSessions.js';
+import { AgentSessionChatToolbar, AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon } from './agentSessions.js';
 import { AgentSessionsGrouping, AgentSessionsSorting } from './agentSessionsFilter.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -77,7 +77,8 @@ interface IAgentSessionItemTemplate {
 	readonly titleToolbar: MenuWorkbenchToolBar;
 
 	// Column 2 Row 2
-	readonly detailsIcon: HTMLElement;
+	readonly harnessIcon: HTMLElement;
+	readonly harnessSeparator: HTMLElement;
 	readonly diffContainer: HTMLElement;
 	readonly diffAddedSpan: HTMLSpanElement;
 	readonly diffRemovedSpan: HTMLSpanElement;
@@ -106,7 +107,6 @@ interface IAgentSessionApprovalTemplate {
 class AgentSessionStatusIcon extends Disposable {
 
 	private static readonly PIXEL_SPINNER_GRID_KEY = '__pixel_spinner_grid__';
-	private static readonly PIXEL_SPINNER_RING_KEY = '__pixel_spinner_ring__';
 
 	private _currentCacheKey: string | undefined;
 	private _lastSession: IAgentSession | undefined;
@@ -144,10 +144,9 @@ class AgentSessionStatusIcon extends Disposable {
 		this.container.className = `${this.containerClassName}${statusKnown && session.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
 		this.container.style.color = '';
 
-		if (statusKnown && (session.status === AgentSessionStatus.InProgress || session.status === AgentSessionStatus.NeedsInput) && !this.accessibilityService.isMotionReduced()) {
-			const isNeedsInput = session.status === AgentSessionStatus.NeedsInput;
-			const cacheKey = isNeedsInput ? AgentSessionStatusIcon.PIXEL_SPINNER_RING_KEY : AgentSessionStatusIcon.PIXEL_SPINNER_GRID_KEY;
-			const color = isNeedsInput ? asCssVariable('list.warningForeground') : asCssVariable('textLink.foreground');
+		if (statusKnown && session.status === AgentSessionStatus.InProgress && !this.accessibilityService.isMotionReduced()) {
+			const cacheKey = AgentSessionStatusIcon.PIXEL_SPINNER_GRID_KEY;
+			const color = asCssVariable('textLink.foreground');
 			if (this._currentCacheKey === cacheKey) {
 				this.updateActiveIconColor(color);
 				return;
@@ -156,7 +155,7 @@ class AgentSessionStatusIcon extends Disposable {
 			this._currentCacheKey = cacheKey;
 			this.spinner.clear();
 			clearNode(this.container);
-			const spinner = createPixelSpinner(undefined, { variant: isNeedsInput ? 'ring' : 'grid' });
+			const spinner = createPixelSpinner(undefined, { variant: 'grid' });
 			this.spinner.value = spinner;
 			spinner.element.style.color = color;
 			this.container.appendChild(spinner.element);
@@ -197,7 +196,7 @@ export function getAgentSessionStatusIcon(session: IAgentSession): ThemeIcon {
 	}
 
 	if (session.status === AgentSessionStatus.NeedsInput) {
-		return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
+		return { ...Codicon.reportQuestion, color: themeColorFromId('list.warningForeground') };
 	}
 
 	if (session.status === AgentSessionStatus.Failed) {
@@ -218,7 +217,6 @@ export function getAgentSessionStatusIcon(session: IAgentSession): ThemeIcon {
 export interface IAgentSessionRendererOptions {
 	readonly disableHover?: boolean;
 	readonly hideSessionBadge?: boolean;
-	readonly useStatusOnlyIcons?: boolean;
 	getHoverPosition(): HoverPosition;
 
 	isGroupedByRepository?(): boolean;
@@ -293,7 +291,8 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 						h('div.agent-session-title-toolbar@titleToolbar'),
 					]),
 					h('div.agent-session-details-row', [
-						h('div.agent-session-details-icon@detailsIcon'),
+						h('div.agent-session-harness-icon@harnessIcon'),
+						h('span.agent-session-separator@harnessSeparator'),
 						h('div.agent-session-badge@badge'),
 						h('span.agent-session-separator@separator'),
 						h('div.agent-session-diff-container@diffContainer',
@@ -322,6 +321,9 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		container.appendChild(elements.item);
 
+		// The harness name is already part of the row's aria label
+		elements.harnessIcon.setAttribute('aria-hidden', 'true');
+
 		return {
 			element: elements.item,
 			icon: elements.icon,
@@ -330,7 +332,8 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			pinnedIndicator: elements.pinnedIndicator,
 			pendingVoiceIndicator: elements.pendingVoiceIndicator,
 			titleToolbar,
-			detailsIcon: elements.detailsIcon,
+			harnessIcon: elements.harnessIcon,
+			harnessSeparator: elements.harnessSeparator,
 			badge: elements.badge,
 			separator: elements.separator,
 			diffContainer: elements.diffContainer,
@@ -381,19 +384,11 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			template.element.removeAttribute('data-section-label');
 		}
 
-		// Icon - status in the icon column, optional session type icon in details.
-		if (this.options.useStatusOnlyIcons) {
-			template.statusIcon.setStatus(session.element);
-			if (session.element.providerType === AgentSessionProviders.Background) {
-				template.detailsIcon.className = 'agent-session-details-icon'; // hide default provider icon (same as Local in non-status-only mode)
-			} else {
-				template.detailsIcon.className = `agent-session-details-icon ${ThemeIcon.asClassName(session.element.icon)}`;
-				template.detailsIcon.classList.add('visible');
-			}
-		} else {
-			template.statusIcon.setStatus(session.element);
-			template.detailsIcon.className = 'agent-session-details-icon';
-		}
+		// Icon - status in the icon column
+		template.statusIcon.setStatus(session.element);
+
+		// Harness - muted icon leading the details row
+		this.renderHarness(session.element, template);
 
 		// Title
 		const markdownTitle = new MarkdownString(session.element.label);
@@ -466,6 +461,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		template.separator.classList.toggle('has-separator', !hideDetails && hasBadge && hasDiff);
 		template.description.classList.toggle('has-separator', hasDescription && !hideDetails && (hasBadge || hasDiff));
 		template.statusContainer.classList.toggle('has-separator', !hideDetails && hasStatus && (hasBadge || hasDiff || hasDescription));
+		template.harnessSeparator.classList.toggle('has-separator', hasDescription || (!hideDetails && (hasBadge || hasDiff || hasStatus)));
 
 		// Hover
 		this.renderHover(session, template);
@@ -486,6 +482,21 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		this.chatSessionsService.resolveChatSessionItem(session.element.providerType, session.element.resource, cts.token).catch(() => {
 			// Resolve failures are non-fatal — the item continues to display with whatever data is available
 		});
+	}
+
+	private renderHarness(session: IAgentSession, template: IAgentSessionItemTemplate): void {
+		// Prefer the canonical harness icon over `session.icon`, which providers
+		// may override (e.g. with a worktree glyph). Unknown (extension) providers
+		// fall back to their contributed icon.
+		const provider = getAgentSessionProvider(session.providerType);
+		const icon = provider ? getAgentSessionProviderIcon(provider) : session.icon;
+		template.harnessIcon.className = `agent-session-harness-icon ${ThemeIcon.asClassName(icon)}`;
+
+		template.elementDisposable.add(this.hoverService.setupDelayedHover(template.harnessIcon, {
+			content: session.providerLabel,
+			style: HoverStyle.Pointer,
+			position: { hoverPosition: HoverPosition.BELOW },
+		}, { groupId: 'agent.sessions' }));
 	}
 
 	private renderBadge(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
@@ -593,7 +604,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			template.description.textContent = localize('chat.session.status.inProgress', "Working...");
 			return true;
 		} else if (session.element.status === AgentSessionStatus.NeedsInput) {
-			template.description.textContent = localize('chat.session.status.needsInput', "Input needed.");
+			template.description.textContent = localize('chat.session.status.needsInput', "Attention needed");
 			return true;
 		} else if (session.element.status === AgentSessionStatus.Failed) {
 			template.description.textContent = localize('chat.session.status.failed', "Failed");
@@ -777,6 +788,8 @@ interface IAgentSessionChatItemTemplate extends IAgentSessionApprovalTemplate {
 	readonly element: HTMLElement;
 	readonly statusIcon: AgentSessionStatusIcon;
 	readonly title: IconLabel;
+	readonly titleToolbar: MenuWorkbenchToolBar;
+	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
 }
 
@@ -790,6 +803,8 @@ export class AgentSessionChatRenderer implements ICompressibleTreeRenderer<IAgen
 		private readonly sessionRenderer: AgentSessionRenderer,
 		private readonly isLastVisibleChat: (session: ITreeNode<IAgentSession, FuzzyScore>) => boolean,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IAgentSessionChatItemTemplate {
@@ -803,6 +818,7 @@ export class AgentSessionChatRenderer implements ICompressibleTreeRenderer<IAgen
 				h('div.agent-session-chat-title-row', [
 					h('div.agent-session-chat-icon@icon', { 'aria-hidden': 'true' }),
 					h('div.agent-session-chat-title@title'),
+					h('div.agent-session-title-toolbar@titleToolbar'),
 				]),
 				h('div.agent-session-approval-row@approvalRow', [
 					h('span.agent-session-approval-label@approvalLabel'),
@@ -810,12 +826,22 @@ export class AgentSessionChatRenderer implements ICompressibleTreeRenderer<IAgen
 				])
 			]
 		);
+		const contextKeyService = disposables.add(this.contextKeyService.createScoped(elements.item));
+		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+		const titleToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, elements.titleToolbar, AgentSessionChatToolbar, {
+			menuOptions: { shouldForwardArgs: true },
+		}));
+		for (const type of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
+			disposables.add(addDisposableListener(elements.titleToolbar, type, event => event.stopPropagation()));
+		}
 		container.appendChild(elements.item);
 
 		return {
 			element: elements.item,
 			statusIcon: disposables.add(new AgentSessionStatusIcon(elements.icon, getAgentSessionStatusIcon, this.accessibilityService, 'agent-session-chat-icon')),
 			title: disposables.add(new IconLabel(elements.title, { supportHighlights: true, supportIcons: true })),
+			titleToolbar,
+			contextKeyService,
 			approvalRow: elements.approvalRow,
 			approvalLabel: elements.approvalLabel,
 			approvalButtonContainer: elements.approvalButtonContainer,
@@ -830,6 +856,10 @@ export class AgentSessionChatRenderer implements ICompressibleTreeRenderer<IAgen
 		}
 
 		template.elementDisposable.clear();
+		ChatContextKeys.agentSessionChildCanArchive.bindTo(template.contextKeyService).set(session.element.canArchive === true);
+		ChatContextKeys.isArchivedAgentSession.bindTo(template.contextKeyService).set(session.element.isArchived());
+		template.titleToolbar.context = session.element;
+		template.element.classList.toggle('archived', session.element.isArchived());
 		template.element.classList.toggle('last-chat', this.isLastVisibleChat(session));
 		template.element.classList.toggle('needs-input', session.element.statusKnown !== false && session.element.status === AgentSessionStatus.NeedsInput);
 		template.statusIcon.setStatus(session.element);
@@ -861,7 +891,7 @@ export function toStatusLabel(status: AgentSessionStatus): string {
 	let statusLabel: string;
 	switch (status) {
 		case AgentSessionStatus.NeedsInput:
-			statusLabel = localize('agentSessionNeedsInput', "Needs Input");
+			statusLabel = localize('agentSessionNeedsInput', "Needs Attention");
 			break;
 		case AgentSessionStatus.InProgress:
 			statusLabel = localize('agentSessionInProgress', "In Progress");
@@ -1294,7 +1324,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			return element.sessions.length > 0;
 		}
 
-		return isAgentSession(element) && !!element.children?.length;
+		return isAgentSession(element) && this.getSessionChildren(element).length > 0;
 	}
 
 	getChildren(element: IAgentSessionsModel | AgentSessionListItem): Iterable<AgentSessionListItem> {
@@ -1351,10 +1381,14 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		}
 
 		if (isAgentSession(element)) {
-			return element.children ?? [];
+			return this.getSessionChildren(element);
 		}
 
 		return [];
+	}
+
+	private getSessionChildren(session: IAgentSession): readonly IAgentSession[] {
+		return session.children?.filter(child => !child.isArchived() || !this.filter?.getExcludes().archived || session.isArchived()) ?? [];
 	}
 
 	private groupSessionsIntoSections(sessions: IAgentSession[]): AgentSessionListItem[] {

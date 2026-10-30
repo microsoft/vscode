@@ -131,13 +131,13 @@ function nextDumpSeq(): string {
 	return String(++_dumpSeq).padStart(4, '0');
 }
 
-function getDumpDir(): string | undefined {
+async function getDumpDir(): Promise<string | undefined> {
 	const dir = process.env[DEBUG_DUMP_DIR_ENV];
 	if (!dir) {
 		return undefined;
 	}
 	try {
-		fs.mkdirSync(dir, { recursive: true });
+		await fs.promises.mkdir(dir, { recursive: true });
 		return dir;
 	} catch {
 		return undefined;
@@ -277,12 +277,12 @@ export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState, str
 		const portableHistory = req.headers[CODEX_PORTABLE_HISTORY_HEADER] === 'true';
 		body = portableHistory ? makeCodexHistoryPortable(remap.body) : remap.body;
 
-		const dumpDir = getDumpDir();
+		const dumpDir = await getDumpDir();
 		const dumpSeq = dumpDir ? nextDumpSeq() : undefined;
 		if (dumpDir && dumpSeq) {
 			const reqFile = join(dumpDir, `req-${dumpSeq}-${Date.now()}.json`);
 			try {
-				fs.writeFileSync(reqFile, body);
+				await fs.promises.writeFile(reqFile, body);
 				this._logService.info(`[${PROXY_USER_FACING_NAME}] dumped request body to ${reqFile}`);
 			} catch (err) {
 				this._logService.warn(`[${PROXY_USER_FACING_NAME}] failed to dump request body: ${err instanceof Error ? err.message : String(err)}`);
