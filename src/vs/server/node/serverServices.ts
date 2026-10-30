@@ -96,7 +96,7 @@ import { IMcpGatewayService, McpGatewayChannelName } from '../../platform/mcp/co
 import { McpGatewayService } from '../../platform/mcp/node/mcpGatewayService.js';
 import { McpGatewayChannel } from '../../platform/mcp/node/mcpGatewayChannel.js';
 import { IExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifest.js';
-import { ExtensionGalleryManifestIPCService } from '../../platform/extensionManagement/common/extensionGalleryManifestServiceIpc.js';
+import { ExtensionGalleryAuthorizationChannel, ExtensionGalleryManifestIPCService } from '../../platform/extensionManagement/common/extensionGalleryManifestServiceIpc.js';
 import { IAllowedMcpServersService, IMcpGalleryService, IMcpManagementService } from '../../platform/mcp/common/mcpManagement.js';
 import { McpManagementService } from '../../platform/mcp/node/mcpManagementService.js';
 import { McpGalleryService } from '../../platform/mcp/common/mcpGalleryService.js';
@@ -215,7 +215,9 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		services.set(IServerTelemetryService, ServerNullTelemetryService);
 	}
 
-	services.set(IExtensionGalleryManifestService, new ExtensionGalleryManifestIPCService(socketServer, logService, productService));
+	services.set(IExtensionGalleryManifestService, new ExtensionGalleryManifestIPCService(socketServer,
+		context => socketServer.connections.find(connection => connection.ctx === context)?.channelClient.getChannel(ExtensionGalleryAuthorizationChannel.ChannelName),
+		logService, productService));
 	services.set(IMcpGalleryManifestService, new McpGalleryManifestIPCService(socketServer));
 	services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService));
 

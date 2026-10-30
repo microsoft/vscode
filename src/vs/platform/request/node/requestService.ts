@@ -223,6 +223,7 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 			opts.cache = 'no-store';
 		}
 
+		let responseUrl = options.url;
 		const req = rawRequest(opts, (res: http.IncomingMessage) => {
 			const followRedirects: number = isNumber(options.followRedirects) ? options.followRedirects : 3;
 			if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers['location']) {
@@ -243,11 +244,19 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 					stream = res.pipe(createGunzip());
 				}
 
-				resolve({ res, stream: streamToBufferReadableStream(stream) } satisfies IRequestContext);
+				resolve({
+					res,
+					stream: streamToBufferReadableStream(stream),
+					url: responseUrl,
+					requestHasAuthorization: Object.entries(options.headers ?? {}).some(([name, value]) => name.toLowerCase() === 'authorization' && !!value),
+				} satisfies IRequestContext);
 			}
 		});
 
 		req.on('error', reject);
+		if (options.isChromiumNetwork) {
+			req.on('redirect', (_statusCode: number, _method: string, url: string) => responseUrl = url);
+		}
 
 		// Handle timeout
 		if (options.timeout) {
