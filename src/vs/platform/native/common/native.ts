@@ -452,8 +452,6 @@ export interface ICommonNativeHostService {
 	readProxyConfigWithPackage(): Promise<IOSProxyConfig>;
 	lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
 	lookupKerberosAuthorization(url: string): Promise<string | undefined>;
-	/** Returns a base64 initial Kerberos token for a service principal, without an authentication scheme, or `undefined` when unavailable. */
-	lookupKerberosToken(spn: string): Promise<string | undefined>;
 	loadCertificates(): Promise<string[]>;
 	isPortFree(port: number): Promise<boolean>;
 	findFreePort(startPort: number, giveUpAfter: number, timeout: number, stride?: number): Promise<number>;

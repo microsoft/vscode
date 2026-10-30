@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const AgentHostKerberosAuthCapabilityMetaKey = 'vscode.kerberosAuth';
+import type { InitializeParams, ReconnectParams } from '../../state/protocol/common/commands.js';
 
-export function supportsAgentHostKerberosAuth(value: { readonly _meta?: Record<string, unknown> }): boolean {
-	return value._meta?.[AgentHostKerberosAuthCapabilityMetaKey] === true;
+export const AgentHostClientProxyCapabilityMetaKey = 'vscode.clientProxy';
+
+export function supportsAgentHostClientProxy(params: InitializeParams | ReconnectParams): boolean {
+	return params._meta?.[AgentHostClientProxyCapabilityMetaKey] === true;
 }

@@ -5,7 +5,6 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { localize } from '../../../nls.js';
-import { isWindows } from '../../../base/common/platform.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IObservable, observableFromEvent } from '../../../base/common/observable.js';
 import { ILogService } from '../../log/common/log.js';
@@ -24,7 +23,7 @@ import { ReconnectingRelayTransport } from '../common/relayTransport.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError } from '../common/state/sessionTransport.js';
 import { AgentHostProtocolClient } from '../browser/agentHostProtocolClient.js';
 import { agentsWindowAgentHostClientInfo } from '../common/agentHostClientInfo.js';
-import { CopilotProxyKerberosAuth } from './copilotProxyKerberosAuth.js';
+import { AgentHostClientProxy } from '../browser/agentHostClientProxy.js';
 import {
 	IWSLRemoteAgentHostService,
 	WSL_REMOTE_AGENT_HOST_CHANNEL,
@@ -131,17 +130,14 @@ export class WSLRelayClientFactory implements IWSLRelayClientFactory {
 				AgentHostClientConnectionKind.WSL,
 			);
 		};
-		// Windows tickets are only offered for the GitHub Copilot proxy of a WSL agent host.
-		const kerberosAuth = isWindows ? this._instantiationService.createInstance(CopilotProxyKerberosAuth) : undefined;
 		return this._instantiationService.createInstance(AgentHostProtocolClient, address, transportFactory, {
 			clientInfo: agentsWindowAgentHostClientInfo,
 			clientCertificates: {
 				isEnabled: () => this._configurationService.getValue<boolean>('http.systemCertificates') !== false,
 				loadCertificates: () => this._requestService.loadCertificates(),
 			},
-			...(kerberosAuth ? {
-				kerberosAuth: request => kerberosAuth.lookup(request),
-			} : {}),
+			// WSL shares the Windows network, so its agent host may use this client's proxy configuration and tickets.
+			clientProxy: this._instantiationService.createInstance(AgentHostClientProxy, () => true),
 			onDispose: () => {
 				disposed = true;
 				void releaseRelay(activeConnectionId);

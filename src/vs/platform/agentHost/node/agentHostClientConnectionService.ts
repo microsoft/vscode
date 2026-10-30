@@ -5,7 +5,7 @@
 
 import { Disposable, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import type { IAgentHostKerberosAuthRequest, IAgentHostMcpAuthenticationRequest, IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import type { IAgentHostMcpAuthenticationRequest, IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
 
 export const AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION = 30_000 * 10;
 
@@ -16,8 +16,6 @@ export interface IAgentHostClientConnectionCounts {
 }
 
 export interface IAgentHostClientConnectionSource {
-	/** Requests a Kerberos token from clients advertising `vscode.kerberosAuth`, or returns `undefined` when none can supply one. */
-	lookupKerberosAuthorization?(request: IAgentHostKerberosAuthRequest): Promise<string | undefined>;
 	hasSeenClient(clientId: string): boolean;
 	isClientConnected(clientId: string): boolean;
 	/** Whether an active connection is local and uses the server's MessagePort transport. */
@@ -36,8 +34,6 @@ export const IAgentHostClientConnectionService = createDecorator<IAgentHostClien
 
 export interface IAgentHostClientConnectionService {
 	readonly _serviceBrand: undefined;
-	/** Requests a Kerberos token, stopping at the first source that supplies one. */
-	lookupKerberosAuthorization(request: IAgentHostKerberosAuthRequest): Promise<string | undefined>;
 	registerSource(source: IAgentHostClientConnectionSource): IDisposable;
 	hasSeenClient(clientId: string): boolean;
 	isClientConnected(clientId: string): boolean;
@@ -66,16 +62,6 @@ export class AgentHostClientConnectionService extends Disposable implements IAge
 		}
 		this._sources.add(source);
 		return toDisposable(() => this._sources.delete(source));
-	}
-
-	async lookupKerberosAuthorization(request: IAgentHostKerberosAuthRequest): Promise<string | undefined> {
-		for (const source of this._sources) {
-			const token = await source.lookupKerberosAuthorization?.(request);
-			if (token) {
-				return token;
-			}
-		}
-		return undefined;
 	}
 
 	hasSeenClient(clientId: string): boolean {
