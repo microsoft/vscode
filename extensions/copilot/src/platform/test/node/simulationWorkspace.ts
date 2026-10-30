@@ -18,7 +18,6 @@ import * as path from '../../../util/vs/base/common/path';
 import { URI } from '../../../util/vs/base/common/uri';
 import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/descriptors';
 import { Range, Selection, Uri } from '../../../vscodeTypes';
-import { IDebugOutputService } from '../../debug/common/debugOutputService';
 import { IDialogService } from '../../dialog/common/dialogService';
 import { IDiffService } from '../../diff/common/diffService';
 import { DiffServiceImpl } from '../../diff/node/diffServiceImpl';
@@ -39,7 +38,7 @@ import { ISetupTestsDetector, NullSetupTestsDetector } from '../../testing/node/
 import { ITestDepsResolver, TestDepsResolver } from '../../testing/node/testDepsResolver';
 import { IWorkspaceService } from '../../workspace/common/workspaceService';
 import { TestingServiceCollection } from './services';
-import { SimulationAlternativeNotebookContentService, SimulationFileSystemAdaptor, SimulationLanguageDiagnosticsService, SimulationNotebookService, SimulationReviewService, SimulationWorkspaceService, SnapshotSearchService, TestingDebugOutputService, TestingDialogService, TestingGitService, TestingLanguageService, TestingTabsAndEditorsService, TestingTerminalService, WORKSPACE_PATH } from './simulationWorkspaceServices';
+import { SimulationAlternativeNotebookContentService, SimulationFileSystemAdaptor, SimulationLanguageDiagnosticsService, SimulationNotebookService, SimulationReviewService, SimulationWorkspaceService, SnapshotSearchService, TestingDialogService, TestingGitService, TestingLanguageService, TestingTabsAndEditorsService, TestingTerminalService, WORKSPACE_PATH } from './simulationWorkspaceServices';
 
 export interface IRelativeFile {
 	readonly kind: 'relativeFile';
@@ -175,7 +174,6 @@ export class SimulationWorkspace extends Disposable {
 		));
 		testingServiceCollection.define(ILanguageDiagnosticsService, new SyncDescriptor(SimulationLanguageDiagnosticsService, [this]));
 		testingServiceCollection.define(ITerminalService, new SyncDescriptor(TestingTerminalService, [this]));
-		testingServiceCollection.define(IDebugOutputService, new SyncDescriptor(TestingDebugOutputService));
 		testingServiceCollection.define(IGitService, new SyncDescriptor(TestingGitService, [this]));
 		testingServiceCollection.define(IDialogService, new SyncDescriptor(TestingDialogService));
 		testingServiceCollection.define(ITestDepsResolver, new SyncDescriptor(TestDepsResolver));

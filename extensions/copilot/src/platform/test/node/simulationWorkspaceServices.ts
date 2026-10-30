@@ -23,7 +23,6 @@ import { URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { Position, Range, TerminalShellExecutionCommandLineConfidence } from '../../../vscodeTypes';
 import { ConfigKey } from '../../configuration/common/configurationService';
-import { IDebugOutputService } from '../../debug/common/debugOutputService';
 import { IDialogService } from '../../dialog/common/dialogService';
 import { IFileSystemService } from '../../filesystem/common/fileSystemService';
 import { FileType, RelativePattern } from '../../filesystem/common/fileTypes';
@@ -634,13 +633,6 @@ export class TestingTabsAndEditorsService implements ITabsAndEditorsService {
 	}
 }
 
-export class TestingDebugOutputService implements IDebugOutputService {
-	_serviceBrand: undefined;
-	get consoleOutput(): string {
-		return '';
-	}
-}
-
 export class TestingGitService implements IGitService {
 
 	declare readonly _serviceBrand: undefined;
@@ -872,9 +864,6 @@ export class TestingTerminalService extends Disposable implements ITerminalServi
 		return undefined;
 	}
 
-	get terminalBuffer(): string {
-		return '';
-	}
 	get terminalLastCommand(): vscode.TerminalExecutedCommand | undefined {
 		return undefined;
 	}

@@ -2944,7 +2944,6 @@ export default defineConfig(
 			'extensions/copilot/src/platform/configuration/test/common/inMemoryConfigurationService.ts',
 			'extensions/copilot/src/platform/configuration/vscode/configurationServiceImpl.ts',
 			'extensions/copilot/src/platform/customInstructions/common/customInstructionsService.ts',
-			'extensions/copilot/src/platform/debug/vscode/debugOutputListener.ts',
 			'extensions/copilot/src/platform/diff/node/diffWorkerMain.ts',
 			'extensions/copilot/src/platform/editing/common/notebookDocumentSnapshot.ts',
 			'extensions/copilot/src/platform/editing/common/textDocumentSnapshot.ts',
