@@ -25,6 +25,7 @@ import { IEditorGroup } from '../../../../../workbench/services/editor/common/ed
 import { RemotesEditorInput } from '../browser/remotesEditorInput.js';
 import { RemotesModel } from '../browser/remotesModel.js';
 import { RemotesWidget } from '../browser/remotesWidget.js';
+import { ThisComputerSharing } from './thisComputerSharing.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../chat/common/constants.js';
 
 export const RemotesEditorFocusedContext = new RawContextKey<boolean>('remotesEditorFocused', false);
@@ -38,6 +39,7 @@ export class RemotesEditor extends EditorPane {
 	private scopedContext: IScopedContextKeyService | undefined;
 	private widgetInstantiationService: IInstantiationService | undefined;
 	private readonly widget = this._register(new MutableDisposable<RemotesWidget>());
+	private readonly localSharing = this._register(new MutableDisposable<ThisComputerSharing>());
 
 	constructor(
 		group: IEditorGroup,
@@ -85,6 +87,10 @@ export class RemotesEditor extends EditorPane {
 
 	override clearInput(): void {
 		this.widget.clear();
+		this.localSharing.clear();
+		if (this.content) {
+			dom.clearNode(this.content);
+		}
 		super.clearInput();
 	}
 
@@ -104,19 +110,23 @@ export class RemotesEditor extends EditorPane {
 		this.content.hidden = !enabled;
 		if (!enabled) {
 			this.widget.clear();
+			this.localSharing.clear();
+			dom.clearNode(this.content);
 			return;
 		}
 		if (!this.widget.value) {
+			this.localSharing.value = this.widgetInstantiationService.createInstance(ThisComputerSharing, this.content);
 			const channel = this.sharedProcessService.getChannel(DEV_CONTAINER_AGENT_HOST_CHANNEL);
 			const model = this.widgetInstantiationService.createInstance(RemotesModel, token => channel.call<readonly IDiscoveredDevContainer[]>('listDevContainers', undefined, token));
-			this.widget.value = this.widgetInstantiationService.createInstance(RemotesWidget, this.content, model, OS);
+			this.widget.value = this.widgetInstantiationService.createInstance(RemotesWidget, dom.append(this.content, dom.$('.remotes-editor-table')), model, OS);
 		}
 		this.widget.value.setVisible(this.isVisible());
 		this.widget.value.layout();
 	}
 
 	getAccessibilityContent(): string {
-		return this.widget.value?.getAccessibilityContent() ?? this.disabledMessage?.textContent ?? '';
+		return this.widget.value ? [this.localSharing.value?.getAccessibilityContent(), this.widget.value.getAccessibilityContent()].filter(Boolean).join('\n\n')
+			: this.disabledMessage?.textContent ?? '';
 	}
 
 	override focus(): void {

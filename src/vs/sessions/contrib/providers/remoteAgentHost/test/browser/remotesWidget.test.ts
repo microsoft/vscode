@@ -224,7 +224,7 @@ suite('RemotesWidget', () => {
 			}, {
 				tables: 1,
 				trees: 0,
-				columns: ['', 'Name', 'Status', ''],
+				columns: ['', 'Name', 'Connection', ''],
 				roots: operatingSystem === OperatingSystem.Windows ? ['Dev Tunnels', 'WSL', 'SSH'] : ['Dev Tunnels', 'SSH'],
 				switches: 0,
 				checkboxes: 0,
@@ -939,8 +939,8 @@ suite('RemotesWidget', () => {
 				{ status: 'Connected', action: 'Disconnect Build server', disabled: false },
 				{ status: 'Disconnected', action: 'Connect to Build server', disabled: false },
 				{ status: 'Connecting', action: 'Connect to Build server', disabled: true },
-				{ status: 'Disconnected', action: 'Connect to Build server', disabled: true },
-				{ status: 'Disconnected', action: 'Connect to Build server', disabled: false },
+				{ status: 'Reconnecting', action: 'Connect to Build server', disabled: true },
+				{ status: 'Incompatible', action: 'Connect to Build server', disabled: false },
 			],
 			accessible: true,
 		});
@@ -1293,7 +1293,7 @@ suite('RemotesWidget', () => {
 			tooltip: hoverContents.get(connection),
 			infoIcons: row.querySelectorAll('.codicon-info').length,
 			addressColumns: parent.querySelectorAll('.remotes-address-column').length,
-			accessibleView: widget.getAccessibilityContent().includes('Desktop. Status: Offline. Start the owning application.'),
+			accessibleView: widget.getAccessibilityContent().includes('Desktop. Status: Disconnected. Start the owning application.'),
 		};
 		model.remotes.set(model.remotes.get().map(remote => ({ ...remote, unavailableReason: undefined })), undefined);
 		assert.deepStrictEqual({
@@ -1301,7 +1301,7 @@ suite('RemotesWidget', () => {
 			available: parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent,
 			tableFocused: dom.getActiveElement() === table,
 		}, {
-			offline: { connection: 'Offline', tooltip: 'Start the owning application.', infoIcons: 0, addressColumns: 0, accessibleView: true },
+			offline: { connection: 'Disconnected', tooltip: 'Start the owning application.', infoIcons: 0, addressColumns: 0, accessibleView: true },
 			available: 'Disconnected', tableFocused: true,
 		});
 	});
@@ -1330,7 +1330,7 @@ suite('RemotesWidget', () => {
 		await model.pendingConnection.complete();
 		await timeout(0);
 		observed.push(parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent);
-		assert.deepStrictEqual(observed, ['Offline', 'Connected', 'Connecting', 'Disconnected', 'Disconnecting', 'Offline']);
+		assert.deepStrictEqual(observed, ['Disconnected', 'Connected', 'Connecting', 'Reconnecting', 'Disconnecting', 'Disconnected']);
 	});
 
 	test('Rename is reachable and operable through toolbar keyboard navigation', async () => {
@@ -1571,5 +1571,18 @@ suite('RemotesWidget', () => {
 			filtered: [], message: 'No matching remotes.',
 			setupLinks: 0,
 		});
+	});
+	test('shows a local-registration badge and separate host/client states', () => {
+		const { parent, model, widget } = createWidget();
+		model.remotes.set([{
+			id: 'tunnel:workmac', kind: 'tunnel', name: 'workmac', detail: 'tunnel-id', canRemove: false,
+			localRegistration: 'devTunnel', hostAvailability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.disconnected,
+		}], undefined);
+		assert.deepStrictEqual({
+			badge: parent.querySelector('.remotes-local-badge')?.textContent,
+			host: parent.querySelector('[data-remote-id] .remotes-availability-state')?.textContent,
+			connection: parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent,
+			accessible: widget.getAccessibilityContent().includes('This Computer.') && widget.getAccessibilityContent().includes('Host online.'),
+		}, { badge: 'This Computer', host: 'Host online', connection: 'Disconnected', accessible: true });
 	});
 });

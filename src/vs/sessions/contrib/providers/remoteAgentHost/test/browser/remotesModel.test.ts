@@ -279,6 +279,7 @@ suite('RemotesModel', () => {
 				return displayNames.get(address) ?? (address === 'ssh:build' ? 'build' : address === 'wsl:Ubuntu' ? 'Ubuntu' : 'Laptop');
 			}
 			override readonly connectionStatus = observableValue<RemoteAgentHostConnectionStatus>(this, RemoteAgentHostConnectionStatus.disconnected);
+			override readonly localRegistration = observableValue<'devTunnel' | 'githubEnvironment' | undefined>(this, undefined);
 			override async connect() {
 				connectionChanges.push({ id: address, connected: true });
 				if (connectionFailure) {
@@ -362,6 +363,44 @@ suite('RemotesModel', () => {
 			{ kind: 'wsl', name: 'Ubuntu', canRemove: true },
 			{ kind: 'tunnel', name: 'Laptop', canRemove: false },
 		]);
+	});
+
+	test('keeps tunnel host availability independent of this client and invalidates it after failed discovery', async () => {
+		const { model, providers, setCachedTunnels, setTunnelDiscovery } = setup();
+		setCachedTunnels([{ tunnelId: tunnel.tunnelId, clusterId: tunnel.clusterId, name: tunnel.name }]);
+		providers.get('tunnel:laptop')!.localRegistration.set('devTunnel', undefined);
+		const snapshot = () => {
+			const remote = model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!;
+			return { host: remote.hostAvailability, connection: remote.connectionStatus.kind, local: remote.localRegistration };
+		};
+		const cached = snapshot();
+		await model.refresh(CancellationToken.None);
+		const online = snapshot();
+		setTunnelDiscovery(async () => [{ ...tunnel, hostConnectionCount: 0 }]);
+		await model.refresh(CancellationToken.None);
+		const offline = snapshot();
+		providers.get('tunnel:laptop')!.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		const connected = snapshot();
+		providers.get('tunnel:laptop')!.connectionStatus.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
+		setTunnelDiscovery(async () => { throw new Error('Discovery failed'); });
+		await model.refresh(CancellationToken.None);
+		assert.deepStrictEqual([cached, online, offline, connected, snapshot()], [
+			{ host: 'unknown', connection: 'disconnected', local: 'devTunnel' },
+			{ host: 'online', connection: 'disconnected', local: 'devTunnel' },
+			{ host: 'offline', connection: 'disconnected', local: 'devTunnel' },
+			{ host: 'online', connection: 'connected', local: 'devTunnel' },
+			{ host: 'unknown', connection: 'disconnected', local: 'devTunnel' },
+		]);
+	});
+
+	test('does not interpret an unknown GitHub host status as an offline machine', async () => {
+		const { model, environmentHosts, environmentAvailable, setConfiguration } = setup();
+		await setConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentAvailable.set(true, undefined);
+		environmentHosts.set([{ id: 'env-test', name: 'Workstation', kind: 'user-local', status: 'starting' }], undefined);
+		assert.deepStrictEqual(model.remotes.get().filter(remote => remote.kind === 'environment').map(remote => ({
+			host: remote.hostAvailability, connection: remote.connectionStatus.kind,
+		})), [{ host: 'unknown', connection: 'disconnected' }]);
 	});
 
 	test('reads service-owned error metadata even when opened midway through a retry', async () => {

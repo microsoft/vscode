@@ -277,13 +277,13 @@ export function watchForIncompatibleNotifications(
 export function getStatusLabel(status: RemoteAgentHostConnectionStatus): string {
 	switch (status.kind) {
 		case 'connected':
-			return localize('workspacePicker.statusOnline', "Online");
+			return localize('workspacePicker.statusConnected', "Connected");
 		case 'connecting':
 			return localize('workspacePicker.statusConnecting', "Connecting");
 		case 'reconnecting':
 			return localize('workspacePicker.statusReconnecting', "Reconnecting");
 		case 'disconnected':
-			return localize('workspacePicker.statusOffline', "Offline");
+			return localize('workspacePicker.statusDisconnected', "Disconnected");
 		case 'incompatible':
 			return localize('workspacePicker.statusIncompatible', "Incompatible");
 	}
@@ -396,6 +396,7 @@ export interface IBuildRemoteHostOptionItemsOptions {
 	readonly canRemove?: boolean;
 	readonly disconnectLabel?: string;
 	readonly upgradeMethod?: string;
+	readonly canManageConnection?: boolean;
 	/** Defaults to the ambient {@link isWeb} constant; overridable for tests. See {@link supportsRemoteAgentHostLocationPreference}. */
 	readonly isWebPlatform?: boolean;
 }
@@ -408,10 +409,12 @@ export function buildRemoteHostOptionItems(options: IBuildRemoteHostOptionItemsO
 	if (options.upgradeMethod) {
 		items.push({ label: '$(cloud-download) ' + localize('workspacePicker.updateServer', "Update Server"), id: 'upgrade' });
 	}
-	if (!options.isConnected) {
-		items.push({ label: '$(debug-restart) ' + localize('workspacePicker.reconnect', "Reconnect"), id: 'reconnect' });
-	} else if (options.disconnectLabel) {
-		items.push({ label: '$(debug-disconnect) ' + options.disconnectLabel, id: 'disconnect' });
+	if (options.canManageConnection !== false) {
+		if (!options.isConnected) {
+			items.push({ label: '$(debug-restart) ' + localize('workspacePicker.reconnect', "Reconnect"), id: 'reconnect' });
+		} else if (options.disconnectLabel) {
+			items.push({ label: '$(debug-disconnect) ' + options.disconnectLabel, id: 'disconnect' });
+		}
 	}
 	items.push({ label: '$(edit) ' + localize('workspacePicker.renameRemote', "Rename..."), id: 'rename' });
 	if (options.canRemove !== false) {
@@ -545,7 +548,16 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 	// separate stable identity (tunnels, WSL, cloud sandbox).
 	const preferenceKey = provider.remoteLocationPreferenceKey ?? address;
 
-	const items = buildRemoteHostOptionItems({ address, preferenceKey, isConnected, upgradeMethod, canRemove: provider.canRemove, removeLabel: provider.removeLabel, disconnectLabel: provider.disconnectLabel });
+	const items = buildRemoteHostOptionItems({
+		address,
+		preferenceKey,
+		isConnected,
+		upgradeMethod,
+		canRemove: provider.canRemove,
+		removeLabel: provider.removeLabel,
+		disconnectLabel: provider.disconnectLabel,
+		canManageConnection: provider.localRegistration?.get() !== 'githubEnvironment',
+	});
 
 	const result = await new Promise<'back' | RemoteOptionPickItem | undefined>((resolve) => {
 		const store = new DisposableStore();

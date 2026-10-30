@@ -39,7 +39,7 @@ import { AccessibilityVerbositySettingId } from '../../../../../workbench/contri
 import { IEditorService, MODAL_GROUP } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { getVisibleRemoteKinds, ICustomizationRemote, IRemotesModel, RemoteKind, remoteKindLabels } from './remotesModel.js';
-import { getConnectionLabel, IRemoteEmptyEntry, IRemoteTableRow, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
+import { getConnectionLabel, getHostAvailabilityLabel, IRemoteEmptyEntry, IRemoteTableRow, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
 import './media/remotesWidget.css';
 
 const remoteSetup: Record<RemoteKind, { readonly label: string; readonly description: string; readonly documentation?: { readonly label: string; readonly href: string } }> = {
@@ -152,7 +152,7 @@ export class RemotesWidget extends Disposable {
 		}));
 		this.tableContainer.appendChild(this.tableScrollable.getDomNode());
 
-		let label = localize('remotes.tableLabel', "Remote environments. Columns: Name, Status, Actions.");
+		let label = localize('remotes.tableLabel', "Remote environments. Columns: Name, Connection, Actions.");
 		const helpKeybinding = keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
 		if (configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Remotes) && helpKeybinding) {
 			label = localize('remotes.tableLabelWithHelp', "{0} Use {1} for accessibility help.", label, helpKeybinding);
@@ -160,7 +160,7 @@ export class RemotesWidget extends Disposable {
 		const columnDefinitions = [
 			{ id: 'gutter', label: '', weight: 0, minimumWidth: 64, maximumWidth: 64 },
 			{ id: 'name', label: localize('remotes.nameColumn', "Name"), weight: 0.8, minimumWidth: 220 },
-			{ id: 'connection', label: localize('remotes.connectionColumn', "Status"), weight: 0.2, minimumWidth: 144 },
+			{ id: 'connection', label: localize('remotes.connectionColumn', "Connection"), weight: 0.2, minimumWidth: 168 },
 			{ id: 'actions', label: '', weight: 0, minimumWidth: 144, maximumWidth: 144 },
 		] as const;
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
@@ -174,7 +174,7 @@ export class RemotesWidget extends Disposable {
 		this.table = this._register(instantiationService.createInstance(WorkbenchTable<IRemoteTableRow>,
 			'RemotesTable', this.tableInner, {
 			headerRowHeight: 31, // Includes the header's bottom border.
-			getHeight: row => row.entry.type === 'group' ? 30 : row.entry.type === 'empty' ? 76 : 26,
+			getHeight: row => row.entry.type === 'group' ? 30 : row.entry.type === 'empty' ? 76 : row.entry.remote.hostAvailability ? 44 : 26,
 		}, columns, renderers, {
 			identityProvider: { getId: row => row.id },
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: row => row.entry.type === 'remote' ? row.entry.remote.name : row.entry.label },
@@ -585,6 +585,13 @@ export class RemotesWidget extends Disposable {
 			: remote.hidden ? localize('remotes.hiddenName', "{0} (hidden from Environment picker)", remote.name) : remote.name;
 		let label = localize('remotes.accessibleRow', "{0}. Status: {1}", name,
 			getConnectionLabel(remote, this.pendingConnections.get(remote.id)));
+		if (remote.localRegistration) {
+			label = localize('remotes.accessibleLocalRegistration', "{0}. This Computer.", label);
+		}
+		const availability = getHostAvailabilityLabel(remote);
+		if (availability) {
+			label = localize('remotes.accessibleAvailability', "{0}. {1}.", label, availability);
+		}
 		const error = remote.lastConnectionError;
 		if (!this.pendingConnections.has(remote.id) && error) {
 			label = localize('remotes.accessibleConnectionError', "{0}. Connection error: {1}", label, error);

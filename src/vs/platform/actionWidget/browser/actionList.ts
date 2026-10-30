@@ -903,6 +903,8 @@ export interface IActionListOptions {
 	 * rendered at the top of the widget, optionally prefixed by {@link headerIcon}.
 	 */
 	readonly headerText?: string;
+	/** Replaces its label in headerText with an independently focusable action link. */
+	readonly headerAction?: IAction;
 
 	/**
 	 * Optional icon shown to the left of {@link headerText} in the header banner.
@@ -1427,39 +1429,7 @@ export class ActionListWidget<T> extends Disposable {
 			this._footerContainer.textContent = this._options.footerText;
 			this._footerContainer.id = `action-list-footer-${generateUuid()}`;
 			this._list.getHTMLElement().setAttribute('aria-describedby', this._footerContainer.id);
-			const action = this._options.footerAction;
-			if (action) {
-				const nameIndex = this._options.footerText.lastIndexOf(action.label);
-				if (nameIndex >= 0) {
-					this._footerContainer.textContent = this._options.footerText.slice(0, nameIndex);
-					const label = dom.$('span', undefined, action.label);
-					const link = this._register(this._instantiationService.createInstance(Link, this._footerContainer, {
-						label,
-						href: '#',
-						title: action.tooltip,
-					}, { opener: () => { void action.run(); } }));
-					link.enabled = action.enabled;
-					const linkElement = label.parentElement!;
-					linkElement.setAttribute('aria-label', action.tooltip || action.label);
-					linkElement.setAttribute('aria-haspopup', 'dialog');
-					this._footerContainer.append(this._options.footerText.slice(nameIndex + action.label.length));
-					this._register(dom.addDisposableListener(this.domNode, 'keydown', e => {
-						if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && action.enabled && dom.getActiveElement() === this._list.getHTMLElement()) {
-							dom.EventHelper.stop(e, true);
-							linkElement.focus();
-						}
-					}, true));
-					this._register(dom.addDisposableListener(linkElement, 'keydown', e => {
-						if (e.key === 'Escape') {
-							dom.EventHelper.stop(e, true);
-							this.hide(true);
-						} else if (e.key === 'Tab' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
-							dom.EventHelper.stop(e, true);
-							this._list.domFocus();
-						}
-					}));
-				}
-			}
+			this.renderTextAction(this._footerContainer, this._options.footerText, this._options.footerAction);
 		}
 
 		// Create header banner
@@ -1474,6 +1444,7 @@ export class ActionListWidget<T> extends Disposable {
 			}
 			const text = dom.append(this._headerContainer, dom.$('span.action-list-header-text'));
 			text.textContent = this._options.headerText;
+			this.renderTextAction(text, this._options.headerText, this._options.headerAction, true);
 
 			// The banner is chrome, not an item: pointing at it dismisses a row's hover panel.
 			this._register(dom.addDisposableListener(this._headerContainer, dom.EventType.MOUSE_ENTER, () => {
@@ -1843,6 +1814,41 @@ export class ActionListWidget<T> extends Disposable {
 	 */
 	get filterContainer(): HTMLElement | undefined {
 		return this._filterContainer;
+	}
+
+	private renderTextAction(container: HTMLElement, text: string, action: IAction | undefined, header = false): void {
+		const nameIndex = action ? text.lastIndexOf(action.label) : -1;
+		if (!action || nameIndex < 0) {
+			return;
+		}
+		container.textContent = text.slice(0, nameIndex);
+		const label = dom.$('span', undefined, action.label);
+		const link = this._register(this._instantiationService.createInstance(Link, container, {
+			label, href: '#', title: action.tooltip,
+		}, { opener: () => { void action.run(); } }));
+		link.enabled = action.enabled;
+		const element = label.parentElement!;
+		element.setAttribute('aria-label', action.tooltip || action.label);
+		element.setAttribute('aria-haspopup', 'dialog');
+		container.append(text.slice(nameIndex + action.label.length));
+		this._register(dom.addDisposableListener(this.domNode, 'keydown', e => {
+			if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && action.enabled && dom.getActiveElement() === this._list.getHTMLElement()) {
+				dom.EventHelper.stop(e, true);
+				element.focus();
+			}
+		}, true));
+		this._register(dom.addDisposableListener(element, 'keydown', e => {
+			if (e.key === 'Escape') {
+				dom.EventHelper.stop(e, true);
+				this.hide(true);
+			} else if (header && e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+				dom.EventHelper.stop(e, true);
+				this.hide(true);
+			} else if (e.key === 'Tab' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+				dom.EventHelper.stop(e, true);
+				this._list.domFocus();
+			}
+		}));
 	}
 
 	get footerContainer(): HTMLElement | undefined {

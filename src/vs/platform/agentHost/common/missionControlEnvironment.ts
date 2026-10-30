@@ -56,6 +56,7 @@ export const IMissionControlEnvironmentService = createDecorator<IMissionControl
 export interface IMissionControlEnvironmentService {
 	readonly _serviceBrand: undefined;
 	readonly hosts: IObservable<readonly IMissionControlHost[]>;
+	readonly ownEnvironmentId: IObservable<string | undefined>;
 	readonly accountKey: string | undefined;
 	readonly enabled: boolean;
 	initialize(): Promise<void>;

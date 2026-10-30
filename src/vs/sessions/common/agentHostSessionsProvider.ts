@@ -68,7 +68,9 @@ export interface IAgentHostConnectionLabels {
 export function getAgentHostConnectionStatusLabel(status: RemoteAgentHostConnectionStatus): string {
 	return status.kind === 'connected' ? localize('agentHost.connected', "Connected")
 		: status.kind === 'connecting' ? localize('agentHost.connecting', "Connecting")
-			: localize('agentHost.disconnected', "Disconnected");
+			: status.kind === 'reconnecting' ? localize('agentHost.reconnecting', "Reconnecting")
+				: status.kind === 'incompatible' ? localize('agentHost.incompatible', "Incompatible")
+					: localize('agentHost.disconnected', "Disconnected");
 }
 
 /**
@@ -239,6 +241,10 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly hostDescription?: IObservable<string>;
 	/** Availability before applying a user's hidden preference. Defaults to available. */
 	readonly isAvailableInEnvironmentPicker?: IObservable<boolean>;
+	/** Stable backend registration that routes back to the computer running this window. */
+	readonly localRegistration?: IObservable<'devTunnel' | 'githubEnvironment' | undefined>;
+	/** Backend-owned name for the local sharing registration, independent of client-local display aliases. */
+	readonly localRegistrationName?: IObservable<string | undefined>;
 	/** Controls environment and workspace picker visibility without withdrawing existing sessions. Defaults to visible. */
 	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
 	/** Reveals this host after an explicit picker selection without changing its availability. */

@@ -110,7 +110,7 @@ export class TunnelHostContribution extends Disposable implements IWorkbenchCont
 		}));
 
 		const viewItemFactory: IActionViewItemFactory = (action, _options, instantiationService) => {
-			return instantiationService.createInstance(RemoteConnectionsActionViewItem, action, true);
+			return instantiationService.createInstance(RemoteConnectionsActionViewItem, action, true, {});
 		};
 		this._register(actionViewItemService.register(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID, viewItemFactory, this.remoteTunnelService.onDidChangeTunnelStatus));
 		void this._loadState();
@@ -149,8 +149,8 @@ export class TunnelHostContribution extends Disposable implements IWorkbenchCont
 
 	private _updateSharingContext(): void {
 		this._sharingContext.set(isGitHubEnvironmentBackend(this.configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId))
-			? this.missionControlSharingService.state.get() === 'enabled'
-			: getRemoteTunnelAccessState(this._mode, this._status).isSharing);
+			? this.missionControlSharingService.state.get() !== 'disabled'
+			: getRemoteTunnelAccessState(this._mode, this._status).isSharing || getRemoteTunnelAccessState(this._mode, this._status).isConnecting);
 	}
 }
 
@@ -158,11 +158,14 @@ registerAction2(class ToggleRemoteConnectionsAction extends Action2 {
 	constructor() {
 		super({
 			id: TOGGLE_SHARING_ID,
-			title: localize2('toggleSharing', "Allow Remote Connections"),
+			title: localize2('turnOnRemoteConnections', "Turn On Remote Connections"),
 			category: CATEGORY,
 			icon: Codicon.radioTower,
 			precondition: ChatContextKeys.enabled,
-			toggled: ContextKeyExpr.equals(TUNNEL_HOST_SHARING_KEY, true),
+			toggled: {
+				condition: ContextKeyExpr.equals(TUNNEL_HOST_SHARING_KEY, true),
+				title: localize2('turnOffRemoteConnections', "Turn Off Remote Connections").value,
+			},
 			menu: {
 				id: MenuId.ChatInputSecondary,
 				order: 10,

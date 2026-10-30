@@ -13,7 +13,7 @@ import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost, IMissionControlSharingService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { formatConnectionDiagnosticError, getConnectionDiagnosticError } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { getConnectionTelemetryError, type ConnectionTelemetryErrorClassification, type IConnectionTelemetryError } from '../../../../../platform/agentHost/common/connectionTelemetry.js';
@@ -25,6 +25,7 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 
 const INVENTORY_PREFIX = 'missionControl.userLocalHosts.v1.';
+const OWN_ENVIRONMENT_PREFIX = 'missionControl.ownEnvironment.v1.';
 const CONNECT_TIMEOUT_MS = 60_000;
 
 type MissionControlConnectionAttemptEvent = IConnectionTelemetryError & {
@@ -53,8 +54,8 @@ function isHost(value: unknown): value is IMissionControlHost {
 export class MissionControlEnvironmentService extends Disposable implements IMissionControlEnvironmentService {
 	declare readonly _serviceBrand: undefined;
 	readonly hosts = observableValue<readonly IMissionControlHost[]>(this, []);
+	readonly ownEnvironmentId = observableValue<string | undefined>(this, undefined);
 	private _accountKey: string | undefined;
-	private _ownEnvironment: string | undefined;
 	private _generation = 0;
 	private _refreshGeneration = 0;
 	private _initializing: Promise<void> | undefined;
@@ -75,6 +76,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		@IRemoteAgentHostService private readonly _remote: IRemoteAgentHostService,
 		@ITelemetryService private readonly _telemetry: ITelemetryService,
 		@IMissionControlAvailabilityService private readonly _availabilityService: IMissionControlAvailabilityService,
+		@IMissionControlSharingService sharing: IMissionControlSharingService,
 	) {
 		super();
 		this._register(toDisposable(() => this._withdraw()));
@@ -112,8 +114,15 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		}));
 		this._register(_entitlement.onDidChangeSentiment(updateEnabled));
 		this._register(_storage.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(e => {
-			if (this._accountKey && e.key.startsWith(this._storagePrefix)) {
+			if (this._accountKey && e.key === this._ownEnvironmentStorageKey(this._accountKey)) {
+				this.ownEnvironmentId.set(this._storage.get(e.key, StorageScope.PROFILE), undefined);
+			} else if (this._accountKey && e.key.startsWith(this._storagePrefix)) {
 				this._restore();
+			}
+		}));
+		this._register(autorun(reader => {
+			if (sharing.state.read(reader) === 'enabled') {
+				void this._captureOwnEnvironmentId();
 			}
 		}));
 	}
@@ -128,6 +137,31 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 	}
 
 	private get _storagePrefix(): string { return `${INVENTORY_PREFIX}${encodeURIComponent(this._accountKey!)}.`; }
+	private _ownEnvironmentStorageKey(account: string): string { return `${OWN_ENVIRONMENT_PREFIX}${encodeURIComponent(account)}`; }
+
+	private _setOwnEnvironmentId(account: string, environmentId: string | undefined, persist: boolean): void {
+		if (persist) {
+			const key = this._ownEnvironmentStorageKey(account);
+			if (environmentId) {
+				this._storage.store(key, environmentId, StorageScope.PROFILE, StorageTarget.MACHINE);
+			} else {
+				this._storage.remove(key, StorageScope.PROFILE);
+			}
+		}
+		this.ownEnvironmentId.set(environmentId, undefined);
+	}
+
+	private async _captureOwnEnvironmentId(): Promise<void> {
+		const account = this._accountKey;
+		const generation = this._generation;
+		if (!account) {
+			return;
+		}
+		const own = await this._local.getMissionControlEnvironmentId?.();
+		if (own && generation === this._generation && account === this._accountKey) {
+			this._setOwnEnvironmentId(account, own, true);
+		}
+	}
 
 	initialize(): Promise<void> {
 		if (!this.enabled || this._store.isDisposed) {
@@ -148,18 +182,17 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 
 	private async _initialize(generation: number): Promise<void> {
 		const account = await this._api.getAccountKey();
-		const own = await this._local.getMissionControlEnvironmentId?.();
+		const own = account ? await this._local.getMissionControlEnvironmentId?.() : undefined;
 		this._checkGeneration(generation);
 		if (account !== this._accountKey) {
 			this._withdraw();
 			this._accountKey = account;
-			this._ownEnvironment = own;
 			if (account) {
+				this._setOwnEnvironmentId(account, own ?? this._storage.get(this._ownEnvironmentStorageKey(account), StorageScope.PROFILE), !!own);
 				this._restore();
 			}
-		} else if (own !== this._ownEnvironment) {
-			this._ownEnvironment = own;
-			this._replaceHosts(this.hosts.get().filter(host => host.id !== own));
+		} else if (own !== this.ownEnvironmentId.get()) {
+			this._setOwnEnvironmentId(account!, own ?? this.ownEnvironmentId.get(), !!own);
 		}
 	}
 
@@ -189,17 +222,21 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 	private async _refreshHosts(generation: number, refreshGeneration: number, account: string, token: CancellationToken): Promise<void> {
 		this._checkGeneration(generation, token);
 		const environments = await raceCancellationError(this._api.listEnvironments(token, { refresh: true }), token);
-		const own = await this._local.getMissionControlEnvironmentId?.();
+		const activeOwn = await this._local.getMissionControlEnvironmentId?.();
 		const currentAccount = await this._api.getAccountKey();
 		this._checkGeneration(generation, token);
 		if (account !== currentAccount || refreshGeneration !== this._refreshGeneration) {
 			throw new CancellationError();
 		}
-		this._ownEnvironment = own;
+		const rememberedOwn = this.ownEnvironmentId.get() ?? this._storage.get(this._ownEnvironmentStorageKey(account), StorageScope.PROFILE);
+		const rememberedOwnStillExists = rememberedOwn !== undefined
+			&& environments.some(environment => environment.kind === 'user-local' && environment.id === rememberedOwn);
+		const own = activeOwn ?? (rememberedOwnStillExists ? rememberedOwn : undefined);
+		this._setOwnEnvironmentId(account, own, activeOwn !== undefined || own === undefined);
 		const previous = new Map(this.hosts.get().map(host => [host.id, host]));
 		const next = new Map<string, IMissionControlHost>();
 		for (const environment of environments) {
-			if (environment.kind === 'user-local' && environment.id !== this._ownEnvironment) {
+			if (environment.kind === 'user-local') {
 				const retained = previous.get(environment.id);
 				next.set(environment.id, {
 					id: environment.id, name: environment.name, kind: 'user-local', status: environment.status,
@@ -402,12 +439,10 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 				if (!isHost(host) || key !== `${this._storagePrefix}${host.id}.metadata`) {
 					throw new Error('Invalid Mission Control host inventory.');
 				}
-				if (host.id !== this._ownEnvironment) {
-					hosts.push({
-						id: host.id, name: host.name, kind: 'user-local', status: host.status,
-						displayName: this._storage.get(`${this._storagePrefix}${host.id}.displayName`, StorageScope.PROFILE),
-					});
-				}
+				hosts.push({
+					id: host.id, name: host.name, kind: 'user-local', status: host.status,
+					displayName: this._storage.get(`${this._storagePrefix}${host.id}.displayName`, StorageScope.PROFILE),
+				});
 			}
 			this._replaceHosts(hosts);
 		} catch (error) {
@@ -447,6 +482,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 			void this._connections.disconnect(host.id).catch(error => this._log.error('Failed to withdraw Mission Control host', error));
 		}
 		this._accountKey = undefined;
+		this.ownEnvironmentId.set(undefined, undefined);
 		this.hosts.set([], undefined);
 	}
 

@@ -11,6 +11,12 @@ import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { AgentHostRemoteConnectionsSettingId, IMissionControlAvailabilityService, IMissionControlSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { CONFIGURATION_KEY_HOST_NAME, IRemoteTunnelService, INACTIVE_TUNNEL_MODE } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
+import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { AccessibleViewType } from '../../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry } from '../../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -74,12 +80,36 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 suite('RemotesEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createEditor() {
-		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true, [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: true, [ENVIRONMENT_PICKER_SETTING]: true });
+	function createEditor(rememberedRegistration?: 'devTunnel' | 'githubEnvironment') {
+		const configuration = new TestConfigurationService({
+			[RemoteAgentHostsEnabledSettingId]: true, [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: true, [ENVIRONMENT_PICKER_SETTING]: true,
+			[AgentHostRemoteConnectionsSettingId]: rememberedRegistration ?? 'devTunnel',
+			...(rememberedRegistration ? { [CONFIGURATION_KEY_HOST_NAME]: 'old-name' } : {}),
+		});
+		const environmentName = observableValue<string | undefined>('name', rememberedRegistration ? 'old-name' : undefined);
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiation = workbenchInstantiationService({ configurationService: () => configuration }, store);
 		instantiation.stub(ISSHRemoteAgentHostService, {});
 		instantiation.stub(IPreferencesService, {});
+		instantiation.stub(IRemoteTunnelService, {
+			onDidChangeTunnelStatus: Event.None,
+			onDidChangeMode: Event.None,
+			getTunnelStatus: async () => ({ type: 'disconnected' as const }),
+			getMode: async () => INACTIVE_TUNNEL_MODE,
+			getTunnelName: async () => configuration.getValue<string | undefined>(CONFIGURATION_KEY_HOST_NAME),
+		});
+		instantiation.stub(IMissionControlSharingService, {
+			state: observableValue<'disabled' | 'connecting' | 'enabled'>('sharing', 'disabled'),
+			environmentName,
+		});
+		instantiation.stub(IMissionControlAvailabilityService, { available: observableValue<boolean | undefined>('available', false) });
+		const rememberedProvider = new class extends mock<IAgentHostSessionsProvider>() {
+			override readonly id = 'agenthost-remote-remembered';
+			override readonly localRegistration = observableValue(this, rememberedRegistration);
+			override readonly localRegistrationName = observableValue<string | undefined>(this, 'old-name');
+		}();
+		instantiation.stub(ISessionsProvidersService, { getProviders: () => rememberedRegistration ? [rememberedProvider] : [], onDidChangeProviders: Event.None });
+		instantiation.stub(IAgentHostService, { getMissionControlEnvironmentName: async () => environmentName.get() });
 		instantiation.stub(ISharedProcessService, { getChannel: () => ({ call: async (): Promise<never> => { throw new Error('Unexpected IPC call'); }, listen: () => Event.None }) });
 		const model = store.add(new TestRemotesModel());
 		instantiation.stubInstance(RemotesModel, model);
@@ -89,7 +119,31 @@ suite('RemotesEditor', () => {
 		editor.create(container);
 		editor.layout(new dom.Dimension(900, 600));
 		const input = store.add(new RemotesEditorInput());
-		return { editor, model, container, input, configuration, instantiation };
+		return { editor, model, container, input, configuration, instantiation, environmentName };
+	}
+
+	for (const backend of ['devTunnel', 'githubEnvironment'] as const) {
+		test(`renaming ${backend} while off supersedes the remembered registration name`, async () => {
+			const { editor, input, container, configuration, environmentName } = createEditor(backend);
+			await editor.setInput(input, undefined, {}, CancellationToken.None);
+			await timeout(0);
+			const before = container.querySelector('.remotes-local-name')?.textContent;
+			if (backend === 'githubEnvironment') {
+				environmentName.set('new-name', undefined);
+			} else {
+				await configuration.setUserConfiguration(CONFIGURATION_KEY_HOST_NAME, 'new-name');
+				configuration.onDidChangeConfigurationEmitter.fire({
+					source: ConfigurationTarget.USER, affectedKeys: new Set([CONFIGURATION_KEY_HOST_NAME]),
+					change: { keys: [CONFIGURATION_KEY_HOST_NAME], overrides: [] },
+					affectsConfiguration: key => key === CONFIGURATION_KEY_HOST_NAME,
+				});
+			}
+			await timeout(0);
+			assert.deepStrictEqual({
+				before, after: container.querySelector('.remotes-local-name')?.textContent,
+				off: container.querySelector('.remotes-local-description')?.textContent?.includes('off in this app'),
+			}, { before: 'old-name', after: 'new-name', off: true });
+		});
 	}
 
 	test('uses an independent singleton input that requires a modal', () => {
@@ -213,8 +267,10 @@ suite('RemotesEditor', () => {
 			disposed: model.disposed,
 			widgets: container.querySelectorAll('.remotes-widget').length,
 			disabled: !message.hidden,
+			contentDisplay: dom.getWindow(container).getComputedStyle(container.querySelector('.remotes-editor-content')!).display,
+			messageVisible: message.getBoundingClientRect().height > 0,
 			text: editor.getAccessibilityContent(),
-		}, { disposed: true, widgets: 0, disabled: true, text: 'Remote agent hosts are disabled.' });
+		}, { disposed: true, widgets: 0, disabled: true, contentDisplay: 'none', messageVisible: true, text: 'Remote agent hosts are disabled.' });
 	});
 
 	for (const setting of [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING]) {

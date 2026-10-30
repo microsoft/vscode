@@ -330,6 +330,7 @@ export class NewChatWidget extends Disposable {
 				if (isAgentHostProvider(provider)) {
 					provider.isVisibleInEnvironmentPicker?.read(reader);
 					provider.connectionStatus?.read(reader);
+					provider.localRegistration?.read(reader);
 				}
 			}
 			const environments = getSessionCreationEnvironments(providers);

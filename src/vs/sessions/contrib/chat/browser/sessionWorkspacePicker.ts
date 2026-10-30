@@ -2051,6 +2051,7 @@ export class WorkspacePicker extends Disposable {
 							label: menuAction.label,
 							tooltip: menuAction.tooltip,
 							enabled: menuAction.enabled,
+							checked: menuAction.checked,
 							run: () => setRemotePickerRun(() => menuAction.run()),
 						});
 						Object.assign(submenuAction, { icon });
@@ -2061,7 +2062,7 @@ export class WorkspacePicker extends Disposable {
 							description: submenuAction.tooltip || undefined,
 							group: { title: '', icon },
 							disabled: !submenuAction.enabled,
-							item: { run: () => menuAction.run() },
+							item: { run: () => menuAction.run(), checked: menuAction.checked },
 						});
 					} else {
 						manageActions.push(Object.assign(menuAction, { icon }));

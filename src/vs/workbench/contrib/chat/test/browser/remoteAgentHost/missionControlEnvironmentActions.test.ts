@@ -77,16 +77,18 @@ function environment(id: string, name = `Host ${id}`): IMissionControlHost {
 suite('Mission Control environment picker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function fixture(cached: readonly IMissionControlHost[] = [], enabled = true) {
+	function fixture(cached: readonly IMissionControlHost[] = [], enabled = true, ownId?: string) {
 		const quickPick = store.add(new TestEnvironmentQuickPick());
 		const instantiation = store.add(new TestInstantiationService());
 		const inventory = new DeferredPromise<readonly IMissionControlHost[]>();
 		const hosts = observableValue<readonly IMissionControlHost[]>('hosts', cached);
+		const ownEnvironmentId = observableValue<string | undefined>('ownEnvironmentId', ownId);
 		const calls = { tokens: [] as CancellationToken[], connections: [] as string[], errors: [] as string[] };
 		let accountKey: string | undefined = 'account';
 		const service = new class extends mock<IMissionControlEnvironmentService>() {
 			override readonly enabled = enabled;
 			override readonly hosts = hosts;
+			override readonly ownEnvironmentId = ownEnvironmentId;
 			override get accountKey() { return accountKey; }
 			override async initialize() { }
 			override async refresh(token: CancellationToken) {
@@ -114,8 +116,23 @@ suite('Mission Control environment picker', () => {
 		instantiation.stub(IQuickInputService, { backButton: { tooltip: 'Back' }, focus: () => { } }, 'createQuickPick', () => quickPick);
 		const run = () => instantiation.invokeFunction(accessor => CommandsRegistry.getCommand(ConnectMissionControlEnvironmentCommand)!.handler(accessor));
 		const signOut = () => { accountKey = undefined; hosts.set([], undefined); };
-		return { quickPick, inventory, calls, hosts, run, signOut, instantiation, connections, connectionChanges };
+		return { quickPick, inventory, calls, hosts, ownEnvironmentId, run, signOut, instantiation, connections, connectionChanges };
 	}
+
+	test('hides this computer environment and reacts when its identity changes', async () => {
+		const { quickPick, inventory, ownEnvironmentId, run } = fixture([
+			environment('own'), environment('remote'),
+		], true, 'own');
+		const done = run();
+		await quickPick.shown.p;
+		const states = [quickPick.hostItems().map(item => item.label)];
+		ownEnvironmentId.set('remote', undefined);
+		states.push(quickPick.hostItems().map(item => item.label));
+		quickPick.hide();
+		await done;
+		await inventory.complete([]);
+		assert.deepStrictEqual(states, [['Host remote'], ['Host own']]);
+	});
 
 	test('shows only availability and active connection status on a single line', async () => {
 		const { quickPick, inventory, run, connections, connectionChanges } = fixture([

@@ -25,6 +25,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { getStatusLabel, removeRemoteHost, showRemoteHostOptions } from './remoteHostOptions.js';
 import { RemoteAgentHostCommandIds } from './remoteAgentHostActions.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { getLocalAgentHostConnectionDescription, getLocalAgentHostHover } from '../../../../browser/remoteAgentHostPresentation.js';
 
 interface IRemoteHostQuickPickItem extends IQuickPickItem {
 	readonly kind: 'remote';
@@ -78,14 +79,19 @@ registerAction2(class extends Action2 {
 			const remoteItems: IRemoteHostQuickPickItem[] = remoteProviders.map((p: IAgentHostSessionsProvider) => {
 				const isTunnel = p.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX);
 				const status = p.connectionStatus?.get();
+				const localRegistration = p.localRegistration?.get();
 				const item: IRemoteHostQuickPickItem = {
 					kind: 'remote',
 					provider: p,
 					label: `$(${isTunnel ? 'cloud' : 'remote'}) ${p.label}`,
-					description: status !== undefined ? p.hostDescription
-						? localize('manageHosts.connectionStatus', "Connection: {0}", getStatusLabel(status))
-						: getStatusLabel(status) : undefined,
-					detail: p.hostDescription?.get() ?? p.remoteAddress,
+					description: status !== undefined
+						? localRegistration
+							? getLocalAgentHostConnectionDescription(localRegistration, getStatusLabel(status))
+							: p.hostDescription
+								? localize('manageHosts.connectionStatus', "Connection: {0}", getStatusLabel(status))
+								: getStatusLabel(status)
+						: undefined,
+					detail: localRegistration ? getLocalAgentHostHover(localRegistration) : p.hostDescription?.get() ?? p.remoteAddress,
 					buttons: p.canRemove === false ? [] : p.removeLabel ? [{ ...removeButton, tooltip: p.removeLabel }] : [removeButton],
 				};
 				return item;
@@ -119,7 +125,7 @@ registerAction2(class extends Action2 {
 			return items;
 		};
 
-		const showManagePicker = () => {
+		const showManagePicker = async () => {
 			const store = new DisposableStore();
 			const picker = quickInputService.createQuickPick<ManageHostsPickItem>({ useSeparators: true });
 			store.add(picker);
@@ -148,7 +154,10 @@ registerAction2(class extends Action2 {
 				if (active) {
 					picker.activeItems = items.filter((item): item is ManageHostsPickItem => item.type !== 'separator')
 						.filter(item => item.kind === active.kind && (item.kind === 'remote' && active.kind === 'remote'
-							? item.provider.id === active.provider.id : item.kind === 'menu-action' && active.kind === 'menu-action' && item.action.id === active.action.id));
+							? item.provider.id === active.provider.id
+							: item.kind === 'menu-action' && active.kind === 'menu-action'
+								? item.action.id === active.action.id
+								: false));
 				}
 				picker.value = lastFilter;
 			};
@@ -165,6 +174,8 @@ registerAction2(class extends Action2 {
 							observerStore.add(autorun(reader => {
 								p.connectionStatus!.read(reader);
 								p.hostDescription?.read(reader);
+								p.localRegistration?.read(reader);
+								p.localRegistrationName?.read(reader);
 								refresh();
 							}));
 						}
@@ -200,11 +211,11 @@ registerAction2(class extends Action2 {
 				if (selected.kind === 'remote') {
 					void instantiationService.invokeFunction(a => showRemoteHostOptions(a, selected.provider, { showBackButton: true })).then(result => {
 						if (result === 'back') {
-							showManagePicker();
+							void showManagePicker();
 						}
 					}).catch(error => notifications.error(error));
 				} else if (selected.kind === 'menu-action') {
-					void commandService.executeCommand(selected.action.id, () => showManagePicker()).catch(error => notifications.error(error));
+					void commandService.executeCommand(selected.action.id, () => void showManagePicker()).catch(error => notifications.error(error));
 				}
 			}));
 
@@ -213,6 +224,6 @@ registerAction2(class extends Action2 {
 			void refreshHosts();
 		};
 
-		showManagePicker();
+		await showManagePicker();
 	}
 });

@@ -170,6 +170,17 @@ suite('remoteHostOptions', () => {
 	});
 
 	suite('buildRemoteHostOptionItems', () => {
+		test('omits connection actions for this computer GitHub environment route', () => {
+			const items = buildRemoteHostOptionItems({
+				address: 'cloudsandbox:own-environment',
+				isConnected: false,
+				canRemove: false,
+				disconnectLabel: 'Disconnect',
+				canManageConnection: false,
+			});
+			assert.deepStrictEqual(items.map(item => item.id), ['rename', 'copy', 'settings']);
+		});
+
 		test('offers Rename for connected and disconnected hosts on desktop and web', () => {
 			for (const isWebPlatform of [false, true]) {
 				for (const isConnected of [false, true]) {

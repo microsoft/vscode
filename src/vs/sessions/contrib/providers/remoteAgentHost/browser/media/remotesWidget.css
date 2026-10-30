@@ -17,6 +17,61 @@
 	height: 100%;
 }
 
+.remotes-editor-content:not([hidden]) {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size160);
+}
+
+.remotes-editor-table {
+	flex: 1;
+	min-height: 0;
+}
+
+.remotes-this-computer {
+	flex-shrink: 0;
+	font-size: var(--vscode-fontSize-body1);
+	padding: var(--vscode-spacing-size160);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-panel-border));
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.remotes-local-heading,
+.remotes-local-controls {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	min-width: 0;
+}
+
+.remotes-local-heading h2 {
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	margin: 0;
+	flex-shrink: 0;
+}
+
+.remotes-local-name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--vscode-descriptionForeground);
+}
+
+.remotes-local-actions {
+	flex-shrink: 0;
+}
+
+.remotes-local-controls {
+	margin-top: var(--vscode-spacing-size120);
+}
+
+.remotes-local-description {
+	margin: var(--vscode-spacing-size80) 0 0;
+	color: var(--vscode-descriptionForeground);
+}
+
 .remotes-editor-disabled {
 	color: var(--vscode-descriptionForeground);
 }
@@ -147,6 +202,29 @@
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body2);
+}
+
+.remotes-widget .remotes-local-badge {
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
+	border-radius: var(--vscode-cornerRadius-small);
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	padding-inline: var(--vscode-spacing-size40);
+}
+
+.remotes-widget .remotes-connection-content {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	gap: var(--vscode-spacing-size20);
+}
+
+.remotes-widget .remotes-availability-state {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .remotes-widget .remotes-refresh-warning,

@@ -74,6 +74,12 @@ suite('SessionEnvironmentPicker', () => {
 			upcastPartial<IAgentHostSessionsProvider>({
 				...provider('agenthost-remote-visible', 'remote'),
 				connectionStatus: constObservable(RemoteAgentHostConnectionStatus.connected),
+				localRegistration: constObservable('devTunnel'),
+			}),
+			upcastPartial<IAgentHostSessionsProvider>({
+				...provider('agenthost-github-local', 'remote'),
+				connectionStatus: constObservable(RemoteAgentHostConnectionStatus.connecting),
+				localRegistration: constObservable('githubEnvironment'),
 			}),
 			upcastPartial<IAgentHostSessionsProvider>({
 				...provider('agenthost-remote-hidden', 'remote'),
@@ -85,7 +91,8 @@ suite('SessionEnvironmentPicker', () => {
 		assert.deepStrictEqual(getSessionCreationEnvironments(providers).map(({ id, kind, providerIds, description }) => ({ id, kind, providerIds, description })), [
 			{ id: 'local', kind: 'local', providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID, 'another-local'], description: undefined },
 			{ id: 'cloud', kind: 'cloud', providerIds: ['cloud'], description: undefined },
-			{ id: 'agenthost-remote-visible', kind: 'remote', providerIds: ['agenthost-remote-visible'], description: 'Connected' },
+			{ id: 'agenthost-remote-visible', kind: 'remote', providerIds: ['agenthost-remote-visible'], description: 'This Computer (Connected)' },
+			{ id: 'agenthost-github-local', kind: 'remote', providerIds: ['agenthost-github-local'], description: 'This Computer (Connecting)' },
 		]);
 	});
 
@@ -113,7 +120,7 @@ suite('SessionEnvironmentPicker', () => {
 			...provider(`agenthost-remote-${index}`, 'remote'), connectionStatus: constObservable(connectionStatus),
 		}));
 		assert.deepStrictEqual(getSessionCreationEnvironments(providers).map(environment => environment.description), [
-			'Connected', 'Connecting', 'Disconnected', 'Disconnected', 'Disconnected',
+			'Connected', 'Connecting', 'Disconnected', 'Reconnecting', 'Incompatible',
 		]);
 	});
 
