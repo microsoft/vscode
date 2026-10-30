@@ -207,7 +207,7 @@ suite('UnattendedRestartScheduler', () => {
 		configurationService.setUserConfiguration('update.enableWindowsBackgroundUpdates', true);
 
 		const windowBlockers = [...(options.windowBlockers ?? [])];
-		const windowAnswers = new DeferredPromise<void>();
+		let windowAnswers = new DeferredPromise<void>();
 		if (!options.holdWindowAnswers) {
 			windowAnswers.complete();
 		}
@@ -249,6 +249,7 @@ suite('UnattendedRestartScheduler', () => {
 				isLocked = false;
 				onDidUnlockScreen.fire();
 			},
+			holdWindowAnswers: () => windowAnswers = new DeferredPromise<void>(),
 			answerWindows: () => windowAnswers.complete(),
 			blurWindow: () => onDidBlurWindow.fire(),
 			suspend: () => onDidSuspend.fire(),
@@ -409,6 +410,21 @@ suite('UnattendedRestartScheduler', () => {
 			unplugged: [outcome('blocked', 2, 1, 'system.onBatteryPower')],
 			heated: [outcome('blocked', 2, 1, 'system.thermalPressure')],
 		});
+	}));
+
+	test('does not restart when the machine switches to battery while the windows answer the check when the restart is due', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createFixture();
+
+		fixture.lock();
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION - SECOND);
+		fixture.holdWindowAnswers();
+		await timeout(2 * SECOND);
+		fixture.switchToBattery();
+		fixture.answerWindows();
+		await timeout(20 * SECOND);
+		fixture.unlock();
+
+		assert.deepStrictEqual(fixture.log, ['keepAwake', 'allowSleep', outcome('blocked', 2, 1, 'system.onBatteryPower')]);
 	}));
 
 	test('checks again when the screen gets locked again, or the machine resumes, while a check waits for the windows', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
