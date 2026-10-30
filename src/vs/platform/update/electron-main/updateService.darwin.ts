@@ -19,7 +19,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, IQuitAndInstallOptions, IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
-import { relaunchInBackground } from './relaunchInBackground.js';
+import { keepAwakeWhileUpdating, relaunchInBackground } from './relaunchInBackground.js';
 
 export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
@@ -205,6 +205,15 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	}
 
 	protected override doQuitAndInstall(options?: IQuitAndInstallOptions): void {
+		if (options?.unattended) {
+			try {
+				const child = keepAwakeWhileUpdating();
+				child.once('error', error => this.logService.error('update#quitAndInstall(): failed to keep the machine awake while updating', error));
+			} catch (error) {
+				this.logService.error('update#quitAndInstall(): failed to keep the machine awake while updating', error);
+			}
+		}
+
 		const bundleIdentifier = this.productService.darwinBundleIdentifier;
 		if (options?.relaunchInBackground && this.state.type === StateType.Restarting && bundleIdentifier) {
 			this.logService.info('update#quitAndInstall(): installing the update on quit and relaunching in the background');

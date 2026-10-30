@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -94,6 +95,7 @@ suite('UnattendedRestartScheduler', () => {
 		readonly updateReady?: boolean;
 		readonly updateVersion?: string;
 		readonly hasOpenDialogs?: boolean;
+		readonly onBattery?: boolean;
 		readonly hasAuxiliaryWindow?: boolean;
 		readonly isWindowReady?: boolean;
 		/** Blockers that the window reports for consecutive checks; afterwards it reports none. */
@@ -114,6 +116,7 @@ suite('UnattendedRestartScheduler', () => {
 		const onDidUnlockScreen = store.add(new Emitter<void>());
 		const onDidSuspend = store.add(new Emitter<void>());
 		const onDidResume = store.add(new Emitter<void>());
+		const onDidSwitchToBattery = store.add(new Emitter<void>());
 		const onDidBlurWindow = store.add(new Emitter<void>());
 		const onWillShutdown = store.add(new Emitter<ShutdownEvent>());
 
@@ -149,16 +152,22 @@ suite('UnattendedRestartScheduler', () => {
 		});
 
 		let isLocked = false;
+		let onBattery = options.onBattery ?? false;
 		const host: IUnattendedRestartHost = {
 			onDidLockScreen: onDidLockScreen.event,
 			onDidUnlockScreen: onDidUnlockScreen.event,
 			onDidSuspend: onDidSuspend.event,
 			onDidResume: onDidResume.event,
+			onDidSwitchToBattery: onDidSwitchToBattery.event,
 			onDidBlurWindow: onDidBlurWindow.event,
 			isWindowFocused: () => options.focusedWhenLocked !== false,
 			getIdleState: () => isLocked ? 'locked' : 'active',
-			isOnBatteryPower: () => false,
+			isOnBatteryPower: () => onBattery,
 			getThermalState: () => 'nominal',
+			preventSleep: () => {
+				log.push('keepAwake');
+				return toDisposable(() => log.push('allowSleep'));
+			},
 		};
 
 		const configurationService = new TestConfigurationService();
@@ -201,6 +210,10 @@ suite('UnattendedRestartScheduler', () => {
 			blurWindow: () => onDidBlurWindow.fire(),
 			suspend: () => onDidSuspend.fire(),
 			resume: () => onDidResume.fire(),
+			switchToBattery: () => {
+				onBattery = true;
+				onDidSwitchToBattery.fire();
+			},
 			setUpdateReady: () => {
 				state = State.Ready(readyUpdate, false, false);
 				onStateChange.fire(state);
@@ -227,29 +240,29 @@ suite('UnattendedRestartScheduler', () => {
 		return { fromCommit: 'current', toVersion: update.version, inBackground, attempts, lockedMinutes };
 	}
 
-	test('restarts once the screen has been locked long enough', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('keeps the machine awake from the lock and restarts once the screen has been locked long enough', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fixture = createFixture();
 
 		fixture.lock();
-		await timeout(UNATTENDED_RESTART_LOCKED_DURATION - MINUTE);
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION - 20 * SECOND);
 		const beforeThreshold = [...fixture.log];
-		await timeout(2 * MINUTE);
+		await timeout(MINUTE);
 
 		assert.deepStrictEqual({ beforeThreshold, afterThreshold: fixture.log, exactRestores: fixture.exactRestores, restart: fixture.shutdown() }, {
-			beforeThreshold: [],
-			afterThreshold: ['quitAndInstall(foreground)'],
+			beforeThreshold: ['keepAwake'],
+			afterThreshold: ['keepAwake', 'quitAndInstall(foreground)'],
 			exactRestores: [{ inBackground: false }],
-			restart: pendingRestart(1, 2),
+			restart: pendingRestart(2, 1),
 		});
 	}));
 
-	test('only measures eligibility when the setting is disabled', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('only measures eligibility when the setting is disabled, without keeping the machine awake', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fixture = createFixture({ enabled: false });
 
 		fixture.lock();
 		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 30 * MINUTE);
 
-		assert.deepStrictEqual({ log: fixture.log, exactRestores: fixture.exactRestores }, { log: [outcome('eligible', 1, 2)], exactRestores: [] });
+		assert.deepStrictEqual({ log: fixture.log, exactRestores: fixture.exactRestores }, { log: [outcome('eligible', 2, 1)], exactRestores: [] });
 	}));
 
 	test('restarts when an experiment enables the setting, which only windows resolve', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -258,7 +271,7 @@ suite('UnattendedRestartScheduler', () => {
 		fixture.lock();
 		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 20 * SECOND);
 
-		assert.deepStrictEqual(fixture.log, ['quitAndInstall(foreground)']);
+		assert.deepStrictEqual(fixture.log, ['keepAwake', 'quitAndInstall(foreground)']);
 	}));
 
 	test('restores the windows in the background when another application had focus when the screen got locked', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -270,9 +283,9 @@ suite('UnattendedRestartScheduler', () => {
 		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 20 * SECOND);
 
 		assert.deepStrictEqual({ log: fixture.log, exactRestores: fixture.exactRestores, restart: fixture.shutdown() }, {
-			log: ['quitAndInstall(background)'],
+			log: ['keepAwake', 'quitAndInstall(background)'],
 			exactRestores: [{ inBackground: true }],
-			restart: pendingRestart(1, 2, true),
+			restart: pendingRestart(2, 1, true),
 		});
 	}));
 
@@ -285,8 +298,8 @@ suite('UnattendedRestartScheduler', () => {
 		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 20 * SECOND);
 
 		assert.deepStrictEqual({ windows: windows.log, macOS: macOS.log }, {
-			windows: ['quitAndInstall(background)'],
-			macOS: ['quitAndInstall(background)'],
+			windows: ['keepAwake', 'quitAndInstall(background)'],
+			macOS: ['keepAwake', 'quitAndInstall(background)'],
 		});
 	}));
 
@@ -298,17 +311,35 @@ suite('UnattendedRestartScheduler', () => {
 		fixture.lock();
 		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 20 * SECOND);
 
-		assert.deepStrictEqual({ log: fixture.log, restart: fixture.shutdown() }, { log: ['quitAndInstall(foreground)'], restart: pendingRestart(1, 2) });
+		assert.deepStrictEqual({ log: fixture.log, restart: fixture.shutdown() }, { log: ['keepAwake', 'quitAndInstall(foreground)'], restart: pendingRestart(2, 1) });
 	}));
 
-	test('does not restart while a native dialog is open', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('does not keep the machine awake or restart while a native dialog is open', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fixture = createFixture({ hasOpenDialogs: true });
 
 		fixture.lock();
 		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 20 * SECOND);
 		fixture.unlock();
 
-		assert.deepStrictEqual(fixture.log, [outcome('blocked', 1, 2, 'app.dialogOpen')]);
+		assert.deepStrictEqual(fixture.log, [outcome('blocked', 2, 1, 'app.dialogOpen')]);
+	}));
+
+	test('only keeps the machine awake while it is on power', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const onBattery = createFixture({ onBattery: true });
+		const unplugged = createFixture();
+
+		onBattery.lock();
+		unplugged.lock();
+		await timeout(20 * SECOND);
+		unplugged.switchToBattery();
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION);
+		onBattery.unlock();
+		unplugged.unlock();
+
+		assert.deepStrictEqual({ onBattery: onBattery.log, unplugged: unplugged.log }, {
+			onBattery: [outcome('blocked', 2, 1, 'system.onBatteryPower')],
+			unplugged: ['keepAwake', 'allowSleep', outcome('blocked', 2, 1, 'system.onBatteryPower')],
+		});
 	}));
 
 	test('reports everything that blocked the last attempt, but does not ask windows that are not ready', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -317,19 +348,19 @@ suite('UnattendedRestartScheduler', () => {
 
 		dialogOpen.lock();
 		notReady.lock();
-		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + MINUTE + 20 * SECOND);
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 20 * SECOND);
 		dialogOpen.unlock();
 		notReady.unlock();
 
 		assert.deepStrictEqual({ dialogOpen: dialogOpen.log, notReady: notReady.log }, {
-			dialogOpen: [outcome('blocked', 2, 3, 'app.dialogOpen,chat.sessionInProgress')],
-			notReady: [outcome('blocked', 2, 3, 'window.notReady')],
+			dialogOpen: [outcome('blocked', 2, 1, 'app.dialogOpen,chat.sessionInProgress')],
+			notReady: [outcome('blocked', 2, 1, 'window.notReady')],
 		});
 	}));
 
 	test('logs what exactly blocks, but only reports the blockers', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fixture = createFixture({
-			windowBlockers: [['workbench.editorNotRestorable']],
+			windowBlockers: [['workbench.editorNotRestorable'], ['workbench.editorNotRestorable']],
 			windowDetails: { 'workbench.editorNotRestorable': 'Release Notes: 1.145.0 [workbench.editors.webviewInput, releaseNotes]' },
 		});
 
@@ -338,18 +369,18 @@ suite('UnattendedRestartScheduler', () => {
 		fixture.unlock();
 
 		assert.deepStrictEqual({ log: fixture.log, messages: fixture.messages.filter(message => message.includes('not restarting')) }, {
-			log: [outcome('blocked', 1, 2, 'workbench.editorNotRestorable')],
+			log: [outcome('blocked', 2, 1, 'workbench.editorNotRestorable')],
 			messages: ['update#unattendedRestart - not restarting: workbench.editorNotRestorable (Release Notes: 1.145.0 [workbench.editors.webviewInput, releaseNotes])'],
 		});
 	}));
 
 	test('retries while a window cannot be restored and restarts once it can', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const fixture = createFixture({ windowBlockers: [['terminal.runningProcess']] });
+		const fixture = createFixture({ windowBlockers: [['terminal.runningProcess'], ['terminal.runningProcess']] });
 
 		fixture.lock();
 		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 2 * MINUTE);
 
-		assert.deepStrictEqual({ log: fixture.log, restart: fixture.shutdown() }, { log: ['quitAndInstall(foreground)'], restart: pendingRestart(2, 3) });
+		assert.deepStrictEqual({ log: fixture.log, restart: fixture.shutdown() }, { log: ['quitAndInstall(foreground)'], restart: pendingRestart(3, 2) });
 	}));
 
 	test('retries when the shutdown is vetoed and reports nothing until the restart completes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -361,9 +392,9 @@ suite('UnattendedRestartScheduler', () => {
 		await timeout(2 * MINUTE);
 
 		assert.deepStrictEqual({ log: fixture.log, exactRestores: fixture.exactRestores, restart: fixture.shutdown() }, {
-			log: ['quitAndInstall(foreground)', 'quitAndInstall(foreground)'],
+			log: ['keepAwake', 'quitAndInstall(foreground)', 'allowSleep', 'quitAndInstall(foreground)'],
 			exactRestores: [{ inBackground: false }, undefined, { inBackground: false }],
-			restart: pendingRestart(2, 3),
+			restart: pendingRestart(3, 2),
 		});
 	}));
 
@@ -377,7 +408,7 @@ suite('UnattendedRestartScheduler', () => {
 		fixture.unlock();
 
 		assert.deepStrictEqual({ log: fixture.log, restart: fixture.shutdown() }, {
-			log: ['quitAndInstall(foreground)', outcome('blocked', 1, 3, 'shutdown.vetoed')],
+			log: ['keepAwake', 'quitAndInstall(foreground)', 'allowSleep', outcome('blocked', 2, 2, 'shutdown.vetoed')],
 			restart: undefined,
 		});
 	}));
@@ -416,15 +447,15 @@ suite('UnattendedRestartScheduler', () => {
 			updatedSince: { log: updatedSince.log, failedUpdate: updatedSince.stateItems.get('update.unattendedRestartFailedUpdate') },
 		}, {
 			sameUpdate: {
-				log: [outcome('restartedWithoutUpdate', 1, 2), outcome('blocked', 1, 2, 'update.installFailed')],
+				log: [outcome('restartedWithoutUpdate', 1, 2), outcome('blocked', 2, 1, 'update.installFailed')],
 				failedUpdate: { commit: 'current', version: update.version },
 			},
-			newerUpdate: [outcome('restartedWithoutUpdate', 1, 2), 'quitAndInstall(foreground)'],
-			updatedSince: { log: ['quitAndInstall(foreground)'], failedUpdate: undefined },
+			newerUpdate: [outcome('restartedWithoutUpdate', 1, 2), 'keepAwake', 'quitAndInstall(foreground)'],
+			updatedSince: { log: ['keepAwake', 'quitAndInstall(foreground)'], failedUpdate: undefined },
 		});
 	}));
 
-	test('restarts the clock when the machine resumes while locked', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('keeps the machine awake again when it resumes while locked, and restarts the clock', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fixture = createFixture();
 
 		fixture.lock();
@@ -437,9 +468,35 @@ suite('UnattendedRestartScheduler', () => {
 		await timeout(MINUTE);
 
 		assert.deepStrictEqual({ beforeThreshold, afterThreshold: fixture.log, restart: fixture.shutdown() }, {
-			beforeThreshold: [],
-			afterThreshold: ['quitAndInstall(foreground)'],
-			restart: pendingRestart(1, 2),
+			beforeThreshold: ['keepAwake', 'allowSleep', 'keepAwake'],
+			afterThreshold: ['keepAwake', 'allowSleep', 'keepAwake', 'quitAndInstall(foreground)'],
+			restart: pendingRestart(3, 1),
+		});
+	}));
+
+	test('reports when the machine went to sleep before the restart was due, for example because the lid got closed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const enabled = createFixture();
+		const measuring = createFixture({ enabled: false });
+
+		for (const fixture of [enabled, measuring]) {
+			fixture.lock();
+		}
+		await timeout(10 * SECOND);
+		for (const fixture of [enabled, measuring]) {
+			fixture.suspend();
+		}
+		await timeout(8 * 60 * MINUTE);
+		for (const fixture of [enabled, measuring]) {
+			fixture.resume();
+		}
+		await timeout(5 * SECOND);
+		for (const fixture of [enabled, measuring]) {
+			fixture.unlock();
+		}
+
+		assert.deepStrictEqual({ enabled: enabled.log, measuring: measuring.log }, {
+			enabled: ['keepAwake', 'allowSleep', 'keepAwake', outcome('asleep', 2, 0), 'allowSleep'],
+			measuring: [outcome('asleep', 2, 0)],
 		});
 	}));
 
@@ -455,11 +512,11 @@ suite('UnattendedRestartScheduler', () => {
 		assert.deepStrictEqual({ beforeReady, afterReady: fixture.log, restart: fixture.shutdown() }, {
 			beforeReady: [],
 			afterReady: ['quitAndInstall(foreground)'],
-			restart: pendingRestart(1, 62),
+			restart: pendingRestart(1, 61),
 		});
 	}));
 
-	test('does nothing when the screen is unlocked before the restart is due', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('lets the machine sleep again and reports nothing when the screen is unlocked before the restart is due', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fixture = createFixture();
 
 		fixture.lock();
@@ -467,7 +524,7 @@ suite('UnattendedRestartScheduler', () => {
 		fixture.unlock();
 		await timeout(60 * MINUTE);
 
-		assert.deepStrictEqual(fixture.log, []);
+		assert.deepStrictEqual(fixture.log, ['keepAwake', 'allowSleep']);
 	}));
 
 	test('getWindowBlockers', () => {

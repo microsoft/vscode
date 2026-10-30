@@ -7,7 +7,7 @@ import electron from 'electron';
 import { equals } from '../../../base/common/arrays.js';
 import { raceTimeout, RunOnceScheduler } from '../../../base/common/async.js';
 import { Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { OperatingSystem, OS } from '../../../base/common/platform.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
@@ -27,9 +27,15 @@ import { isUnattendedRestartSupported, IUpdateService, RESTART_WHEN_IDLE_SETTING
 import { getRelaunchArguments } from './updateRelaunchArguments.js';
 
 /**
- * How long the screen must stay locked, with the machine awake, before restarting.
+ * How long the screen must stay locked before restarting. When everything would work as the
+ * screen gets locked, the machine is kept awake until then, so that it does not go to sleep first.
  */
-export const UNATTENDED_RESTART_LOCKED_DURATION = 2 * 60 * 1000;
+export const UNATTENDED_RESTART_LOCKED_DURATION = 60 * 1000;
+
+/**
+ * Lets the machine sleep again when the restart does not happen in time.
+ */
+const KEEP_AWAKE_LIMIT = 3 * 60 * 1000;
 
 const RETRY_INTERVAL = 60 * 1000;
 const WINDOW_READINESS_TIMEOUT = 10 * 1000;
@@ -78,26 +84,38 @@ export interface IUnattendedRestartHost {
 	readonly onDidUnlockScreen: Event<void>;
 	readonly onDidSuspend: Event<void>;
 	readonly onDidResume: Event<void>;
+	readonly onDidSwitchToBattery: Event<void>;
 	readonly onDidBlurWindow: Event<void>;
 	isWindowFocused(): boolean;
 	getIdleState(): SystemIdleState;
 	isOnBatteryPower(): boolean;
 	getThermalState(): ThermalState;
+
+	/**
+	 * Keeps the machine from going to sleep while idle, until disposed. The display still
+	 * turns off, and closing the lid of a laptop still puts it to sleep.
+	 */
+	preventSleep(): IDisposable;
 }
 
 function createElectronHost(): IUnattendedRestartHost {
-	const { app, BrowserWindow, powerMonitor } = electron;
+	const { app, BrowserWindow, powerMonitor, powerSaveBlocker } = electron;
 
 	return {
 		onDidLockScreen: Event.fromNodeEventEmitter<void>(powerMonitor, 'lock-screen'),
 		onDidUnlockScreen: Event.fromNodeEventEmitter<void>(powerMonitor, 'unlock-screen'),
 		onDidSuspend: Event.fromNodeEventEmitter<void>(powerMonitor, 'suspend'),
 		onDidResume: Event.fromNodeEventEmitter<void>(powerMonitor, 'resume'),
+		onDidSwitchToBattery: Event.fromNodeEventEmitter<void>(powerMonitor, 'on-battery'),
 		onDidBlurWindow: Event.fromNodeEventEmitter<void>(app, 'browser-window-blur'),
 		isWindowFocused: () => !!BrowserWindow.getFocusedWindow(),
 		getIdleState: () => powerMonitor.getSystemIdleState(60),
 		isOnBatteryPower: () => powerMonitor.isOnBatteryPower(),
 		getThermalState: () => powerMonitor.getCurrentThermalState(),
+		preventSleep: () => {
+			const id = powerSaveBlocker.start('prevent-app-suspension');
+			return toDisposable(() => powerSaveBlocker.stop(id));
+		},
 	};
 }
 
@@ -181,7 +199,7 @@ export function getWindowBlockers(windows: readonly ICodeWindow[], auxiliaryWind
 	return Array.from(blockers);
 }
 
-type UnattendedRestartOutcome = 'restarted' | 'restartedWithoutUpdate' | 'eligible' | 'blocked';
+type UnattendedRestartOutcome = 'restarted' | 'restartedWithoutUpdate' | 'eligible' | 'blocked' | 'asleep';
 
 type UnattendedRestartEvent = {
 	outcome: UnattendedRestartOutcome;
@@ -194,10 +212,10 @@ type UnattendedRestartEvent = {
 type UnattendedRestartClassification = {
 	owner: 'alexdima';
 	comment: 'Tracks whether a downloaded update could be applied by restarting while the screen was locked, to learn how often this applies and what prevents it.';
-	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the application restarted (reported once the restart completed, with or without the update installed), would have restarted if the setting was enabled, or was blocked for the whole time the screen was locked.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the application restarted (reported once the restart completed, with or without the update installed), would have restarted if the setting was enabled, was blocked by the last check before the screen got unlocked, or could have restarted but the machine went to sleep before the restart was due, for example because the lid got closed.' };
 	blockers: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Sorted, comma separated identifiers of all the conditions that blocked the most recent attempt.' };
 	inBackground: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether another application was active when the screen got locked, so that the restart must not take focus.' };
-	attempts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of restart attempts while the screen was locked.' };
+	attempts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of checks while the screen was locked, including the one right after it got locked.' };
 	lockedMinutes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Minutes since the screen was locked or the machine resumed while locked.' };
 };
 
@@ -233,8 +251,10 @@ function isFailedUnattendedUpdate(value: unknown): value is IFailedUnattendedUpd
  * window reports that it can be restored exactly as it is. The windows are restored
  * as they were, for example minimized, and the restart does not change which
  * application has focus: unless VS Code was the active application when the screen
- * got locked, the windows are restored in the background. When `update.restartWhenIdle`
- * is disabled, the same checks run to measure how often a restart would apply.
+ * got locked, the windows are restored in the background. The check runs as soon as
+ * the screen gets locked: when everything would work, the machine is kept awake until
+ * the restart is due. When `update.restartWhenIdle` is disabled, the same checks run,
+ * without keeping the machine awake, to measure how often a restart would apply.
  */
 export class UnattendedRestartScheduler extends Disposable {
 
@@ -242,11 +262,17 @@ export class UnattendedRestartScheduler extends Disposable {
 		this.evaluate().catch(error => this.logService.error('update#unattendedRestart - evaluation failed', error));
 	}, 0));
 
+	private readonly keepAwake = this._register(new MutableDisposable());
+	private readonly keepAwakeLimit = this._register(new RunOnceScheduler(() => this.allowSleep('the restart did not happen in time'), KEEP_AWAKE_LIMIT));
+
 	private lockedSince: number | undefined;
 	private activeWhenLocked = false;
 	private lastWindowBlur: number | undefined;
 	private attempts = 0;
 	private lastBlockers: readonly string[] | undefined;
+	private hasCheckedSinceLock = false;
+	private hasBeenDue = false;
+	private sleptWhileLocked = false;
 	private isDone = false;
 	private isEvaluating = false;
 	private pendingRestart: IPendingUnattendedRestart | undefined;
@@ -282,10 +308,14 @@ export class UnattendedRestartScheduler extends Disposable {
 		this._register(this.host.onDidBlurWindow(() => this.lastWindowBlur = Date.now()));
 		this._register(this.host.onDidLockScreen(() => this.onDidLockScreen()));
 		this._register(this.host.onDidUnlockScreen(() => this.onDidUnlockScreen()));
-		this._register(this.host.onDidSuspend(() => this.evaluation.cancel()));
+		this._register(this.host.onDidSuspend(() => this.onDidSuspend()));
 		this._register(this.host.onDidResume(() => this.onDidResume()));
+		this._register(this.host.onDidSwitchToBattery(() => this.allowSleep('the machine runs on battery')));
 		this._register(updateService.onStateChange(state => {
 			if (state.type !== StateType.Ready) {
+				if (state.type !== StateType.Restarting) {
+					this.allowSleep('the update is no longer ready');
+				}
 				return;
 			}
 
@@ -352,6 +382,7 @@ export class UnattendedRestartScheduler extends Disposable {
 	private onDidVetoRestart(): void {
 		this.logService.info('update#unattendedRestart - the restart was vetoed');
 		this.cancelRestart();
+		this.allowSleep('the restart was vetoed');
 		this.isDone = false;
 		this.lastBlockers = ['shutdown.vetoed'];
 		this.scheduleEvaluation(RETRY_INTERVAL);
@@ -367,24 +398,58 @@ export class UnattendedRestartScheduler extends Disposable {
 		this.activeWhenLocked = this.host.isWindowFocused() || (this.lastWindowBlur !== undefined && this.lockedSince - this.lastWindowBlur <= FOCUS_LOSS_AT_LOCK_GRACE_PERIOD);
 		this.attempts = 0;
 		this.lastBlockers = undefined;
+		this.hasCheckedSinceLock = false;
+		this.hasBeenDue = false;
+		this.sleptWhileLocked = false;
 		this.isDone = false;
 
-		this.scheduleEvaluation(UNATTENDED_RESTART_LOCKED_DURATION);
+		this.scheduleEvaluation(0); // right away, to keep the machine awake when everything would work
 	}
 
 	private onDidUnlockScreen(): void {
-		if (this.lastBlockers && !this.isDone) {
-			this.reportOutcome('blocked', this.lastBlockers);
+		// Locks that end before the restart is due are only reported when the machine slept in the meantime
+		if (this.lastBlockers && !this.isDone && (this.hasBeenDue || this.sleptWhileLocked)) {
+			if (this.lastBlockers.length > 0) {
+				this.reportOutcome('blocked', this.lastBlockers);
+			} else if (this.sleptWhileLocked) {
+				this.reportOutcome('asleep', []);
+			}
 		}
 
 		this.lockedSince = undefined;
 		this.evaluation.cancel();
+		this.allowSleep('the screen got unlocked');
+	}
+
+	private onDidSuspend(): void {
+		this.evaluation.cancel();
+		if (this.lockedSince !== undefined) {
+			this.sleptWhileLocked = true;
+		}
+		this.allowSleep('the machine went to sleep anyway, for example because the lid got closed');
 	}
 
 	private onDidResume(): void {
 		if (this.lockedSince !== undefined) {
 			this.lockedSince = Date.now(); // the user might be about to return
-			this.scheduleEvaluation(UNATTENDED_RESTART_LOCKED_DURATION);
+			this.hasCheckedSinceLock = false;
+			this.scheduleEvaluation(0);
+		}
+	}
+
+	private keepMachineAwake(): void {
+		if (!this.keepAwake.value) {
+			this.keepAwake.value = this.host.preventSleep();
+			this.keepAwakeLimit.schedule();
+			this.logService.info('update#unattendedRestart - keeping the machine awake until the restart is due');
+		}
+	}
+
+	private allowSleep(reason: string): void {
+		this.keepAwakeLimit.cancel();
+		if (this.keepAwake.value) {
+			this.keepAwake.clear();
+			this.logService.info(`update#unattendedRestart - letting the machine sleep again: ${reason}`);
 		}
 	}
 
@@ -408,15 +473,17 @@ export class UnattendedRestartScheduler extends Disposable {
 			return; // nothing to restart and nothing to learn (experiments that enable it need telemetry too)
 		}
 
-		const remaining = lockedSince + UNATTENDED_RESTART_LOCKED_DURATION - Date.now();
-		if (remaining > 0) {
-			this.evaluation.schedule(remaining);
+		const isDue = Date.now() >= lockedSince + UNATTENDED_RESTART_LOCKED_DURATION;
+		if (!isDue && this.hasCheckedSinceLock) {
+			this.evaluation.schedule(lockedSince + UNATTENDED_RESTART_LOCKED_DURATION - Date.now());
 			return;
 		}
 
 		this.isEvaluating = true;
 		try {
 			this.attempts++;
+			this.hasCheckedSinceLock = true;
+			this.hasBeenDue ||= isDue;
 			const inBackground = !this.activeWhenLocked;
 			const { blockers, details, enabled } = await this.getBlockers(inBackground);
 			if (this.lockedSince !== lockedSince || !this.hasUpdateState(StateType.Ready)) {
@@ -424,11 +491,22 @@ export class UnattendedRestartScheduler extends Disposable {
 			}
 
 			if (blockers.length > 0) {
+				this.allowSleep('the restart is blocked');
 				if (!equals(blockers, this.lastBlockers)) {
 					this.logService.info(`update#unattendedRestart - not restarting: ${describeUnattendedRestartBlockers(blockers, details)}`); // retried every minute, so only log changes
 				}
 				this.lastBlockers = blockers;
-				this.evaluation.schedule(RETRY_INTERVAL);
+				this.evaluation.schedule(isDue ? RETRY_INTERVAL : lockedSince + UNATTENDED_RESTART_LOCKED_DURATION - Date.now());
+				return;
+			}
+
+			this.lastBlockers = [];
+			if (!isDue) {
+				// Everything would work, so do not let the machine go to sleep before the restart is due
+				if (enabled) {
+					this.keepMachineAwake();
+				}
+				this.evaluation.schedule(lockedSince + UNATTENDED_RESTART_LOCKED_DURATION - Date.now());
 				return;
 			}
 
