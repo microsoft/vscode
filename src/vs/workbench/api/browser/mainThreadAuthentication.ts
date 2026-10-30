@@ -132,7 +132,7 @@ class MainThreadAuthenticationProviderWithChallenges extends MainThreadAuthentic
 export class MainThreadAuthentication extends Disposable implements MainThreadAuthenticationShape {
 	private readonly _proxy: Proxied<ExtHostAuthenticationShape>;
 
-	private readonly _registrations = this._register(new DisposableMap<string, { emitter: Emitter<AuthenticationSessionsChangeEvent>; dispose(): void }>());
+	private readonly _registrations = this._register(new DisposableMap<string, { provider: IAuthenticationProvider; emitter: Emitter<AuthenticationSessionsChangeEvent>; dispose(): void }>());
 	private _sentProviderUsageEvents = new Set<string>();
 	private _suppressUnregisterEvent = false;
 
@@ -160,8 +160,17 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
 
 		this._register(this.authenticationService.onDidChangeSessions(e => this._proxy.$onDidChangeAuthenticationSessions(e.providerId, e.label)));
+		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(e => {
+			const registration = this._registrations.get(e.id);
+			// Another extension host may have replaced the provider registered by this host.
+			if (registration && (!this.authenticationService.isAuthenticationProviderRegistered(e.id) || this.authenticationService.getProvider(e.id) !== registration.provider)) {
+				this._registrations.deleteAndDispose(e.id);
+			}
+		}));
 		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(e => {
-			if (!this._suppressUnregisterEvent) {
+			// Do not send an old removal to a host whose registration RPC is still in flight.
+			if (!this._suppressUnregisterEvent && this._registrations.has(e.id)) {
+				this._registrations.deleteAndDispose(e.id);
 				this._proxy.$onDidUnregisterAuthenticationProvider(e.id);
 			}
 		}));
@@ -277,6 +286,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				);
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 		this._registrations.set(id, {
+			provider,
 			emitter,
 			dispose: () => {
 				emitter.dispose();
