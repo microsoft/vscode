@@ -9,7 +9,6 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -18,7 +17,8 @@ import { createInMemoryFileService } from '../../../files/test/common/inMemoryFi
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { ITrackedEditSource, ITrackedTurnDatabase } from '../../common/agentHostChangesetService.js';
-import { EMPTY_TREE_OBJECT, type IAgentHostGitService, type IBranch, type IDefaultBranch } from '../../common/agentHostGitService.js';
+import { EMPTY_TREE_OBJECT } from '../../common/agentHostGitService.js';
+import { TestAgentHostGitService } from '../common/testAgentHostGitService.js';
 import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildWorkingSetChangesetUri, ChangesetKind } from '../../common/changesetUri.js';
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -36,66 +36,22 @@ import { computeSessionDiffs, computeTurnDiffs, computeWorkingSetDiffs } from '.
 import { createNoopChangesetService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { InProcessDiffComputeService } from './inProcessDiffComputeService.js';
 
-class TestGitService implements IAgentHostGitService {
-	declare readonly _serviceBrand: undefined;
-
+class TestGitService extends TestAgentHostGitService {
 	readonly restoreCalls: { workingDirectory: string; paths: readonly string[]; options?: { readonly staged?: boolean; readonly ref?: string } }[] = [];
 	restoreError: Error | undefined;
 	repositoryRoot: URI | undefined = URI.file('/repo');
 	readonly repositoryRoots = new Map<string, URI | undefined>();
 	untrackedPaths: readonly string[] = [];
 
-	async getCurrentBranch(): Promise<string | undefined> { return undefined; }
-	async getHEAD(): Promise<IBranch | undefined> { return undefined; }
-	async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return undefined; }
-	async getDefaultBranch2(): Promise<IBranch | undefined> { return undefined; }
-	async getBranch(): Promise<IBranch | undefined> { return undefined; }
-	async getRefs(): Promise<IBranch[]> { return []; }
-	async getBranches(): Promise<IBranch[]> { return []; }
-	hasGitRoot() { return constObservable(undefined); }
-	async getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined> { return this.repositoryRoots.get(workingDirectory.toString()) ?? this.repositoryRoot; }
-	async getWorktreeRoots(): Promise<URI[]> { return []; }
-	async getWorktrees() { return []; }
-	async addWorktree(): Promise<void> { }
-	async copyWorktreeIncludeFiles(): Promise<void> { }
-	async symlinkWorktreeFolders(): Promise<readonly string[]> { return []; }
-	async addExistingWorktree(): Promise<void> { }
-	async isWorktreeRegistered(): Promise<boolean> { return true; }
-	async removeWorktree(): Promise<void> { }
-	async branchExists(): Promise<boolean> { return false; }
-	async createBranch(): Promise<void> { }
-	async checkout(): Promise<void> { }
-	async hasUncommittedChanges(): Promise<boolean> { return true; }
-	async createStash(): Promise<void> { }
-	async commitAll(): Promise<void> { }
-	async mergeBranch(): Promise<string> { return ''; }
-	async restore(workingDirectory: URI, paths: readonly string[], options?: { readonly staged?: boolean; readonly ref?: string }): Promise<void> {
+	override async getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined> { return this.repositoryRoots.get(workingDirectory.toString()) ?? this.repositoryRoot; }
+	override async hasUncommittedChanges(): Promise<boolean> { return true; }
+	override async restore(workingDirectory: URI, paths: readonly string[], options?: { readonly staged?: boolean; readonly ref?: string }): Promise<void> {
 		this.restoreCalls.push({ workingDirectory: workingDirectory.toString(), paths, options });
 		if (this.restoreError) {
 			throw this.restoreError;
 		}
 	}
-	async hasUpstream(): Promise<boolean> { return false; }
-	async fetch(): Promise<void> { }
-	async pull(): Promise<void> { }
-	async push(): Promise<void> { }
-	async getSessionGitState(): Promise<undefined> { return undefined; }
-	async computeSessionFileDiffs(): Promise<readonly ISessionFileDiff[] | undefined> { return undefined; }
-	async showBlob(): Promise<undefined> { return undefined; }
-	async captureWorkingTreeAsTree(): Promise<undefined> { return undefined; }
-	async commitTree(): Promise<undefined> { return undefined; }
-	async updateRef(): Promise<void> { }
-	async deleteRefs(): Promise<void> { }
-	async revParse(): Promise<string | undefined> { return undefined; }
-	async resolveBranchBaselineCommit(): Promise<string | undefined> { return undefined; }
-	async overlayPathIntoTree(): Promise<string | undefined> { return undefined; }
-	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
-	async computeFileDiffsBetweenRefs(): Promise<readonly ISessionFileDiff[] | undefined> { return undefined; }
-	async getFetchRemoteUrls(): Promise<undefined> { return undefined; }
-	async getFetchRemotes(): Promise<undefined> { return undefined; }
-	async getUntrackedPaths(): Promise<readonly string[]> { return this.untrackedPaths; }
-	async getBranchDiffSafetyInfo(): Promise<undefined> { return undefined; }
-	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }
+	override async getUntrackedPaths(): Promise<readonly string[]> { return this.untrackedPaths; }
 }
 
 class TestFileService extends mock<IFileService>() {

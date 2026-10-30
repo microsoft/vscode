@@ -27,7 +27,7 @@ import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isEqual, isEqualOrParent } from '../../../../base/common/resources.js';
-import { autorun, constObservable, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -103,7 +103,8 @@ import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentH
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AgentHostPromptCache, IAgentHostPromptCache } from '../../node/agentHostPromptCache.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../../node/agentHostSessionTitleSignal.js';
-import { IAgentHostGitService, type IAddWorktreeOptions, type IBranch, type IDefaultBranch } from '../../common/agentHostGitService.js';
+import { IAgentHostGitService, type IAddWorktreeOptions } from '../../common/agentHostGitService.js';
+import { TestAgentHostGitService as BaseTestAgentHostGitService } from '../common/testAgentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService, NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
@@ -411,9 +412,7 @@ class TestAgentPluginManager implements IAgentPluginManager {
 	}
 }
 
-class TestAgentHostGitService implements IAgentHostGitService {
-	declare readonly _serviceBrand: undefined;
-
+class TestAgentHostGitService extends BaseTestAgentHostGitService {
 	repositoryRoot: URI | undefined = undefined;
 	headCommit: string | undefined = '0'.repeat(40);
 	addedWorktrees: { repositoryRoot: URI; options: IAddWorktreeOptions }[] = [];
@@ -422,69 +421,32 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	existingBranches = new Set<string>();
 	dirtyWorkingDirectories = new Set<string>();
 
-	async getCurrentBranch(): Promise<string | undefined> { return undefined; }
-	async getHEAD(): Promise<IBranch | undefined> { return undefined; }
-	async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return undefined; }
-	async getDefaultBranch2(): Promise<IBranch | undefined> { return undefined; }
-	async getBranch(): Promise<IBranch | undefined> { return undefined; }
-	async getRefs(): Promise<IBranch[]> { return []; }
-	async getBranches(): Promise<IBranch[]> { return []; }
-	hasGitRoot() { return constObservable(undefined); }
-	async getRepositoryRoot(): Promise<URI | undefined> { return this.repositoryRoot; }
-	async getWorktreeRoots(): Promise<URI[]> { return []; }
-	async getWorktrees() { return []; }
-	async addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<void> {
+	override async getRepositoryRoot(): Promise<URI | undefined> { return this.repositoryRoot; }
+	override async addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<void> {
 		this.addedWorktrees.push({ repositoryRoot, options });
 		if (options.newBranchName) {
 			this.existingBranches.add(options.newBranchName);
 		}
 	}
-	async copyWorktreeIncludeFiles(): Promise<void> { }
-	async symlinkWorktreeFolders(): Promise<readonly string[]> { return []; }
-	async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
+	override async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
 		this.addedExistingWorktrees.push({ repositoryRoot, worktree, branchName });
 	}
-	async isWorktreeRegistered(): Promise<boolean> { return false; }
-	async removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void> {
+	override async isWorktreeRegistered(): Promise<boolean> { return false; }
+	override async removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void> {
 		this.removedWorktrees.push({ repositoryRoot, worktree });
 	}
-	async branchExists(_repositoryRoot: URI, branchName: string): Promise<boolean> {
+	override async branchExists(_repositoryRoot: URI, branchName: string): Promise<boolean> {
 		return this.existingBranches.has(branchName);
 	}
-	async createBranch(_workingDirectory: URI, branchName: string): Promise<void> {
+	override async createBranch(_workingDirectory: URI, branchName: string): Promise<void> {
 		this.existingBranches.add(branchName);
 	}
-	async checkout(): Promise<void> { }
-	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
+	override async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
 		return this.dirtyWorkingDirectories.has(workingDirectory.fsPath);
 	}
-	async createStash(): Promise<void> { }
-	async commitAll(): Promise<void> { }
-	async mergeBranch(): Promise<string> { return ''; }
-	async restore(): Promise<void> { }
-	async hasUpstream(): Promise<boolean> { return false; }
-	async fetch(): Promise<void> { }
-	async pull(): Promise<void> { }
-	async push(): Promise<void> { }
-	async getSessionGitState(): Promise<undefined> { return undefined; }
-	async computeSessionFileDiffs(): Promise<undefined> { return undefined; }
-	async showBlob(): Promise<undefined> { return undefined; }
-	async captureWorkingTreeAsTree(): Promise<undefined> { return undefined; }
-	async commitTree(): Promise<undefined> { return undefined; }
-	async updateRef(): Promise<void> { }
-	async deleteRefs(): Promise<void> { }
-	async revParse(_repositoryRoot: URI, expression: string): Promise<string | undefined> {
+	override async revParse(_repositoryRoot: URI, expression: string): Promise<string | undefined> {
 		return expression === 'HEAD' ? this.headCommit : undefined;
 	}
-	async resolveBranchBaselineCommit(): Promise<string | undefined> { return undefined; }
-	async overlayPathIntoTree(): Promise<string | undefined> { return undefined; }
-	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
-	async computeFileDiffsBetweenRefs(): Promise<undefined> { return undefined; }
-	async getFetchRemoteUrls(): Promise<undefined> { return undefined; }
-	async getFetchRemotes(): Promise<undefined> { return undefined; }
-	async getUntrackedPaths(): Promise<[]> { return []; }
-	async getBranchDiffSafetyInfo(): Promise<undefined> { return undefined; }
-	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }
 }
 
 class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
