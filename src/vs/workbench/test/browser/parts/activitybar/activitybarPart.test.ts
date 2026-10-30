@@ -140,7 +140,12 @@ suite('ActivitybarPart', () => {
 
 	// --- Static constants ---------------------------------------------------
 
-	test('shows a visible focus indicator on the selected activity bar item', () => {
+	test('shows a visible focus indicator on the selected activity bar item', function () {
+		// Hidden Electron windows do not match focus pseudo-classes; run this test in a browser.
+		if (!mainWindow.document.hasFocus()) {
+			this.skip();
+		}
+
 		const workbench = document.createElement('div');
 		workbench.className = 'monaco-workbench';
 		workbench.style.setProperty('--vscode-strokeThickness', '1px');
