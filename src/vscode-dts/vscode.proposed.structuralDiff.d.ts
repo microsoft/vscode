@@ -267,7 +267,9 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @returns A structural diff, or `undefined` or `null` when the provider
 		 * cannot supply a result. Failures should be reported by throwing an
-		 * error or returning a rejected promise.
+		 * error or returning a rejected promise. A result that does not satisfy the
+		 * requirements described on {@link StructuralDiff} and its members is
+		 * treated as a failure.
 		 */
 		provideStructuralDiff(originalDocument: TextDocument, modifiedDocument: TextDocument, context: StructuralDiffContext, token: CancellationToken): ProviderResult<StructuralDiff>;
 	}

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -366,8 +367,17 @@ suite('SCM structural diff model', () => {
 	test('rejects duplicate node identities rather than corrupting the tree', async () => {
 		const result = createResult();
 		provider.result = { ...result, root: { ...result.root, children: [...result.root.children, ...result.root.children] } };
-		const children = await model.getChildren(resource);
-		assert.deepStrictEqual({ labels: children.map(getSCMStructuralDiffLabel), errors }, { labels: ['Unable to load structural changes'], errors: 1 });
+		const reported: string[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => reported.push(error.message));
+		try {
+			const children = await model.getChildren(resource);
+			assert.deepStrictEqual({ labels: children.map(getSCMStructuralDiffLabel), reported, errors }, {
+				labels: [], reported: [`Invalid structural diff: node 'class' must have an identifier that is unique within the result`], errors: 0,
+			});
+		} finally {
+			setUnexpectedErrorHandler(previousHandler);
+		}
 	});
 
 	test('describes deleted entities without relying on color', async () => {

@@ -15,7 +15,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { Range } from '../../../../common/core/range.js';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../../../common/diff/documentDiffProvider.js';
 import { linesDiffComputers } from '../../../../common/diff/linesDiffComputers.js';
-import { StructuralDiff, StructuralDiffClassification, StructuralDiffContext, StructuralDiffResult, SymbolKind } from '../../../../common/languages.js';
+import { StructuralDiff, StructuralDiffClassification, StructuralDiffContext, StructuralDiffNode, StructuralDiffResult, StructuralDiffTag, SymbolKind } from '../../../../common/languages.js';
 import { ITextModel } from '../../../../common/model.js';
 import { IEditorWorkerService } from '../../../../common/services/editorWorker.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
@@ -23,7 +23,7 @@ import { LanguageFeaturesService } from '../../../../common/services/languageFea
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../common/services/resolverService.js';
 import { ITextResourceConfigurationService } from '../../../../common/services/textResourceConfiguration.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
-import { StructuralDiffTimeoutError, getStructuralDiff } from '../../common/structuralDiff.js';
+import { StructuralDiffs } from '../../common/structuralDiff.js';
 import '../../common/structuralDiff.contribution.js';
 
 suite('Structural diff', () => {
@@ -89,7 +89,7 @@ suite('Structural diff', () => {
 	}
 
 	function compute(token: CancellationToken = CancellationToken.None): Promise<StructuralDiffResult | undefined> {
-		return getStructuralDiff(worker, configuration, languageFeatures.structuralDiffProvider, original, modified, token);
+		return StructuralDiffs.compute(worker, configuration, languageFeatures.structuralDiffProvider, original, modified, token);
 	}
 
 	test('computes paired character changes and selects using the modified model', async () => {
@@ -167,6 +167,98 @@ suite('Structural diff', () => {
 		}
 	});
 
+	test('reports a result that violates the provider contract and tries the next provider', async () => {
+		const errors: string[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => errors.push(error.message));
+		try {
+			store.add(languageFeatures.structuralDiffProvider.register('*', {
+				provideStructuralDiff: (_original, _modified, context) => createResult(context),
+			}));
+			store.add(languageFeatures.structuralDiffProvider.register({ scheme: 'modified' }, {
+				provideStructuralDiff: (_original, _modified, context) => {
+					const result = createResult(context);
+					return { ...result, root: { ...result.root, children: [result.root] } };
+				},
+			}));
+			const result = await compute();
+			assert.deepStrictEqual({ errors, hasResult: !!result }, {
+				errors: [`Invalid structural diff: node 'file' must have an identifier that is unique within the result`],
+				hasResult: true,
+			});
+		} finally {
+			setUnexpectedErrorHandler(previousHandler);
+		}
+	});
+
+	test('accepts valid results and describes the first violation of the provider contract', async () => {
+		const entity = (name: string, kind: SymbolKind, range: Range, selectionRange?: Range) => ({ name, kind, range, selectionRange });
+		const coverage = { textChangeIndex: 0, range: new Range(1, 15, 1, 16), classification: StructuralDiffClassification.Implementation, tags: [StructuralDiffTag.Test] };
+		const inner: StructuralDiffNode = {
+			id: 'inner',
+			original: entity('value', SymbolKind.Variable, new Range(1, 7, 1, 16), new Range(1, 7, 1, 12)),
+			modified: entity('value', SymbolKind.Variable, new Range(1, 7, 1, 16), new Range(1, 7, 1, 12)),
+			originalChanges: [coverage], modifiedChanges: [coverage], children: [],
+		};
+		const outer: StructuralDiffNode = {
+			id: 'outer',
+			original: entity('statement', SymbolKind.Variable, new Range(1, 1, 1, 17)),
+			modified: entity('statement', SymbolKind.Variable, new Range(1, 1, 1, 17)),
+			originalChanges: [], modifiedChanges: [], children: [inner],
+		};
+		const valid: StructuralDiff = {
+			root: {
+				id: 'file',
+				original: entity('file.ts', SymbolKind.File, original.getFullModelRange()),
+				modified: entity('file.ts', SymbolKind.File, modified.getFullModelRange()),
+				originalChanges: [], modifiedChanges: [], children: [outer],
+			},
+			isIncomplete: false,
+		};
+		const withRoot = (change: Partial<StructuralDiffNode>): StructuralDiff => ({ ...valid, root: { ...valid.root, ...change } });
+		const withOuter = (change: Partial<StructuralDiffNode>): StructuralDiff => withRoot({ children: [{ ...outer, ...change }] });
+		const withInner = (change: Partial<StructuralDiffNode>): StructuralDiff => withOuter({ children: [{ ...inner, ...change }] });
+		const problem = (id: string, text: string) => `Invalid structural diff: node '${id}' ${text}`;
+		const cases: [string, StructuralDiff, string][] = [
+			['valid', valid, 'valid'],
+			['incomplete results may omit coverage', { ...withInner({ originalChanges: [], modifiedChanges: [] }), isIncomplete: true }, 'valid'],
+			['duplicate id', withInner({ id: 'outer' }), problem('outer', 'must have an identifier that is unique within the result')],
+			['no entity', withInner({ original: undefined, modified: undefined, originalChanges: [], modifiedChanges: [] }), problem('inner', 'must have an original or a modified entity')],
+			['changes without entity', withInner({ original: undefined }), problem('inner', 'has original changes but no original entity')],
+			['unknown kind', withInner({ modified: { ...inner.modified!, kind: 99 as SymbolKind } }), problem('inner', 'has an invalid modified entity name or kind')],
+			['range outside the document', withInner({ original: { ...inner.original!, range: new Range(1, 7, 9, 1) } }), problem('inner', 'has a range outside the original document')],
+			['selection outside the entity', withInner({ modified: { ...inner.modified!, selectionRange: new Range(2, 1, 2, 1) } }), problem('inner', 'has a selection range in the modified document that is invalid or not contained in the entity range')],
+			['entity outside its parent', withInner({ modified: { ...inner.modified!, range: new Range(2, 1, 2, 1), selectionRange: undefined } }), problem('inner', 'has an entity in the modified document that is not contained in its parent')],
+			['parent missing on a side', withOuter({ original: undefined }), problem('inner', 'has an entity in the original document that is not contained in its parent')],
+			['unknown text change', withInner({ modifiedChanges: [{ ...coverage, textChangeIndex: 1 }] }), problem('inner', 'has modified changes that refer to a text change that does not exist')],
+			['coverage outside its text change', withInner({ originalChanges: [{ ...coverage, range: new Range(1, 10, 1, 12) }] }), problem('inner', 'has original changes with a range that is empty, invalid or not contained in its text change')],
+			['empty coverage', withInner({ originalChanges: [{ ...coverage, range: new Range(1, 15, 1, 15) }] }), problem('inner', 'has original changes with a range that is empty, invalid or not contained in its text change')],
+			['unknown classification', withInner({ modifiedChanges: [{ ...coverage, classification: 99 as StructuralDiffClassification }] }), problem('inner', 'has modified changes with an invalid classification or tag')],
+			['unknown tag', withInner({ originalChanges: [{ ...coverage, tags: [99 as StructuralDiffTag] }] }), problem('inner', 'has original changes with an invalid classification or tag')],
+			['overlapping coverage of ancestor and descendant', withOuter({ modifiedChanges: [coverage] }), 'Invalid structural diff: modified changes [1,15 -> 1,16] and [1,15 -> 1,16] overlap'],
+			['root that is not a file', withRoot({ modified: { ...valid.root.modified!, kind: SymbolKind.Class } }), problem('file', 'must be a file on both sides')],
+		];
+
+		let reported: string[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => reported.push(error.message));
+		try {
+			const outcomes: [string, string][] = [];
+			for (const [name, result] of cases) {
+				reported = [];
+				const registration = languageFeatures.structuralDiffProvider.register('*', { provideStructuralDiff: () => result });
+				try {
+					outcomes.push([name, (await compute()) ? 'valid' : reported.join('\n')]);
+				} finally {
+					registration.dispose();
+				}
+			}
+			assert.deepStrictEqual(outcomes, cases.map(([name, , expected]) => [name, expected]));
+		} finally {
+			setUnexpectedErrorHandler(previousHandler);
+		}
+	});
+
 	test('accepts a partial result without merging providers', async () => {
 		store.add(languageFeatures.structuralDiffProvider.register('*', {
 			provideStructuralDiff: () => { throw new Error('Must not merge results'); },
@@ -228,7 +320,7 @@ suite('Structural diff', () => {
 			store.add(languageFeatures.structuralDiffProvider.register('*', {
 				provideStructuralDiff: () => { throw new Error('Must not classify an unavailable text diff'); },
 			}));
-			await assert.rejects(compute(), unavailable ? /without a complete text diff/ : StructuralDiffTimeoutError);
+			await assert.rejects(compute(), unavailable ? /without a complete text diff/ : StructuralDiffs.TimeoutError);
 		});
 	}
 

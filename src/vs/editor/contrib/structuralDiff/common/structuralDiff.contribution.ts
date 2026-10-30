@@ -12,7 +12,7 @@ import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { ITextModelService } from '../../../common/services/resolverService.js';
 import { ITextResourceConfigurationService } from '../../../common/services/textResourceConfiguration.js';
-import { getStructuralDiff } from './structuralDiff.js';
+import { StructuralDiffs } from './structuralDiff.js';
 
 CommandsRegistry.registerCommand('_executeStructuralDiffProvider', async (accessor, originalResource: URI, modifiedResource: URI) => {
 	assertType(URI.isUri(originalResource));
@@ -26,7 +26,7 @@ CommandsRegistry.registerCommand('_executeStructuralDiffProvider', async (access
 	try {
 		const original = references.add(await modelService.createModelReference(originalResource));
 		const modified = references.add(await modelService.createModelReference(modifiedResource));
-		return await getStructuralDiff(workerService, configurationService, languageFeaturesService.structuralDiffProvider, original.object.textEditorModel, modified.object.textEditorModel, CancellationToken.None);
+		return await StructuralDiffs.compute(workerService, configurationService, languageFeaturesService.structuralDiffProvider, original.object.textEditorModel, modified.object.textEditorModel, CancellationToken.None);
 	} finally {
 		references.dispose();
 	}

@@ -18,7 +18,7 @@ import { ILanguageFeaturesService } from '../../../../editor/common/services/lan
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
-import { StructuralDiffTimeoutError, getStructuralDiff } from '../../../../editor/contrib/structuralDiff/common/structuralDiff.js';
+import { StructuralDiffs } from '../../../../editor/contrib/structuralDiff/common/structuralDiff.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -369,14 +369,9 @@ export class SCMStructuralDiffModel extends Disposable {
 				entry.listeners.add(model.onDidChangeContent(() => this.invalidate(entry)));
 				entry.listeners.add(model.onWillDispose(() => this.invalidate(entry)));
 			}
-			const result = await getStructuralDiff(this.editorWorkerService, this.configurationService, this.languageFeaturesService.structuralDiffProvider, original, modified, entry.cancellation.token);
+			const result = await StructuralDiffs.compute(this.editorWorkerService, this.configurationService, this.languageFeaturesService.structuralDiffProvider, original, modified, entry.cancellation.token);
 			this.checkCancellation(entry);
-			const ids = new Set<string>();
 			const wrap = (node: StructuralDiffNode, parent: ISCMResource | SCMStructuralDiffNode, order: number): SCMStructuralDiffNode => {
-				if (typeof node.id !== 'string' || ids.has(node.id) || (!node.original && !node.modified)) {
-					throw new Error('Invalid structural diff node identity');
-				}
-				ids.add(node.id);
 				const children: SCMStructuralDiffNode[] = [];
 				const element: SCMStructuralDiffNode = {
 					type: 'structuralDiff', id: `${SCM_STRUCTURAL_DIFF_ID_PREFIX}${entry.generation}:node:${node.id}`,
@@ -404,7 +399,7 @@ export class SCMStructuralDiffModel extends Disposable {
 				}
 				return [];
 			}
-			if (error instanceof StructuralDiffTimeoutError) {
+			if (error instanceof StructuralDiffs.TimeoutError) {
 				this.logService.info('[SCM] Structural changes took too long to compute', resource.sourceUri, error.message);
 				return this.fail(entry, 'timedOut');
 			}
