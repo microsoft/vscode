@@ -248,22 +248,26 @@
 	padding: 2px;
 }
 
-.customview-tree .monaco-list .monaco-list-row:hover .custom-view-tree-node-item .actions,
+.customview-tree .monaco-list .monaco-list-row:is(:hover, .hovered) .custom-view-tree-node-item .actions,
 .customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item .actions,
 .customview-tree .monaco-list .monaco-list-row.focused .custom-view-tree-node-item .actions {
 	display: block;
 }
 
 /* When horizontal scrolling is enabled, shift actions back to the viewport's right edge */
-.customview-tree .monaco-list.horizontal-scrolling .monaco-list-row:has(.actions .action-item):hover .custom-view-tree-node-item .actions,
-
-.customview-tree .monaco-list.horizontal-scrolling .monaco-list-row:has(.actions .action-item).selected .custom-view-tree-node-item .actions,
-
-.customview-tree .monaco-list.horizontal-scrolling .monaco-list-row:has(.actions .action-item).focused .custom-view-tree-node-item .actions {
+.customview-tree .monaco-list.horizontal-scrolling .monaco-list-row:where(:has(.actions .action-item)):is(:hover, .hovered, .selected, .focused) .custom-view-tree-node-item .actions {
 	position: relative;
 	right: var(--list-scroll-right-offset, 0px);
-	background-color: var(--vscode-list-hoverBackground);
+	background-color: var(--vscode-sideBar-background);
+	background-image: linear-gradient(var(--vscode-list-hoverBackground), var(--vscode-list-hoverBackground));
 	padding-left: 4px;
+	/* Cover the row's trailing gutter without moving the buttons. */
+	padding-right: var(--vscode-spacing-size120);
+	margin-right: calc(-1 * var(--vscode-spacing-size120));
+}
+
+.part.panel .customview-tree .monaco-list.horizontal-scrolling .monaco-list-row .custom-view-tree-node-item .actions {
+	background-color: var(--vscode-panel-background);
 }
 
 .customview-tree .monaco-list.horizontal-scrolling .monaco-list-row:has(.monaco-icon-label:is(.monaco-decoration-itemColor, .monaco-decoration-badge)) .actions {
@@ -272,15 +276,19 @@
 }
 
 .customview-tree .monaco-list.horizontal-scrolling:focus .monaco-list-row.selected .custom-view-tree-node-item .actions {
-	background-color: var(--vscode-list-activeSelectionBackground);
+	background-image: linear-gradient(var(--vscode-list-activeSelectionBackground, transparent), var(--vscode-list-activeSelectionBackground, transparent));
 }
 
 .customview-tree .monaco-list.horizontal-scrolling:not(:focus) .monaco-list-row.selected .custom-view-tree-node-item .actions {
-	background-color: var(--vscode-list-inactiveSelectionBackground);
+	background-image: linear-gradient(var(--vscode-list-inactiveSelectionBackground, transparent), var(--vscode-list-inactiveSelectionBackground, transparent));
 }
 
 .customview-tree .monaco-list.horizontal-scrolling .monaco-list-row.focused:not(.selected) .custom-view-tree-node-item .actions {
-	background-color: var(--vscode-list-focusBackground);
+	background-image: linear-gradient(var(--vscode-list-inactiveFocusBackground, transparent), var(--vscode-list-inactiveFocusBackground, transparent));
+}
+
+.customview-tree .monaco-list.horizontal-scrolling:focus .monaco-list-row.focused:not(.selected) .custom-view-tree-node-item .actions {
+	background-image: linear-gradient(var(--vscode-list-focusBackground, transparent), var(--vscode-list-focusBackground, transparent));
 }
 
 /* filter view pane */

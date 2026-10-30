@@ -10,9 +10,11 @@ import { isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
@@ -29,9 +31,128 @@ import { TestDiffComputeService } from '../common/sessionTestHelpers.js';
 suite('Agent Edit Attribution Service', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const scenario of ['precise', 'invalid agent diff', 'agent timeout', 'external fallback', 'agent and external fallback'] as const) {
+		test(`reports scope-wide coarse diff counts and preserves them across cancelled flushes: ${scenario}`, async () => {
+			const before = 'aaa\nmiddle\nzzz';
+			const after = 'AAA\nmiddle\nZZZ';
+			const externalFallback = scenario === 'external fallback' || scenario === 'agent and external fallback';
+			const current = externalFallback ? 'AAA\nMIDDLE\nZZZ' : after;
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
+			const resource = URI.file('/workspace/coarse.ts');
+			await fileService.writeFile(resource, VSBuffer.fromString(current));
+			const events: { name: string; count: number | undefined }[] = [];
+			const githubEvents: { name: string; count: number | undefined }[] = [];
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IFileService, fileService);
+			instantiationService.stub(IDiffComputeService, {
+				computeDiffCounts: async (original, modified) => externalFallback
+					? { added: 0, removed: 0, changes: [] }
+					: computeDiffCounts(original, modified, 5000),
+			});
+			instantiationService.stub(ILogService, new NullLogService());
+			const telemetry: Partial<IAgentHostTelemetryService> = {
+				telemetryLevel: TelemetryLevel.USAGE,
+				publicLog2(name, data) {
+					events.push({ name, count: (data as { coarseDiffCount?: number }).coarseDiffCount });
+				},
+				sendGHTelemetryEvent(name, _properties, measurements) {
+					githubEvents.push({ name, count: measurements?.coarseDiffCount });
+				},
+			};
+			instantiationService.stub(ITelemetryService, telemetry);
+			const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
+			await service.recordEdit({
+				sessionUri: 'copilotcli:/session', ownerSessionUri: 'copilotcli:/session',
+				turnId: 'turn', toolCallId: 'tool', filePath: resource.fsPath,
+				beforeText: before, afterText: after,
+				changes: scenario === 'invalid agent diff' || scenario === 'agent and external fallback' ? [] : computeDiffCounts(before, after, 5000).changes,
+				diffHitTimeout: scenario === 'agent timeout' || scenario === 'agent and external fallback',
+				modelId: 'model', toolName: 'edit',
+			});
+			const prepared = await service.prepareFlush({
+				resource, trigger: 'closed', statsUuid: 'stats', isDirty: false, flushToken: 'flush', languageId: 'typescript',
+			});
+			await service.cancelFlush({ flushToken: 'flush' });
+			await service.flushSession('copilotcli:/session');
+			const count = scenario === 'precise' ? 0 : scenario === 'agent and external fallback' ? 2 : 1;
+			assert.deepStrictEqual({
+				preparedCount: prepared?.coarseDiffCount,
+				events,
+				githubEvents,
+			}, {
+				preparedCount: count,
+				events: [
+					{ name: 'editTelemetry.editSources.details', count },
+					{ name: 'editTelemetry.editSources.stats', count },
+				],
+				githubEvents: [
+					{ name: 'vscode.editTelemetry.editSources.details', count },
+					{ name: 'vscode.editTelemetry.editSources.stats', count },
+				],
+			});
+		});
+	}
+
+	for (const scenario of ['indentation', 'mixed edit and user revert', 'external indentation'] as const) {
+		test(`keeps longterm character attribution precise for ${scenario}`, async () => {
+			const before = 'const first = 1;\n// unchanged user text\nconst last = 2;';
+			const after = scenario === 'indentation'
+				? '\tconst first = 1;\n// unchanged user text\n\tconst last = 2;'
+				: scenario === 'mixed edit and user revert'
+					? '\tconst first = 1;\n// unchanged user text\nconst last = 3;'
+					: 'const first = 3;\n// unchanged user text\nconst last = 4;';
+			const current = scenario === 'mixed edit and user revert'
+				? after.substring(1)
+				: scenario === 'external indentation'
+					? after.replace('const first', '\tconst first').replace('const last', '\tconst last')
+					: after;
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
+			const resource = URI.file('/workspace/file.ts');
+			await fileService.writeFile(resource, VSBuffer.fromString(current));
+			const events: { eventName: string; data: Record<string, string | number | undefined> }[] = [];
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IFileService, fileService);
+			instantiationService.stub(IDiffComputeService, {
+				computeDiffCounts: async (original, modified, timeoutMs) => computeDiffCounts(original, modified, timeoutMs ?? 5_000),
+			});
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(ITelemetryService, {
+				telemetryLevel: TelemetryLevel.USAGE,
+				publicLog2(eventName, data) {
+					events.push({ eventName, data: data as Record<string, string | number | undefined> });
+				},
+			});
+			const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, undefined, undefined));
+			await service.recordEdit({
+				sessionUri: 'copilotcli:/session-1',
+				ownerSessionUri: 'copilotcli:/session-1',
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				filePath: resource.fsPath,
+				beforeText: before,
+				afterText: after,
+				changes: computeDiffCounts(before, after, 5000).changes,
+				modelId: 'model',
+				toolName: 'edit',
+			});
+			await service.flushSession('copilotcli:/session-1');
+
+			const retained = scenario === 'mixed edit and user revert' ? 1 : 2;
+			assert.deepStrictEqual(events.map(event => ({
+				eventName: event.eventName,
+				mode: event.data.mode,
+				inserted: event.data.deltaModifiedCount,
+				retained: event.data.modifiedCount,
+				agent: event.data.agentHostModifiedCount,
+			})), [
+				{ eventName: 'editTelemetry.editSources.details', mode: 'longterm', inserted: 2, retained, agent: undefined },
+				{ eventName: 'editTelemetry.editSources.stats', mode: 'longterm', inserted: undefined, retained: undefined, agent: retained },
+			]);
+		});
+	}
+
 	test('emits retained Agent characters from disjoint edits', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('aBcdeF'));
 
@@ -162,6 +283,7 @@ suite('Agent Edit Attribution Service', () => {
 				outcome: {
 					outcome: 'committed',
 					agentModifiedCount: 0,
+					coarseDiffCount: 0,
 					lastSequence: 1,
 				},
 			},
@@ -169,8 +291,7 @@ suite('Agent Edit Attribution Service', () => {
 	});
 
 	test('uses the current edit metadata for each marker', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('abc'));
 
@@ -217,8 +338,7 @@ suite('Agent Edit Attribution Service', () => {
 
 	for (const flushMode of ['standalone', 'coordinated', 'combinedChatResources', 'legacyNoChat'] as const) {
 		test(`preserves originating chat identity and unknown provenance in ${flushMode} details`, async () => {
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
 			const resource = URI.file('/workspace/chat-edits.ts');
 			const sessionUri = 'copilotcli:/session-1';
 			const chats = flushMode === 'legacyNoChat' ? [undefined, undefined, undefined] : [buildDefaultChatUri(sessionUri), buildChatUri(sessionUri, 'side'), undefined];
@@ -328,8 +448,7 @@ suite('Agent Edit Attribution Service', () => {
 	}
 
 	test('normalizes ahp chat harness without coalescing chat resources', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const copilotResource = URI.file('/workspace/copilot.ts');
 		const claudeResource = URI.file('/workspace/claude.ts');
 		await fileService.writeFile(copilotResource, VSBuffer.fromString('ab'));
@@ -427,8 +546,7 @@ suite('Agent Edit Attribution Service', () => {
 	});
 
 	test('preserves Agent attribution across later external disk edits', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('axb'));
 
@@ -496,8 +614,7 @@ suite('Agent Edit Attribution Service', () => {
 
 	test('keeps Auto tiers in separate attribution groups for both telemetry destinations', async () => {
 		const sessionUri = 'copilotcli:/session-1';
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('abc'));
 
@@ -570,8 +687,7 @@ suite('Agent Edit Attribution Service', () => {
 
 	test('keeps HydraFusion and HydraFusion Max in separate attribution rows for both telemetry destinations', async () => {
 		const sessionUri = 'copilotcli:/session-1';
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('abcd'));
 
@@ -636,8 +752,7 @@ suite('Agent Edit Attribution Service', () => {
 
 	test('caps reported sources by group before subdividing them by Auto tier', async () => {
 		const sessionUri = 'copilotcli:/session-1';
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		const tiers = ['efficiency', 'balance', 'intelligence', 'fast'] as const;
 		const models = Array.from({ length: 10 }, (_, index) => `model-${index}`);
@@ -679,8 +794,7 @@ suite('Agent Edit Attribution Service', () => {
 
 	test('tracks external drift before a later tool edit and mirrors standalone stats to GitHub', async () => {
 		const sessionUri = 'copilotcli:/session-1';
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('axbc'));
 
@@ -786,8 +900,7 @@ suite('Agent Edit Attribution Service', () => {
 	});
 
 	test('attributes an external overwrite without retaining overwritten Agent characters', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('xyz'));
 
@@ -836,8 +949,7 @@ suite('Agent Edit Attribution Service', () => {
 	});
 
 	test('tracks creates and removes retained attribution after deletion', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString(''));
 
@@ -892,8 +1004,7 @@ suite('Agent Edit Attribution Service', () => {
 	});
 
 	test('flushes Agent-only resources when HEAD changes', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('ab'));
 
@@ -961,8 +1072,7 @@ suite('Agent Edit Attribution Service', () => {
 	});
 
 	test('emits standalone stats after ten hours', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 2_000 }, async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('ab'));
 
@@ -1001,8 +1111,7 @@ suite('Agent Edit Attribution Service', () => {
 	}));
 
 	test('emits standalone stats when the service is disposed', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('ab'));
 
@@ -1108,8 +1217,7 @@ suite('Agent Edit Attribution Service', () => {
 	});
 
 	test('keeps a Git boundary pending while an edit is being recorded', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('ab'));
 
@@ -1287,8 +1395,7 @@ suite('Agent Edit Attribution Service', () => {
 	});
 
 	test('discards attribution when edit telemetry is disabled', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('ab'));
 
@@ -1383,8 +1490,7 @@ suite('Agent Edit Attribution Service', () => {
 	});
 
 	test('signals files larger than the five MB attribution limit', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/large.ts');
 		const beforeText = 'a'.repeat(6 * 1024 * 1024);
 		const afterText = `${beforeText}b`;
@@ -1453,8 +1559,7 @@ suite('Agent Edit Attribution Service', () => {
 	});
 
 	test('includes prior tracked edits when an oversized edit creates a coverage gap', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/large.ts');
 		const oversizedText = 'x'.repeat(6 * 1024 * 1024);
 		await fileService.writeFile(resource, VSBuffer.fromString(oversizedText));
@@ -1544,8 +1649,7 @@ suite('Agent Edit Attribution Service', () => {
 	});
 
 	test('flushes before oversized coverage sequences grow without bound', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/large.ts');
 		const beforeText = 'x'.repeat(6 * 1024 * 1024);
 		const afterText = `${beforeText}y`;
@@ -1592,8 +1696,7 @@ suite('Agent Edit Attribution Service', () => {
 	});
 
 	test('paginates standalone coverage acknowledgements without advancing their cutoff', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/large.ts');
 		const beforeText = 'x'.repeat(6 * 1024 * 1024);
 		const afterText = `${beforeText}y`;
@@ -1678,8 +1781,7 @@ suite('Agent Edit Attribution Service', () => {
 	});
 
 	test('returns a marker when the interval safety limit flushes the resource', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		const characters = Array.from('a'.repeat(20_001));
 		const changes = [];
@@ -1787,8 +1889,7 @@ suite('Agent Edit Attribution Service', () => {
 	});
 
 	test('flushes only the closing session when sessions edit the same file', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('abc'));
 
@@ -1884,8 +1985,7 @@ suite('Agent Edit Attribution Service', () => {
 	});
 
 	test('bounds same-file reconciliation by one aggregate deadline', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('abcde'));
 
@@ -1938,8 +2038,7 @@ suite('Agent Edit Attribution Service', () => {
 	});
 
 	test('coordinates a live session after another session flushed the same file', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('abc'));
 
@@ -2003,8 +2102,7 @@ suite('Agent Edit Attribution Service', () => {
 	});
 
 	test('claims a resource once when flush triggers race', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('ab'));
 
@@ -2066,8 +2164,7 @@ suite('Agent Edit Attribution Service', () => {
 		if (!isWindows) {
 			return;
 		}
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		const filePath = URI.file('/Workspace/file.ts').fsPath;
 		await fileService.createFolder(URI.file('/Workspace'));
@@ -2114,8 +2211,7 @@ suite('Agent Edit Attribution Service', () => {
 	});
 
 	test('restores prepared resources when a coordinated flush is cancelled', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('ab'));
 
@@ -2234,8 +2330,7 @@ suite('Agent Edit Attribution Service', () => {
 	});
 
 	test('reserves a standalone acknowledgement for one prepared flush', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('ab'));
 
@@ -2301,8 +2396,7 @@ suite('Agent Edit Attribution Service', () => {
 	});
 
 	test('makes commit and cancellation idempotent after telemetry is emitted', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('ab'));
 
@@ -2349,17 +2443,16 @@ suite('Agent Edit Attribution Service', () => {
 
 		assert.deepStrictEqual({ outcomes, eventCount }, {
 			outcomes: [
-				{ outcome: 'committed', agentModifiedCount: 1, lastSequence: 1, coverageGapThroughSequence: 1 },
-				{ outcome: 'committed', agentModifiedCount: 1, lastSequence: 1, coverageGapThroughSequence: 1 },
-				{ outcome: 'committed', agentModifiedCount: 1, lastSequence: 1, coverageGapThroughSequence: 1 },
+				{ outcome: 'committed', agentModifiedCount: 1, coarseDiffCount: 0, lastSequence: 1, coverageGapThroughSequence: 1 },
+				{ outcome: 'committed', agentModifiedCount: 1, coarseDiffCount: 0, lastSequence: 1, coverageGapThroughSequence: 1 },
+				{ outcome: 'committed', agentModifiedCount: 1, coarseDiffCount: 0, lastSequence: 1, coverageGapThroughSequence: 1 },
 			],
 			eventCount: 1,
 		});
 	});
 
 	test('restores an unclaimed prepared flush after its timeout', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('ab'));
 
@@ -2411,8 +2504,7 @@ suite('Agent Edit Attribution Service', () => {
 	});
 
 	test('fences a prepare request that arrives after cancellation', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const resource = URI.file('/workspace/file.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('ab'));
 

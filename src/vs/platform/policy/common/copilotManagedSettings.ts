@@ -45,6 +45,12 @@ export const GITHUB_COPILOT_MACOS_BUNDLE_ID = 'com.github.copilot';
 /** MDM key for the V0 managed setting. */
 export const COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY = 'permissions.disableBypassPermissionsMode';
 
+/** Managed setting that disables the Assisted permission mode. */
+export const COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY = 'permissions.disableAssistedPermissionsMode';
+
+/** Managed setting for the starting permission mode of new sessions (`manual`, `assisted`, or `allow-all`). */
+export const COPILOT_DEFAULT_PERMISSIONS_MODE_KEY = 'permissions.defaultMode';
+
 /** Runtime-owned rule lists that the Local harness cannot enforce. */
 export const COPILOT_PERMISSION_RULES_KEYS = ['permissions.ask', 'permissions.allow', 'permissions.deny'] as const;
 
@@ -133,13 +139,19 @@ export const COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY = 'sandbox.allowDevToolAc
 export const COPILOT_AUTO_TIER_KEY = 'autoTier';
 
 /**
+ * Agent Host Copilot runtime's Fusion tier (`standard`, `high`, `max`, `unmanaged`). Its presence in any channel
+ * supersedes {@link COPILOT_AUTO_TIER_KEY} for that runtime, which owns the tier's routing.
+ */
+export const COPILOT_FUSION_TIER_KEY = 'fusionTier';
+
+/**
  * Managed-settings controls consumed by the delivery pipeline itself rather than by a
  * configuration policy. Native MDM must watch these even though no setting declares them.
  */
 export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinitions = {
 	...Object.fromEntries(COPILOT_PERMISSION_RULES_KEYS.map(key => [key, { type: 'string' as const }])),
-	'permissions.defaultMode': { type: 'string' },
-	'permissions.disableAssistedPermissionsMode': { type: 'boolean' },
+	[COPILOT_DEFAULT_PERMISSIONS_MODE_KEY]: { type: 'string' },
+	[COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY]: { type: 'boolean' },
 	[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
 	'permissions.limitTo': { type: 'string' },
 	'permissions.model': { type: 'string' },
@@ -160,6 +172,7 @@ export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinit
 	[COPILOT_SANDBOX_DENIED_PATHS_KEY]: { type: 'string' },
 	[COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY]: { type: 'boolean' },
 	[COPILOT_AUTO_TIER_KEY]: { type: 'string' },
+	[COPILOT_FUSION_TIER_KEY]: { type: 'string' },
 	// Observe these only for whole-block source selection; Local does not implement their capture semantics.
 	'telemetry.capture.prompts': { type: 'boolean' },
 	'telemetry.capture.responses': { type: 'boolean' },
@@ -340,10 +353,26 @@ export function requiresCopilotAgentHost(service: IManagedSettingsService, confi
 
 let managedModelValueCallback: ((policyData: IPolicyData) => ManagedSettingValue | undefined) | undefined;
 
-/** Trim a managed-settings model value, treating a blank/whitespace-only string as unset. */
+/**
+ * Copilot Fusion is the Copilot runtime's name for the virtual Auto model, so a managed `fusion` default selects
+ * Auto (github/copilot-agent-runtime#28619). Other values pass through unchanged.
+ */
+const COPILOT_FUSION_MODEL_ALIAS = 'fusion';
+
+/**
+ * Normalizes a managed default-model value: trims it, treats a blank or whitespace-only value as unset, and
+ * maps the Copilot Fusion alias to `auto`.
+ */
+export function normalizeManagedModelId(value: string | undefined): string | undefined {
+	const trimmed = value?.trim();
+	if (!trimmed) {
+		return undefined;
+	}
+	return trimmed.toLowerCase() === COPILOT_FUSION_MODEL_ALIAS ? 'auto' : trimmed;
+}
+
 function normalizeModelValue(value: ManagedSettingValue | undefined): string | undefined {
-	const trimmed = typeof value === 'string' ? value.trim() : undefined;
-	return trimmed ? trimmed : undefined;
+	return typeof value === 'string' ? normalizeManagedModelId(value) : undefined;
 }
 
 /**
@@ -361,6 +390,28 @@ export function managedModelValue(): (policyData: IPolicyData) => ManagedSetting
 		};
 	}
 	return managedModelValueCallback;
+}
+
+/**
+ * `value` callback for the `chat.defaultConfiguration` policy: projects the managed
+ * {@link COPILOT_DEFAULT_PERMISSIONS_MODE_KEY} onto the setting's `approvals` property, as the
+ * JSON-encoded object the setting expects. Like the Copilot runtime, an unrecognized mode starts
+ * in Manual, as does a mode the explicit permission restrictions disable.
+ */
+export function managedDefaultConfigurationValue(policyData: IPolicyData): string | undefined {
+	const settings = policyData.managedSettings;
+	const mode = settings?.[COPILOT_DEFAULT_PERMISSIONS_MODE_KEY];
+	if (typeof mode !== 'string') {
+		return undefined;
+	}
+	// The `chat.defaultConfiguration` approval vocabulary.
+	let approvals = 'manual';
+	if (mode === 'assisted' && settings?.[COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY] !== true) {
+		approvals = 'assisted';
+	} else if (mode === 'allow-all' && settings?.[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY] !== 'disable') {
+		approvals = 'allowAll';
+	}
+	return JSON.stringify({ approvals });
 }
 
 /** Forces a boolean setting off while the user is governed by managed settings. */
@@ -722,6 +773,10 @@ const STRUCTURED_MANAGED_SETTINGS: readonly IStructuredManagedSetting[] = [
 	},
 	{
 		key: COPILOT_AUTO_TIER_KEY,
+		encode: value => value,
+	},
+	{
+		key: COPILOT_FUSION_TIER_KEY,
 		encode: value => value,
 	},
 	{

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -56,6 +57,9 @@ class ManageSkillsAction extends Action2 {
 /**
  * Helper to register the `Manage Skills` action.
  */
-export function registerSkillActions(): void {
-	registerAction2(ManageSkillsAction);
+export function registerSkillActions(): DisposableStore {
+	const store = new DisposableStore();
+	store.add(registerAction2(ManageSkillsAction));
+
+	return store;
 }

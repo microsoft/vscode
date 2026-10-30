@@ -42,6 +42,7 @@ import { Menus } from '../../../../../browser/menus.js';
 import { SessionActiveChatResourceContext, SessionIdContext } from '../../../../../common/contextkeys.js';
 import { IChat, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionTurnFileChange, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationStatus } from '../../../../../services/sessions/common/session.js';
 import { SessionContext } from '../../../../../services/sessions/browser/sessionContext.js';
+import { SessionInputPickerVisibility } from '../../../../../services/sessions/common/sessionPickerVisibility.js';
 import { ISessionsPartService } from '../../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
@@ -1769,7 +1770,7 @@ suite('AgentHostSessionChangesets', () => {
 			const container = document.createElement('div');
 			const renderMenu = () => {
 				const action = menu.getActions({ arg: { session } }).flatMap(([, actions]) => actions).find(action => action.id === commandId)!;
-				const viewItem = new SessionSyncChangesActionViewItem(action, {}, new SessionContext(constObservable(session)), new class extends mock<ISessionsPartService>() { }());
+				const viewItem = new SessionSyncChangesActionViewItem(action, {}, new SessionContext(constObservable(session)), new class extends mock<ISessionsPartService>() { }(), disposables.add(new SessionInputPickerVisibility()), new MockKeybindingService());
 				item.value = viewItem;
 				viewItem.actionRunner = actionRunner;
 				container.replaceChildren();

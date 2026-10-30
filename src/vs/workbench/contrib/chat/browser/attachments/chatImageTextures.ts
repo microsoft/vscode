@@ -434,11 +434,11 @@ export interface ITextureReveal {
 	readonly clock: Animation;
 }
 
-/** One timeline for resizing and revealing the image, omitting the remaining loading sweep. */
+/** One timeline for resizing and revealing the image, without waiting for the loading sweep. */
 export interface ITextureRevealTiming {
 	/** How the reveal's real time maps to the transition's virtual time. */
 	readonly pace: RevealPace;
-	/** The virtual loading time when the reveal began, so that a continuing wave keeps its phase. */
+	/** The virtual time of the last painted loading frame, so that its wave and glyphs continue without a cut. */
 	readonly loadingTime: number;
 	/** Virtual milliseconds until the last loading wave's wake has left the band. */
 	readonly loadingEnd: number;

@@ -9,10 +9,12 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
+import { createErrorWithActions } from '../../../../../base/common/errorMessage.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -42,13 +44,15 @@ import { IChatWidgetHistoryService } from '../../../../../workbench/contrib/chat
 import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
 import { nullExtensionDescription } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ICopilotHomeService } from '../../../../../platform/environment/common/copilotHome.js';
 import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IChatMovedEvent, ISessionChatMoveDestination, type IForkChatOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
+import { IChatMovedEvent, ISessionChatMoveDestination, type IForkChatOptions, type INestedChatWorkspace, NestedChatWorkspaceError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, type ICreateNewChatOptions } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { VisibleSessions } from '../../browser/visibleSessions.js';
 import { ISessionsManagementService, IActiveSession, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
@@ -151,6 +155,11 @@ class TestChatService extends mock<IChatService>() {
 	disposedModelRefs = 0;
 	cancelError: Error | undefined;
 	modelRefAvailable = true;
+	readonly resourcesWithRequests: URI[] = [];
+
+	override getSession(sessionResource: URI): IChatModel | undefined {
+		return this.resourcesWithRequests.some(resource => resource.toString() === sessionResource.toString()) ? { hasRequests: true } as IChatModel : undefined;
+	}
 
 	override async acquireOrLoadSession(sessionResource: URI): Promise<IChatModelReference | undefined> {
 		this.loadedResources.push(sessionResource);
@@ -241,7 +250,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override async setSessionReadState(_sessionId: string, _isRead: boolean): Promise<void> { }
 	override async deleteSession(): Promise<void> { }
 	override async deleteSessions(_sessionIds: readonly string[]): Promise<void> { }
-	override async deleteChat(): Promise<boolean> { return true; }
+	override async deleteChat(_sessionId: string, _chatUri: URI): Promise<boolean> { return true; }
 	override deleteNewSession(_sessionId: string): void { }
 	override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> { return this._session; }
 	override async createNewChat(): Promise<IChat> { return this._session.mainChat.get(); }
@@ -361,6 +370,39 @@ function createView(
 suite('SessionsManagementService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('managed worktree inventory isolates provider failures and forwards only their known repositories', async () => {
+		const session = stubSession({ sessionId: 'session', providerId: 'healthy' });
+		const calls: { provider: string; repositories: string[] }[] = [];
+		const entry = { repository: URI.file('/repo').toString(), worktree: URI.file('/repo.worktrees/leftover').toString(), branch: 'agents/leftover', cleanupStatus: { state: 'unknown' as const } };
+		const healthy = new class extends TestSessionsProvider {
+			override readonly id = 'healthy';
+			override async listManagedWorktrees(repositories: readonly URI[] = []) {
+				calls.push({ provider: this.id, repositories: repositories.map(uri => uri.toString()) });
+				return [entry];
+			}
+		}(session);
+		const failing = new class extends TestSessionsProvider {
+			override readonly id = 'offline';
+			override async listManagedWorktrees(repositories: readonly URI[] = []): Promise<never> {
+				calls.push({ provider: this.id, repositories: repositories.map(uri => uri.toString()) });
+				throw new Error('Host disconnected');
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, [healthy, failing]);
+		assert.ok(service.listManagedWorktrees);
+		const result = await service.listManagedWorktrees([
+			{ ...entry, providerId: healthy.id },
+			{ ...entry, providerId: failing.id, repository: URI.file('/remote').toString() },
+		]);
+		assert.deepStrictEqual({ calls, result }, {
+			calls: [
+				{ provider: 'healthy', repositories: [entry.repository] },
+				{ provider: 'offline', repositories: [URI.file('/remote').toString()] },
+			],
+			result: [{ ...entry, providerId: healthy.id }],
+		});
+	});
 
 	suite('session grid integration', () => {
 		function created(id: string): ISession {
@@ -666,6 +708,122 @@ suite('SessionsManagementService', () => {
 				panes: grid.order.length,
 			}, { target: childSlot.id, child: child.resource.toString(), panes: 3 });
 		});
+
+		for (const hasDraft of [false, true]) {
+			test(`a new-session pane can be dragged beside an independent child without replacing its composer (draft: ${hasDraft})`, async () => {
+				const a = created('a');
+				const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child') };
+				const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+				const draft = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled) });
+				const { view, part, service } = harness([parent]);
+				await view.openSession(parent.resource);
+				const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+				await view.moveChatToGrid(parent.sessionId, child.resource, visibility.getGridSlots()[0].id, 'down');
+				const childSlot = visibility.getRenderedGridSlots().find(slot => visibility.getGridSession(slot.id)?.scopedChatResource)!;
+				const target = part.getFocusedSessionView()!.element;
+				view.insertAt(hasDraft ? draft : undefined, parent.sessionId, 'right');
+				const source = part.getFocusedSessionView()!;
+				const composer = source.element.querySelector('textarea')!;
+				composer.value = 'Keep this draft prompt';
+				const sourceSlot = visibility.getGridSlots()[visibility.getSlot(hasDraft ? draft.sessionId : undefined)!.index];
+				const dragArea = source.element.querySelector<HTMLElement>('.chat-composite-bar-toolbar-floating')!;
+				const sourceBounds = source.element.getBoundingClientRect();
+				dragArea.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: sourceBounds.left + 100, clientY: sourceBounds.top + 16 }));
+				const dataTransfer = new DataTransfer();
+				const drag = new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer });
+				dragArea.dispatchEvent(drag);
+				const bounds = target.getBoundingClientRect();
+				const clientX = bounds.right - 10;
+				const clientY = bounds.top + bounds.height / 2;
+				target.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer, clientX, clientY }));
+				const overlay = target.querySelector<HTMLElement>('#monaco-workbench-session-drop-overlay');
+				assert.ok(overlay);
+				overlay.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer, clientX, clientY }));
+				await timeout(0);
+				dragArea.dispatchEvent(new DragEvent('dragend', { bubbles: true }));
+				const grid = Reflect.get(part, '_gridWidget') as SessionGridLayout;
+				assert.deepStrictEqual({
+					started: !drag.defaultPrevented,
+					draftIsUnlisted: service.getSession(draft.resource) === undefined,
+					target: grid.neighbor(sourceSlot.id, Direction.Left),
+					retained: part.getFocusedSessionView() === source,
+					prompt: source.element.querySelector('textarea')?.value,
+					panes: grid.order.length,
+					cleaned: !LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>().hasData(DraggedSessionIdentifier.prototype),
+				}, { started: true, draftIsUnlisted: true, target: childSlot.id, retained: true, prompt: 'Keep this draft prompt', panes: 3, cleaned: true });
+			});
+		}
+
+		test('an existing session can be dropped beside the empty new-session pane', async () => {
+			const a = created('a');
+			const { view, part } = harness([a]);
+			await view.openSession(a.resource);
+			const source = part.getFocusedSessionView()!;
+			view.insertAt(undefined, a.sessionId, 'right');
+			const target = part.getFocusedSessionView()!;
+			const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+			const targetSlot = visibility.getGridSlots()[visibility.getSlot(undefined)!.index];
+			const transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
+			disposables.add(toDisposable(() => transfer.clearData(DraggedSessionIdentifier.prototype)));
+			transfer.setData([new DraggedSessionIdentifier(a.sessionId, a.resource)], DraggedSessionIdentifier.prototype);
+			const bounds = target.element.getBoundingClientRect();
+			const dataTransfer = new DataTransfer();
+			const clientX = bounds.right - 10;
+			const clientY = bounds.top + bounds.height / 2;
+			target.element.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer, clientX, clientY }));
+			const overlay = target.element.querySelector<HTMLElement>('#monaco-workbench-session-drop-overlay');
+			assert.ok(overlay);
+			overlay.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer, clientX, clientY }));
+			await timeout(0);
+			const grid = Reflect.get(part, '_gridWidget') as SessionGridLayout;
+			const sourceSlot = visibility.getGridSlots()[visibility.getSlot(a.sessionId)!.index];
+			assert.deepStrictEqual({
+				target: grid.neighbor(sourceSlot.id, Direction.Left),
+				retainedSource: part.getFocusedSessionView() === source,
+				retainedTarget: part.getSessionView(undefined) === target,
+				panes: grid.order.length,
+			}, { target: targetSlot.id, retainedSource: true, retainedTarget: true, panes: 2 });
+		});
+
+		for (const detached of [false, true]) {
+			test(`a chat can be dropped beside the empty new-session pane (independent pane: ${detached})`, async () => {
+				const a = created('a');
+				const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child') };
+				const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+				const { view, part } = harness([parent]);
+				await view.openSession(parent.resource);
+				const parentView = part.getFocusedSessionView()!;
+				if (detached) {
+					await view.detachChat(view.activeSession.get()!, child.resource);
+				}
+				const childView = detached ? part.getFocusedSessionView() : undefined;
+				view.insertAt(undefined, parent.sessionId, 'right');
+				const target = part.getFocusedSessionView()!;
+				const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+				const targetSlot = visibility.getGridSlots()[visibility.getSlot(undefined)!.index];
+				const bounds = target.element.getBoundingClientRect();
+				const dataTransfer = new DataTransfer();
+				fillSessionChatDragData(new DragEvent('dragstart', { dataTransfer }), parent.sessionId, child.resource, detached);
+				const clientX = bounds.right - 10;
+				const clientY = bounds.top + bounds.height / 2;
+				target.element.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer, clientX, clientY }));
+				const overlay = target.element.querySelector<HTMLElement>('#monaco-workbench-session-drop-overlay');
+				assert.ok(overlay);
+				overlay.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer, clientX, clientY }));
+				await timeout(0);
+				const grid = Reflect.get(part, '_gridWidget') as SessionGridLayout;
+				const childPane = visibility.gridSessions.get().find(session => session?.scopedChatResource?.toString() === child.resource.toString());
+				const childSlot = visibility.getRenderedGridSlots()[visibility.gridSessions.get().indexOf(childPane)];
+				assert.deepStrictEqual({
+					target: grid.neighbor(childSlot.id, Direction.Left),
+					retainedParent: parentView.element.isConnected,
+					retainedTarget: part.getSessionView(undefined) === target,
+					retainedChild: !detached || part.getFocusedSessionView() === childView,
+					activeChat: view.activeSession.get()?.scopedChatResource?.toString(),
+					panes: grid.order.length,
+				}, { target: targetSlot.id, retainedParent: true, retainedTarget: true, retainedChild: true, activeChat: child.resource.toString(), panes: 3 });
+			});
+		}
 
 		for (const mode of [SessionsChatTabsMode.Single, SessionsChatTabsMode.Multiple]) {
 			for (const alreadyVisible of [false, true]) {
@@ -1744,7 +1902,9 @@ suite('SessionsManagementService', () => {
 
 		for (const registerBeforeManagement of [true, false]) {
 			test(`routes existing environment sessions without advertising their backends (${registerBeforeManagement ? 'initial' : 'late'} registration)`, async () => {
-				const providers = disposables.add(new SessionsProvidersService());
+				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+				const providers = disposables.add(instantiationService.createInstance(SessionsProvidersService));
 				const cloudSession = stubSession({ sessionId: 'cloud:draft', providerId: 'cloud' });
 				const workspace = upcastPartial<ISessionWorkspace>({ uri: URI.file('/repository') });
 				const cloud = new class extends TestSessionsProvider {
@@ -2447,6 +2607,40 @@ suite('SessionsManagementService', () => {
 			);
 		});
 
+		test('markAllRead hands each provider its sessions in one call', async () => {
+			const batched1 = stubSession({ sessionId: 'b1', providerId: 'batched' });
+			const batched2 = stubSession({ sessionId: 'b2', providerId: 'batched' });
+			const single1 = stubSession({ sessionId: 's1', providerId: 'single' });
+			const single2 = stubSession({ sessionId: 's2', providerId: 'single' });
+			const calls: string[] = [];
+			const batched = new class extends TestSessionsProvider {
+				override readonly id = 'batched';
+				override getSessions(): ISession[] { return [batched1, batched2]; }
+				override async setSessionReadState(sessionId: string, isRead: boolean): Promise<void> {
+					calls.push(`batched one ${sessionId} ${isRead}`);
+				}
+				override async setSessionsReadState(sessionIds: readonly string[], isRead: boolean): Promise<void> {
+					calls.push(`batched all ${sessionIds.join(',')} ${isRead}`);
+				}
+			}(batched1);
+			const single = new class extends TestSessionsProvider {
+				override readonly id = 'single';
+				override getSessions(): ISession[] { return [single1, single2]; }
+				override async setSessionReadState(sessionId: string, isRead: boolean): Promise<void> {
+					calls.push(`single one ${sessionId} ${isRead}`);
+				}
+			}(single1);
+			const { service } = createSessionsManagementService(batched1, disposables, [batched, single]);
+
+			await service.markAllRead([batched1, single1, batched2, single2]);
+
+			assert.deepStrictEqual(calls, [
+				'batched all b1,b2 true',
+				'single one s1 true',
+				'single one s2 true',
+			]);
+		});
+
 		test('preserves an explicit unread active single chat until the chat advances', async () => {
 			const sessionIsRead = observableValue('sessionIsRead', false);
 			const mainIsRead = observableValue('mainIsRead', true);
@@ -3011,8 +3205,12 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	for (const preserveNavigation of [false, true]) {
-		test(`openQuickChat preserves pending navigation only for an automatic fallback (${preserveNavigation})`, () => {
+	for (const { preserveNavigation, preserveFocus } of [
+		{ preserveNavigation: false, preserveFocus: undefined },
+		{ preserveNavigation: true, preserveFocus: undefined },
+		{ preserveNavigation: true, preserveFocus: true },
+	]) {
+		test(`openQuickChat preserves navigation and focus independently (${preserveNavigation}, ${preserveFocus})`, () => {
 			const quickChat = stubSession({
 				sessionId: 'quick-chat',
 				providerId: 'test',
@@ -3022,17 +3220,39 @@ suite('SessionsManagementService', () => {
 				override readonly supportsQuickChats = true;
 				override createQuickChat(): ISession { return quickChat; }
 			}(quickChat);
-			const { view } = createSessionsManagementService(quickChat, disposables, provider);
+			const { view, sessionsPartService } = createSessionsManagementService(quickChat, disposables, provider);
 			const navigation = view.navigationRequest.get();
+			sessionsPartService.focusedSessions.length = 0;
 
-			view.openQuickChat(undefined, preserveNavigation);
+			view.openQuickChat(undefined, preserveNavigation, preserveFocus);
 
 			assert.deepStrictEqual({
 				activeSession: view.activeSession.get()?.sessionId,
 				preservedNavigation: view.navigationRequest.get() === navigation,
+				focused: sessionsPartService.focusedSessions,
 			}, {
 				activeSession: 'quick-chat',
 				preservedNavigation: preserveNavigation,
+				focused: preserveFocus ? [] : ['quick-chat'],
+			});
+		});
+	}
+
+	for (const preserveCustomView of [false, true]) {
+		test(`new-session draft preparation preserves the custom view only when requested (${preserveCustomView})`, async () => {
+			const session = stubSession({ sessionId: 'active', providerId: 'test' });
+			const { view, customViewService, sessionsPartService } = createSessionsManagementService(session, disposables);
+			await view.openSession(session.resource);
+			sessionsPartService.focusedSessions.length = 0;
+			showTestCustomView(customViewService, disposables);
+			await view.openNewSession({ preserveCustomView });
+			const first = customViewService.activeCustomView.get()?.id;
+			await view.openNewSession({ preserveCustomView });
+			assert.deepStrictEqual({ first, repeated: customViewService.activeCustomView.get()?.id, active: view.activeSession.get(), focused: sessionsPartService.focusedSessions }, {
+				first: preserveCustomView ? 'test.customView' : undefined,
+				repeated: preserveCustomView ? 'test.customView' : undefined,
+				active: undefined,
+				focused: preserveCustomView ? [] : [undefined],
 			});
 		});
 	}
@@ -5289,8 +5509,12 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	const actionableStartupError = createErrorWithActions('Could not start the session', [
+		toAction({ id: 'test.details', label: 'Show Details', run: () => { } }),
+	]);
 	for (const { error, expectedNotifications } of [
 		{ error: new Error('Container setup failed'), expectedNotifications: ['Failed to start session: Container setup failed'] },
+		{ error: actionableStartupError, expectedNotifications: [actionableStartupError] },
 		{ error: new CancellationError(), expectedNotifications: [] },
 		{ error: new WorkspaceNotTrustedError(), expectedNotifications: [] },
 	]) {
@@ -5982,6 +6206,46 @@ suite('SessionsManagementService', () => {
 			noSession: {},
 		});
 	});
+
+	test('an explicit source harness override does not query an unrelated session resource', () => {
+		const folderUri = URI.parse('test:///source');
+		const session = stubSession({ sessionId: 'container-session', providerId: 'test' });
+		let sourceLookups = 0;
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return upcastPartial<ISessionWorkspace>({ uri: folderUri }); }
+			override getNewSessionTarget() {
+				sourceLookups++;
+				return undefined;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		const target = inheritableSessionTarget(service, { providerId: 'test', sessionType: 'test' }, folderUri);
+		assert.deepStrictEqual({ target, sourceLookups }, { target: { providerId: 'test', sessionTypeId: 'test' }, sourceLookups: 0 });
+	});
+
+	for (const available of [true, false]) {
+		test(`inheritableSessionTarget uses an available provider creation workspace (${available})`, () => {
+			const session = stubSession({ sessionId: 'backend-session', providerId: 'test', sessionType: 'backend' });
+			const executionFolder = URI.parse('test:///execution');
+			const sourceFolder = URI.parse('test:///repository');
+			const creationTarget = { providerId: 'creator', sessionTypeId: 'test', folderUri: sourceFolder };
+			const backend = new class extends TestSessionsProvider {
+				override getNewSessionTarget(resource: URI) {
+					return isEqual(resource, session.resource) ? creationTarget : undefined;
+				}
+				override getSessionTypes(): ISessionType[] { return []; }
+			}(session);
+			const creator = new class extends TestSessionsProvider {
+				override readonly id = 'creator';
+				override resolveWorkspace(folder: URI): ISessionWorkspace | undefined {
+					return isEqual(folder, sourceFolder) ? upcastPartial<ISessionWorkspace>({ uri: sourceFolder }) : undefined;
+				}
+				override getSessionTypes(): ISessionType[] { return available ? [...this.sessionTypes] : []; }
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, [backend, creator]);
+			assert.deepStrictEqual(inheritableSessionTarget(service, session, executionFolder), available ? creationTarget : {});
+		});
+	}
 
 	test('a New Session gesture whose harness is hidden still creates on the fallback provider', async () => {
 		// End-to-end shape of the Agents-window bug: an extension-host session is
@@ -7334,6 +7598,34 @@ suite('SessionsManagementService', () => {
 				});
 			});
 		}
+
+		test('deletes without confirmation only an untitled chat without requests', async () => {
+			const untitled: IChat = { ...stubChat, resource: URI.parse('test:///untitled'), status: constObservable(SessionStatus.Untitled) };
+			const sentUntitled: IChat = { ...stubChat, resource: URI.parse('test:///sent-untitled'), status: constObservable(SessionStatus.Untitled) };
+			const committed: IChat = { ...stubChat, resource: URI.parse('test:///committed'), status: constObservable(SessionStatus.Completed) };
+			const session = stubSession({ sessionId: 'session', providerId: 'test', chats: constObservable([untitled, sentUntitled, committed]) });
+			const providerDeletes: string[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async deleteChat(_sessionId: string, chatUri: URI): Promise<boolean> {
+					providerDeletes.push(chatUri.toString());
+					return true;
+				}
+			}(session);
+			const { service, chatService } = createSessionsManagementService(session, disposables, provider);
+			chatService.resourcesWithRequests.push(sentUntitled.resource);
+
+			const results = {
+				untitled: await service.deleteChat(session, untitled.resource, { skipConfirmation: true }),
+				sentUntitled: await service.deleteChat(session, sentUntitled.resource, { skipConfirmation: true }),
+				committed: await service.deleteChat(session, committed.resource, { skipConfirmation: true }),
+				committedConfirmed: await service.deleteChat(session, committed.resource),
+			};
+
+			assert.deepStrictEqual({ results, providerDeletes }, {
+				results: { untitled: true, sentUntitled: false, committed: false, committedConfirmed: true },
+				providerDeletes: [untitled.resource.toString(), committed.resource.toString()],
+			});
+		});
 	});
 
 	suite('createNewChatInSession', () => {
@@ -7359,6 +7651,63 @@ suite('SessionsManagementService', () => {
 			}, {
 				reused: true,
 				createNewChatCalls: 0,
+			});
+		});
+
+		test('without a harness, reuses only a draft of the main harness and creates a chat of the main harness', async () => {
+			const otherDraft: IChat = { ...stubChat, resource: URI.parse('test:///other-draft'), harness: 'other', status: constObservable(SessionStatus.Untitled) };
+			const createdChat: IChat = { ...stubChat, resource: URI.parse('test:///created') };
+			const session = stubSession({ sessionId: 'main-harness-reuse', providerId: 'test', harness: 'main', chats: constObservable([otherDraft]) });
+			const requests: (ICreateNewChatOptions | undefined)[] = [];
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(session); }
+				override async createNewChat(_sessionId?: string, _prompt?: string, options?: ICreateNewChatOptions): Promise<IChat> {
+					requests.push(options);
+					return createdChat;
+				}
+			};
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			// The New Chat action passes no options; the composer resets with `forceNew` after a background send.
+			const fromAction = await service.createNewChatInSession(session);
+			const afterSend = await service.createNewChatInSession(session, { forceNew: true });
+
+			assert.deepStrictEqual({
+				fromAction: fromAction?.resource.toString(),
+				afterSend: afterSend?.resource.toString(),
+				requestedHarnesses: requests.map(options => options?.harness),
+			}, {
+				fromAction: createdChat.resource.toString(),
+				afterSend: createdChat.resource.toString(),
+				requestedHarnesses: [undefined, undefined],
+			});
+		});
+
+		test('reuses an untitled chat only when it uses the requested harness', async () => {
+			const untitledChat: IChat = { ...stubChat, resource: URI.parse('test:///untitled'), status: constObservable(SessionStatus.Untitled) };
+			const createdChat: IChat = { ...stubChat, resource: URI.parse('test:///created'), harness: 'other' };
+			const session = stubSession({ sessionId: 'harness-reuse', providerId: 'test', harness: 'main', chats: constObservable([untitledChat]) });
+			const requests: (string | undefined)[] = [];
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(session); }
+				override async createNewChat(_sessionId?: string, _prompt?: string, options?: ICreateNewChatOptions): Promise<IChat> {
+					requests.push(options?.harness);
+					return createdChat;
+				}
+			};
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			const sameHarness = await service.createNewChatInSession(session, { harness: 'main' });
+			const otherHarness = await service.createNewChatInSession(session, { harness: 'other' });
+
+			assert.deepStrictEqual({
+				sameHarnessReused: sameHarness === untitledChat,
+				otherHarness: otherHarness?.resource.toString(),
+				requests,
+			}, {
+				sameHarnessReused: true,
+				otherHarness: createdChat.resource.toString(),
+				requests: ['other'],
 			});
 		});
 
@@ -7420,6 +7769,48 @@ suite('SessionsManagementService', () => {
 			const result = await service.createNewChatInSession(session);
 
 			assert.strictEqual(result, undefined);
+		});
+	});
+
+	suite('applyNestedChatWorkspace', () => {
+
+		test('delegates to the provider and propagates its refusal', async () => {
+			const chat: IChat = { ...stubChat, resource: URI.parse('test:///untitled'), status: constObservable(SessionStatus.Untitled) };
+			const session = stubSession({ sessionId: 'workspace', providerId: 'test', chats: constObservable([chat]) });
+			const calls: string[] = [];
+			let refuse = false;
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(session); }
+				override async applyNestedChatWorkspace(sessionId: string, chatResource: URI, workspace: INestedChatWorkspace, prompt: string): Promise<void> {
+					calls.push(`${sessionId} ${chatResource.toString()} ${workspace.kind} ${prompt}`);
+					if (refuse) {
+						throw new NestedChatWorkspaceError('refused', 'refused by host');
+					}
+				}
+			};
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			await service.applyNestedChatWorkspace(session, chat, { kind: 'scratch' }, 'Fix the bug');
+			refuse = true;
+			const error = await service.applyNestedChatWorkspace(session, chat, { kind: 'folder', folder: URI.file('/repo'), isolation: 'folder' }, '').then(() => undefined, e => e);
+
+			assert.deepStrictEqual({
+				calls,
+				error: error instanceof NestedChatWorkspaceError ? error.kind : undefined,
+			}, {
+				calls: [`workspace ${chat.resource.toString()} scratch Fix the bug`, `workspace ${chat.resource.toString()} folder `],
+				error: 'refused',
+			});
+		});
+
+		test('is not supported when the provider is not found', async () => {
+			const session = stubSession({ sessionId: 'orphan', providerId: 'missing-provider' });
+			const provider = new TestSessionsProvider(stubSession({ sessionId: 'other', providerId: 'test' }));
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			const error = await service.applyNestedChatWorkspace(session, stubChat, { kind: 'scratch' }, '').then(() => undefined, e => e);
+
+			assert.strictEqual(error instanceof NestedChatWorkspaceError ? error.kind : undefined, 'notSupported');
 		});
 	});
 
@@ -7972,6 +8363,19 @@ suite('SessionsManagementService', () => {
 		function chat(session: string, id: string): IChat {
 			return { ...stubChat, resource: URI.parse(`test:///${session}#${id}`), title: constObservable(id), status: constObservable(SessionStatus.Completed) };
 		}
+
+		test('an untitled chat that has not sent a message cannot be moved even when its provider allows it', () => {
+			const main = chat('A', 'main');
+			const unsent: IChat = { ...chat('A', 'unsent'), status: constObservable(SessionStatus.Untitled) };
+			const sent = chat('A', 'sent');
+			const sessionA = stubSession({ sessionId: 'A', providerId: 'test', chats: constObservable([main, unsent, sent]), mainChat: constObservable(main) });
+			const provider = new class extends TestSessionsProvider {
+				override canMoveChat(): boolean { return true; }
+			}(sessionA);
+			const { service } = createSessionsManagementService(sessionA, disposables, provider);
+
+			assert.deepStrictEqual([main, unsent, sent].map(candidate => service.canMoveChat(sessionA, candidate)), [true, false, true]);
+		});
 
 		test('routes chat and session moves to the owning provider with the provider\'s session ids and chat resources', async () => {
 			const main = chat('A', 'main'), peer = chat('A', 'peer'), mainB = chat('B', 'main');

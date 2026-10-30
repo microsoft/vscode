@@ -4,18 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ISessionFileDiff, ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
+import { createFileSystemProviderError, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { WorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
+import { emptySessionEntryDiff, IModifiedFileEntry } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseModel } from '../../../common/model/chatModel.js';
+import { AgentHostEditReview } from '../../../browser/agentSessions/agentHost/agentHostEditReview.js';
 import { AgentHostSnapshotController } from '../../../browser/agentSessions/agentHost/agentHostSnapshotController.js';
 import { agentHostChangesetFileToEntryDiff } from '../../../browser/agentSessions/agentHost/agentHostResponseFileChanges.js';
 
@@ -60,7 +67,7 @@ function makeMockFileService(contentMap: Map<string, string>): IFileService {
 		override async readFile(uri: URI) {
 			const data = contentMap.get(uri.toString());
 			if (data === undefined) {
-				throw new Error(`Content not found: ${uri.toString()}`);
+				throw new FileOperationError(`Content not found: ${uri.toString()}`, FileOperationResult.FILE_NOT_FOUND);
 			}
 			return { value: VSBuffer.fromString(data) } as IFileContent;
 		}
@@ -69,7 +76,14 @@ function makeMockFileService(contentMap: Map<string, string>): IFileService {
 			return {};
 		}
 		override async del(uri: URI) {
-			contentMap.delete(uri.toString());
+			if (!contentMap.delete(uri.toString())) {
+				throw new FileOperationError(`Content not found: ${uri.toString()}`, FileOperationResult.FILE_NOT_FOUND);
+			}
+		}
+		override async exists(uri: URI) { return contentMap.has(uri.toString()); }
+		override async resolve(uri: URI): Promise<IFileStatWithMetadata> {
+			await this.readFile(uri);
+			return upcastPartial<IFileStatWithMetadata>({ resource: uri });
 		}
 		override async move(source: URI, target: URI): Promise<any> {
 			const data = contentMap.get(source.toString());
@@ -90,6 +104,7 @@ function createController(store: DisposableStore, contentMap: Map<string, string
 		turnEdits,
 		new NullLogService(),
 		makeMockFileService(contentMap),
+		store.add(new WorkingCopyService()),
 	);
 	store.add(controller);
 	return controller;
@@ -488,5 +503,428 @@ suite('AgentHostSnapshotController', () => {
 		const fakeResponseModel = {} as IChatResponseModel;
 		assert.throws(() => controller.startStreamingEdits(URI.file('/x'), fakeResponseModel, undefined));
 		assert.throws(() => controller.applyWorkspaceEdit({ kind: 'workspaceEdit', edits: [] }, fakeResponseModel, 'stop'));
+	});
+
+	suite('keep and undo review', () => {
+
+		function createReview(log: string[]) {
+			const entry = new class extends mock<IModifiedFileEntry>() {
+				override readonly modifiedURI = URI.file('/file.ts');
+			}();
+			return new class extends mock<AgentHostEditReview>() {
+				override setCheckpointReview() { }
+				override readonly entries = constObservable([entry]);
+				override getEntry(uri: URI) {
+					return uri.toString() === entry.modifiedURI.toString() ? entry : undefined;
+				}
+				override async accept(...uris: URI[]) {
+					log.push(`keep ${uris.map(uri => uri.path).join()}`);
+				}
+				override async reject(...uris: URI[]) {
+					log.push(`undo ${uris.map(uri => uri.path).join()}`);
+				}
+				override dispose() { }
+			}();
+		}
+
+		test('Start Over suppresses the restored revision until Redo or a new host revision', async () => {
+			const file = URI.file('/file.ts');
+			const before = URI.file('/snapshots/before.ts');
+			const after = URI.file('/snapshots/after.ts');
+			const content = new Map([[before.toString(), 'before'], [after.toString(), 'after'], [file.toString(), 'after']]);
+			const controller = createController(store, content);
+			controller.addToolCallEdits('request', makeToolCall({ toolCallId: 'edit', filePath: file.fsPath, beforeURI: before.toString(), afterURI: after.toString() }));
+			const diff = { ...emptySessionEntryDiff(before, file), modifiedSnapshotURI: after };
+			const source = observableValue('working set', { channel: URI.parse('changeset:/working-set'), ready: true, files: [{ diff, nonce: 'first' }] });
+			store.add(controller.checkpointReview.registerSource(source));
+			const visible = () => controller.checkpointReview.project(source.get().channel, source.get().files).length;
+			await controller.restoreSnapshot('request', undefined);
+			const restored = { visible: visible(), content: content.get(file.toString()), redo: controller.canRedo.get() };
+			await controller.redoInteraction();
+			const redone = { visible: visible(), content: content.get(file.toString()) };
+			await controller.restoreSnapshot('request', undefined);
+			controller.ensureRequestCheckpoint('replacement');
+			const beforeHostUpdate = visible();
+			source.set({ ...source.get(), files: [{ diff, nonce: 'replacement' }] }, undefined);
+			assert.deepStrictEqual({ restored, redone, beforeHostUpdate, afterHostUpdate: visible() }, {
+				restored: { visible: 0, content: 'before', redo: true },
+				redone: { visible: 1, content: 'after' },
+				beforeHostUpdate: 0,
+				afterHostUpdate: 1,
+			});
+		});
+
+		test('partial checkpoint restoration keeps earlier same-file edits and unrelated peer files visible', async () => {
+			const file = URI.file('/file.ts');
+			const peer = URI.file('/peer.ts');
+			const before = URI.file('/snapshots/before.ts');
+			const middle = URI.file('/snapshots/middle.ts');
+			const after = URI.file('/snapshots/after.ts');
+			const content = new Map([[before.toString(), 'before'], [middle.toString(), 'earlier'], [after.toString(), 'latest'], [file.toString(), 'latest']]);
+			const controller = createController(store, content);
+			controller.addToolCallEdits('first', makeToolCall({ toolCallId: 'first', filePath: file.fsPath, beforeURI: before.toString(), afterURI: middle.toString() }));
+			controller.addToolCallEdits('second', makeToolCall({ toolCallId: 'second', filePath: file.fsPath, beforeURI: middle.toString(), afterURI: after.toString() }));
+			const source = constObservable({
+				channel: URI.parse('changeset:/working-set'),
+				ready: true,
+				files: [
+					{ diff: { ...emptySessionEntryDiff(before, file), modifiedSnapshotURI: after }, nonce: 'file' },
+					{ diff: { ...emptySessionEntryDiff(before, peer), modifiedSnapshotURI: after }, nonce: 'peer' },
+				],
+			});
+			store.add(controller.checkpointReview.registerSource(source));
+			await controller.restoreSnapshot('second', undefined);
+			const partial = controller.checkpointReview.project(source.get().channel, source.get().files).map(file => file.diff.modifiedURI.path);
+			await controller.restoreSnapshot('first', undefined);
+			assert.deepStrictEqual({
+				partial,
+				startOver: controller.checkpointReview.project(source.get().channel, source.get().files).map(file => file.diff.modifiedURI.path),
+			}, {
+				partial: ['/file.ts', '/peer.ts'],
+				startOver: ['/peer.ts'],
+			});
+		});
+
+		test('a failed checkpoint write retains a recoverable cursor without suppressing review', async () => {
+			const file = URI.file('/file.ts');
+			const before = URI.file('/snapshots/before.ts');
+			const after = URI.file('/snapshots/after.ts');
+			const content = new Map([[before.toString(), 'before'], [after.toString(), 'after']]);
+			const files = makeMockFileService(content);
+			files.writeFile = async () => { throw new Error('write failed'); };
+			const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/failure'), 'local', undefined, new NullLogService(), files, store.add(new WorkingCopyService())));
+			controller.addToolCallEdits('request', makeToolCall({ toolCallId: 'edit', filePath: file.fsPath, beforeURI: before.toString(), afterURI: after.toString() }));
+			const source = constObservable({ channel: URI.parse('changeset:/working-set'), ready: true, files: [{ diff: { ...emptySessionEntryDiff(before, file), modifiedSnapshotURI: after }, nonce: 'first' }] });
+			store.add(controller.checkpointReview.registerSource(source));
+			await assert.rejects(controller.restoreSnapshot('request', undefined), /write failed/);
+			assert.deepStrictEqual({ disabled: controller.requestDisablement.get(), redo: controller.canRedo.get(), visible: controller.checkpointReview.project(source.get().channel, source.get().files).length }, { disabled: [{ requestId: 'request' }], redo: true, visible: 1 });
+		});
+
+		for (const failed of [false, true]) {
+			test(`Undo only suppresses files restored by the crossed checkpoints (previous Undo failed: ${failed})`, async () => {
+				const first = URI.file('/first.ts');
+				const second = URI.file('/second.ts');
+				const before = URI.file('/snapshots/before.ts');
+				const after = URI.file('/snapshots/after.ts');
+				const content = new Map([[before.toString(), 'before'], [after.toString(), 'after'], [first.toString(), 'after'], [second.toString(), 'after']]);
+				const files = makeMockFileService(content);
+				const write = files.writeFile;
+				files.writeFile = async (resource, value) => {
+					if (failed && resource.path === second.path) {
+						throw new Error('read only');
+					}
+					return write(resource, value);
+				};
+				const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/successive-undo'), 'local', undefined, new NullLogService(), files, store.add(new WorkingCopyService())));
+				for (const file of [first, second]) {
+					controller.addToolCallEdits(file.path, makeToolCall({ toolCallId: file.path, filePath: file.fsPath, beforeURI: before.toString(), afterURI: after.toString() }));
+				}
+				const source = constObservable({
+					channel: URI.parse('changeset:/working-set'),
+					ready: true,
+					files: [first, second].map(file => ({ diff: { ...emptySessionEntryDiff(before, file), modifiedSnapshotURI: after }, nonce: file.path })),
+				});
+				store.add(controller.checkpointReview.registerSource(source));
+				if (failed) {
+					await assert.rejects(controller.undoInteraction(), /read only/);
+				} else {
+					await controller.undoInteraction();
+				}
+				await controller.undoInteraction();
+				const undone = {
+					content: [content.get(first.toString()), content.get(second.toString())],
+					visible: controller.checkpointReview.project(source.get().channel, source.get().files).map(file => file.diff.modifiedURI.path),
+				};
+				await controller.redoInteraction();
+				await controller.redoInteraction();
+				assert.deepStrictEqual({
+					undone,
+					redone: [content.get(first.toString()), content.get(second.toString())],
+					visible: controller.checkpointReview.project(source.get().channel, source.get().files).map(file => file.diff.modifiedURI.path),
+				}, {
+					undone: { content: ['before', failed ? 'after' : 'before'], visible: failed ? ['/second.ts'] : [] },
+					redone: ['after', 'after'],
+					visible: ['/first.ts', '/second.ts'],
+				});
+			});
+		}
+
+		test('Redo recovers successful partial restoration without rewriting a file that could not be undone', async () => {
+			const created = URI.file('/created.ts');
+			const existing = URI.file('/existing.ts');
+			const before = URI.file('/snapshots/before.ts');
+			const after = URI.file('/snapshots/after.ts');
+			const content = new Map([[before.toString(), 'before'], [after.toString(), 'after'], [existing.toString(), 'after'], [created.toString(), 'after']]);
+			const files = makeMockFileService(content);
+			const write = files.writeFile;
+			files.writeFile = async (resource, value) => {
+				if (resource.toString() === existing.toString()) {
+					throw new Error('read only');
+				}
+				return write(resource, value);
+			};
+			const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/partial'), 'local', undefined, new NullLogService(), files, store.add(new WorkingCopyService())));
+			controller.addToolCallEdits('request', {
+				...makeToolCall({ toolCallId: 'create', filePath: created.fsPath, beforeURI: before.toString(), afterURI: after.toString() }),
+				content: [{ type: ToolResultContentType.FileEdit, after: { uri: created.toString(), content: { uri: after.toString() } } }],
+			});
+			controller.addToolCallEdits('request', makeToolCall({ toolCallId: 'edit', filePath: existing.fsPath, beforeURI: before.toString(), afterURI: after.toString() }));
+			await assert.rejects(controller.restoreSnapshot('request', undefined), /read only/);
+			const partial = { created: content.has(created.toString()), existing: content.get(existing.toString()), redo: controller.canRedo.get() };
+			await controller.redoInteraction();
+			assert.deepStrictEqual({ partial, recovered: [content.get(created.toString()), content.get(existing.toString())], redo: controller.canRedo.get() }, {
+				partial: { created: false, existing: 'after', redo: true },
+				recovered: ['after', 'after'],
+				redo: false,
+			});
+		});
+
+		test('Start Over after file-level Undo of a created file tolerates its absence and retains Redo', async () => {
+			const file = URI.file('/created.ts');
+			const after = URI.file('/snapshots/after.ts');
+			const content = new Map([[after.toString(), 'created']]);
+			const controller = createController(store, content);
+			controller.addToolCallEdits('request', {
+				...makeToolCall({ toolCallId: 'create', filePath: file.fsPath, beforeURI: after.toString(), afterURI: after.toString() }),
+				content: [{ type: ToolResultContentType.FileEdit, after: { uri: file.toString(), content: { uri: after.toString() } } }],
+			});
+			await controller.restoreSnapshot('request', undefined);
+			const redo = controller.canRedo.get();
+			await controller.redoInteraction();
+			assert.deepStrictEqual({ redo, content: content.get(file.toString()) }, { redo: true, content: 'created' });
+		});
+
+		for (const retryFails of [false, true]) {
+			test(`Start Over does not mistake a failed delete stat for absence (resolve also fails: ${retryFails})`, async () => {
+				const file = URI.file('/created.ts');
+				const after = URI.file('/snapshot.ts');
+				let statFailures = 0;
+				const provider = store.add(new class extends InMemoryFileSystemProvider {
+					override async stat(resource: URI) {
+						if (resource.path === file.path && statFailures > 0) {
+							statFailures--;
+							throw createFileSystemProviderError('stat unavailable', FileSystemProviderErrorCode.Unavailable);
+						}
+						return super.stat(resource);
+					}
+				}());
+				const files = store.add(new FileService(new NullLogService()));
+				store.add(files.registerProvider(Schemas.file, provider));
+				await files.writeFile(after, VSBuffer.fromString('created'));
+				await files.writeFile(file, VSBuffer.fromString('created'));
+				const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/delete-stat'), 'local', undefined, new NullLogService(), files, store.add(new WorkingCopyService())));
+				controller.addToolCallEdits('request', {
+					...makeToolCall({ toolCallId: 'create', filePath: file.fsPath, beforeURI: after.toString(), afterURI: after.toString() }),
+					content: [{ type: ToolResultContentType.FileEdit, after: { uri: file.toString(), content: { uri: after.toString() } } }],
+				});
+				const source = constObservable({
+					channel: URI.parse('changeset:/working-set'), ready: true,
+					files: [{ diff: { ...emptySessionEntryDiff(after, file), modifiedSnapshotURI: after, isCreated: true }, nonce: 'created' }],
+				});
+				store.add(controller.checkpointReview.registerSource(source));
+				statFailures = retryFails ? Number.POSITIVE_INFINITY : 1;
+				await assert.rejects(controller.undoInteraction(), /Could not restore every file/);
+				statFailures = 0;
+				assert.deepStrictEqual({
+					disk: (await files.readFile(file)).value.toString(),
+					visible: controller.checkpointReview.project(source.get().channel, source.get().files).length,
+					redo: controller.canRedo.get(),
+				}, { disk: 'created', visible: 1, redo: true });
+			});
+		}
+
+		for (const initiallyPublished of [false, true]) {
+			test(`Start Over waits for the working-set snapshot before projecting it (initially published: ${initiallyPublished})`, async () => {
+				const file = URI.file('/file.ts');
+				const before = URI.file('/snapshots/before.ts');
+				const after = URI.file('/snapshots/after.ts');
+				const content = new Map([[before.toString(), 'before'], [after.toString(), 'after'], [file.toString(), 'after']]);
+				const controller = createController(store, content);
+				controller.addToolCallEdits('request', makeToolCall({ toolCallId: 'edit', filePath: file.fsPath, beforeURI: before.toString(), afterURI: after.toString() }));
+				const files = [{ diff: { ...emptySessionEntryDiff(before, file), modifiedSnapshotURI: after }, nonce: 'shown' }];
+				const source = observableValue('working set', { channel: URI.parse('changeset:/working-set'), ready: false, files: initiallyPublished ? files : [] });
+				store.add(controller.checkpointReview.registerSource(source));
+				const restoring = controller.restoreSnapshot('request', undefined);
+				await timeout(0);
+				const whileComputing = content.get(file.toString());
+				source.set({ ...source.get(), ready: true, files }, undefined);
+				await restoring;
+				assert.deepStrictEqual({ whileComputing, restored: content.get(file.toString()), visible: controller.checkpointReview.project(source.get().channel, source.get().files).length }, {
+					whileComputing: 'after', restored: 'before', visible: 0,
+				});
+			});
+		}
+
+		test('an unavailable review baseline does not prevent restoring valid checkpoint contents', async () => {
+			const file = URI.file('/file.ts');
+			const other = URI.file('/other.ts');
+			const before = URI.file('/snapshots/before.ts');
+			const after = URI.file('/snapshots/after.ts');
+			const content = new Map([[before.toString(), 'before'], [after.toString(), 'after'], [file.toString(), 'after']]);
+			const controller = createController(store, content);
+			controller.addToolCallEdits('request', makeToolCall({ toolCallId: 'edit', filePath: file.fsPath, beforeURI: before.toString(), afterURI: after.toString() }));
+			controller.addToolCallEdits('request', makeToolCall({ toolCallId: 'other', filePath: other.fsPath, beforeURI: before.toString(), afterURI: after.toString() }));
+			const source = constObservable({
+				channel: URI.parse('changeset:/working-set'), ready: true, files: [{
+					diff: { ...emptySessionEntryDiff(URI.file('/unavailable/baseline'), file), modifiedSnapshotURI: after }, nonce: 'shown',
+				}, {
+					diff: { ...emptySessionEntryDiff(before, other), modifiedSnapshotURI: after }, nonce: 'other',
+				}]
+			});
+			store.add(controller.checkpointReview.registerSource(source));
+			await controller.restoreSnapshot('request', undefined);
+			assert.deepStrictEqual({ restored: [content.get(file.toString()), content.get(other.toString())], redo: controller.canRedo.get(), visible: controller.checkpointReview.project(source.get().channel, source.get().files).map(file => file.diff.modifiedURI.path) }, {
+				restored: ['before', 'before'], redo: true, visible: ['/file.ts'],
+			});
+		});
+
+		test('an errored working set does not delay checkpoint restoration', async () => {
+			const file = URI.file('/file.ts');
+			const before = URI.file('/snapshots/before.ts');
+			const after = URI.file('/snapshots/after.ts');
+			const content = new Map([[before.toString(), 'before'], [after.toString(), 'after'], [file.toString(), 'after']]);
+			const controller = createController(store, content);
+			controller.addToolCallEdits('request', makeToolCall({ toolCallId: 'edit', filePath: file.fsPath, beforeURI: before.toString(), afterURI: after.toString() }));
+			const source = constObservable({ channel: URI.parse('changeset:/working-set'), ready: false, failed: true, files: [] });
+			store.add(controller.checkpointReview.registerSource(source));
+			await controller.restoreSnapshot('request', undefined);
+			assert.deepStrictEqual({ restored: content.get(file.toString()), redo: controller.canRedo.get() }, { restored: 'before', redo: true });
+		});
+
+		test('failed Redo does not leave successfully reapplied edits suppressed', async () => {
+			const first = URI.file('/first.ts');
+			const second = URI.file('/second.ts');
+			const before = URI.file('/snapshots/before.ts');
+			const after = URI.file('/snapshots/after.ts');
+			const content = new Map([[before.toString(), 'before'], [after.toString(), 'after'], [first.toString(), 'after'], [second.toString(), 'after']]);
+			const files = makeMockFileService(content);
+			const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/redo-failure'), 'local', undefined, new NullLogService(), files, store.add(new WorkingCopyService())));
+			for (const file of [first, second]) {
+				controller.addToolCallEdits('request', makeToolCall({ toolCallId: file.path, filePath: file.fsPath, beforeURI: before.toString(), afterURI: after.toString() }));
+			}
+			const source = constObservable({
+				channel: URI.parse('changeset:/working-set'), ready: true, files: [first, second].map(file => ({
+					diff: { ...emptySessionEntryDiff(before, file), modifiedSnapshotURI: after }, nonce: file.path,
+				}))
+			});
+			store.add(controller.checkpointReview.registerSource(source));
+			await controller.restoreSnapshot('request', undefined);
+			const write = files.writeFile;
+			files.writeFile = async (resource, value) => {
+				if (resource.path === second.path) {
+					throw new Error('read only');
+				}
+				return write(resource, value);
+			};
+			await assert.rejects(controller.redoInteraction(), /read only/);
+			assert.deepStrictEqual({ reapplied: content.get(first.toString()), visible: controller.checkpointReview.project(source.get().channel, source.get().files).length }, { reapplied: 'after', visible: 2 });
+		});
+
+		test('Start Over clears a cumulative deletion after an earlier edit and Redo restores it', async () => {
+			const file = URI.file('/file.ts');
+			const before = URI.file('/snapshots/before.ts');
+			const middle = URI.file('/snapshots/middle.ts');
+			const content = new Map([[before.toString(), 'before'], [middle.toString(), 'edited']]);
+			const controller = createController(store, content);
+			controller.addToolCallEdits('first', makeToolCall({ toolCallId: 'edit', filePath: file.fsPath, beforeURI: before.toString(), afterURI: middle.toString() }));
+			controller.addToolCallEdits('second', {
+				...makeToolCall({ toolCallId: 'delete', filePath: file.fsPath, beforeURI: middle.toString(), afterURI: middle.toString() }),
+				content: [{ type: ToolResultContentType.FileEdit, before: { uri: file.toString(), content: { uri: middle.toString() } } }],
+			});
+			const source = constObservable({
+				channel: URI.parse('changeset:/working-set'), ready: true, files: [{
+					diff: { ...emptySessionEntryDiff(before, file), isDeleted: true }, nonce: 'deleted',
+				}]
+			});
+			store.add(controller.checkpointReview.registerSource(source));
+			await controller.restoreSnapshot('first', undefined);
+			const restored = { content: content.get(file.toString()), visible: controller.checkpointReview.project(source.get().channel, source.get().files).length };
+			await controller.redoInteraction();
+			await controller.redoInteraction();
+			assert.deepStrictEqual({ restored, deletedAgain: !content.has(file.toString()), visible: controller.checkpointReview.project(source.get().channel, source.get().files).length }, {
+				restored: { content: 'before', visible: 0 }, deletedAgain: true, visible: 1,
+			});
+		});
+
+		test('is a global keep/undo session only while reviewing', async () => {
+			const log: string[] = [];
+			const controller = createController(store, new Map());
+			const before = { global: controller.isGlobalEditingSession.get(), keepUndo: controller.supportsKeepUndo.get(), entries: controller.entries.get().length };
+			controller.attachReview(constObservable(true), () => createReview(log));
+			await controller.accept(URI.file('/file.ts'));
+			await controller.reject();
+
+			assert.deepStrictEqual({
+				before,
+				after: { global: controller.isGlobalEditingSession.get(), keepUndo: controller.supportsKeepUndo.get(), entries: controller.entries.get().length },
+				entry: controller.getEntry(URI.file('/file.ts'))?.modifiedURI.path,
+				log,
+			}, {
+				before: { global: false, keepUndo: false, entries: 0 },
+				after: { global: true, keepUndo: true, entries: 1 },
+				entry: '/file.ts',
+				log: ['keep /file.ts', 'undo '],
+			});
+		});
+
+		test('notifies capability observers and disposes replaced reviews', () => {
+			const controller = createController(store, new Map());
+			const capabilities: boolean[][] = [];
+			const disposed: string[] = [];
+			store.add(autorun(reader => {
+				capabilities.push([controller.isGlobalEditingSession.read(reader), controller.supportsKeepUndo.read(reader)]);
+			}));
+			const first = createReview([]);
+			first.dispose = () => disposed.push('first');
+			const second = createReview([]);
+			second.dispose = () => disposed.push('second');
+
+			controller.attachReview(constObservable(true), () => first);
+			controller.attachReview(constObservable(true), () => second);
+			const afterReplacement = disposed.slice();
+			controller.dispose();
+
+			assert.deepStrictEqual({ capabilities, afterReplacement, disposed }, {
+				capabilities: [[false, false], [true, true], [false, false]],
+				afterReplacement: ['first'],
+				disposed: ['first', 'second'],
+			});
+		});
+
+		test('toggles review immediately without recreating the session or keeping observers after disposal', async () => {
+			const controller = createController(store, new Map());
+			const enabled = observableValue('reviewEnabled', true);
+			const log: string[] = [];
+			let created = 0;
+			let disposed = 0;
+			controller.attachReview(enabled, () => {
+				created++;
+				const review = createReview(log);
+				review.dispose = () => { disposed++; };
+				return review;
+			});
+			const state = () => ({ enabled: controller.supportsKeepUndo.get(), entries: controller.entries.get().length, created, disposed });
+			const states = [state()];
+			enabled.set(false, undefined);
+			await controller.accept();
+			await controller.reject();
+			states.push(state());
+			enabled.set(true, undefined);
+			states.push(state());
+			controller.dispose();
+			enabled.set(false, undefined);
+			enabled.set(true, undefined);
+			states.push(state());
+
+			assert.deepStrictEqual({ states, log }, {
+				states: [
+					{ enabled: true, entries: 1, created: 1, disposed: 0 },
+					{ enabled: false, entries: 0, created: 1, disposed: 1 },
+					{ enabled: true, entries: 1, created: 2, disposed: 1 },
+					{ enabled: false, entries: 0, created: 2, disposed: 2 },
+				],
+				log: [],
+			});
+		});
 	});
 });

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -67,7 +66,7 @@ function makeTask(label: string, command?: string): ITaskEntry {
 
 suite('WorkbenchSessionTaskRunner', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let runner: WorkbenchSessionTaskRunner;
 	let ranTasks: { label: string }[];
 	let terminatedTasks: { label: string }[];
@@ -110,10 +109,6 @@ suite('WorkbenchSessionTaskRunner', () => {
 
 		runner = instantiationService.createInstance(WorkbenchSessionTaskRunner);
 	});
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function registerMockTask(label: string, folder: URI): void {
 		tasksByLabel.set(label, { _label: label } as unknown as Task);

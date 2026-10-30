@@ -70,6 +70,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		this.sessionType = remoteAgentHostSessionTypeId(authority, CLOUD_SANDBOX_AGENT_PROVIDER);
 		this._sessionListStore = this._register(instantiationService.createInstance(AgentHostSessionListStore, {
 			onDidNotification: this._notifications.event,
+			initializeResult: derived(reader => this._connection.read(reader)?.initializeResult.read(reader)),
 			listSessions: async () => (await this._requireConnection().listSessions()).map(session => this._withListedTitle(session)),
 			disposeChat: chat => this._requireConnection().disposeChat(chat),
 			disposeSession: session => this._requireConnection().disposeSession(session),
@@ -82,7 +83,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		}));
 		this._controller = this._register(instantiationService.createInstance(AgentHostSessionListController,
 			this.sessionType, CLOUD_SANDBOX_AGENT_PROVIDER, this._sessionListStore,
-			'', authority));
+			'', authority, true));
 		const sessionsChanged = observableSignalFromEvent(this, this._controller.onDidChangeChatSessionItems);
 		this._items = derived(this, reader => {
 			sessionsChanged.read(reader);
@@ -310,7 +311,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 			if (this._store.isDisposed) {
 				throw new CancellationError();
 			}
-			if (resource.scheme !== this.sessionType || resource.fragment) {
+			if (resource.scheme !== this.sessionType) {
 				throw new Error(localize('cloudSandbox.archiveInvalidSession', "The session does not belong to this sandbox."));
 			}
 			const rawId = AgentSession.id(resource);

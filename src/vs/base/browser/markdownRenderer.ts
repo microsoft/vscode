@@ -5,19 +5,19 @@
 
 import { onUnexpectedError } from '../common/errors.js';
 import { isUNC } from '../common/extpath.js';
-import { escapeDoubleQuotes, IMarkdownString, isPortableLinkTarget, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
+import { escapeDoubleQuotes, IMarkdownString, isPortableLinkTarget, parseHrefAndDimensions, removeMarkdownEscapes, resolveWithBaseUri } from '../common/htmlContent.js';
 import { markdownEscapeEscapedIcons } from '../common/iconLabels.js';
 import { defaultGenerator } from '../common/idGenerator.js';
 import { KeyCode } from '../common/keyCodes.js';
 import { DisposableStore, IDisposable } from '../common/lifecycle.js';
 import * as marked from '../common/marked/marked.js';
 import { parse } from '../common/marshalling.js';
-import { FileAccess, Schemas } from '../common/network.js';
+import { FileAccess, matchesSomeScheme, Schemas } from '../common/network.js';
 import { cloneAndChange } from '../common/objects.js';
 import { basename as pathBasename } from '../common/path.js';
-import { basename, dirname, resolvePath } from '../common/resources.js';
+import { basename } from '../common/resources.js';
 import { escape } from '../common/strings.js';
-import { URI, UriComponents } from '../common/uri.js';
+import { URI } from '../common/uri.js';
 import * as DOM from './dom.js';
 import * as domSanitize from './domSanitize.js';
 import { convertTagToPlaintext } from './domSanitize.js';
@@ -239,6 +239,10 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		};
 		const tokens = markedInstance.lexer(value, opts);
 		const newTokens = fillInIncompleteTokens(tokens);
+		// Unlike parse(), lexer() and parser() skip extension walkTokens hooks
+		if (opts.walkTokens) {
+			markedInstance.walkTokens(newTokens, opts.walkTokens);
+		}
 		renderedMarkdown = markedInstance.parser(newTokens, opts);
 	} else {
 		renderedMarkdown = markedInstance.parse(value, { ...options?.markedOptions, renderer, async: false });
@@ -455,6 +459,10 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 			} catch (err) { }
 
 			const uri = URI.revive(markdown.uris?.[href]) ?? URI.parse(href);
+			if (!matchesSomeScheme(uri, Schemas.http, Schemas.https, Schemas.data)) {
+				// The browser loads other resources through a transport URL, so keep the resource the element shows
+				el.setAttribute('data-src', uri.toString());
+			}
 			const resolved = FileAccess.resolveBrowserUri(uri);
 			if (resolved) {
 				el.removeAttribute('src');
@@ -652,24 +660,7 @@ function postProcessCodeBlockLanguageId(lang: string | undefined): string {
 	return lang;
 }
 
-function resolveWithBaseUri(baseUri: URI, href: string): string {
-	const hasScheme = /^\w[\w\d+.-]*:/.test(href);
-	if (hasScheme) {
-		return href;
-	}
-
-	if (baseUri.path.endsWith('/')) {
-		return resolvePath(baseUri, href).toString();
-	} else {
-		return resolvePath(dirname(baseUri), href).toString();
-	}
-}
-
-type MdStrConfig = {
-	readonly isTrusted?: boolean | MarkdownStringTrustedOptions;
-	readonly baseUri?: UriComponents;
-	readonly uris?: IMarkdownString['uris'];
-};
+type MdStrConfig = Pick<IMarkdownString, 'isTrusted' | 'baseUri' | 'uris'>;
 
 function isLocalFileUri(uri: URI): boolean {
 	return uri.scheme === Schemas.file && !uri.authority && !isUNC(uri.fsPath);
@@ -677,6 +668,7 @@ function isLocalFileUri(uri: URI): boolean {
 
 function isMediaSourceAllowed(mdStrConfig: MdStrConfig, source: string, remoteImageIsAllowed: (uri: URI) => boolean, customSchemes: readonly string[]): boolean {
 	let uri: URI;
+	let mappedUri: URI | undefined;
 	try {
 		const baseUri = mdStrConfig.baseUri ? URI.from(mdStrConfig.baseUri) : undefined;
 		const hasScheme = /^\w[\w\d+.-]*:/.test(source);
@@ -685,14 +677,20 @@ function isMediaSourceAllowed(mdStrConfig: MdStrConfig, source: string, remoteIm
 		}
 		const href = baseUri ? resolveWithBaseUri(baseUri, source) : source;
 		uri = URI.parse(href);
+		mappedUri = href.startsWith(`${Schemas.data}:`) ? undefined : URI.revive(mdStrConfig.uris?.[href]);
 		if (customSchemes.includes(uri.scheme)) {
-			return remoteImageIsAllowed(URI.revive(mdStrConfig.uris?.[href]) ?? uri);
+			return remoteImageIsAllowed(mappedUri ?? uri);
 		}
 	} catch {
 		return false;
 	}
 
-	return isLocalFileUri(uri) || uri.scheme === Schemas.data || remoteImageIsAllowed(uri);
+	const isAllowed = (uri: URI) => isLocalFileUri(uri) || uri.scheme === Schemas.data || remoteImageIsAllowed(uri);
+	// Remote extension host RPC maps local files to the same file on its remote authority.
+	const isRemoteFileMapping = isLocalFileUri(uri) && mappedUri?.scheme === Schemas.vscodeRemote
+		&& mappedUri.path === uri.path && mappedUri.query === uri.query && mappedUri.fragment === uri.fragment;
+	// Some media attributes are not rewritten, so both the source and its mapped destination must be safe.
+	return isAllowed(uri) && (!mappedUri || isRemoteFileMapping || isAllowed(mappedUri));
 }
 
 function sanitizeRenderedMarkdown(

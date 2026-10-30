@@ -27,31 +27,29 @@ import { upcastPartial } from '../../../base/test/common/mock.js';
 const TOGGLE_PANEL_ACTION_ID = 'workbench.action.togglePanel';
 const LEGACY_TOGGLE_PANEL_ALIGNMENT_ACTION_ID = 'workbench.action.agentSessions.togglePanelAlignment';
 
+// Dynamic imports (layering rules disallow static ones here), awaited while this file loads so that their
+// permanent registrations are in place before any suite runs instead of being registered by this suite.
+await Promise.all([
+	import('../../contrib/editor/browser/editor.contribution.js'),
+	import('../../contrib/terminal/browser/sessionsTerminalContribution.js'),
+	import('../../contrib/chat/browser/chat.contribution.js'),
+	// Every browser contribution to the shared View > Appearance menu, so that an
+	// entry that does not apply to the Agents window fails the menu snapshot below.
+	import('../../../workbench/browser/actions/layoutActions.js'),
+	import('../../../workbench/browser/workbench.zenMode.contribution.js'),
+	import('../../../workbench/browser/parts/activitybar/activitybarPart.js'),
+	import('../../../editor/contrib/stickyScroll/browser/stickyScrollContribution.js'),
+	import('../../../workbench/browser/actions/windowActions.js'),
+	import('../../../workbench/browser/parts/titlebar/titlebarActions.js'),
+	import('../../../workbench/browser/parts/editor/breadcrumbsControl.js'),
+	import('../../../workbench/contrib/codeEditor/browser/toggleMinimap.js'),
+	import('../../../workbench/contrib/codeEditor/browser/toggleRenderWhitespace.js'),
+	import('../../../workbench/contrib/codeEditor/browser/toggleRenderControlCharacter.js'),
+]);
+
 suite('Sessions - Layout Actions', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
-
-	// Dynamic import in `suiteSetup` (not a static top-level import, which layering
-	// rules disallow here) so its permanent registrations predate any per-test leak tracking.
-	suiteSetup(async () => {
-		await Promise.all([
-			import('../../contrib/editor/browser/editor.contribution.js'),
-			import('../../contrib/terminal/browser/sessionsTerminalContribution.js'),
-			import('../../contrib/chat/browser/chat.contribution.js'),
-			// Every browser contribution to the shared View > Appearance menu, so that an
-			// entry that does not apply to the Agents window fails the menu snapshot below.
-			import('../../../workbench/browser/actions/layoutActions.js'),
-			import('../../../workbench/browser/workbench.zenMode.contribution.js'),
-			import('../../../workbench/browser/parts/activitybar/activitybarPart.js'),
-			import('../../../editor/contrib/stickyScroll/browser/stickyScrollContribution.js'),
-			import('../../../workbench/browser/actions/windowActions.js'),
-			import('../../../workbench/browser/parts/titlebar/titlebarActions.js'),
-			import('../../../workbench/browser/parts/editor/breadcrumbsControl.js'),
-			import('../../../workbench/contrib/codeEditor/browser/toggleMinimap.js'),
-			import('../../../workbench/contrib/codeEditor/browser/toggleRenderWhitespace.js'),
-			import('../../../workbench/contrib/codeEditor/browser/toggleRenderControlCharacter.js'),
-		]);
-	});
 
 	test('offers shared layout density commands in the title bar menu and the desktop View > Appearance menu', () => {
 		const parents = [Menus.TitleBarContext, MenuId.MenubarAppearanceMenu, MenuId.MenubarViewMenu].map(menu =>
@@ -151,6 +149,7 @@ suite('Sessions - Layout Actions', () => {
 
 	test('toggles the session activity bar layout actions from its context menu', async () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBarContext).filter(isIMenuItem)
+			.filter(item => item.group === 'navigation')
 			.map(item => ({ id: item.command.id, title: item.command.title, toggled: item.command.toggled, order: item.order }))
 			.sort((first, second) => (first.order ?? 0) - (second.order ?? 0));
 		const configurationService = new class extends TestConfigurationService {
@@ -210,7 +209,7 @@ suite('Sessions - Layout Actions', () => {
 		]]));
 
 		assert.deepStrictEqual({ activityBarItems: find(Menus.SessionActivityBar).map(item => ({ title: item.command.title, group: item.group, order: item.order })), placement }, {
-			activityBarItems: [{ title: 'Show Panel', group: '3_panel', order: 0 }, { title: 'Hide Panel', group: '3_panel', order: 0 }],
+			activityBarItems: [{ title: 'Show Panel', group: '2_panel', order: 1 }, { title: 'Hide Panel', group: '2_panel', order: 1 }],
 			placement: {
 				layoutActions: ['activityBar'],
 				layoutActionsOff: ['titleBar'],

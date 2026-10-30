@@ -47,7 +47,7 @@ registerAction2(class NewSessionFromPullRequestAction extends Action2 {
 					ChatContextKeys.enabled,
 					SessionSectionHasGitHubRepositoryContext,
 					SessionSectionHasNonCloudRepositoryContext,
-					SessionSectionTypeContext.isEqualTo('workspace')
+					ContextKeyExpr.or(SessionSectionTypeContext.isEqualTo('workspace'), SessionSectionTypeContext.isEqualTo('repository'))
 				),
 			},
 		});

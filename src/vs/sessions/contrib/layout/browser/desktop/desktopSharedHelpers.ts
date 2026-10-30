@@ -6,17 +6,16 @@
 import { Schemas } from '../../../../../base/common/network.js';
 import { isEqualOrParent } from '../../../../../base/common/resources.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
-import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../../workbench/common/editor.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { CustomEditorInput } from '../../../../../workbench/contrib/customEditor/browser/customEditorInput.js';
-import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { CanvasInput } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { WindowCanvasInput } from '../../../../services/canvas/browser/windowCanvasService.js';
 
 const PULL_REQUEST_OVERVIEW_VIEW_TYPE = 'PullRequestOverview';
 const ISSUE_OVERVIEW_VIEW_TYPE = 'IssueOverview';
@@ -33,9 +32,6 @@ export function isMainPartEmpty(editorGroupsService: IEditorGroupsService): bool
 
 /** Whether `editor` is (or shows) a managed Changes multi-diff for some session. Shared by the New/Existing detail-panel mapping. */
 export function isChangesEditorInput(editor: EditorInput, sessionChangesService: ISessionChangesService): boolean {
-	if (editor instanceof DiffEditorInput || editor instanceof MultiDiffEditorInput) {
-		return true;
-	}
 	const resource = editor.resource;
 	return !!resource && sessionChangesService.getSessionResource(resource) !== undefined;
 }
@@ -69,6 +65,7 @@ export function getFilesDetailsState(editor: EditorInput, workspace: ISessionWor
 export function isEditorWithoutDockedDetails(editor: EditorInput): boolean {
 	return editor instanceof BrowserEditorInput
 		|| editor instanceof CanvasInput
+		|| editor instanceof WindowCanvasInput
 		|| (editor instanceof CustomEditorInput && editor.resource?.scheme !== Schemas.untitled)
 		|| (editor instanceof WebviewInput
 			&& (editor.viewType === PULL_REQUEST_OVERVIEW_VIEW_TYPE

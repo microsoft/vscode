@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatMoveSettingId } from '../../../../../platform/agentHost/common/agentHostChatMove.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -19,8 +19,8 @@ import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } fro
 import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChatMovedEvent, ISessionChangeEvent, SessionMoveRefusedError } from '../../../../services/sessions/common/sessionsProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { canMoveIntoSession, getChatMoveAnchorBefore, getChatMoveAppendAnchor, getSessionsListChatDrop, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove } from '../../browser/views/sessionsListChatMove.js';
-import { createListHarness, createTestSession, ITestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
+import { canMoveIntoSession, getChatMoveAnchorBefore, isCrossAgentChatMoveEnabled, getChatMoveAppendAnchor, getChatMoveDestinations, getSessionMoveDestinations, getSessionsListChatDrop, getSessionsListSessionDrop, ISessionsListChatDropTarget, ISessionsListMoveDestination, runSessionsListMove, SessionsListChatDrop, SessionsListMove } from '../../browser/views/sessionsListChatMove.js';
+import { createListHarness, createTestSession, ITestSession, ITestSessionOptions, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -28,12 +28,23 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
-import { SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
-import { PROMOTE_CHAT_TO_SESSION_ACTION_ID } from '../../browser/sessionsActions.js';
+import { SessionChatItem, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import '../../browser/views/sessionsViewActions.js';
+import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { TestSessionsList } from './testSessionsList.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
+import { SessionsView, SessionsViewId, SessionsViewSortingContext } from '../../browser/views/sessionsView.js';
+import { MOVE_CHAT_TO_SESSION_ACTION_ID, MOVE_SESSION_INTO_SESSION_ACTION_ID, PROMOTE_CHAT_TO_SESSION_ACTION_ID } from '../../browser/sessionsActions.js';
+import { IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
+import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { Menus } from '../../../../browser/menus.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IView } from '../../../../../workbench/common/views.js';
+import { ChatProvidersSettingId } from '../../../../../platform/agentHost/common/agentHostChatProviders.js';
 
 
 function multiChatSession(title: string, options?: { readonly providerId?: string; readonly status?: SessionStatus; readonly isArchived?: boolean; readonly chats?: readonly IChat[] }): ITestSession {
@@ -95,7 +106,7 @@ suite('Move Chats Drag and Drop', () => {
 			const own = listSession('Own', ['a', 'b', 'c']);
 			const [a, b, c] = own.rows;
 			const drop = (moved: IChat, target: IChat | undefined, position: 'before' | 'after') =>
-				describe(getSessionsListChatDrop(own.session, moved, { session: own.session, chat: target, position }));
+				describe(getSessionsListChatDrop(own.session, moved, { session: own.session, chat: target, position }, true));
 			assert.deepStrictEqual({
 				firstBeforeFirstRow: drop(c, a, 'before'),
 				middle: drop(a, c, 'before'),
@@ -126,7 +137,7 @@ suite('Move Chats Drag and Drop', () => {
 			const own = listSession('Own', ['a', 'b', 'c']);
 			const [a, b, c] = own.rows;
 			const drop = (moved: IChat, target: IChat, position: 'before' | 'after') =>
-				describe(getSessionsListChatDrop(own.session, moved, { session: own.session, chat: target, position }));
+				describe(getSessionsListChatDrop(own.session, moved, { session: own.session, chat: target, position }, true));
 			assert.deepStrictEqual({
 				// Above c in the rows: right before c among the chats.
 				aBeforeC: drop(a, c, 'before'),
@@ -149,7 +160,7 @@ suite('Move Chats Drag and Drop', () => {
 			const [x, y] = target.rows;
 			const otherAgent = listSession('Other Agent', ['w'], { sessionType: 'claude' });
 			const drop = (session: ReturnType<typeof listSession>, row: IChat | undefined, position: 'before' | 'after') =>
-				describe(getSessionsListChatDrop(source.session, moved, { session: session.session, chat: row, position }));
+				describe(getSessionsListChatDrop(source.session, moved, { session: session.session, chat: row, position }, true));
 			assert.deepStrictEqual({
 				beforeFirstRow: drop(target, x, 'before'),
 				betweenRows: drop(target, y, 'before'),
@@ -183,7 +194,7 @@ suite('Move Chats Drag and Drop', () => {
 			const source = listSession('Source', ['moved']);
 			const [moved] = source.rows;
 			const target = listSession('Target', ['x']);
-			const drop = (target: ISessionsListChatDropTarget | undefined) => describe(getSessionsListChatDrop(source.session, moved, target));
+			const drop = (target: ISessionsListChatDropTarget | undefined) => describe(getSessionsListChatDrop(source.session, moved, target, true));
 			assert.deepStrictEqual({
 				emptySpace: drop(undefined),
 				headerRow: drop({ session: undefined, chat: undefined, position: 'before' }),
@@ -195,6 +206,60 @@ suite('Move Chats Drag and Drop', () => {
 				sessionRowTopEdge: 'over -> Target after Target/x',
 				// Already at the end of its own session: no move.
 				ownSessionRowTopEdge: 'none',
+			});
+		});
+
+		test('when the rows don\'t show the chat order, never reorders within the own session and appends to another session wherever it is dropped on it', () => {
+			const own = listSession('Own', ['a', 'b', 'c']);
+			const target = listSession('Target', ['x', 'y']);
+			const [a] = own.rows;
+			const [x, y] = target.rows;
+			const drop = (session: ReturnType<typeof listSession>, row: IChat | undefined, position: 'before' | 'after') =>
+				describe(getSessionsListChatDrop(own.session, a, { session: session.session, chat: row, position }, false));
+			assert.deepStrictEqual({
+				ownRowAfterLastRow: drop(own, own.rows[2], 'after'),
+				ownRowBeforeRow: drop(own, own.rows[1], 'before'),
+				ownRow: drop(own, undefined, 'before'),
+				otherBeforeFirstRow: drop(target, x, 'before'),
+				otherBetweenRows: drop(target, y, 'before'),
+				otherAfterLastRow: drop(target, y, 'after'),
+				otherRow: drop(target, undefined, 'before'),
+				emptySpace: describe(getSessionsListChatDrop(own.session, a, undefined, false)),
+			}, {
+				ownRowAfterLastRow: 'none',
+				ownRowBeforeRow: 'none',
+				ownRow: 'none',
+				otherBeforeFirstRow: 'over -> Target after Target/y',
+				otherBetweenRows: 'over -> Target after Target/y',
+				otherAfterLastRow: 'over -> Target after Target/y',
+				otherRow: 'over -> Target after Target/y',
+				emptySpace: 'new session',
+			});
+		});
+	});
+
+	suite('whole sessions dropped on a session', () => {
+		function sessionDrop(rowsShowChatOrder: boolean, quarter: ListViewTargetSector, nestedRow: boolean): string {
+			const source = createTestSession('Source').session;
+			const target = multiChatSession('Target', { chats: [chat('main'), chat('t1'), chat('t2')] }).session;
+			const nested = nestedRow ? target.chats.get()[1] : undefined;
+			const drop = getSessionsListSessionDrop(source, { session: target, chat: nested, quarter, isManuallyOrdered: () => false, isLastInSection: () => false, canPlace: () => false }, rowsShowChatOrder);
+			return drop?.kind === 'nest' ? `${drop.position} after ${drop.after?.title.get() ?? '(first)'}` : drop?.kind ?? 'none';
+		}
+
+		test('nests before or after a nested row only when the rows show the chat order, otherwise at the end of the session', () => {
+			assert.deepStrictEqual({
+				shownTop: sessionDrop(true, ListViewTargetSector.TOP, true),
+				shownBottom: sessionDrop(true, ListViewTargetSector.BOTTOM, true),
+				hiddenTop: sessionDrop(false, ListViewTargetSector.TOP, true),
+				hiddenBottom: sessionDrop(false, ListViewTargetSector.BOTTOM, true),
+				hiddenOnRow: sessionDrop(false, ListViewTargetSector.CENTER_TOP, false),
+			}, {
+				shownTop: 'before after main',
+				shownBottom: 'after after t1',
+				hiddenTop: 'over after t2',
+				hiddenBottom: 'over after t2',
+				hiddenOnRow: 'over after t2',
 			});
 		});
 	});
@@ -221,72 +286,179 @@ suite('Move Chats Drag and Drop', () => {
 		});
 	});
 
+	test('with chats on their own agents and Move Chats both on, also lists sessions of another agent that offer the moved chat\'s harness', () => {
+		const moving = { ...chat('moving', ChatOriginKind.User), harness: 'claude' };
+		const source = multiChatSession('Source', { chats: [chat('source-main'), moving] }).session;
+		// Another agent of the same provider, without and with the harnesses of the moved chat and the source's main chat.
+		const otherAgent = (title: string, harnesses: readonly string[]) => {
+			const test = multiChatSession(title, { chats: [chat(`${title}-main`)] });
+			test.capabilities.set({ supportsMultipleChats: true, supportsChatHarnesses: harnesses }, undefined);
+			return { ...test.session, sessionType: 'claude', harness: 'claude' };
+		};
+		const sessions = [
+			source,
+			otherAgent('Claude', ['claude', 'codex']),
+			otherAgent('Claude Copilot', ['claude', 'copilot']),
+			otherAgent('Codex', ['codex']),
+			{ ...otherAgent('Other Provider', ['claude', 'copilot']), providerId: 'other' },
+		];
+		const describeAll = (destinations: readonly ISessionsListMoveDestination[]) => destinations.map(destination => destination.session.title.get());
+		const destinations = (crossAgent: boolean | undefined) => ({
+			chat: describeAll(getChatMoveDestinations(source, moving, sessions, { canMoveChat: () => true }, crossAgent)),
+			chatDrop: sessions.flatMap(session => {
+				const drop = getSessionsListChatDrop(source, moving, { session, chat: undefined, position: 'after' }, true, crossAgent);
+				return drop?.kind === 'session' ? [drop.session.title.get()] : [];
+			}),
+			// A whole session moves with the harness of its main chat: the session's.
+			session: describeAll(getSessionMoveDestinations(source, sessions, { canMoveSessionUnder: () => true }, crossAgent)),
+			sessionDrop: sessions.flatMap(session => {
+				const drop = getSessionsListSessionDrop(source, { session, chat: undefined, quarter: ListViewTargetSector.CENTER_BOTTOM, isManuallyOrdered: () => false, isLastInSection: () => false, canPlace: () => false }, true, crossAgent);
+				return drop?.kind === 'nest' ? [drop.session.title.get()] : [];
+			}),
+		});
+		const configured = (moveChats: boolean, chatProviders: boolean) => isCrossAgentChatMoveEnabled(new TestConfigurationService({ [ChatMoveSettingId.Enabled]: moveChats, [ChatProvidersSettingId.Enabled]: chatProviders }));
+
+		assert.deepStrictEqual({
+			gates: { both: configured(true, true), moveChatsOnly: configured(true, false), chatProvidersOnly: configured(false, true) },
+			off: destinations(false),
+			on: destinations(true),
+		}, {
+			gates: { both: true, moveChatsOnly: false, chatProvidersOnly: false },
+			// Either setting off: only sessions of the same agent, as without chats on their own agents.
+			off: { chat: [], chatDrop: [], session: [], sessionDrop: [] },
+			on: {
+				chat: ['Claude', 'Claude Copilot'],
+				chatDrop: ['Claude', 'Claude Copilot'],
+				session: ['Claude Copilot'],
+				sessionDrop: ['Claude Copilot'],
+			},
+		});
+	});
+
+	test('lists the sessions a nested session or a session can move into, each at its end, by the rules a drop uses', () => {
+		const moving = chat('moving', ChatOriginKind.User);
+		const source = multiChatSession('Source', { chats: [chat('source-main'), moving] }).session;
+		const valid = multiChatSession('Valid', { chats: [chat('valid-main'), chat('valid-a', ChatOriginKind.User), chat('valid-tool', ChatOriginKind.Tool)] }).session;
+		const empty = multiChatSession('Empty').session;
+		const sessions = [
+			source,
+			valid,
+			multiChatSession('Archived', { isArchived: true }).session,
+			multiChatSession('Untitled', { status: SessionStatus.Untitled }).session,
+			multiChatSession('Other Provider', { providerId: 'other' }).session,
+			{ ...multiChatSession('Other Agent').session, sessionType: 'claude' },
+			createTestSession('Single Chat').session,
+			empty,
+		];
+		const describeAll = (destinations: readonly ISessionsListMoveDestination[]) => destinations.map(destination => `${destination.session.title.get()} after ${destination.after?.title.get() ?? '(first)'}`);
+		const dropChat = sessions.flatMap(session => {
+			const drop = getSessionsListChatDrop(source, moving, { session, chat: undefined, position: 'after' }, true);
+			return drop?.kind === 'session' && session !== source ? [drop] : [];
+		});
+		const dropSession = sessions.flatMap(session => {
+			const drop = getSessionsListSessionDrop(source, { session, chat: undefined, quarter: ListViewTargetSector.CENTER_BOTTOM, isManuallyOrdered: () => false, isLastInSection: () => false, canPlace: () => false }, true);
+			return drop?.kind === 'nest' ? [drop] : [];
+		});
+		assert.deepStrictEqual({
+			chat: describeAll(getChatMoveDestinations(source, moving, sessions, { canMoveChat: () => true })),
+			chatDrop: describeAll(dropChat),
+			session: describeAll(getSessionMoveDestinations(source, sessions, { canMoveSessionUnder: () => true })),
+			sessionDrop: describeAll(dropSession),
+			chatTheProviderCantMove: getChatMoveDestinations(source, moving, sessions, { canMoveChat: () => false }),
+			sessionTheProviderCantMove: getSessionMoveDestinations(source, sessions, { canMoveSessionUnder: () => false }),
+		}, {
+			chat: ['Valid after valid-a', 'Empty after (first)'],
+			chatDrop: ['Valid after valid-a', 'Empty after (first)'],
+			session: ['Valid after valid-a', 'Empty after (first)'],
+			sessionDrop: ['Valid after valid-a', 'Empty after (first)'],
+			chatTheProviderCantMove: [],
+			sessionTheProviderCantMove: [],
+		});
+	});
+
+	test('does not gate moves on quick chats in either direction; the host decides with movable', () => {
+		const quickChat = createTestSession('Quick Chat', { isQuickChat: true });
+		quickChat.capabilities.set({ supportsMultipleChats: true }, undefined);
+		const otherQuickChat = createTestSession('Other Quick Chat', { isQuickChat: true });
+		otherQuickChat.capabilities.set({ supportsMultipleChats: true }, undefined);
+		const workspaceSession = multiChatSession('Workspace').session;
+		assert.deepStrictEqual({
+			quickChatIntoWorkspace: canMoveIntoSession(quickChat.session, workspaceSession),
+			workspaceIntoQuickChat: canMoveIntoSession(workspaceSession, quickChat.session),
+			quickChatIntoQuickChat: canMoveIntoSession(quickChat.session, otherQuickChat.session),
+		}, {
+			quickChatIntoWorkspace: true,
+			workspaceIntoQuickChat: true,
+			quickChatIntoQuickChat: true,
+		});
+	});
+
 	suite('running a dropped move', () => {
 
-		/** Runs `moves` in turn, answering confirmations with `answer`, and records what the user saw and what moved. */
-		async function run(moves: readonly SessionsListMove[], options?: { readonly answer?: IConfirmationResult; readonly confirm?: boolean; readonly refuse?: string; readonly fail?: Error; readonly failSettingWrite?: boolean }) {
-			const shown: string[] = [];
-			const calls: string[] = [];
-			const configurationService = new class extends TestConfigurationService {
-				override updateValue(key: string, value: unknown): Promise<void> {
-					return options?.failSettingWrite ? Promise.reject(new Error('Unable to write into user settings.')) : this.setUserConfiguration(key, value);
-				}
-			}();
-			if (options?.confirm !== undefined) {
-				await configurationService.setUserConfiguration(ChatMoveSettingId.ConfirmDragAndDrop, options.confirm);
-			}
-			const dialogService = new class extends mock<IDialogService>() {
-				override async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
-					shown.push(`confirm: ${confirmation.message} [${confirmation.primaryButton}${confirmation.checkbox ? ', ' + confirmation.checkbox.label : ''}]`);
-					return options?.answer ?? { confirmed: true };
-				}
-			}();
-			const notificationService = new class extends mock<INotificationService>() {
-				override warn(message: string) { shown.push(`warn: ${message}`); return undefined!; }
-				override info(message: string) { shown.push(`info: ${message}`); return undefined!; }
-			}();
-			const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
-				override async moveChat(session: ISession, chat: IChat, destination: ISessionChatMoveTarget): Promise<void> {
-					if (options?.refuse) {
-						throw new SessionMoveRefusedError(options.refuse);
-					}
-					if (options?.fail) {
-						throw options.fail;
-					}
-					calls.push(`moveChat ${chat.title.get()} -> ${destination.kind === 'session' ? `${destination.session.title.get()} after ${destination.after?.title.get() ?? '(first)'}` : 'new session'}`);
-				}
-				override async moveSessionUnder(session: ISession, destination: ISession, after: IChat | undefined): Promise<void> {
-					calls.push(`moveSessionUnder ${session.title.get()} -> ${destination.title.get()} after ${after?.title.get() ?? '(first)'}`);
-				}
-			}();
-			const logged: unknown[][] = [];
-			const logService = new class extends NullLogService {
-				override error(message: string | Error, ...args: unknown[]): void { logged.push([message, ...args]); }
-			}();
-			const results: boolean[] = [];
-			for (const move of moves) {
-				results.push(await runSessionsListMove(move, sessionsManagementService, dialogService, configurationService, notificationService, logService));
-			}
-			return { results, shown, calls, logged, confirmSetting: configurationService.getValue(ChatMoveSettingId.ConfirmDragAndDrop) };
-		}
-
-		const own = multiChatSession('Own', { chats: [chat('main'), chat('a', ChatOriginKind.User)] }).session;
+		const main = chat('main');
+		const moved = chat('Chat', ChatOriginKind.User);
+		const own = multiChatSession('Own', { chats: [main, chat('a', ChatOriginKind.User), moved] }).session;
 		const target = multiChatSession('Target', { chats: [chat('target main')] }).session;
 		const single = createTestSession('Single').session;
-		const moved = chat('Chat');
 		const reorder: SessionsListMove = { kind: 'chat', session: own, chat: moved, destination: { kind: 'session', session: own, after: undefined } };
 		const moveInto: SessionsListMove = { kind: 'chat', session: own, chat: moved, destination: { kind: 'session', session: target, after: undefined } };
 		const promote: SessionsListMove = { kind: 'chat', session: own, chat: moved, destination: { kind: 'newSession' } };
 		const moveSession: SessionsListMove = { kind: 'session', session: single, destination: target, after: target.chats.get()[0] };
 
-		test('confirms moves into another session, promotions and session moves, but not reorders within a session', async () => {
-			assert.deepStrictEqual(await run([reorder, moveInto, promote, moveSession]), {
+		const describeMove = (move: SessionsListMove) => move.kind === 'session'
+			? `moveSessionUnder ${move.session.title.get()} -> ${move.destination.title.get()} after ${move.after?.title.get() ?? '(first)'}`
+			: `moveChat ${move.chat.title.get()} -> ${move.destination.kind === 'session' ? `${move.destination.session.title.get()} after ${move.destination.after?.title.get() ?? '(first)'}` : 'new session'}`;
+
+		/** Runs moves as the sessions list does, recording the notifications shown, the moves made, what was logged and the moves watched to reveal them. */
+		function harness() {
+			const shown: string[] = [];
+			const calls: string[] = [];
+			const watched: string[] = [];
+			const logged: unknown[][] = [];
+			const failures: { refuse?: string; fail?: Error } = {};
+			const notificationService = new class extends mock<INotificationService>() {
+				override error(message: string) { shown.push(`error: ${message}`); }
+				override info(message: string) { shown.push(`info: ${message}`); return undefined!; }
+			}();
+			const fail = () => {
+				if (failures.refuse) {
+					throw new SessionMoveRefusedError(failures.refuse);
+				}
+				if (failures.fail) {
+					throw failures.fail;
+				}
+			};
+			const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+				override async moveChat(session: ISession, chat: IChat, destination: ISessionChatMoveTarget): Promise<void> {
+					fail();
+					calls.push(describeMove({ kind: 'chat', session, chat, destination }));
+				}
+				override async moveSessionUnder(session: ISession, destination: ISession, after: IChat | undefined): Promise<void> {
+					fail();
+					calls.push(describeMove({ kind: 'session', session, destination, after }));
+				}
+			}();
+			const logService = new class extends NullLogService {
+				override error(message: string | Error, ...args: unknown[]): void { logged.push([message, ...args]); }
+			}();
+			const run = async (move: SessionsListMove) => runSessionsListMove(move, sessionsManagementService, notificationService, logService, {
+				watch: watchedMove => {
+					watched.push(describeMove(watchedMove));
+					return result => watched.push(`moved: ${result}`);
+				},
+			});
+			return { shown, calls, watched, logged, failures, run };
+		}
+
+		test('runs every move without asking, and a success shows no notification', async () => {
+			const test = harness();
+			const results = [];
+			for (const move of [reorder, moveInto, promote, moveSession]) {
+				results.push(await test.run(move));
+			}
+			assert.deepStrictEqual({ results, shown: test.shown, calls: test.calls, watched: test.watched, logged: test.logged }, {
 				results: [true, true, true, true],
-				shown: [
-					'confirm: Are you sure you want to move \'Chat\' into \'Target\'? [&&Move, Do not ask me again]',
-					'confirm: Are you sure you want to move \'Chat\' to a new session? [&&Move, Do not ask me again]',
-					'confirm: Are you sure you want to move session \'Single\' into \'Target\'? [&&Move, Do not ask me again]',
-				],
+				shown: [],
 				calls: [
 					'moveChat Chat -> Own after (first)',
 					'moveChat Chat -> Target after (first)',
@@ -294,51 +466,14 @@ suite('Move Chats Drag and Drop', () => {
 					// A session is appended after the destination's last chat.
 					'moveSessionUnder Single -> Target after target main',
 				],
-				confirmSetting: undefined,
-				logged: [],
-			});
-		});
-
-		test('cancelling the confirmation moves nothing', async () => {
-			assert.deepStrictEqual(await run([moveInto, moveSession], { answer: { confirmed: false, checkboxChecked: true } }), {
-				results: [false, false],
-				shown: [
-					'confirm: Are you sure you want to move \'Chat\' into \'Target\'? [&&Move, Do not ask me again]',
-					'confirm: Are you sure you want to move session \'Single\' into \'Target\'? [&&Move, Do not ask me again]',
+				watched: [
+					'moveChat Chat -> Own after (first)', 'moved: true',
+					'moveChat Chat -> Target after (first)', 'moved: true',
+					'moveChat Chat -> new session', 'moved: true',
+					'moveSessionUnder Single -> Target after target main', 'moved: true',
 				],
-				calls: [],
-				// "Do not ask me again" counts only when the move is confirmed.
-				confirmSetting: undefined,
 				logged: [],
 			});
-		});
-
-		test('"Do not ask me again" turns the confirmation off, so later moves are not confirmed', async () => {
-			const asked = await run([promote, moveInto], { answer: { confirmed: true, checkboxChecked: true } });
-			const off = await run([moveInto, promote, moveSession], { confirm: false });
-			assert.deepStrictEqual({ asked: { shown: asked.shown, confirmSetting: asked.confirmSetting }, off: { shown: off.shown, calls: off.calls.length } }, {
-				asked: { shown: ['confirm: Are you sure you want to move \'Chat\' to a new session? [&&Move, Do not ask me again]'], confirmSetting: false },
-				off: { shown: [], calls: 3 },
-			});
-		});
-
-		test('a confirmed move happens though "Do not ask me again" could not be saved', async () => {
-			const errors: unknown[] = [];
-			const originalHandler = errorHandler.getUnexpectedErrorHandler();
-			setUnexpectedErrorHandler(error => errors.push(error));
-			try {
-				const result = await run([moveInto, moveInto], { answer: { confirmed: true, checkboxChecked: true }, failSettingWrite: true });
-				assert.deepStrictEqual({ results: result.results, confirmations: result.shown.length, calls: result.calls, confirmSetting: result.confirmSetting, errors: errors.map(error => (error as Error).message) }, {
-					results: [true, true],
-					// The setting stayed on, so the next move asks again.
-					confirmations: 2,
-					calls: ['moveChat Chat -> Target after (first)', 'moveChat Chat -> Target after (first)'],
-					confirmSetting: undefined,
-					errors: ['Unable to write into user settings.', 'Unable to write into user settings.'],
-				});
-			} finally {
-				setUnexpectedErrorHandler(originalHandler);
-			}
 		});
 
 		test('announces each successful move once to screen readers', async () => {
@@ -348,10 +483,15 @@ suite('Move Chats Drag and Drop', () => {
 			const observer = new MutationObserver(records => records.forEach(record => record.addedNodes.length && announcements.push(record.target.textContent ?? '')));
 			container.querySelectorAll('.monaco-status, .monaco-alert').forEach(region => observer.observe(region, { childList: true }));
 			try {
-				await run([moveInto, promote, moveSession], { confirm: false });
+				const test = harness();
+				for (const move of [moveInto, promote, moveSession]) {
+					await test.run(move);
+				}
 				await timeout(0);
 			} finally {
 				observer.disconnect();
+				// Later announcements must not go to the removed container.
+				setARIAContainer(mainWindow.document.body);
 				container.remove();
 			}
 			assert.deepStrictEqual(announcements, [
@@ -361,29 +501,23 @@ suite('Move Chats Drag and Drop', () => {
 			]);
 		});
 
-		test('an unexpected failure says only that the move failed, and logs the details', async () => {
+		test('a refused move shows why in an error notification and an unexpected failure says only that it failed, logging the details', async () => {
 			// E.g. a host error whose message is a stack trace.
 			const failure = new Error('SessionWorkingDirectoryMissingError: missing\n    at WorktreeIsolation._resolveWorkingDirectoryForResume (file:///host/worktreeIsolation.js:1:2)');
-			const result = await run([moveInto, moveSession], { confirm: false, fail: failure });
-			assert.deepStrictEqual({ results: result.results, shown: result.shown, logged: result.logged }, {
-				results: [false, true],
-				shown: ['warn: Could not move \'Chat\'.'],
-				logged: [['[sessionsList] Moving a chat failed', failure]],
-			});
-		});
-
-		test('a refused move says why; a successful move shows nothing', async () => {
-			const refused = await run([moveInto, reorder], { confirm: false, refuse: 'Chats can\'t be moved into or out of an archived session.' });
-			const succeeded = await run([moveInto, reorder], { confirm: false });
-			assert.deepStrictEqual({ refused: { results: refused.results, shown: refused.shown }, succeeded: { results: succeeded.results, shown: succeeded.shown } }, {
-				refused: {
-					results: [false, false],
-					shown: [
-						'warn: Could not move \'Chat\'. Chats can\'t be moved into or out of an archived session.',
-						'warn: Could not move \'Chat\'. Chats can\'t be moved into or out of an archived session.',
-					],
-				},
-				succeeded: { results: [true, true], shown: [] },
+			const test = harness();
+			test.failures.refuse = 'Chats can\'t be moved into or out of an archived session.';
+			const refused = await test.run(promote);
+			test.failures.refuse = undefined;
+			test.failures.fail = failure;
+			const failed = await test.run(moveSession);
+			assert.deepStrictEqual({ results: [refused, failed], shown: test.shown, watched: test.watched, logged: test.logged }, {
+				results: [false, false],
+				shown: [
+					'error: Could not move \'Chat\'. Chats can\'t be moved into or out of an archived session.',
+					'error: Could not move session \'Single\'.',
+				],
+				watched: ['moveChat Chat -> new session', 'moved: false', 'moveSessionUnder Single -> Target after target main', 'moved: false'],
+				logged: [['[sessionsList] Moving a session failed', failure]],
 			});
 		});
 	});
@@ -438,8 +572,8 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 	 * index in `ids` (so sorting by update time shows them in reverse). Each session is created before the previous
 	 * one, so the list shows them in the order they are made.
 	 */
-	function listSession(title: string, ids: readonly string[], main = listChat(`${title} main`)): ISession {
-		const test = createTestSession(title);
+	function listSession(title: string, ids: readonly string[], main = listChat(`${title} main`), options?: ITestSessionOptions): ISession {
+		const test = createTestSession(title, options);
 		test.capabilities.set({ supportsMultipleChats: true }, undefined);
 		const chats = observableValue<readonly IChat[]>(`chats-${title}`, [main, ...ids.map((id, index) => listChat(id, index + 1))]);
 		const created = new Date(createdAt--);
@@ -452,19 +586,25 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		(session.chats as ISettableObservable<readonly IChat[]>).set(chats, undefined);
 	}
 
-	/** Renders the sessions list with moving chats on (and confirmations off), recording the moves it makes. */
-	function render(sessions: ISession[], options?: { readonly pinned?: readonly string[]; readonly grouped?: readonly string[]; readonly confirm?: boolean; readonly sorting?: SessionsSorting; readonly height?: number; readonly simulateMoves?: boolean }) {
+	/**
+	 * Renders the sessions list with moving chats on, recording the moves it makes and any dialog it shows. With
+	 * `realListModel`, the list keeps its state in the real list model service, recording the storage keys it writes.
+	 * With `cappedGroup`, the group shows its first sessions behind "Show more", as after the user chose "Show less".
+	 * With `realGroups`, the `grouped` sessions are in a group of the real groups service.
+	 */
+	function render(sessions: ISession[], options?: { readonly pinned?: readonly string[]; readonly grouped?: readonly string[]; readonly cappedGroup?: boolean; readonly grouping?: SessionsGrouping; readonly sorting?: SessionsSorting; readonly height?: number; readonly simulateMoves?: boolean; readonly fixed?: readonly string[]; readonly realListModel?: boolean; readonly realGroups?: boolean }) {
 		const moves: string[] = [];
 		const group = { id: 'group', name: 'Move Demo', createdAt: 1 };
 		const harness = createListHarness(disposables, sessions, {
 			pinnedSessionIds: new Set(options?.pinned),
 			groups: options?.grouped ? [group] : [],
 			memberships: new Map(options?.grouped?.map(sessionId => [sessionId, group.id])),
+			cappedGroupIds: options?.cappedGroup ? [group.id] : undefined,
 		});
-		const configurationService = new TestConfigurationService({ [ChatMoveSettingId.Enabled]: true, [ChatMoveSettingId.ConfirmDragAndDrop]: !!options?.confirm });
+		const configurationService = new TestConfigurationService({ [ChatMoveSettingId.Enabled]: true });
 		harness.instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
 			override async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
-				moves.push(`confirm: ${confirmation.message}`);
+				moves.push(`dialog: ${confirmation.message}`);
 				return { confirmed: true };
 			}
 		}());
@@ -482,10 +622,32 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		harness.instantiationService.stub(ISessionsManagementService, new class extends TestSessionsManagementService {
 			override readonly onDidChangeSessions = sessionsChanged.event;
 			override readonly onDidMoveChat = chatMoved.event;
-			override canMoveChat(session: ISession, chat: IChat): boolean { return chat !== session.mainChat.get(); }
+			override readonly onDidDeleteSession = Event.None;
+			override readonly onDidArchiveSession = Event.None;
+			override readonly onWillSendRequest = Event.None;
+			override readonly onDidReplaceNewDraftSession = Event.None;
+			override readonly onDidReplaceSession = Event.None;
+			override readonly onDidStartSession = Event.None;
+			override readonly onDidDiscardNewSession = Event.None;
+			override getInFlightNewSessionRequests(): readonly ISession[] { return []; }
+			override canMoveChat(session: ISession, chat: IChat): boolean { return chat !== session.mainChat.get() && !options?.fixed?.includes(chat.title.get()); }
 			override canMoveSessionUnder(session: ISession): boolean { return session.chats.get().length <= 1; }
 			override async moveChat(session: ISession, chat: IChat, destination: ISessionChatMoveTarget): Promise<void> {
 				moves.push(`${chat.title.get()} -> ${destination.kind === 'session' ? `${destination.session.title.get()} after ${destination.after?.title.get() ?? '(first)'}` : 'new session'}`);
+				if (options?.simulateMoves && destination.kind === 'session' && destination.session === session) {
+					// The provider reorders its chats, which is the only order the list shows.
+					setChats(session, insertAfter(session.chats.get().filter(candidate => candidate !== chat), chat, destination.after));
+					sessionsChanged.fire({ added: [], removed: [], changed: [session] });
+					return;
+				}
+				if (options?.simulateMoves && destination.kind === 'session') {
+					const arrived = listChat(chat.title.get(), chat.updatedAt.get()?.getTime());
+					setChats(session, session.chats.get().filter(candidate => candidate !== chat));
+					setChats(destination.session, insertAfter(destination.session.chats.get(), arrived, destination.after));
+					sessionsChanged.fire({ added: [], removed: [], changed: [session, destination.session] });
+					chatMoved.fire({ from: { session, chat: chat.resource }, to: { session: destination.session, chat: arrived.resource } });
+					return;
+				}
 				if (!options?.simulateMoves || destination.kind !== 'newSession') {
 					return;
 				}
@@ -509,10 +671,22 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 				chatMoved.fire({ from: { session, chat: main.resource }, to: { session: destination, chat: arrived.resource } });
 			}
 		}(sessions));
+		if (options?.realGroups) {
+			harness.instantiationService.stub(ISessionSectionOrderService, harness.store.add(harness.instantiationService.createInstance(SessionSectionOrderService)));
+			const groupsService = harness.store.add(harness.instantiationService.createInstance(SessionGroupsService));
+			harness.instantiationService.stub(ISessionGroupsService, groupsService);
+			groupsService.createGroup(group.name, options.grouped ?? []);
+		}
+		const writtenStorageKeys: string[] = [];
+		if (options?.realListModel) {
+			const storageService = harness.instantiationService.get(IStorageService);
+			harness.store.add(storageService.onDidChangeValue(StorageScope.PROFILE, undefined, harness.store)(e => writtenStorageKeys.push(e.key)));
+			harness.instantiationService.stub(ISessionsListModelService, harness.store.add(harness.instantiationService.createInstance(SessionsListModelService)));
+		}
 		const container = harness.createContainer(300, 600);
 		const findWidgetContainer = harness.createContainer(300, 40);
-		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
-			grouping: () => SessionsGrouping.Date,
+		const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+			grouping: () => options?.grouping ?? SessionsGrouping.Date,
 			sorting: () => options?.sorting ?? SessionsSorting.Created,
 			findWidgetContainer,
 			onSessionOpen: () => { },
@@ -592,7 +766,17 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 			rows: labels(),
 			selected: [...container.querySelectorAll<HTMLElement>('.monaco-list-row.selected')].map(labelOf),
 		});
-		return { list, instantiationService: harness.instantiationService, moves, setExpanded, expandSection, dragOver, nestedFeedback, find, closeFind, labels, rendered, sortChanges: harness.sortChanges, rowOf, dispose: () => harness.store.dispose() };
+		/** The nested chat rows of the list, top to bottom. */
+		const chatRows = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+			.filter(row => row.querySelector('.session-chat-title'))
+			.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top))
+			.map(labelOf)
+			.join(' ');
+		/** The labels of the rows the list renders, top to bottom, nested chat rows indented. */
+		const rows = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+			.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top))
+			.map(row => `${row.querySelector('.session-chat-title') ? '  ' : ''}${labelOf(row)}`);
+		return { list, rows, instantiationService: harness.instantiationService, moves, writtenStorageKeys, chatRows, setExpanded, expandSection, dragOver, nestedFeedback, find, closeFind, labels, rendered, sortChanges: harness.sortChanges, rowOf, dispose: () => harness.store.dispose() };
 	}
 
 	test('a nested session dropped anywhere on a session row goes to its end, highlighting the session like a folder', async () => {
@@ -676,15 +860,179 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		});
 	});
 
-	/** Renders `Single` (a session that can nest) above `Tree` (with nested rows) and `Last`, all in `section`. */
-	function renderSection(section: 'pinned' | 'grouped' | 'none', options?: { readonly lastRows?: readonly string[]; readonly confirm?: boolean }) {
-		const single = listSession('Single', []);
-		const tree = listSession('Tree', ['t1', 't2']);
-		const last = listSession('Last', options?.lastRows ?? []);
+	test('each provider reorder of a nested chat shows where it was dropped, and the list stores no order of its own', async () => {
+		const own = listSession('Own', ['a', 'b', 'c', 'd', 'e']);
+		const list = render([own], { simulateMoves: true, realListModel: true });
+		list.setExpanded('Own', true);
+
+		const rows: string[] = [list.chatRows()];
+		// Any earlier interaction (here, moves the provider already applied) must not make a later reorder snap back.
+		for (const [source, target] of [['e', 'c'], ['e', 'b'], ['a', 'd'], ['d', 'e']] as const) {
+			await list.dragOver(source, target, 0.3).drop();
+			rows.push(list.chatRows());
+		}
+
+		assert.deepStrictEqual({ moves: list.moves, rows, chatOrderWrites: list.writtenStorageKeys.filter(key => key.includes('chatOrder')) }, {
+			moves: ['e -> Own after b', 'e -> Own after a', 'a -> Own after c', 'd -> Own after Own main'],
+			rows: ['a b c d e', 'a b e c d', 'a e b c d', 'e b c a d', 'd e b c a'],
+			chatOrderWrites: [],
+		});
+	});
+
+	test('a nested chat its provider can\'t move is not dropped, so a reorder of its movable siblings keeps the arrangement', async () => {
+		const own = listSession('Own', ['a', 'fixed', 'c', 'd', 'e']);
+		const list = render([own], { simulateMoves: true, fixed: ['fixed'], realListModel: true });
+		list.setExpanded('Own', true);
+
+		const fixedDrag = list.dragOver('fixed', 'd', 0.7);
+		const fixedFeedback = fixedDrag.feedback;
+		await fixedDrag.drop();
+		const afterFixedDrop = list.chatRows();
+		await list.dragOver('e', 'c', 0.3).drop();
+
+		assert.deepStrictEqual({ fixedFeedback, afterFixedDrop, moves: list.moves, rows: list.chatRows(), chatOrderWrites: list.writtenStorageKeys.filter(key => key.includes('chatOrder')) }, {
+			// No drop line and no move: only the provider orders nested chats.
+			fixedFeedback: { moveDrag: false, list: false, rows: [] },
+			afterFixedDrop: 'a fixed c d e',
+			// The row above the drop line is the chat the provider places it after, so nothing snaps back.
+			moves: ['e -> Own after fixed'],
+			rows: 'a fixed e c d',
+			chatOrderWrites: [],
+		});
+	});
+
+	test('Move Up and Move Down move a nested chat through its provider, and are unavailable for a chat it can\'t move', async () => {
+		const own = listSession('Own', ['a', 'fixed', 'c']);
+		const list = render([own], { simulateMoves: true, fixed: ['fixed'] });
+		list.setExpanded('Own', true);
+		const [, a, fixed, c] = own.chats.get();
+		const contextKeyService = list.instantiationService.get(IContextKeyService);
+		const focus = (chat: IChat) => {
+			list.list.focus();
+			list.list.setFocusedItem({ session: own.resource, chat: chat.resource });
+			return { up: contextKeyService.getContextKeyValue('sessionChatItem.canMoveUp'), down: contextKeyService.getContextKeyValue('sessionChatItem.canMoveDown') };
+		};
+		const keybindingWhen = (command: string, values: Record<string, unknown>) => KeybindingsRegistry.getDefaultKeybindings()
+			.find(rule => rule.command === command)?.when?.evaluate({ getValue: <T>(key: string) => values[key] as T });
+		const focusedChatValues = { [ChatContextKeys.enabled.key]: true, isSessionsWindow: true, focusedView: SessionsViewId, listFocus: true, 'sessionsList.focusedChatItem': true, [SessionsViewSortingContext.key]: SessionsSorting.Created };
+
+		const keys = { a: focus(a), fixed: focus(fixed), c: focus(c) };
+		const movedFixed = list.list.moveChat(new SessionChatItem(own, fixed), 'up');
+		const movedC = list.list.moveChat(new SessionChatItem(own, c), 'up');
+		await timeout(0);
+		const movedFirst = list.list.moveChat(new SessionChatItem(own, a), 'up');
+
+		assert.deepStrictEqual({
+			keys,
+			keybinding: {
+				canMoveUp: keybindingWhen('sessionsViewPane.moveChatUp', { ...focusedChatValues, 'sessionChatItem.canMoveUp': true }),
+				cannotMoveUp: keybindingWhen('sessionsViewPane.moveChatUp', { ...focusedChatValues, 'sessionChatItem.canMoveUp': false }),
+				cannotMoveDown: keybindingWhen('sessionsViewPane.moveChatDown', { ...focusedChatValues, 'sessionChatItem.canMoveDown': false }),
+			},
+			moved: { fixed: movedFixed, c: movedC, first: movedFirst },
+			moves: list.moves,
+			rows: list.chatRows(),
+			focused: list.rendered().selected,
+		}, {
+			// Only the provider orders nested chats: the first chat has nowhere to go up, `fixed` can't move at all.
+			keys: { a: { up: false, down: true }, fixed: { up: false, down: false }, c: { up: true, down: false } },
+			keybinding: { canMoveUp: true, cannotMoveUp: false, cannotMoveDown: false },
+			moved: { fixed: false, c: true, first: false },
+			// Up past `fixed` places `c` after the chat above `fixed`.
+			moves: ['c -> Own after a'],
+			rows: 'a c fixed',
+			// The moved chat keeps focus and selection.
+			focused: ['c'],
+		});
+	});
+
+	test('under Ordering: Updated, Move Up and Move Down are unavailable in the keys, the keybindings and the context menu, and do nothing', async () => {
+		const own = listSession('Own', ['a', 'b', 'c']);
+		const list = render([own], { simulateMoves: true, sorting: SessionsSorting.Updated });
+		list.setExpanded('Own', true);
+		const [, a, b] = own.chats.get();
+		const contextKeyService = list.instantiationService.get(IContextKeyService);
+		list.list.focus();
+		list.list.setFocusedItem({ session: own.resource, chat: b.resource });
+		const keys = { up: contextKeyService.getContextKeyValue('sessionChatItem.canMoveUp'), down: contextKeyService.getContextKeyValue('sessionChatItem.canMoveDown') };
+		const evaluate = (when: ContextKeyExpression | null | undefined, sorting: SessionsSorting) => when?.evaluate({
+			getValue: <T>(key: string) => ({ [ChatContextKeys.enabled.key]: true, isSessionsWindow: true, focusedView: SessionsViewId, listFocus: true, 'sessionsList.focusedChatItem': true, 'sessionChatItem.canMoveUp': true, 'sessionChatItem.canMoveDown': true, [SessionsViewSortingContext.key]: sorting } as Record<string, unknown>)[key] as T,
+		});
+		const availability = (sorting: SessionsSorting) => ({
+			keybindings: ['sessionsViewPane.moveChatUp', 'sessionsViewPane.moveChatDown'].map(command => evaluate(KeybindingsRegistry.getDefaultKeybindings().find(rule => rule.command === command)?.when, sorting)),
+			menu: ['sessionsViewPane.moveChatUp', 'sessionsViewPane.moveChatDown'].map(command => evaluate(MenuRegistry.getMenuItems(Menus.SessionChatItemContext).filter(isIMenuItem).find(item => item.command.id === command)?.when, sorting)),
+		});
+		const moved = { a: list.list.moveChat(new SessionChatItem(own, a), 'down'), b: list.list.moveChat(new SessionChatItem(own, b), 'up') };
+		await timeout(0);
+
+		assert.deepStrictEqual({ keys, created: availability(SessionsSorting.Created), updated: availability(SessionsSorting.Updated), moved, moves: list.moves }, {
+			keys: { up: false, down: false },
+			created: { keybindings: [true, true], menu: [true, true] },
+			updated: { keybindings: [false, false], menu: [false, false] },
+			moved: { a: false, b: false },
+			moves: [],
+		});
+	});
+
+	test('under Ordering: Updated, a nested chat can\'t be reordered in its session, and dropped on another session\'s nested row it goes to that session\'s end', async () => {
+		const own = listSession('Own', ['a', 'b']);
+		const other = listSession('Other', ['x', 'y']);
+		const list = render([own, other], { sorting: SessionsSorting.Updated, simulateMoves: true });
+		list.setExpanded('Own', true);
+		list.setExpanded('Other', true);
+
+		const withinOwn = list.dragOver('a', 'b', 0.8);
+		const withinOwnFeedback = withinOwn.feedback;
+		await withinOwn.drop();
+		const onOtherRow = list.dragOver('a', 'x', 0.2);
+		const onOtherRowFeedback = onOtherRow.feedback;
+		await onOtherRow.drop();
+
+		assert.deepStrictEqual({ withinOwnFeedback, onOtherRowFeedback, nestedFeedback: list.nestedFeedback(), moves: list.moves }, {
+			withinOwnFeedback: { moveDrag: false, list: false, rows: [] },
+			onOtherRowFeedback: { moveDrag: true, list: false, rows: ['Other: drop-target', 'y: drop-target', 'x: drop-target'] },
+			nestedFeedback: false,
+			moves: ['a -> Other after y'],
+		});
+	});
+
+	test('Move Up moves the chat and reveals and selects it', async () => {
+		const own = listSession('Own', ['a', 'b', 'c']);
+		const list = render([own], { simulateMoves: true });
+		list.setExpanded('Own', true);
+		const c = own.chats.get()[3];
+
+		list.list.moveChat(new SessionChatItem(own, c), 'up');
+		await timeout(0);
+
+		assert.deepStrictEqual({ moves: list.moves, moved: list.chatRows(), selected: list.rendered().selected }, {
+			moves: ['c -> Own after a'],
+			moved: 'a c b',
+			selected: ['c'],
+		});
+	});
+
+	/** The grouping section each grouping mode renders the sessions of {@link renderSection} in, with the session options that place them there. */
+	const groupingSections = {
+		workspace: { grouping: SessionsGrouping.Workspace, label: 'Workspace', options: undefined },
+		repository: { grouping: SessionsGrouping.Repository, label: 'project', options: { repository: 'owner/project' } },
+		environment: { grouping: SessionsGrouping.Environment, label: 'This Computer', options: { environment: 'local' } },
+	} as const;
+
+	/** Renders `Single` (a session that can nest) above `Tree` (with nested rows) and `Last`, all in `section`; `none` is a date section. */
+	function renderSection(section: 'pinned' | 'grouped' | keyof typeof groupingSections | 'none', options?: { readonly lastRows?: readonly string[] }) {
+		const groupingSection = section === 'workspace' || section === 'repository' || section === 'environment' ? groupingSections[section] : undefined;
+		const single = listSession('Single', [], undefined, groupingSection?.options);
+		const tree = listSession('Tree', ['t1', 't2'], undefined, groupingSection?.options);
+		const last = listSession('Last', options?.lastRows ?? [], undefined, groupingSection?.options);
 		const ids = [single, tree, last].map(session => session.sessionId);
-		const list = render([single, tree, last], { pinned: section === 'pinned' ? ids : undefined, grouped: section === 'grouped' ? ids : undefined, confirm: options?.confirm });
+		const list = render([single, tree, last], {
+			pinned: section === 'pinned' ? ids : undefined,
+			grouped: section === 'grouped' ? ids : undefined,
+			grouping: groupingSection?.grouping,
+		});
 		if (section !== 'none') {
-			list.expandSection(section === 'pinned' ? 'Pinned' : 'Move Demo');
+			list.expandSection(section === 'pinned' ? 'Pinned' : section === 'grouped' ? 'Move Demo' : groupingSection!.label);
 		}
 		list.setExpanded('Tree', true);
 		if (options?.lastRows?.length) {
@@ -705,9 +1053,9 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		return { feedback, moves: list.moves, reordered: list.sortChanges.length };
 	}
 
-	test('in Pinned and custom groups, the top quarter of a session row places a session before it; the rest of the row nests', async () => {
+	test('in Pinned, custom groups and workspace, repository and environment sections, the top quarter of a session row places a session before it; the rest of the row nests', async () => {
 		const results: Record<string, unknown> = {};
-		for (const section of ['pinned', 'grouped'] as const) {
+		for (const section of ['pinned', 'grouped', 'workspace', 'repository', 'environment'] as const) {
 			results[section] = await dragSingle(renderSection(section), 'Tree', [0.1, 0.4, 0.6, 0.9]);
 		}
 		const expected = {
@@ -716,38 +1064,42 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 			moves: ['session Single -> Tree after t2', 'session Single -> Tree after t2', 'session Single -> Tree after t2'],
 			reordered: 1,
 		};
-		assert.deepStrictEqual(results, { pinned: expected, grouped: expected });
+		assert.deepStrictEqual(results, { pinned: expected, grouped: expected, workspace: expected, repository: expected, environment: expected });
 	});
 
-	test('in Pinned and custom groups, the bottom quarter of the section\'s last row places a session after its last session', async () => {
+	test('in Pinned, custom groups and workspace, repository and environment sections, the bottom quarter of the section\'s last row places a session after its last session', async () => {
 		const collapsed = await dragSingle(renderSection('grouped'), 'Last', [0.9, 0.6]);
 		const expanded = await dragSingle(renderSection('pinned', { lastRows: ['l1'] }), 'l1', [0.9, 0.6]);
+		const groupingSectionResults: Record<string, unknown> = {};
+		for (const section of ['workspace', 'repository', 'environment'] as const) {
+			groupingSectionResults[section] = await dragSingle(renderSection(section), 'Last', [0.9, 0.6]);
+		}
 		const notLast = await dragSingle(renderSection('grouped'), 't2', [0.9]);
-		assert.deepStrictEqual({ collapsed, expanded, notLast }, {
+		const groupingSectionExpected = { feedback: ['move Last: drop-target-after', 'move Last: drop-target'], moves: ['session Single -> Last after Last main'], reordered: 1 };
+		assert.deepStrictEqual({ collapsed, expanded, groupingSections: groupingSectionResults, notLast }, {
 			collapsed: { feedback: ['move Last: drop-target-after', 'move Last: drop-target'], moves: ['session Single -> Last after Last main'], reordered: 1 },
 			// Below the last tree: a line at the sessions' indent; above that, the nested row's bottom half nests.
 			expanded: { feedback: ['move l1: drop-target-after', 'nested l1: drop-target-after'], moves: ['session Single -> Last after l1'], reordered: 1 },
+			groupingSections: { workspace: groupingSectionExpected, repository: groupingSectionExpected, environment: groupingSectionExpected },
 			// The bottom of another tree's last nested row nests after it.
 			notLast: { feedback: ['nested Last: drop-target-before'], moves: ['session Single -> Tree after t2'], reordered: 0 },
 		});
 	});
 
-	test('a session dropped on another session\'s nested row moves into it before or after that row, after confirming', async () => {
-		const list = renderSection('grouped', { confirm: true });
+	test('a session dropped on another session\'s nested row moves into it before or after that row, without a dialog', async () => {
+		const list = renderSection('grouped');
 		const result = await dragSingle(list, 't1', [0.3, 0.7]);
 		assert.deepStrictEqual(result, {
 			feedback: ['nested t1: drop-target-before', 'nested t2: drop-target-before'],
 			moves: [
-				'confirm: Are you sure you want to move session \'Single\' into \'Tree\'?',
 				'session Single -> Tree after Tree main',
-				'confirm: Are you sure you want to move session \'Single\' into \'Tree\'?',
 				'session Single -> Tree after t1',
 			],
 			reordered: 0,
 		});
 	});
 
-	test('outside Pinned and custom groups, a session row only nests, at every edge', async () => {
+	test('in date sections, a session row only nests, at every edge', async () => {
 		const list = renderSection('none');
 		const row = await dragSingle(list, 'Tree', [0.1, 0.9]);
 		const lastRow = await dragSingle(list, 'Last', [0.9]);
@@ -781,11 +1133,11 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		assert.deepStrictEqual(list.moves, ['session Single -> Tree after t1']);
 	});
 
-	test('placing a session between sessions doesn\'t ask for confirmation, though moves into sessions do', async () => {
-		const result = await dragSingle(renderSection('grouped', { confirm: true }), 'Tree', [0.1, 0.5]);
+	test('neither placing a session between sessions nor moving it into a session shows a dialog', async () => {
+		const result = await dragSingle(renderSection('grouped'), 'Tree', [0.1, 0.5]);
 		assert.deepStrictEqual(result, {
 			feedback: ['move Tree: drop-target-before', 'move Tree: drop-target, t1: drop-target, t2: drop-target'],
-			moves: ['confirm: Are you sure you want to move session \'Single\' into \'Tree\'?', 'session Single -> Tree after t2'],
+			moves: ['session Single -> Tree after t2'],
 			reordered: 1,
 		});
 	});
@@ -820,7 +1172,7 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 
 	test('with "Show more", the section\'s last shown session places a session after it', async () => {
 		const sessions = ['Single', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6'].map(title => listSession(title, []));
-		const list = render(sessions, { grouped: sessions.map(session => session.sessionId) });
+		const list = render(sessions, { grouped: sessions.map(session => session.sessionId), cappedGroup: true });
 		list.expandSection('Move Demo');
 		const shown = list.labels();
 		const drag = list.dragOver('Single', 'S4', 0.9);
@@ -836,7 +1188,7 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		});
 	});
 
-	test('a session dropped on a nested row is placed in the session\'s chat order, though the rows are sorted by update time', async () => {
+	test('under Ordering: Updated, a session dropped on a nested row goes to the end of that session, as the rows aren\'t in its chat order', async () => {
 		const single = listSession('Single', []);
 		// Its chats are t1, t2; sorted by update time the rows show t2, t1.
 		const tree = listSession('Tree', ['t1', 't2']);
@@ -847,8 +1199,8 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 
 		assert.deepStrictEqual({ shown, moves: result.moves }, {
 			shown: ['Recent', 'Single', 'Tree', 't2', 't1'],
-			// Right before t1 among the session's chats, not after t2, the row shown above it.
-			moves: ['session Single -> Tree after Tree main'],
+			// The rows aren't in the session's chat order, so it goes to the end, as on the session's row.
+			moves: ['session Single -> Tree after t2'],
 		});
 	});
 
@@ -924,12 +1276,30 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		});
 	});
 
-	test('after Promote to Session, the list reveals and selects the new session', async () => {
+	test('a nested session dropped on empty space moves into a new session in its session\'s custom group', async () => {
+		const own = listSession('Own', ['promoted', 'kept']);
+		const other = listSession('Other', []);
+		const list = render([own, other], { grouped: [own.sessionId], simulateMoves: true, realGroups: true });
+		list.setExpanded('Own', true);
+		const before = list.rows();
+
+		await list.dragOver('promoted', undefined).drop();
+		await settle();
+
+		assert.deepStrictEqual({ before, after: list.rows(), moves: list.moves }, {
+			before: ['Move Demo', 'Own', '  promoted', '  kept', 'Recent', 'Other'],
+			after: ['Move Demo', 'Own', '  kept', 'promoted', 'Recent', 'Other'],
+			moves: ['promoted -> new session'],
+		});
+	});
+
+	test('after Move to New Session, the list reveals and selects the new session', async () => {
 		const own = listSession('Own', ['promoted']);
 		const others = ['A', 'B', 'C', 'D'].map(title => listSession(title, []));
 		const list = render([own, ...others], { height: 220, simulateMoves: true });
 		list.setExpanded('Own', true);
 		list.instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
+			override isViewVisible(id: string): boolean { return id === SessionsViewId; }
 			override getViewWithId<T extends IView>(id: string): T | null {
 				return id === SessionsViewId ? upcastPartial<SessionsView>({ sessionsControl: list.list }) as unknown as T : null;
 			}
@@ -942,6 +1312,32 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 			moved: true,
 			moves: ['promoted -> new session'],
 			selected: ['promoted'],
+		});
+	});
+
+	test('Move to New Session reports a refusal as an error notification', async () => {
+		const own = listSession('Own', ['promoted']);
+		const list = render([own]);
+		const shown: string[] = [];
+		list.instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+			override error(message: string) { shown.push(`error: ${message}`); }
+		}());
+		list.instantiationService.stub(ISessionsManagementService, new class extends TestSessionsManagementService {
+			override canMoveChat(): boolean { return true; }
+			override async moveChat(): Promise<void> { throw new SessionMoveRefusedError('Chats can\'t be moved out of an archived session.'); }
+		}([own]));
+		list.instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
+			override isViewVisible(): boolean { return false; }
+			override getViewWithId<T extends IView>(id: string): T | null {
+				return id === SessionsViewId ? upcastPartial<SessionsView>({ sessionsControl: list.list }) as unknown as T : null;
+			}
+		}());
+
+		const moved = await list.instantiationService.invokeFunction(CommandsRegistry.getCommand(PROMOTE_CHAT_TO_SESSION_ACTION_ID)!.handler, { session: own, chat: own.chats.get()[1] });
+
+		assert.deepStrictEqual({ moved, shown }, {
+			moved: false,
+			shown: ['error: Could not move \'promoted\'. Chats can\'t be moved out of an archived session.'],
 		});
 	});
 
@@ -960,6 +1356,105 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 			feedback: { moveDrag: false, list: false, rows: ['Target: drop-target-before'] },
 			moves: [],
 			reordered: 1,
+		});
+	});
+	suite('Move to Session... commands', () => {
+
+		/** Runs `commandId` with `argument`; the quick pick it shows picks the session titled `choice` and records what it showed. */
+		async function run(list: ReturnType<typeof render>, commandId: string, argument: unknown, choice: string | undefined, visibleView = true) {
+			const picks: { title: string | undefined; placeHolder: string | undefined; items: string[] }[] = [];
+			list.instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({
+				pick: async <T extends IQuickPickItem>(items: QuickPickInput<T>[] | Promise<QuickPickInput<T>[]>, options?: IPickOptions<T>) => {
+					const resolved = (await items).filter((item): item is T => item.type !== 'separator');
+					picks.push({ title: options?.title, placeHolder: options?.placeHolder, items: resolved.map(item => `${item.label} | ${item.description} | ${item.detail}`) });
+					return resolved.find(item => item.label === choice);
+				},
+			}));
+			list.instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
+				override isViewVisible(id: string): boolean { return visibleView && id === SessionsViewId; }
+				override getViewWithId<T extends IView>(id: string): T | null {
+					return id === SessionsViewId ? upcastPartial<SessionsView>({ sessionsControl: list.list }) as unknown as T : null;
+				}
+			}());
+			const moved = await list.instantiationService.invokeFunction(CommandsRegistry.getCommand(commandId)!.handler, argument);
+			await settle();
+			return { moved, picks };
+		}
+
+		test('Move to Session... moves a nested session to the end of the picked session, most recently updated first', async () => {
+			const own = listSession('Own', ['moved']);
+			const target = listSession('Target', ['t1']);
+			const other = listSession('Other', []);
+			const list = render([own, target, other], { simulateMoves: true });
+
+			const result = await run(list, MOVE_CHAT_TO_SESSION_ACTION_ID, { session: own, chat: own.chats.get()[1] }, 'Other');
+
+			assert.deepStrictEqual({ ...result, moves: list.moves }, {
+				moved: true,
+				picks: [{
+					title: 'Move \'moved\' to Session',
+					placeHolder: 'Select the session to move \'moved\' into; it becomes the session\'s last chat',
+					items: ['Target | Workspace | 2 chats', 'Other | Workspace | 1 chat'],
+				}],
+				moves: ['moved -> Other after Other main'],
+			});
+		});
+
+		test('Move to Session... on a session nests it under the picked session, as its last chat', async () => {
+			const solo = listSession('Solo', []);
+			const target = listSession('Target', ['t1']);
+			const list = render([solo, target], { simulateMoves: true });
+
+			const result = await run(list, MOVE_SESSION_INTO_SESSION_ACTION_ID, solo, 'Target');
+
+			assert.deepStrictEqual({ ...result, moves: list.moves }, {
+				moved: true,
+				picks: [{
+					title: 'Move \'Solo\' into Session',
+					placeHolder: 'Select the session to nest \'Solo\' under; it becomes the session\'s last chat',
+					items: ['Target | Workspace | 2 chats'],
+				}],
+				moves: ['session Solo -> Target after t1'],
+			});
+		});
+
+		test('Move to Session... does nothing when the pick is cancelled or there is no session to move into, or the setting is off', async () => {
+			const solo = listSession('Solo', []);
+			const target = listSession('Target', []);
+			const list = render([solo, target]);
+			const cancelled = await run(list, MOVE_SESSION_INTO_SESSION_ACTION_ID, solo, undefined);
+			const noDestination = await run(render([solo]), MOVE_SESSION_INTO_SESSION_ACTION_ID, solo, 'Solo');
+			await (list.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatMoveSettingId.Enabled, false);
+			const settingOff = await run(list, MOVE_SESSION_INTO_SESSION_ACTION_ID, solo, 'Target');
+
+			assert.deepStrictEqual({ cancelled: cancelled.moved, noDestination, settingOff, moves: list.moves }, {
+				cancelled: false,
+				noDestination: { moved: false, picks: [] },
+				settingOff: { moved: false, picks: [] },
+				moves: [],
+			});
+		});
+
+		test('Move to Session... says in an error notification why the host refused the move', async () => {
+			const own = listSession('Own', ['moved']);
+			const target = listSession('Target', []);
+			const list = render([own, target]);
+			const shown: string[] = [];
+			list.instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+				override error(message: string) { shown.push(`error: ${message}`); }
+			}());
+			list.instantiationService.stub(ISessionsManagementService, new class extends TestSessionsManagementService {
+				override readonly onDidMoveChat = Event.None;
+				override canMoveChat(): boolean { return true; }
+				override async moveChat(): Promise<void> { throw new SessionMoveRefusedError('Chats can\'t be moved out of an archived session.'); }
+			}([own, target]));
+
+			const result = await run(list, MOVE_CHAT_TO_SESSION_ACTION_ID, { session: own, chat: own.chats.get()[1] }, 'Target');
+
+			assert.deepStrictEqual({ moved: result.moved, shown }, {
+				moved: false,
+				shown: ['error: Could not move \'moved\'. Chats can\'t be moved out of an archived session.'],
+			});
 		});
 	});
 });

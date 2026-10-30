@@ -5,15 +5,19 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import './media/checkboxChip.css';
 
 /** Static configuration for a {@link CheckboxChip}. */
 export interface ICheckboxChipOptions {
 	readonly label: string;
 	readonly ariaLabel: string;
+	readonly hoverDelegate?: IHoverDelegate;
 	readonly onToggle: (checked: boolean) => void;
 	/** Extra class on the slot, for call-site-specific styling or test selectors. */
 	readonly slotClassName?: string;
@@ -39,11 +43,10 @@ export class CheckboxChip extends Disposable {
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private _slot: HTMLElement | undefined;
-	private _row: HTMLElement | undefined;
 	private _checkbox: Checkbox | undefined;
 	private _state: ICheckboxChipState = { checked: false, state: 'disabled' };
 
-	constructor(private readonly _options: ICheckboxChipOptions) {
+	constructor(private readonly _options: ICheckboxChipOptions, private readonly _hoverService: IHoverService) {
 		super();
 	}
 
@@ -72,9 +75,12 @@ export class CheckboxChip extends Disposable {
 
 		const row = dom.append(slot, dom.$('.action-label'));
 		row.setAttribute('aria-label', this._options.ariaLabel);
-		this._row = row;
+		this._renderDisposables.add(this._hoverService.setupManagedHover(this._options.hoverDelegate ?? getDefaultHoverDelegate('element'), row, () =>
+			this._state.state === 'disabled' ? this._state.disabledReason ?? this._options.label : this._options.label));
 
-		const checkbox = this._renderDisposables.add(new Checkbox(this._options.label, this._state.checked, { ...defaultCheckboxStyles, size: 14 }));
+		// The chip owns the hover, so the nested checkbox must not open a competing one.
+		const checkbox = this._renderDisposables.add(new Checkbox('', this._state.checked, { ...defaultCheckboxStyles, size: 14 }));
+		checkbox.domNode.setAttribute('aria-label', this._options.ariaLabel);
 		this._checkbox = checkbox;
 		dom.append(row, checkbox.domNode);
 		const label = dom.append(row, dom.$('span.sessions-chat-dropdown-label'));
@@ -120,12 +126,10 @@ export class CheckboxChip extends Disposable {
 		slot.classList.toggle('disabled', state === 'disabled');
 		slot.classList.toggle('hidden', state === 'hidden');
 
-		if (this._row) {
-			if (state === 'disabled' && disabledReason) {
-				this._row.title = disabledReason;
-			} else {
-				this._row.removeAttribute('title');
-			}
+		if (state === 'disabled' && disabledReason) {
+			checkbox.domNode.setAttribute('aria-description', disabledReason);
+		} else {
+			checkbox.domNode.removeAttribute('aria-description');
 		}
 	}
 }

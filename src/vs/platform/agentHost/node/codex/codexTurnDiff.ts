@@ -7,6 +7,7 @@ import { createHash } from 'crypto';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { relative, resolve } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { FileOperationResult, toFileOperationResult, type IFileService } from '../../../files/common/files.js';
 import type { ILogService } from '../../../log/common/log.js';
 import type { IFileEditContent, ISessionDatabase } from '../../common/sessionDataService.js';
@@ -154,7 +155,10 @@ function applyHunks(file: IFileDiff, content: string, reverse: boolean): string 
 	return result.join('');
 }
 
-/** Reconstructs related native turns together, then persists one chronological delta per host checkpoint and path. */
+/**
+ * Reconstructs related native turns together, then persists one chronological delta per host checkpoint and path.
+ * Each row gets its own id, so rows a later store adds for the same host turn and path fold after these, not over them.
+ */
 export async function storeCodexTurnDiffs(captures: readonly ICodexTurnDiffCapture[], context: {
 	readonly relatedDiffs: readonly string[];
 	readonly cwd: URI;
@@ -162,6 +166,8 @@ export async function storeCodexTurnDiffs(captures: readonly ICodexTurnDiffCaptu
 	readonly database: ISessionDatabase;
 	readonly fileService: IFileService;
 	readonly logService: ILogService;
+	/** Host turns whose rows are no longer written; checked before each write, since a truncation can land mid-store. */
+	readonly discardedTurnIds?: ReadonlySet<string>;
 }): Promise<void> {
 	const parsed = captures.map(capture => ({
 		initialFiles: capture.initialDiffs.flatMap(diff => parseTurnDiff(diff, context.cwd)),
@@ -279,6 +285,9 @@ export async function storeCodexTurnDiffs(captures: readonly ICodexTurnDiffCaptu
 			const last = prior && prior.sequence > endpoints.after.sequence ? prior : endpoints.after;
 			const after = last.content;
 			previous.set(path, last);
+			if (context.discardedTurnIds?.has(turnId)) {
+				continue;
+			}
 			if (before === unavailable || after === unavailable) {
 				warn(path, new Error('Codex turn diff content is unavailable'));
 				continue;
@@ -291,7 +300,7 @@ export async function storeCodexTurnDiffs(captures: readonly ICodexTurnDiffCaptu
 				afterContent: after === undefined ? undefined : VSBuffer.fromString(after).buffer,
 			};
 			await context.database.storeFileEdit({
-				turnId, toolCallId: `codex-turn-diff:${turnId}`, filePath: path,
+				turnId, toolCallId: `codex-turn-diff:${generateUuid()}`, filePath: path,
 				kind: before === undefined ? FileEditKind.Create : after === undefined ? FileEditKind.Delete : FileEditKind.Edit,
 				...content, addedLines: undefined, removedLines: undefined,
 			});

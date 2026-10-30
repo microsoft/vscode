@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
@@ -317,11 +317,10 @@ suite('Change Indentation to Tabs -  TypeScript/Javascript', () => {
 suite('Indent With Tab - TypeScript/JavaScript', () => {
 
 	const languageId = Language.TypeScript;
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		const languageService = new LanguageService();
 		const languageConfigurationService = new TestLanguageConfigurationService();
 		disposables.add(languageService);
@@ -333,12 +332,6 @@ suite('Indent With Tab - TypeScript/JavaScript', () => {
 			[ILanguageConfigurationService, languageConfigurationService]
 		);
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('temp issue because there should be at least one passing test in a suite', () => {
 		assert.ok(true);
@@ -396,11 +389,10 @@ suite('Indent With Tab - TypeScript/JavaScript', () => {
 suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 
 	const languageId = Language.TypeScript;
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		const languageService = new LanguageService();
 		const languageConfigurationService = new TestLanguageConfigurationService();
 		disposables.add(languageService);
@@ -412,12 +404,6 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 			[ILanguageConfigurationService, languageConfigurationService]
 		);
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('issue #119225: Do not add extra leading space when pasting JSDoc', () => {
 
@@ -823,11 +809,10 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	const languageId = Language.TypeScript;
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		const languageService = new LanguageService();
 		const languageConfigurationService = new TestLanguageConfigurationService();
 		disposables.add(languageService);
@@ -839,12 +824,6 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 			[ILanguageConfigurationService, languageConfigurationService]
 		);
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// Failing tests from issues...
 
@@ -1408,11 +1387,10 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 suite('Auto Indent On Type - Ruby', () => {
 
 	const languageId = Language.Ruby;
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		const languageService = new LanguageService();
 		const languageConfigurationService = new TestLanguageConfigurationService();
 		disposables.add(languageService);
@@ -1424,12 +1402,6 @@ suite('Auto Indent On Type - Ruby', () => {
 			[ILanguageConfigurationService, languageConfigurationService]
 		);
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('issue #198350: in or when incorrectly match non keywords for Ruby', () => {
 
@@ -1477,11 +1449,10 @@ suite('Auto Indent On Type - Ruby', () => {
 suite('Auto Indent On Type - PHP', () => {
 
 	const languageId = Language.PHP;
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		const languageService = new LanguageService();
 		const languageConfigurationService = new TestLanguageConfigurationService();
 		disposables.add(languageService);
@@ -1493,12 +1464,6 @@ suite('Auto Indent On Type - PHP', () => {
 			[ILanguageConfigurationService, languageConfigurationService]
 		);
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('issue #199050: should not indent after { detected in a string', () => {
 
@@ -1529,11 +1494,10 @@ suite('Auto Indent On Type - PHP', () => {
 suite('Auto Indent On Paste - Go', () => {
 
 	const languageId = Language.Go;
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		const languageService = new LanguageService();
 		const languageConfigurationService = new TestLanguageConfigurationService();
 		disposables.add(languageService);
@@ -1545,12 +1509,6 @@ suite('Auto Indent On Paste - Go', () => {
 			[ILanguageConfigurationService, languageConfigurationService]
 		);
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('temp issue because there should be at least one passing test in a suite', () => {
 		assert.ok(true);
@@ -1587,11 +1545,10 @@ suite('Auto Indent On Paste - Go', () => {
 suite('Auto Indent On Type - CPP', () => {
 
 	const languageId = Language.CPP;
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		const languageService = new LanguageService();
 		const languageConfigurationService = new TestLanguageConfigurationService();
 		disposables.add(languageService);
@@ -1603,12 +1560,6 @@ suite('Auto Indent On Type - CPP', () => {
 			[ILanguageConfigurationService, languageConfigurationService]
 		);
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('temp issue because there should be at least one passing test in a suite', () => {
 		assert.ok(true);
@@ -1682,11 +1633,10 @@ suite('Auto Indent On Type - CPP', () => {
 suite('Auto Indent On Type - HTML', () => {
 
 	const languageId = Language.HTML;
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		const languageService = new LanguageService();
 		const languageConfigurationService = new TestLanguageConfigurationService();
 		disposables.add(languageService);
@@ -1698,12 +1648,6 @@ suite('Auto Indent On Type - HTML', () => {
 			[ILanguageConfigurationService, languageConfigurationService]
 		);
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('temp issue because there should be at least one passing test in a suite', () => {
 		assert.ok(true);
@@ -1736,11 +1680,10 @@ suite('Auto Indent On Type - HTML', () => {
 suite('Auto Indent On Type - Visual Basic', () => {
 
 	const languageId = Language.VB;
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		const languageService = new LanguageService();
 		const languageConfigurationService = new TestLanguageConfigurationService();
 		disposables.add(languageService);
@@ -1752,12 +1695,6 @@ suite('Auto Indent On Type - Visual Basic', () => {
 			[ILanguageConfigurationService, languageConfigurationService]
 		);
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('temp issue because there should be at least one passing test in a suite', () => {
 		assert.ok(true);
@@ -2381,11 +2318,10 @@ suite('Auto Indent On Type - Visual Basic', () => {
 suite('Auto Indent On Type - Latex', () => {
 
 	const languageId = Language.Latex;
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		const languageService = new LanguageService();
 		const languageConfigurationService = new TestLanguageConfigurationService();
 		disposables.add(languageService);
@@ -2397,12 +2333,6 @@ suite('Auto Indent On Type - Latex', () => {
 			[ILanguageConfigurationService, languageConfigurationService]
 		);
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('temp issue because there should be at least one passing test in a suite', () => {
 		assert.ok(true);
@@ -2432,11 +2362,10 @@ suite('Auto Indent On Type - Latex', () => {
 suite('Auto Indent On Type - Lua', () => {
 
 	const languageId = Language.Lua;
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		const languageService = new LanguageService();
 		const languageConfigurationService = new TestLanguageConfigurationService();
 		disposables.add(languageService);
@@ -2448,12 +2377,6 @@ suite('Auto Indent On Type - Lua', () => {
 			[ILanguageConfigurationService, languageConfigurationService]
 		);
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('temp issue because there should be at least one passing test in a suite', () => {
 		assert.ok(true);

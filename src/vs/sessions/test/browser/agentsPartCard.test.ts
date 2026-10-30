@@ -16,6 +16,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { MainEditorPart as MainEditorPartBase } from '../../../workbench/browser/parts/editor/editorPart.js';
 import { AbstractPaneCompositePart } from '../../../workbench/browser/parts/paneCompositePart.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { MODERN_SASH_GRIP_FOREGROUND } from '../../../workbench/common/theme.js';
+import { generateColorThemeCSS } from '../../../workbench/services/themes/browser/colorThemeCss.js';
+import { ColorThemeData } from '../../../workbench/services/themes/common/colorThemeData.js';
 import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, getAgentsPartCardContentSize, getSessionsPartCardMarginRight, getSessionsPartFrameInset, getSidePaneBottomFrameInset, getSidePaneFrameInset } from '../../browser/parts/agentsPartCard.js';
 import { CustomViewGridPart } from '../../browser/parts/customViewGridPart.js';
 import { AgentWorkbenchLayout } from '../../browser/workbench.js';
@@ -97,6 +100,51 @@ suite('Sessions - Agents Part Card', () => {
 			contentSize: { width: 800, height: 600 },
 		});
 	});
+
+	for (const themeId of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
+		test(`sash grips use the shared modern sash color without dimming in ${themeId}`, () => {
+			const { container, card } = createCard(true, true);
+			container.classList.add('sash-grip-test-theme');
+			container.style.color = 'var(--vscode-modernSash-gripForeground)';
+			card.classList.add('part', 'sessionspart');
+			const themeStyle = append(mainWindow.document.head, $('style'));
+			store.add(toDisposable(() => themeStyle.remove()));
+
+			const splitView = append(container, $('.monaco-split-view2.vertical'));
+			const sashContainer = append(splitView, $('.sash-container'));
+			const scrollable = append(splitView, $('.monaco-scrollable-element'));
+			const viewContainer = append(scrollable, $('.split-view-container'));
+			const view = append(viewContainer, $('.split-view-view'));
+			append(view, $('.part.panel'));
+
+			const sashes = [
+				append(card, $('.monaco-sash.vertical.agents-grid-gap-sash')),
+				append(card, $('.monaco-sash.horizontal.agents-grid-gap-sash')),
+				append(container, $('.monaco-sash.vertical.sessions-side-pane-divider')),
+				append(sashContainer, $('.monaco-sash.horizontal')),
+			];
+			const readGrip = (sash: HTMLElement) => {
+				const style = mainWindow.getComputedStyle(sash, '::after');
+				return { content: style.content, background: style.backgroundColor, color: style.color, opacity: style.opacity };
+			};
+
+			for (const colors of [{}, { [MODERN_SASH_GRIP_FOREGROUND]: '#12345680' }]) {
+				const theme = ColorThemeData.createUnloadedTheme(themeId, colors);
+				themeStyle.textContent = generateColorThemeCSS(theme, '.sash-grip-test-theme').code;
+				const color = mainWindow.getComputedStyle(container).color;
+
+				assert.deepStrictEqual(sashes.map(readGrip), sashes.map(() => ({
+					content: '""', background: color, color, opacity: '1',
+				})));
+
+				for (const state of ['hover', 'active']) {
+					sashes.forEach(sash => sash.classList.add(state));
+					assert.deepStrictEqual(sashes.map(sash => readGrip(sash).opacity), sashes.map(() => '0'));
+					sashes.forEach(sash => sash.classList.remove(state));
+				}
+			}
+		});
+	}
 
 	for (const { connectedEditorTabs, showTabs } of [
 		{ connectedEditorTabs: false, showTabs: 'multiple' as const },
@@ -617,6 +665,42 @@ suite('Sessions - Agents Part Card', () => {
 			defaultState,
 			{ sessionCorner: '0px', editorCorner: '0px', sessionInset: '0px', editorInset: '0px', sessionFrame: '1px 0px 0px 1px', editorFrame: '1px 0px 0px 1px' },
 			defaultState,
+		]);
+	});
+
+	test('keeps native canvas views inside the connected side-pane frame', () => {
+		const { container } = createCard(true, true);
+		container.classList.add('modern-ui-tabs', 'modern-ui-connected-editor-tabs', 'dock-detail-panel');
+		container.style.setProperty('--modern-ui-connected-tab-border', '#808080');
+		// When connectedEditorTabs.css is loaded (by other suites in a full run, as in the workbench), the group
+		// derives its frame color from the theme's tab border instead, so define that too.
+		container.style.setProperty('--vscode-tab-border', '#808080');
+		const grid = append(container, $('.monaco-grid-view'));
+		const editor = append(grid, $('.part.editor.editor-tabs-multiple'));
+		const group = append(append(editor, $('.content')), $('.editor-group-container'));
+		group.style.width = '300px';
+		group.style.height = '200px';
+		// Mirrors the column layout the integrated browser styles give canvas panes.
+		const canvas = append(group, $('.browser-root.session-canvas-editor'));
+		canvas.style.cssText = 'display: flex; flex-direction: column; height: 100%;';
+		const wrapper = append(canvas, $('.browser-container-wrapper'));
+		wrapper.style.flex = '1';
+		const nativeView = append(wrapper, $('.browser-container'));
+
+		const actual = [false, true].map(compact => {
+			container.classList.toggle('modern-ui-compact', compact);
+			const frame = group.getBoundingClientRect();
+			const view = wrapper.getBoundingClientRect();
+			return {
+				frameWidth: mainWindow.getComputedStyle(group, '::after').borderWidth,
+				viewInset: [view.top - frame.top, frame.right - view.right, frame.bottom - view.bottom, view.left - frame.left].join(' '),
+				cornerRadius: mainWindow.getComputedStyle(nativeView).borderTopLeftRadius,
+			};
+		});
+
+		assert.deepStrictEqual(actual, [
+			{ frameWidth: '1px', viewInset: '0 1 1 1', cornerRadius: '6px' },
+			{ frameWidth: '1px 0px 0px 1px', viewInset: '0 0 0 1', cornerRadius: '0px' },
 		]);
 	});
 

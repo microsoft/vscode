@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY, AgentHostExistingSessionHarnessPickerEnabledSettingId } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
@@ -70,10 +69,8 @@ async function flush(): Promise<void> {
 }
 
 suite('AgentHostExistingSessionHarnessPickerEnablement', () => {
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function setup(treatment?: boolean | Promise<boolean | undefined>, settings: Record<string, unknown> = {}) {
 		const configurationService = new TestConfigurationService(settings);

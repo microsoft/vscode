@@ -215,12 +215,12 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 	}
 
 	private _renderAgentDisabled(card: HTMLElement): void {
-		this.overlay.setAttribute('aria-label', localize('policyBlocked.aria', "Agents disabled by organization policy"));
+		this.overlay.setAttribute('aria-label', localize('policyBlocked.aria', "Agents disabled by your organization"));
 
 		append(card, $('h2', undefined, localize('policyBlocked.title', "Agents Disabled")));
 
 		const description = append(card, $('p'));
-		append(description, document.createTextNode(localize('policyBlocked.description', "Your organization has disabled Agents via policy.")));
+		append(description, document.createTextNode(localize('policyBlocked.description', "Agents are disabled by your organization. Contact your administrator.")));
 		append(description, document.createTextNode(' '));
 		const learnMore = append(description, $('a.sessions-policy-blocked-link')) as HTMLAnchorElement;
 		learnMore.textContent = localize('policyBlocked.learnMore', "Learn more");
@@ -243,7 +243,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 	}
 
 	private _renderAccountPolicyGate(card: HTMLElement, options: ISessionsBlockedOverlayOptions): void {
-		this.overlay.setAttribute('aria-label', localize('accountGate.aria', "Sign-in required by your administrator"));
+		this.overlay.setAttribute('aria-label', localize('accountGate.aria', "Sign-in required by your organization"));
 
 		append(card, $('h2', undefined, localize('accountGate.title', "Sign-In Required")));
 

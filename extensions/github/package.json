@@ -34,8 +34,7 @@
     "contribShareMenu",
     "contribSourceControlHistoryItemMenu",
     "scmHistoryProvider",
-    "shareProvider",
-    "timeline"
+    "shareProvider"
   ],
   "contributes": {
     "commands": [

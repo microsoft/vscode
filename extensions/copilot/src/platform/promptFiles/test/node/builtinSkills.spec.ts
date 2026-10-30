@@ -33,7 +33,7 @@ suite('built-in skills', () => {
 		}]);
 	});
 
-	test('documents a host-neutral canvas authoring and verification contract', () => {
+	test('documents scope selection and a host-neutral canvas authoring and verification contract', () => {
 		const skill = fs.readFileSync(
 			path.join(copilotRoot, 'assets', 'prompts', 'skills', 'create-canvas', 'SKILL.md'),
 			'utf-8',
@@ -41,7 +41,16 @@ suite('built-in skills', () => {
 		const required = [
 			'name: create-canvas',
 			'user-invocable: true',
-			'.github/extensions/<name>/extension.mjs',
+			'## Choose the scope',
+			'Before writing any files, use `ask_user` to offer all three scopes unless the user already specified a scope.',
+			'<copilot-home>/extensions/<name>/extension.mjs',
+			'<workspace-root>/.github/extensions/<name>/extension.mjs',
+			'<plugin-root>/extensions/<name>/extension.mjs',
+			'.plugin/plugin.json',
+			'"extensions": "extensions/"',
+			'Create `<extension-dir>/extension.mjs`.',
+			'node --check "<extension-dir>/extension.mjs"',
+			'Creating plugin files alone does not make the canvas discoverable.',
 			'@github/copilot-sdk/extension',
 			'createCanvas',
 			'CanvasError',
@@ -62,6 +71,7 @@ suite('built-in skills', () => {
 		expect(skill).not.toContain('disable-model-invocation: true');
 		expect(skill).not.toContain('extensions_manage({');
 		expect(skill).not.toContain('run `/extensions`');
+		expect(skill).not.toContain('The extension scope is fixed');
 	});
 
 	test('contributes the customization migration skill to Agent Host sessions', () => {

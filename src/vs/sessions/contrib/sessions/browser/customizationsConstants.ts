@@ -4,3 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const OPEN_AI_CUSTOMIZATIONS_COMMAND_ID = 'sessions.customization.overview';
+
+export interface IOpenAICustomizationsCommandOptions {
+	readonly migration?: boolean;
+}

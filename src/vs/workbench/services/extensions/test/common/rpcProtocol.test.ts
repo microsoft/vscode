@@ -7,7 +7,6 @@ import assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IMessagePassingProtocol } from '../../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ProxyIdentifier, SerializableObjectWithBuffers } from '../../common/proxyIdentifier.js';
@@ -15,7 +14,7 @@ import { RPCProtocol } from '../../common/rpcProtocol.js';
 
 suite('RPCProtocol', () => {
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	class MessagePassingProtocol implements IMessagePassingProtocol {
 		private _pair?: MessagePassingProtocol;
@@ -44,7 +43,6 @@ suite('RPCProtocol', () => {
 	}
 
 	setup(() => {
-		disposables = new DisposableStore();
 
 		const a_protocol = new MessagePassingProtocol();
 		const b_protocol = new MessagePassingProtocol();
@@ -59,12 +57,6 @@ suite('RPCProtocol', () => {
 		bProtocol.set(bIdentifier, bInstance);
 		bProxy = A.getProxy(bIdentifier);
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('simple call', function (done) {
 		delegate = (a1: number, a2: number) => a1 + a2;
@@ -264,7 +256,7 @@ suite('RPCProtocol', () => {
 		});
 	});
 
-	test('SerializableObjectWithBuffers is correctly transfered', function (done) {
+	test('SerializableObjectWithBuffers is correctly transferred', function (done) {
 		delegate = (a1: SerializableObjectWithBuffers<{ string: string; buff: VSBuffer }>, a2: number) => {
 			return new SerializableObjectWithBuffers({ string: a1.value.string + ' world', buff: a1.value.buff });
 		};

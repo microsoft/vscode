@@ -21,10 +21,7 @@ steps:
   - ${{ if gt(length(parameters.VSCODE_TEST_IDS), 0) }}:
     - template: ../../common/ensure-test-artifact-directories.yml@self
 
-  - task: NodeTool@0
-    inputs:
-      versionSource: fromFile
-      versionFilePath: .nvmrc
+  - template: ../../common/setup-node.yml@self
 
   - task: UsePythonVersion@0
     inputs:
@@ -59,6 +56,7 @@ steps:
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
+    retryCountOnTaskFailure: 2
 
   - powershell: 7z.exe x .build/node_modules_cache/cache.7z -aoa
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
@@ -108,6 +106,15 @@ steps:
     retryCountOnTaskFailure: 5
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  # NuGetAuthenticate@1 exposes its access token to all later steps as the
+  # VSS_NUGET_ACCESSTOKEN environment variable, from where tests can write it to
+  # published logs and crash dumps. Only installing dependencies needs it, so
+  # clear it now. This runs in every build so that it can't fall out of sync
+  # with the condition of the authentication step.
+  - powershell: echo "##vso[task.setvariable variable=VSS_NUGET_ACCESSTOKEN]"
+    displayName: Clear package feed credentials
+    condition: always()
 
   - powershell: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
     displayName: Verify native optional dependency binaries

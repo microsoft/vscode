@@ -97,6 +97,8 @@ suite('Agent Host Edit ARC Reporter', () => {
 			afterText: 'hello AI',
 			initialEdit: { replacements: [{ start: 5, endExclusive: 5, text: ' AI' }] },
 			modelId: 'gpt-5',
+			autoTier: 'hydrafusion-max',
+			fusionModel: 'hydrafusion-max',
 			toolName: 'edit',
 			completionTime: Date.now(),
 		});
@@ -127,6 +129,8 @@ suite('Agent Host Edit ARC Reporter', () => {
 				editSessionId: 'session-1',
 				requestId: 'turn-1',
 				modelId: 'gpt-5',
+				autoTier: 'hydrafusion-max',
+				fusionModel: 'hydrafusion-max',
 				languageId: undefined,
 				mode: undefined,
 				uniqueEditId: '<uuid>',
@@ -262,6 +266,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 				detailedStarted.complete();
 				return detailedResult.p;
 			},
+			computeDiffHunks: async () => ({ hunks: [], hitTimeout: false }),
 		};
 		const resource = URI.file('/workspace/stale.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('AIbase'));
@@ -526,6 +531,9 @@ function createConfigurationService(enabled: boolean, disposables: DisposableSto
 		getChatOwnConfigValues: () => ({}),
 		updateChatConfig: () => { },
 		seedChatConfig: () => ({ values: {}, dispose: () => { } }),
+		completeChatConfigs: () => { },
+		getChatPersistedConfigValues: () => undefined,
+		getCompleteChatConfigValues: (_session: string, own: Readonly<Record<string, unknown>>) => ({ ...own }),
 		getEffectiveWorkingDirectories: () => undefined,
 		updateSessionConfig: () => { },
 		getSessionConfigValues: () => undefined,
@@ -536,6 +544,7 @@ function createConfigurationService(enabled: boolean, disposables: DisposableSto
 		getChatSandboxEnabled: () => undefined,
 		getChatAttachmentScopes: target => [target.session],
 		setChatSandboxEnabled: () => { },
+		reportChatSandboxConflict: () => { },
 		rejectChatSandboxChange: () => { },
 		getRootValue: (schema, key) => schema.validate(key, enabled) ? enabled : undefined,
 		updateRootConfig: () => { },

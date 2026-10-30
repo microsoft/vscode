@@ -12,6 +12,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isEqual, basename } from '../../../../../../base/common/resources.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -25,9 +26,11 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IFileService, IFileWriteOptions } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { IWorkspaceContextService, WorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { Workspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
@@ -53,6 +56,26 @@ import { ContributionEnablementState } from '../../../common/enablement.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
 import { DEFAULT_PLUGIN_MARKETPLACE } from '../../../common/plugins/marketplaceReference.js';
 import { TestSecretStorageService } from '../../../../../../platform/secrets/test/common/testSecretStorageService.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { IChatAgentData, IChatAgentService } from '../../../common/participants/chatAgents.js';
+import { ILanguageModelToolsService, IToolSet, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+
+class TestMigrationChatAgentService extends mock<IChatAgentService>() {
+	override readonly onDidChangeAgents = Event.None;
+	agents: IChatAgentData[] = [];
+	override getAgents() { return this.agents; }
+}
+
+class TestMigrationToolsService extends mock<ILanguageModelToolsService>() {
+	override readonly toolSets = observableValue<Iterable<IToolSet>>(this, []);
+}
+
+const migrationProductService = new class extends mock<IProductService>() {
+	override readonly defaultChatAgent = new class extends mock<NonNullable<IProductService['defaultChatAgent']>>() {
+		override readonly chatExtensionId = 'GitHub.copilot-chat';
+	}();
+}();
 
 class TestPromptsService extends MockPromptsService {
 	readonly requestedTypes: PromptsType[] = [];
@@ -234,7 +257,7 @@ class CustomizationMigrationService extends BaseCustomizationMigrationService {
 		}(),
 		workspaceContextService: IWorkspaceContextService = createWorkspaceContextService(),
 	) {
-		super(promptsService, harnessService, configurationService, mcpService);
+		super(promptsService, harnessService, configurationService, mcpService, new TestMigrationChatAgentService(), new TestMigrationToolsService(), migrationProductService);
 		harnessService.mcpServerMigrationProvider = this._register(new AgentHostMcpServerMigrationProvider(
 			harnessService,
 			activeClientService,
@@ -369,6 +392,7 @@ suite('CustomizationMigrationService', () => {
 		const harnessService = new TestCustomizationHarnessService();
 		const createProvider = (onDidChange: Event<void>): ICustomizationMarketplaceManagementProvider => ({
 			onDidChange,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => [],
 			add: async (_sessionResource, source) => ({ name: source, source, isDefault: false, managed: false, available: true }),
 			queryMarketplace: async () => ({ items: [], total: 0 }),
@@ -381,6 +405,9 @@ suite('CustomizationMigrationService', () => {
 			harnessService,
 			store.add(createMigrationConfiguration()),
 			new TestMcpService(),
+			new TestMigrationChatAgentService(),
+			new TestMigrationToolsService(),
+			migrationProductService,
 		));
 		let changeCount = 0;
 		store.add(service.onDidChangeCustomizations(() => changeCount++));
@@ -399,8 +426,112 @@ suite('CustomizationMigrationService', () => {
 		instantiationService.stub(ICustomizationHarnessService, new TestCustomizationHarnessService());
 		instantiationService.stub(IConfigurationService, store.add(createMigrationConfiguration()));
 		instantiationService.stub(IMcpService, new TestMcpService());
+		instantiationService.stub(IChatAgentService, new TestMigrationChatAgentService());
+		instantiationService.stub(ILanguageModelToolsService, new TestMigrationToolsService());
+		instantiationService.stub(IProductService, migrationProductService);
 
 		store.add(instantiationService.createInstance(BaseCustomizationMigrationService));
+	});
+
+	test('discovers only third-party participants and explicit user and extension tool sets', async () => {
+		const agents = new TestMigrationChatAgentService();
+		const participant = (id: string, properties: Partial<IChatAgentData> = {}): IChatAgentData => Object.assign(new class extends mock<IChatAgentData>() {
+			override readonly id = id;
+			override readonly name = 'review';
+			override readonly extensionId = new ExtensionIdentifier('example.review');
+			override readonly extensionDisplayName = 'Review Extension';
+		}(), properties);
+		agents.agents = [
+			participant('review'),
+			participant('another-review'),
+			participant('core', { isCore: true }),
+			participant('default', { isDefault: true }),
+			participant('dynamic', { isDynamic: true }),
+			participant('copilot', { extensionId: new ExtensionIdentifier('github.Copilot-Chat') }),
+		];
+		const tools = new TestMigrationToolsService();
+		const toolSet = (id: string, source: ToolDataSource, options: Partial<Pick<IToolSet, 'deprecated' | 'hiddenInToolsPicker'>> = {}): IToolSet => ({
+			id, referenceName: id, source, icon: Codicon.tools, getTools: () => [], ...options,
+		});
+		const extensionSource: ToolDataSource = { type: 'extension', label: 'Review Extension', extensionId: new ExtensionIdentifier('example.review') };
+		const userFile = URI.file('/profile/prompts/review.toolsets.jsonc');
+		tools.toolSets.set([
+			toolSet('user', { type: 'user', label: 'review.toolsets.jsonc', file: userFile }, { deprecated: true }),
+			toolSet('extension', extensionSource),
+			toolSet('synthetic', extensionSource, { hiddenInToolsPicker: true }),
+			toolSet('builtin', ToolDataSource.Internal),
+			toolSet('external', ToolDataSource.External),
+			toolSet('copilot', { ...extensionSource, extensionId: new ExtensionIdentifier('github.Copilot-Chat') }),
+			toolSet('mcp', { type: 'mcp', label: 'MCP', serverLabel: undefined, instructions: undefined, collectionId: 'collection', definitionId: 'server' }),
+		], undefined);
+		const harness = new TestCustomizationHarnessService();
+		const configuration = store.add(createMigrationConfiguration());
+		const files: IPromptPath[] = [];
+		const service = store.add(new BaseCustomizationMigrationService(
+			store.add(new TestPromptsService(files)), harness, configuration, new TestMcpService(), agents, tools, migrationProductService,
+		));
+		const session = harness.activeSessionResource.get();
+		const participants = await service.computeMigration(session, CustomizationMigrationType.ChatParticipants);
+		const toolSets = await service.computeMigration(session, CustomizationMigrationType.ToolSets);
+		const hint = await service.computeMigrationHint(session);
+		files.push({ uri: URI.file('/workspace/.github/prompts/review.prompt.md'), type: PromptsType.prompt, storage: PromptsStorage.local });
+		const mixedHint = await service.computeMigrationHint(session);
+		const local = await service.computeMigration(URI.file('/local'), CustomizationMigrationType.ChatParticipants);
+		await setMigrationEnabled(configuration, false);
+		const disabled = await service.computeMigration(session, CustomizationMigrationType.ToolSets);
+		assert.deepStrictEqual({
+			participants,
+			toolSets,
+			hint: hint && { message: hint.message, counts: hint.counts },
+			mixedHint: mixedHint && { message: mixedHint.message, counts: mixedHint.counts },
+			local,
+			disabled,
+		}, {
+			participants: {
+				type: CustomizationMigrationType.ChatParticipants,
+				items: [
+					{ id: 'review', name: '@review', sourceLabel: 'Review Extension', storage: PromptsStorage.extension, extensionId: 'example.review' },
+					{ id: 'another-review', name: '@review', sourceLabel: 'Review Extension', storage: PromptsStorage.extension, extensionId: 'example.review' },
+				],
+			},
+			toolSets: {
+				type: CustomizationMigrationType.ToolSets,
+				items: [
+					{ id: 'user', name: 'user', sourceLabel: 'review.toolsets.jsonc', sourceUri: userFile, storage: PromptsStorage.user, extensionId: undefined },
+					{ id: 'extension', name: 'extension', sourceLabel: 'Review Extension', sourceUri: undefined, storage: PromptsStorage.extension, extensionId: 'example.review' },
+				],
+			},
+			hint: {
+				message: '4 customizations need an update to keep working.',
+				counts: [{ type: CustomizationMigrationType.ChatParticipants, count: 2 }, { type: CustomizationMigrationType.ToolSets, count: 2 }],
+			},
+			mixedHint: {
+				message: '5 customizations need an update to keep working.',
+				counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }, { type: CustomizationMigrationType.ChatParticipants, count: 2 }, { type: CustomizationMigrationType.ToolSets, count: 2 }],
+			},
+			local: { type: CustomizationMigrationType.ChatParticipants, items: [] },
+			disabled: { type: CustomizationMigrationType.ToolSets, items: [] },
+		});
+	});
+
+	test('refreshes guidance inventory through the shared change event', async () => {
+		const changed = store.add(new Emitter<undefined>());
+		const agents = new class extends TestMigrationChatAgentService {
+			override readonly onDidChangeAgents = changed.event;
+		}();
+		const tools = new TestMigrationToolsService();
+		const harness = new TestCustomizationHarnessService();
+		const service = store.add(new BaseCustomizationMigrationService(
+			store.add(new TestPromptsService([])), harness, store.add(createMigrationConfiguration()), new TestMcpService(), agents, tools, migrationProductService,
+		));
+		let changes = 0;
+		store.add(service.onDidChangeCustomizations(() => changes++));
+		changed.fire(undefined);
+		tools.toolSets.set([], undefined);
+		assert.deepStrictEqual({
+			changes,
+			hint: await service.computeMigrationHint(harness.activeSessionResource.get()),
+		}, { changes: 2, hint: undefined });
 	});
 
 	test('copies configured plugin marketplaces without removing Local harness configuration', async () => {
@@ -442,6 +573,7 @@ suite('CustomizationMigrationService', () => {
 		}];
 		harnessService.marketplaceManagementProvider = {
 			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => providerMarketplaces,
 			add: async (_sessionResource, source) => {
 				addedSources.push(source);
@@ -465,6 +597,9 @@ suite('CustomizationMigrationService', () => {
 			harnessService,
 			configurationService,
 			new TestMcpService(),
+			new TestMigrationChatAgentService(),
+			new TestMigrationToolsService(),
+			migrationProductService,
 		));
 		const sessionResource = harnessService.activeSessionResource.get();
 
@@ -541,6 +676,7 @@ suite('CustomizationMigrationService', () => {
 		const harnessService = new TestCustomizationHarnessService();
 		harnessService.marketplaceManagementProvider = {
 			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => {
 				listCalls++;
 				throw new Error('Marketplace inventory unavailable');
@@ -561,6 +697,9 @@ suite('CustomizationMigrationService', () => {
 			harnessService,
 			configurationService,
 			new TestMcpService(),
+			new TestMigrationChatAgentService(),
+			new TestMigrationToolsService(),
+			migrationProductService,
 		));
 		const sessionResource = harnessService.activeSessionResource.get();
 
@@ -600,6 +739,77 @@ suite('CustomizationMigrationService', () => {
 				message: '1 workspace customization needs an update to keep working.',
 				counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 			},
+		});
+	});
+
+	test('excludes ignored migration groups from hints', async () => {
+		const promptsService = store.add(new TestPromptsService([
+			{
+				uri: URI.file('/workspace/.github/prompts/workspace.prompt.md'),
+				storage: PromptsStorage.local,
+				type: PromptsType.prompt,
+				source: PromptFileSource.GitHubWorkspace,
+			},
+			{
+				uri: URI.file('/user-data/prompts/user.prompt.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.prompt,
+				source: PromptFileSource.UserData,
+			},
+		]));
+		const harnessService = new TestCustomizationHarnessService();
+		const agents = new TestMigrationChatAgentService();
+		agents.agents = [new class extends mock<IChatAgentData>() {
+			override readonly id = 'review';
+			override readonly name = 'review';
+			override readonly extensionId = new ExtensionIdentifier('example.review');
+		}()];
+		const tools = new TestMigrationToolsService();
+		tools.toolSets.set([{
+			id: 'review-tools',
+			referenceName: 'review-tools',
+			source: { type: 'user', label: 'review.toolsets.jsonc', file: URI.file('/profile/prompts/review.toolsets.jsonc') },
+			icon: Codicon.tools,
+			getTools: () => [],
+		}], undefined);
+		const service = store.add(new class extends BaseCustomizationMigrationService {
+			protected override generateMigrationFlowId(): string {
+				return 'test-migration-flow-id';
+			}
+		}(
+			promptsService,
+			harnessService,
+			store.add(createMigrationConfiguration()),
+			new TestMcpService(),
+			agents,
+			tools,
+			migrationProductService,
+		));
+		const sessionResource = harnessService.activeSessionResource.get();
+		const guidanceIgnored = [
+			{ type: CustomizationMigrationType.ToolSets, storage: PromptsStorage.user },
+			{ type: CustomizationMigrationType.ChatParticipants, storage: PromptsStorage.extension },
+		];
+		const workspaceIgnored = await service.computeMigrationHint(sessionResource, undefined, [
+			{ type: CustomizationMigrationType.PromptFiles, storage: PromptsStorage.local },
+			...guidanceIgnored,
+		]);
+		const allIgnored = await service.computeMigrationHint(sessionResource, undefined, [
+			{ type: CustomizationMigrationType.PromptFiles, storage: PromptsStorage.local },
+			{ type: CustomizationMigrationType.PromptFiles, storage: PromptsStorage.user },
+			...guidanceIgnored,
+		]);
+
+		assert.deepStrictEqual({
+			workspaceIgnored,
+			allIgnored,
+		}, {
+			workspaceIgnored: {
+				migrationFlowId: 'test-migration-flow-id',
+				message: '1 user customization needs an update to keep working.',
+				counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
+			},
+			allIgnored: undefined,
 		});
 	});
 
@@ -727,7 +937,7 @@ suite('CustomizationMigrationService', () => {
 						? {
 							candidates: migration.candidates.map(candidate => candidate.source),
 						}
-						: {
+						: hasKey(migration, { items: true }) ? { items: migration.items } : {
 							files: migration.files.map(file => file.path),
 							candidates: migration.candidates.map(candidate => candidate.uri.path),
 						}),
@@ -738,7 +948,7 @@ suite('CustomizationMigrationService', () => {
 			requestedTypes: promptsService.requestedTypes,
 			requestedSourceFolderTypes: harnessService.requestedSourceFolderTypes.toSorted(),
 			workspaceGroupIds: migrations
-				.filter(migration => migration.type !== CustomizationMigrationType.McpServers && migration.type !== CustomizationMigrationType.PluginMarketplaces)
+				.filter(migration => hasKey(migration, { files: true }))
 				.flatMap(migration => migration.candidates.map(candidate => candidate.workspaceGroupId)),
 			requestedSessionType,
 			requestedRoots: requestedRoots?.map(requestedRoot => requestedRoot.path),
@@ -789,6 +999,8 @@ suite('CustomizationMigrationService', () => {
 					type: 'pluginMarketplaces',
 					candidates: [],
 				},
+				{ type: 'chatParticipants', items: [] },
+				{ type: 'toolSets', items: [] },
 			],
 			localMigrations: [
 				{ type: 'userData', files: [], candidates: [] },
@@ -806,6 +1018,8 @@ suite('CustomizationMigrationService', () => {
 					},
 				},
 				{ type: 'pluginMarketplaces', candidates: [] },
+				{ type: 'chatParticipants', items: [] },
+				{ type: 'toolSets', items: [] },
 			],
 			hint: {
 				migrationFlowId: 'test-migration-flow-id',
@@ -913,8 +1127,7 @@ suite('CustomizationMigrationService', () => {
 			const sourceUri = URI.from({ scheme: Schemas.vscodeUserData, path: '/profile/mcp.json' });
 			const targetUri = URI.file('/custom-copilot/mcp-config.json');
 			let currentTarget = targetUri;
-			const fileService = store.add(new FileService(new NullLogService()));
-			store.add(fileService.registerProvider(Schemas.vscodeUserData, store.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(store, Schemas.vscodeUserData);
 			store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
 			await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node"},"null-env":{"command":"node","env":{"REMOVE_ME":null}}}}'));
 			const workspaceSnapshot = createWorkspaceMcpSupportSnapshot(URI.file('/workspace'));
@@ -980,8 +1193,7 @@ suite('CustomizationMigrationService', () => {
 	test('migrates profile MCP servers with ${env:} references and explains unsupported ones', async () => {
 		const sourceUri = URI.from({ scheme: Schemas.vscodeUserData, path: '/profile/mcp.json' });
 		const targetUri = URI.file('/custom-copilot/mcp-config.json');
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.vscodeUserData, store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.vscodeUserData);
 		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node","env":{"TOKEN":"${env:TOKEN}"}},"header-name":{"type":"http","url":"https://example.com/mcp","headers":{"${env:HEADER}":"value"}}}}'));
 		const [workspaceServer] = createWorkspaceMcpSupportSnapshot(URI.file('/workspace')).servers;
@@ -990,7 +1202,7 @@ suite('CustomizationMigrationService', () => {
 			id: `mcp.config.usrlocal.${name}`,
 			name,
 			source: { ...workspaceServer.source, kind: AgentHostMcpServerSourceKind.UserProfile, collectionUri: sourceUri },
-			// User servers are forwarded with their variables unresolved.
+			delivery: AgentHostMcpServerDelivery.NotDelivered,
 			compatibility: { kind: 'unsupported' as const, reasons: [AgentHostMcpSupportReason.UnresolvedConfiguration] },
 			projectedConfiguration,
 		});
@@ -1038,8 +1250,7 @@ suite('CustomizationMigrationService', () => {
 	test('migrates profile MCP servers with ${input:} references, and explains unsupported ones', async () => {
 		const sourceUri = URI.from({ scheme: Schemas.vscodeUserData, path: '/profile/mcp.json' });
 		const targetUri = URI.file('/custom-copilot/mcp-config.json');
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.vscodeUserData, store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.vscodeUserData);
 		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
 		const servers = {
 			server: { command: 'node', env: { TOKEN: '${input:token}' } },
@@ -1067,7 +1278,7 @@ suite('CustomizationMigrationService', () => {
 				id: `mcp.config.usrlocal.${name}`,
 				name,
 				source: { ...workspaceServer.source, kind: AgentHostMcpServerSourceKind.UserProfile, collectionUri: sourceUri },
-				// User servers are forwarded with their variables unresolved.
+				delivery: AgentHostMcpServerDelivery.NotDelivered,
 				compatibility: { kind: 'unsupported' as const, reasons: [AgentHostMcpSupportReason.RequiresUserInteraction] },
 				projectedConfiguration: { type: McpServerType.LOCAL, ...server },
 			})),
@@ -1122,8 +1333,7 @@ suite('CustomizationMigrationService', () => {
 	test('migrates profile MCP servers with ${config:} references to their current values, and explains unsupported ones', async () => {
 		const sourceUri = URI.from({ scheme: Schemas.vscodeUserData, path: '/profile/mcp.json' });
 		const targetUri = URI.file('/custom-copilot/mcp-config.json');
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.vscodeUserData, store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.vscodeUserData);
 		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
 		const servers = {
 			local: { command: '${config:mcp.command}', args: ['--level=${input:level}'], env: { PORT: '${config:mcp.port}', TOKEN: '${env:TOKEN}' } },
@@ -1151,7 +1361,7 @@ suite('CustomizationMigrationService', () => {
 				id: `mcp.config.usrlocal.${name}`,
 				name,
 				source: { ...workspaceServer.source, kind: AgentHostMcpServerSourceKind.UserProfile, collectionUri: sourceUri },
-				// User servers are forwarded with their variables unresolved.
+				delivery: AgentHostMcpServerDelivery.NotDelivered,
 				compatibility: { kind: 'unsupported' as const, reasons: [AgentHostMcpSupportReason.UnresolvedConfiguration] },
 				projectedConfiguration: name === 'remote' || name === 'brace'
 					? { type: McpServerType.REMOTE, url: 'https://example.com/mcp', headers: (server as { headers: Record<string, string> }).headers }
@@ -1221,8 +1431,7 @@ suite('CustomizationMigrationService', () => {
 		const root = URI.file('/workspace');
 		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
 		const targetUri = URI.joinPath(root, '.mcp.json');
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node","args":["--port=${config:mcp.port}","--token=${config:user.token}"]}}}'));
 		const configurationService = store.add(createMigrationConfiguration());
 		await configurationService.setUserConfiguration('mcp.port', 1);
@@ -1622,12 +1831,12 @@ suite('CustomizationMigrationService', () => {
 		assert.deepStrictEqual({
 			disabledMigrations: disabledMigrations.map(migration => ({
 				type: migration.type,
-				candidates: migration.candidates.length,
+				...(hasKey(migration, { items: true }) ? { items: migration.items.length } : { candidates: migration.candidates.length }),
 				...(migration.type === CustomizationMigrationType.McpServers
 					? { servers: migration.servers.length }
 					: migration.type === CustomizationMigrationType.PluginMarketplaces
 						? {}
-						: { files: migration.files.length }),
+						: hasKey(migration, { files: true }) ? { files: migration.files.length } : {}),
 			})),
 			disabledHint,
 			disabledRequestedTypes,
@@ -1642,6 +1851,8 @@ suite('CustomizationMigrationService', () => {
 				{ type: 'configuredLocations', candidates: 0, files: 0 },
 				{ type: 'mcpServers', candidates: 0, servers: 0 },
 				{ type: 'pluginMarketplaces', candidates: 0 },
+				{ type: 'chatParticipants', items: 0 },
+				{ type: 'toolSets', items: 0 },
 			],
 			disabledHint: undefined,
 			disabledRequestedTypes: [],
@@ -1989,8 +2200,7 @@ suite('CustomizationMigrationService', () => {
 
 	test('preserves disabled state on each migrated server in its own workspace folder', async () => {
 		const roots = [URI.file('/root-one'), URI.file('/root-two')];
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		for (const root of roots) {
 			await fileService.writeFile(URI.joinPath(root, '.vscode', 'mcp.json'), VSBuffer.fromString('{"servers":{"server":{"command":"node"}}}'));
 		}
@@ -2043,8 +2253,7 @@ suite('CustomizationMigrationService', () => {
 	for (const [selection, label] of [['winner', 'only the server that takes precedence'], ['shadowed', 'only the shadowed server'], ['both', 'both servers']] as const) {
 		test(`keeps same-named server precedence when migrating ${label}`, async () => {
 			const roots = [URI.file('/root-one'), URI.file('/root-two')];
-			const fileService = store.add(new FileService(new NullLogService()));
-			store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(store, Schemas.file);
 			for (const root of roots) {
 				await fileService.writeFile(URI.joinPath(root, '.vscode', 'mcp.json'), VSBuffer.fromString('{"servers":{"server":{"command":"node"}}}'));
 			}
@@ -2141,9 +2350,7 @@ suite('CustomizationMigrationService', () => {
 		const remoteRoot = URI.parse('vscode-remote://dev-container+test/workspaces/project');
 		const sourceUri = URI.joinPath(remoteRoot, '.vscode', 'mcp.json');
 		const targetUri = URI.joinPath(remoteRoot, '.mcp.json');
-		const fileService = store.add(new FileService(new NullLogService()));
-		const remoteProvider = store.add(new InMemoryFileSystemProvider());
-		store.add(fileService.registerProvider(Schemas.vscodeRemote, remoteProvider));
+		const fileService = createInMemoryFileService(store, Schemas.vscodeRemote);
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node"}}}'));
 		const snapshot = createWorkspaceMcpSupportSnapshot(remoteRoot);
 		const harnessService = new TestCustomizationHarnessService();
@@ -2199,6 +2406,7 @@ suite('CustomizationMigrationService', () => {
 				activeClientService,
 				{} as IMcpService,
 				store.add(createMigrationConfiguration()),
+				new TestNotificationService(),
 			));
 			const migrationService = store.add(new CustomizationMigrationService(
 				store.add(new TestPromptsService([])),
