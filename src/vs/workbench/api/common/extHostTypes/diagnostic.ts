@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from '../../../../base/common/arrays.js';
+import type * as vscode from 'vscode';
 import { URI } from '../../../../base/common/uri.js';
 import { es5ClassCompat } from './es5ClassCompat.js';
 import { Location } from './location.js';
@@ -59,14 +60,14 @@ export class DiagnosticRelatedInformation {
 export class Diagnostic {
 
 	range: Range;
-	message: string;
+	message: string | vscode.MarkdownString;
 	severity: DiagnosticSeverity;
 	source?: string;
 	code?: string | number;
 	relatedInformation?: DiagnosticRelatedInformation[];
 	tags?: DiagnosticTag[];
 
-	constructor(range: Range, message: string, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
+	constructor(range: Range, message: string | vscode.MarkdownString, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
 		if (!Range.isRange(range)) {
 			throw new TypeError('range must be set');
 		}
@@ -78,7 +79,7 @@ export class Diagnostic {
 		this.severity = severity;
 	}
 
-	toJSON(): { severity: string; message: string; range: Range; source?: string; code?: string | number } {
+	toJSON(): { severity: string; message: string | vscode.MarkdownString; range: Range; source?: string; code?: string | number } {
 		return {
 			severity: DiagnosticSeverity[this.severity],
 			message: this.message,
