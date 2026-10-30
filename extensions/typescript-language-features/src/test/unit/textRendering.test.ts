@@ -70,6 +70,68 @@ suite('typescript.previewer', () => {
 			'*@param* `a` — x [abc xyz](http://www.example.com/foo) y [b a z](http://www.example.com/bar) z');
 	});
 
+	test('Should parse symbol jsdoc @link in template tag (#344964)', () => {
+		assert.strictEqual(
+			tagsToMarkdown([{
+				name: 'template',
+				text: [
+					{ text: 'T', kind: 'typeParameterName' },
+					{ text: 'Item type (see ', kind: 'text' },
+					{ text: '{@link ', kind: 'link' },
+					{
+						text: 'Foo.bar',
+						kind: 'linkName',
+						target: {
+							file: '/path/file.ts',
+							start: { line: 7, offset: 5 },
+							end: { line: 7, offset: 13 }
+						}
+					} as SymbolDisplayPart,
+					{ text: '}', kind: 'link' },
+					{ text: ').', kind: 'text' }
+				]
+			}], noopToResource),
+			'*@template* `T` — Item type (see [Foo.bar](command:_typescript.openJsDocLink?%5B%7B%22file%22%3A%7B%22path%22%3A%22%2Fpath%2Ffile.ts%22%2C%22scheme%22%3A%22file%22%7D%2C%22position%22%3A%7B%22line%22%3A6%2C%22character%22%3A4%7D%7D%5D "Open symbol link")).');
+	});
+
+	test('Should parse url jsdoc links in template tag', () => {
+		assert.strictEqual(
+			tagsToMarkdown([{
+				name: 'template',
+				text: [
+					{ text: 'T', kind: 'typeParameterName' },
+					{ text: ' - See ', kind: 'text' },
+					{ text: '{@link ', kind: 'link' },
+					{ text: 'https://www.example.com/foo item type', kind: 'linkText' },
+					{ text: '}', kind: 'link' },
+					{ text: ' and ', kind: 'text' },
+					{ text: '{@linkcode ', kind: 'link' },
+					{ text: 'https://www.example.com/bar', kind: 'linkText' },
+					{ text: '}', kind: 'link' },
+					{ text: '.', kind: 'text' }
+				]
+			}], noopToResource),
+			'*@template* `T` — See [item type](https://www.example.com/foo) and [`https://www.example.com/bar`](https://www.example.com/bar).');
+	});
+
+	test('Should preserve template parameter names and descriptions', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{ name: 'template', text: [{ text: 'T', kind: 'typeParameterName' }] },
+				{
+					name: 'template',
+					text: [
+						{ text: 'T', kind: 'typeParameterName' },
+						{ text: ',', kind: 'punctuation' },
+						{ text: ' ', kind: 'space' },
+						{ text: 'U', kind: 'typeParameterName' },
+						{ text: ' - Item types.', kind: 'text' }
+					]
+				}
+			], noopToResource),
+			'*@template* `T`  \n\n*@template* `T, U` — Item types.');
+	});
+
 	test('Should support non-ascii characters in parameter name (#90108)', () => {
 		assert.strictEqual(
 			tagsToMarkdown([
