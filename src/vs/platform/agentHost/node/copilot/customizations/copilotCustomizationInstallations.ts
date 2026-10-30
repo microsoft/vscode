@@ -614,6 +614,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 		const choices = [recommended, ...planned.plan.transportChoices];
 		const choice = choices.find(choice =>
 			choice?.installMethod === 'remote' && choice.secretPlaceholders.length === 0
+			&& (source.kind === 'candidate' || choice.requiredValues.length === 0)
 		) ?? (source.kind === 'card' ? choices.find(choice =>
 			choice?.installMethod === 'package' && choice.requiredValues.length === 0 && choice.secretPlaceholders.length === 0
 		) : undefined);

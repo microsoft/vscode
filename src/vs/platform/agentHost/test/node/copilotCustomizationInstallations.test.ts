@@ -1679,6 +1679,25 @@ suite('CopilotCustomizationInstallations', () => {
 		}
 	});
 
+	test('uses an input-free local package when the recommended remote card requires values', async () => {
+		const { service, request, plan, added } = createLocalMcpCardFixture();
+		plan.transportChoices.push({
+			choiceId: 'remote:0',
+			transport: 'streamable-http',
+			installMethod: 'remote',
+			endpoint: 'https://example.com/mcp',
+			requiredValues: [{ kind: 'scalar', key: 'region', category: 'header', valueType: 'string', required: true, isRepeated: false }],
+			secretPlaceholders: [],
+		});
+		plan.recommendedTransportChoiceId = 'remote:0';
+		const review = await service.prepare(request);
+		await service.apply(review.operationId);
+		assert.deepStrictEqual(added, [{
+			name: 'microsoft/markitdown',
+			config: { type: 'stdio', command: 'uvx', args: ['markitdown-mcp@0.0.1a4', '--verbose'], env: { MODE: 'stdio' }, tools: ['*'] },
+		}]);
+	});
+
 	test('refuses blocked local plans and package inputs before fetching a card', async () => {
 		for (const scenario of ['policy', 'secret', 'input'] as const) {
 			const { service, request, plan, added, requests } = createLocalMcpCardFixture();
