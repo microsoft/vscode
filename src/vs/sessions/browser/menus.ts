@@ -59,6 +59,10 @@ export const Menus = {
 	CustomViewAutomations: new MenuId('SessionsCustomViewAutomations'),
 	/** Header actions of the pinned canvas page. */
 	CustomViewCanvas: new MenuId('SessionsCustomViewCanvas'),
+	/** Context menu of a pinned canvas row in the sidebar. */
+	SidebarCanvasContext: new MenuId('SessionsSidebarCanvasContext'),
+	/** Hover toolbar of a pinned canvas row in the sidebar. */
+	SidebarCanvasToolbar: new MenuId('SessionsSidebarCanvasToolbar'),
 	/** Context menu for the Automations sidebar shortcut. */
 	AutomationsContext: new MenuId('SessionsAutomationsContext'),
 	/** Context menu actions for an Automation definition card. */

@@ -20,6 +20,7 @@ import { registerSessionCanvasActions } from './sessionCanvasActions.js';
 import { SessionCanvasContextService, SessionCanvasRegistryService } from './sessionCanvasService.js';
 import { SessionCanvasSerializer } from './sessionCanvasSerializer.js';
 import { PinnedCanvasPageContribution } from './pinnedCanvasPage.js';
+import './pinnedCanvasActions.js';
 
 registerSingleton(ICanvasContextService, SessionCanvasContextService, InstantiationType.Delayed);
 registerSingleton(ISessionCanvasRegistryService, SessionCanvasRegistryService, InstantiationType.Delayed);
