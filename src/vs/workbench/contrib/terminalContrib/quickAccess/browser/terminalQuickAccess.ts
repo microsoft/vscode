@@ -148,9 +148,9 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 		const label = `$(${iconId}) ${terminal.title}`;
 		const coordinates = position
 			? (position.paneCount > 1
-				? localize('terminalPaneCoordinates', "id:{0}, tab:{1}, pane:{2}", terminal.instanceId, position.tabIndex + 1, position.paneIndex + 1)
-				: localize('terminalTabCoordinates', "id:{0}, tab:{1}", terminal.instanceId, position.tabIndex + 1))
-			: localize('terminalEditorCoordinates', "id:{0}, editor", terminal.instanceId);
+				? localize({ key: 'terminalPaneCoordinates', comment: ['Short display labels, not JSON argument names. {0} is the terminal instance ID, {1} is the 1-based tab position, and {2} is the 1-based pane position within that tab. A pane is one terminal within a tab.'] }, "id:{0}, tab:{1}, pane:{2}", terminal.instanceId, position.tabIndex + 1, position.paneIndex + 1)
+				: localize({ key: 'terminalTabCoordinates', comment: ['Short display labels, not JSON argument names. {0} is the terminal instance ID and {1} is the 1-based tab position. This tab contains a single terminal.'] }, "id:{0}, tab:{1}", terminal.instanceId, position.tabIndex + 1))
+			: localize({ key: 'terminalEditorCoordinates', comment: ['{0} is the terminal instance ID. The terminal is open in the editor area rather than the terminal panel. These are short display labels, not JSON argument names.'] }, "id:{0}, editor", terminal.instanceId);
 		const description = terminal.description ? `${terminal.description} (${coordinates})` : `(${coordinates})`;
 		const iconClasses: string[] = [];
 		const colorClass = getColorClass(terminal);

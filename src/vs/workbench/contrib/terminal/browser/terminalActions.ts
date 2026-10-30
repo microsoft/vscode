@@ -74,22 +74,22 @@ const category = terminalStrings.actionCategory;
 
 const TERMINAL_TARGET_PROPERTIES: IJSONSchemaMap = {
 	terminalId: {
-		description: localize('workbench.action.terminal.target.terminalId', "The terminal instance ID. Use only one of terminalId, resource, or tab. Omit all selectors to use the active terminal."),
+		description: localize({ key: 'workbench.action.terminal.target.terminalId', comment: ['Do not translate the JSON argument names terminalId, resource, or tab.'] }, "The terminal instance ID. Use only one of terminalId, resource, or tab. Omit all selectors to use the active terminal."),
 		type: 'integer',
 		minimum: 1
 	},
 	resource: {
-		description: localize('workbench.action.terminal.target.resource', "The vscode-terminal URI of an existing terminal. Use only one of terminalId, resource, or tab."),
+		description: localize({ key: 'workbench.action.terminal.target.resource', comment: ['Do not translate the URI scheme vscode-terminal or the JSON argument names terminalId, resource, or tab.'] }, "The vscode-terminal URI of an existing terminal. Use only one of terminalId, resource, or tab."),
 		type: 'string',
 		minLength: 1
 	},
 	tab: {
-		description: localize('workbench.action.terminal.target.tab', "The 1-based position of a terminal tab in the terminal panel. Use only one of terminalId, resource, or tab."),
+		description: localize({ key: 'workbench.action.terminal.target.tab', comment: ['Do not translate the JSON argument names terminalId, resource, or tab. The tab position starts at 1.'] }, "The 1-based position of a terminal tab in the terminal panel. Use only one of terminalId, resource, or tab."),
 		type: 'integer',
 		minimum: 1
 	},
 	pane: {
-		description: localize('workbench.action.terminal.target.pane', "The 1-based position of a pane in the selected tab, or the active terminal tab when tab is omitted. When pane is omitted, the selected tab's active terminal is used."),
+		description: localize({ key: 'workbench.action.terminal.target.pane', comment: ['A pane is one terminal within a tab. Do not translate tab or pane when they refer to JSON argument names. The pane position starts at 1.'] }, "The 1-based position of a pane in the selected tab, or the active terminal tab when tab is omitted. When pane is omitted, the selected tab's active terminal is used."),
 		type: 'integer',
 		minimum: 1
 	}
@@ -1753,7 +1753,7 @@ function getTargetTerminal(c: ITerminalServicesCollection, options: Record<strin
 	const selectorCount = [terminalId, resource, tab].filter(value => value !== undefined).length;
 	const invalidIndex = [terminalId, tab, pane].some(value => value !== undefined && (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1));
 	if (selectorCount > 1 || invalidIndex || (resource !== undefined && !isString(resource)) || (pane !== undefined && (terminalId !== undefined || resource !== undefined))) {
-		notificationService.warn(localize('workbench.action.terminal.target.invalidSelector', "Invalid terminal selector. Use one of terminalId, resource, or tab. Pane can be used with tab or on its own for the active terminal tab. Terminal IDs, tabs, and panes must be positive integers."));
+		notificationService.warn(localize({ key: 'workbench.action.terminal.target.invalidSelector', comment: ['Do not translate the JSON argument names terminalId, resource, tab, or pane. A pane is one terminal within a tab.'] }, "Invalid terminal selector. Use one of terminalId, resource, or tab. Pane can be used with tab or on its own for the active terminal tab. Terminal IDs, tabs, and panes must be positive integers."));
 		return;
 	}
 
