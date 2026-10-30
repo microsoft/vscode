@@ -12,7 +12,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -2283,6 +2283,138 @@ suite('AICustomizationDiscoveryPage', () => {
 			uninstalls: ['installed-mcp'],
 			openedDetails: [],
 			actionAfter: 'Install',
+		});
+	});
+
+	function createRequiredPlugin(policyEnablement: IObservable<boolean | undefined>, removals: string[]): IAgentPlugin {
+		return new class extends mock<IAgentPlugin>() {
+			override readonly uri = URI.file('/plugins/handy-commands');
+			override readonly label = 'handy-commands';
+			override readonly policyEnablement = policyEnablement;
+			override async remove(): Promise<boolean> {
+				removals.push(this.label);
+				return true;
+			}
+		}();
+	}
+
+	test('organization-required plugin browse cards keep a disabled Uninstall that explains why', async () => {
+		const candidate = resource('handy-commands', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin });
+		const removals: string[] = [];
+		const policyEnablement = observableValue<boolean | undefined>('policyEnablement', undefined);
+		const plugin = createRequiredPlugin(policyEnablement, removals);
+		const fixture = createPage(['agentFinder'], [AICustomizationManagementSection.Plugins], [plugin]);
+		fixture.setInstallState(candidate, { kind: 'installed', target: { kind: 'plugin', uri: plugin.uri } });
+		fixture.notifyInstallChange();
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [candidate] });
+		await timeout(0);
+		const getAction = () => {
+			const action = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-card-actions .monaco-button');
+			return { label: action?.textContent, disabled: action?.getAttribute('aria-disabled'), ariaLabel: action?.getAttribute('aria-label') };
+		};
+		const unmanaged = getAction();
+		policyEnablement.set(true, undefined);
+		const required = getAction();
+		fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-card-actions .monaco-button')?.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({ unmanaged, required, afterClick: getAction(), uninstalls: fixture.uninstalls, removals }, {
+			unmanaged: { label: 'Uninstall', disabled: 'false', ariaLabel: 'Uninstall handy-commands' },
+			required: { label: 'Uninstall', disabled: 'true', ariaLabel: 'Uninstall handy-commands. This plugin is managed by your organization.' },
+			afterClick: { label: 'Uninstall', disabled: 'true', ariaLabel: 'Uninstall handy-commands. This plugin is managed by your organization.' },
+			uninstalls: [],
+			removals: [],
+		});
+	});
+
+	test('customizations contributed by an organization-required plugin keep a disabled Uninstall', async () => {
+		const removals: string[] = [];
+		const plugin = createRequiredPlugin(constObservable(true), removals);
+		const fixture = createPage(['agentFinder'], [AICustomizationManagementSection.Skills], [plugin]);
+		fixture.setInstalledSkills([
+			{ id: 'plugin-skill', uri: URI.joinPath(plugin.uri, 'skills', 'triage', 'SKILL.md'), name: 'handy-commands:triage', filename: 'SKILL.md', description: 'Contributed', source: 'plugin', pluginUri: plugin.uri, promptType: PromptsType.skill, disabled: false },
+			{ id: 'nested-skill', uri: URI.joinPath(plugin.uri, 'skills', 'review', 'SKILL.md'), name: 'handy-commands:review', filename: 'SKILL.md', description: 'Contributed without a recorded plugin', source: 'plugin', promptType: PromptsType.skill, disabled: false },
+			{ id: 'local-skill', uri: URI.file('/workspace/.github/skills/handy/SKILL.md'), name: 'handy-local', filename: 'SKILL.md', description: 'Local', source: 'local', promptType: PromptsType.skill, disabled: false },
+		]);
+		fixture.page.setSearchQuery('@installed handy');
+		fixture.page.setVisible(true);
+		await timeout(0);
+		const buttons = [...fixture.container.querySelectorAll<HTMLButtonElement>('.customization-discovery-results .monaco-list-row .monaco-button')];
+		const rows = buttons.map(button => ({ disabled: button.getAttribute('aria-disabled'), ariaLabel: button.getAttribute('aria-label') }));
+		for (const button of buttons) {
+			button.click();
+		}
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			rows,
+			deletedUris: fixture.commands.filter(command => command.id === DELETE_AI_CUSTOMIZATION_ID).map(command => (command.args[0] as { uri: URI }).uri.path),
+			removals,
+		}, {
+			rows: [
+				{ disabled: 'true', ariaLabel: 'Uninstall handy-commands:review. This plugin is managed by your organization.' },
+				{ disabled: 'true', ariaLabel: 'Uninstall handy-commands:triage. This plugin is managed by your organization.' },
+				{ disabled: 'false', ariaLabel: 'Uninstall handy-local' },
+			],
+			deletedUris: ['/workspace/.github/skills/handy/SKILL.md'],
+			removals: [],
+		});
+		for (const deletion of fixture.deletions) {
+			await deletion.complete();
+		}
+	});
+
+	test('search rows follow organization plugin requirements as they change', async () => {
+		const removals: string[] = [];
+		const policyEnablement = observableValue<boolean | undefined>('policyEnablement', undefined);
+		const plugin = createRequiredPlugin(policyEnablement, removals);
+		const fixture = createPage(['agentFinder'], [AICustomizationManagementSection.Plugins], [plugin]);
+		fixture.page.setSearchQuery('@installed handy');
+		fixture.page.setVisible(true);
+		await timeout(0);
+		const getAction = () => {
+			const action = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-results .monaco-list-row .monaco-button');
+			return { disabled: action?.getAttribute('aria-disabled'), ariaLabel: action?.getAttribute('aria-label') };
+		};
+		const unmanaged = getAction();
+		policyEnablement.set(true, undefined);
+		const required = getAction();
+		policyEnablement.set(undefined, undefined);
+
+		assert.deepStrictEqual({ unmanaged, required, released: getAction(), removals }, {
+			unmanaged: { disabled: 'false', ariaLabel: 'Uninstall handy-commands' },
+			required: { disabled: 'true', ariaLabel: 'Uninstall handy-commands. This plugin is managed by your organization.' },
+			released: { disabled: 'false', ariaLabel: 'Uninstall handy-commands' },
+			removals: [],
+		});
+	});
+
+	test('organization-required plugin search rows never offer Retry Uninstall', async () => {
+		const removals: string[] = [];
+		const plugin = createRequiredPlugin(constObservable(true), removals);
+		const fixture = createPage(['agentFinder'], [AICustomizationManagementSection.Plugins], [plugin]);
+		fixture.page.setSearchQuery('@installed handy');
+		fixture.page.setVisible(true);
+		await timeout(0);
+		const action = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-results .monaco-list-row .monaco-button');
+		action?.click();
+		await timeout(0);
+		const row = fixture.container.querySelector<HTMLElement>('.customization-discovery-results .monaco-list-row');
+		const after = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-results .monaco-list-row .monaco-button');
+
+		assert.deepStrictEqual({
+			label: after?.textContent,
+			disabled: after?.getAttribute('aria-disabled'),
+			ariaLabel: after?.getAttribute('aria-label'),
+			rowMentionsOrganization: row?.getAttribute('aria-label')?.endsWith('This plugin is managed by your organization.'),
+			removals,
+		}, {
+			label: 'Uninstall',
+			disabled: 'true',
+			ariaLabel: 'Uninstall handy-commands. This plugin is managed by your organization.',
+			rowMentionsOrganization: true,
+			removals: [],
 		});
 	});
 
