@@ -603,7 +603,7 @@
             "localization": {
                 "description": {
                     "key": "chat.customizations.strictPluginOnlyCustomization.policy",
-                    "value": "Blocks standalone user and workspace skills, agents, hooks, instructions, and MCP servers while keeping eligible plugin customizations available."
+                    "value": "Blocks standalone user and workspace skills, agents, hooks, instructions, and MCP servers, plus executable Copilot extensions from user, workspace, and session directories. Eligible plugin customizations remain available."
                 }
             },
             "type": "boolean",
