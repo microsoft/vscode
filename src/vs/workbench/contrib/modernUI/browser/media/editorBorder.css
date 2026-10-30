@@ -32,7 +32,13 @@
 	background-color: var(--vscode-editor-background);
 }
 
-.monaco-workbench.modern-ui.floating-panels.modern-ui-compact > .monaco-grid-view .part.editor:not(.modal-editor-part) {
+/* Notebook fixed overlays escape the editor card's clipping, so round their overflow-clipping content. */
+.modern-ui .notebookOverlay {
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+.monaco-workbench.modern-ui.floating-panels.modern-ui-compact > .monaco-grid-view .part.editor:not(.modal-editor-part),
+.monaco-workbench.modern-ui.floating-panels.modern-ui-compact .notebookOverlay:not(.notebook-overlay-modal) {
 	border-radius: 0;
 }
 

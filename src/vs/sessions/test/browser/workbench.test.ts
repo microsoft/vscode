@@ -226,6 +226,8 @@ suite('Sessions - Workbench', () => {
 
 	interface IPanelAlignmentTestHarness {
 		agentWorkbenchLayout: AgentWorkbenchLayout;
+		/** Whether the side pane shows, which the alignment keeps answering while it moves the grid's views. */
+		isEditorPaneVisible?(): boolean;
 		_panelAlignment: PanelAlignment;
 		_panelMaximizedEditorState?: { width: number | undefined };
 		_maximumEditorDimensionsOverride?: IViewSize;
@@ -3477,6 +3479,7 @@ suite('Sessions - Workbench', () => {
 			[customViewGridPartView, 'customViewGrid'],
 		]);
 		const host: IPanelAlignmentTestHarness = {
+			isEditorPaneVisible: () => true,
 			agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
 			_panelAlignment: 'justify',
 			panelPartView,
@@ -3574,6 +3577,96 @@ suite('Sessions - Workbench', () => {
 			maximizedExitSuspensionStates: [true],
 			layoutCount: 2,
 		});
+	});
+
+	test('answers whether the side pane shows while the panel aligns, as the grid moves the editor beside the Sessions Part', () => {
+		const store = new DisposableStore();
+		try {
+			const host = createHost({ single: true, partVisibility: { sidebar: true, editor: true, auxiliaryBar: false, panel: true } }) as IGridDescriptorTestHarness & { _panelAlignment: PanelAlignment };
+			host._panelAlignment = 'justify';
+			host._savedPartSizes = { editor: 500 };
+			host.layoutPolicy = {
+				getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 340, panelSize: 300 }),
+				viewportClass: { get: () => 'desktop' },
+			};
+			host.titleBarPartView = { minimumHeight: 30 };
+			const views = new Map<Parts, TestPartView>();
+			const grid = store.add(SerializableGrid.deserialize<ISerializableView>(createDesktopGridDescriptor.call(host, 1200, 800), {
+				fromJSON: ({ type }: { type: Parts }) => {
+					const view = store.add(new TestPartView(type));
+					views.set(type, view);
+					return view;
+				},
+			}, { proportionalLayout: false }));
+			grid.layout(1200, 800);
+			const view = (part: Parts) => views.get(part)!;
+			let moving = false;
+			const alignmentHost = {
+				agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
+				_panelAlignment: 'justify' as PanelAlignment,
+				partVisibility: { editor: true, auxiliaryBar: false, sidebar: true, sessions: true, panel: true, customViewGrid: false },
+				panelPartView: view(Parts.PANEL_PART),
+				sessionsPartView: view(Parts.SESSIONS_PART),
+				editorPartView: view(Parts.EDITOR_PART),
+				customViewGridPartView: view(Parts.CUSTOM_VIEW_GRID_PART),
+				workbenchGrid: {
+					element: undefined,
+					isViewVisible: (candidate: ISerializableView) => grid.isViewVisible(candidate),
+					isViewMaximized: (candidate: ISerializableView) => grid.isViewMaximized(candidate),
+					hasMaximizedView: () => grid.hasMaximizedView(),
+					getViewSize: (candidate: ISerializableView) => grid.getViewSize(candidate),
+					getViewCachedVisibleSize: (candidate: ISerializableView) => grid.getViewCachedVisibleSize(candidate),
+					setViewVisible: (candidate: ISerializableView, visible: boolean) => grid.setViewVisible(candidate, visible),
+					moveView: (candidate: ISerializableView, size: number | Sizing, reference: ISerializableView, direction: Direction) => {
+						moving = true;
+						try {
+							grid.moveView(candidate, size, reference, direction);
+						} finally {
+							moving = false;
+						}
+					},
+					resizeView: (candidate: ISerializableView, size: IViewSize) => grid.resizeView(candidate, size),
+					exitMaximizedView: () => grid.exitMaximizedView(),
+				},
+				mainContainer: { classList: { toggle: () => { } } },
+				getMaximumEditorDimensions: () => ({ width: 1200, height: 500 }),
+				storageService: { store: () => { } },
+				_onDidChangePanelAlignment: { fire: () => { } },
+				_runWithEditorResizeSyncSuspended: (fn: () => void) => fn(),
+				_layoutGrid: () => grid.layout(1200, 800),
+				hasFocus: () => false,
+				focusPart: () => { },
+			};
+			Object.setPrototypeOf(alignmentHost, DesktopWorkbench.prototype);
+			// As the Sessions Part does as the grid lays it out, also halfway through a move: it reads whether the side pane shows.
+			let aligning: PanelAlignment | undefined;
+			const answers: string[] = [];
+			store.add(view(Parts.SESSIONS_PART).onDidLayout(() => {
+				if (moving) {
+					try {
+						answers.push(`${aligning}: ${isDesktopEditorPaneVisible.call(alignmentHost as never)}`);
+					} catch (error) {
+						answers.push(`${aligning}: ${error instanceof Error ? error.message : error}`);
+					}
+				}
+			}));
+
+			const alignments: PanelAlignment[] = [];
+			for (const alignment of ['center', 'justify', 'center', 'justify'] as PanelAlignment[]) {
+				aligning = alignment;
+				setPanelAlignment.call(alignmentHost as never, alignment);
+				alignments.push(alignmentHost._panelAlignment);
+			}
+
+			assert.deepStrictEqual({ alignments, answers: [...new Set(answers)], editorVisible: grid.isViewVisible(view(Parts.EDITOR_PART)) }, {
+				alignments: ['center', 'justify', 'center', 'justify'],
+				// What showed as the move started, never an error.
+				answers: ['center: true', 'justify: true'],
+				editorVisible: true,
+			});
+		} finally {
+			store.dispose();
+		}
 	});
 
 	test('keeps editor resize sync suspended while restoring detail-only panel maximization', () => {
@@ -3715,6 +3808,7 @@ suite('Sessions - Workbench', () => {
 				return view;
 			};
 			const alignmentHost: IPanelAlignmentTestHarness = {
+				isEditorPaneVisible: () => true,
 				agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
 				_panelAlignment: 'center',
 				panelPartView: views.get(Parts.PANEL_PART)!,
@@ -3764,6 +3858,7 @@ suite('Sessions - Workbench', () => {
 		const focusedParts: Parts[] = [];
 		let reparented = false;
 		const host: IPanelAlignmentTestHarness = {
+			isEditorPaneVisible: () => true,
 			agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
 			_panelAlignment: 'justify',
 			panelPartView,
@@ -3938,6 +4033,7 @@ suite('Sessions - Workbench', () => {
 				return view;
 			};
 			const alignmentHost: IPanelAlignmentTestHarness = {
+				isEditorPaneVisible: () => true,
 				agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
 				_panelAlignment: 'justify',
 				panelPartView: views.get(Parts.PANEL_PART)!,

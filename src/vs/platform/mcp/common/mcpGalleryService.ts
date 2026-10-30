@@ -714,7 +714,7 @@ namespace McpServerSchemaVersion_v0_1 {
 				return undefined;
 			}
 
-			const { 'io.modelcontextprotocol.registry/official': registryInfo, ...apicInfo } = from._meta;
+			const { 'io.modelcontextprotocol.registry/official': registryInfo, ...apicInfo } = from._meta ?? {};
 			const githubInfo = from.server._meta?.['io.modelcontextprotocol.registry/publisher-provided']?.github as IGitHubInfo | undefined;
 			const packages = filterMcpPackages(
 				from.server.packages,
@@ -799,6 +799,17 @@ namespace McpServerSchemaVersion_v0 {
 }
 
 const DefaultPageSize = 50;
+
+/** Reads the configuration and identity using the same schema adapters as Gallery discovery. */
+export function parseMcpGalleryServerConfiguration(data: unknown): Pick<IGalleryMcpServer, 'name' | 'version' | 'configuration'> | undefined {
+	const server = McpServerSchemaVersion_v0.SERIALIZER.toRawGalleryMcpServer(data);
+	return server ? {
+		name: server.name,
+		version: server.version,
+		configuration: { packages: server.packages, remotes: server.remotes },
+	} : undefined;
+}
+
 const maxMcpGalleryErrorResponseBytes = 1024;
 
 /**
@@ -1250,20 +1261,33 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			throw new McpGalleryServerUrlError();
 		}
 
-		const context = await this.requestService.request({
+		const options = {
 			type: 'GET',
 			url: validatedMcpServerUrl,
 			followRedirects: 0,
 			...(mcpGalleryManifest ? { timeout: mcpServerRequestTimeout } : {}),
 			callSite: 'mcpGalleryService.getMcpServer'
-		}, token);
+		};
+		let context = await this.requestService.request(options, token);
 
 		try {
-			// A definitive 404 means the registry authoritatively does not contain this
-			// server. Any other error status (e.g. 401/403/429/5xx) is transient or
-			// undetermined and must throw so callers do not treat it as a "not found".
+			// Only a 404 from the requested endpoint proves absence; the slash-terminated URL below is a guess.
 			if (context.res.statusCode === 404) {
 				return undefined;
+			}
+
+			// Browser fetch hides manual redirects behind status 0; probe only the same URL with a trailing slash.
+			if (context.res.statusCode !== undefined && [0, 301, 302, 303, 307, 308].includes(context.res.statusCode)) {
+				const url = new URL(validatedMcpServerUrl);
+				if (!url.pathname.endsWith('/')) {
+					url.pathname += '/';
+					const canonicalUrl = getMcpServerUrlInGallery(url.href, manifest);
+					if (!canonicalUrl) {
+						throw new McpGalleryServerUrlError();
+					}
+					context.stream.destroy();
+					context = await this.requestService.request({ ...options, url: canonicalUrl }, token);
+				}
 			}
 
 			if (!isSuccess(context)) {

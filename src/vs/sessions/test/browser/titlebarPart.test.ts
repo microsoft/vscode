@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { getZoomFactor, setZoomFactor } from '../../../base/browser/browser.js';
-import { $, append } from '../../../base/browser/dom.js';
+import { getZoomFactor, setFullscreen, setZoomFactor } from '../../../base/browser/browser.js';
+import { $, append, registerWindow } from '../../../base/browser/dom.js';
+import { ButtonBar } from '../../../base/browser/ui/button/button.js';
 import { Direction, Grid, IView, Sizing } from '../../../base/browser/ui/grid/grid.js';
-import { mainWindow } from '../../../base/browser/window.js';
+import { ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { Event } from '../../../base/common/event.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
+import { isMacintosh, isNative } from '../../../base/common/platform.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
@@ -154,6 +156,7 @@ suite('Sessions - Titlebar Part', () => {
 				const commandCenter = append(windowTitle, $('.command-center'));
 				const centerActions = append(center, $('.titlebar-actions-container.titlebar-center-actions-container'));
 				const right = append(content, $('.titlebar-right'));
+				const screenReaderToolbar = append(right, $('.titlebar-actions-container.titlebar-screen-reader-container'));
 				const rightToolbar = append(right, $('.titlebar-actions-container.titlebar-right-layout-container'));
 				const actions = [leftToolbar, navigation, commandCenter, centerActions, rightToolbar].map(container => {
 					const toolbar = append(container, $('.monaco-toolbar'));
@@ -165,6 +168,10 @@ suite('Sessions - Titlebar Part', () => {
 					const item = append(actionContainer, $('li.action-item'));
 					return append(item, $('a.action-label.codicon'));
 				});
+				const screenReaderButtonBar = store.add(new ButtonBar(screenReaderToolbar));
+				const screenReaderButton = screenReaderButtonBar.addButton({});
+				screenReaderButton.label = 'Screen Reader Optimized';
+				actions.push(screenReaderButton.element);
 
 				const states = [false, true].flatMap(modernUI => {
 					root.classList.toggle('modern-ui', modernUI);
@@ -292,9 +299,9 @@ suite('Sessions - Titlebar Part', () => {
 		}
 	}
 
-	for (const { name, classes, controlsOnLeft, gap } of [
+	for (const { name, classes, titlebarClasses = [], controlsOnLeft, gap } of [
 		{ name: 'native macOS', classes: ['mac'], controlsOnLeft: true, gap: 16 },
-		{ name: 'macOS fullscreen', classes: ['mac', 'fullscreen'], controlsOnLeft: true, gap: 8 },
+		{ name: 'macOS fullscreen', classes: ['mac'], titlebarClasses: ['titlebar-fullscreen'], controlsOnLeft: true, gap: 8 },
 		{ name: 'macOS browser', classes: ['mac', 'web'], controlsOnLeft: true, gap: 8 },
 		{ name: 'macOS without left controls', classes: ['mac'], controlsOnLeft: false, gap: 8 },
 		{ name: 'Windows', classes: ['windows'], controlsOnLeft: false, gap: 8 },
@@ -306,6 +313,7 @@ suite('Sessions - Titlebar Part', () => {
 			root.classList.add(...classes);
 			root.style.cssText = 'width: 800px; --vscode-spacing-size160: 16px;';
 			const titlebar = append(root, $('.part.titlebar'));
+			titlebar.classList.add(...titlebarClasses);
 			const content = append(titlebar, $('.titlebar-container.sessions-titlebar-container.has-center'));
 			const left = append(content, $('.titlebar-left'));
 			const controls = controlsOnLeft ? append(left, $('.window-controls-container')) : undefined;
@@ -336,6 +344,83 @@ suite('Sessions - Titlebar Part', () => {
 			assert.deepStrictEqual(states, [expected, expected, expected]);
 		});
 	}
+
+	test('tracks fullscreen of its own window on the title bar element', () => {
+		const { part } = createTitlebar();
+		const parent = $('div');
+		(part as unknown as { createContentArea(parent: HTMLElement): HTMLElement }).createContentArea(parent);
+		const initial = parent.classList.contains('titlebar-fullscreen');
+		setFullscreen(true, mainWindow);
+		store.add(toDisposable(() => setFullscreen(false, mainWindow)));
+		const fullscreen = parent.classList.contains('titlebar-fullscreen');
+		setFullscreen(false, mainWindow);
+
+		assert.deepStrictEqual({ initial, fullscreen, restored: parent.classList.contains('titlebar-fullscreen') }, { initial: false, fullscreen: true, restored: false });
+	});
+
+	function createAuxiliaryTitlebar() {
+		const iframe = mainWindow.document.body.appendChild(mainWindow.document.createElement('iframe'));
+		store.add(toDisposable(() => iframe.remove()));
+		const auxiliaryWindow = iframe.contentWindow!;
+		ensureCodeWindow(auxiliaryWindow, mainWindow.vscodeWindowId + 1000);
+		store.add(registerWindow(auxiliaryWindow));
+		const screen = { width: 1440, height: 900 };
+		const size = { width: 800, height: 640 };
+		Object.defineProperty(auxiliaryWindow, 'screen', { configurable: true, get: () => screen });
+		Object.defineProperty(auxiliaryWindow, 'outerWidth', { configurable: true, get: () => size.width });
+		Object.defineProperty(auxiliaryWindow, 'outerHeight', { configurable: true, get: () => size.height });
+		const { part } = createTitlebar();
+		const parent = auxiliaryWindow.document.body.appendChild(auxiliaryWindow.document.createElement('div'));
+		(part as unknown as { createContentArea(parent: HTMLElement): HTMLElement }).createContentArea(parent);
+		store.add(toDisposable(() => {
+			setFullscreen(false, mainWindow);
+			setFullscreen(false, auxiliaryWindow);
+		}));
+		const coverScreen = () => {
+			size.width = screen.width;
+			size.height = screen.height;
+		};
+		// Only native macOS reserves a spacer for the traffic lights.
+		const hasTrafficLightSpacer = isMacintosh && isNative;
+		const read = () => ({
+			fullscreenClass: parent.classList.contains('titlebar-fullscreen'),
+			spacer: hasTrafficLightSpacer ? parent.querySelector<HTMLElement>('.titlebar-left > .window-controls-container')!.style.display : 'absent',
+		});
+		return { auxiliaryWindow, coverScreen, read, hasTrafficLightSpacer };
+	}
+
+	test('tracks fullscreen of an auxiliary window independently of the main window', () => {
+		const { auxiliaryWindow, coverScreen, read } = createAuxiliaryTitlebar();
+		coverScreen();
+
+		setFullscreen(true, mainWindow);
+		const mainFullscreen = read().fullscreenClass;
+		setFullscreen(false, mainWindow);
+		setFullscreen(true, auxiliaryWindow);
+		const auxiliaryFullscreen = read().fullscreenClass;
+		setFullscreen(true, mainWindow);
+		setFullscreen(false, auxiliaryWindow);
+		const auxiliaryRestoredWhileMainFullscreen = read().fullscreenClass;
+
+		assert.deepStrictEqual({ mainFullscreen, auxiliaryFullscreen, auxiliaryRestoredWhileMainFullscreen }, { mainFullscreen: false, auxiliaryFullscreen: true, auxiliaryRestoredWhileMainFullscreen: false });
+	});
+
+	test('keeps the traffic-light inset for an auxiliary window flagged fullscreen that does not cover its screen', () => {
+		const { auxiliaryWindow, coverScreen, read, hasTrafficLightSpacer } = createAuxiliaryTitlebar();
+		const reserved = read();
+
+		setFullscreen(true, auxiliaryWindow);
+		const flaggedButWindowed = read();
+		coverScreen();
+		auxiliaryWindow.dispatchEvent(new UIEvent('resize'));
+		const fullscreen = read();
+
+		assert.deepStrictEqual({ reserved, flaggedButWindowed, fullscreen }, {
+			reserved: { fullscreenClass: false, spacer: hasTrafficLightSpacer ? '' : 'absent' },
+			flaggedButWindowed: { fullscreenClass: false, spacer: hasTrafficLightSpacer ? '' : 'absent' },
+			fullscreen: { fullscreenClass: true, spacer: hasTrafficLightSpacer ? 'none' : 'absent' },
+		});
+	});
 
 	test('hides optional toolbar groups when a titlebar section overflows', () => {
 		let centerClientWidth = 100;

@@ -43,7 +43,6 @@ import { IActiveSession, ISessionsManagementService } from '../../../services/se
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionGroupsService } from '../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { $, append, EventHelper, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -767,14 +766,10 @@ registerAction2(class PromoteChatToSessionAction extends Action2 {
 			return false;
 		}
 		const move: SessionsListMove = { kind: 'chat', session: context.session, chat: context.chat, destination: { kind: 'newSession' } };
-		const viewsService = accessor.get(IViewsService);
 		const sessionsList = getSessionsList(accessor);
-		// Like a drop on the list, report the move in the list's notice when the list shows, and reveal and select the
-		// new session in the list once it shows it.
+		// Like a drop on the list, reveal and select the new session in the list once it shows it.
 		return runSessionsListMove(move, sessionsManagementService, accessor.get(INotificationService), accessor.get(ILogService), {
-			notice: viewsService.isViewVisible(SessionsViewId) ? viewsService.getViewWithId<SessionsView>(SessionsViewId)?.listNotification : undefined,
 			watch: sessionsList && (watched => sessionsList.watchMoveForReveal(watched)),
-			placementServices: { sessionsListModelService: accessor.get(ISessionsListModelService), sessionGroupsService: accessor.get(ISessionGroupsService) },
 		});
 	}
 });
@@ -811,13 +806,9 @@ function getMoveRunner(accessor: ServicesAccessor): (move: SessionsListMove) => 
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
 	const notificationService = accessor.get(INotificationService);
 	const logService = accessor.get(ILogService);
-	const viewsService = accessor.get(IViewsService);
 	const sessionsList = getSessionsList(accessor);
-	const placementServices = { sessionsListModelService: accessor.get(ISessionsListModelService), sessionGroupsService: accessor.get(ISessionGroupsService) };
 	return move => runSessionsListMove(move, sessionsManagementService, notificationService, logService, {
-		notice: viewsService.isViewVisible(SessionsViewId) ? viewsService.getViewWithId<SessionsView>(SessionsViewId)?.listNotification : undefined,
 		watch: sessionsList && (watched => sessionsList.watchMoveForReveal(watched)),
-		placementServices,
 	});
 }
 

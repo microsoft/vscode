@@ -25,6 +25,7 @@ import { IFileDialogService } from '../../../../../../../platform/dialogs/common
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
@@ -58,8 +59,7 @@ suite('ChatResourceGroupWidget', () => {
 	});
 
 	test('saving separate generated images uses hashed names without changing their resource URIs', async () => {
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.inMemory);
 		instantiationService.stub(IFileService, fileService);
 		const destination = URI.from({ scheme: Schemas.inMemory, path: '/saved' });
 		await fileService.createFolder(destination);

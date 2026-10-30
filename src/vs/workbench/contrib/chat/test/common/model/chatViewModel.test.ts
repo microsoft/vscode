@@ -98,9 +98,42 @@ suite('ChatViewModel', () => {
 			instantiationService.stub(IChatAgentNameService, upcastPartial<IChatAgentNameService>({}));
 		});
 
-		function add(model: ChatModel, id: string, hidden = false) {
-			return model.addRequest({ text: id, parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, id, undefined, undefined, undefined, undefined, undefined, hidden);
+		function add(model: ChatModel, id: string, hidden = false, requestHidden = false) {
+			return model.addRequest({ text: id, parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, id, undefined, undefined, undefined, undefined, undefined, hidden, undefined, requestHidden);
 		}
+
+		test('latest request preview excludes older exchanges, hidden turns and queued requests', () => {
+			const model = store.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const viewModel = store.add(instantiationService.createInstance(ChatViewModel, model, { latestRequestOnly: true }));
+			const snapshot = () => viewModel.getItems().map(item => isRequestVM(item) ? `request:${item.id}` : isResponseVM(item) ? `response:${item.requestId}` : item.id);
+			const empty = snapshot();
+			add(model, 'older');
+			add(model, 'latest');
+			add(model, 'hidden', true);
+			const queued = new ChatRequestModel({ session: model, message: { text: 'queued', parts: [] }, variableData: { variables: [] }, restoredId: 'queued' });
+			model.addPendingRequest(queued, ChatRequestQueueKind.Queued, {});
+			model.setPendingRequestHandoffs([queued]);
+			const latest = snapshot();
+			add(model, 'new');
+			const afterNewRequest = snapshot();
+			assert.deepStrictEqual({ empty, latest, afterNewRequest }, {
+				empty: [],
+				latest: ['request:latest', 'response:latest'],
+				afterNewRequest: ['request:new', 'response:new'],
+			});
+		});
+
+		test('latest request preview does not fill a hidden request row with an older response', () => {
+			const model = store.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const older = add(model, 'older');
+			model.acceptResponseProgress(older, { kind: 'markdownContent', content: new MarkdownString('Older response') });
+			const latest = add(model, 'latest', false, true);
+			const viewModel = store.add(instantiationService.createInstance(ChatViewModel, model, { latestRequestOnly: true }));
+			model.acceptResponseProgress(latest, { kind: 'markdownContent', content: new MarkdownString('Current response') });
+			assert.deepStrictEqual(viewModel.getItems().map(item => isResponseVM(item) ? { requestId: item.requestId, response: item.response.toString() } : { requestId: item.id }), [
+				{ requestId: 'latest', response: 'Current response' },
+			]);
+		});
 
 		test('handoff rows remain visible outside the send queue and cannot be edited', () => {
 			const model = store.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));

@@ -6,7 +6,7 @@ on:
         type: boolean
         default: true
       electron_affected:
-        description: Whether the pull request can affect the Electron job, which is skipped when false
+        description: Whether the pull request can affect the Electron jobs, which are skipped when false
         type: boolean
         default: true
       agent_host_e2e_affected:
@@ -26,7 +26,7 @@ on:
         type: boolean
         default: true
       remote_affected:
-        description: Whether the pull request can affect the Remote job, which is skipped when false
+        description: Whether the pull request can affect the Remote jobs, which are skipped when false
         type: boolean
         default: true
       agent_host_test_profile:
@@ -50,6 +50,8 @@ env:
 # - ELECTRON_TESTS, BROWSER_TESTS or REMOTE_TESTS: the test runner
 # - UNIT_TESTS, INTEGRATION_TESTS, SMOKE_TESTS and AGENT_HOST_E2E_TESTS: the kinds of tests
 # - UNIT_TEST_SUITE: the unit tests of an Electron job, 'electron' or 'node', or both when unset
+# - INTEGRATION_TEST_SUITE: the integration tests of an Electron job, 'node' for the node.js integration
+#   tests or 'extension-host' for the extension host tests, or both when unset
 # - SMOKE_SHARD_INDEX and SMOKE_SHARD_TOTAL: the 1-based index of the Electron smoke test shard to run,
 #   and the number of shards
 # - ARTIFACT_NAME: identifies the job in the names of the artifacts that it publishes
@@ -73,7 +75,7 @@ jobs:
           lfs: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
 
@@ -380,7 +382,7 @@ jobs:
       # Reruns the failed tests in a fresh window.
       - name: 🧪 Run integration tests (Electron)
         id: node-integration-tests
-        if: ${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && env.INTEGRATION_TEST_SUITE != 'extension-host' && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
         timeout-minutes: 25
         run: ./scripts/test-integration.sh --only-node-tests --tfs "Integration Tests" --rerun-failed-files 2
         env:
@@ -392,7 +394,7 @@ jobs:
       # Runs even when the node.js integration tests or Agent Host E2E failed in the same job.
       # The extension host suites are not rerun.
       - name: 🧪 Run extension host integration tests (Electron)
-        if: ${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure' || steps.node-integration-tests.outcome == 'failure') }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && env.INTEGRATION_TEST_SUITE != 'node' && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure' || steps.node-integration-tests.outcome == 'failure') }}
         timeout-minutes: 15
         run: ./scripts/test-integration.sh --only-extension-host-tests
         env:
@@ -538,14 +540,28 @@ jobs:
       UNIT_TEST_SUITE: node
     steps: *steps
 
-  electron:
-    name: Electron
+  # The node.js integration tests and the extension host tests take about 6.5 and 5 minutes. In one job
+  # they would be the slowest job of the workflow, so they run on separate machines.
+  electron-node:
+    name: Electron (node.js)
     if: ${{ inputs.electron_affected }}
     runs-on: vscode-large-runners-ubuntu-8-core
     env:
-      ARTIFACT_NAME: electron
+      ARTIFACT_NAME: electron-node
       ELECTRON_TESTS: 'true'
       INTEGRATION_TESTS: 'true'
+      INTEGRATION_TEST_SUITE: node
+    steps: *steps
+
+  electron-extension-host:
+    name: Electron (extension host)
+    if: ${{ inputs.electron_affected }}
+    runs-on: vscode-large-runners-ubuntu-8-core
+    env:
+      ARTIFACT_NAME: electron-extension-host
+      ELECTRON_TESTS: 'true'
+      INTEGRATION_TESTS: 'true'
+      INTEGRATION_TEST_SUITE: extension-host
     steps: *steps
 
   # The integration tests and Agent Host E2E in one job would be the slowest job of the workflow, so
@@ -562,8 +578,9 @@ jobs:
 
   # Running every Electron smoke test takes one machine up to about 20 minutes, the timeout of the
   # step, so the shards split them over parallel machines (see .github/skills/smoke-tests/SKILL.md).
+  # Linux machines are plentiful, so it uses three shards to keep them out of the slowest jobs.
   electron-smoke-1:
-    name: Electron-Smoke (shard 1/2)
+    name: Electron-Smoke (shard 1/3)
     if: ${{ inputs.electron_smoke_affected }}
     runs-on: vscode-large-runners-ubuntu-8-core
     env:
@@ -571,11 +588,11 @@ jobs:
       ELECTRON_TESTS: 'true'
       SMOKE_TESTS: 'true'
       SMOKE_SHARD_INDEX: '1'
-      SMOKE_SHARD_TOTAL: '2'
+      SMOKE_SHARD_TOTAL: '3'
     steps: *steps
 
   electron-smoke-2:
-    name: Electron-Smoke (shard 2/2)
+    name: Electron-Smoke (shard 2/3)
     if: ${{ inputs.electron_smoke_affected }}
     runs-on: vscode-large-runners-ubuntu-8-core
     env:
@@ -583,7 +600,19 @@ jobs:
       ELECTRON_TESTS: 'true'
       SMOKE_TESTS: 'true'
       SMOKE_SHARD_INDEX: '2'
-      SMOKE_SHARD_TOTAL: '2'
+      SMOKE_SHARD_TOTAL: '3'
+    steps: *steps
+
+  electron-smoke-3:
+    name: Electron-Smoke (shard 3/3)
+    if: ${{ inputs.electron_smoke_affected }}
+    runs-on: vscode-large-runners-ubuntu-8-core
+    env:
+      ARTIFACT_NAME: electron-smoke-shard3
+      ELECTRON_TESTS: 'true'
+      SMOKE_TESTS: 'true'
+      SMOKE_SHARD_INDEX: '3'
+      SMOKE_SHARD_TOTAL: '3'
     steps: *steps
 
   browser-unit:
@@ -607,13 +636,24 @@ jobs:
       SMOKE_TESTS: 'true'
     steps: *steps
 
-  remote:
-    name: Remote
+  # The remote integration and smoke tests take about 4.5 and 6.5 minutes. In one job they would be the
+  # slowest job of the workflow, so they run on separate machines, as on Windows.
+  remote-integration:
+    name: Remote (integration)
     if: ${{ inputs.remote_affected }}
     runs-on: vscode-large-runners-ubuntu-8-core
     env:
       ARTIFACT_NAME: remote
       REMOTE_TESTS: 'true'
       INTEGRATION_TESTS: 'true'
+    steps: *steps
+
+  remote-smoke:
+    name: Remote (smoke)
+    if: ${{ inputs.remote_affected }}
+    runs-on: vscode-large-runners-ubuntu-8-core
+    env:
+      ARTIFACT_NAME: remote-smoke
+      REMOTE_TESTS: 'true'
       SMOKE_TESTS: 'true'
     steps: *steps

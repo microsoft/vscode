@@ -21,7 +21,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getMultiRootWorkspaceRelativeFilename, getTargetedCreateActionLabel, matchesCustomizationSearchQuery, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
+import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getCustomizationSearchAriaLabel, getMultiRootWorkspaceRelativeFilename, getTargetedCreateActionLabel, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
 import { AICustomizationItemNormalizer, IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, splitPathLabel, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
@@ -34,8 +34,9 @@ import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/se
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from '../../../browser/aiCustomization/customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, focusFirstCustomizationTreeItem, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection, stopListRowActionKeyDownPropagation } from '../../../browser/aiCustomization/customizationCardList.js';
 import { getAICustomizationWorkspaceGroupForResource, getAICustomizationWorkspaceGroups } from '../../../browser/aiCustomization/aiCustomizationWorkspaceGroups.js';
+import { getCustomizationGroupAriaLabel } from '../../../browser/aiCustomization/customizationGroupHeaderRenderer.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 
 suite('aiCustomizationListWidget', () => {
@@ -57,6 +58,52 @@ suite('aiCustomizationListWidget', () => {
 		});
 	});
 
+	test('provides section-specific search labels', () => {
+		assert.deepStrictEqual([
+			getCustomizationSearchAriaLabel(AICustomizationManagementSection.Agents),
+			getCustomizationSearchAriaLabel(AICustomizationManagementSection.Skills),
+			getCustomizationSearchAriaLabel(AICustomizationManagementSection.Instructions),
+			getCustomizationSearchAriaLabel(AICustomizationManagementSection.Hooks),
+			getCustomizationSearchAriaLabel(AICustomizationManagementSection.Prompts),
+		], [
+			'Search agents...',
+			'Search skills...',
+			'Search instructions...',
+			'Search hooks...',
+			'Search prompts...',
+		]);
+	});
+
+	test('group labels include their descriptions', () => {
+		assert.strictEqual(
+			getCustomizationGroupAriaLabel('User', 2, 'Customizations available across workspaces.'),
+			'User, 2 items. Customizations available across workspaces.',
+		);
+	});
+
+	test('focuses the first item when a customization tree receives focus', () => {
+		type Entry = { type: 'group-header' } | { type: 'item'; id: string };
+		const group: Entry = { type: 'group-header' };
+		const firstItem: Entry = { type: 'item', id: 'first' };
+		const secondItem: Entry = { type: 'item', id: 'second' };
+		let focus: Entry[] = [];
+		const focusChanges: Entry[][] = [];
+		const list = {
+			getFocus: () => focus,
+			setFocus: (entries: Entry[]) => {
+				focus = entries;
+				focusChanges.push(entries);
+			},
+		};
+
+		focusFirstCustomizationTreeItem(list, [group, firstItem, secondItem], entry => entry.type === 'item');
+		focusFirstCustomizationTreeItem(list, [group, firstItem, secondItem], entry => entry.type === 'item');
+		focus = [];
+		focusFirstCustomizationTreeItem(list, [group], entry => entry.type === 'item');
+
+		assert.deepStrictEqual(focusChanges, [[firstItem], [group]]);
+	});
+
 	test('keeps editable source sections visible until search filtering starts', () => {
 		assert.deepStrictEqual({
 			agents: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Agents, false),
@@ -76,17 +123,23 @@ suite('aiCustomizationListWidget', () => {
 
 	});
 
-	test('matches customization search word separators while preserving substring matching', () => {
+	test('search filter matches dashed and spaced queries with highlights', () => {
+		const items = [
+			{ id: '1', uri: URI.file('/skills/typescript-setup/SKILL.md'), name: 'typescript-setup', filename: 'SKILL.md', description: 'Set up TypeScript', promptType: PromptsType.skill, storage: PromptsStorage.local },
+			{ id: '2', uri: URI.file('/skills/other/SKILL.md'), name: 'other', filename: 'SKILL.md', description: 'Unrelated', promptType: PromptsType.skill, storage: PromptsStorage.local },
+		] as unknown as IAICustomizationListItem[];
+		const filter = (searchQuery: string) => (AICustomizationListWidget.prototype as unknown as {
+			applySearchFilter(this: { searchQuery: string }, items: readonly IAICustomizationListItem[]): IAICustomizationListItem[];
+		}).applySearchFilter.call({ searchQuery }, items).map(item => [item.name, item.nameMatches]);
+
 		assert.deepStrictEqual({
-			spaceSeparated: matchesCustomizationSearchQuery('session timeline', 'session-timeline'),
-			hyphenated: matchesCustomizationSearchQuery('session-timeline', 'session-timeline'),
-			substring: matchesCustomizationSearchQuery('timeline', 'session-timeline'),
-			reordered: matchesCustomizationSearchQuery('timeline session', 'session-timeline'),
+			spaced: filter('typescript setup'),
+			dashed: filter('typescript-setup'),
+			underscored: filter('TypeScript_Setup'),
 		}, {
-			spaceSeparated: [{ start: 0, end: 7 }, { start: 8, end: 16 }],
-			hyphenated: [{ start: 0, end: 16 }],
-			substring: [{ start: 8, end: 16 }],
-			reordered: null,
+			spaced: [['typescript-setup', [{ start: 0, end: 10 }, { start: 11, end: 16 }]]],
+			dashed: [['typescript-setup', [{ start: 0, end: 16 }]]],
+			underscored: [['typescript-setup', [{ start: 0, end: 16 }]]],
 		});
 	});
 
@@ -312,6 +365,30 @@ suite('aiCustomizationListWidget', () => {
 			focused: [0, 0, -1],
 			unfocused: [-1, -1, -1],
 		});
+	});
+
+	test('virtualized row actions isolate keyboard activation from the list', () => {
+		const row = document.createElement('div');
+		const actions = document.createElement('div');
+		const action = document.createElement('button');
+		actions.appendChild(action);
+		row.appendChild(actions);
+		const disposable = stopListRowActionKeyDownPropagation(actions);
+		const bubbledKeys: string[] = [];
+		row.addEventListener('keydown', event => bubbledKeys.push(event.key));
+		const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+		const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+
+		try {
+			action.dispatchEvent(enterEvent);
+			action.dispatchEvent(escapeEvent);
+			assert.deepStrictEqual(
+				{ bubbledKeys, enterDefaultPrevented: enterEvent.defaultPrevented, escapeDefaultPrevented: escapeEvent.defaultPrevented },
+				{ bubbledKeys: ['Escape'], enterDefaultPrevented: false, escapeDefaultPrevented: false },
+			);
+		} finally {
+			disposable.dispose();
+		}
 	});
 
 	test('virtualized section height is redistributed when a sibling collapses', () => {

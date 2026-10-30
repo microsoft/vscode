@@ -36,6 +36,15 @@ suite('Chat configuration', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('defaults to sticky progress instead of the input progress border', () => {
+		const setting = chatProgressConfigurationProperties[ChatConfiguration.ProgressBorder];
+		assert.deepStrictEqual({ key: ChatConfiguration.ProgressBorder, type: setting.type, default: setting.default }, {
+			key: 'chat.progressBorder.enabled',
+			type: 'boolean',
+			default: false,
+		});
+	});
+
 	test('registers Agents Window settings in the shared workbench contribution', () => {
 		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true]);
 	});
@@ -184,7 +193,7 @@ suite('Chat configuration', () => {
 			labels: setting.enumItemLabels,
 			descriptions: setting.enumDescriptions.length,
 		}, {
-			settings: ['chat.persistentProgress', 'chat.persistentProgressVerbosity'],
+			settings: ['chat.progressBorder.enabled', 'chat.persistentProgress', 'chat.persistentProgressVerbosity'],
 			type: 'string',
 			default: 'draw',
 			values: ['off', 'draw', 'drawMonochrome', 'drawMonochromeNoIcon'],

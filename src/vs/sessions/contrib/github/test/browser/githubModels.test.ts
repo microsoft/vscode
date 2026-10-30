@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
@@ -142,7 +141,7 @@ suite('Pull Request Icons', () => {
 
 suite('GitHubPullRequestModel', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let mockFetcher: MockPRFetcher;
 	const logService = new NullLogService();
 	let iconCache: PullRequestIconCache;
@@ -151,10 +150,6 @@ suite('GitHubPullRequestModel', () => {
 		mockFetcher = new MockPRFetcher();
 		iconCache = new PullRequestIconCache(store.add(new TestStorageService()));
 	});
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('foreground refresh upgrades background work without publishing an older response', async () => {
 		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher, logService, iconCache));
@@ -368,17 +363,13 @@ suite('GitHubPullRequestModel', () => {
 
 suite('GitHubPullRequestReviewThreadsModel', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let mockFetcher: MockPRFetcher;
 	const logService = new NullLogService();
 
 	setup(() => {
 		mockFetcher = new MockPRFetcher();
 	});
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('foreground thread refresh upgrades a poll and ignores its late response', async () => {
 		const model = store.add(new GitHubPullRequestReviewThreadsModel('owner', 'repo', 1, mockFetcher, logService));
@@ -597,7 +588,7 @@ suite('GitHubPullRequestReviewThreadsModel', () => {
 
 suite('GitHubPullRequestCIModel', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let mockFetcher: MockCIFetcher;
 	let collection: TestCIReferenceCollection;
 	let storageService: TestStorageService;
@@ -614,10 +605,6 @@ suite('GitHubPullRequestCIModel', () => {
 		storageService = store.add(new TestStorageService());
 		collection = new TestCIReferenceCollection(mockFetcher as unknown as GitHubPRCIFetcher, logService, storageService);
 	});
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('foreground CI refresh upgrades a poll and ignores its late response', async () => {
 		const model = acquireModel();
@@ -895,7 +882,7 @@ suite('GitHubPullRequestCIModel', () => {
 
 suite('GitHubIssueModel', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const logService = new NullLogService();
 
 	class MockGitHubApiClient extends mock<GitHubApiClient>() {
@@ -940,10 +927,6 @@ suite('GitHubIssueModel', () => {
 	function createCollection(client: MockGitHubApiClient) {
 		return store.add(new GitHubIssueModelReferenceCollection(client, logService));
 	}
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('foreground issue refresh upgrades background work without publishing its late response', async () => {
 		const client = new MockGitHubApiClient();

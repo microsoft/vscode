@@ -2568,11 +2568,6 @@
         "category": "Chat"
       },
       {
-        "command": "github.copilot.debug.workbenchState",
-        "title": "%github.copilot.command.logWorkbenchState%",
-        "category": "Developer"
-      },
-      {
         "command": "github.copilot.debug.togglePowerSaveBlocker",
         "title": "%github.copilot.command.togglePowerSaveBlocker%",
         "category": "Developer"
@@ -5541,10 +5536,6 @@
           "when": "github.copilot-chat.activated && !github.copilot.interactiveSession.disabled"
         },
         {
-          "command": "github.copilot.debug.workbenchState",
-          "when": "true"
-        },
-        {
           "command": "github.copilot.chat.rerunWithCopilotDebug",
           "when": "false"
         },
@@ -6811,7 +6802,6 @@
     "setup:dotnet": "run-script-os",
     "setup:dotnet:darwin:linux": "curl -O https://raw.githubusercontent.com/dotnet/install-scripts/main/src/dotnet-install.sh && chmod u+x dotnet-install.sh && ./dotnet-install.sh --channel 10.0 && rm dotnet-install.sh",
     "setup:dotnet:win32": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Invoke-WebRequest -Uri https://raw.githubusercontent.com/dotnet/install-scripts/main/src/dotnet-install.ps1 -OutFile dotnet-install.ps1; ./dotnet-install.ps1 -channel 10.0; Remove-Item dotnet-install.ps1\"",
-    "analyze-edits": "tsx script/analyzeEdits.ts",
     "extract-chat-lib": "tsx script/build/extractChatLib.ts",
     "create_venv": "tsx script/setup/createVenv.mts",
     "package": "vsce package",

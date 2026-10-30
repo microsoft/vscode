@@ -10,18 +10,14 @@ import { INotification, Severity, NotificationsFilter, NotificationPriority } fr
 import { createErrorWithActions } from '../../../base/common/errorMessage.js';
 import { timeout } from '../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { toDisposable } from '../../../base/common/lifecycle.js';
 import { legacyExtensionLinkParsing } from '../../../platform/notification/common/notificationLegacy.js';
 import { NotificationText } from '../../../platform/notification/common/notificationMessage.js';
 
 suite('Notifications', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const noFilter: INotificationsFilter = { global: NotificationsFilter.OFF, sources: new Map() };
-
-	teardown(() => {
-		disposables.clear();
-	});
 
 	function createItem(notification: INotification) {
 		const item = NotificationViewItem.create(notification, noFilter)!;
@@ -505,5 +501,4 @@ suite('Notifications', () => {
 		item3Handle.close();
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
 });

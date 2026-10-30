@@ -59,6 +59,8 @@ jobs:
           continueOnError: true
           sbomEnabled: false
     variables:
+      - name: SANITY_NODE_VERSION
+        value: 22.22.0
       - name: TEST_DIR
         value: $(Build.SourcesDirectory)/test/sanity
       - name: LOG_FILE
@@ -157,10 +159,29 @@ jobs:
             echo ##vso[task.prependpath]!SIGNTOOL_ROOT!
           displayName: Install SignTool (Windows ARM64)
 
-      - task: UseNode@1
+        # The NuGet access token is only needed to download SignTool. Clear it so
+        # that the sanity tests cannot write it to their logs or crash dumps.
+        - powershell: echo "##vso[task.setvariable variable=VSS_NUGET_ACCESSTOKEN]"
+          displayName: Clear NuGet access token
+          condition: always()
+
+      # Node.js comes from the pipeline cache when possible. nodejs.org stalls from the shared
+      # agent pools at times, so the bounded download below is only the fallback.
+      - task: Cache@2
         inputs:
-          version: '22.22.0'
-        displayName: Install Node.js
+          key: '"sanity-node" | "$(SANITY_NODE_VERSION)" | "$(Agent.OS)" | "$(Agent.OSArchitecture)"'
+          path: $(Agent.ToolsDirectory)/sanity-node
+        displayName: Restore Node.js cache
+        retryCountOnTaskFailure: 2
+        continueOnError: true
+
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - powershell: build/azure-pipelines/common/install-node.ps1 -Version $(SANITY_NODE_VERSION) -InstallDir "$(Agent.ToolsDirectory)/sanity-node"
+          displayName: Install Node.js
+
+      - ${{ else }}:
+        - bash: bash build/azure-pipelines/common/install-node.sh $(SANITY_NODE_VERSION) "$(Agent.ToolsDirectory)/sanity-node"
+          displayName: Install Node.js
 
       - ${{ if eq(parameters.os, 'macOS') }}:
         - script: node build/azure-pipelines/common/captureDarwinMemory.ts

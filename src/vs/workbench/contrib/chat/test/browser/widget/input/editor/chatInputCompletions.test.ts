@@ -240,10 +240,8 @@ class TestAgentHostInputCompletions extends AgentHostInputCompletionsBase<void> 
 
 suite('AgentHostInputCompletionsBase', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => store.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('marks results incomplete so the host is queried as the token changes', async () => {
 		const languageFeaturesService = new LanguageFeaturesService();
@@ -343,10 +341,8 @@ class TestableAgentHostInputCompletions extends AgentHostInputCompletions {
 
 suite('AgentHostInputCompletions #chat references', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => store.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('accepting a multi-word #chat reference registers a range covering the whole token', () => {
 		const completions = store.add(new TestableAgentHostInputCompletions(
@@ -388,10 +384,8 @@ suite('AgentHostInputCompletions #chat references', () => {
 
 suite('AgentHostInputCompletions plain text', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => store.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('builds a Monaco text completion without an accept command', () => {
 		const completions = store.add(new TestableAgentHostInputCompletions(
@@ -499,10 +493,8 @@ suite('AgentHostInputCompletions plain text', () => {
 
 suite('SlashCommandCompletions fork variants', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => store.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	class ForkCompletionChatSessionsService extends MockChatSessionsService {
 		lookupCount = 0;
@@ -732,10 +724,8 @@ suite('SlashCommandCompletions fork variants', () => {
 });
 
 suite('AgentHostInputCompletions skills', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => store.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('ranks matches on later words without changing the inserted skill', () => {
 		const completions = store.add(new TestableAgentHostInputCompletions(
@@ -769,10 +759,8 @@ suite('AgentHostInputCompletions skills', () => {
 
 suite('AgentHostInputCompletions follow-up suggestions', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => store.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('carries the retrigger hint into the command accept handler', () => {
 		const completions = store.add(new TestableAgentHostInputCompletions(
@@ -985,17 +973,7 @@ suite('attached context completion ranking', () => {
 
 suite('computeCompletionRanges', () => {
 
-	let store: DisposableStore;
-
-	setup(() => {
-		store = new DisposableStore();
-	});
-
-	teardown(() => {
-		store.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	// Helper: builds the same regex patterns used in the product code
 	function variableNameDef() {
@@ -1205,17 +1183,7 @@ suite('computeCompletionRanges', () => {
 
 suite('isAtTriggerCharacterToken', () => {
 
-	let store: DisposableStore;
-
-	setup(() => {
-		store = new DisposableStore();
-	});
-
-	teardown(() => {
-		store.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const triggerChars = ['@', '#'];
 

@@ -67,7 +67,6 @@ import '../platform/actions/common/actions.contribution.js';
 import '../platform/undoRedo/common/undoRedoService.js';
 import '../platform/mcp/common/mcpResourceScannerService.js';
 import '../workbench/services/workspaces/common/editSessionIdentityService.js';
-import '../workbench/services/workspaces/common/canonicalUriService.js';
 import '../workbench/services/extensions/browser/extensionUrlHandler.js';
 import '../workbench/services/keybinding/common/keybindingEditing.js';
 import '../workbench/services/decorations/browser/decorationsService.js';
@@ -514,6 +513,8 @@ import './contrib/aquarium/browser/aquarium.contribution.js';
 import './contrib/policyBlocked/browser/policyBlocked.contribution.js';
 import '../workbench/services/policies/browser/managedSettingsUpdate.contribution.js';
 import './contrib/automations/browser/automations.contribution.js';
+import './contrib/canvases/browser/windowCanvases.contribution.js';
+import './contrib/inboxOne/browser/inboxOne.contribution.js';
 import './contrib/remoteSessions/browser/remoteSessions.contribution.js';
 import './contrib/customViewTest/browser/customViewTest.contribution.js';
 
@@ -524,6 +525,7 @@ import '../workbench/contrib/chat/browser/onboarding/modelPickerTryout.contribut
 import '../workbench/contrib/codeEditor/browser/diffEditorTryout.contribution.js';
 import './contrib/onboardingTours/browser/onboardingTours.contribution.js';
 import './contrib/getStarted/browser/getStarted.contribution.js';
+import './contrib/worktreeSuggestion/browser/worktreeSuggestion.contribution.js';
 
 import './services/sessions/browser/sessionsManagementService.js';
 //#endregion

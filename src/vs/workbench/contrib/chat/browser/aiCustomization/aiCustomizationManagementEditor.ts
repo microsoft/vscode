@@ -94,8 +94,9 @@ import { showConfigureHooksQuickPick } from '../promptSyntax/hookActions.js';
 import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory, CustomizationLocationPicker } from './customizationCreatorService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { isAgentHostTarget, isRemoteAgentHostTarget } from '../../common/chatSessionsService.js';
+import { isAgentHostTarget, isRemoteAgentHostTarget, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/chatSessionsService.js';
 import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
+import { isRemoteAgentHostSessionType, parseAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -110,7 +111,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { NotificationTelemetryId } from '../../../../../platform/notification/common/notificationTelemetry.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -119,7 +120,7 @@ import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, findMcpServerDetailMigrationEntry, IMcpServerDetailInput, isMcpServerDetailMigratable } from './embeddedMcpServerDetail.js';
-import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
+import { EmbeddedAgentPluginDetail, resolvePluginSkillUri } from './embeddedAgentPluginDetail.js';
 import { EmbeddedConnectorDetail } from './embeddedConnectorDetail.js';
 import { ICopilotConnector, ICopilotConnectorsService } from './copilotConnectorsService.js';
 import { EmbeddedMarketplaceDetail } from './embeddedMarketplaceDetail.js';
@@ -127,8 +128,9 @@ import { IMcpService, IMcpWorkbenchService, isMcpOAuthClientSecretStorageKey, ty
 import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
-import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
+import { type CustomizationSourceFolderReadiness, ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
 import { AICustomizationWelcomePage, type ICustomizationMarketplaceOrigin, type ICustomizationMigrationCategorySummary, type IInstalledCustomizationTarget } from './aiCustomizationWelcomePage.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { createCustomizationMigrationAgentPrompt, getCustomizationMigrationConflictTarget, type CustomizationMigrationTargetFolders, type ICustomizationMigrationFailure, type ICustomizationMigrationNameConflict, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations, resolveWorkspaceMigrationTargetFolder } from './customizationMigration.js';
@@ -272,6 +274,13 @@ interface ISectionItem {
 	badge?: string;
 }
 
+const SECTION_ITEM_HEIGHT = 26;
+const SECTION_ITEM_SEPARATOR_SPACING = 8;
+
+function getSectionItemHeight(element: ISectionItem): number {
+	return SECTION_ITEM_HEIGHT + (element.separatorBefore ? SECTION_ITEM_SEPARATOR_SPACING : 0);
+}
+
 interface ISaveTargetQuickPickItem extends IQuickPickItem {
 	readonly target: 'workspace' | 'user' | 'cancel';
 	readonly folder?: URI;
@@ -302,8 +311,8 @@ interface IExistingCustomizationSaveRequest {
 }
 
 class SectionItemDelegate implements IListVirtualDelegate<ISectionItem> {
-	getHeight(): number {
-		return 26;
+	getHeight(element: ISectionItem): number {
+		return getSectionItemHeight(element);
 	}
 
 	getTemplateId(): string {
@@ -810,6 +819,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				} : s);
 			}
 		}
+		this.updateSidebarMigrationSeparator();
 
 		// Update the list widget if it exists
 		if (this.sectionsList) {
@@ -881,6 +891,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.ensureSectionsListReflectsActiveSection();
 
 		this.editorDisposables.add(this.sectionsList.onDidChangeSelection(e => this.onDidChangeSidebarSelection(e)));
+		this.registerSidebarKeyboardNavigation();
 
 		// React to harness changes — rebuild visible sections and refresh counts.
 		// Also track availableHarnesses to handle agent registration/unregistration.
@@ -976,7 +987,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			? (this.migrationShortcutContainer?.offsetHeight ?? 0)
 			: 0;
 		const availableListHeight = Math.max(0, height - 8 - headerHeight - migrationHeight);
-		const listHeight = Math.min(availableListHeight, this.sections.length * 26);
+		const listHeight = Math.min(availableListHeight, this.sections.reduce((height, section) => height + getSectionItemHeight(section), 0));
 		this.sectionsListContainer.style.height = `${listHeight}px`;
 		this.sectionsList.layout(listHeight, width);
 	}
@@ -995,6 +1006,30 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateHomeButtonHarnessPresentation();
 
 		this.updateHomeButtonStyle();
+	}
+
+	private registerSidebarKeyboardNavigation(): void {
+		const homeButton = this.homeButton;
+		if (!homeButton) {
+			return;
+		}
+		this.editorDisposables.add(DOM.addDisposableListener(homeButton, DOM.EventType.KEY_DOWN, event => {
+			if (event.key !== 'ArrowDown' || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || this.sectionsList.length === 0) {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			this.sectionsList.setFocus([0]);
+			this.sectionsList.domFocus();
+		}));
+		this.editorDisposables.add(DOM.addDisposableListener(this.sectionsList.getHTMLElement(), DOM.EventType.KEY_DOWN, event => {
+			if (event.key !== 'ArrowUp' || event.target !== this.sectionsList.getHTMLElement() || this.sectionsList.getFocus()[0] !== 0) {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			homeButton.focus();
+		}));
 	}
 
 	private updateHomeButtonStyle(): void {
@@ -1017,12 +1052,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			: localize('overviewButtonLabel', "Overview");
 		this.homeButton.setAttribute('aria-label', label);
 		this.homeButtonLabel.textContent = label;
-		this.homeButton.title = this.getHomeButtonTooltip();
+		this.homeButton.removeAttribute('title');
 	}
 
 	private getHomeButtonTooltip(): string {
 		return this.welcomePage?.isDiscover
-			? localize('discoverButtonTooltip', "Back to Customizations")
+			? localize('discoverButtonTooltip', "Browse available customizations")
 			: localize('homeButtonTooltip', "Back to overview");
 	}
 
@@ -1031,6 +1066,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		container.style.display = 'none';
 
 		DOM.append(container, $('div.sidebar-migration-separator'));
+		this.updateSidebarMigrationSeparator();
 
 		const button = this.migrationShortcutButton = DOM.append(container, $('button.sidebar-migration-button')) as HTMLButtonElement;
 		button.type = 'button';
@@ -1047,6 +1083,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.customizationMigrationTelemetryService.actionClicked('migrationOverviewClicked');
 			void this.startCustomizationMigration();
 		}));
+	}
+
+	private updateSidebarMigrationSeparator(): void {
+		this.migrationShortcutContainer?.classList.toggle('show-separator', !this.sections.some(section => section.separatorBefore));
 	}
 
 	private createWelcomePage(parent: HTMLElement): void {
@@ -3270,7 +3310,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				const matchingFolders = this.getCustomizationMigrationFolders(targetType, storage, availableFolders);
 				const selectedFolder = this.selectedCustomizationMigrationTargets.get(this.getCustomizationMigrationTargetKey(targetType, storage));
 				if (matchingFolders.length === 0 && !selectedFolder) {
-					this.notificationService.error(this.getMissingMigrationTargetFolderMessage(targetType, storage));
+					this.showMissingMigrationTargetFolderNotification(targetType, storage, sessionResource);
 					return undefined;
 				}
 
@@ -3305,25 +3345,71 @@ export class AICustomizationManagementEditor extends EditorPane {
 		return isEqual(sessionResource, this.harnessService.activeSessionResource.get());
 	}
 
-	private getMissingMigrationTargetFolderMessage(targetType: PromptsType, storage: PromptsStorage): string {
-		if (storage === PromptsStorage.local) {
-			switch (targetType) {
-				case PromptsType.skill:
-					return localize('migrationNoWorkspaceSkillFolder', "No workspace skills folder is configured for the active harness.");
-				case PromptsType.agent:
-					return localize('migrationNoWorkspaceAgentFolder', "No workspace agents folder is configured for the active harness.");
-				default:
-					return localize('migrationNoWorkspaceInstructionsFolder', "No workspace instructions folder is configured for the active harness.");
-			}
+	private showMissingMigrationTargetFolderNotification(targetType: PromptsType, storage: PromptsStorage, sessionResource: URI): void {
+		const targetLabel = targetType === PromptsType.skill
+			? localize('migrationSkillFolderType', "skills")
+			: targetType === PromptsType.agent
+				? localize('migrationAgentFolderType', "agents")
+				: localize('migrationInstructionsFolderType', "instructions");
+		const harnessLabel = this.getActiveHarnessLabel();
+		if (isUntitledChatSession(sessionResource)) {
+			const message = storage === PromptsStorage.local
+				? localize(
+					'migrationWorkspaceTargetNeedsSession',
+					"{0} needs an active session before it can report a writable {1} folder for this workspace. Start a new session, send a message, then try the migration again.",
+					harnessLabel,
+					targetLabel,
+				)
+				: localize(
+					'migrationUserTargetNeedsSession',
+					"{0} needs an active session before it can report a writable {1} folder for your user profile. Start a new session, send a message, then try the migration again.",
+					harnessLabel,
+					targetLabel,
+				);
+			this.notificationService.prompt(Severity.Error, message, [{
+				label: localize('startNewHarnessSession', "Start new session"),
+				run: () => this.openMigrationHarnessSession(sessionResource),
+			}]);
+			return;
 		}
-		switch (targetType) {
-			case PromptsType.skill:
-				return localize('migrationNoGlobalSkillFolder', "No global skills folder is configured for the active harness.");
-			case PromptsType.agent:
-				return localize('migrationNoGlobalAgentFolder', "No global agents folder is configured for the active harness.");
-			default:
-				return localize('migrationNoGlobalInstructionsFolder', "No global instructions folder is configured for the active harness.");
+
+		const provider = this.harnessService.findHarnessById(getChatSessionType(sessionResource))?.itemProvider;
+		const readiness: CustomizationSourceFolderReadiness = provider?.getSourceFolderReadiness?.(sessionResource) ?? 'ready';
+		if (readiness !== 'ready') {
+			const message = readiness === 'loading'
+				? storage === PromptsStorage.local
+					? localize('migrationWorkspaceTargetLoading', "{0} is still loading writable {1} folders for this workspace. Wait for the session to finish starting, then try again.", harnessLabel, targetLabel)
+					: localize('migrationUserTargetLoading', "{0} is still loading writable {1} folders for your user profile. Wait for the session to finish starting, then try again.", harnessLabel, targetLabel)
+				: storage === PromptsStorage.local
+					? localize('migrationWorkspaceTargetUnavailable', "Could not load writable {0} folders from {1} for this workspace. Check the active agent connection, then try again.", targetLabel, harnessLabel)
+					: localize('migrationUserTargetUnavailable', "Could not load writable {0} folders from {1} for your user profile. Check the active agent connection, then try again.", targetLabel, harnessLabel);
+			this.notificationService.prompt(Severity.Error, message, [{
+				label: localize('retryMigrationDestinations', "Retry"),
+				run: () => this.refreshCustomizationMigrationInfo(),
+			}]);
+			return;
 		}
+
+		const message = storage === PromptsStorage.local
+			? localize('migrationWorkspaceTargetUnsupported', "{0} does not provide a writable {1} folder for this workspace. Select a different agent target or configure a supported destination before migrating.", harnessLabel, targetLabel)
+			: localize('migrationUserTargetUnsupported', "{0} does not provide a writable {1} folder for your user profile. Select a different agent target or configure a supported destination before migrating.", harnessLabel, targetLabel);
+		this.notificationService.error(message);
+	}
+
+	private async openMigrationHarnessSession(sessionResource: URI): Promise<void> {
+		if (!await this.closeCustomizationEditor()) {
+			return;
+		}
+		const sessionType = getChatSessionType(sessionResource);
+		if (this.workspaceService.isSessionsWindow) {
+			const provider = isRemoteAgentHostSessionType(sessionType) ? undefined : parseAgentHostHarness(sessionType);
+			await this.commandService.executeCommand(
+				NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID,
+				...(provider ? [{ agentHostProvider: provider }] : []),
+			);
+			return;
+		}
+		await this.commandService.executeCommand(`workbench.action.chat.openNewSessionSidebar.${sessionType}`);
 	}
 
 	private async pickCustomizationMigrationTargetFolder(sourceFolders: readonly ICustomizationSourceFolder[], targetType: PromptsType, selectsMultipleTypes: boolean): Promise<ICustomizationSourceFolder | undefined> {
@@ -3578,6 +3664,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	//#endregion
+
+	/**
+	 * Opens Discover with fresh filters and optionally applies a search query.
+	 */
+	public showDiscover(searchQuery?: string): void {
+		this.showWelcomePage({ resetFilters: true });
+		if (searchQuery !== undefined) {
+			this.setSearchQuery(searchQuery);
+		}
+	}
 
 	/**
 	 * Navigates to the welcome page (no section selected).
@@ -6113,7 +6209,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (!isCurrentPluginContributionNavigation(navigationGeneration, this.contentNavigationGeneration, section, this.selectedSection, this.viewMode === 'list')) {
 				return;
 			}
-			const item = this.itemsModel.getItems(modelSection).get().find(item => isEqual(item.uri, uri));
+			const pluginUri = pluginItem.kind === AgentPluginItemKind.Installed ? pluginItem.plugin.uri : undefined;
+			const items = this.itemsModel.getItems(modelSection).get().filter(item => pluginUri && item.pluginUri && isEqual(item.pluginUri, pluginUri));
+			const resolvedUri = section === AICustomizationManagementSection.Skills
+				? resolvePluginSkillUri(uri, items)
+				: uri;
+			const item = resolvedUri ? items.find(item => isEqual(item.uri, resolvedUri)) : undefined;
 			if (item) {
 				void this.openCustomizationItem(item, { kind: 'pluginDetail', item: pluginItem, origin: pluginOrigin });
 			}

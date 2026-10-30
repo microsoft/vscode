@@ -13,6 +13,11 @@ const legacyPersistentProgressSetting = 'chat.experimental.persistentProgress';
 const legacyPersistentProgressVerbositySetting = 'chat.experimental.persistentProgressVerbosity';
 
 export const chatProgressConfigurationProperties = {
+	[ChatConfiguration.ProgressBorder]: {
+		type: 'boolean',
+		default: false,
+		markdownDescription: localize('chat.progressBorder.enabled', "Show an animated gradient border around the chat input while the agent is working or thinking, instead of pinning persistent progress above the input when scrolling. When disabled, the indicator remains visible while scrolling if {0} is enabled. The border animation has no effect when reduced motion is enabled.", `\`#${ChatConfiguration.PersistentProgress}#\``),
+	},
 	[ChatConfiguration.PersistentProgress]: {
 		type: 'string',
 		default: ChatProgressAnimation.Draw,

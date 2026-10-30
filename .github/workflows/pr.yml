@@ -211,6 +211,8 @@ jobs:
     needs: changes
     if: ${{ !cancelled() }}
     runs-on: vscode-large-runners-ubuntu-8-core
+    outputs:
+      checks-failed: ${{ steps.failed-checks.outputs.failed }}
     env:
       # Hygiene and ESLint check only the files that changed since this commit, unless
       # a change can affect other files (see build/lib/changedFiles.ts). The full checks
@@ -225,7 +227,7 @@ jobs:
         run: git fetch --no-tags --depth=1 origin "$PR_BASE_SHA" || echo "::warning::Could not fetch $PR_BASE_SHA; hygiene and ESLint will check every file."
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
 
@@ -266,6 +268,7 @@ jobs:
         run: node build/npm/electronTypes.ts
 
       - name: Type check /build/ scripts
+        id: typecheck-build
         run: npm run typecheck
         working-directory: build
 
@@ -288,6 +291,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check Markdown editor manifests and clipboard
+        id: markdown-editor
         run: |
           npm run markdown-editor-package-json-check
           npm --prefix extensions/markdown-language-features run test-markdown-editor-package-json
@@ -297,15 +301,18 @@ jobs:
       # before the compilation checks start. --continue-on-error reports both when both fail.
       # ESLint stays out of the compilation checks so that its worker memory doesn't overlap theirs.
       - name: Hygiene & ESLint
+        id: hygiene
         run: npm exec -- npm-run-all2 -lp --continue-on-error "hygiene -- --changed-since $PR_BASE_SHA" "eslint -- --changed-since $PR_BASE_SHA"
 
       # core-ci-pr skips the minified bundles that only the product build uses.
       - name: Compile
+        id: compile
         run: npm exec -- npm-run-all2 -lp core-ci-pr valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check Codex protocol client is in sync
+        id: codex-sync
         run: |
           git fetch --no-tags --depth=1 origin "$CODEX_SYNC_BASE" || true
           node build/codex/check-protocol-sync.ts --if-changed --base "$CODEX_SYNC_BASE"
@@ -313,7 +320,14 @@ jobs:
           CODEX_SYNC_BASE: ${{ github.event.pull_request.base.sha }}
 
       - name: Check cyclic dependencies
+        id: cyclic-dependencies
         run: node build/lib/checkCyclicDependencies.ts out-build
+
+      # Tells Cancel Run that a check of the change failed, rather than the setup of the job, which a rerun fixes.
+      - name: Report failed checks
+        id: failed-checks
+        if: ${{ failure() && (steps.typecheck-build.outcome == 'failure' || steps.markdown-editor.outcome == 'failure' || steps.hygiene.outcome == 'failure' || steps.compile.outcome == 'failure' || steps.codex-sync.outcome == 'failure' || steps.cyclic-dependencies.outcome == 'failure') }}
+        run: echo "failed=true" >> "$GITHUB_OUTPUT"
 
   monaco-editor:
     name: Monaco Editor
@@ -331,7 +345,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
 
@@ -413,7 +427,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
 
@@ -534,7 +548,7 @@ jobs:
         with:
           lfs: true
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: extensions/copilot/.nvmrc
 
@@ -578,7 +592,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: extensions/copilot/.nvmrc
 
@@ -602,12 +616,12 @@ jobs:
           lfs: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: extensions/copilot/.nvmrc
 
       - name: Setup Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
           architecture: 'x64'
@@ -706,12 +720,12 @@ jobs:
           lfs: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: extensions/copilot/.nvmrc
 
       - name: Setup Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
           architecture: 'x64'
@@ -786,7 +800,7 @@ jobs:
     name: chat-lib - Test (macOS)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: macos-26
+    runs-on: vscode-large-runners-macos-5-core-0
     timeout-minutes: 30
     permissions:
       contents: read
@@ -811,6 +825,29 @@ jobs:
 
       - name: Test chat-lib
         uses: ./.github/actions/test-chat-lib
+
+  # When Compile & Hygiene finds a problem in the change, which has to be fixed and pushed again
+  # anyway, this job cancels the run so that the test jobs free their machines for other pull
+  # requests, above all the scarce macOS and Windows ones. It does not cancel when the setup of
+  # Compile & Hygiene fails, as a rerun of that job fixes it. It runs apart from Compile & Hygiene so
+  # that the code of the pull request never runs with a token that can cancel workflow runs, and the
+  # token of a pull request from a fork cannot cancel the run.
+  cancel-run:
+    name: Cancel Run
+    needs: compile
+    if: ${{ failure() && needs.compile.outputs.checks-failed == 'true' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: vscode-large-runners-ubuntu-8-core
+    permissions:
+      actions: write
+    steps:
+      - name: Cancel the workflow run
+        run: |
+          echo "::notice title=Run cancelled::Compile & Hygiene failed, so the other jobs were cancelled. Fix the change and push again."
+          gh run cancel "$RUN_ID" --repo "$REPOSITORY"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+          REPOSITORY: ${{ github.repository }}
 
   # The only check of this workflow that branch protection requires:
   # Detect Changes plans the pull request, the jobs above run what the plan
@@ -839,6 +876,7 @@ jobs:
       - chat-lib-linux-tests
       - chat-lib-macos-tests
       - chat-lib-windows-tests
+      - cancel-run
     if: ${{ always() }}
     runs-on: vscode-large-runners-ubuntu-8-core
     steps:
@@ -850,6 +888,10 @@ jobs:
           status=0
           while IFS=$'\t' read -r job result; do
             case "$job:$result" in
+              # Cancel Run only runs after Compile & Hygiene failed, which fails the gate, and the run it
+              # cancels can cancel it too.
+              cancel-run:*)
+                ;;
               *:success)
                 echo "$job succeeded." ;;
               *:skipped)

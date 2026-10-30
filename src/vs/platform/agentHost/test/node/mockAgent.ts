@@ -11,7 +11,7 @@ import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentChatMigrationResult, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentCapabilities, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentModelInfo, type IAgentPendingMessageSender, type IAgentResolveChatConfigParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agent.js';
+import { AgentPermissionKind, AgentSession, type AgentChatMigrationResult, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentCapabilities, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentModelInfo, type IAgentPendingMessageSender, type IAgentResolveChatConfigParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agent.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -777,7 +777,7 @@ export class ScriptedMockAgent implements IAgent {
 						this._onDidChatProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-write-1', 'Write src/app.ts', { permissionKind: 'write', permissionPath: mockWorkspacePath('src/app.ts') }));
+					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-write-1', 'Write src/app.ts', { permissionKind: AgentPermissionKind.Write, permissionPath: mockWorkspacePath('src/app.ts') }));
 					// Auto-approved writes resolve immediately — complete the tool and turn
 					await timeout(10);
 					this._fireSequence([
@@ -796,7 +796,7 @@ export class ScriptedMockAgent implements IAgent {
 						this._onDidChatProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-write-env-1', 'Write .env', { permissionKind: 'write', permissionPath: mockWorkspacePath('.env'), confirmationTitle: 'Write .env' }));
+					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-write-env-1', 'Write .env', { permissionKind: AgentPermissionKind.Write, permissionPath: mockWorkspacePath('.env'), confirmationTitle: 'Write .env' }));
 				})();
 				this._pendingPermissions.set('tc-write-env-1', (approved) => {
 					if (approved) {
@@ -817,7 +817,7 @@ export class ScriptedMockAgent implements IAgent {
 						this._onDidChatProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-shell-1', 'ls -la', { permissionKind: 'shell', toolInput: 'ls -la' }));
+					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-shell-1', 'ls -la', { permissionKind: AgentPermissionKind.Shell, toolInput: 'ls -la' }));
 					// Auto-approved shell commands resolve immediately
 					await timeout(10);
 					this._fireSequence([
@@ -836,7 +836,7 @@ export class ScriptedMockAgent implements IAgent {
 						this._onDidChatProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-shell-deny-1', 'rm -rf /', { permissionKind: 'shell', toolInput: 'rm -rf /', confirmationTitle: 'Run in terminal' }));
+					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-shell-deny-1', 'rm -rf /', { permissionKind: AgentPermissionKind.Shell, toolInput: 'rm -rf /', confirmationTitle: 'Run in terminal' }));
 				})();
 				this._pendingPermissions.set('tc-shell-deny-1', (approved) => {
 					if (approved) {
@@ -884,7 +884,7 @@ export class ScriptedMockAgent implements IAgent {
 						this._onDidChatProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-orphan', 'Read file', { permissionKind: 'read', permissionPath: mockWorkspacePath('file.ts') }));
+					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-orphan', 'Read file', { permissionKind: AgentPermissionKind.Read, permissionPath: mockWorkspacePath('file.ts') }));
 				})();
 				this._pendingPermissions.set('tc-orphan', (approved) => {
 					if (approved) {

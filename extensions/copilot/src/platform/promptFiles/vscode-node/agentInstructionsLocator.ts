@@ -64,8 +64,7 @@ export class AgentInstructionsLocator extends Disposable {
 		const resolvedAgentFiles: IAgentInstructionFile[] = [];
 		const promises: Promise<IAgentInstructionFile[]>[] = [];
 
-		const includeParents = this.configurationService.getNonExtensionConfig<boolean>(PromptConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS) === true;
-		const rootFolders = await this.getWorkspaceFolderRoots(includeParents, logger);
+		const rootFolders = await this.getWorkspaceFolderRoots(undefined, logger);
 
 		const rootFiles: IWorkspaceInstructionFile[] = [];
 		const useAgentMD = this.configurationService.getNonExtensionConfig<boolean>(PromptConfig.USE_AGENT_MD) !== false;
@@ -158,17 +157,17 @@ export class AgentInstructionsLocator extends Disposable {
 	}
 
 	/**
-	 * Returns the workspace folders, optionally walking up to enclosing
-	 * repository roots when {@link includeParents} is `true`.
+	 * Returns the supplied workspace folders, walking up to enclosing trusted
+	 * repository roots when `chat.useCustomizationsInParentRepositories` is enabled.
 	 *
 	 * Mirrors `PromptFilesLocator.getWorkspaceFolderRoots`, including the
 	 * per-URI trust check on the discovered repo root via the workspace
 	 * service's `isResourceTrusted` API.
 	 */
-	private async getWorkspaceFolderRoots(includeParents: boolean, logger?: AgentInstructionsLogger): Promise<URI[]> {
-		const workspaceFolders = this.workspaceService.getWorkspaceFolders();
+	public async getWorkspaceFolderRoots(workspaceFolders: readonly URI[] = this.workspaceService.getWorkspaceFolders(), logger?: AgentInstructionsLogger): Promise<URI[]> {
+		const includeParents = this.configurationService.getNonExtensionConfig<boolean>(PromptConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS) === true;
 		if (!includeParents) {
-			return workspaceFolders;
+			return [...workspaceFolders];
 		}
 		const roots = new ResourceSet();
 		const userHome = this.envService.userHome;

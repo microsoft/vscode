@@ -1161,7 +1161,15 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 
 		}
 
-		if (accessValue === McpAccessValue.Registry) {
+		const allowed = this.allowedMcpServersService.isAllowed(mcpServer.local);
+		if (allowed !== true) {
+			return {
+				state: McpServerEnablementState.DisabledByAccess,
+				message: { severity: Severity.Warning, text: allowed }
+			};
+		}
+
+		if (accessValue === McpAccessValue.Registry && !this.allowedMcpServersService.hasManagedAllowlist) {
 			if (mcpServer.local.format === McpResourceFormat.WorkspaceRoot || !mcpServer.gallery) {
 				return {
 					state: McpServerEnablementState.DisabledByAccess,
