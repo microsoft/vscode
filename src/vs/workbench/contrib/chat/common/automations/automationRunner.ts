@@ -37,7 +37,7 @@ export interface IAutomationRunOperation {
 	/** Resolves after lifecycle tracking reaches a terminal outcome. */
 	readonly whenCompleted: Promise<void>;
 
-	/** Records a timeout for this operation without waiting for session creation. The first selected terminal outcome wins. */
+	/** Records a timeout without waiting for session creation; the first selected terminal outcome wins. Rejects on persistence failure so callers can retry the same outcome. */
 	timeout(timeoutMs: number): Promise<void>;
 }
 

@@ -530,6 +530,101 @@ suite('AutomationRunner', () => {
 		});
 	}
 
+	for (const first of ['completion', 'cancellation'] as const) {
+		test(`retries ${first} after terminal persistence fails without replacing the outcome`, async () => {
+			const { service, sessionsMgmt, runner } = setup();
+			const cts = teardown.add(new CancellationTokenSource());
+			const status = observableValue('status-retry', SessionStatus.InProgress);
+			sessionsMgmt.nextSession = fakeSession('retry', status);
+			const terminalWrites: IUpdateAutomationRunOptions[] = [];
+			service.beforeUpdateRun = async patch => {
+				if (patch.status === 'completed' || patch.status === 'failed') {
+					terminalWrites.push(patch);
+					if (terminalWrites.length === 1) {
+						throw new Error('Storage unavailable');
+					}
+				}
+			};
+			const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+			const operation = runner.runOnce(a, 'schedule', 1, cts.token);
+			await operation.whenDispatched;
+
+			if (first === 'completion') {
+				status.set(SessionStatus.Completed, undefined);
+			} else {
+				cts.cancel();
+			}
+			await operation.whenCompleted;
+			await operation.timeout(60_000);
+
+			const expectedOutcome = {
+				status: first === 'completion' ? 'completed' : 'failed',
+				errorMessage: first === 'completion' ? undefined : 'Cancelled',
+			};
+			assert.deepStrictEqual({
+				status: service.runs.get()[0].status,
+				errorMessage: service.runs.get()[0].errorMessage,
+				activeRun: service.getActiveRunFor(a.id),
+				terminalWrites: terminalWrites.map(patch => ({ status: patch.status, errorMessage: patch.errorMessage })),
+			}, {
+				...expectedOutcome,
+				activeRun: undefined,
+				terminalWrites: [expectedOutcome, expectedOutcome],
+			});
+		});
+	}
+
+	test('shares failed timeout writes and retries the original outcome after repeated persistence failures', async () => {
+		const { service, sessionsMgmt, runner } = setup();
+		const sending = new DeferredPromise<void>();
+		const releaseSession = new DeferredPromise<void>();
+		const writing = new DeferredPromise<void>();
+		const releaseWrite = new DeferredPromise<void>();
+		const writeError = new Error('Storage unavailable');
+		const terminalWrites: IUpdateAutomationRunOptions[] = [];
+		sessionsMgmt.nextSession = fakeSession('retry-timeout');
+		sessionsMgmt.onSendHook = async () => {
+			await sending.complete();
+			await releaseSession.p;
+		};
+		service.beforeUpdateRun = async patch => {
+			if (patch.status === 'completed' || patch.status === 'failed') {
+				terminalWrites.push(patch);
+				if (terminalWrites.length <= 2) {
+					await writing.complete();
+					await releaseWrite.p;
+					throw writeError;
+				}
+			}
+		};
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+		const operation = runner.runOnce(a, 'schedule', 1);
+		await sending.p;
+		const first = assert.rejects(operation.timeout(60_000), writeError);
+		await writing.p;
+		const concurrent = assert.rejects(operation.timeout(120_000), writeError);
+		await releaseWrite.complete();
+		await Promise.all([first, concurrent]);
+		await assert.rejects(operation.timeout(180_000), writeError);
+		await operation.timeout(240_000);
+		await releaseSession.complete();
+		await operation.whenCompleted;
+
+		const expectedOutcome = { status: 'failed', errorMessage: 'Timed out after 1 minute(s).' };
+		assert.deepStrictEqual({
+			status: service.runs.get()[0].status,
+			errorMessage: service.runs.get()[0].errorMessage,
+			sessionResource: service.runs.get()[0].sessionResource?.toString(),
+			activeRun: service.getActiveRunFor(a.id),
+			terminalWrites: terminalWrites.map(patch => ({ status: patch.status, errorMessage: patch.errorMessage })),
+		}, {
+			...expectedOutcome,
+			sessionResource: 'vscode-chat-session://test/retry-timeout',
+			activeRun: undefined,
+			terminalWrites: [expectedOutcome, expectedOutcome, expectedOutcome],
+		});
+	});
+
 	test('remembers a timeout while the atomic claim is pending without sending a request', async () => {
 		const { service, sessionsMgmt, runner } = setup();
 		const claiming = new DeferredPromise<void>();

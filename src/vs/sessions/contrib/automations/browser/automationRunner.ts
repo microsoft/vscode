@@ -264,7 +264,10 @@ export class AutomationRunner implements IAutomationRunner {
 		if (!state.runId) {
 			return Promise.resolve(undefined);
 		}
-		return state.whenRecorded ??= this._recordOutcome(state.runId, state.outcome, trigger, automation, state.startTimeMs);
+		return state.whenRecorded ??= this._recordOutcome(state.runId, state.outcome, trigger, automation, state.startTimeMs).catch(err => {
+			state.whenRecorded = undefined;
+			throw err;
+		});
 	}
 
 	private async _recordOutcome(runId: string, outcome: IAutomationRunOutcome, trigger: AutomationRunTrigger, automation: IAutomationDescriptor, startTimeMs: number): Promise<IAutomationRun | undefined> {
@@ -285,7 +288,7 @@ export class AutomationRunner implements IAutomationRunner {
 			return run;
 		} catch (err) {
 			this.logService.error(`[AutomationRunner] error recording ${outcome.status} outcome for run ${runId} (automation ${automation.id})`, err);
-			return undefined;
+			throw err;
 		}
 	}
 }
