@@ -35,6 +35,13 @@ ArchitecturesAllowed={#ArchitecturesAllowed}
 ArchitecturesInstallIn64BitMode={#ArchitecturesInstallIn64BitMode}
 WizardStyle=modern
 
+// Inno Setup 7 builds a 32-bit setup unless told otherwise. Build a 64-bit one
+// instead, since the x86 setup runs much slower under emulation on Windows on Arm.
+// The directive doesn't exist before Inno Setup 7, hence the version guard.
+#if Ver >= EncodeVer(7, 0, 0)
+SetupArchitecture=x64
+#endif
+
 // We've seen an uptick on broken installations from updates which were unable
 // to shutdown VS Code. We rely on the fact that the update signals
 // that VS Code is ready to be shutdown, so we're good to use `force` here.
