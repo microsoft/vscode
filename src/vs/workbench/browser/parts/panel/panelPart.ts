@@ -24,7 +24,8 @@ import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { IToolBarResponsiveBehaviorOptions } from '../../../../base/browser/ui/toolbar/toolbar.js';
+import { IMenuService, MenuId, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -208,6 +209,58 @@ export class PanelPart extends AbstractPaneCompositePart {
 
 		// Layout contents
 		super.layout(dimensions.width, dimensions.height, top, left);
+		this.toolBar?.relayout();
+	}
+
+	protected override getToolbarResponsiveBehavior(): IToolBarResponsiveBehaviorOptions {
+		return {
+			enabled: true,
+			kind: 'all',
+			minItems: 0,
+			actionMinWidth: 22,
+			getActionMinWidth: action => {
+				if (action instanceof SubmenuItemAction && action.item.isSplitButton) {
+					return 36;
+				}
+				if (action.id === 'viewpane.action.filter') {
+					return 150;
+				}
+				if (action.id === 'workbench.action.debug.selectRepl') {
+					return 60;
+				}
+				return undefined;
+			},
+			getOverflowAction: (action) => {
+				if (action.id === 'viewpane.action.filter') {
+					return toAction({
+						id: action.id,
+						label: action.label || localize('filter', "Filter"),
+						run: () => {
+							const activeComposite = this.getActiveComposite();
+							if (activeComposite && 'focusFilter' in activeComposite && typeof (activeComposite as any).focusFilter === 'function') {
+								(activeComposite as any).focusFilter();
+								return;
+							}
+							if (activeComposite && 'getViewPaneContainer' in activeComposite && typeof (activeComposite as any).getViewPaneContainer === 'function') {
+								const viewPane = (activeComposite as any).getViewPaneContainer()?.panes?.[0];
+								if (viewPane && typeof viewPane.getFilterWidget === 'function') {
+									viewPane.getFilterWidget()?.focus();
+									return;
+								}
+							}
+						}
+					});
+				}
+				if (action.id === 'workbench.action.debug.selectRepl') {
+					return toAction({
+						id: action.id,
+						label: action.label || localize('selectDebugConsole', "Select Debug Console"),
+						run: () => this.commandService.executeCommand('workbench.action.debug.selectDebugConsole')
+					});
+				}
+				return action;
+			}
+		};
 	}
 
 	protected override shouldShowCompositeBar(): boolean {
