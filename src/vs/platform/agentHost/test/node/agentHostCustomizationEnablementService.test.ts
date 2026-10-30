@@ -909,6 +909,80 @@ suite('AgentHostCustomizationEnablementService', () => {
 		}
 	});
 
+	test('preserves owned enablement after adopting unowned disable at global scope', async () => {
+		const unownedServer = targetForUnownedMcpServer('global-search');
+		const ownedServer: ICustomizationEnablementTarget = {
+			...unownedServer,
+			owningPluginSource: URI.file('/plugins/example'),
+			defaultEnabled: true,
+		};
+
+		// 1. Disable unowned server globally:
+		service.setEnablement(session, unownedServer, CustomizationEnablementKind.Global, false);
+		await service.whenIdle();
+
+		// 2. Adopt ownership:
+		service.adoptMcpServerOwnership(session, unownedServer, URI.file('/plugins/example'));
+		await service.whenIdle();
+		// Verify unowned disable applies to adopted owned server:
+		const adoptedGlobalResolution = service.resolve(session, ownedServer);
+		assert.strictEqual(adoptedGlobalResolution.kind, 'resolved');
+		if (adoptedGlobalResolution.kind === 'resolved') {
+			assert.strictEqual(adoptedGlobalResolution.enabled, false);
+		}
+
+		// 3. Enable owned server globally (should override unowned disable, not be normalized away):
+		service.setEnablement(session, ownedServer, CustomizationEnablementKind.Global, true);
+		await service.whenIdle();
+		const enabledGlobalResolution = service.resolve(session, ownedServer);
+		assert.strictEqual(enabledGlobalResolution.kind, 'resolved');
+		if (enabledGlobalResolution.kind === 'resolved') {
+			assert.strictEqual(enabledGlobalResolution.enabled, true);
+			assert.deepStrictEqual(enabledGlobalResolution.enablement, [
+				{ kind: CustomizationEnablementKind.Global, enabled: true },
+			]);
+		}
+	});
+
+	test('preserves owned enablement after adopting unowned disable at workspace scope', async () => {
+		const unownedServer = targetForUnownedMcpServer('workspace-search');
+		const ownedServer: ICustomizationEnablementTarget = {
+			...unownedServer,
+			owningPluginSource: URI.file('/plugins/example'),
+			defaultEnabled: true,
+		};
+
+		// 1. Disable unowned server at workspace scope:
+		service.setEnablement(session, unownedServer, CustomizationEnablementKind.Workspace, false);
+		await service.whenIdle();
+
+		// 2. Adopt ownership:
+		service.adoptMcpServerOwnership(session, unownedServer, URI.file('/plugins/example'));
+		await service.whenIdle();
+		// Unowned workspace disable should apply to adopted owned server:
+		const adoptedWorkspaceResolution = service.resolve(session, ownedServer);
+		assert.strictEqual(adoptedWorkspaceResolution.kind, 'resolved');
+		if (adoptedWorkspaceResolution.kind === 'resolved') {
+			assert.strictEqual(adoptedWorkspaceResolution.enabled, false);
+			assert.deepStrictEqual(adoptedWorkspaceResolution.enablement, [
+				{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: false },
+				{ kind: CustomizationEnablementKind.Global, enabled: true },
+			]);
+		}
+
+		// 3. Enable owned server at workspace scope (should override unowned workspace disable):
+		service.setEnablement(session, ownedServer, CustomizationEnablementKind.Workspace, true);
+		await service.whenIdle();
+		const enabledWorkspaceResolution = service.resolve(session, ownedServer);
+		assert.strictEqual(enabledWorkspaceResolution.kind, 'resolved');
+		if (enabledWorkspaceResolution.kind === 'resolved') {
+			assert.strictEqual(enabledWorkspaceResolution.enabled, true);
+			assert.deepStrictEqual(enabledWorkspaceResolution.enablement, [
+				{ kind: CustomizationEnablementKind.Global, enabled: true },
+			]);
+		}
+	});
+
 	test('models working-directory states without treating pending as workspace-less', () => {
 		state.deleteSession(session);
 		assert.deepStrictEqual(service.getWorkingDirectoryState(session), { kind: 'pending' });

@@ -48,7 +48,7 @@ import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import product from '../../../product/common/product.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentHostProxyResolver, IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
-import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService, type IAgentHostCustomizationEnablementService as ICustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
+import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService, targetForUnownedMcpServer, type ICustomizationEnablementTarget, type IAgentHostCustomizationEnablementService as ICustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import type { IAgentHostClientProxyConnection } from '../../common/agentHostClientProxyChannel.js';
 import type { IByokLmBridgeConnection, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
@@ -3482,6 +3482,79 @@ suite('CopilotAgent', () => {
 					childDefaults: [true],
 					withHostDecision: [{ id: retainedId, uri: source.toString(), enabled: false, state: McpServerStatus.Stopped, defaultEnabled: true, pluginId: 'opaque-plugin' }],
 				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('preserves scoped host disable across late plugin discovery and ownership adoption with real enablement service', async () => {
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
+			const workspace = URI.file('/workspace');
+			const plugin = URI.file('/sdk-installed/native');
+			const source = URI.joinPath(plugin, '.mcp.json');
+			await fileService.writeFile(URI.joinPath(plugin, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"native"}'));
+			await fileService.writeFile(source, VSBuffer.fromString('{"mcpServers":{"native":{"command":"native-server"}}}'));
+			const client = new TestCopilotClient([]);
+			let discovered = false;
+			client.discoverMcp = async () => ({
+				servers: discovered ? [{
+					name: 'native', type: 'stdio', source: 'plugin', enabled: true,
+					effectiveSource: { kind: 'plugin', id: 'opaque-source', editability: 'read-only', plugin: { id: 'opaque-plugin', name: 'native' }, file: { uri: source.toString() } },
+				}] : [],
+			});
+			const { agent, instantiationService, stateManager } = createTestAgentContext(disposables, {
+				fileService, copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()),
+				rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+				useRealCustomizationEnablementService: true,
+			});
+			const enablementService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostCustomizationEnablementService));
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
+				await enablementService.initializeSession(sessionUri.toString());
+				// Disable the server before late plugin discovery using the unowned target key:
+				enablementService.setEnablement(sessionUri.toString(), targetForUnownedMcpServer('native'), CustomizationEnablementKind.Global, false);
+				await enablementService.whenIdle();
+
+				await provisionSession(agent, { session: sessionUri, workingDirectories: [workspace] });
+				stateManager.createSession({
+					resource: sessionUri.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(), workingDirectories: [workspace.toString()],
+					defaultChat: buildDefaultChatUri(sessionUri.toString()),
+				});
+				disposables.add(agent.onDidChatProgress(signal => {
+					if (signal.kind === 'action' && signal.resource.toString() === sessionUri.toString()) {
+						stateManager.dispatchServerAction(sessionUri.toString(), signal.action as SessionAction);
+					}
+				}));
+				const activeClient = agent['_getOrCreateActiveClient'](sessionUri, workspace);
+				const { session } = createAgentSessionThroughAgent(agent, instantiationService, { workingDirectory: workspace });
+				agent['_registerLiveChat'](URI.parse(buildDefaultChatUri(sessionUri)), session, activeClient);
+				await getDefaultChatCustomizations(agent, sessionUri);
+				session['_mcpCustomizations'].applyOne({ name: 'native', state: { kind: McpServerStatus.Ready } });
+
+				// Now late plugin discovery arrives with enabled: true
+				discovered = true;
+				await activeClient.pluginController.refreshDiscovery();
+				const published = (await getDefaultChatCustomizations(agent, sessionUri)).filter(item => item.type === CustomizationType.McpServer);
+				assert.strictEqual(published.length, 1);
+				// The prior Global disable saved before discovery must still apply:
+				assert.strictEqual(isCustomizationEnabled(published[0]), false);
+				assert.strictEqual(session.mcpServerOwners()?.get('native'), plugin.toString());
+
+				// Enabling the adopted server at Global scope overrides the unowned disable:
+				const ownedTarget: ICustomizationEnablementTarget = {
+					id: published[0].id,
+					type: CustomizationType.McpServer,
+					name: 'native',
+					source: URI.parse(published[0].uri),
+					owningPluginSource: plugin,
+					defaultEnabled: true,
+				};
+				enablementService.setEnablement(sessionUri.toString(), ownedTarget, CustomizationEnablementKind.Global, true);
+				await enablementService.whenIdle();
+				const reenabled = (await getDefaultChatCustomizations(agent, sessionUri)).filter(item => item.type === CustomizationType.McpServer);
+				assert.strictEqual(isCustomizationEnabled(reenabled[0]), true);
 			} finally {
 				await disposeAgent(agent);
 			}

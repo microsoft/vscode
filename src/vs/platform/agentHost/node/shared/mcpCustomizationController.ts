@@ -83,6 +83,9 @@ export function findDiscoveredPluginMcpServer(customizations: readonly Customiza
 		if (plugin.type !== CustomizationType.Plugin) {
 			continue;
 		}
+		if (sourcePlugin !== undefined && plugin.name !== sourcePlugin && plugin.id !== sourcePlugin && plugin.uri !== sourcePlugin) {
+			continue;
+		}
 		for (const server of plugin.children ?? []) {
 			if (server.type !== CustomizationType.McpServer || server.name !== serverName || readCustomizationDiscoveryMeta(server)?.source !== 'plugin') {
 				continue;
@@ -656,10 +659,11 @@ export class McpCustomizationController extends Disposable {
 			this._options.adoptPluginOwnership?.(existing, native.plugin.uri);
 		}
 		// `SessionCustomizationUpdated` replaces the whole customization, so keep opaque entries owned by others.
+		const baseMeta = discovered ? { ...existingMeta, ...discovered._meta } : existingMeta;
 		const meta = withMcpServerConnectorNameMeta(
 			withMcpServerControllingSettingMeta(
 				withMcpServerSourcePluginMeta(
-					withMcpServerDisplayNameMeta(withMcpServerSourceMeta(discovered ? { ...existingMeta, ...discovered._meta } : existingMeta, provenance.source ?? readMcpServerSource(discovered)), displayName),
+					withMcpServerDisplayNameMeta(withMcpServerSourceMeta(baseMeta, provenance.source ?? readMcpServerSource(discovered)), displayName),
 					provenance.sourcePlugin ?? readMcpServerSourcePlugin(discovered) ?? native?.plugin.name,
 				),
 				this._options.controllingSetting?.(serverName, provenance),
@@ -667,11 +671,14 @@ export class McpCustomizationController extends Disposable {
 			this._options.connectorName?.(serverName),
 		);
 		const uri = provenance.sourceUri ?? discovered?.uri ?? this._mintTopLevelId(serverName);
+		const range = uri === discovered?.uri && discovered.range
+			? discovered.range
+			: (!incompatible && uri === existing?.uri && existing.range ? existing.range : undefined);
 		const customization: McpServerCustomization = {
 			type: CustomizationType.McpServer,
 			id,
 			uri,
-			...(uri === discovered?.uri && discovered.range ? { range: discovered.range } : !incompatible && uri === existing?.uri && existing.range ? { range: existing.range } : {}),
+			...(range ? { range } : {}),
 			name: serverName,
 			state,
 			channel,
