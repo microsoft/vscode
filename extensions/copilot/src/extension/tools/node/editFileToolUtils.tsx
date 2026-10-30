@@ -25,8 +25,9 @@ import { findNotebook } from '../../../util/common/notebooks';
 import * as glob from '../../../util/vs/base/common/glob';
 import { ResourceMap, ResourceSet } from '../../../util/vs/base/common/map';
 import { Schemas } from '../../../util/vs/base/common/network';
+import { isAbsolute } from '../../../util/vs/base/common/path';
 import { isMacintosh, isWindows } from '../../../util/vs/base/common/platform';
-import { extUriBiasedIgnorePathCase, normalizePath } from '../../../util/vs/base/common/resources';
+import { extUriBiasedIgnorePathCase, joinPath, normalizePath, removeTrailingPathSeparator } from '../../../util/vs/base/common/resources';
 import { isFalsyOrWhitespace } from '../../../util/vs/base/common/strings';
 import { isDefined } from '../../../util/vs/base/common/types';
 import { URI } from '../../../util/vs/base/common/uri';
@@ -832,19 +833,25 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 	}
 
 	const agentFilesPatterns: Record<string, boolean> = {};
+	const configuredAgentLocations: string[] = [];
 	for (const setting of ['chat.agentFilesLocations', 'chat.agentSkillsLocations']) {
 		const locations = configuration.getNonExtensionConfig<Record<string, boolean>>(setting);
 		for (const key of Object.keys(locations ?? {})) {
 			const pattern = key.trim();
 			if (pattern && !pattern.startsWith('~/')) {
-				const normalizedPattern = pattern.startsWith('**/') || pattern.startsWith('/') ? pattern : '**/' + pattern;
-				agentFilesPatterns[normalizedPattern] = false;
-				agentFilesPatterns[normalizedPattern.endsWith('/') ? normalizedPattern + '**' : normalizedPattern + '/**'] = false;
+				if (/[*?[\]{}]/.test(pattern)) {
+					// Preserve conservative protection for glob locations.
+					const normalizedPattern = pattern.startsWith('**/') || pattern.startsWith('/') ? pattern : '**/' + pattern;
+					agentFilesPatterns[normalizedPattern] = false;
+					agentFilesPatterns[normalizedPattern.endsWith('/') ? normalizedPattern + '**' : normalizedPattern + '/**'] = false;
+				} else {
+					configuredAgentLocations.push(pattern);
+				}
 			}
 		}
 	}
 
-	const checks = new ResourceMap<{ patterns: { pattern: glob.ParsedPattern; isApproved: boolean }[]; ignoreCasing: boolean }>();
+	const checks = new ResourceMap<{ patterns: { pattern: glob.ParsedPattern; isApproved: boolean }[]; agentLocations: URI[]; ignoreCasing: boolean }>();
 	const getPatterns = (wf: URI) => {
 		let arr = checks.get(wf);
 		if (arr) {
@@ -852,7 +859,15 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 		}
 
 		const ignoreCasing = extUriBiasedIgnorePathCase.ignorePathCasing(wf);
-		arr = { patterns: [], ignoreCasing };
+		arr = {
+			patterns: [],
+			// Protect configured locations and descendants without inferring file type from extensions.
+			agentLocations: configuredAgentLocations.map(location => {
+				const resource = isAbsolute(location) ? normalizePath(URI.file(location)) : joinPath(wf, location);
+				return removeTrailingPathSeparator(resource);
+			}),
+			ignoreCasing,
+		};
 		for (const obj of [patterns, ALWAYS_CHECKED_EDIT_PATTERNS, hookFilesPatterns, agentFilesPatterns]) {
 			if (obj) {
 				for (const [pattern, isApproved] of Object.entries(obj)) {
@@ -897,7 +912,11 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 			return ConfirmationCheckResult.SystemFile;
 		}
 
-		const { patterns, ignoreCasing } = getPatterns(workspaceFolder || URI.file('/'));
+		const { patterns, agentLocations, ignoreCasing } = getPatterns(workspaceFolder || URI.file('/'));
+		if (agentLocations.some(location => extUriBiasedIgnorePathCase.isEqualOrParent(normalizedUri, location))) {
+			return ConfirmationCheckResult.Sensitive;
+		}
+
 		if (ignoreCasing) {
 			fsPath = fsPath.toLowerCase();
 		}

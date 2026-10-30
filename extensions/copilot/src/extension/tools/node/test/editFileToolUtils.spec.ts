@@ -1072,10 +1072,23 @@ describe('makeUriConfirmationChecker', async () => {
 		test.each([
 			['custom/agents', '/workspace/custom/agents'],
 			['custom/agents', '/workspace/custom/agents/agent.md'],
-			['custom/agents', '/workspace/nested/custom/agents/skill/scripts/run.py'],
+			['custom/agents', '/workspace/custom/agents/nested/skill/scripts/run.py'],
 			['custom/agents/', '/workspace/custom/agents/skill/SKILL.md'],
 			['**/agents', '/workspace/nested/agents/agent.md'],
 			['/workspace/custom/agents', '/workspace/custom/agents/agent.md'],
+			['/workspace/custom/../agents', '/workspace/agents/agent.md'],
+			['./custom/agents', '/workspace/custom/agents/agent.md'],
+			['custom/../agents', '/workspace/agents/agent.md'],
+			['custom/./agents/', '/workspace/custom/agents/skill/SKILL.md'],
+			['custom/nested/../../agents', '/workspace/agents/skill/scripts/run.py'],
+			['.', '/workspace/agent.md'],
+			[' custom/agents ', '/workspace/custom/agents/agent.md'],
+			['settings.json/', '/workspace/settings.json'],
+			['settings.json', '/workspace/settings.json/agent.md'],
+			['settings.json/', '/workspace/settings.json/skill/SKILL.md'],
+			['./settings.json/', '/workspace/settings.json/nested/scripts/run.py'],
+			['custom/../settings.json/', '/workspace/settings.json/agent.md'],
+			['**/settings.json/', '/workspace/nested/settings.json/agent.md'],
 		])('requires confirmation for %s matching %s', async (location, filePath) => {
 			await configService.setNonExtensionConfig(setting, { [location]: true });
 			await configService.setNonExtensionConfig('chat.tools.edits.autoApprove', { '**/*': true });
@@ -1085,24 +1098,34 @@ describe('makeUriConfirmationChecker', async () => {
 			expect(await checker(URI.file(filePath))).toBe(ConfirmationCheckResult.Sensitive);
 		});
 
-		test('disabled locations still require confirmation', async () => {
-			await configService.setNonExtensionConfig(setting, { 'custom/agents': false });
+		test.each([
+			['custom/agents', '/workspace/custom/agents/agent.md'],
+			['./custom/agents', '/workspace/custom/agents/agent.md'],
+			['custom/../agents', '/workspace/agents/agent.md'],
+			['settings.json/', '/workspace/settings.json/skill/SKILL.md'],
+		])('disabled location %s still requires confirmation for %s', async (location, filePath) => {
+			await configService.setNonExtensionConfig(setting, { [location]: false });
+			await configService.setNonExtensionConfig('chat.tools.edits.autoApprove', { '**/*': true });
 
 			const checker = makeUriConfirmationChecker(configService, workspaceService.getWorkspaceFolder.bind(workspaceService), customInstructionsService);
 
-			expect(await checker(URI.file('/workspace/custom/agents/agent.md'))).toBe(ConfirmationCheckResult.Sensitive);
+			expect(await checker(URI.file(filePath))).toBe(ConfirmationCheckResult.Sensitive);
 		});
 
 		test('skips home directory locations and unrelated files', async () => {
-			await configService.setNonExtensionConfig(setting, { '~/agents': true, 'custom/agents': true });
+			await configService.setNonExtensionConfig(setting, { '~/agents': true, './custom/agents': true, 'settings.json/': true, '   ': true });
 
 			const checker = makeUriConfirmationChecker(configService, workspaceService.getWorkspaceFolder.bind(workspaceService), customInstructionsService);
 
 			expect(await Promise.all([
 				checker(URI.file('/workspace/agents/agent.md')),
 				checker(URI.file('/workspace/custom/agents-other/agent.md')),
+				checker(URI.file('/workspace/nested/custom/agents/agent.md')),
+				checker(URI.file('/workspace/settings.json-other/agent.md')),
 				checker(URI.file('/workspace/src/file.ts')),
 			])).toEqual([
+				ConfirmationCheckResult.NoConfirmation,
+				ConfirmationCheckResult.NoConfirmation,
 				ConfirmationCheckResult.NoConfirmation,
 				ConfirmationCheckResult.NoConfirmation,
 				ConfirmationCheckResult.NoConfirmation,
