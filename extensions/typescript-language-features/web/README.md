@@ -2,6 +2,12 @@
 
 Language server host for typescript using vscode's sync-api in the browser.
 
+## Plugin names
+
+TypeScript plugin names must be npm package names, such as `my-plugin` or `@scope/my-plugin`. The web host rejects names containing `:` before fetching the plugin's package metadata. URL search locations supplied by installed extensions remain supported.
+
+Run `npm run test-web` from `extensions/typescript-language-features` to compile the web host and run its plugin-loading tests without launching VS Code or making network requests.
+
 ## Getting up and running
 
 To test this out, you'll need three shells:
