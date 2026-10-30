@@ -440,19 +440,33 @@ export function computeContent(notebookEditor: INotebookEditor, notebookCellList
 		}
 	}
 
+	// Find the most relevant header by searching backwards from the first visible cell
+	// This fixes the issue where headers far above the viewport weren't being found
+	let cellEntry: OutlineEntry | undefined;
+	
+	// Search backwards from the first visible cell to find the most recent header
+	for (let i = visibleRange.start; i >= 0; i--) {
+		const candidateEntry = NotebookStickyScroll.getVisibleOutlineEntry(i, notebookOutlineEntries);
+		if (candidateEntry && candidateEntry.level < 7) {
+			// Found a header - this is the one we want to potentially show
+			cellEntry = candidateEntry;
+			break;
+		}
+	}
+
+	if (!cellEntry) {
+		// No headers found before current position
+		return new Map();
+	}
+
 	// iterate over cells in viewport ------------------------------------------------------------------------------------------------------
 	let cell;
-	let cellEntry;
 	const startIndex = visibleRange.start - 1; // -1 to account for cells hidden "under" sticky lines.
 	for (let currentIndex = startIndex; currentIndex < visibleRange.end; currentIndex++) {
 		// store data for current cell, and next cell
 		cell = notebookEditor.cellAt(currentIndex);
 		if (!cell) {
 			return new Map();
-		}
-		cellEntry = NotebookStickyScroll.getVisibleOutlineEntry(currentIndex, notebookOutlineEntries);
-		if (!cellEntry) {
-			continue;
 		}
 
 		const nextCell = notebookEditor.cellAt(currentIndex + 1);
