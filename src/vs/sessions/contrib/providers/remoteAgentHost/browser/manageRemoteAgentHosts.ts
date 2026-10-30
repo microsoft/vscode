@@ -153,12 +153,12 @@ registerAction2(class extends Action2 {
 			const usesGitHubEnvironment = isGitHubEnvironmentBackend(configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId));
 			const registration = usesGitHubEnvironment ? 'githubEnvironment' : 'devTunnel';
 			const localProvider = remoteProviders.find(provider => provider.localRegistration?.get() === registration);
-			const registrationName = usesGitHubEnvironment
-				? missionControlSharingService.environmentName.get() ?? localProvider?.localRegistrationName?.get()
-				: localProvider?.localRegistrationName?.get();
 			const sharingState = usesGitHubEnvironment
 				? missionControlSharingService.state.get() === 'enabled' ? 'on' : missionControlSharingService.state.get() === 'connecting' ? 'connecting' : 'off'
 				: remoteTunnelStatus.type === 'connected' ? 'on' : remoteTunnelStatus.type === 'connecting' ? 'connecting' : 'off';
+			const registrationName = usesGitHubEnvironment && sharingState !== 'off'
+				? missionControlSharingService.environmentName.get() ?? localProvider?.localRegistrationName?.get()
+				: localProvider?.localRegistrationName?.get();
 			const items: (ManageHostsPickItem | IQuickPickSeparator)[] = [];
 			if (!isWeb) {
 				items.push(
