@@ -2306,7 +2306,7 @@ suite('GitHub authenticated IPC clients', () => {
 			const feed = {
 				url: 'wss://relay.example.test/?access_token=feed-secret',
 				subprotocol: 'json.webpubsub.azure.v1', group: 'opaque-group',
-				expires_at: date, reconnect_after: date, frame_schema_version: 1,
+				expires_at: date, reconnect_after: date, expires_in: 600_000, reconnect_in: 480_000, frame_schema_version: 1,
 			};
 			const { connect } = setup(async input => {
 				const path = new URL(String(input)).pathname;
