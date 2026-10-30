@@ -15,7 +15,7 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { NotificationTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IUpdateService, State, StateType } from '../../../../platform/update/common/update.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IBannerService } from '../../../services/banner/browser/bannerService.js';
@@ -31,6 +31,14 @@ const LAST_SHOWN_STORAGE_KEY = 'update/outdatedBuildReminderLastShown';
 interface IReminderAction {
 	readonly label: string;
 	readonly href: string;
+}
+
+/**
+ * A future timestamp means the clock moved back, so it does not count as recent.
+ */
+function wasShownRecently(lastShown: string | undefined, now: number): boolean {
+	const time = Number(lastShown);
+	return lastShown !== undefined && time <= now && now - time < REMINDER_INTERVAL;
 }
 
 /**
@@ -74,18 +82,26 @@ export class OutdatedBuildReminderContribution extends Disposable implements IWo
 		});
 	}
 
-	private showReminderIfDue(buildDate: number): void {
+	private async showReminderIfDue(buildDate: number): Promise<void> {
 		const now = Date.now();
 		if (now - buildDate < OUTDATED_BUILD_AGE) {
 			return;
 		}
 
-		// Application storage is shared, so only one window shows the reminder per interval.
-		const lastShown = this.storageService.getNumber(LAST_SHOWN_STORAGE_KEY, StorageScope.APPLICATION);
-		if (lastShown !== undefined && lastShown <= now && now - lastShown < REMINDER_INTERVAL) {
+		// The local cache lags behind other windows, so it can only rule a reminder out without a round trip.
+		if (wasShownRecently(this.storageService.get(LAST_SHOWN_STORAGE_KEY, StorageScope.APPLICATION_SHARED), now)) {
 			return;
 		}
-		this.storageService.store(LAST_SHOWN_STORAGE_KEY, now, StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		// Claim the interval atomically, so that only one window shows the reminder.
+		const lastShown = await this.storageService.readApplicationSharedValue(LAST_SHOWN_STORAGE_KEY);
+		if (this._store.isDisposed || wasShownRecently(lastShown, now)) {
+			return;
+		}
+		const { swapped } = await this.storageService.compareAndSwapApplicationSharedValue(LAST_SHOWN_STORAGE_KEY, lastShown, String(now));
+		if (!swapped || this._store.isDisposed) {
+			return;
+		}
 
 		const message = localize('outdatedBuildReminder.message', "This version of {0} is {1} old. Update to get the latest features and fixes.", this.productService.nameLong, fromNow(buildDate, false, true));
 		this.reminder.clear();

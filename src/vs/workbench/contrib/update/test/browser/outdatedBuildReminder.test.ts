@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { IAction } from '../../../../../base/common/actions.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -30,10 +31,34 @@ interface IReminderOptions {
 	readonly hadLastFocus?: boolean;
 	readonly state?: State;
 	readonly isSessionsWindow?: boolean;
+	readonly storage?: InMemoryStorageService;
 }
 
 function formatActions(actions: readonly { readonly label: string | HTMLElement; readonly href?: string; readonly id?: string }[] | undefined): string[] {
 	return (actions ?? []).map(action => `${action.label} -> ${action.href ?? action.id}`);
+}
+
+/**
+ * A window whose local cache never sees other windows' writes, while shared values go to
+ * one authoritative map, as they do through the main process.
+ */
+class WindowStorageService extends InMemoryStorageService {
+	constructor(private readonly shared: Map<string, string>) {
+		super();
+	}
+
+	override async readApplicationSharedValue(key: string): Promise<string | undefined> {
+		return this.shared.get(key);
+	}
+
+	override async compareAndSwapApplicationSharedValue(key: string, expectedValue: string | undefined, newValue: string): Promise<{ swapped: boolean; currentValue: string | undefined }> {
+		const currentValue = this.shared.get(key);
+		if (currentValue !== expectedValue) {
+			return { swapped: false, currentValue };
+		}
+		this.shared.set(key, newValue);
+		return { swapped: true, currentValue: newValue };
+	}
 }
 
 class TestNotificationHandle extends mock<INotificationHandle>() {
@@ -68,9 +93,9 @@ suite('OutdatedBuildReminderContribution', () => {
 	async function createReminder(options: IReminderOptions) {
 		const now = Date.now();
 		const events: unknown[] = [];
-		const storage = store.add(new InMemoryStorageService());
+		const storage = options.storage ?? store.add(new InMemoryStorageService());
 		if (options.lastShownDaysAgo !== undefined) {
-			storage.store(LAST_SHOWN_STORAGE_KEY, now - options.lastShownDaysAgo * DAY, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			storage.store(LAST_SHOWN_STORAGE_KEY, now - options.lastShownDaysAgo * DAY, StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
 		}
 
 		const hadLastFocus = Promise.resolve(options.hadLastFocus ?? true);
@@ -124,16 +149,19 @@ suite('OutdatedBuildReminderContribution', () => {
 			}(),
 		));
 
-		// The contribution reacts to the same promise, so its startup check has run once this resolves.
-		await hadLastFocus;
+		// Reminder checks only await already-resolved promises, so a macrotask lets them finish.
+		await timeout(0);
 
 		return {
 			contribution,
 			events,
 			get banner() { return banner; },
 			get notificationActions(): readonly IAction[] { return notification?.actions?.primary ?? []; },
-			get lastShown() { return storage.getNumber(LAST_SHOWN_STORAGE_KEY, StorageScope.APPLICATION); },
-			focus: (focused: boolean) => onDidChangeFocus.fire(focused),
+			get lastShown() { return storage.getNumber(LAST_SHOWN_STORAGE_KEY, StorageScope.APPLICATION_SHARED); },
+			focus: async (focused: boolean) => {
+				onDidChangeFocus.fire(focused);
+				await timeout(0);
+			},
 			setState: (state: State) => {
 				updateService.state = state;
 				onStateChange.fire(state);
@@ -151,7 +179,7 @@ suite('OutdatedBuildReminderContribution', () => {
 		reminder.setState(State.Ready(update, false, false));
 		reminder.banner?.onClose?.();
 		reminder.setState(State.Idle(UpdateType.Archive));
-		reminder.focus(true);
+		await reminder.focus(true);
 
 		assert.deepStrictEqual({
 			banner: { id: banner?.id, message: banner?.message, priority: banner?.priority, neutral: banner?.neutral },
@@ -173,7 +201,7 @@ suite('OutdatedBuildReminderContribution', () => {
 			const reminder = await createReminder(options);
 			const counts = [reminder.events.length];
 			for (const focused of focusChanges) {
-				reminder.focus(focused);
+				await reminder.focus(focused);
 				counts.push(reminder.events.length);
 			}
 			return counts;
@@ -193,6 +221,26 @@ suite('OutdatedBuildReminderContribution', () => {
 			shownLastMonth: [1],
 			shownInTheFuture: [1],
 			focusedLater: [0, 1, 1, 1],
+		});
+	});
+
+	test('shows the reminder in only one window when windows check before their caches sync', async () => {
+		const shared = new Map<string, string>();
+		const reminders = [
+			await createReminder({ buildAgeDays: 61, hadLastFocus: false, storage: store.add(new WindowStorageService(shared)) }),
+			await createReminder({ buildAgeDays: 61, hadLastFocus: false, storage: store.add(new WindowStorageService(shared)) }),
+		];
+		await Promise.all(reminders.map(reminder => reminder.focus(true)));
+		for (const reminder of reminders) {
+			await reminder.focus(true);
+		}
+
+		assert.deepStrictEqual({
+			remindersPerWindow: reminders.map(reminder => reminder.events.length),
+			claimed: shared.has(LAST_SHOWN_STORAGE_KEY),
+		}, {
+			remindersPerWindow: [1, 0],
+			claimed: true,
 		});
 	});
 
