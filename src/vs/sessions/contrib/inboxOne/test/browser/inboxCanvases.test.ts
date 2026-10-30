@@ -23,7 +23,7 @@ import { InboxCanvases } from '../../browser/inboxCanvases.js';
 suite('Inbox extension canvases', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('opens registered extensions for the selected chat, handles delayed publication, and releases only its own host', async () => {
+	test('shows only canvases opened in the selected chat and releases only its own host', async () => {
 		const instantiation = store.add(new TestInstantiationService());
 		const enabled = observableValue('enabled', false);
 		const canvases = observableValue<readonly ICanvas[]>('canvases', []);
@@ -33,7 +33,7 @@ suite('Inbox extension canvases', () => {
 			observeCanvases: () => { observations++; return toDisposable(() => observations--); },
 		});
 		const session = upcastPartial<ISession>({ resource: URI.parse('test:/selected'), providerId: 'provider', capabilities: constObservable({ supportsCanvases: true, supportsMultipleChats: true }) });
-		const definition: ICanvasDefinition = { canvasId: 'ui-review', extensionId: 'plugin:review', extensionSource: 'plugin', displayName: 'UI review', description: 'Inspect the application', requiresInput: false };
+		const definition: ICanvasDefinition = { canvasId: 'repository-issues-kanban', extensionId: 'plugin:issues', extensionSource: 'plugin', displayName: 'Repository Issues Kanban', description: 'Triage repository issues', requiresInput: false };
 		let listings = 0;
 		const opened: object[] = [];
 		const hosts: { canvas: ICanvas; disposed: boolean; visible: boolean }[] = [];
@@ -61,13 +61,12 @@ suite('Inbox extension canvases', () => {
 		const disabled = { listings, hosts: hosts.length, hidden: widget.element.hidden, observations };
 		enabled.set(true, undefined);
 		await timeout(0);
-		const enabledObservations = observations;
 		const buttons = () => [...widget.element.querySelectorAll<HTMLElement>('.monaco-button')];
-		const inputDisabled = buttons().find(button => button.textContent === 'Needs input')?.getAttribute('aria-disabled');
-		buttons().find(button => button.textContent === 'UI review')!.click();
-		await timeout(0);
+		const availableOnly = { hidden: widget.element.hidden, text: widget.element.textContent, observations, listings, opened: opened.length };
 		const canvas: ICanvas = { resource: URI.parse('canvas:/review'), instanceId: getCanvasDefinitionInstanceId(definition), title: 'Review', source: URI.parse('http://127.0.0.1:1234/review') };
 		canvases.set([canvas], undefined);
+		const published = { hidden: widget.element.hidden, buttons: buttons().map(button => button.textContent), hosts: hosts.length };
+		buttons().find(button => button.textContent === 'Review')!.click();
 		canvases.set([{ ...canvas, title: 'Review updated' }], undefined);
 		widget.setVisible(false);
 		const hiddenWithTab = !hosts[0].visible;
@@ -79,11 +78,12 @@ suite('Inbox extension canvases', () => {
 		buttons().find(button => button.textContent === 'Review updated')!.click();
 		enabled.set(false, undefined);
 		assert.deepStrictEqual({
-			disabled, enabledObservations, disabledObservations: observations, inputDisabled, opened, retained, hidden, hiddenWithTab, visibleWithTab,
+			disabled, availableOnly, published, disabledObservations: observations, listings, opened, retained, hidden, hiddenWithTab, visibleWithTab,
 			disposed: hosts.map(host => host.disposed), canvasStillRegistered: canvases.get().length,
 		}, {
-			disabled: { listings: 0, hosts: 0, hidden: true, observations: 0 }, enabledObservations: 1, disabledObservations: 0, inputDisabled: 'true',
-			opened: [{ owner: session, selected: chat, definition, instanceId: getCanvasDefinitionInstanceId(definition) }],
+			disabled: { listings: 0, hosts: 0, hidden: true, observations: 0 },
+			availableOnly: { hidden: true, text: '', observations: 1, listings: 0, opened: 0 },
+			published: { hidden: false, buttons: ['Review'], hosts: 0 }, disabledObservations: 0, listings: 0, opened: [],
 			retained: 1, hidden: true, hiddenWithTab: true, visibleWithTab: true, disposed: [true, true], canvasStillRegistered: 1,
 		});
 	});
