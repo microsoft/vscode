@@ -17,7 +17,7 @@ import { IConfigurationChangeEvent } from '../../../../../../platform/configurat
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandDetectionCapability, ITerminalCommand, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
-import { TerminalLocation, TerminalSettingId } from '../../../../../../platform/terminal/common/terminal.js';
+import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
 import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -178,32 +178,63 @@ suite('TerminalStickyScrollOverlay', () => {
 		return { raw, contribution, configurationService, root, pane, element, screen, terminalScreen: raw.screenElement, endMarker, clock, write, layout };
 	}
 
-	test('falls back to the DOM renderer until gpuAcceleration changes when the WebGL context is lost', async () => {
+	function stubWebglAddon() {
 		const importAddon = XtermAddonImporter.prototype.importAddon;
 		const importStub = stub(XtermAddonImporter.prototype, 'importAddon').callsFake(function (this: XtermAddonImporter, name) {
 			return name === 'webgl' ? Promise.resolve(TestWebglAddon as unknown as IXtermAddonNameToCtor['webgl']) : importAddon.call(this, name);
 		});
-		store.add(toDisposable(() => importStub.restore()));
-		TestWebglAddon.customGlyphOptions.length = 0;
+		store.add(toDisposable(() => {
+			importStub.restore();
+			TestWebglAddon.shouldThrow = false;
+			TestWebglAddon.isEnabled = false;
+			TestWebglAddon.customGlyphOptions.length = 0;
+			TestWebglAddon.lastInstance = undefined;
+		}));
+	}
+
+	function getWebglState() {
+		return { created: TestWebglAddon.customGlyphOptions.length, enabled: TestWebglAddon.isEnabled };
+	}
+
+	async function changeTerminalConfiguration(configurationService: TestConfigurationService, clock: { tickAsync(ms: number): Promise<unknown> }) {
+		TestWebglAddon.shouldThrow = false;
+		await configurationService.setUserConfiguration('terminal', { integrated: { gpuAcceleration: 'on', fontSize: 15, stickyScroll: { enabled: true, maxLineCount: 5, ignoredCommands: [] } } });
+		configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string) { return section === 'terminal.integrated' || section === 'terminal.integrated.fontSize'; }
+		});
+		await clock.tickAsync(100);
+	}
+
+	test('falls back to the DOM renderer when the WebGL context is lost until the configuration changes', async () => {
+		stubWebglAddon();
 		const { raw, configurationService, clock } = await createOverlay(false, { gpuAcceleration: 'on' });
-		const loaded = { created: TestWebglAddon.customGlyphOptions.length, enabled: TestWebglAddon.isEnabled };
+		const loaded = getWebglState();
 
 		TestWebglAddon.lastInstance?.fireContextLoss();
 		// Resizing syncs the overlay options, which used to recreate the addon on the lost context
 		raw.resize(81, raw.rows);
 		await clock.tickAsync(100);
-		const lost = { created: TestWebglAddon.customGlyphOptions.length, enabled: TestWebglAddon.isEnabled };
+		const lost = getWebglState();
 
-		await configurationService.setUserConfiguration('terminal', { integrated: { gpuAcceleration: 'auto', stickyScroll: { enabled: true, maxLineCount: 5, ignoredCommands: [] } } });
-		configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
-			override affectsConfiguration(section: string) { return TerminalSettingId.GpuAcceleration.startsWith(section); }
-		});
-		await clock.tickAsync(100);
-		const changed = { created: TestWebglAddon.customGlyphOptions.length, enabled: TestWebglAddon.isEnabled };
-
-		deepStrictEqual({ loaded, lost, changed }, {
+		await changeTerminalConfiguration(configurationService, clock);
+		deepStrictEqual({ loaded, lost, changed: getWebglState() }, {
 			loaded: { created: 1, enabled: true },
 			lost: { created: 1, enabled: false },
+			changed: { created: 2, enabled: true }
+		});
+	});
+
+	test('falls back to the DOM renderer when the WebGL addon fails to load until the configuration changes', async () => {
+		stubWebglAddon();
+		TestWebglAddon.shouldThrow = true;
+		const { raw, configurationService, clock } = await createOverlay(false, { gpuAcceleration: 'on' });
+		raw.resize(81, raw.rows);
+		await clock.tickAsync(100);
+		const failed = getWebglState();
+
+		await changeTerminalConfiguration(configurationService, clock);
+		deepStrictEqual({ failed, changed: getWebglState() }, {
+			failed: { created: 1, enabled: false },
 			changed: { created: 2, enabled: true }
 		});
 	});
