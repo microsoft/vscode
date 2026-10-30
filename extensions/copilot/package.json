@@ -6927,6 +6927,7 @@
     "@opentelemetry/sdk-trace-node": "^2.5.1",
     "@opentelemetry/semantic-conventions": "^1.39.0",
     "@sinclair/typebox": "^0.34.41",
+    "@unicode/unicode-15.0.0": "2.1.0",
     "@vscode/copilot-api": "^0.5.2",
     "@vscode/extension-telemetry": "^1.5.1",
     "@vscode/l10n": "^0.0.18",

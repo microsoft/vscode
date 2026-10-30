@@ -66,9 +66,9 @@ for (const [name, compute] of [
 		test('does not retain regex state between minimum-length checks', () => {
 			assert.deepStrictEqual([
 				compute.hasMinLexemeLength(testMatchSource.repeat(2)),
-				compute.hasMinLexemeLength(testMatchSource),
 				compute.hasMinLexemeLength(testMatchSource.repeat(2)),
-			], [true, false, true]);
+				compute.hasMinLexemeLength(testMatchSource),
+			], [true, true, false]);
 		});
 
 		test('takes 110 preceding lexemes when extending a short completion', () => {

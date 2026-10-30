@@ -52,39 +52,12 @@ export async function fetchCitations(accessor: ServicesAccessor, uri: string, co
 		return;
 	}
 
-	// The document text will include the completion at this point
-	const docText = insertionDoc.getText();
-
-	// If the document + the completion isn't long enough, we know we shouldn't call snippy
-	if (!SnippyCompute.hasMinLexemeLength(docText)) {
+	const sourceToCheck = SnippyCompute.computeMatchSource(insertionDoc.getText().slice(0, insertionOffset), completionText);
+	if ('reason' in sourceToCheck) {
+		codeReferenceLogger.debug(logTarget, `Skipping Snippy check: ${sourceToCheck.reason}`);
 		return;
 	}
-
-	// If the document + the completion isn't long enough, we know we shouldn't call snippy
-	if (!SnippyCompute.hasMinLexemeLength(docText)) {
-		return;
-	}
-
-	let potentialMatchContext = completionText;
-
-	// In many cases, we will get a completion that is shorter than the Match minimum,
-	// e.g. a single line or word completion.
-	// When a completion is too short, we should try and get the preceding tokens and
-	// pass that to snippy as part of the context.
-	if (!SnippyCompute.hasMinLexemeLength(completionText)) {
-		const textWithoutCompletion = docText.slice(0, insertionOffset);
-		const minLexemeStartOffset = SnippyCompute.offsetLastLexemes(
-			textWithoutCompletion,
-			SnippyCompute.MinTokenLength
-		);
-		potentialMatchContext = docText.slice(minLexemeStartOffset, insertionOffset + completionText.length);
-	}
-
-	// Depending on where in the document the suggestion was inserted, we may still not have enough context
-	// to detect a match.
-	if (!SnippyCompute.hasMinLexemeLength(potentialMatchContext)) {
-		return;
-	}
+	const potentialMatchContext = sourceToCheck.source;
 
 	const matchResponse = await instantiationService.invokeFunction(acc => snippyRequest(acc, () => Snippy.Match(acc, potentialMatchContext)));
 
