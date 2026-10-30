@@ -8,6 +8,7 @@ import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { match, spy, stub } from 'sinon';
 import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -1096,6 +1097,49 @@ suite('InboxNotificationsView', () => {
 			results: [100, 100], afterRefresh: [100, 100],
 		});
 	});
+
+	for (const count of [1, 3, 4, 7]) {
+		test(`pull request evidence collapses past three entries (${count}) with interpretation above it`, () => {
+			const summaries = observableValue<ReadonlyMap<string, IInboxDetailSummary>>('summaries', new Map());
+			const item: IInboxNotificationItem = {
+				id: 'merged', kind: InboxNotificationKind.PullRequestMerged, priority: InboxNotificationPriority.Next,
+				title: `${count} Pull Requests Merged`, description: 'Merged', timestamp: 1, actions: [],
+				sessionResource: URI.parse('test:///session'),
+				pullRequestStates: Array.from({ length: count }, (_, index) => ({
+					label: `${'Long pull request title '.repeat(8)}#${index + 1}`,
+					repositoryLabel: 'owner/repo', statusLabel: 'Merged', icon: Codicon.gitMerge,
+					pullRequestUri: URI.parse(`https://github.com/owner/repo/pull/${index + 1}`),
+				})),
+			};
+			const { view, container, instantiationService } = createView(constObservable([item]), { detailSummaries: summaries });
+			const requested: string[] = [];
+			const opened: URI[] = [];
+			instantiationService.stub(IInboxNotificationsService, 'requestDetailSummary', (item: IInboxNotificationItem) => requested.push(item.id));
+			instantiationService.stub(IOpenerService, 'open', async (uri: URI | string) => { opened.push(typeof uri === 'string' ? URI.parse(uri) : uri); return true; });
+			container.style.width = '560px';
+			view.render(container);
+			view.layout(560, 400);
+			container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+			const detail = container.querySelector<HTMLElement>('.inbox-notifications-detail-body')!;
+			const disclosure = detail.querySelector<HTMLDetailsElement>('details.inbox-evidence-disclosure');
+			const initiallyCollapsed = disclosure ? !disclosure.open : false;
+			summaries.set(new Map([[item.id, { status: 'Registered existing PRs as test artifacts without merging them.', decisions: [], evidence: [] }]]), undefined);
+			disclosure?.querySelector('summary')!.click();
+			const links = [...detail.querySelectorAll<HTMLElement>('.inbox-notifications-detail-pr .monaco-button')];
+			links[0].click();
+			assert.deepStrictEqual({
+				initiallyCollapsed, expanded: disclosure?.open, count: links.length, requested,
+				first: detail.firstElementChild?.classList.contains('inbox-notifications-detail-evidence'),
+				interpretationVisible: detail.querySelector<HTMLElement>('.inbox-notifications-detail-evidence')?.hidden,
+				allFit: links.every(link => link.getBoundingClientRect().right <= detail.getBoundingClientRect().right + 1),
+				opened: opened.map(uri => uri.path),
+				accessible: item.pullRequestStates!.every(state => view.getDetailAccessibleContent()?.includes(state.pullRequestUri!.toString(true))),
+			}, {
+				initiallyCollapsed: count > 3, expanded: count > 3 ? true : undefined, count, requested: ['merged'],
+				first: true, interpretationVisible: false, allFit: true, opened: ['/owner/repo/pull/1'], accessible: true,
+			});
+		});
+	}
 
 	test('generated previews appear in a non-collapsible interpretation at the top of the detail pane and accessible view', () => {
 		const previews = observableValue<ReadonlyMap<string, string>>('previews', new Map());

@@ -918,12 +918,53 @@ suite('InboxNotificationsService', () => {
 		});
 	});
 
+	for (const withTranscript of [false, true]) {
+		test(`generates merged PR interpretation from observed states and grounded sources (transcript=${withTranscript})`, async () => {
+			const session = createSession({
+				id: 'merged-summary', status: SessionStatus.Completed, updatedAt: 100, isRead: true,
+				pullRequest: { owner: 'owner', repo: 'repo', number: 46 },
+			});
+			const gitHubService = new TestGitHubService();
+			const chatService = new TestChatService();
+			chatService.setCompletedResponse(session.mainChat.get().resource, { requestId: 'record-pr', markdown: withTranscript ? 'Registered an existing PR as a test artifact. No remote PRs changed.' : '' });
+			const requests: IChatUtilityModelRequest[] = [];
+			const fixture = createFixture([session], undefined, gitHubService, chatService, undefined, true, [], true, {
+				utilityRequest: async request => {
+					requests.push(request);
+					return '{"status":"The associated PR is merged.","decisions":[],"evidence":[{"text":"The PR is merged.","artifact":"A1"}]}';
+				},
+			});
+			gitHubService.setPullRequest('owner', 'repo', 46, openPullRequest(46, 'sha46', { state: GitHubPullRequestState.Merged }));
+			const item = fixture.service.notifications.get()[0];
+			fixture.service.requestDetailSummary(item);
+			await waitForState(fixture.service.isLoading, loading => !loading);
+			const input = requests[0]?.messages[1].content.filter(part => part.type === 'text').map(part => part.value).join('\n');
+			const prompt = requests[0]?.messages[0].content.filter(part => part.type === 'text').map(part => part.value).join('\n');
+			const summary = fixture.service.detailSummaries.get().get(item.id);
+			assert.deepStrictEqual({
+				kind: item.kind, purposes: requests.map(request => request.purpose),
+				observations: input?.includes(JSON.stringify([{ repository: 'owner/repo', label: '#46', status: 'Merged' }])),
+				transcript: input?.includes('No remote PRs changed.'),
+				ownershipGuidance: prompt?.includes('Never claim the session created or merged a pull request unless the transcript supports it.'),
+				status: summary?.status, sources: summary?.evidence.map(({ artifact }) => ({ kind: artifact.kind, label: artifact.label, uri: artifact.uri?.toString() })),
+			}, {
+				kind: InboxNotificationKind.PullRequestMerged, purposes: ['inboxDetailSummary'], observations: true,
+				transcript: withTranscript, ownershipGuidance: true, status: 'The associated PR is merged.',
+				sources: [{ kind: 'pullRequest', label: 'owner/repo#46', uri: 'https://github.com/owner/repo/pull/46' }],
+			});
+		});
+	}
+
 	test('does not request interpretation while Inbox is disabled', async () => {
 		let requests = 0;
 		const fixture = createFixture([], undefined, undefined, undefined, undefined, true, [], false, {
 			utilityRequest: async () => { requests++; return '{"status":"Unexpected","decisions":[],"evidence":[]}'; },
 		});
 		fixture.service.requestDetailSummary(upcastPartial<IInboxNotificationItem>({ id: 'disabled', kind: InboxNotificationKind.Completed, sessionResource: URI.parse('test:///disabled') }));
+		fixture.service.requestDetailSummary(upcastPartial<IInboxNotificationItem>({
+			id: 'disabled-merged', kind: InboxNotificationKind.PullRequestMerged, sessionResource: URI.parse('test:///disabled'),
+			pullRequestStates: [{ label: '#46', repositoryLabel: 'owner/repo', statusLabel: 'Merged', icon: Codicon.gitMerge }],
+		}));
 		await Promise.resolve();
 		assert.deepStrictEqual({ requests, summaries: fixture.service.detailSummaries.get().size }, { requests: 0, summaries: 0 });
 	});

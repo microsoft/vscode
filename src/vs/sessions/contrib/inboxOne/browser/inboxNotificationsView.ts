@@ -90,7 +90,7 @@ import {
 	getInboxToolConfirmationDetails,
 } from '../common/inboxNotificationsService.js';
 import { getInboxNotificationKindLabel, getInboxNotificationPriorityLabel } from './inboxNotificationsLabels.js';
-import { InboxEvidenceWidget } from './inboxEvidenceWidget.js';
+import { createInboxEvidenceSection, InboxEvidenceWidget } from './inboxEvidenceWidget.js';
 import { InboxCanvases } from './inboxCanvases.js';
 
 function reconcileChildren(parent: HTMLElement, children: readonly HTMLElement[]): void {
@@ -216,7 +216,7 @@ type InboxInteractionTelemetryClassification = {
 	priorityTier: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded priority tier of the card the interaction came from: now, next, later, or none.' };
 	answerKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded shape of a submitted needs-input answer: option, freeText, skip, approve, deny, or none.' };
 	answerCharCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Character count of a submitted free-text answer (never the text itself); 0 otherwise.' };
-	evidenceArtifactKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded kind of an opened evidence artifact: file, session, command, or none.' };
+	evidenceArtifactKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded kind of an opened evidence artifact: file, session, command, pullRequest, or none.' };
 	listIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Zero-based position of the acted card among the visible cards at interaction time, or -1 when not applicable. Enables position/rank analysis of where attention was spent.' };
 	visibleItemCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of notification cards visible in the list at interaction time; the denominator for rank/attention-budget analysis.' };
 	sortMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded active sort mode when the interaction occurred: priority, recent, or none.' };
@@ -254,7 +254,7 @@ interface IInboxInteractionTelemetryOptions {
 	readonly hasSession?: string;
 	readonly answerKind?: InboxAnswerKind;
 	readonly answerCharCount?: number;
-	readonly evidenceArtifactKind?: 'file' | 'session' | 'command' | 'none';
+	readonly evidenceArtifactKind?: 'file' | 'session' | 'command' | 'pullRequest' | 'none';
 }
 
 type InboxImpressionTelemetryEvent = {
@@ -2673,7 +2673,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		));
 
 		const body = this.detailInfoElement.appendChild($('.inbox-notifications-detail-body'));
-		if (item.needsInputPart || item.kind === InboxNotificationKind.Completed || item.previewSignature) {
+		if (item.needsInputPart || item.kind === InboxNotificationKind.Completed || item.previewSignature || item.pullRequestStates?.length) {
 			this.renderDetailSummary(body, item);
 		}
 		if (this.detailChatBinding) {
@@ -2693,7 +2693,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 				localize('inboxNotifications.detail.chatUnavailable', "The conversation is unavailable. Open the full session to reconnect or try again.")));
 		}
 		if (item.pullRequestStates?.length) {
-			const prSection = body.appendChild($('.inbox-notifications-detail-pr'));
+			const section = createInboxEvidenceSection(body, localize('inboxNotifications.detail.pullRequests', "Pull requests"), item.pullRequestStates.length,
+				this.detailDisposables, () => this.detailScrollableElement.scanDomNode());
+			const prSection = section.appendChild($('.inbox-notifications-detail-pr'));
 			for (const state of item.pullRequestStates) {
 				const row = prSection.appendChild($('.inbox-notifications-detail-pr-row'));
 				const icon = row.appendChild(renderIcon(state.icon));
@@ -2972,6 +2974,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 				...interpretation.evidence.map(evidence => `${evidence.text}\n${evidence.artifact.label}${evidence.artifact.uri ? `: ${evidence.artifact.uri.toString(true)}` : ''}`),
 			] : []),
 			this.evidenceWidget?.getAccessibleContent(),
+			...(item?.pullRequestStates?.map(state => `${state.repositoryLabel} ${state.label}: ${state.statusLabel}${state.pullRequestUri ? `\n${state.pullRequestUri.toString(true)}` : ''}`) ?? []),
 			this.getDetailChatStatus(),
 		].filter(Boolean).join('\n\n');
 		return content ? localize('inbox.evidence.accessible', "Evidence for {0}\n\n{1}", this.selectedItem()?.title ?? '', content) : undefined;
