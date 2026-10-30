@@ -444,6 +444,11 @@ class AnimationFrameQueueItem implements IDisposable {
 	 * A flag to indicate if currently handling a native requestAnimationFrame callback
 	 */
 	const inAnimationFrameRunner = new Map<number /* window ID */, boolean>();
+	/**
+	 * Index of the next item to run in the queue that is currently being drained. Drains are
+	 * synchronous and cannot be re-entered, so one number is enough.
+	 */
+	let queueHead = 0;
 
 	markAsSingleton(onDidUnregisterWindow(({ vscodeWindowId }) => {
 		// A callback can close its window while the current queue is being processed.
@@ -457,6 +462,30 @@ class AnimationFrameQueueItem implements IDisposable {
 		inAnimationFrameRunner.delete(vscodeWindowId);
 	}));
 
+	/**
+	 * Inserts `item` into `queue`, which must be sorted by priority in descending
+	 * order. Items with an equal priority are placed after the ones already in the
+	 * queue, which is the order a stable sort of the whole queue produced before.
+	 * Index moves only - no array is allocated and nothing is returned.
+	 */
+	function insertSorted(queue: AnimationFrameQueueItem[], item: AnimationFrameQueueItem): void {
+		let low = queueHead; // never before the next item to run
+		let high = queue.length;
+		while (low < high) {
+			const mid = (low + high) >>> 1;
+			if (queue[mid].priority >= item.priority) {
+				low = mid + 1;
+			} else {
+				high = mid;
+			}
+		}
+		queue.push(item);
+		if (low < queue.length - 1) {
+			queue.copyWithin(low + 1, low, queue.length - 1);
+			queue[low] = item;
+		}
+	}
+
 	const animationFrameRunner = (targetWindowId: number) => {
 		if (!animFrameRequested.has(targetWindowId)) {
 			return;
@@ -468,11 +497,16 @@ class AnimationFrameQueueItem implements IDisposable {
 		NEXT_QUEUE.set(targetWindowId, []);
 
 		inAnimationFrameRunner.set(targetWindowId, true);
-		while (currentQueue.length > 0) {
-			currentQueue.sort(AnimationFrameQueueItem.sort);
-			const top = currentQueue.shift()!;
+		// Sort once and then keep the queue ordered while it drains. Executing a runner may
+		// add to this queue, but re-sorting it after every single execution is O(n^2 log n).
+		currentQueue.sort(AnimationFrameQueueItem.sort);
+		queueHead = 0;
+		while (queueHead < currentQueue.length) {
+			const top = currentQueue[queueHead++];
 			top.execute();
 		}
+		currentQueue.length = 0;
+		queueHead = 0;
 		if (inAnimationFrameRunner.has(targetWindowId)) {
 			inAnimationFrameRunner.set(targetWindowId, false);
 		}
@@ -506,7 +540,7 @@ class AnimationFrameQueueItem implements IDisposable {
 				currentQueue = [];
 				CURRENT_QUEUE.set(targetWindowId, currentQueue);
 			}
-			currentQueue.push(item);
+			insertSorted(currentQueue, item);
 			return item;
 		} else {
 			return scheduleAtNextAnimationFrame(targetWindow, runner, priority);
