@@ -134,7 +134,6 @@ export interface SimulationServicesOptions {
 	createNesFetchCache?: (info: CurrentTestRunInfo) => ICompletionsCache;
 	resourcesCacheMode: CacheMode;
 	disabledTools: Set<string>;
-	swebenchPrompt: boolean;
 	summarizeHistory: boolean;
 	useExperimentalCodeSearchService: boolean;
 	configs: Record<string, unknown> | undefined;

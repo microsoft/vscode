@@ -377,9 +377,6 @@ class SimulationExecutor {
 			case CacheMode.Disable:
 				args.push(`--skip-cache`);
 				break;
-			case CacheMode.Regenerate:
-				args.push(`--regenerate-cache`);
-				break;
 			case CacheMode.Require:
 				args.push(`--require-cache`);
 				break;

@@ -43,7 +43,6 @@ export async function run(fullPath: string, testFullName: string) {
 		languageModelCacheMode: CacheMode.Default,
 		resourcesCacheMode: CacheMode.Default,
 		disabledTools: new Set(),
-		swebenchPrompt: false,
 		summarizeHistory: true,
 		useExperimentalCodeSearchService: false,
 		configs: undefined,

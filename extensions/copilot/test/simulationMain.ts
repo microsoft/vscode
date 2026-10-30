@@ -589,7 +589,6 @@ function createSimulationTestContext(
 		resourcesCacheMode: opts.resourcesCacheMode,
 		disabledTools: opts.disabledTools,
 		summarizeHistory: opts.summarizeHistory,
-		swebenchPrompt: opts.swebenchPrompt,
 		useExperimentalCodeSearchService: opts.useExperimentalCodeSearchService,
 		configs
 	};

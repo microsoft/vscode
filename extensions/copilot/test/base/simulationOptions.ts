@@ -95,14 +95,12 @@ export class SimulationOptions {
 	public readonly fastChatModel: string | undefined;
 	public readonly fastRewriteModel: string | undefined;
 	public readonly summarizeHistory: boolean;
-	public readonly swebenchPrompt: boolean;
 	public readonly embeddingType: EmbeddingType | undefined;
 	public readonly boost: boolean;
 	public readonly parallelism: number;
 	public readonly lmCacheMode: CacheMode;
 	public readonly modelCacheMode: CacheMode;
 	public readonly resourcesCacheMode: CacheMode;
-	public readonly cachePath: string | undefined;
 	public readonly externalBaseline: string | undefined;
 	public readonly externalScenarios: string | undefined;
 	public readonly output: string | undefined;
@@ -167,7 +165,6 @@ export class SimulationOptions {
 		this.fastChatModel = this.argv['fast-model'];
 		this.fastRewriteModel = this.argv['fast-rewrite-model'];
 		this.summarizeHistory = boolean(argv['summarize-history'], true);
-		this.swebenchPrompt = boolean(argv['swebench-prompt'], false);
 		this.embeddingType = cliOptionsToWellKnownEmbeddingsType(this.argv['embedding-model']);
 		this.parallelism = this.argv['parallelism'] ?? this.argv['p'] ?? 20;
 		this.modelCacheMode = this.argv['skip-model-cache'] ? CacheMode.Disable : CacheMode.Default;
@@ -182,7 +179,6 @@ export class SimulationOptions {
 		this.externalBaseline = this.argv['external-baseline']; // must be set after `externalScenarios`
 		this.validateExternalBaseline();
 		this.output = this.argv['output'];
-		this.cachePath = this.argv['cache-location'];
 		this.stageCacheEntries = boolean(this.argv['stage-cache-entries'], false);
 		this.ci = boolean(this.argv['ci'], false);
 		this.gc = boolean(this.argv['gc'], false);
@@ -267,7 +263,6 @@ export class SimulationOptions {
 			`  -p, --parallelism                  [experimental] Run tests in parallel (default: 1)`,
 			`  --skip-cache                       [experimental] Do not use the cache for language model requests`,
 			`  --require-cache                    [experimental] Require cache hits, fail on cache misses`,
-			`  --regenerate-cache                 [experimental] Fetch all responses and refresh the cache`,
 			`  --skip-resources-cache             [experimental] Do not use the cache for computed resources`,
 			`  --skip-model-cache                 [experimental] Do not use the cache for model metadata`,
 			`  --stage-cache-entries              [experimental] Stage cache files that were used in current simulation run`,
@@ -281,7 +276,6 @@ export class SimulationOptions {
 			`  --nes-url                           To override endpoint URL for NES (must be used with --nes-api-key)`,
 			`  --nes-api-key                        API key for endpoint URL provided via NES (must be used with --nes-url)`,
 			`  --disable-tools                    A comma-separated list of tools to disable`,
-			`  --swebench-prompt                  Use the headless swebench prompt for agent mode`,
 			`  --summarize-history                Enable experimental conversation history summarization in agent mode`,
 			`  --config-file                      Path to a JSON file containing configuration options`,
 			`  --model-config-file                Path to a JSON file containing model configuration options`,
