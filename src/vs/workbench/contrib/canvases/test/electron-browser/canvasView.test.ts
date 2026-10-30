@@ -5,12 +5,14 @@
 
 import assert from 'assert';
 import { $, getWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -95,4 +97,99 @@ suite('CanvasView', () => {
 			afterPageClosed: { editor: '', attached: ['attach', 'detach', 'attach', 'detach', 'attach'] },
 		});
 	});
+
+	test('holds the last frame of the shown canvas while switching to another until that one is revealed or loads too long', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const resolutions = new Map<string, DeferredPromise<IBrowserViewModel>>();
+		const createModel = (name: string) => upcastPartial<IBrowserViewModel>({
+			url: `https://${name}.test`,
+			screenshot: VSBuffer.fromString(`${name} frame`),
+			onDidChangeFocus: Event.None,
+			onDidChangeLoadingState: Event.None,
+			onDidNavigate: Event.None,
+			onDidRequestOpenExternal: Event.None,
+			onWillDispose: Event.None,
+			layout: async () => { },
+		});
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(ICanvasService, {
+			enabled: constObservable(true),
+			isPresentable: () => true,
+			resolveCanvasModel: async (reference: ICanvasReference) => ({ model: await resolutions.get(reference.canvas.path)!.p, reused: false }),
+		});
+		instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
+		instantiationService.stub(IAccessibleViewService, {});
+		instantiationService.stubInstance(WebContentsViewHost, {
+			screenshotElement: $('div'), pauseElement: $('div'),
+			onContainerCreated: () => { },
+			setModel: () => { },
+			setVisible: () => { },
+			layout: () => { },
+			tryFocus: () => false,
+			dispose: () => { },
+		});
+		const createInput = (name: string): ICanvasViewInput => {
+			resolutions.set(`/${name}`, new DeferredPromise<IBrowserViewModel>());
+			const reference: ICanvasReference = { providerId: 'local', session: URI.parse('session:/a'), chat: URI.parse('chat:/a'), canvas: URI.parse(`canvas:/${name}`) };
+			return { reference, canvas: constObservable({ resource: reference.canvas, instanceId: name, title: name, source: URI.parse(`https://${name}.test`) }), membershipPending: constObservable(false) };
+		};
+		const resolve = async (name: string) => {
+			resolutions.get(`/${name}`)!.complete(createModel(name));
+			await timeout(0);
+		};
+		const parent = $('.canvas-view-held-frame');
+		parent.style.width = '400px';
+		parent.style.height = '200px';
+		getWindow(parent).document.body.appendChild(parent);
+		store.add(toDisposable(() => parent.remove()));
+		const view = store.add(instantiationService.createInstance(CanvasView, parent, getWindow(parent), {
+			logPrefix: '[test]',
+			notPresentableMessage: constObservable('Not shown here.'),
+			getHelpContent: () => '',
+		}));
+		view.setVisible(true);
+		// A shown view lays out on the next animation frame, which faked timers leave real. Let it pass first,
+		// or a late one supersedes a reveal and postpones releasing the held frame.
+		await new Promise<void>(resolve => store.add(scheduleAtNextAnimationFrame(getWindow(parent), () => resolve())));
+		const frames = ['plan', 'preview', 'slow'];
+		const state = () => {
+			const frame = parent.querySelector<HTMLElement>('.session-canvas-held-frame');
+			const image = frame?.classList.contains('held') ? frame.style.backgroundImage : '';
+			return {
+				heldFrame: frames.find(name => image.includes(encodeBase64(VSBuffer.fromString(`${name} frame`)))),
+				message: parent.querySelector('.session-canvas-message')?.textContent,
+			};
+		};
+
+		const plan = createInput('plan');
+		view.setInput(plan);
+		await resolve('plan');
+		view.setInput(createInput('preview'));
+		await timeout(0);
+		const whileLoading = state();
+		await resolve('preview');
+		const whenRevealed = state();
+		await timeout(100);
+		const afterReveal = state();
+		view.setInput(createInput('slow'));
+		await timeout(300);
+		const whenLoadingTakesLong = state();
+		await resolve('slow');
+		view.clearInput();
+		const whenCleared = state();
+		view.setInput(plan);
+		await timeout(0);
+		const afterNextReveal = state();
+		view.setVisible(false);
+
+		assert.deepStrictEqual({ whileLoading, whenRevealed, afterReveal, whenLoadingTakesLong, whenCleared, afterNextReveal, afterHide: state() }, {
+			whileLoading: { heldFrame: 'plan', message: 'Loading canvas…' },
+			whenRevealed: { heldFrame: 'plan', message: '' },
+			afterReveal: { heldFrame: undefined, message: '' },
+			whenLoadingTakesLong: { heldFrame: undefined, message: 'Loading canvas…' },
+			// An editor clears its input before it sets the next one, so the frame waits for that canvas.
+			whenCleared: { heldFrame: 'slow', message: '' },
+			afterNextReveal: { heldFrame: 'slow', message: '' },
+			afterHide: { heldFrame: undefined, message: '' },
+		});
+	}));
 });

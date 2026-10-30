@@ -8,6 +8,8 @@ import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/br
 import { $, isAncestorOfActiveElement, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
+import { encodeBase64 } from '../../../../base/common/buffer.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -70,6 +72,11 @@ export interface ICanvasViewOptions {
 const attachedViews = new WeakMap<IBrowserViewModel, CanvasView>();
 const liveViews = new Set<CanvasView>();
 
+/** How long switching to another canvas may hold the previous canvas's last frame before its loading state shows. */
+const HELD_FRAME_TIMEOUT = 300;
+/** How long the held frame stays under a revealed canvas, so its native view is composited before the frame goes. */
+const HELD_FRAME_REVEAL_DELAY = 100;
+
 /** Returns the canvas view that contains keyboard focus, if any. */
 export function getFocusedCanvasView(): CanvasView | undefined {
 	for (const view of liveViews) {
@@ -92,6 +99,9 @@ export class CanvasView extends Disposable {
 	private readonly wrapper: HTMLElement;
 	private readonly container: HTMLElement;
 	private readonly message: HTMLElement;
+	/** The last frame of the canvas this view switched away from, shown until the next canvas is revealed. */
+	private readonly heldFrame: HTMLElement;
+	private readonly heldFrameRelease = this._register(new MutableDisposable());
 	private readonly host: WebContentsViewHost;
 	private model: IBrowserViewModel | undefined;
 	private readonly modelLifetime = this._register(new DisposableStore());
@@ -150,7 +160,9 @@ export class CanvasView extends Disposable {
 		this._register(toDisposable(() => this.element.remove()));
 
 		this.host = this._register(instantiationService.createInstance(WebContentsViewHost, targetWindow, () => focusWebContentsViewContainer(this.container)));
-		placeholder.append(this.host.screenshotElement, this.host.pauseElement);
+		this.heldFrame = $('.session-canvas-held-frame');
+		this.heldFrame.setAttribute('aria-hidden', 'true');
+		placeholder.append(this.host.screenshotElement, this.heldFrame, this.host.pauseElement);
 		this.host.onContainerCreated(this.container);
 
 		liveViews.add(this);
@@ -196,14 +208,38 @@ export class CanvasView extends Disposable {
 		if (this.currentInput.get() === input) {
 			return;
 		}
+		this.holdFrame();
 		this.yieldedKey = undefined;
 		this.currentInput.set(input, undefined);
 	}
 
-	/** Detaches the current canvas and clears every status message. */
+	/**
+	 * Detaches the current canvas and clears every status message. A frame held for a switch
+	 * stays until the next canvas is revealed, as an editor clears its input before setting the next one.
+	 */
 	clearInput(): void {
 		this.setInput(undefined);
 		this._detach('');
+	}
+
+	/**
+	 * Holds the last frame of the canvas this view shows while the view switches away from it,
+	 * so the area does not flash empty until the next canvas, which may still have to load, is revealed.
+	 */
+	private holdFrame(): void {
+		const screenshot = this._presentationVisible.get() ? this.model?.screenshot : undefined;
+		if (!screenshot) {
+			return;
+		}
+		this.heldFrame.style.backgroundImage = `url('data:image/jpeg;base64,${encodeBase64(screenshot)}')`;
+		this.heldFrame.classList.add('held');
+		this.heldFrameRelease.value = disposableTimeout(() => this.releaseFrame(), HELD_FRAME_TIMEOUT);
+	}
+
+	private releaseFrame(): void {
+		this.heldFrameRelease.clear();
+		this.heldFrame.classList.remove('held');
+		this.heldFrame.style.backgroundImage = '';
 	}
 
 	private async _load(input: ICanvasViewInput, key: string): Promise<void> {
@@ -432,6 +468,9 @@ export class CanvasView extends Disposable {
 		this.host.layout();
 		if (visible) {
 			this.host.setVisible(true);
+			if (this.heldFrame.classList.contains('held')) {
+				this.heldFrameRelease.value = disposableTimeout(() => this.releaseFrame(), HELD_FRAME_REVEAL_DELAY);
+			}
 		}
 	}
 
@@ -458,7 +497,9 @@ export class CanvasView extends Disposable {
 		if (!visible) {
 			this.layoutSequence++;
 			this._presentationVisible.set(false, undefined);
-			this.host.setVisible(false);
+			this.releaseFrame();
+			// The view's own container is hidden, so a native view left for another frame would float over what replaces it.
+			this.host.setVisible(false, true);
 			return;
 		}
 		// A view can be told it is visible inside a hidden container, so only `layout` reveals it.

@@ -75,10 +75,15 @@ export class WebContentsViewHost extends Disposable {
 		this._refreshOverlayObscured();
 	}
 
-	setVisible(visible: boolean): void {
+	/**
+	 * Shows or hides the page with its container. A hide waits a frame so the screenshot
+	 * placeholder can take over, unless `immediate`, because the container itself is
+	 * hidden and nothing would bridge that frame.
+	 */
+	setVisible(visible: boolean, immediate = false): void {
 		if (this._editorVisible !== visible) {
 			this._editorVisible = visible;
-			this._refresh();
+			this._refresh(false, immediate);
 		}
 	}
 
@@ -154,7 +159,7 @@ export class WebContentsViewHost extends Disposable {
 			&& !this._model.error;
 	}
 
-	private _refresh(restartScreenshot = false): void {
+	private _refresh(restartScreenshot = false, hideImmediately = false): void {
 		if (restartScreenshot) {
 			this._screenshotSequence++;
 		}
@@ -184,6 +189,10 @@ export class WebContentsViewHost extends Disposable {
 			}
 		} else {
 			void this._captureScreenshot();
+			if (hideImmediately) {
+				void this._model.setVisible(false);
+				return;
+			}
 			this.targetWindow.requestAnimationFrame(() => {
 				if (this._model && !this._shouldShowPage()) {
 					void this._model.setVisible(false);
