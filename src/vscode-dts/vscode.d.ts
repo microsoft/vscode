@@ -13839,11 +13839,14 @@ declare module 'vscode' {
 		 * Leave it `undefined` when the item does not represent a single version of a resource, for example
 		 * a commit in a folder or workspace timeline.
 		 *
-		 * When {@link TimelineItem.label label} is `falsy`, this property is used to derive several item properties:
+		 * When {@link TimelineItem.label label} is `falsy`, the item represents the resource itself, and all of
+		 * the following are derived from this property:
 		 * - **Label**: Derived from the resource's file name.
 		 * - **Icon**: Derived from the current file icon theme when {@link TimelineItem.iconPath iconPath} is `falsy`
 		 *   or set to {@link ThemeIcon.File} or {@link ThemeIcon.Folder}.
 		 * - **Decorations**: The resource's {@link FileDecoration file decorations} are shown.
+		 *
+		 * When `label` is set, the label, icon, and decorations are not derived from this property.
 		 */
 		resourceUri?: Uri;
 
