@@ -54,7 +54,8 @@ export class InstallPluginAction extends Action {
 
 export class UninstallPluginAction extends Action {
 	constructor(private readonly removePlugin: () => Promise<boolean>, readonly requiredByOrganization = false) {
-		super('agentPlugin.uninstall', localize('uninstall', "Uninstall"), 'extension-action label uninstall', !requiredByOrganization);
+		// Without the `uninstall` class, extension action bars show the disabled action instead of hiding it.
+		super('agentPlugin.uninstall', localize('uninstall', "Uninstall"), requiredByOrganization ? 'extension-action label' : 'extension-action label uninstall', !requiredByOrganization);
 		if (requiredByOrganization) {
 			this.tooltip = getPluginManagedByOrganizationMessage();
 		}
