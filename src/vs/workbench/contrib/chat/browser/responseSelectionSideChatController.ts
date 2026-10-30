@@ -7,7 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Menu } from '../../../../base/browser/ui/menu/menu.js';
 import { Action, Separator } from '../../../../base/common/actions.js';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { clamp } from '../../../../base/common/numbers.js';
@@ -110,6 +110,8 @@ export class ResponseSelectionSideChatController extends Disposable {
 	private readonly _quoteAction: Action;
 	private readonly _chatInteractivity = this._register(new MutableDisposable());
 	private readonly _selectionChangeScheduler: dom.AnimationFrameScheduler;
+	private readonly _windowListeners = this._register(new MutableDisposable<DisposableStore>());
+	private _boundWindow: Window | undefined;
 	private _pointerSelectionId: number | undefined;
 	private _pointerSelectionChanged = false;
 	private _verticalPlacement: 'above' | 'below' | undefined;
@@ -217,12 +219,14 @@ export class ResponseSelectionSideChatController extends Disposable {
 			this._reposition(true, false);
 		}));
 
-		const window = dom.getWindow(this._widget.domNode);
-		this._register(dom.addDisposableListener(window.document, 'selectionchange', () => this._onSelectionChange()));
-		this._register(dom.addDisposableListener(this._widget.transcriptDomNode, 'pointerdown', e => this._beginPointerSelection(e), true));
-		this._register(dom.addDisposableListener(window, 'pointerup', e => this._finishPointerSelection(e.pointerId), true));
-		this._register(dom.addDisposableListener(window, 'pointercancel', e => this._finishPointerSelection(e.pointerId), true));
-		this._register(dom.addDisposableListener(window, 'blur', () => this._finishPointerSelection()));
+		// The widget can be created before it shows in its window, such as in a window of its own: the selection is followed
+		// in the window it shows in, once the user selects in it with the pointer or the keyboard.
+		this._bindWindow();
+		this._register(dom.addDisposableListener(this._widget.domNode, 'focusin', () => this._bindWindow(), true));
+		this._register(dom.addDisposableListener(this._widget.transcriptDomNode, 'pointerdown', e => {
+			this._bindWindow();
+			this._beginPointerSelection(e);
+		}, true));
 		// The transcript is a virtualized list that scrolls by transform, so it
 		// never fires a DOM scroll event; follow its own scroll event instead.
 		// The capture-phase DOM listener additionally covers nested scrollers
@@ -261,6 +265,19 @@ export class ResponseSelectionSideChatController extends Disposable {
 		if (changedChat) {
 			this._dismiss(true);
 		}
+	}
+
+	private _bindWindow(): void {
+		const window = dom.getWindow(this._widget.domNode);
+		if (this._boundWindow === window) {
+			return;
+		}
+		this._boundWindow = window;
+		const store = this._windowListeners.value = new DisposableStore();
+		store.add(dom.addDisposableListener(window.document, 'selectionchange', () => this._onSelectionChange()));
+		store.add(dom.addDisposableListener(window, 'pointerup', e => this._finishPointerSelection(e.pointerId), true));
+		store.add(dom.addDisposableListener(window, 'pointercancel', e => this._finishPointerSelection(e.pointerId), true));
+		store.add(dom.addDisposableListener(window, 'blur', () => this._finishPointerSelection()));
 	}
 
 	private _beginPointerSelection(event: PointerEvent): void {

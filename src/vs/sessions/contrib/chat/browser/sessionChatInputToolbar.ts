@@ -447,7 +447,7 @@ export class SessionChatInputToolbar extends Disposable {
 		if (!chat) {
 			return undefined;
 		}
-		return this._findOwningSession(chat.resource, reader);
+		return findSessionOfChat(this._sessionsService, chat.resource, reader);
 	});
 
 	/**
@@ -762,12 +762,17 @@ export class SessionChatInputToolbar extends Disposable {
 					}
 					const chat = this._chat.get();
 					const workspace = chat?.workspace?.get() ?? session.workspace.get();
-					layoutService.revealEditorPartExplicitly();
+					// A chat shown in a window of its own shows its changes in that window's editor area, not in the main window's.
+					const inWindow = this._sessionsService.windowSessions.get().includes(session);
+					if (!inWindow) {
+						layoutService.revealEditorPartExplicitly();
+					}
 					void sessionChangesService.openChangesEditor(session.resource, {
 						changesetSelection: {
 							kind: 'id',
 							id: getChangesPillChangesetId(workspace, isNestedChat(session, chat, undefined), session),
-						}
+						},
+						...(inWindow ? { chatResource: session.scopedChatResource } : {}),
 					});
 				},
 			},
@@ -850,14 +855,23 @@ export class SessionChatInputToolbar extends Disposable {
 		return this._debugData.get();
 	}
 
-	private _findOwningSession(chatResource: URI, reader: IReader): IActiveSession | undefined {
-		for (const session of this._sessionsService.visibleSessions.read(reader)) {
-			if (session?.chats.read(reader).some(c => isEqual(c.resource, chatResource))) {
-				return session;
-			}
-		}
-		const active = this._sessionsService.activeSession.read(reader);
-		return active?.chats.read(reader).some(c => isEqual(c.resource, chatResource)) ? active : undefined;
-	}
+}
 
+/**
+ * The shown session that owns the chat `chatResource`: the session of a window that shows exactly that chat first, as the
+ * sessions the main window shows list all chats of their session, including those shown in other windows; then the
+ * sessions the main window shows, then the active session.
+ */
+export function findSessionOfChat(sessionsService: Pick<ISessionsService, 'visibleSessions' | 'windowSessions' | 'activeSession'>, chatResource: URI, reader: IReader | undefined): IActiveSession | undefined {
+	const windowSession = sessionsService.windowSessions.read(reader).find(session => isEqual(session.scopedChatResource, chatResource));
+	if (windowSession) {
+		return windowSession;
+	}
+	for (const session of sessionsService.visibleSessions.read(reader)) {
+		if (session?.chats.read(reader).some(c => isEqual(c.resource, chatResource))) {
+			return session;
+		}
+	}
+	const active = sessionsService.activeSession.read(reader);
+	return active?.chats.read(reader).some(c => isEqual(c.resource, chatResource)) ? active : undefined;
 }

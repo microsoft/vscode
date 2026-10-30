@@ -31,7 +31,9 @@ import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { safeIntl } from '../../../base/common/date.js';
 import { ITitlebarPart, ITitleProperties, ITitleVariable, IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titlebar/titlebarPart.js';
 import { WindowTitle } from '../../../workbench/browser/parts/titlebar/windowTitle.js';
+import { ChatWindowIdContext } from '../../services/chatWindow/browser/chatWindowService.js';
 import { Menus } from '../menus.js';
+import { ISessionLayoutButtonsService, registerSessionLayoutButtonsContextMenu } from '../sessionLayoutButtons.js';
 import { IsNewChatSessionContext } from '../../common/contextkeys.js';
 import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
@@ -56,6 +58,9 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 
 	get minimumHeight(): number {
+		if (this.fixedHeight !== undefined) {
+			return this.fixedHeight;
+		}
 		const wcoEnabled = isWeb && isWCOEnabled();
 		let value = this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) === ModernUIDensity.Compact
 			? DEFAULT_CUSTOM_TITLEBAR_HEIGHT
@@ -87,6 +92,9 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private leftContent!: HTMLElement;
 	private leftToolbarContainer!: HTMLElement;
 	private centerContent!: HTMLElement;
+	private windowTitleLabel: HTMLElement | undefined;
+	private fixedTitle: string | undefined;
+	private sessionHeaderHost: HTMLElement | undefined;
 	private rightContent!: HTMLElement;
 	private readonly overflowManagedToolBarElements: HTMLElement[] = [];
 	private titleBarToolBarOverflowScheduler!: AnimationFrameScheduler;
@@ -96,6 +104,10 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	get rightWindowControlsContainer(): HTMLElement | undefined { return this.windowControlsContainer; }
 
 	private leftSpacerWidth: number = 0;
+
+	private centerActionsContainer!: HTMLElement;
+	private sessionActionsContainer!: HTMLElement;
+	private sessionHeaderActionsHost: HTMLElement | undefined;
 
 	private readonly titleBarStyle: TitlebarStyle;
 	private isInactive: boolean = false;
@@ -141,6 +153,74 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 	updateProperties(_properties: ITitleProperties): void {
 		// No window title to update in simplified titlebar
+	}
+
+	/**
+	 * Shows a fixed title in the center of the title bar, in place of the command center, and uses it as the window
+	 * title. Meant for auxiliary windows that show one thing, such as a chat; `undefined` removes it.
+	 */
+	setTitle(title: string | undefined): void {
+		this.fixedTitle = title;
+		this.renderFixedTitle();
+		if (title) {
+			getWindow(this.element).document.title = title;
+		}
+	}
+
+	/**
+	 * The element that shows a session header in place of the title, after the window controls; see
+	 * {@link setHostsSessionHeader}. Created when first asked for, so a title bar that never hosts one is as it was.
+	 */
+	getSessionHeaderHost(): HTMLElement {
+		if (!this.sessionHeaderHost) {
+			this.sessionHeaderHost = append(this.leftContent, $('.session-header-host'));
+		}
+		return this.sessionHeaderHost;
+	}
+
+	/**
+	 * The element that shows the actions of a hosted session header, such as its More Actions, last of the actions of the
+	 * title bar. Asking for it makes the actions one group at the right of the title bar, as a window of its own for a
+	 * session, such as a chat window, shows them: the actions that otherwise show beside the title, such as Run and Open in
+	 * VS Code, then show before those at the right, such as Create Pull Request and the layout actions, and the header's
+	 * after all of them, before only the window controls.
+	 */
+	getSessionHeaderActionsHost(): HTMLElement {
+		if (!this.sessionHeaderActionsHost) {
+			this.sessionHeaderActionsHost = $('.session-header-actions-host');
+			this.sessionActionsContainer.before(this.centerActionsContainer);
+			const windowControls = [...this.rightContent.children].find(child => child.classList.contains('window-controls-container'));
+			this.rightContent.insertBefore(this.sessionHeaderActionsHost, windowControls ?? null);
+			this.titleBarToolBarOverflowScheduler.schedule();
+		}
+		return this.sessionHeaderActionsHost;
+	}
+
+	private fixedHeight: number | undefined;
+
+	/**
+	 * Makes the title bar `height` tall, in place of the height of the density, such as to line up with the row of tabs
+	 * beside it in a chat window; its drag region and window controls follow. `undefined` brings back the density's.
+	 */
+	setHeight(height: number | undefined): void {
+		if (this.fixedHeight === height) {
+			return;
+		}
+		this.fixedHeight = height;
+		this._onDidChange.fire(undefined);
+	}
+
+	/** Shows the {@link getSessionHeaderHost} in place of the title. The window title stays. */
+	setHostsSessionHeader(hosts: boolean): void {
+		this.element.classList.toggle('hosts-session-header', hosts);
+	}
+
+	private renderFixedTitle(): void {
+		if (!this.windowTitleLabel) {
+			return;
+		}
+		this.windowTitleLabel.textContent = this.fixedTitle ?? '';
+		this.windowTitleLabel.parentElement?.classList.toggle('has-fixed-title', !!this.fixedTitle);
 	}
 
 	registerVariables(_variables: ITitleVariable[]): void {
@@ -236,6 +316,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		// Center toolbar - command center (renders session picker via IActionViewItemService)
 		// Uses .window-title > .command-center nesting to match default workbench CSS selectors
 		const windowTitle = append(this.centerContent, $('div.window-title'));
+		this.windowTitleLabel = append(windowTitle, $('span.window-title-text'));
+		this.renderFixedTitle();
 		const centerToolbarContainer = append(windowTitle, $('div.command-center'));
 		const centerToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerToolbarContainer, Menus.CommandCenter, {
 			hoverDelegate,
@@ -250,14 +332,21 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			}
 		}));
 
+		// In a chat window, the actions of its toolbars act on that window and its session, not on the one that happens
+		// to be active: they get its handle. Elsewhere the toolbars are as they always were.
+		const chatWindowId = ChatWindowIdContext.getValue(this.contextKeyService);
+		const chatWindowHandle = typeof chatWindowId === 'number' && chatWindowId >= 0 ? { chatWindowId } : undefined;
+		const chatWindowMenuOptions = chatWindowHandle ? { menuOptions: { shouldForwardArgs: true } } : undefined;
+
 		// Actions toolbar (Open in VS Code), rendered right of the command center.
-		const centerActionsContainer = append(this.centerContent, $('div.titlebar-actions-container.titlebar-center-actions-container'));
+		const centerActionsContainer = this.centerActionsContainer = append(this.centerContent, $('div.titlebar-actions-container.titlebar-center-actions-container'));
 		const centerActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerActionsContainer, Menus.TitleBarCenterRight, {
 			hoverDelegate,
 			contextMenu: Menus.TitleBarContext,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'titlePart.centerRight',
 			toolbarOptions: { primaryGroup: () => true },
+			...chatWindowMenuOptions,
 		}));
 
 		// Right toolbar (driven by Menus.TitleBarRightLayout - includes layout actions)
@@ -268,17 +357,44 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'titlePart.right',
 			toolbarOptions: { primaryGroup: () => true },
+			...chatWindowMenuOptions,
 		}));
 
+		// The layout actions of a chat window (before right toolbar): its Layout menu and the buttons of its actions that the
+		// user chose to show from the context menu of the toolbar.
+		const chatWindowLayoutContainer = chatWindowHandle ? prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-chat-window-layout-container')) : undefined;
+		// Which actions show as buttons is the shared state of the layout buttons (see sessionLayoutButtons.ts), which their
+		// own context menu changes, rather than the hidden items of this toolbar.
+		const chatWindowLayoutToolBar = chatWindowLayoutContainer && this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, chatWindowLayoutContainer, Menus.ChatWindowTitleBarLayout, {
+			hoverDelegate,
+			contextMenu: Menus.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'titlePart.chatWindowLayout',
+			toolbarOptions: { primaryGroup: () => true },
+			...chatWindowMenuOptions,
+		}));
+		if (chatWindowLayoutToolBar) {
+			this._register(this.instantiationService.invokeFunction(accessor => registerSessionLayoutButtonsContextMenu(chatWindowLayoutToolBar, accessor.get(ISessionLayoutButtonsService), accessor.get(IContextMenuService))));
+		}
+
 		// Session title actions toolbar (before right toolbar)
-		const sessionActionsContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-session-actions-container'));
+		const sessionActionsContainer = this.sessionActionsContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-session-actions-container'));
 		const sessionActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, sessionActionsContainer, Menus.TitleBarSessionMenu, {
 			hoverDelegate,
 			contextMenu: Menus.TitleBarContext,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'titlePart.sessionActions',
 			toolbarOptions: { primaryGroup: () => true },
+			...chatWindowMenuOptions,
 		}));
+
+		if (chatWindowHandle) {
+			for (const toolBar of [rightToolBar, centerActionsToolBar, sessionActionsToolBar, chatWindowLayoutToolBar]) {
+				if (toolBar) {
+					toolBar.context = chatWindowHandle;
+				}
+			}
+		}
 
 		const screenReaderToolBarElement = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-screen-reader-container'));
 		const screenReaderButtonBar = this._register(this.instantiationService.createInstance(MenuWorkbenchButtonBar, screenReaderToolBarElement, Menus.TitleBarAccessibility, {
@@ -298,6 +414,9 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		this.registerOverflowManagedToolBar(centerNavContainer, centerNavToolBar);
 		this.registerOverflowManagedToolBar(rightToolbarContainer, rightToolBar);
 		this.registerOverflowManagedToolBar(sessionActionsContainer, sessionActionsToolBar);
+		if (chatWindowLayoutContainer && chatWindowLayoutToolBar) {
+			this.registerOverflowManagedToolBar(chatWindowLayoutContainer, chatWindowLayoutToolBar);
+		}
 
 		// Context menu on the titlebar
 		this._register(addDisposableListener(this.rootContainer, EventType.CONTEXT_MENU, e => {

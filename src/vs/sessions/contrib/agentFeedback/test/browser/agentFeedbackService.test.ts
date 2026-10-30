@@ -502,6 +502,25 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		]);
 	});
 
+	test('a file in a window that shows a session of its own belongs to that session, whichever session is active or opened the file', () => {
+		// S1 is active, as while its window has focus, and the file was opened while it was; the window shows S2.
+		setActiveSession(sessions.get(sessionS1.toString()));
+		setVisibleEditors([pane(fileA)]);
+		const windowSession = sessions.get(sessionS2.toString())!;
+
+		assert.deepStrictEqual({
+			inTheWindow: service.getFeedbackSessionResource(fileA, windowSession)?.toString(),
+			sessionInTheWindow: service.getSessionForFile(fileA, windowSession)?.resource.toString(),
+			elsewhere: service.getFeedbackSessionResource(fileA)?.toString(),
+			untitledWindow: service.getFeedbackSessionResource(fileB, makeSession(sessionS2, SessionStatus.Untitled))?.toString(),
+		}, {
+			inTheWindow: sessionS2.toString(),
+			sessionInTheWindow: sessionS2.toString(),
+			elsewhere: sessionS1.toString(),
+			untitledWindow: undefined,
+		});
+	});
+
 	test('uses one shared feedback scope for undefined and workspace-less drafts', () => {
 		const firstDraft = makeSession(sessionS1, SessionStatus.Untitled);
 		const secondDraft = makeSession(sessionS2, SessionStatus.Untitled);

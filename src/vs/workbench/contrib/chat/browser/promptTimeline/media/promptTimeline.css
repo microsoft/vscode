@@ -35,8 +35,8 @@
  * bubbles crowd the pills. We reserve the rail's full width plus the minimum gap and the scrollbar
  * gutter the rail is offset by, but only while the rail surface is mounted (`.prompt-timeline-with-rail`);
  * header-only keeps the base layout. */
-.agent-sessions-workbench .part.sessionspart .prompt-timeline-host.prompt-timeline-with-rail.interactive-session .interactive-item-container,
-.agent-sessions-workbench .part.sessionspart .prompt-timeline-host.prompt-timeline-with-rail.interactive-session > .chat-suggest-next-widget,
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .prompt-timeline-host.prompt-timeline-with-rail.interactive-session .interactive-item-container,
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .prompt-timeline-host.prompt-timeline-with-rail.interactive-session > .chat-suggest-next-widget,
 .agent-sessions-workbench .chat-editor-relative .prompt-timeline-host.prompt-timeline-with-rail.interactive-session .interactive-item-container,
 .agent-sessions-workbench .chat-editor-relative .prompt-timeline-host.prompt-timeline-with-rail.interactive-session > .chat-suggest-next-widget {
 	padding-right: calc(var(--prompt-timeline-rail-width) + var(--prompt-timeline-content-gap) + var(--prompt-timeline-scrollbar-gutter));

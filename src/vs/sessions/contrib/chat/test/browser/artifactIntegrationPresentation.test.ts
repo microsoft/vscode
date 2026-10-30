@@ -158,6 +158,7 @@ suite('Artifact Integration Presentation', () => {
 		}());
 		instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = activeSession;
+			override readonly mainWindowActiveSession = this.activeSession;
 			override async openChat(_session: ISession, resource: URI): Promise<void> {
 				openedChats.push(resource.toString());
 				activeSession.set(new class extends mock<IActiveSession>() {

@@ -144,6 +144,10 @@ Explicit session and chat open actions dismiss the active custom view. Reactive 
 
 Custom views may handle an unparameterized New Session action through their descriptor and host the shared new-session composer. Such composers prepare drafts with `preserveCustomView`; workspace and agent selection must not dismiss their host. Parameterized New Session actions, including opening to the side or supplying a prompt, retain normal session navigation.
 
+## Session-scoped actions
+
+`ISessionScope` names the session the UI of a host acts on. It defaults to the active session. A host that shows another session, such as a window or Changes view of its own, overrides it through a child instantiation service. The Changes view and the title bar session actions read their session from the scope instead of the active session. When the scope is not the active session, the title bar actions evaluate the session action context keys on their own scoped context key service (`bindSessionActionContextKeys`). Session action commands take an optional session argument and fall back to the active session for keybindings and the command palette.
+
 ## Part lifecycle
 
 The workbench:

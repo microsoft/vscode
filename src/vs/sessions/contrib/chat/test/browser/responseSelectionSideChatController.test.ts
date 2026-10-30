@@ -652,6 +652,39 @@ suite('ResponseSelectionSideChatController', () => {
 		assert.notStrictEqual(inputDomNode(controller).style.display, 'none');
 	});
 
+	test('follows the selection in the window its chat shows in, such as a chat window, when it was created before it showed there', () => {
+		const { controller, widget, transcriptDomNode, store } = setup();
+		// The chat shows in another window after it was created, as the chat of a chat window does.
+		const frame = dom.getActiveDocument().createElement('iframe');
+		dom.getActiveDocument().body.appendChild(frame);
+		store.add(toDisposable(() => frame.remove()));
+		const frameWindow = frame.contentWindow! as Window & typeof globalThis & { getSelection: () => Selection | null };
+		frameWindow.document.body.appendChild(widget.domNode);
+		const textNode = transcriptDomNode.querySelector('.chat-markdown-part')!.firstChild as Text;
+		const range = frameWindow.document.createRange();
+		range.setStart(textNode, 0);
+		range.setEnd(textNode, textNode.data.length);
+		frameWindow.getSelection = () => upcastPartial<Selection>({
+			toString: () => textNode.data,
+			isCollapsed: false,
+			anchorNode: textNode,
+			anchorOffset: 0,
+			focusNode: textNode,
+			focusOffset: textNode.data.length,
+			rangeCount: 1,
+			getRangeAt: () => range,
+		});
+		const hidden = () => inputDomNode(controller).style.display === 'none';
+
+		frameWindow.document.dispatchEvent(new Event('selectionchange'));
+		const beforeFocus = hidden();
+		// Selecting in it, with the keyboard here, moves the focus into it first.
+		transcriptDomNode.dispatchEvent(new frameWindow.FocusEvent('focusin', { bubbles: true }));
+		frameWindow.document.dispatchEvent(new Event('selectionchange'));
+
+		assert.deepStrictEqual({ beforeFocus, afterFocus: hidden() }, { beforeFocus: true, afterFocus: false });
+	});
+
 	test('hides the input again once the selection is cleared', () => {
 		const { controller, setSelection } = setup();
 		setSelection('hello world');

@@ -1,0 +1,1040 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
+import { $, append, getActiveWindow, IDimension } from '../../../../base/browser/dom.js';
+import { disposableTimeout, timeout } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, ISettableObservable, observableFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { isNative } from '../../../../base/common/platform.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { DeepPartial } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { hasCustomTitlebar } from '../../../../platform/window/common/window.js';
+import { IEditorGroupViewOptions } from '../../../../workbench/browser/parts/editor/editor.js';
+import { IAuxiliaryTitlebarPart } from '../../../../workbench/browser/parts/titlebar/titlebarPart.js';
+import { EditorCloseContext, EditorsOrder, GroupModelChangeKind, IEditorPartOptions } from '../../../../workbench/common/editor.js';
+import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { bindEditorPartsToWindow } from '../../../../workbench/services/editor/browser/editorPartWindowBinding.js';
+import { IEditorGroup, IEditorGroupsService, IEmbeddedEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IHostService } from '../../../../workbench/services/host/browser/host.js';
+import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { ITitleService } from '../../../../workbench/services/title/browser/titleService.js';
+import { Menus } from '../../../browser/menus.js';
+import { applyAgentsPartCardStyles } from '../../../browser/parts/agentsPartCard.js';
+import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH, SessionActivityBarHostOccupancy } from '../../../browser/parts/sessionActivityBar.js';
+import { SessionView } from '../../../browser/parts/sessionView.js';
+import { TitlebarPart } from '../../../browser/parts/titlebarPart.js';
+import { IsQuickChatSessionContext, SessionWorkspaceIsVirtualContext } from '../../../common/contextkeys.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../../common/layoutConstants.js';
+import { SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
+import { computeSessionGridLayout, SessionGridCell, SessionHeaderSpan, SessionLayoutMode, SessionTerminalPosition } from '../../../common/sessionGridLayout/sessionGridLayout.js';
+import { ChatWindowContext, ChatWindowEditorAreaEditorContext, ChatWindowEditorGroupContext, ChatWindowHasEditorAreaContext, ChatWindowHasEditorContext, ChatWindowHasSessionActivityBarContext, ChatWindowHasSessionHeaderContext, ChatWindowIdContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalPositionContext, ChatWindowTerminalShownContext, IChatWindow, IChatWindowContent, IChatWindowEditorArea, IChatWindowHandle, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService, IChatWindowTerminalHost, isChatWindowHandle, SessionLayoutModeContext, SessionSplitLayout, SessionSplitLayoutContext } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { ISessionsPartService, IWindowSessionViewHost } from '../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISession } from '../../../services/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionChangesService } from '../../changes/common/sessionChangesService.js';
+import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
+import { ChatModelHold, closeChatWindowsOfGoneChats, followReplacedWindowSessions, IChatWindowOpening, InFlightOperations, openCleaningUpOnFailure } from './chatWindowOpening.js';
+import { deserializeChatWindowEditors, serializeChatWindowEditors } from './chatWindowEditors.js';
+import { ChatWindowCellView, ChatWindowCellSizing, ChatWindowGridHost, IChatWindowCellConstraints } from './chatWindowGridHost.js';
+import { addEmptyEditorAreaAddTab } from './chatWindowEditorArea.js';
+import { ChatWindowInputOnlyController } from './chatWindowInputOnly.js';
+import { ChatWindowTerminals, releaseChatWindowTerminalsOnUnload } from './chatWindowTerminals.js';
+import { ChatWindowChatLayouts, ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState } from './chatWindowState.js';
+import { setChatWindowOpenServices } from './chatWindowOpener.js';
+
+/** The size of a chat window, unless its kind has one. */
+const CHAT_WINDOW_DEFAULT_SIZE = { width: 1200, height: 800 };
+
+/** The least a cell of a chat window can be sized to: the grid host sets the sizes and never measures what a cell shows. */
+const CELL_CONSTRAINTS: Record<SessionGridCell, IChatWindowCellConstraints> = {
+	[SessionGridCell.Chat]: { minimumWidth: 280, maximumWidth: Number.POSITIVE_INFINITY, minimumHeight: 120, maximumHeight: Number.POSITIVE_INFINITY },
+	[SessionGridCell.SidePane]: { minimumWidth: 220, maximumWidth: Number.POSITIVE_INFINITY, minimumHeight: 120, maximumHeight: Number.POSITIVE_INFINITY },
+	[SessionGridCell.Terminals]: { minimumWidth: 220, maximumWidth: Number.POSITIVE_INFINITY, minimumHeight: 80, maximumHeight: Number.POSITIVE_INFINITY },
+	[SessionGridCell.Column]: { minimumWidth: SESSION_ACTIVITY_BAR_COLUMN_WIDTH, maximumWidth: SESSION_ACTIVITY_BAR_COLUMN_WIDTH, minimumHeight: 0, maximumHeight: Number.POSITIVE_INFINITY },
+};
+
+/** How the cells of a chat window share its room until the user sizes them: the editor area wider than the chat, the terminals a third of the height. */
+export function getChatWindowDefaultSizing(cell: SessionGridCell, axis: 'row' | 'column'): ChatWindowCellSizing {
+	switch (cell) {
+		case SessionGridCell.Column: return axis === 'row' ? { kind: 'fixed', size: SESSION_ACTIVITY_BAR_COLUMN_WIDTH } : { kind: 'share', share: 1 };
+		case SessionGridCell.Terminals: return { kind: 'share', share: axis === 'column' ? 0.3 : 1 };
+		case SessionGridCell.SidePane: return { kind: 'share', share: axis === 'row' ? 0.6 : 0.55 };
+		case SessionGridCell.Chat: return { kind: 'share', share: axis === 'row' ? 0.4 : 0.45 };
+	}
+}
+
+/**
+ * The options a chat window enforces on its editor area. Its tabs follow `workbench.editor.showTabs`, live; `none` shows as
+ * `single`, so that the editor area keeps its title with its actions. Double-clicking a tab must not maximize or expand a
+ * group: the window arranges its cells.
+ */
+export function chatWindowPartOptions(showTabs?: string): DeepPartial<IEditorPartOptions> {
+	return { doubleClickTabToToggleEditorGroupSizes: 'off', ...(showTabs === 'none' ? { showTabs: 'single' } : undefined) };
+}
+
+/** The services of the editor parts of a chat window in place of the main window's: their session is the window's. */
+export function createChatWindowServices(sessionScope: ISessionScope): ServiceCollection {
+	return new ServiceCollection([ISessionScope, sessionScope]);
+}
+
+/**
+ * Creates the editor area of a chat window, the part its editors open in; what it shows acts on the window's session.
+ * Its element is in the window's `windowContainer` as the part is created, which takes the window it belongs to from it.
+ */
+export function createChatWindowEditorArea(editorGroupsService: IEditorGroupsService, windowContainer: HTMLElement, services: ServiceCollection): IEmbeddedEditorPart {
+	return editorGroupsService.createEditorPart({
+		container: append(windowContainer, $('.part.editor.chat-window-editor-area')),
+		label: localize('chatWindow.editorArea', "Editor Area"),
+		groupViewOptions: getEditorAreaGroupViewOptions(),
+		// When focus is in the chat, which is in no editor part, editors open here.
+		primary: true,
+		services,
+	});
+}
+
+/** The options of the groups of the editor area of a chat window: as the main window's editor area of the Agents window. */
+function getEditorAreaGroupViewOptions(): IEditorGroupViewOptions {
+	return {
+		menuIds: {
+			headerPrimary: Menus.SessionsEditorHeaderPrimary,
+			// The Changes editor's own actions show at the right of its header row rather than in the tab row's overflow.
+			headerSecondary: Menus.SessionsEditorHeaderSecondary,
+			headerLayout: Menus.SessionsEditorHeaderLayout,
+			editorActions: Menus.SessionsEditorTitle,
+			tabsBarContext: Menus.SessionsEditorTabsBarContext,
+			tabsBarAddTab: Menus.SessionsEditorTabsBarAddTab
+		},
+		showHeader: true,
+		useModernUITabs: true,
+	};
+}
+
+/**
+ * Binds on `contextKeyService` what the menus of a chat window read about the session it shows. Only those values are read,
+ * and compared by value: a streaming response or a stats change leaves the keys alone, so the title bar does not re-render.
+ */
+export function bindChatWindowTitleBarContext(session: IObservable<IActiveSession | undefined>, contextKeyService: IContextKeyService): IDisposable {
+	const hasWorkspaceContext = ChatWindowSessionHasWorkspaceContext.bindTo(contextKeyService);
+	const workspaceIsVirtualContext = SessionWorkspaceIsVirtualContext.bindTo(contextKeyService);
+	const isQuickChatContext = IsQuickChatSessionContext.bindTo(contextKeyService);
+	const state = derivedOpts<{ readonly hasWorkspace: boolean; readonly isVirtual: boolean; readonly isQuickChat: boolean }>({
+		equalsFn: (a, b) => a.hasWorkspace === b.hasWorkspace && a.isVirtual === b.isVirtual && a.isQuickChat === b.isQuickChat
+	}, reader => {
+		const active = session.read(reader);
+		const workspace = active?.activeChat.read(reader).workspace.read(reader);
+		const isQuickChat = !!active?.isQuickChat?.read(reader);
+		return { hasWorkspace: !!active && !isQuickChat && !!active.workspace.read(reader), isVirtual: workspace?.isVirtualWorkspace ?? true, isQuickChat };
+	});
+	return autorun(reader => {
+		const { hasWorkspace, isVirtual, isQuickChat } = state.read(reader);
+		contextKeyService.bufferChangeEvents(() => {
+			isQuickChatContext.set(isQuickChat);
+			hasWorkspaceContext.set(hasWorkspace);
+			workspaceIsVirtualContext.set(isVirtual);
+		});
+	});
+}
+
+/**
+ * Focuses a chat window (`focus`) unless its document has focus already: focusing a focused window again can bring the
+ * main window to the front before it, such as when its first terminal shows.
+ */
+export function focusChatWindowUnlessFocused(targetWindow: { readonly document: { hasFocus(): boolean } }, focus: () => void): void {
+	if (!targetWindow.document.hasFocus()) {
+		focus();
+	}
+}
+
+/**
+ * How the session of a chat window is focused, such as when it becomes the active session: its window, and its chat only
+ * while the chat shows. Focusing the chat while only the editor area shows would not show it; only the user's choice of a
+ * layout does.
+ */
+export function createChatWindowSessionViewHost(focusWindow: () => void, focusChat: () => void, isChatVisible: () => boolean): IWindowSessionViewHost {
+	return {
+		focus: () => {
+			focusWindow();
+			if (isChatVisible()) {
+				focusChat();
+			}
+		},
+	};
+}
+
+/**
+ * The context of a chat window, scoped to the body of its document rather than to its container: keys pressed while no
+ * element of the window has focus, such as after its terminals hid, resolve in the chat window's context, so that its
+ * keybindings, and never the main window's for the same keys, apply.
+ */
+export function createChatWindowContextKeyService(contextKeyService: IContextKeyService, auxiliaryWindow: { readonly window: { readonly document: Document }; readonly container: HTMLElement }): IScopedContextKeyService {
+	return contextKeyService.createScoped(auxiliaryWindow.window.document.body);
+}
+
+/**
+ * Moves the editors of `groups` to `target`, keeping the active one active. An editor that cannot move there, such as a
+ * canvas, which shows only in the main window, stays where it is, without the error its group shows for a move it vetoes.
+ */
+export function moveEditorsToChatWindow(groups: readonly IEditorGroup[], target: IEditorGroup): void {
+	let active: { readonly group: IEditorGroup; readonly editor: NonNullable<IEditorGroup['activeEditor']> } | undefined;
+	for (const group of groups) {
+		if (group === target) {
+			continue;
+		}
+		const editors = group.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => editor.canMove(group.id, target.id) === true);
+		if (!active && group.activeEditor && editors.includes(group.activeEditor)) {
+			active = { group, editor: group.activeEditor };
+		}
+		if (editors.length) {
+			group.moveEditors(editors.map(editor => ({ editor, options: { pinned: true, preserveFocus: true, inactive: editor !== active?.editor } })), target);
+		}
+	}
+	if (active && target.contains(active.editor)) {
+		void target.openEditor(active.editor, { preserveFocus: true });
+	}
+}
+
+/**
+ * Runs `relayout` once the styles of `window` have loaded. A chat window first lays out before they have, such as in a
+ * build that loads them as links: its cards then have no border, which their contents leave room for, and the row of
+ * tabs of its editor area, which its title row lines up with, has not its height yet.
+ */
+export function relayoutWhenStylesHaveLoaded(window: Pick<IAuxiliaryWindow, 'whenStylesHaveLoaded'>, relayout: () => void): IDisposable {
+	let disposed = false;
+	window.whenStylesHaveLoaded.then(() => {
+		if (!disposed) {
+			relayout();
+		}
+	});
+	return toDisposable(() => disposed = true);
+}
+
+/**
+ * Leaves room for the window controls where they are at the top right of the window (Windows, Linux), while the header is
+ * above the chat's column only and the editor area runs to the top of the window: in the top row of the editor area's
+ * group at the top right of the window, whose toolbar then shows left of them. Returns the height of that row, from the
+ * top of the card the editor area is in, its border included, so that a header as tall ends where the row does.
+ */
+export function reserveChatWindowControls(editorArea: HTMLElement, windowControlsWidth: number): number {
+	editorArea.style.setProperty('--chat-window-controls-width', `${windowControlsWidth}px`);
+	const bounds = editorArea.getBoundingClientRect();
+	const top = (editorArea.closest('.chat-window-cell-card') ?? editorArea).getBoundingClientRect().top;
+	let rowHeight = 0;
+	// The groups as they show, rather than as the editor part arranges them: the one at the top right of the window.
+	// eslint-disable-next-line no-restricted-syntax
+	for (const group of editorArea.querySelectorAll<HTMLElement>('.editor-group-container')) {
+		const groupBounds = group.getBoundingClientRect();
+		const topRight = groupBounds.height > 0 && Math.abs(groupBounds.top - bounds.top) < 1 && Math.abs(groupBounds.right - bounds.right) < 1;
+		group.classList.toggle('chat-window-reserves-controls', topRight && windowControlsWidth > 0);
+		if (topRight) {
+			// The row of the tabs, which the title shows first, above the editor's header if it has one; else the toolbar of
+			// the empty group.
+			const title = Array.from(group.children).find(child => (child.classList.contains('title') || child.classList.contains('editor-group-container-toolbar')) && child.getBoundingClientRect().height > 0);
+			const row = title?.classList.contains('title') ? Array.from(title.children).find(child => child.getBoundingClientRect().height > 0) ?? title : title;
+			rowHeight = row ? Math.round(row.getBoundingClientRect().bottom - top) : 0;
+		}
+	}
+	return rowHeight;
+}
+
+/**
+ * Makes the title row of a chat window (`titlebar`) as tall as the row of tabs of its editor area, as it shows (see
+ * {@link reserveChatWindowControls}) or, hidden, as it last showed (`lastRowHeight`), so that the two line up beside each
+ * other and the row keeps its height in every layout. Returns the height of the row of tabs, 0 while never shown.
+ */
+export function alignChatWindowTitleRow(titlebar: IAuxiliaryTitlebarPart | TitlebarPart, editorArea: HTMLElement, windowControlsWidth: number, lastRowHeight: number): number {
+	const rowHeight = reserveChatWindowControls(editorArea, windowControlsWidth) || lastRowHeight;
+	if (titlebar instanceof TitlebarPart) {
+		titlebar.setHeight(rowHeight || undefined);
+	}
+	return rowHeight;
+}
+
+/**
+ * Centers the header's actions (`actionsHost`, last at the right of the title bar `titlebar`) above the Session Activity
+ * Bar's column, at the right of the window below the title bar, as the entries of the column are: by the inset after them.
+ */
+export function alignChatWindowHeaderActions(titlebar: HTMLElement, actionsHost: HTMLElement): void {
+	const actions = actionsHost.firstElementChild?.getBoundingClientRect().width ?? 0;
+	const inset = actions ? Math.max(0, Math.round((SESSION_ACTIVITY_BAR_COLUMN_WIDTH - actions) / 2)) : undefined;
+	if (inset === undefined) {
+		titlebar.style.removeProperty('--session-header-actions-inset');
+	} else {
+		titlebar.style.setProperty('--session-header-actions-inset', `${inset}px`);
+	}
+}
+
+/** What the chat window binds for its menus, keybindings and title bar on a context key service of its own. */
+interface IChatWindowContextValues {
+	readonly kind: IChatWindowKind;
+	readonly windowId: number;
+	readonly hasEditorArea: boolean;
+	readonly state: ChatWindowState;
+	readonly session: IObservable<IActiveSession | undefined>;
+	readonly editorGroup: IObservable<IEditorGroup | undefined>;
+	readonly editorAreaEditor: IObservable<string>;
+}
+
+/**
+ * Binds the context of a chat window on `contextKeyService`: the window's own, and those of the editor parts in it, which
+ * are scoped to the global context rather than to the window's.
+ */
+export function bindChatWindowContext(contextKeyService: IContextKeyService, values: IChatWindowContextValues): IDisposable {
+	const store = new DisposableStore();
+	// An auxiliary window: what applies to the main window only, such as its panel and side panel toggles, does not apply here.
+	IsAuxiliaryWindowContext.bindTo(contextKeyService).set(true);
+	ChatWindowContext.bindTo(contextKeyService).set(values.kind.id);
+	ChatWindowIdContext.bindTo(contextKeyService).set(values.windowId);
+	ChatWindowHasSessionHeaderContext.bindTo(contextKeyService).set(values.kind.showSessionHeader ?? true);
+	ChatWindowHasSessionActivityBarContext.bindTo(contextKeyService).set(!!values.kind.showActivityBar);
+	ChatWindowHasEditorAreaContext.bindTo(contextKeyService).set(values.hasEditorArea);
+	ChatWindowHasEditorContext.bindTo(contextKeyService).set(values.hasEditorArea);
+	const layoutContext = SessionLayoutModeContext.bindTo(contextKeyService);
+	const splitLayoutContext = SessionSplitLayoutContext.bindTo(contextKeyService);
+	const terminalPositionContext = ChatWindowTerminalPositionContext.bindTo(contextKeyService);
+	const terminalShownContext = ChatWindowTerminalShownContext.bindTo(contextKeyService);
+	const editorGroupContext = ChatWindowEditorGroupContext.bindTo(contextKeyService);
+	const editorAreaEditorContext = ChatWindowEditorAreaEditorContext.bindTo(contextKeyService);
+	store.add(autorun(reader => {
+		const layout = values.state.layout.read(reader);
+		const splitLayout = values.state.splitLayout.read(reader);
+		const terminalPosition = values.state.terminalPosition.read(reader);
+		const terminalShown = values.state.terminalShown.read(reader);
+		const editorGroup = values.editorGroup.read(reader);
+		const editorAreaEditor = values.editorAreaEditor.read(reader);
+		contextKeyService.bufferChangeEvents(() => {
+			layoutContext.set(layout);
+			splitLayoutContext.set(splitLayout);
+			terminalPositionContext.set(terminalPosition);
+			terminalShownContext.set(terminalShown);
+			editorGroupContext.set(editorGroup?.id ?? -1);
+			editorAreaEditorContext.set(editorAreaEditor);
+		});
+	}));
+	store.add(bindChatWindowTitleBarContext(values.session, contextKeyService));
+	return store;
+}
+
+/**
+ * Follows the editors of the editor area: shows it when an editor opens in it while only the chat shows, and shows only the
+ * chat once its last editor closed, as the main window's side pane does. Not when the editor moved, or the window closes.
+ */
+export function trackEditorAreaEditors(part: IEmbeddedEditorPart, handlers: { onDidOpenEditor(): void; onDidCloseLastEditor(): void; isClosing(): boolean }): IDisposable {
+	const store = new DisposableStore();
+	const groups = store.add(new DisposableStore());
+	const isEmpty = () => part.groups.every(group => group.isEmpty);
+	const track = () => {
+		groups.clear();
+		for (const group of part.groups) {
+			groups.add(group.onDidModelChange(e => {
+				if (e.kind === GroupModelChangeKind.EDITOR_OPEN) {
+					handlers.onDidOpenEditor();
+				}
+			}));
+			groups.add(group.onDidCloseEditor(e => {
+				if (e.context !== EditorCloseContext.MOVE && !handlers.isClosing() && isEmpty()) {
+					handlers.onDidCloseLastEditor();
+				}
+			}));
+		}
+	};
+	track();
+	store.add(part.onDidAddGroup(track));
+	store.add(part.onDidRemoveGroup(track));
+	return store;
+}
+
+/** An open chat window: its window, its grid of cells and the state that lays them out. */
+class ChatWindow implements IChatWindow {
+
+	private readonly _content: ISettableObservable<IChatWindowContent>;
+	readonly content: IObservable<IChatWindowContent>;
+
+	private readonly _onDidClose = new Emitter<void>();
+	readonly onDidClose: Event<void> = this._onDidClose.event;
+
+	readonly handle: IChatWindowHandle;
+
+	readonly terminalShown: IObservable<boolean>;
+
+	private _terminals: ChatWindowTerminals | undefined;
+
+	private _closed = false;
+	/** Set while it closes, so that editors closing with it do not change its layout. */
+	closing = false;
+	private _inputOnly: ChatWindowInputOnlyController | undefined;
+
+	constructor(
+		readonly state: ChatWindowState,
+		readonly auxiliaryWindow: IAuxiliaryWindow,
+		readonly editorArea: IEmbeddedEditorPart | undefined,
+		readonly sessionView: SessionView,
+		content: IChatWindowContent,
+		private readonly _session: ISettableObservable<IActiveSession | undefined>,
+		private readonly _closeParts: () => boolean,
+	) {
+		this._content = observableValue(this, content);
+		this.content = this._content;
+		this.handle = Object.freeze({ chatWindowId: auxiliaryWindow.window.vscodeWindowId });
+		this.terminalShown = state.terminalShown;
+	}
+
+	get windowId(): number { return this.auxiliaryWindow.window.vscodeWindowId; }
+	get kind(): IChatWindowKind { return this.state.kind; }
+	get session(): IObservable<IActiveSession | undefined> { return this._session; }
+	get layout(): IObservable<SessionLayoutMode> { return this.state.layout; }
+	get splitLayout(): IObservable<SessionSplitLayout> { return this.state.splitLayout; }
+	get layouts(): readonly SessionLayoutMode[] { return this.state.layouts; }
+	get inputOnly(): IObservable<boolean> { return this.state.inputOnly; }
+	get terminalPosition(): IObservable<SessionTerminalPosition> { return this.state.terminalPosition; }
+	get editorGroup(): IEditorGroup | undefined { return this.editorArea?.activeGroup; }
+	get terminalGroup(): IObservable<IEditorGroup | undefined> { return this._terminals?.group ?? constObservable(undefined); }
+	get terminals(): ChatWindowTerminals | undefined { return this._terminals; }
+
+	attachTerminals(terminals: ChatWindowTerminals): void {
+		this._terminals = terminals;
+	}
+
+	setTerminalShown(shown: boolean, options?: { readonly focus?: boolean }): Promise<void> {
+		return this._terminals?.setShown(shown, options?.focus ?? false) ?? Promise.resolve();
+	}
+
+	addTerminal(): Promise<void> {
+		return this._terminals?.addTerminal() ?? Promise.resolve();
+	}
+
+	showTerminal(instanceId: number): Promise<boolean> {
+		return this._terminals?.showTerminal(instanceId) ?? Promise.resolve(false);
+	}
+
+	setSession(session: IActiveSession | undefined): void {
+		this._session.set(session, undefined);
+	}
+
+	setContent(content: IChatWindowContent): void {
+		this._content.set(content, undefined);
+	}
+
+	/** Whether the chat shows: not while only the editor area does. */
+	get chatVisible(): boolean {
+		return this.state.layout.get() !== SessionLayoutMode.EditorOnly;
+	}
+
+	setLayout(layout: SessionLayoutMode): void {
+		this.state.setLayout(layout);
+	}
+
+	setSplitLayout(splitLayout: SessionSplitLayout): void {
+		this.state.setSplitLayout(splitLayout);
+	}
+
+	attachInputOnly(inputOnly: ChatWindowInputOnlyController): void {
+		this._inputOnly = inputOnly;
+	}
+
+	toggleConversation(): void {
+		if (this.state.layout.get() === SessionLayoutMode.Stacked) {
+			// Toggles what shows, which the window may have chosen while it was too short, not what was last chosen.
+			this._inputOnly?.toggleConversation();
+		}
+	}
+
+	showEditor(): void {
+		if (this.editorArea && this.state.layout.get() === SessionLayoutMode.ChatOnly) {
+			this.state.showBoth();
+		}
+	}
+
+	setTerminalPosition(position: SessionTerminalPosition): void {
+		this.state.setTerminalPosition(position);
+	}
+
+	/** Focuses the chat while it shows, else the editor area, so that focusing a window that shows only its editor area keeps it so. */
+	focus(): void {
+		if (this.chatVisible) {
+			this.sessionView.focus();
+		} else {
+			this.editorArea?.activeGroup.focus();
+		}
+	}
+
+	close(): boolean {
+		if (this._closed) {
+			return true;
+		}
+		this.closing = true;
+		// Its terminals keep running for its session: closing their part would end them.
+		this._terminals?.release();
+		if (!this._closeParts()) {
+			this.closing = false;
+			this._terminals?.reclaim();
+			return false;
+		}
+		this.auxiliaryWindow.window.close();
+		this.didClose();
+		return true;
+	}
+
+	/** Ends the chat window: it closed, or its window went away. */
+	didClose(): void {
+		if (this._closed) {
+			return;
+		}
+		this._closed = true;
+		this.closing = true;
+		this._onDidClose.fire();
+		this._onDidClose.dispose();
+	}
+}
+
+/**
+ * The chat window an action acts on: the one its context names by handle, or whose editor parts (`partsOf`) hold the
+ * editor group its context names, such as the editor title toolbar of its terminals; without either, such as from a
+ * keybinding or the Command Palette, the chat window whose window is active.
+ */
+export function resolveChatWindowFromContext<T extends { readonly windowId: number }>(windows: readonly T[], partsOf: (window: T) => readonly ({ readonly groups: readonly { readonly id: number }[] } | undefined)[], context: unknown, activeWindowId: number): T | undefined {
+	if (isChatWindowHandle(context)) {
+		return windows.find(window => window.windowId === context.chatWindowId);
+	}
+	const groupId = (context as { readonly groupId?: unknown } | undefined)?.groupId;
+	if (typeof groupId === 'number') {
+		const window = windows.find(candidate => partsOf(candidate).some(part => part?.groups.some(group => group.id === groupId)));
+		if (window) {
+			return window;
+		}
+	}
+	return windows.find(window => window.windowId === activeWindowId);
+}
+
+export class ChatWindowService extends Disposable implements IChatWindowService {
+
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _windows = observableValue<readonly ChatWindow[]>(this, []);
+	readonly windows: IObservable<readonly IChatWindow[]> = this._windows;
+
+	private readonly _opening = new InFlightOperations<IChatWindow | undefined>();
+	private readonly _chatLayouts: ChatWindowChatLayouts;
+	private readonly _chatSizes: ChatWindowChatSizes;
+
+	/** What each chat window holds on to while its view binds to the chat: the loaded model of the chat; see {@link ChatModelHold}. */
+	private readonly _heldChats = new Map<ChatWindow, ChatModelHold>();
+
+	private _terminalHost: IChatWindowTerminalHost | undefined;
+
+	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IEditorService private readonly _editorService: IEditorService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+		@IAuxiliaryWindowService private readonly _auxiliaryWindowService: IAuxiliaryWindowService,
+		@ITitleService private readonly _titleService: ITitleService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionsPartService private readonly _sessionsPartService: ISessionsPartService,
+		@ISessionEditorWorkingSetService private readonly _editorWorkingSetService: ISessionEditorWorkingSetService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IThemeService private readonly _themeService: IThemeService,
+		@IChatService private readonly _chatService: IChatService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IHostService private readonly _hostService: IHostService,
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@IFileService private readonly _fileService: IFileService,
+		@ISessionChangesService private readonly _sessionChangesService: ISessionChangesService,
+	) {
+		super();
+
+		this._chatLayouts = new ChatWindowChatLayouts(_storageService);
+		this._chatSizes = new ChatWindowChatSizes(_storageService);
+
+		// A chat window shows its session for as long as the session shows in a window: closing the session closes it.
+		this._register(followReplacedWindowSessions(this._windows, this._sessionsService.windowSessions));
+
+		// A chat window shows its chat for as long as the chat exists and is not archived: deleting or archiving it closes the window.
+		this._register(closeChatWindowsOfGoneChats(this._windows, () => false));
+	}
+
+	open(kind: IChatWindowKind, content: IChatWindowContent, options?: IChatWindowOpenOptions): Promise<IChatWindow | undefined> {
+		return this._opening.run(this._chatKey(content).toString(), () => this._openOrReveal(kind, content, options));
+	}
+
+	getWindow(windowId: number): IChatWindow | undefined {
+		return this._windows.get().find(window => window.windowId === windowId);
+	}
+
+	resolveWindow(context: unknown): IChatWindow | undefined {
+		return resolveChatWindowFromContext(this._windows.get(), window => [window.editorArea, window.terminals?.part], context, getActiveWindow().vscodeWindowId);
+	}
+
+	registerTerminalHost(host: IChatWindowTerminalHost): IDisposable {
+		this._terminalHost = host;
+		// Terminals restored before it registered.
+		for (const window of this._windows.get()) {
+			window.terminals?.showAgain();
+		}
+		return toDisposable(() => {
+			if (this._terminalHost === host) {
+				this._terminalHost = undefined;
+			}
+		});
+	}
+
+	/** The chat a window shows: the one asked for, or the main chat of its session. */
+	private _chatKey(content: IChatWindowContent): URI {
+		return content.chat ?? this._sessionsManagementService.getSession(content.session)?.mainChat.get().resource ?? content.session;
+	}
+
+	private async _openOrReveal(kind: IChatWindowKind, content: IChatWindowContent, options?: IChatWindowOpenOptions): Promise<IChatWindow | undefined> {
+		const chatKey = this._chatKey(content);
+		const opened = this._windows.get().find(window => isEqual(window.content.get().session, content.session) && isEqual(this._chatKey(window.content.get()), chatKey));
+		if (opened) {
+			if (!options?.preserveFocus) {
+				await this._hostService.focus(opened.auxiliaryWindow.window);
+				opened.focus();
+			}
+			return opened;
+		}
+		const session = this._sessionsManagementService.getSession(content.session);
+		if (!session) {
+			return undefined;
+		}
+		return openCleaningUpOnFailure(opening => this._openWindow(kind, content, options, session, opening));
+	}
+
+	private async _openWindow(kind: IChatWindowKind, content: IChatWindowContent, options: IChatWindowOpenOptions | undefined, session: ISession, opening: IChatWindowOpening): Promise<ChatWindow> {
+		const disposables = opening.disposables;
+		const hasEditorArea = !!content.editorArea;
+
+		// The chat the window opens with, as `ISessionsService.showSessionInWindow` picks it, whose layout is remembered.
+		const gridSession = this._sessionsService.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId && !candidate.scopedChatResource);
+		const chatResource = content.chat ?? gridSession?.activeChat.get().resource ?? session.mainChat.get().resource;
+		const sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
+		// What the window shows acts on its session, not on the one the main window shows.
+		const sessionScope: ISessionScope = { _serviceBrand: undefined, session: sessionObs };
+		const state = new ChatWindowState(kind, hasEditorArea, new ChatWindowDefaults(kind, this._storageService), {
+			initial: this._chatLayouts.get(chatResource),
+			// For the chat the window shows when the user chooses, which a replaced session changes.
+			set: layout => {
+				const chat = sessionObs.get()?.activeChat.get().resource ?? chatResource;
+				this._chatLayouts.set(chat, layout);
+			},
+		});
+
+		const auxiliaryWindow = disposables.add(await this._auxiliaryWindowService.open({ bounds: kind.windowSize ?? CHAT_WINDOW_DEFAULT_SIZE }));
+		opening.close = () => {
+			auxiliaryWindow.window.close();
+			return true;
+		};
+		const windowId = auxiliaryWindow.window.vscodeWindowId;
+		const container = auxiliaryWindow.container;
+		container.classList.add('chat-window');
+
+		// The window's own context, which its title bar, its chat and its Session Activity Bar are scoped to.
+		const windowContextKeyService = disposables.add(createChatWindowContextKeyService(this._contextKeyService, auxiliaryWindow));
+
+		// The editor area, created first: the title bar shows its editors' title, and what the chat opens goes to it.
+		const parts: IEmbeddedEditorPart[] = [];
+		let editorArea: IEmbeddedEditorPart | undefined;
+		if (hasEditorArea) {
+			editorArea = createChatWindowEditorArea(this._editorGroupsService, container, createChatWindowServices(sessionScope));
+			const part = editorArea;
+			parts.push(part);
+			disposables.add(toDisposable(() => {
+				// Closed with the window, merging what it cannot close to the main window; the part disposes itself as it closes.
+				if (this._editorGroupsService.parts.includes(part)) {
+					part.close();
+				}
+			}));
+			const partOptions = disposables.add(new MutableDisposable());
+			const enforcePartOptions = () => partOptions.value = part.enforcePartOptions(chatWindowPartOptions(this._configurationService.getValue<string>('workbench.editor.showTabs')));
+			enforcePartOptions();
+			disposables.add(this._configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration('workbench.editor.showTabs')) {
+					enforcePartOptions();
+				}
+			}));
+		}
+		// Registered before the parts are bound to the window, which close them, and their editors, as it unloads: editors
+		// closing with the window must not change its layout.
+		let unloading = false;
+		disposables.add(auxiliaryWindow.onUnload(() => unloading = true));
+		// Its terminals keep running for its session as it closes, and not before: closing their part would end them.
+		disposables.add(releaseChatWindowTerminalsOnUnload(auxiliaryWindow, () => window.terminals));
+		disposables.add(bindEditorPartsToWindow(auxiliaryWindow, parts, this._editorGroupsService));
+
+		// What the chat opens, such as files and its changes, opens in the editor area.
+		const editorAreaEditorService = editorArea ? this._editorGroupsService.getScopedInstantiationService(editorArea).invokeFunction(accessor => accessor.get(IEditorService)) : this._editorService;
+		const windowServices = new ServiceCollection(
+			[IContextKeyService, windowContextKeyService],
+			[IEditorService, editorAreaEditorService],
+			[ISessionScope, sessionScope],
+		);
+		if (editorArea) {
+			setChatWindowOpenServices(windowServices, editorArea, editorAreaEditorService, () => window.showEditor(), this._openerService, this._fileService, this._sessionChangesService);
+		}
+		const windowInstantiationService = disposables.add(this._instantiationService.createChild(windowServices));
+
+		// The window's context, bound on the window and on its editor parts, which are scoped to the global context.
+		const editorGroup = editorArea ? observableFromEvent(this, editorArea.onDidActivateGroup, () => editorArea!.activeGroup) : observableValue<IEditorGroup | undefined>(this, undefined);
+		const editorAreaEditor = observableFromEvent(this, editorAreaEditorService.onDidActiveEditorChange, () => editorArea ? editorAreaEditorService.activeEditorPane?.getId() ?? '' : '');
+		const contextValues: IChatWindowContextValues = { kind, windowId, hasEditorArea, state, session: sessionObs, editorGroup, editorAreaEditor };
+		disposables.add(bindChatWindowContext(windowContextKeyService, contextValues));
+		for (const part of parts) {
+			const partContextKeyService = this._editorGroupsService.getScopedInstantiationService(part).invokeFunction(accessor => accessor.get(IContextKeyService));
+			disposables.add(bindChatWindowContext(partContextKeyService, contextValues));
+		}
+
+
+		// The title bar, as other windows of the Agents window have one; it shows the title of the chat.
+		let titlebar: IAuxiliaryTitlebarPart | undefined;
+		if (isNative && hasCustomTitlebar(this._configurationService)) {
+			titlebar = disposables.add(this._titleService.createAuxiliaryTitlebarPart(container, editorArea ?? this._editorGroupsService.mainPart, windowInstantiationService));
+			disposables.add(titlebar.onDidChange(() => auxiliaryWindow.layout()));
+		}
+
+		// The cells of the window's grid: the chat, the editor area, the terminals and the Session Activity Bar.
+		const hostElement = append(container, $('.chat-window-host.sessions-window-host'));
+		const detached = append(hostElement, $('.chat-window-detached'));
+		detached.setAttribute('aria-hidden', 'true');
+		const cells = new Map<SessionGridCell, ChatWindowCellView>();
+		for (const cell of [SessionGridCell.Chat, SessionGridCell.SidePane, SessionGridCell.Terminals, SessionGridCell.Column]) {
+			cells.set(cell, disposables.add(new ChatWindowCellView(cell, CELL_CONSTRAINTS[cell])));
+		}
+		const chatCell = cells.get(SessionGridCell.Chat)!;
+		chatCell.element.setAttribute('role', 'main');
+		chatCell.element.setAttribute('aria-label', localize('chatWindow.chat', "Chat"));
+
+		const sessionView = disposables.add(windowInstantiationService.createInstance(SessionView, {
+			showHeader: kind.showSessionHeader ?? true,
+			showActivityBar: kind.showActivityBar ?? false,
+			input: { placeholder: kind.inputPlaceholder, minLines: kind.inputMinLines, showPills: kind.showPills ?? true },
+		}));
+		// The one session view of its window: styled as the active one of the grid is.
+		sessionView.element.classList.add('is-active');
+		sessionView.setActive(true);
+		chatCell.setContent(sessionView);
+		if (editorArea) {
+			const part = editorArea;
+			cells.get(SessionGridCell.SidePane)!.setContent({ element: part.element as HTMLElement, layout: (width, height, top, left) => part.layout(width, height, top, left) });
+		}
+		cells.get(SessionGridCell.Terminals)!.setContent({ element: $('.chat-window-terminals'), layout: () => { } });
+
+		// The Session Activity Bar takes a column of its own beside the editor area while the chat is below the editor area
+		// or hidden; beside the chat otherwise, as in the main window.
+		const columnElement = $('.chat-window-activity-bar-column');
+		const columnHeight = observableValue<number>(this, 0);
+		cells.get(SessionGridCell.Column)!.setContent({ element: columnElement, layout: (_width, height) => columnHeight.set(height, undefined) });
+		const occupancy = new SessionActivityBarHostOccupancy();
+		const activityBarEnabled = observableFromEvent(this, this._configurationService.onDidChangeConfiguration, () => !!kind.showActivityBar && this._configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_SETTING) !== false);
+
+		const gridHost = disposables.add(new ChatWindowGridHost(hostElement, cells, (cell, axis) => getChatWindowDefaultSizing(cell, axis)));
+		// The sizes the cells last showed with for this chat come back, also after a reload.
+		const sizes = this._chatSizes.get(chatResource);
+		if (sizes) {
+			gridHost.importSizes(sizes);
+		}
+		// What the window shows is what it shows again, for its chat: its layout and the sizes of its cells.
+		const saveSizes = () => {
+			const chat = sessionObs.get()?.activeChat.get().resource ?? chatResource;
+			this._chatSizes.set(chat, gridHost.exportSizes());
+			if (hasEditorArea) {
+				this._chatLayouts.set(chat, { mode: state.layout.get(), splitLayout: state.splitLayout.get(), inputOnly: state.inputOnly.get() });
+			}
+		};
+		disposables.add(this._storageService.onWillSaveState(saveSizes));
+		disposables.add(auxiliaryWindow.onBeforeUnload(saveSizes));
+
+		// The terminals show only with a terminal in them, never as an empty cell, such as before a terminal the host hands
+		// them opened, or before the host registered.
+		const terminalsRef = observableValue<ChatWindowTerminals | undefined>(this, undefined);
+		const gridLayout = derived(this, reader => computeSessionGridLayout({
+			mode: state.layout.read(reader),
+			terminalPosition: state.terminalPosition.read(reader),
+			terminalsVisible: state.terminalShown.read(reader) && !!terminalsRef.read(reader)?.hasTerminals.read(reader),
+			activityBar: activityBarEnabled.read(reader),
+			inputOnly: state.inputOnly.read(reader),
+		}));
+		disposables.add(registerSessionActivityBarExternalHost(container, {
+			element: columnElement,
+			active: derived(this, reader => gridLayout.read(reader).column !== 'none'),
+			height: columnHeight,
+			setOccupied: (occupant, occupied) => occupancy.set(occupant, occupied),
+		}));
+		disposables.add(autorun(reader => {
+			const layout = gridLayout.read(reader);
+			gridHost.apply(layout);
+			// Without the chat, its view stays in the window, hidden, so that its Session Activity Bar finds the column.
+			const chatShown = layout.tabOrder.includes(SessionGridCell.Chat);
+			if (!chatShown) {
+				detached.appendChild(chatCell.element);
+			}
+			sessionView.setPartVisible(chatShown);
+		}));
+
+		const inputOnly = disposables.add(new ChatWindowInputOnlyController(sessionView, state, gridHost, chatCell, hostElement, gridLayout, CELL_CONSTRAINTS[SessionGridCell.Chat], CELL_CONSTRAINTS[SessionGridCell.SidePane].minimumHeight));
+
+		// The cells are cards, as the main window's parts are, unless Layout Density is compact, which keeps them flush.
+		const applyCardStyles = () => {
+			const theme = this._themeService.getColorTheme();
+			for (const view of cells.values()) {
+				applyAgentsPartCardStyles(view.element.firstElementChild as HTMLElement, theme);
+			}
+		};
+		applyCardStyles();
+		disposables.add(this._themeService.onDidColorThemeChange(applyCardStyles));
+		const updateGap = () => gridHost.setGap(this._configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) === ModernUIDensity.Compact ? 0 : AGENTS_FLOATING_PANEL_GAP);
+		updateGap();
+		// The cards' borders change with the density too, once its class is on the window: their contents then take the room
+		// inside them again.
+		const relayoutCells = disposables.add(new MutableDisposable());
+		disposables.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY)) {
+				updateGap();
+				relayoutCells.value = disposableTimeout(() => gridHost.relayoutCells(), 0);
+			}
+		}));
+
+		// The header row (the title bar) is above the chat's column only while the editor is beside the chat: the editor
+		// then runs to the top of the window, its top row centered with the header. Else it is across the window, above
+		// every cell. The same on every platform: where the window controls are at the top right (Windows, Linux), they
+		// stay there, above the editor area, which leaves them room. The grid takes the whole window either way, and makes
+		// room for the header itself, so that a mode shows with the sizes it had.
+		let lastDimension: IDimension | undefined;
+		const layoutTitlebar = () => {
+			if (!titlebar || !lastDimension) {
+				return;
+			}
+			const chatColumn = gridHost.headerSpan === SessionHeaderSpan.ChatColumn;
+			hostElement.classList.toggle('chat-window-header-chat-column', chatColumn);
+			titlebar.element.classList.toggle('header-chat-column', chatColumn);
+			// Right above the chat, the title row is the header of the chat's card, which shows through it.
+			const overChat = gridHost.headerInChatCard;
+			hostElement.classList.toggle('chat-window-title-over-chat', overChat);
+			titlebar.element.classList.toggle('title-over-chat', overChat);
+			const width = chatColumn ? gridHost.getCellWidth(SessionGridCell.Chat) || lastDimension.width : lastDimension.width;
+			titlebar.element.style.width = chatColumn ? `${width}px` : '';
+			let rowHeight = 0;
+			if (editorArea) {
+				const windowControls = chatColumn && titlebar instanceof TitlebarPart ? titlebar.rightWindowControlsContainer?.offsetWidth ?? 0 : 0;
+				rowHeight = alignChatWindowTitleRow(titlebar, editorArea.element as HTMLElement, windowControls, gridHost.besideTitleHeight);
+			}
+			if (titlebar instanceof TitlebarPart) {
+				alignChatWindowHeaderActions(titlebar.element, titlebar.getSessionHeaderActionsHost());
+			}
+			titlebar.layout(width, titlebar.height, 0, 0);
+			if (editorArea) {
+				gridHost.setHeader(titlebar.height, true, rowHeight);
+			}
+		};
+		if (titlebar) {
+			// Above the grid, which is below it in the DOM.
+			titlebar.element.style.position = 'relative';
+			titlebar.element.style.zIndex = '1';
+		}
+		disposables.add(auxiliaryWindow.onWillLayout(dimension => {
+			lastDimension = dimension;
+			gridHost.setHeader(titlebar?.height ?? 0, !!titlebar, gridHost.besideTitleHeight);
+			hostElement.style.top = '0';
+			hostElement.style.height = `${dimension.height}px`;
+			hostElement.style.width = `${dimension.width}px`;
+			gridHost.layoutGrid(dimension.width, dimension.height);
+			layoutTitlebar();
+		}));
+		// The chat's column changes width with a sash, and the header's span with the mode.
+		disposables.add(gridHost.onDidLayoutCells(() => layoutTitlebar()));
+		// Once the editor area shows what changed, such as the row of tabs of its first editor, or the density its card's
+		// border: after the change, also while the window does not show, which runs no animation frames.
+		const relayoutTitlebar = disposables.add(new MutableDisposable());
+		const scheduleLayoutTitlebar = () => relayoutTitlebar.value = disposableTimeout(() => layoutTitlebar(), 0);
+		if (editorArea) {
+			// Its groups change as they split, are added and removed.
+			disposables.add(editorArea.onDidLayout(() => layoutTitlebar()));
+			// Its row of tabs changes height with their height, whether they show, and the density, once rendered again.
+			disposables.add(Event.any<unknown>(editorArea.onDidChangeEditorPartOptions, Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY)))(() => scheduleLayoutTitlebar()));
+		}
+		disposables.add(relayoutWhenStylesHaveLoaded(auxiliaryWindow, () => {
+			gridHost.relayoutCells();
+			layoutTitlebar();
+		}));
+
+		const window = new ChatWindow(state, auxiliaryWindow, editorArea, sessionView, content, sessionObs, () => parts.every(part => part.close()));
+		window.attachInputOnly(inputOnly);
+		const terminals = disposables.add(this._instantiationService.createInstance(ChatWindowTerminals, {
+			window,
+			state,
+			cell: cells.get(SessionGridCell.Terminals)!,
+			parts,
+			bindContext: contextKeyService => disposables.add(bindChatWindowContext(contextKeyService, contextValues)),
+			isClosing: () => window.closing || unloading || disposables.isDisposed,
+			services: createChatWindowServices(sessionScope),
+			container,
+		}, () => this._terminalHost));
+		window.attachTerminals(terminals);
+		terminalsRef.set(terminals, undefined);
+		if (editorArea) {
+			disposables.add(terminals.trackEditorArea(editorArea));
+		}
+
+		if (editorArea) {
+			const part = editorArea;
+			disposables.add(trackEditorAreaEditors(part, {
+				onDidOpenEditor: () => {
+					window.showEditor();
+					scheduleLayoutTitlebar();
+				},
+				onDidCloseLastEditor: () => {
+					window.setLayout(SessionLayoutMode.ChatOnly);
+					scheduleLayoutTitlebar();
+				},
+				isClosing: () => window.closing || unloading || disposables.isDisposed,
+			}));
+			// Its empty groups offer the same Add Tab entries as the main window's.
+			disposables.add(addEmptyEditorAreaAddTab(part, this._instantiationService));
+			moveEditorsToChatWindow(content.editorArea?.moveEditorsFrom ?? [], part.activeGroup);
+			this._openEditors(content.editorArea ?? {}, part.activeGroup);
+		}
+
+		// The session it shows becomes its session once its window exists, so that focusing it activates it.
+		disposables.add(this._sessionsPartService.registerWindowSessionView(sessionView, createChatWindowSessionViewHost(
+			() => focusChatWindowUnlessFocused(auxiliaryWindow.window, () => void this._hostService.focus(auxiliaryWindow.window)),
+			() => sessionView.focus(),
+			() => window.chatVisible,
+		)));
+		const heldChat = disposables.add(new ChatModelHold(resource => this._chatService.acquireExistingSession(resource, 'ChatWindow#move')));
+		heldChat.hold(this._chatToHold(session, content.chat), this._boundCheck(session));
+		this._heldChats.set(window, heldChat);
+		disposables.add(toDisposable(() => this._heldChats.delete(window)));
+		const windowSession = this._sessionsService.showSessionInWindow(session, { chatResource: content.chat, activates: kind.activatesSession ?? true });
+		window.setContent({ ...content, chat: windowSession.scopedChatResource, editorArea: content.editorArea ? {} : undefined });
+		window.setSession(windowSession);
+		sessionView.openSession(windowSession, {});
+
+		// The session header is the top row of the window in every layout, also while the chat shows only its input: it shows
+		// in the title bar, in place of the title, which shows again only while the header does not.
+		if (titlebar instanceof TitlebarPart) {
+			const headerTitlebar = titlebar;
+			sessionView.setHeaderHost(headerTitlebar.getSessionHeaderHost(), headerTitlebar.getSessionHeaderActionsHost());
+
+			disposables.add(autorun(reader => headerTitlebar.setHostsSessionHeader(sessionView.headerShown.read(reader))));
+		}
+
+		disposables.add(autorun(reader => {
+			const title = window.content.read(reader).title?.read(reader) || kind.title;
+			if (titlebar instanceof TitlebarPart) {
+				titlebar.setTitle(title);
+			} else {
+				auxiliaryWindow.window.document.title = title;
+			}
+		}));
+
+		this._windows.set([...this._windows.get(), window], undefined);
+		disposables.add(toDisposable(() => this._remove(window)));
+		disposables.add(Event.once(auxiliaryWindow.onUnload)(() => {
+			window.didClose();
+			disposables.dispose();
+		}));
+		disposables.add(window.onDidClose(() => this._remove(window)));
+
+		auxiliaryWindow.layout();
+		if (!options?.preserveFocus) {
+			window.focus();
+			if (kind.activatesSession ?? true) {
+				this._sessionsService.setActive(windowSession);
+			}
+		}
+		if (options?.showTerminal && hasEditorArea) {
+			void terminals.setShown(true, false);
+		}
+		return window;
+	}
+
+	async moveToMainWindow(window: IChatWindow): Promise<void> {
+		const chatWindow = this._windows.get().find(candidate => candidate === window);
+		const content = chatWindow?.content.get();
+		const session = content && this._sessionsManagementService.getSession(content.session);
+		if (!chatWindow || !content || !session) {
+			return;
+		}
+		// Serialized, as closing the chat window disposes them, and opened again once the main window shows the session.
+		const editors = chatWindow.editorArea ? chatWindow.editorArea.groups.flatMap(group => serializeChatWindowEditors(group)) : [];
+		if (!chatWindow.close()) {
+			return;
+		}
+		await (content.chat ? this._sessionsService.openChat(session, content.chat) : this._sessionsService.openSession(session.resource));
+		const restored = deserializeChatWindowEditors(this._instantiationService, editors);
+		if (restored.editors.length) {
+			// Once the main window is laid out for the session: laying it out restores the session's last editors, which would replace these.
+			await waitForState(this._sessionsService.mainWindowActiveSession, active => active?.sessionId === session.sessionId);
+			await timeout(0);
+			await waitForState(this._editorWorkingSetService.restoreState, restoreState => !restoreState.restoring);
+			const active = restored.activeEditor ?? restored.editors.at(-1);
+			this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
+			await this._editorService.openEditors(restored.editors.map(editor => ({ editor, options: { pinned: true, preserveFocus: true, inactive: editor !== active } })), this._editorGroupsService.mainPart.activeGroup);
+		}
+	}
+
+	/** The chat that moves, when it is given and the session has it: no other chat is held in its place. */
+	private _chatToHold(session: ISession, chat: URI | undefined): URI | undefined {
+		return chat && session.chats.get().find(candidate => isEqual(candidate.resource, chat))?.resource;
+	}
+
+	/** Whether the chat view of the window of `session` has bound to its model: it loaded, or showed that it was loading and is done. */
+	private _boundCheck(session: ISession): () => boolean {
+		let loading = false;
+		return () => {
+			const view = this._sessionsPartService.getSessionView(session.sessionId)?.primaryChatView.get();
+			if (!view) {
+				return false;
+			}
+			if (view.isLoadingTranscript.get()) {
+				loading = true;
+				return false;
+			}
+			return loading;
+		};
+	}
+
+	/** Opens the editors given to the editor area in `target`. */
+	private _openEditors(editorArea: IChatWindowEditorArea, target: IEditorGroup): void {
+		const editors = editorArea.editors ?? [];
+		const active = editorArea.activeEditor ?? editors.at(-1);
+		if (editors.length) {
+			void target.openEditors(editors.map(editor => ({ editor, options: { pinned: true, preserveFocus: true, inactive: editor !== active } })));
+		}
+	}
+
+	private _remove(window: ChatWindow): void {
+		const windows = this._windows.get();
+		if (windows.includes(window)) {
+			this._windows.set(windows.filter(candidate => candidate !== window), undefined);
+		}
+		window.didClose();
+		this._releaseSession(window.session.get());
+	}
+
+	/** Closes a window session once no chat window shows it. */
+	private _releaseSession(session: IActiveSession | undefined): void {
+		if (session && this._sessionsService.windowSessions.get().includes(session) && !this._windows.get().some(window => window.session.get() === session)) {
+			this._sessionsService.closeSession(session);
+		}
+	}
+}
+

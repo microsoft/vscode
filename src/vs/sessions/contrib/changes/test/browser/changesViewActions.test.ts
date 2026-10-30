@@ -15,10 +15,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { isIMenuItem, isISubmenuItem, MenuId, MenuItemAction, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionWidgetDropdownAction } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
@@ -35,24 +38,30 @@ import { TEXT_FILE_EDITOR_ID } from '../../../../../workbench/contrib/files/comm
 import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
 import { multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFilesViewAndPositionMenu } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../browser/menus.js';
+import { ChatWindowContext, ChatWindowHasEditorAreaContext, ChatWindowTerminalRowContext } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
-import { IChangesViewService } from '../../common/changesViewService.js';
-import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasWorkspaceContext, SessionIsCreatedContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
+import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../common/changesViewService.js';
+import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID, ChangesPickerActionItem, ChangesPickerSummary, isChangesActionsWorkspaceReady, unlockChatPetCreatePullRequestAchievement } from '../../browser/changesView.js';
 import { SessionsChangesAccessibilityHelp } from '../../browser/sessionsChangesAccessibilityHelp.js';
 import '../../browser/changesViewActions.js';
+import '../../../codeReview/browser/codeReview.contributions.js';
 
 function getToggledExpression(toggled: ContextKeyExpression | ICommandActionToggleInfo | undefined): ContextKeyExpression | undefined {
 	return toggled && hasKey(toggled, { condition: true }) ? toggled.condition : toggled;
 }
+
+/** The Changes editor's own actions, which a chat window shows in the editor's header row rather than in its tab row. */
+const CHANGES_EDITOR_OWN_ACTIONS = ['workbench.action.agentSessions.collapseAllDiffs', 'workbench.action.agentSessions.expandAllDiffs', 'workbench.action.agentSessions.toggleDiffEditorWordWrap', 'Diff View'];
 
 suite('Changes View Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -94,6 +103,7 @@ suite('Changes View Actions', () => {
 
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.action.agentSessions.openPullRequest')!.handler(accessor));
@@ -104,47 +114,73 @@ suite('Changes View Actions', () => {
 		}]);
 	});
 
-	test('Open Changes resolves a workspace resource to its snapshot-backed diff', async () => {
+	suite('Open Changes', () => {
 		const workspaceResource = URI.file('/workspace/file.ts');
 		const originalSnapshot = URI.parse('readonly-content:/before/file.ts');
 		const modifiedSnapshot = URI.parse('readonly-content:/after/file.ts');
-		const opened: { readonly original: string | undefined; readonly modified: string | undefined }[] = [];
-		const instantiationService = new TestInstantiationService();
-		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
-			override readonly activeSessionChangesObs = constObservable([{
-				uri: workspaceResource,
-				originalUri: originalSnapshot,
-				modifiedUri: modifiedSnapshot,
-				insertions: 1,
-				deletions: 1,
+		const sessionResource = URI.parse('test-session:/session');
+		const otherSessionResource = URI.parse('test-session:/other');
+
+		async function openChanges(sessionArg: URI, visible: readonly IActiveSession[]): Promise<{ readonly original: string | undefined; readonly modified: string | undefined }[]> {
+			const opened: { readonly original: string | undefined; readonly modified: string | undefined }[] = [];
+			const activeSession = upcastPartial<IActiveSession>({ sessionId: 'active', resource: sessionResource });
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+				override readonly mainWindowActiveSession = this.activeSession;
+				override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+				override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>(visible);
+			});
+			instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+				override readonly activeSessionChangesObs = constObservable([{
+					uri: workspaceResource,
+					originalUri: originalSnapshot,
+					modifiedUri: modifiedSnapshot,
+					insertions: 1,
+					deletions: 1,
+				}]);
+				override getSessionChanges() {
+					return upcastPartial<IChangesSessionObservables>({ changesObs: constObservable([{ uri: workspaceResource, originalUri: URI.parse('readonly-content:/other/before.ts'), modifiedUri: URI.parse('readonly-content:/other/after.ts'), insertions: 1, deletions: 1 }]) });
+				}
+			});
+			instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+				override async openEditor(...args: unknown[]): Promise<undefined> {
+					const input = args[0] as {
+						readonly original?: { readonly resource?: URI };
+						readonly modified?: { readonly resource?: URI };
+					};
+					opened.push({
+						original: input.original?.resource?.toString(),
+						modified: input.modified?.resource?.toString(),
+					});
+					return undefined;
+				}
+			});
+
+			await instantiationService.invokeFunction(accessor =>
+				CommandsRegistry.getCommand('workbench.action.agentSessions.openChanges')!.handler(accessor, sessionArg, 'ref', workspaceResource));
+			return opened;
+		}
+
+		test('resolves a workspace resource to its snapshot-backed diff', async () => {
+			assert.deepStrictEqual(await openChanges(sessionResource, []), [{
+				original: originalSnapshot.toString(),
+				modified: modifiedSnapshot.toString(),
 			}]);
 		});
-		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
-			override async openEditor(...args: unknown[]): Promise<undefined> {
-				const input = args[0] as {
-					readonly original?: { readonly resource?: URI };
-					readonly modified?: { readonly resource?: URI };
-				};
-				opened.push({
-					original: input.original?.resource?.toString(),
-					modified: input.modified?.resource?.toString(),
-				});
-				return undefined;
-			}
+
+		test('opens the changes of a visible non-active session', async () => {
+			const other = upcastPartial<IActiveSession>({ sessionId: 'other', resource: otherSessionResource });
+			assert.deepStrictEqual(await openChanges(otherSessionResource, [other]), [{
+				original: 'readonly-content:/other/before.ts',
+				modified: 'readonly-content:/other/after.ts',
+			}]);
 		});
 
-		await instantiationService.invokeFunction(accessor =>
-			CommandsRegistry.getCommand('workbench.action.agentSessions.openChanges')!.handler(
-				accessor,
-				URI.parse('test-session:/session'),
-				'ref',
-				workspaceResource,
-			));
-
-		assert.deepStrictEqual(opened, [{
-			original: originalSnapshot.toString(),
-			modified: modifiedSnapshot.toString(),
-		}]);
+		test('does nothing for a session that is not shown instead of using the active session', async () => {
+			assert.deepStrictEqual(await openChanges(URI.parse('test-session:/gone'), []), []);
+		});
 	});
 
 	test('Create PR button actions unlock Ship it without drafts or updates', () => {
@@ -285,7 +321,7 @@ suite('Changes View Actions', () => {
 		});
 		const renderPicker = () => {
 			const container = document.createElement('div');
-			disposables.add(new ChangesPickerActionItem(action, undefined, labelObs, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, telemetryService)).render(container);
+			disposables.add(new ChangesPickerActionItem(action, undefined, labelObs, undefined, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, telemetryService)).render(container);
 			return container;
 		};
 		const snapshot = (container: HTMLElement) => ({
@@ -337,7 +373,7 @@ suite('Changes View Actions', () => {
 		const contextKeyService = new MockContextKeyService();
 		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
 		const container = document.createElement('div');
-		disposables.add(new ChangesPickerActionItem(action, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }())).render(container);
+		disposables.add(new ChangesPickerActionItem(action, undefined, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }())).render(container);
 		const snapshot = () => {
 			const label = container.querySelector('.changes-picker-label');
 			return {
@@ -413,7 +449,7 @@ suite('Changes View Actions', () => {
 			override getTooltip(): string {
 				return super.getTooltip();
 			}
-		}(action, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }()));
+		}(action, undefined, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }()));
 		picker.render(container);
 		const snapshot = () => ({
 			label: container.querySelector('.changes-picker-label')?.textContent,
@@ -473,9 +509,9 @@ suite('Changes View Actions', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IAccessibilityService, { isMotionReduced: () => true });
 		instantiationService.stub(IChangesViewService, changesViewService);
-		const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary));
+		const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary, changesViewService.activeSessionChangesSummaryObs));
 		const container = document.createElement('div');
-		disposables.add(new ChangesPickerActionItem(action, pickerSummary, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }())).render(container);
+		disposables.add(new ChangesPickerActionItem(action, pickerSummary, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }())).render(container);
 
 		const summaryElement = container.querySelector<HTMLElement>('.changes-picker-summary');
 		const snapshot = () => ({
@@ -502,6 +538,64 @@ suite('Changes View Actions', () => {
 		});
 	});
 
+	test('shows the data of an explicit session scope and selects changesets in that session', async () => {
+		const createChangeset = (id: string, label: string) => upcastPartial<ISessionChangeset>({ id, label, isEnabled: constObservable(true), isDefault: constObservable(true) });
+		const activeChangeset = createChangeset('active', 'Active Changes');
+		const otherChangeset = createChangeset('other', 'Other Changes');
+		const otherSession = upcastPartial<IActiveSession>({});
+		const otherResource = URI.parse('test-session:/other');
+		const selections: [string | undefined, IActiveSession | undefined][] = [];
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesetsObs = constObservable([activeChangeset]);
+			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
+			override readonly activeSessionChangesetObs = constObservable(activeChangeset);
+			override readonly activeSessionChangesSummaryObs = constObservable<ISessionChangesSummary | undefined>({ files: 1, additions: 1, deletions: 1 });
+			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/active'));
+			override setChangesetId(id: string | undefined, session?: IActiveSession): void { selections.push([id, session]); }
+		}();
+		const scope: IChangesSessionScope = {
+			session: constObservable(otherSession),
+			changes: upcastPartial<IChangesSessionObservables>({
+				changesetsObs: constObservable([otherChangeset]),
+				changesetsLoadingObs: constObservable(false),
+				changesetObs: constObservable(otherChangeset),
+				changesSummaryObs: constObservable<ISessionChangesSummary | undefined>({ files: 4, additions: 9, deletions: 2 }),
+				resourceObs: constObservable(otherResource),
+			}),
+		};
+		const contextKeyService = new MockContextKeyService();
+		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAccessibilityService, { isMotionReduced: () => true });
+		instantiationService.stub(IChangesViewService, changesViewService);
+		const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary, scope.changes.changesSummaryObs));
+		const container = document.createElement('div');
+		let items: readonly IActionWidgetDropdownAction[] = [];
+		const actionWidgetService = new class extends mock<IActionWidgetService>() {
+			override show(_user: string, _supportsPreview: boolean, listItems: readonly IActionListItem<unknown>[]): void {
+				items = listItems.flatMap(item => item.item ? [item.item as IActionWidgetDropdownAction] : []);
+			}
+			override hide(): void { }
+		}();
+		const picker = disposables.add(new ChangesPickerActionItem(action, pickerSummary, undefined, scope, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { override publicLog2(): void { } }()));
+		picker.render(container);
+		picker.show();
+		await items[0].run();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			label: container.querySelector('.changes-picker-label')?.textContent,
+			summary: [...container.querySelector('.changes-picker-summary')?.children ?? []].map(child => child.textContent),
+			items: items.map(item => item.label),
+			selections,
+		}, {
+			label: 'Other Changes',
+			summary: ['4 Files', '+9', '-2'],
+			items: ['Other Changes'],
+			selections: [['other', otherSession]],
+		});
+	});
+
 	test('re-created pickers take over the shared summary so its counters keep animating', () => {
 		const changeset = upcastPartial<ISessionChangeset>({
 			id: 'branch',
@@ -521,10 +615,10 @@ suite('Changes View Actions', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IAccessibilityService, { isMotionReduced: () => true });
 		instantiationService.stub(IChangesViewService, changesViewService);
-		const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary));
+		const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary, changesViewService.activeSessionChangesSummaryObs));
 		const renderPicker = () => {
 			const container = document.createElement('div');
-			const picker = new ChangesPickerActionItem(action, pickerSummary, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }());
+			const picker = new ChangesPickerActionItem(action, pickerSummary, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }());
 			picker.render(container);
 			return { picker, summary: container.querySelector<HTMLElement>('.changes-picker-summary') };
 		};
@@ -670,6 +764,86 @@ suite('Changes View Actions', () => {
 				{ id: 'diffEditor.viewMode.inlineTemporary', title: 'Inline (Temporary)', group: '1_view', order: 4 },
 			],
 			selectedMode: 'sideBySide',
+		});
+	});
+
+	test('the Changes editor title actions, Run Code Review among them, show in the editor area of a chat window as in the main window, and not in its terminals or in an editor window', () => {
+		const context = (values: Record<string, unknown>) => {
+			const result = new Context(1, null);
+			for (const [key, value] of Object.entries({
+				[IsSessionsWindowContext.key]: true,
+				[ActiveEditorContext.key]: SessionChangesEditor.ID,
+				[DesktopLayoutContext.key]: true,
+				[IsTopRightEditorGroupContext.key]: true,
+				multiDiffEditorAllCollapsed: true,
+				[SessionIsCreatedContext.key]: true,
+				[SessionHasChangesContext.key]: true,
+				...values,
+			})) {
+				result.setValue(key, value);
+			}
+			return result;
+		};
+		// The actions gated to the editor area that shows them.
+		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle).filter(item => {
+			const when = item.when?.serialize() ?? '';
+			return when.includes(IsAuxiliaryWindowContext.key) || when.includes(MainEditorAreaVisibleContext.key);
+		});
+		const shown = (values: Record<string, unknown>) => items.filter(item => item.when?.evaluate(context(values))).map(item => isIMenuItem(item) ? item.command.id : typeof item.title === 'string' ? item.title : item.title.value).sort();
+		const main = shown({ [IsAuxiliaryWindowContext.key]: false, [MainEditorAreaVisibleContext.key]: true });
+
+		assert.deepStrictEqual({
+			mainShowsThem: main.length > 0,
+			mainShowsRunCodeReview: main.includes('sessions.codeReview.run'),
+			chatWindow: shown({ [IsAuxiliaryWindowContext.key]: true, [MainEditorAreaVisibleContext.key]: false, [ChatWindowHasEditorAreaContext.key]: true }),
+			chatWindowTerminals: shown({ [IsAuxiliaryWindowContext.key]: true, [MainEditorAreaVisibleContext.key]: false, [ChatWindowHasEditorAreaContext.key]: true, [ChatWindowTerminalRowContext.key]: true }),
+			editorWindow: shown({ [IsAuxiliaryWindowContext.key]: true, [MainEditorAreaVisibleContext.key]: true }),
+			mainEditorAreaHidden: shown({ [IsAuxiliaryWindowContext.key]: false, [MainEditorAreaVisibleContext.key]: false }).length < main.length,
+		}, { mainShowsThem: true, mainShowsRunCodeReview: true, chatWindow: main.filter(id => !CHANGES_EDITOR_OWN_ACTIONS.includes(id)), chatWindowTerminals: [], editorWindow: [], mainEditorAreaHidden: true });
+	});
+
+	test('in a chat window, the Changes editor\'s own actions (Collapse or Expand All Diffs, Word Wrap, Diff View) show at the right of its header row, in the order of the main window and as an overflow, and not in its tab row; in the main window, in its tab row only, as before', () => {
+		const context = (values: Record<string, unknown>) => {
+			const result = new Context(1, null);
+			for (const [key, value] of Object.entries({
+				[IsSessionsWindowContext.key]: true,
+				[ActiveEditorContext.key]: SessionChangesEditor.ID,
+				[DesktopLayoutContext.key]: true,
+				[IsTopRightEditorGroupContext.key]: true,
+				...values,
+			})) {
+				result.setValue(key, value);
+			}
+			return result;
+		};
+		const mainWindow = { [IsAuxiliaryWindowContext.key]: false, [MainEditorAreaVisibleContext.key]: true };
+		const chatWindow = { [IsAuxiliaryWindowContext.key]: true, [MainEditorAreaVisibleContext.key]: false, [ChatWindowHasEditorAreaContext.key]: true };
+		const shown = (menu: MenuId, values: Record<string, unknown>) => MenuRegistry.getMenuItems(menu)
+			.filter(item => item.when?.evaluate(context(values)))
+			.sort((a, b) => (a.group ?? '').localeCompare(b.group ?? '') || (a.order ?? 0) - (b.order ?? 0))
+			.map(item => ({ id: isIMenuItem(item) ? item.command.id : typeof item.title === 'string' ? item.title : item.title.value, group: item.group }))
+			.filter(item => CHANGES_EDITOR_OWN_ACTIONS.includes(item.id));
+		const states = Object.fromEntries([false, true].map(allCollapsed => [allCollapsed ? 'allCollapsed' : 'expanded', {
+			mainTabRow: shown(Menus.SessionsEditorTitle, { ...mainWindow, multiDiffEditorAllCollapsed: allCollapsed }).map(item => item.id),
+			mainHeader: shown(Menus.SessionsEditorHeaderSecondary, { ...mainWindow, multiDiffEditorAllCollapsed: allCollapsed }).map(item => item.id),
+			chatWindowTabRow: shown(Menus.SessionsEditorTitle, { ...chatWindow, multiDiffEditorAllCollapsed: allCollapsed }).map(item => item.id),
+			chatWindowHeader: shown(Menus.SessionsEditorHeaderSecondary, { ...chatWindow, multiDiffEditorAllCollapsed: allCollapsed }),
+		}]));
+
+		const header = (first: string) => [first, 'workbench.action.agentSessions.toggleDiffEditorWordWrap', 'Diff View'].map(id => ({ id, group: 'secondary/1_diff' }));
+		assert.deepStrictEqual(states, {
+			expanded: {
+				mainTabRow: ['workbench.action.agentSessions.collapseAllDiffs', 'workbench.action.agentSessions.toggleDiffEditorWordWrap', 'Diff View'],
+				mainHeader: [],
+				chatWindowTabRow: [],
+				chatWindowHeader: header('workbench.action.agentSessions.collapseAllDiffs'),
+			},
+			allCollapsed: {
+				mainTabRow: ['workbench.action.agentSessions.expandAllDiffs', 'workbench.action.agentSessions.toggleDiffEditorWordWrap', 'Diff View'],
+				mainHeader: [],
+				chatWindowTabRow: [],
+				chatWindowHeader: header('workbench.action.agentSessions.expandAllDiffs'),
+			},
 		});
 	});
 
@@ -1042,6 +1216,48 @@ suite('Changes View Actions', () => {
 			multiDiffEditorWithoutFileList: [false],
 			changesEditor: [false],
 		});
+	});
+
+	test('Create Pull Request anchor also shows in the title bar of a chat window, for the session it shows, and not in an editor window', () => {
+		const item = MenuRegistry.getMenuItems(Menus.TitleBarSessionMenu).filter(isIMenuItem).find(item => item.command.id === CHANGES_HEADER_ACTIONS_ID)!;
+		const visible = (values: Record<string, unknown>) => {
+			const context = new Context(1, null);
+			for (const [key, value] of Object.entries({ [IsSessionsWindowContext.key]: true, [DesktopLayoutContext.key]: true, ...values })) {
+				context.setValue(key, value);
+			}
+			return item.when?.evaluate(context) ?? true;
+		};
+
+		assert.deepStrictEqual({
+			main: visible({ [IsAuxiliaryWindowContext.key]: false, [CustomViewVisibleContext.key]: false, [SessionIsCreatedContext.key]: true }),
+			// The main window's session is not created yet; the chat window's is.
+			chatWindow: visible({ [IsAuxiliaryWindowContext.key]: true, [ChatWindowContext.key]: 'chat', [SessionIsCreatedContext.key]: false }),
+			editorWindow: visible({ [IsAuxiliaryWindowContext.key]: true, [SessionIsCreatedContext.key]: true }),
+		}, { main: true, chatWindow: true, editorWindow: false });
+	});
+
+	test('collapse and expand all diffs act on the Changes editor whose title they are invoked from, such as in a chat window, else on the active one', async () => {
+		const calls: string[] = [];
+		// A Changes editor, as the actions check, that records what they do to it.
+		const pane = (name: string) => upcastPartial<IVisibleEditorPane>(Object.assign(Object.create(SessionChangesEditor.prototype) as SessionChangesEditor, {
+			collapseAllDiffs: () => { calls.push(`collapse:${name}`); },
+			expandAllDiffs: () => { calls.push(`expand:${name}`); },
+		}));
+		const invoking = pane('invoking');
+		const active = pane('active');
+		const instantiationService = new TestInstantiationService();
+		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+			override getGroup(id: number) { return id === 7 ? upcastPartial<IEditorGroup>({ activeEditorPane: invoking }) : undefined; }
+		});
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override get activeEditorPane() { return active; }
+		});
+		for (const id of ['workbench.action.agentSessions.collapseAllDiffs', 'workbench.action.agentSessions.expandAllDiffs']) {
+			instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor, URI.parse('changes:/session'), { groupId: 7 }));
+			instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+		}
+
+		assert.deepStrictEqual(calls, ['collapse:invoking', 'collapse:active', 'expand:invoking', 'expand:active']);
 	});
 
 	test('Create Pull Request anchor stays mounted while session changes resolve but is hidden for custom views', () => {

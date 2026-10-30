@@ -730,7 +730,7 @@ class BackendSchemeTestProvider extends LocalAgentHostSessionsProvider {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { chatSessionsService?: Partial<IChatSessionsService>; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; getChatModel?: (resource: URI) => IChatModel | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; sessionTools?: (resource: URI) => readonly ToolDefinition[]; mcpAppTools?: (resource: URI) => readonly ToolDefinition[]; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
+], options?: { chatSessionsService?: Partial<IChatSessionsService>; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; getChatModel?: (resource: URI) => IChatModel | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; windowSessions?: IObservable<readonly IActiveSession[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; sessionTools?: (resource: URI) => readonly ToolDefinition[]; mcpAppTools?: (resource: URI) => readonly ToolDefinition[]; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -836,6 +836,8 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	const visibleSessionsObs = options?.visibleSessions ?? constObservable<readonly (IActiveSession | undefined)[]>([]);
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly activeSession: IObservable<IActiveSession | undefined> = activeSessionObs;
+		override readonly mainWindowActiveSession = this.activeSession;
+		override readonly windowSessions = options?.windowSessions ?? constObservable<readonly IActiveSession[]>([]);
 		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = visibleSessionsObs;
 	}());
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
@@ -12786,6 +12788,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() { });
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+				override readonly mainWindowActiveSession = this.activeSession;
+				override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 			});
 			instantiationService.stub(IPullRequestIconCache, new class extends mock<IPullRequestIconCache>() { });
 			const options: IAgentHostAdapterOptions = {
@@ -15066,6 +15070,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(session!.loading.get(), false);
 	});
 
+	test('a cached session shown only in a window stays loading until its chat catalog hydrates', () => {
+		const windowSessions = observableValue<readonly IActiveSession[]>('windowSessions', []);
+		agentHost.addSession(createSession('window-loading', { summary: 'Windowed' }));
+		const provider = createProvider(disposables, agentHost, undefined, { windowSessions });
+		fireSessionAdded(agentHost, 'window-loading', { title: 'Windowed' });
+		const session = provider.getSessions().find(s => s.title.get() === 'Windowed')!;
+		const notShown = session.loading.get();
+
+		windowSessions.set([upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat, scopedChatResource: session.mainChat.get().resource })], undefined);
+		const whileLoading = session.loading.get();
+		const defaultChat = buildDefaultChatUri(AgentSession.uri('copilotcli', 'window-loading').toString());
+		agentHost.setSessionState('window-loading', 'copilotcli', {
+			provider: 'copilotcli', title: 'Windowed', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [], defaultChat,
+			chats: [{ resource: defaultChat, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() }],
+		});
+
+		assert.deepStrictEqual({ notShown, whileLoading, hydrated: session.loading.get() }, { notShown: false, whileLoading: true, hydrated: false });
+	});
+
 	test('new session defers backend startup until authentication settles', async () => {
 		agentHost.setAuthenticationPending(true);
 		const provider = createProvider(disposables, agentHost);
@@ -16650,6 +16673,47 @@ suite('LocalAgentHostSessionsProvider', () => {
 			shownAgain: { resolving: false, autoApprove: 'autoApprove', notified: true, held: [false, false] },
 			afterReconnect: [true, true],
 			observed: [true, false, true, false, true],
+		});
+	}));
+
+	test('the active chat of a session shown only in a window keeps its config subscription while another session is active, and writes go to that chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const windowSessions = observableValue<readonly IActiveSession[]>('windowSessions', []);
+		// Another session is the active one, and the grid shows only it.
+		const other = upcastPartial<IActiveSession>({ sessionId: 'other', providerId: 'other', resource: URI.parse('other:/other'), activeChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('other:/other') })) });
+		agentHost.addSession(createSession('windowed', { summary: 'windowed' }));
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession: constObservable(other), visibleSessions: constObservable([other]), windowSessions });
+		provider.getSessions();
+		const chat = 'ahp-chat:/windowed';
+		const summary: ChatSummary = { resource: chat, title: 'Main', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
+		agentHost.setSessionState('windowed', 'copilotcli', {
+			provider: 'copilotcli', title: 'windowed', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [summary], defaultChat: chat,
+			config: { schema: { type: 'object', properties: { autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'autoApprove'], sessionMutable: true, chatMutable: true } } }, values: { autoApprove: 'default' } },
+		});
+		agentHost.setChatState(chat, { ...summary, turns: [], config: { values: { autoApprove: 'autoApprove' } } });
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'windowed')!;
+		const chatResource = session.mainChat.get().resource;
+		await waitForSessionConfig(provider, session, c => !!c);
+		const read = () => ({
+			resolving: provider.isSessionConfigResolving(session.sessionId, chatResource).get(),
+			autoApprove: provider.getSessionConfig(session.sessionId, chatResource)?.values.autoApprove,
+		});
+		await timeout(60_000);
+		const notShown = read();
+		windowSessions.set([upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat, scopedChatResource: chatResource })], undefined);
+		await timeout(60_000);
+		const inWindow = read();
+		const dispatchedBefore = agentHost.dispatchedActions.length;
+		await provider.setSessionConfigValue(session.sessionId, chatResource, 'autoApprove', 'default');
+		const written = agentHost.dispatchedActions.slice(dispatchedBefore).map(({ channel, action }) => ({ channel, action }));
+		windowSessions.set([], undefined);
+		await timeout(60_000);
+
+		assert.deepStrictEqual({ notShown, inWindow, written, windowClosed: read().resolving }, {
+			notShown: { resolving: true, autoApprove: 'default' },
+			inWindow: { resolving: false, autoApprove: 'autoApprove' },
+			written: [{ channel: chat, action: { type: ActionType.ChatConfigChanged, config: { autoApprove: 'default' } } }],
+			windowClosed: true,
 		});
 	}));
 

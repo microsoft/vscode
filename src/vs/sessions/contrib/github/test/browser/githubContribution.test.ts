@@ -47,6 +47,7 @@ suite('GitHubPullRequestPollingContribution', () => {
 		activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
 		sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = activeSession;
+			override readonly mainWindowActiveSession = this.activeSession;
 		};
 		gitHubService = new TestGitHubService();
 	});

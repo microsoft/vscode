@@ -22,7 +22,7 @@ import { agentsPanelBorder } from '../../common/theme.js';
 import { ChatOriginKind, IChat } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
+import { AbstractChatView, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, ISessionViewHostOptions, WorkspaceSelectionResult } from './chatView.js';
 import { ChatGroupView, IChatGroupContext } from './chatGroupView.js';
 import { ChatDropZone, ChatGroupDropTarget, IChatGroupDropTargetDelegate } from './chatGroupDropTarget.js';
 import { DraggedSessionIdentifier, getSessionChatDragData, IDraggedSessionChat, isSessionChatDrag, SessionsDataTransfers } from '../dnd.js';
@@ -99,6 +99,7 @@ export class ChatGroupsView extends Themable {
 	private _mainChatResource: IObservable<string> | undefined;
 	private _sessionActive = true;
 	private _sessionVisible = true;
+	private _sessionPartVisible = true;
 	private readonly _singleGroupTabsReplaceHeader = observableValue(this, false);
 	readonly showChatAsSessionView: IObservable<boolean>;
 	private readonly _showGroupChatHeaders: IObservable<boolean>;
@@ -119,7 +120,16 @@ export class ChatGroupsView extends Themable {
 	private _gridDidLayout = false;
 	private _gridTopologyChanged = false;
 
+	private readonly _primaryGroup = observableValue<ChatGroupView | undefined>(this, undefined);
+
+	/** The chat view of the first group. */
+	readonly primaryChatView: IObservable<AbstractChatView | undefined> = derived(this, reader => this._primaryGroup.read(reader)?.chatView.read(reader));
+
+	/** The top of {@link primaryChatView} within this view: below the bar of the first group. */
+	readonly primaryChatViewTop: IObservable<number> = derived(this, reader => this._primaryGroup.read(reader)?.chatViewTop.read(reader) ?? 0);
+
 	constructor(
+		private readonly _hostOptions: ISessionViewHostOptions | undefined,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
@@ -314,7 +324,7 @@ export class ChatGroupsView extends Themable {
 		const store = new DisposableStore();
 		this._groupDisposables.set(id, store);
 		// Register the view first so a throw below leaves it owned by this group store (never orphaned).
-		const view = store.add(reusableView ?? this._instantiationService.createInstance(ChatGroupView));
+		const view = store.add(reusableView ?? this._instantiationService.createInstance(ChatGroupView, this._hostOptions));
 		// A reused view must not see an empty group before the first reconcile, or it would swap its
 		// chat view for a composer. Seed what reconcile would assign to a lone group anyway.
 		const activeChat = reusableView ? session.activeChat.get() : undefined;
@@ -377,7 +387,7 @@ export class ChatGroupsView extends Themable {
 		};
 		view.setContext(context);
 		view.setSessionActive(this._sessionActive);
-		view.setSessionVisible(this._sessionVisible);
+		view.setSessionVisible(this._sessionVisible, this._sessionPartVisible);
 
 		return entry;
 	}
@@ -1033,6 +1043,7 @@ export class ChatGroupsView extends Themable {
 	private _setGroupCount(count: number): void {
 		const changed = this._groupCount.get() !== count;
 		this._groupCount.set(count, undefined);
+		this._primaryGroup.set(this._groups[0]?.view, undefined);
 		this.element.classList.toggle('single-group', count <= 1);
 		this._groups.forEach((group, index) => group.view.setGroupPosition(index, count));
 		if (changed) {
@@ -1107,13 +1118,15 @@ export class ChatGroupsView extends Themable {
 		}
 	}
 
-	setSessionVisible(visible: boolean): void {
-		if (this._sessionVisible === visible) {
+	/** Whether the session is shown; `partVisible` is false while what hosts it is hidden, such as the Sessions part. */
+	setSessionVisible(visible: boolean, partVisible = true): void {
+		if (this._sessionVisible === visible && this._sessionPartVisible === partVisible) {
 			return;
 		}
 		this._sessionVisible = visible;
+		this._sessionPartVisible = partVisible;
 		for (const group of this._groups) {
-			group.view.setSessionVisible(visible);
+			group.view.setSessionVisible(visible, partVisible);
 		}
 	}
 

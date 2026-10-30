@@ -1008,6 +1008,8 @@
 		"--agents-session-frame-inset",
 		"--agents-side-pane-frame-inset",
 		"--agents-window-corner-radius",
+		"--chat-window-controls-width",
+		"--session-header-actions-inset",
 		"--session-chat-base-height",
 		"--session-group-depth",
 		"--session-group-indent",

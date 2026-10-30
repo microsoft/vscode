@@ -81,6 +81,20 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 suite('Sessions - Workbench', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('the editor parts of other windows, such as chat windows, show while the editor part of the main window hides', () => {
+		const workbench: { isVisible(part: Parts, targetWindow?: Window): boolean } = Object.assign(Object.create(Workbench.prototype), {
+			_effectiveVisible: () => false,
+			layoutPolicy: { viewportClass: { get: () => 'desktop' } },
+		});
+		const otherWindow = {} as Window;
+		assert.deepStrictEqual({
+			mainEditor: workbench.isVisible(Parts.EDITOR_PART, mainWindow),
+			mainEditorWithoutWindow: workbench.isVisible(Parts.EDITOR_PART),
+			otherWindowEditor: workbench.isVisible(Parts.EDITOR_PART, otherWindow),
+			otherWindowPanel: workbench.isVisible(Parts.PANEL_PART, otherWindow),
+		}, { mainEditor: false, mainEditorWithoutWindow: false, otherWindowEditor: true, otherWindowPanel: false });
+	});
+
 	test('leaves native resize to the host window while retaining iOS and phone viewport listeners', () => {
 		const viewport = mainWindow.visualViewport;
 		assert.ok(viewport);

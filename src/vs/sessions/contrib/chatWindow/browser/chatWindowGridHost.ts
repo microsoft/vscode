@@ -1,0 +1,661 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { $, append, getWindow } from '../../../../base/browser/dom.js';
+import { ISerializableView, ISerializedGrid, ISerializedNode, IViewSize, Orientation, SerializableGrid } from '../../../../base/browser/ui/grid/grid.js';
+import { LayoutPriority } from '../../../../base/browser/ui/splitview/splitview.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from '../../../browser/parts/gridGap.js';
+import { diffSessionGridLayout, ISessionGridLayout, ISessionGridLayoutBranch, SessionGridCell, SessionGridLayoutNode, SessionHeaderSpan, SessionLayoutMode } from '../../../common/sessionGridLayout/sessionGridLayout.js';
+
+/** What a cell of a chat window shows: the chat, the editor area, the terminals or the Session Activity Bar. */
+export interface IChatWindowCellContent {
+	readonly element: HTMLElement;
+	layout(width: number, height: number, top: number, left: number): void;
+	setVisible?(visible: boolean): void;
+}
+
+/** The size limits of a cell. The grid host sets them itself and never asks the content, which must not be measured while the grid changes. */
+export interface IChatWindowCellConstraints {
+	readonly minimumWidth: number;
+	readonly maximumWidth: number;
+	readonly minimumHeight: number;
+	readonly maximumHeight: number;
+}
+
+/**
+ * A cell of the grid of a chat window: a view of the grid that shows its content as a card, inset by the gap it shares
+ * with the cells beside it.
+ */
+export class ChatWindowCellView extends Disposable implements ISerializableView {
+
+	readonly element: HTMLElement;
+	private readonly _card: HTMLElement;
+
+	private _constraints: IChatWindowCellConstraints;
+	get minimumWidth(): number { return this._constraints.minimumWidth; }
+	get maximumWidth(): number { return this._constraints.maximumWidth; }
+	get minimumHeight(): number { return this._constraints.minimumHeight; }
+	get maximumHeight(): number { return this._constraints.maximumHeight; }
+
+	/**
+	 * As in the main window, where the Sessions part takes what the window grows or shrinks by: the chat first, the
+	 * terminals last, so that they keep their height as the window is resized; see {@link setPriority}.
+	 */
+	get priority(): LayoutPriority { return this._priority ?? this._defaultPriority; }
+	private readonly _defaultPriority: LayoutPriority;
+	private _priority: LayoutPriority | undefined;
+
+	private readonly _onDidChange = this._register(new Emitter<IViewSize | undefined>());
+	readonly onDidChange: Event<IViewSize | undefined> = this._onDidChange.event;
+
+	private readonly _onDidLayout = this._register(new Emitter<void>());
+	/** Fires each time the grid lays the cell out, such as at every step of a drag of a sash beside it. */
+	readonly onDidLayout: Event<void> = this._onDidLayout.event;
+
+	private _insets: IGridEdgeInsets = NO_GRID_EDGE_INSETS;
+	private _contentTop = 0;
+	private _content: IChatWindowCellContent | undefined;
+	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
+
+	constructor(readonly cell: SessionGridCell, constraints: IChatWindowCellConstraints) {
+		super();
+		this._constraints = constraints;
+		this._defaultPriority = cell === SessionGridCell.Chat ? LayoutPriority.High : cell === SessionGridCell.Terminals ? LayoutPriority.Low : LayoutPriority.Normal;
+		this.element = $(`.chat-window-cell.chat-window-cell-${cell}`);
+		this._card = append(this.element, $('.chat-window-cell-card'));
+	}
+
+	/**
+	 * Gives the cell `priority` for what the window grows or shrinks by, such as low to keep its height while the chat
+	 * shows only its input, as the main window keeps it; `undefined` brings back its own.
+	 */
+	setPriority(priority: LayoutPriority | undefined): void {
+		this._priority = priority;
+	}
+
+	/** The content of the card, which this cell lays out. */
+	setContent(content: IChatWindowCellContent | undefined): void {
+		if (this._content === content) {
+			return;
+		}
+		this._content?.element.remove();
+		this._content = content;
+		if (content) {
+			this._card.appendChild(content.element);
+			this._layoutContent();
+		}
+	}
+
+	get content(): IChatWindowCellContent | undefined {
+		return this._content;
+	}
+
+	/** The height of the gap above and below the card, of the card's border, and of the room it leaves above its content. */
+	get verticalInsets(): number {
+		const border = this._getCardBorder();
+		return this._insets.top + this._insets.bottom + border.top + border.bottom + this._contentTop;
+	}
+
+	/** The border of the card, which its density draws (none when compact): its content is inside it. */
+	private _getCardBorder(): { readonly top: number; readonly right: number; readonly bottom: number; readonly left: number } {
+		const style = getWindow(this._card).getComputedStyle(this._card);
+		const width = (value: string) => parseFloat(value) || 0;
+		return { top: width(style.borderTopWidth), right: width(style.borderRightWidth), bottom: width(style.borderBottomWidth), left: width(style.borderLeftWidth) };
+	}
+
+	setConstraints(constraints: IChatWindowCellConstraints): void {
+		const current = this._constraints;
+		if (current.minimumWidth === constraints.minimumWidth && current.maximumWidth === constraints.maximumWidth && current.minimumHeight === constraints.minimumHeight && current.maximumHeight === constraints.maximumHeight) {
+			return;
+		}
+		this._constraints = constraints;
+		this._onDidChange.fire(undefined);
+	}
+
+	/**
+	 * The gap to the cells beside it, which the card is inset by, and the room the card leaves above its content, such as
+	 * to center the content's top row with a header beside it.
+	 */
+	setInsets(insets: IGridEdgeInsets, contentTop = 0): void {
+		if (this._insets.top === insets.top && this._insets.right === insets.right && this._insets.bottom === insets.bottom && this._insets.left === insets.left && this._contentTop === contentTop) {
+			return;
+		}
+		this._insets = insets;
+		this._contentTop = contentTop;
+		this._card.style.inset = `${insets.top}px ${insets.right}px ${insets.bottom}px ${insets.left}px`;
+		this._card.style.paddingTop = contentTop ? `${contentTop}px` : '';
+		this._layoutContent();
+	}
+
+	layout(width: number, height: number, top: number, left: number): void {
+		this._lastLayout = { width, height, top, left };
+		this._layoutContent();
+		this._onDidLayout.fire();
+	}
+
+	/** Lays out its content again at the size it last had, such as once its card's border changes with the density. */
+	relayoutContent(): void {
+		this._layoutContent();
+	}
+
+	private _layoutContent(): void {
+		const layout = this._lastLayout;
+		if (!layout || !this._content) {
+			return;
+		}
+		const insets = this._insets;
+		// Inside the card's border, which takes room of its own: else the content would be larger than the card shows.
+		const border = this._getCardBorder();
+		this._content.layout(
+			Math.max(0, layout.width - insets.left - insets.right - border.left - border.right),
+			Math.max(0, layout.height - insets.top - insets.bottom - border.top - border.bottom - this._contentTop),
+			layout.top + insets.top + border.top + this._contentTop,
+			layout.left + insets.left + border.left,
+		);
+	}
+
+	setVisible(visible: boolean): void {
+		this.element.classList.toggle('hidden', !visible);
+		this._content?.setVisible?.(visible);
+	}
+
+	toJSON(): object {
+		return { type: this.cell };
+	}
+}
+
+function isBranch(node: SessionGridLayoutNode): node is ISessionGridLayoutBranch {
+	return 'children' in node;
+}
+
+function isVisible(node: SessionGridLayoutNode): boolean {
+	return isBranch(node) ? node.children.some(isVisible) : node.visible;
+}
+
+/**
+ * Whether the title row of a chat window is right above its chat (Side by Side, over the chat's column; Chat Only): it is
+ * then the header of the chat's card, in it, with no edge between it and the chat, as the main window's session header
+ * is. Above the editor area's card (Stacked, Editor Only), the title row stays the title bar.
+ */
+export function isChatWindowTitleRowOverChat(layout: Pick<ISessionGridLayout, 'mode' | 'header'>): boolean {
+	return layout.header === SessionHeaderSpan.ChatColumn || layout.mode === SessionLayoutMode.ChatOnly;
+}
+
+/**
+ * The gap each visible cell of `topology` keeps to the visible cells beside it, split between the two: the cells show as
+ * cards with `gap` between them, and none at the edges of the window. Computed from the topology alone, so that the grid
+ * is never measured while it changes.
+ */
+export function getChatWindowCellInsets(topology: ISessionGridLayoutBranch, gap: number): Map<SessionGridCell, IGridEdgeInsets> {
+	const result = new Map<SessionGridCell, IGridEdgeInsets>();
+	const before = Math.floor(gap / 2);
+	const after = gap - before;
+	const visit = (node: SessionGridLayoutNode, neighbors: { top: boolean; right: boolean; bottom: boolean; left: boolean }) => {
+		if (!isBranch(node)) {
+			if (node.visible) {
+				result.set(node.cell, gap > 0 ? {
+					top: neighbors.top ? before : 0,
+					right: neighbors.right ? after : 0,
+					bottom: neighbors.bottom ? after : 0,
+					left: neighbors.left ? before : 0,
+				} : NO_GRID_EDGE_INSETS);
+			}
+			return;
+		}
+		const visibleChildren = node.children.filter(isVisible);
+		visibleChildren.forEach((child, index) => {
+			const first = index === 0;
+			const last = index === visibleChildren.length - 1;
+			visit(child, node.orientation === 'row'
+				? { ...neighbors, left: neighbors.left || !first, right: neighbors.right || !last }
+				: { ...neighbors, top: neighbors.top || !first, bottom: neighbors.bottom || !last });
+		});
+	};
+	visit(topology, { top: false, right: false, bottom: false, left: false });
+	return result;
+}
+
+/**
+ * The key the sizes of the cells are remembered under: the topology and the cells that show in it, as a cell that shows
+ * beside others keeps another size than when it shows alone, such as the editor area without the terminals.
+ */
+function sizeKey(layout: ISessionGridLayout): string {
+	return `${layout.shapeKey}|${layout.tabOrder.join(',')}`;
+}
+
+/** How a cell takes its share of a branch when it has no size of its own yet: a fixed size, or a share of the room left. */
+export type ChatWindowCellSizing = { readonly kind: 'fixed'; readonly size: number } | { readonly kind: 'share'; readonly share: number };
+
+/** The default sizing of `cell` along the width (`row`) or the height (`column`) of the window. */
+export type ChatWindowDefaultSizing = (cell: SessionGridCell, axis: 'row' | 'column', total: number) => ChatWindowCellSizing;
+
+interface IBox { readonly width: number; readonly height: number }
+
+/**
+ * Lays out the cells of a chat window in a grid, as {@link computeSessionGridLayout} computes for its state. A new topology
+ * rebuilds the grid with the same cell views and their sizes; a change of visibility only shows or hides cells. The grid is
+ * never read while it changes.
+ */
+export class ChatWindowGridHost extends Disposable {
+
+	private readonly _gridDisposables = this._register(new DisposableStore());
+	private _grid: SerializableGrid<ChatWindowCellView> | undefined;
+	private _layout: ISessionGridLayout | undefined;
+	private _dimension: IBox | undefined;
+	private _gap = 0;
+
+	/**
+	 * The last size of each cell while it showed, per topology: a mode keeps the sizes it showed with when it is shown
+	 * again, as the chat's width beside the editor area must not become the chat's full width alone. The terminals carry
+	 * their size across topologies, as their height does not depend on what is beside them.
+	 */
+	private readonly _sizes = new Map<string, Map<SessionGridCell, IBox>>();
+	private _terminalsSize: IBox | undefined;
+
+	private _rebuilds = 0;
+	/** How many times the grid was rebuilt; a change of visibility only does not rebuild it. */
+	get rebuilds(): number { return this._rebuilds; }
+
+	private readonly _onDidLayoutCells = this._register(new Emitter<void>());
+	/** Fires when the cells were laid out again, such as after a rebuild or a sash drag. */
+	readonly onDidLayoutCells: Event<void> = this._onDidLayoutCells.event;
+
+	constructor(
+		private readonly _container: HTMLElement,
+		private readonly _cells: ReadonlyMap<SessionGridCell, ChatWindowCellView>,
+		private readonly _defaultSizing: ChatWindowDefaultSizing,
+	) {
+		super();
+	}
+
+	get layout(): ISessionGridLayout | undefined {
+		return this._layout;
+	}
+
+	get grid(): SerializableGrid<ChatWindowCellView> | undefined {
+		return this._grid;
+	}
+
+	private _header = { height: 0, chatColumn: false, besideTitleHeight: 0 };
+
+	/**
+	 * The window's header row, above the grid: `height` tall, across the window unless `chatColumn` allows it above the
+	 * chat's column only (see {@link ISessionGridLayout.header}). Then the content of the side pane beside it, whose top
+	 * row is `besideTitleHeight` tall, starts so that that row is centered with the header, as when both are as tall
+	 * (compact). Right above the chat ({@link headerInChatCard}), the header is in the chat's card, as the main window's
+	 * session header is: the grid runs to the top of the window, and the chat's card from there, its content below the
+	 * header.
+	 */
+	setHeader(height: number, chatColumn: boolean, besideTitleHeight = 0): void {
+		if (this._header.height === height && this._header.chatColumn === chatColumn && this._header.besideTitleHeight === besideTitleHeight) {
+			return;
+		}
+		this._header = { height, chatColumn, besideTitleHeight };
+		this._layoutGridBox();
+		this._applyInsets();
+	}
+
+	/** The height of the top row of the side pane beside the header, as last given to {@link setHeader}. */
+	get besideTitleHeight(): number {
+		return this._header.besideTitleHeight;
+	}
+
+	/** Where the header shows with the layout the grid shows. */
+	get headerSpan(): SessionHeaderSpan {
+		return this._headerSpanOf(this._layout);
+	}
+
+	private _headerSpanOf(layout: ISessionGridLayout | undefined): SessionHeaderSpan {
+		return this._header.chatColumn && layout?.header === SessionHeaderSpan.ChatColumn ? SessionHeaderSpan.ChatColumn : SessionHeaderSpan.Full;
+	}
+
+	/**
+	 * Whether the header is in the chat's card, at its top, with the layout the grid shows: while it is right above the
+	 * chat (see {@link isChatWindowTitleRowOverChat}) and allowed to be beside the cells.
+	 */
+	get headerInChatCard(): boolean {
+		return this._headerInChatCardOf(this._layout);
+	}
+
+	private _headerInChatCardOf(layout: ISessionGridLayout | undefined): boolean {
+		return this._header.chatColumn && !!layout && isChatWindowTitleRowOverChat(layout);
+	}
+
+	/** The box of the grid in the window: below a header across the window, else (the header beside the cells or in the chat's card) the whole window. */
+	private _gridBox(): IBox & { top: number } {
+		const dimension = this._dimension!;
+		const top = this._headerSpanOf(this._layout) === SessionHeaderSpan.Full && !this._headerInChatCardOf(this._layout) ? Math.min(this._header.height, dimension.height) : 0;
+		return { top, width: dimension.width, height: dimension.height - top };
+	}
+
+	private _placeGrid(grid: SerializableGrid<ChatWindowCellView>, box: IBox & { top: number }): void {
+		grid.element.style.marginTop = `${box.top}px`;
+		grid.element.style.height = `${box.height}px`;
+	}
+
+	private _layoutGridBox(): void {
+		if (!this._grid || !this._dimension) {
+			return;
+		}
+		const box = this._gridBox();
+		this._placeGrid(this._grid, box);
+		this._grid.layout(box.width, box.height);
+		this._onDidLayoutCells.fire();
+	}
+
+	/** The width the grid lays `cell` out with, or 0 while it does not show. */
+	getCellWidth(cell: SessionGridCell): number {
+		const view = this._cells.get(cell);
+		return view && this._grid && this._layout && this._leaves(this._layout.topology).some(leaf => leaf.cell === cell && leaf.visible) ? this._grid.getViewSize(view).width : 0;
+	}
+
+	/** The gap between the cards of the cells; 0 keeps them flush. */
+	/** Lays out the content of every cell again, such as once the borders of their cards change with the density. */
+	relayoutCells(): void {
+		for (const view of this._cells.values()) {
+			view.relayoutContent();
+		}
+	}
+
+	setGap(gap: number): void {
+		if (this._gap === gap) {
+			return;
+		}
+		this._gap = gap;
+		this._applyInsets();
+	}
+
+	/** Shows `layout`: rebuilds the grid when its topology changes, else only shows or hides cells. */
+	apply(layout: ISessionGridLayout): void {
+		const change = diffSessionGridLayout(this._layout, layout);
+		const previous = this._layout;
+		if (!this._dimension) {
+			// Built once the window's size is known, so that the cells get the sizes they last showed with, not those scaled
+			// from a guessed size.
+			this._layout = layout;
+			return;
+		}
+		// What the cells showed as is read before the grid changes, never while it does.
+		if (previous && this._grid && change !== 'none') {
+			for (const leaf of this._leaves(previous.topology)) {
+				if (leaf.visible) {
+					this._rememberSize(leaf.cell);
+				}
+			}
+		}
+		if (change === 'rebuild' || !this._grid) {
+			this._layout = layout;
+			this._rebuild(layout);
+			return;
+		}
+		const headerChanged = this._headerSpanOf(previous) !== this._headerSpanOf(layout);
+		this._layout = layout;
+		if (change === 'visibility') {
+			for (const leaf of this._leaves(layout.topology)) {
+				const view = this._cells.get(leaf.cell);
+				if (view && this._grid.isViewVisible(view) !== leaf.visible) {
+					this._grid.setViewVisible(view, leaf.visible);
+				}
+			}
+			if (headerChanged) {
+				this._layoutGridBox();
+			}
+			this._applyInsets();
+		}
+	}
+
+	layoutGrid(width: number, height: number): void {
+		this._dimension = { width, height };
+		if (!this._grid && this._layout) {
+			this._rebuild(this._layout);
+		}
+		this._layoutGridBox();
+	}
+
+	/** The sizes the cells showed with, per topology, including the cells that show now; see {@link importSizes}. */
+	exportSizes(): Record<string, Record<string, IBox>> {
+		if (this._layout && this._grid) {
+			for (const leaf of this._leaves(this._layout.topology)) {
+				if (leaf.visible) {
+					this._rememberSize(leaf.cell);
+				}
+			}
+		}
+		const result: Record<string, Record<string, IBox>> = {};
+		for (const [shapeKey, sizes] of this._sizes) {
+			result[shapeKey] = Object.fromEntries(sizes);
+		}
+		return result;
+	}
+
+	/** Restores the sizes {@link exportSizes} gave, before the grid is first built. */
+	importSizes(sizes: Record<string, Record<string, IBox>>): void {
+		for (const [shapeKey, cells] of Object.entries(sizes)) {
+			const map = new Map<SessionGridCell, IBox>();
+			for (const [cell, box] of Object.entries(cells)) {
+				if (this._cells.has(cell as SessionGridCell)) {
+					map.set(cell as SessionGridCell, box);
+					if (cell === SessionGridCell.Terminals) {
+						this._terminalsSize = box;
+					}
+				}
+			}
+			this._sizes.set(shapeKey, map);
+		}
+	}
+
+	/** The size of `cell` as it last showed, if it did. */
+	getSize(cell: SessionGridCell): IBox | undefined {
+		const view = this._cells.get(cell);
+		if (view && this._grid && this._isInGrid(cell) && this._grid.isViewVisible(view)) {
+			return this._grid.getViewSize(view);
+		}
+		return this._rememberedBox(cell);
+	}
+
+	private _rememberedBox(cell: SessionGridCell): IBox | undefined {
+		const key = this._layout && sizeKey(this._layout);
+		return (key ? this._sizes.get(key)?.get(cell) : undefined) ?? (cell === SessionGridCell.Terminals ? this._terminalsSize : undefined);
+	}
+
+	/** Sizes `cell` along `axis` without moving any other cell than its neighbor. */
+	resizeCell(cell: SessionGridCell, size: { readonly width?: number; readonly height?: number }): void {
+		const view = this._cells.get(cell);
+		if (!view || !this._grid || !this._isInGrid(cell)) {
+			return;
+		}
+		const current = this._grid.getViewSize(view);
+		this._grid.resizeView(view, { width: size.width ?? current.width, height: size.height ?? current.height });
+		this._rememberSize(cell);
+	}
+
+	private _isInGrid(cell: SessionGridCell): boolean {
+		return !!this._layout && this._leaves(this._layout.topology).some(leaf => leaf.cell === cell);
+	}
+
+	private _leaves(node: SessionGridLayoutNode, into: { cell: SessionGridCell; visible: boolean }[] = []): { cell: SessionGridCell; visible: boolean }[] {
+		if (isBranch(node)) {
+			node.children.forEach(child => this._leaves(child, into));
+		} else {
+			into.push(node);
+		}
+		return into;
+	}
+
+	private _rememberSize(cell: SessionGridCell): void {
+		const view = this._cells.get(cell);
+		if (view && this._grid && this._grid.isViewVisible(view)) {
+			const size = this._grid.getViewSize(view);
+			if (size.width > 0 && size.height > 0) {
+				const key = sizeKey(this._layout!);
+				let sizes = this._sizes.get(key);
+				if (!sizes) {
+					sizes = new Map();
+					this._sizes.set(key, sizes);
+				}
+				sizes.set(cell, { width: size.width, height: size.height });
+				if (cell === SessionGridCell.Terminals) {
+					this._terminalsSize = { width: size.width, height: size.height };
+				}
+			}
+		}
+	}
+
+	private _rebuild(layout: ISessionGridLayout): void {
+		this._rebuilds++;
+		this._gridDisposables.clear();
+		const previousElement = this._grid?.element;
+		this._grid = undefined;
+
+		const dimension = this._gridBox();
+		const json = this._serialize(layout.topology, dimension);
+		const grid = this._gridDisposables.add(SerializableGrid.deserialize<ChatWindowCellView>(json, {
+			fromJSON: (data: { type: SessionGridCell }) => {
+				const view = this._cells.get(data.type);
+				if (!view) {
+					throw new Error(`Unknown chat window cell: ${data.type}`);
+				}
+				return view;
+			}
+		}, { proportionalLayout: false }));
+		grid.element.classList.add('chat-window-grid');
+		previousElement?.remove();
+		this._container.appendChild(grid.element);
+		this._grid = grid;
+		this._gridDisposables.add(grid.onDidChange(() => this._onDidLayoutCells.fire()));
+		this._applyInsets();
+		this._placeGrid(grid, dimension);
+		grid.layout(dimension.width, dimension.height);
+		this._onDidLayoutCells.fire();
+	}
+
+	private _applyInsets(): void {
+		if (!this._layout) {
+			return;
+		}
+		const insets = getChatWindowCellInsets(this._layout.topology, this._gap);
+		const headerBeside = this.headerSpan === SessionHeaderSpan.ChatColumn ? this._header.height : 0;
+		const besideHeader = headerBeside && this._header.besideTitleHeight ? Math.max(0, Math.floor((headerBeside - this._header.besideTitleHeight) / 2)) : 0;
+		const headerInChatCard = this.headerInChatCard ? this._header.height : 0;
+		for (const [cell, view] of this._cells) {
+			view.setInsets(insets.get(cell) ?? NO_GRID_EDGE_INSETS, cell === SessionGridCell.SidePane ? besideHeader : cell === SessionGridCell.Chat ? headerInChatCard : 0);
+		}
+		// The sashes in the gaps between the cards show the gripper of the main window's.
+		if (this._grid) {
+			updateGridGapSashes(this._grid, this._gap > 0);
+		}
+	}
+
+	private _serialize(topology: ISessionGridLayoutBranch, dimension: IBox): ISerializedGrid {
+		const orientation = topology.orientation === 'row' ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+		return {
+			root: this._serializeNode(topology, dimension),
+			orientation,
+			width: dimension.width,
+			height: dimension.height,
+		};
+	}
+
+	/** Serializes `node`, laid out in `box`, as the grid deserializes it: the size of a node is along its parent's orientation. */
+	private _serializeNode(node: SessionGridLayoutNode, box: IBox, parentAxis?: 'row' | 'column'): ISerializedNode {
+		const size = parentAxis === 'row' ? box.width : parentAxis === 'column' ? box.height : (isBranch(node) && node.orientation === 'column' ? box.width : box.height);
+		if (!isBranch(node)) {
+			return { type: 'leaf', data: { type: node.cell }, size: Math.round(size), visible: node.visible };
+		}
+		const total = node.orientation === 'row' ? box.width : box.height;
+		const sizes = this._distribute(node, total);
+		return {
+			type: 'branch',
+			size: Math.round(size),
+			data: node.children.map((child, index) => this._serializeNode(child, node.orientation === 'row' ? { width: sizes[index], height: box.height } : { width: box.width, height: sizes[index] }, node.orientation)),
+		};
+	}
+
+	/**
+	 * Splits `total` among the children of `node` along its orientation. Fixed cells take their size; the others prefer the
+	 * sizes they last showed with, else their default share of `total`. When those do not fit, tall terminals give way first,
+	 * down to their least height, so that the editor area and the chat keep theirs; then all shrink alike. Room left over
+	 * goes to the cells that never showed in this layout, so that the others keep their sizes, else to all alike. Hidden
+	 * children keep their size for when they show, outside the total.
+	 */
+	private _distribute(node: ISessionGridLayoutBranch, total: number): number[] {
+		const axis = node.orientation;
+		const sizings = node.children.map(child => this._sizingOf(child, axis, total));
+		const remembered = node.children.map(child => this._rememberedSize(child, axis));
+		const sizes = sizings.map((sizing, index) => sizing.kind === 'fixed' ? sizing.size : remembered[index] ?? sizing.share * total);
+		let room = total;
+		const flexible: number[] = [];
+		node.children.forEach((child, index) => {
+			if (isVisible(child)) {
+				if (sizings[index].kind === 'fixed') {
+					room -= sizes[index];
+				} else {
+					flexible.push(index);
+				}
+			}
+		});
+		room = Math.max(0, room);
+		let sum = flexible.reduce((result, index) => result + sizes[index], 0);
+		const terminalsIndex = flexible.find(index => { const child = node.children[index]; return !isBranch(child) && child.cell === SessionGridCell.Terminals; });
+		if (axis === 'column' && terminalsIndex !== undefined && sum > room) {
+			const minimum = this._cells.get(SessionGridCell.Terminals)?.minimumHeight ?? 0;
+			const giveWay = Math.min(sum - room, Math.max(0, sizes[terminalsIndex] - minimum));
+			sizes[terminalsIndex] -= giveWay;
+			sum -= giveWay;
+		}
+		const withoutSize = flexible.filter(index => remembered[index] === undefined);
+		if (sum < room && withoutSize.length) {
+			const extra = room - sum;
+			const shares = withoutSize.reduce((result, index) => result + this._shareOf(sizings[index]), 0);
+			withoutSize.forEach(index => sizes[index] += shares ? extra * this._shareOf(sizings[index]) / shares : extra / withoutSize.length);
+		} else if (sum > 0) {
+			flexible.forEach(index => sizes[index] *= room / sum);
+		}
+		return sizes.map(size => Math.max(1, Math.round(size)));
+	}
+
+	private _shareOf(sizing: ChatWindowCellSizing): number {
+		return sizing.kind === 'share' ? sizing.share : 0;
+	}
+
+	private _sizingOf(node: SessionGridLayoutNode, axis: 'row' | 'column', total: number): ChatWindowCellSizing {
+		if (!isBranch(node)) {
+			return this._defaultSizing(node.cell, axis, total);
+		}
+		// A branch is flexible unless all of its visible cells are fixed along `axis`.
+		const children = node.children.filter(isVisible).map(child => this._sizingOf(child, axis, total));
+		if (children.length && children.every(sizing => sizing.kind === 'fixed')) {
+			const fixed = children.map(sizing => sizing.kind === 'fixed' ? sizing.size : 0);
+			return { kind: 'fixed', size: node.orientation === axis ? fixed.reduce((sum, size) => sum + size, 0) : Math.max(...fixed) };
+		}
+		// Along its own orientation a branch takes the shares of its cells together. Across it, the largest of them, leaving
+		// out cells of a fixed size along the branch, such as the column, which do not tell how much room the branch wants.
+		if (node.orientation === axis) {
+			return { kind: 'share', share: children.reduce((sum, sizing) => sum + this._shareOf(sizing), 0) || 1 };
+		}
+		const across = node.children.filter(isVisible).filter(child => this._sizingOf(child, node.orientation, total).kind !== 'fixed').map(child => this._shareOf(this._sizingOf(child, axis, total)));
+		return { kind: 'share', share: Math.max(0, ...across) || 1 };
+	}
+
+	/** The size `node` last showed with along `axis`, when all its visible cells showed. */
+	private _rememberedSize(node: SessionGridLayoutNode, axis: 'row' | 'column'): number | undefined {
+		if (!isBranch(node)) {
+			const size = this._rememberedBox(node.cell);
+			return size ? (axis === 'row' ? size.width : size.height) : undefined;
+		}
+		const sizes = node.children.filter(isVisible).map(child => this._rememberedSize(child, axis));
+		if (!sizes.length || sizes.some(size => size === undefined)) {
+			return undefined;
+		}
+		return node.orientation === axis ? sizes.reduce((sum, size) => sum! + size!, 0) : Math.max(...sizes as number[]);
+	}
+
+	override dispose(): void {
+		this._grid?.element.remove();
+		super.dispose();
+	}
+}
