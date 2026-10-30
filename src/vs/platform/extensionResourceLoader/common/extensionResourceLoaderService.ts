@@ -15,6 +15,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { AbstractExtensionResourceLoaderService, IExtensionResourceLoaderService } from './extensionResourceLoader.js';
 import { IExtensionGalleryManifestService } from '../../extensionManagement/common/extensionGalleryManifest.js';
 import { ILogService } from '../../log/common/log.js';
+import { requestWithExtensionGalleryAuthorization } from '../../extensionManagement/common/extensionGalleryManifestService.js';
 
 export class ExtensionResourceLoaderService extends AbstractExtensionResourceLoaderService {
 
@@ -33,8 +34,9 @@ export class ExtensionResourceLoaderService extends AbstractExtensionResourceLoa
 
 	async readExtensionResource(uri: URI): Promise<string> {
 		if (await this.isExtensionGalleryResource(uri)) {
-			const headers = await this.getExtensionGalleryRequestHeaders(uri);
-			const requestContext = await this._requestService.request({ url: uri.toString(), headers, callSite: 'extensionResourceLoader.readExtensionResource' }, CancellationToken.None);
+			const headers = await this.getExtensionGalleryRequestHeaders(uri, false);
+			const requestContext = await requestWithExtensionGalleryAuthorization(this._requestService, this._extensionGalleryManifestService,
+				{ url: uri.toString(), headers, callSite: 'extensionResourceLoader.readExtensionResource' }, CancellationToken.None, true);
 			return (await asTextOrError(requestContext)) || '';
 		}
 		const result = await this._fileService.readFile(uri);

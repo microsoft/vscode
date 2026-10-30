@@ -16,7 +16,9 @@ type RequestResponse = [
 		statusCode?: number;
 	},
 	VSBuffer,
-	IRequestContext['timings']?
+	IRequestContext['timings']?,
+	string?,
+	boolean?
 ];
 
 export class RequestChannel implements IServerChannel {
@@ -30,9 +32,9 @@ export class RequestChannel implements IServerChannel {
 	call(context: any, command: string, args?: any, token: CancellationToken = CancellationToken.None): Promise<any> {
 		switch (command) {
 			case 'request': return this.service.request(args[0], token)
-				.then(async ({ res, stream, timings }) => {
+				.then(async ({ res, stream, timings, url, requestHasAuthorization }) => {
 					const buffer = await streamToBuffer(stream);
-					return <RequestResponse>[{ statusCode: res.statusCode, headers: res.headers }, buffer, timings];
+					return <RequestResponse>[{ statusCode: res.statusCode, headers: res.headers }, buffer, timings, url, requestHasAuthorization];
 				});
 			case 'resolveProxy': return this.service.resolveProxy(args[0]);
 			case 'lookupAuthorization': return this.service.lookupAuthorization(args[0]);
@@ -52,8 +54,8 @@ export class RequestChannelClient implements IRequestService {
 	constructor(private readonly channel: IChannel) { }
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		const [res, buffer, timings] = await this.channel.call<RequestResponse>('request', [options], token);
-		return { res, stream: bufferToStream(buffer), ...(timings ? { timings } : {}) };
+		const [res, buffer, timings, url, requestHasAuthorization] = await this.channel.call<RequestResponse>('request', [options], token);
+		return { res, stream: bufferToStream(buffer), ...(timings ? { timings } : {}), ...(url ? { url } : {}), ...(requestHasAuthorization !== undefined ? { requestHasAuthorization } : {}) };
 	}
 
 	async resolveProxy(url: string): Promise<string | undefined> {
