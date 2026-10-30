@@ -34,7 +34,7 @@ import { isMarketplaceReferenceAllowed, StrictKnownMarketplaces } from '../../..
 suite('InstallFromSourceAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createFixture(pluginInstallProvider?: ICustomizationPluginInstallProvider) {
+	function createFixture(pluginInstallProvider?: ICustomizationPluginInstallProvider, localInstallResult: { readonly success: boolean; readonly message?: string } = { success: true }) {
 		const instantiationService = workbenchInstantiationService({}, store);
 		const acceptEmitter = store.add(new Emitter<void>());
 		const hideEmitter = store.add(new Emitter<IQuickInputHideEvent>());
@@ -83,7 +83,7 @@ suite('InstallFromSourceAction', () => {
 			}
 			override async installPluginFromSource(source: string) {
 				localInstalls.push(source);
-				return { success: true };
+				return localInstallResult;
 			}
 		}());
 		instantiationService.stub(IConfigurationService, new class extends mock<IConfigurationService>() {
@@ -188,6 +188,31 @@ suite('InstallFromSourceAction', () => {
 			installed: true,
 			localInstalls: ['owner/repo'],
 			validations: ['owner/repo'],
+		});
+	});
+
+	test('keeps cancelled local installation silent', async () => {
+		const fixture = createFixture(undefined, { success: false });
+		const shown = Event.toPromise(fixture.showEmitter.event);
+		fixture.inputBox.value = 'owner/repo';
+		fixture.acceptEmitter.fire();
+		await shown;
+		const state = {
+			validationMessage: fixture.inputBox.validationMessage,
+			notifications: fixture.notifications,
+			busy: fixture.inputBox.busy,
+			enabled: fixture.inputBox.enabled,
+			localInstalls: fixture.localInstalls,
+		};
+		fixture.inputBox.hide();
+
+		assert.deepStrictEqual({ ...state, installed: await fixture.result }, {
+			validationMessage: undefined,
+			notifications: [],
+			busy: false,
+			enabled: true,
+			localInstalls: ['owner/repo'],
+			installed: false,
 		});
 	});
 

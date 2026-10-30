@@ -140,8 +140,8 @@ export class InstallFromSourceAction extends Action2 {
 				} else {
 					const result = await pluginInstallService.installPluginFromSource(source);
 					success = result.success;
-					if (!success) {
-						notificationService.error(result.message ?? localize('installFromSourceFailedWithoutDetail', "Failed to install plugin."));
+					if (!success && result.message) {
+						notificationService.error(result.message);
 					}
 				}
 				if (!success) {
