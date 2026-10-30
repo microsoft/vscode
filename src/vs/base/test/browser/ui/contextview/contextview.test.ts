@@ -6,7 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { $, getDomNodePagePosition, getWindow } from '../../../../browser/dom.js';
-import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLASS, CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS, ContextView, ContextViewDOMPosition, contextViewMenuCloseAnimation, IContextViewRenderContext, IDelegate } from '../../../../browser/ui/contextview/contextview.js';
+import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLASS, CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS, ContextView, ContextViewDOMPosition, contextViewMenuCloseAnimation, IContextViewRenderContext, IDelegate, isContextViewFocused } from '../../../../browser/ui/contextview/contextview.js';
 import { mainWindow } from '../../../../browser/window.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../common/errors.js';
 import { DeferredPromise, timeout } from '../../../../common/async.js';
@@ -670,6 +670,85 @@ suite('ContextView', () => {
 			assert.deepStrictEqual({ hides: hides.length, open: isOpen(contextView.getViewElement()) }, { hides: 0, open: true });
 			contextView.hide();
 		});
+
+		test('hides when an owner without size is removed or hidden without a layout', async () => {
+			for (const lose of [(owner: HTMLElement) => owner.remove(), (owner: HTMLElement) => owner.style.display = 'none']) {
+				const { owner } = createOwner('width: 0; height: 0;');
+				const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER);
+				const hidden = new DeferredPromise<void>();
+				let hideCount = 0;
+				const { delegate } = createDelegate({ onHide: () => { hideCount++; hidden.complete(); } });
+				contextView.show(delegate);
+				await timeout(50);
+
+				lose(owner);
+				const timer = timeout(1000);
+				await Promise.race([hidden.p, timer]);
+				timer.cancel();
+
+				assert.strictEqual(hideCount, 1);
+			}
+		});
+
+		test('reports focus inside a context view hosted in a shadow root', () => {
+			const { owner, input } = createOwner();
+			const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER_SHADOW);
+			const { delegate, item } = createDelegate({ focus: () => item().focus() });
+			input.focus();
+			contextView.show(delegate);
+			const shown = { focused: isContextViewFocused(mainWindow.document), activeIsHost: mainWindow.document.activeElement?.classList.contains('shadow-root-host') };
+
+			contextView.hide();
+
+			assert.deepStrictEqual({ shown, hidden: isContextViewFocused(mainWindow.document) }, {
+				shown: { focused: true, activeIsHost: true },
+				hidden: false
+			});
+		});
+
+		for (const animated of [false, true]) {
+			test(`a view shown elsewhere while restoring focus on hide stays shown (${animated ? 'with' : 'without'} a close animation)`, async () => {
+				const { owner, input, outside } = createOwner();
+				const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER);
+				const disposed: string[] = [];
+				let item: HTMLButtonElement | undefined;
+				input.focus();
+				contextView.show({
+					getAnchor: () => ({ x: 20, y: 200 }),
+					render: container => {
+						item = container.appendChild($('button.item')) as HTMLButtonElement;
+						return toDisposable(() => disposed.push('popover'));
+					},
+					focus: () => item!.focus(),
+					closeAnimation: animated ? { className: 'closing', duration: 50 } : undefined,
+				});
+
+				// Like an input box showing its message in the shared context view when focused
+				const message = createDelegate({ getAnchor: () => input });
+				const focus = input.focus;
+				input.focus = function (this: HTMLInputElement) {
+					focus.call(this);
+					input.focus = focus;
+					contextView.setContainer(mainWindow.document.body, ContextViewDOMPosition.ABSOLUTE);
+					contextView.show(message.delegate);
+				};
+				contextView.hide();
+				const view = contextView.getViewElement();
+				const state = () => ({ display: view.style.display, parent: view.parentElement === mainWindow.document.body, popover: view.hasAttribute('popover'), closing: view.classList.contains('closing'), messageHides: message.hides.length });
+				const afterHide = { ...state(), focusRestored: mainWindow.document.activeElement === input, disposed: [...disposed] };
+
+				await timeout(100);
+				outside.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true }));
+				const later = state();
+				contextView.hide();
+
+				const expected = { display: '', parent: true, popover: false, closing: false, messageHides: 0 };
+				assert.deepStrictEqual({ afterHide, later }, {
+					afterHide: { ...expected, focusRestored: true, disposed: ['popover'] },
+					later: expected
+				});
+			});
+		}
 
 		test('rebuilds the view when switching between popover and legacy hosting', () => {
 			const { owner } = createOwner();

@@ -266,6 +266,15 @@ function getDeepActiveElement(doc: Document): Element | null {
 	return result;
 }
 
+/**
+ * Whether focus is inside a context view of the document, including
+ * context views hosted in a shadow root.
+ */
+export function isContextViewFocused(doc: Document): boolean {
+	const activeElement = getDeepActiveElement(doc);
+	return DOM.isHTMLElement(activeElement) && DOM.hasParentWithClass(activeElement, 'context-view');
+}
+
 export class ContextView extends Disposable {
 
 	private static readonly BUBBLE_UP_EVENTS = ['click', 'keydown', 'focus', 'blur'];
@@ -285,6 +294,7 @@ export class ContextView extends Disposable {
 	private domPosition: ContextViewDOMPosition = ContextViewDOMPosition.ABSOLUTE;
 	private readonly toDisposeOnPopoverHide = this._register(new DisposableStore());
 	private focusToRestore: HTMLElement | null = null;
+	private showCount = 0;
 
 	constructor(container: HTMLElement, domPosition: ContextViewDOMPosition, private readonly options: IContextViewOptions = {}) {
 		super();
@@ -397,6 +407,7 @@ export class ContextView extends Disposable {
 	}
 
 	show(delegate: IDelegate): void {
+		this.showCount++;
 		this.completeHideAnimation();
 
 		if (this.isVisible()) {
@@ -510,6 +521,15 @@ export class ContextView extends Disposable {
 		const ResizeObserverCtor = (targetWindow as Window & typeof globalThis).ResizeObserver;
 		if (typeof ResizeObserverCtor === 'function') {
 			const observer = new ResizeObserverCtor(() => this.checkPopoverOwner());
+			observer.observe(owner);
+			this.toDisposeOnPopoverHide.add(toDisposable(() => observer.disconnect()));
+		}
+
+		// Resizes are not observed when an owner without size is removed or hidden,
+		// but it then stops intersecting the viewport
+		const IntersectionObserverCtor = (targetWindow as Window & typeof globalThis).IntersectionObserver;
+		if (typeof IntersectionObserverCtor === 'function') {
+			const observer = new IntersectionObserverCtor(() => this.checkPopoverOwner());
 			observer.observe(owner);
 			this.toDisposeOnPopoverHide.add(toDisposable(() => observer.disconnect()));
 		}
@@ -629,9 +649,17 @@ export class ContextView extends Disposable {
 
 		const isPopover = isPopoverDOMPosition(this.domPosition);
 		if (isPopover) {
-			// Restore focus before the view becomes inert or hidden, so that
-			// focus never leaves the owner while the view closes
+			// Stop tracking the owner first, then restore focus before the view
+			// becomes inert or hidden, so that focus never leaves the owner
+			this.toDisposeOnPopoverHide.clear();
+			const showCount = this.showCount;
 			this.restorePopoverFocus();
+			if (this.showCount !== showCount) {
+				// Restoring focus showed another view, for example an input box
+				// message; it now owns the view, so only clean up this rendering
+				toDispose.dispose();
+				return;
+			}
 		} else {
 			this.focusToRestore = null;
 		}
@@ -648,9 +676,6 @@ export class ContextView extends Disposable {
 				toDispose,
 				className: closeAnimation.className
 			};
-			if (isPopover) {
-				this.toDisposeOnPopoverHide.clear();
-			}
 			return;
 		}
 

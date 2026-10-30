@@ -36,6 +36,8 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 	private readonly _onDidHideContextMenu = this._store.add(new Emitter<void>());
 	readonly onDidHideContextMenu = this._onDidHideContextMenu.event;
 
+	private shownDelegate: IContextMenuDelegate | IContextMenuMenuDelegate | undefined;
+
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -54,12 +56,17 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 	// ContextMenu
 
 	showContextMenu(delegate: IContextMenuDelegate | IContextMenuMenuDelegate): void {
+		const shownDelegate = delegate;
+		this.shownDelegate = shownDelegate;
 
 		delegate = ContextMenuMenuDelegate.transform(delegate, this.menuService, this.contextKeyService);
 
 		this.contextMenuHandler.showContextMenu({
 			...delegate,
 			onHide: (didCancel) => {
+				if (this.shownDelegate === shownDelegate) {
+					this.shownDelegate = undefined;
+				}
 				delegate.onHide?.(didCancel);
 
 				ModifierKeyEmitter.getInstance().resetKeyStatus();
@@ -67,6 +74,12 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 			}
 		});
 		this._onDidShowContextMenu.fire();
+	}
+
+	hideContextMenu(delegate: IContextMenuDelegate | IContextMenuMenuDelegate): void {
+		if (delegate === this.shownDelegate) {
+			this._contextMenuHandler?.hideContextMenu();
+		}
 	}
 }
 

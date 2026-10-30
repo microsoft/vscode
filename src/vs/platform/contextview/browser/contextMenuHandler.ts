@@ -140,7 +140,9 @@ export class ContextMenuHandler {
 			},
 
 			onHide: (didCancel?: boolean) => {
-				delegate.onHide?.(!!didCancel);
+				// A popover-hosted context view dismisses itself without data on outside
+				// presses or when its owner goes away; only running an action is no cancel
+				delegate.onHide?.(this.lastHostedAsPopover ? didCancel !== false : !!didCancel);
 
 				if (this.block) {
 					this.block.remove();
@@ -158,6 +160,12 @@ export class ContextMenuHandler {
 				this.lastHostedAsPopover = false;
 			}
 		}, shadowRootElement, !!shadowRootElement, delegate.useWindowContainerForShadowRoot);
+	}
+
+	hideContextMenu(): void {
+		if (this.lastContainer) {
+			this.contextViewService.hideContextView(true);
+		}
 	}
 
 	private onActionRun(e: IRunEvent, logTelemetry: boolean): void {

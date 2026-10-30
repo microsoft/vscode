@@ -70,6 +70,10 @@ export interface IContextMenuDelegate {
 
 export interface IContextMenuProvider {
 	showContextMenu(delegate: IContextMenuDelegate): void;
+	/**
+	 * Hide the context menu shown for the given delegate as cancelled, if it is still shown.
+	 */
+	hideContextMenu?(delegate: IContextMenuDelegate): void;
 }
 
 /** Normalizes initial selection consistently for HTML and native context menus. */

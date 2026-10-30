@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuProvider } from '../../contextmenu.js';
+import { IContextMenuDelegate, IContextMenuProvider } from '../../contextmenu.js';
 import { $, addDisposableListener, append, EventHelper, EventType, isMouseEvent } from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { EventType as GestureEventType, Gesture } from '../../touch.js';
@@ -190,6 +190,7 @@ export interface IDropdownMenuOptions extends IBaseDropdownOptions {
 export class DropdownMenu extends BaseDropdown {
 	private _menuOptions: IMenuOptions | undefined;
 	private _actions: readonly IAction[] = [];
+	private _shownMenuDelegate: IContextMenuDelegate | undefined;
 
 	constructor(container: HTMLElement, private readonly _options: IDropdownMenuOptions) {
 		super(container, _options);
@@ -226,7 +227,7 @@ export class DropdownMenu extends BaseDropdown {
 
 		this.element.classList.add('active');
 
-		this._options.contextMenuProvider.showContextMenu({
+		const delegate: IContextMenuDelegate = {
 			getAnchor: () => this._options.getAnchor?.() ?? this.element,
 			getActions: () => this.actions,
 			getActionsContext: () => this.menuOptions ? this.menuOptions.context : null,
@@ -240,7 +241,9 @@ export class DropdownMenu extends BaseDropdown {
 			domForShadowRoot: this._options.menuAsChild || this._options.menuAsPopover ? this.element : undefined,
 			hostAsPopover: this._options.menuAsPopover,
 			skipTelemetry: this._options.skipTelemetry
-		});
+		};
+		this._shownMenuDelegate = delegate;
+		this._options.contextMenuProvider.showContextMenu(delegate);
 	}
 
 	private getMenuClassName(): string {
@@ -253,9 +256,16 @@ export class DropdownMenu extends BaseDropdown {
 
 	override hide(): void {
 		super.hide();
+
+		// Toggling the label does not reach a menu hosted as a popover inside
+		// the dropdown, so hide the menu that is still shown
+		if (this._shownMenuDelegate) {
+			this._options.contextMenuProvider.hideContextMenu?.(this._shownMenuDelegate);
+		}
 	}
 
 	private onHide(): void {
+		this._shownMenuDelegate = undefined;
 		this.hide();
 		this.element.classList.remove('active');
 	}

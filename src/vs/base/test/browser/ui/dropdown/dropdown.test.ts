@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { IContextMenuDelegate, IContextMenuProvider } from '../../../../browser/contextmenu.js';
 import { $ } from '../../../../browser/dom.js';
+import { mainWindow } from '../../../../browser/window.js';
 import { contextViewMenuCloseAnimation, CONTEXT_VIEW_MENU_MOTION_CLASS, IContextViewCloseAnimation } from '../../../../browser/ui/contextview/contextview.js';
 import { DropdownMenu } from '../../../../browser/ui/dropdown/dropdown.js';
 import { toDisposable } from '../../../../common/lifecycle.js';
@@ -51,5 +52,41 @@ suite('DropdownMenu', () => {
 			menuClassName: CONTEXT_VIEW_MENU_MOTION_CLASS,
 			closeAnimation: customCloseAnimation
 		}]);
+	});
+
+	test('hides the shown menu when the label is pressed again', () => {
+		const delegates: IContextMenuDelegate[] = [];
+		const hideRequests: IContextMenuDelegate[] = [];
+		const contextMenuProvider: IContextMenuProvider = {
+			showContextMenu: delegate => delegates.push(delegate),
+			hideContextMenu: delegate => {
+				hideRequests.push(delegate);
+				delegate.onHide?.(true);
+			}
+		};
+		const container = mainWindow.document.body.appendChild($('.container'));
+		disposables.add(toDisposable(() => container.remove()));
+		const dropdown = disposables.add(new DropdownMenu(container, {
+			contextMenuProvider,
+			actions: [],
+			menuAsPopover: true,
+			label: 'More'
+		}));
+		const visibility: boolean[] = [];
+		disposables.add(dropdown.onDidChangeVisibility(visible => visibility.push(visible)));
+		const pressLabel = () => dropdown.label!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
+
+		pressLabel();
+		const shown = { delegates: delegates.length, active: dropdown.element.classList.contains('active'), visible: dropdown.isVisible() };
+		pressLabel();
+		const hidden = { hideRequests: hideRequests.length, sameDelegate: hideRequests[0] === delegates[0], active: dropdown.element.classList.contains('active'), visible: dropdown.isVisible() };
+		dropdown.hide();
+
+		assert.deepStrictEqual({ shown, hidden, hideRequests: hideRequests.length, visibility }, {
+			shown: { delegates: 1, active: true, visible: true },
+			hidden: { hideRequests: 1, sameDelegate: true, active: false, visible: false },
+			hideRequests: 1,
+			visibility: [true, false]
+		});
 	});
 });
