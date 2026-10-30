@@ -53,6 +53,26 @@ suite('SessionDatabase', () => {
 				await fs.rm(tempRoot, { recursive: true, force: true });
 			}
 		}).timeout(10_000);
+
+		test('stores a database file in write-ahead log mode', async () => {
+			const tempRoot = await fs.mkdtemp(join(tmpdir(), 'session-db-wal-' + generateUuid()));
+			try {
+				const databasePath = join(tempRoot, 'session.db');
+				const database = await SessionDatabase.open(databasePath);
+				let writeAheadLogWhileOpen: boolean;
+				try {
+					await database.setMetadata('key', 'value');
+					writeAheadLogWhileOpen = await fs.stat(`${databasePath}-wal`).then(() => true, () => false);
+				} finally {
+					await database.close();
+				}
+
+				// SQLite's file format version (header offset 18) is 2 for a database in write-ahead log mode.
+				assert.deepStrictEqual({ writeAheadLogWhileOpen, fileFormat: (await fs.readFile(databasePath)).readUInt8(18) }, { writeAheadLogWhileOpen: true, fileFormat: 2 });
+			} finally {
+				await fs.rm(tempRoot, { recursive: true, force: true });
+			}
+		}).timeout(10_000);
 	});
 
 	/**

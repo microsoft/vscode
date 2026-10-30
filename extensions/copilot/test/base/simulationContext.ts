@@ -11,7 +11,6 @@ import { IIntentService, IntentService } from '../../src/extension/intents/node/
 import { ILinkifyService, LinkifyService } from '../../src/extension/linkify/common/linkifyService';
 import { ChatMLFetcherImpl } from '../../src/extension/prompt/node/chatMLFetcher';
 import { createExtensionUnitTestingServices, ISimulationModelConfig } from '../../src/extension/test/node/services';
-import { AIEvaluationService, IAIEvaluationService } from '../../src/extension/testing/node/aiEvaluationService';
 import { IChatMLFetcher } from '../../src/platform/chat/common/chatMLFetcher';
 import { ChatFetchResponseType, ChatResponses } from '../../src/platform/chat/common/commonTypes';
 import { IChunkingEndpointClient } from '../../src/platform/chunking/common/chunkingEndpointClient';
@@ -217,8 +216,6 @@ export async function createSimulationAccessor(
 	testingServiceCollection.define(ICachingResourceFetcher, new SyncDescriptor(CachingResourceFetcher, [currentTestRunInfo, opts.resourcesCacheMode]));
 	testingServiceCollection.define(IVSCodeExtensionContext, new SyncDescriptor(MockExtensionContext, [globalStoragePath, constructGlobalStateMemento(globalStatePath)]));
 	testingServiceCollection.define(IIntentService, new SyncDescriptor(IntentService));
-
-	testingServiceCollection.define(IAIEvaluationService, new SyncDescriptor(AIEvaluationService));
 
 	const docsSearchClient = new SyncDescriptor(ThrottlingCodeOrDocsSearchClient, [new SyncDescriptor(DocsSearchClient)]);
 	testingServiceCollection.define(ITokenizerProvider, new SyncDescriptor(TokenizerProvider, [false]));

@@ -126,7 +126,6 @@ export class SimulationOptions {
 	 * A label for the current simulation run, to be displayed in the UI for distinguishing between runs.
 	 */
 	public readonly label: string;
-	public readonly runServerPoweredNesProvider: boolean;
 	public readonly nes: 'external' | 'coffe' | undefined;
 	public readonly nesUrl: string | undefined;
 	public readonly nesApiKey: string | undefined;
@@ -216,8 +215,6 @@ export class SimulationOptions {
 		this.installExtensions = argv['install-extension'] ? argv['install-extension'].split(',') : [];
 		this.headless = boolean(argv['headless'], true);
 		this.runNumber = Number(argv['run-number']) || 0;
-
-		this.runServerPoweredNesProvider = boolean(argv['runServerPoweredNesProvider'], false);
 
 		this.nes = SimulationOptions.validateNesArgument(argv['nes']);
 
@@ -310,7 +307,6 @@ export class SimulationOptions {
 			`  --label                            A label for the current simulation run, to be displayed in the UI for distinguishing between runs`,
 			`  --nes-url                           To override endpoint URL for NES (must be used with --nes-api-key)`,
 			`  --nes-api-key                        API key for endpoint URL provided via NES (must be used with --nes-url)`,
-			`  --runServerPoweredNesProvider      Run stests against the http server powered NES provider (server must be run at port 8001)`,
 			`  --disable-tools                    A comma-separated list of tools to disable`,
 			`  --swebench-prompt                  Use the headless swebench prompt for agent mode`,
 			`  --summarize-history                Enable experimental conversation history summarization in agent mode`,

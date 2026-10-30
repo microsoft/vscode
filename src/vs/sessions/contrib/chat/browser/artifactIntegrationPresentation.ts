@@ -16,7 +16,7 @@ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader } from '../../../../base/common/observable.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { ArtifactActionView, ArtifactContributionSnapshot, ArtifactRun, ArtifactSnapshot, getArtifactActionAvailability, getArtifactMainContribution, IArtifactModel, isArtifactOptionEnabled } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactActionView, ArtifactContributionSnapshot, ArtifactJsonValue, ArtifactRun, ArtifactSnapshot, getArtifactActionAvailability, getArtifactMainContribution, IArtifactModel, isArtifactOptionEnabled } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { getArtifactThemeIcon as icon, renderArtifactIcon } from '../../../../platform/artifactIntegrations/browser/artifactDetailsList.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -144,12 +144,13 @@ export class ArtifactIntegrationPresentation extends Disposable {
 		return this.entry;
 	}
 
-	async invoke(integrationId: string, actionId: string): Promise<ArtifactRun> {
+	/** `input` is passed to the action, for example the details item it runs for. */
+	async invoke(integrationId: string, actionId: string, input?: ArtifactJsonValue): Promise<ArtifactRun> {
 		const chat = this.invokingChat();
 		if (!chat) {
 			throw new Error(localize('artifactInvokingChatUnavailable', "The chat that invoked this artifact action is no longer available."));
 		}
-		const run = await this.model.invoke(integrationId, actionId, chat, generateUuid());
+		const run = await this.model.invoke(integrationId, actionId, chat, generateUuid(), undefined, input);
 		status(localize('artifactActionRequested', "Artifact action requested: {0}", run.reason));
 		return run;
 	}

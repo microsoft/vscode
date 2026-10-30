@@ -13,9 +13,8 @@ import { constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileService } from '../../../files/common/fileService.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { ITrackedEditSource, ITrackedTurnDatabase } from '../../common/agentHostChangesetService.js';
@@ -115,8 +114,7 @@ class TestFileService extends mock<IFileService>() {
 function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly withWorkingDirectory?: boolean; readonly workingDirectory?: URI; readonly workingDirectories?: readonly URI[]; readonly registerSession?: boolean; readonly onDiscarded?: (sessionKey: string) => Promise<void> }) {
 	const gitService = new TestGitService();
 	const fileService = new TestFileService();
-	const diskFileService = disposables.add(new FileService(new NullLogService()));
-	disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+	const diskFileService = createInMemoryFileService(disposables, Schemas.file);
 	const refreshes: string[] = [];
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	const session = URI.parse('agent:/session');

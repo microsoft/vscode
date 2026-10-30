@@ -7,7 +7,7 @@ import assert from 'assert';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { canInitializeSessionTypeOnSelection, getSessionTypeAvailability, getSessionTypePickerAvailability, SessionTypeAvailability } from '../../../browser/agentSessions/sessionTypeAvailability.js';
+import { getSessionTypeAvailability, getSessionTypePickerAvailability, SessionTypeAvailability } from '../../../browser/agentSessions/sessionTypeAvailability.js';
 import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 
@@ -103,71 +103,29 @@ suite('getSessionTypeAvailability', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('setup and signed-out availability cannot override enterprise policy', () => {
-		assert.deepStrictEqual([false, true].flatMap(allowSignedOut =>
-			[false, true].map(canInitialize => getSessionTypePickerAvailability(SessionType.AgentHostCopilot, SessionTypeAvailability.DisabledByPolicy, allowSignedOut, canInitialize))),
-			Array.from({ length: 4 }, () => SessionTypeAvailability.DisabledByPolicy));
+	test('setup cannot override enterprise policy', () => {
+		assert.deepStrictEqual([false, true].map(canInitialize =>
+			getSessionTypePickerAvailability(SessionType.AgentHostCopilot, SessionTypeAvailability.DisabledByPolicy, canInitialize)),
+			[SessionTypeAvailability.DisabledByPolicy, SessionTypeAvailability.DisabledByPolicy]);
 	});
 
-	test('Copilot Agent Host remains setup-selectable when signed-out operation is enabled', () => {
-		const pickerAvailability = (type: string, allowSignedOutWhenUsable: boolean) => getSessionTypePickerAvailability(type, SessionTypeAvailability.SignInRequired, allowSignedOutWhenUsable, false);
+	test('Copilot Agent Host remains setup-selectable while signed out', () => {
+		const availability = (type: string) => getSessionTypePickerAvailability(type, SessionTypeAvailability.SignInRequired, false);
 		assert.deepStrictEqual({
-			localCopilot: pickerAvailability(SessionType.AgentHostCopilot, true),
-			localClaude: pickerAvailability(SessionType.AgentHostClaude, true),
-			localDisabled: pickerAvailability(SessionType.AgentHostCopilot, false),
-			legacyCopilot: pickerAvailability(SessionType.CopilotCLI, true),
+			copilot: availability(SessionType.AgentHostCopilot),
+			claude: availability(SessionType.AgentHostClaude),
+			legacyCopilot: availability(SessionType.CopilotCLI),
 		}, {
-			localCopilot: SessionTypeAvailability.Available,
-			localClaude: SessionTypeAvailability.SignInRequired,
-			localDisabled: SessionTypeAvailability.SignInRequired,
+			copilot: SessionTypeAvailability.Available,
+			claude: SessionTypeAvailability.SignInRequired,
 			legacyCopilot: SessionTypeAvailability.SignInRequired,
 		});
 	});
 
-	suite('a harness that initializes on selection stays selectable', () => {
-		// Agent SDK model discovery starts only after the user selects the harness,
-		// so requiring a discovered model before selection creates a deadlock.
-		const pickerAvailability = (availability: SessionTypeAvailability, hasAgentSdkSetup: boolean, entitlement: ChatEntitlement, allowSignedOutWhenUsable: boolean, hasProviderAccount = false) =>
-			getSessionTypePickerAvailability(
-				SessionType.AgentHostClaude,
-				availability,
-				allowSignedOutWhenUsable,
-				canInitializeSessionTypeOnSelection(entitlement, allowSignedOutWhenUsable, hasAgentSdkSetup, hasProviderAccount),
-			);
-
-		test('a signed-out user can initialize the harness when the experiment is enabled', () => {
-			assert.strictEqual(pickerAvailability(SessionTypeAvailability.NoModels, true, ChatEntitlement.Unknown, true), SessionTypeAvailability.Available);
-		});
-
-		test('a harness with no initialization path stays greyed out', () => {
-			assert.strictEqual(pickerAvailability(SessionTypeAvailability.NoModels, false, ChatEntitlement.Unknown, true), SessionTypeAvailability.NoModels);
-		});
-
-		test('a Copilot Free user can initialize a native agent without upgrading or enabling signed-out use', () => {
-			assert.strictEqual(
-				pickerAvailability(SessionTypeAvailability.UpgradeRequired, true, ChatEntitlement.Free, false),
-				SessionTypeAvailability.Available,
-			);
-		});
-
-		test('a user signed in to the provider can initialize it without GitHub or the experiment', () => {
-			assert.strictEqual(
-				pickerAvailability(SessionTypeAvailability.NoModels, true, ChatEntitlement.Unknown, false, true),
-				SessionTypeAvailability.Available,
-			);
-		});
-
-		test('a signed-out user still needs the experiment when the harness has no models', () => {
-			assert.deepStrictEqual({
-				disabled: pickerAvailability(SessionTypeAvailability.NoModels, true, ChatEntitlement.Unknown, false),
-				unresolved: pickerAvailability(SessionTypeAvailability.NoModels, true, ChatEntitlement.Unresolved, false),
-				enabled: pickerAvailability(SessionTypeAvailability.NoModels, true, ChatEntitlement.Unknown, true),
-			}, {
-				disabled: SessionTypeAvailability.NoModels,
-				unresolved: SessionTypeAvailability.NoModels,
-				enabled: SessionTypeAvailability.Available,
-			});
-		});
+	test('a harness with an initialization path stays selectable without models', () => {
+		assert.deepStrictEqual([false, true].map(canInitialize =>
+			getSessionTypePickerAvailability(SessionType.AgentHostClaude, SessionTypeAvailability.NoModels, canInitialize)),
+			[SessionTypeAvailability.NoModels, SessionTypeAvailability.Available]);
 	});
 
 	function availability(config: ITypeConfig, entitlement: ChatEntitlement, modelTargets: readonly (string | undefined)[] = [], anonymous = false): SessionTypeAvailability {
@@ -262,19 +220,7 @@ suite('getSessionTypeAvailability', () => {
 			createEntitlementService(ChatEntitlement.Unknown),
 			createByokLanguageModelsService(TYPE),
 			TYPE,
-			true,
 		), SessionTypeAvailability.Available);
-	});
-
-	test('an Agent Host BYOK model does not override sign-in when signed-out operation is disabled', () => {
-		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: true, requiresCopilotSignIn: true };
-		assert.strictEqual(getSessionTypeAvailability(
-			createChatSessionsService(config),
-			createEntitlementService(ChatEntitlement.Unknown),
-			createByokLanguageModelsService(TYPE),
-			TYPE,
-			false,
-		), SessionTypeAvailability.SignInRequired);
 	});
 
 	test('an Agent Host BYOK model does not override sign-in when client BYOK is disabled', () => {
@@ -284,7 +230,6 @@ suite('getSessionTypeAvailability', () => {
 			createEntitlementService(ChatEntitlement.Unknown, false, false),
 			createByokLanguageModelsService(TYPE),
 			TYPE,
-			true,
 		), SessionTypeAvailability.SignInRequired);
 	});
 
@@ -295,7 +240,6 @@ suite('getSessionTypeAvailability', () => {
 			createEntitlementService(ChatEntitlement.Unknown),
 			createByokLanguageModelsService(TYPE, hidden),
 			TYPE,
-			true,
 		);
 		assert.deepStrictEqual({
 			copyHidden: availabilityForHidden(['agent-host-byok']),
@@ -313,7 +257,6 @@ suite('getSessionTypeAvailability', () => {
 			createEntitlementService(ChatEntitlement.Unknown),
 			createByokLanguageModelsService(TYPE, [], false),
 			TYPE,
-			true,
 		), SessionTypeAvailability.SignInRequired);
 	});
 

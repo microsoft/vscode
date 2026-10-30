@@ -15,7 +15,7 @@ import { Range } from '../../../src/util/vs/workbench/api/common/extHostTypes/ra
 import { computeSHA256 } from '../../base/hash';
 import { TestingCacheSalts } from '../../base/salts';
 import { CacheScope, ICachingResourceFetcher } from '../../base/simulationContext';
-import { PYTHON_EXECUTES_WITHOUT_ERRORS, PYTHON_VALID_SYNTAX_CACHE_SALT } from '../../cacheSalt';
+import { PYTHON_VALID_SYNTAX_CACHE_SALT } from '../../cacheSalt';
 import { ITestDiagnostic } from './diagnosticsProvider';
 import { LintingDiagnosticsProvider } from './utils';
 
@@ -158,41 +158,6 @@ async function doIsValidPythonFile(text: string): Promise<boolean> {
 	await promisify(fs.writeFile)(tmpFile, text);
 	return new Promise<boolean>((resolve) => {
 		cp.exec(`python3 -m py_compile "${tmpFile}"`, (error, stdout, stderr) => {
-			if (error) {
-				return resolve(false);
-			} else if (stderr && stderr.length > 0) {
-				return resolve(false);
-			}
-
-			resolve(true);
-		});
-	}).finally(() => {
-		fs.rm(dir, { recursive: true, force: true }, () => { });
-	});
-}
-
-export async function canExecutePythonCodeWithoutErrors(accessor: ITestingServicesAccessor, text: string): Promise<boolean> {
-	// Remove lines that start with `%xyz` as they can be cell magics in Jupyter Notebooks
-	// & that doesn't work in a standalone Python file
-	text = text.split(/\r?\n/g).filter(line => !line.startsWith('%')).join('\n');
-	const cacheKey = computeSHA256(`python-verify-execution_${PYTHON_EXECUTES_WITHOUT_ERRORS}-${text}`);
-	return accessor.get(ICachingResourceFetcher).invokeWithCache(
-		CacheScope.Python,
-		text,
-		TestingCacheSalts.pythonCacheSalt,
-		cacheKey,
-		canExecutePythonCodeWithoutErrorsImpl
-	);
-}
-
-async function canExecutePythonCodeWithoutErrorsImpl(text: string): Promise<boolean> {
-	const fileName = `python-verify-execution_${computeSHA256(`python-v${PYTHON_EXECUTES_WITHOUT_ERRORS}-${text}`)}.py`;
-	const dir = path.join(tmpdir(), generateUuid());
-	const tmpFile = path.join(dir, fileName);
-	await promisify(fs.mkdir)(dir, { recursive: true });
-	await promisify(fs.writeFile)(tmpFile, text);
-	return new Promise<boolean>((resolve) => {
-		cp.exec(`python3 "${tmpFile}"`, (error, stdout, stderr) => {
 			if (error) {
 				return resolve(false);
 			} else if (stderr && stderr.length > 0) {

@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { mainWindow } from '../../../base/browser/window.js';
+import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 // eslint-disable-next-line local/code-import-patterns
 import { createBrowserWelcome } from '../../../workbench/contrib/browserView/browser/browserWelcome.js';
 import { renderSessionsEmptyState } from '../../browser/parts/sessionsEmptyState.js';
 import '../../browser/parts/media/editorPart.css';
 import '../../browser/media/workbench.css';
+import '../../browser/media/style.css';
 import '../../../workbench/browser/parts/editor/media/multieditortabscontrol.css';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../workbench/contrib/modernUI/browser/media/tabs.css';
@@ -25,7 +28,75 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 }
 
 suite('Sessions - EditorPart', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('only modern editor tabs change scrollbar placement and painted thickness', () => {
+		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench agent-sessions-workbench modern-ui-tabs modern-ui-connected-editor-tabs');
+		workbench.style.cssText = '--vscode-cornerRadius-circle: 9999px; --vscode-scrollbarSlider-background: #123456;';
+		const group = appendElement(appendElement(appendElement(workbench, 'part editor'), 'content'), 'editor-group-container');
+		const title = appendElement(group, 'title tabs');
+		const row = appendElement(title, 'tabs-and-actions-container');
+		const breadcrumbs = appendElement(title, 'breadcrumbs-control');
+		const editorContent = appendElement(group, 'editor-container');
+		const results = [];
+		try {
+			for (const [mode, modern, connected] of [
+				['legacy', false, false],
+				['pill', true, false],
+				['connected', true, true],
+				['connected-without-modern', false, true],
+			] as const) {
+				workbench.classList.toggle('modern-ui-tabs', modern);
+				workbench.classList.toggle('modern-ui-connected-editor-tabs', connected);
+				for (const [surface, parent] of [['tabs', row], ['breadcrumbs', breadcrumbs], ['content', editorContent]] as const) {
+					for (const size of [3, 10]) {
+						const content = mainWindow.document.createElement('div');
+						content.style.cssText = 'width: 180px; height: 32px;';
+						const scrollable = store.add(new ScrollableElement(content, {
+							horizontal: ScrollbarVisibility.Visible,
+							horizontalScrollbarSize: size,
+							vertical: ScrollbarVisibility.Hidden,
+						}));
+						const viewport = scrollable.getDomNode();
+						parent.appendChild(viewport);
+						scrollable.setScrollDimensions({ width: 180, scrollWidth: 600, height: 32, scrollHeight: 32 });
+						const track = viewport.querySelector<HTMLElement>('.scrollbar.horizontal')!;
+						const slider = track.querySelector<HTMLElement>('.slider')!;
+						const paint = mainWindow.getComputedStyle(slider, '::before');
+						assert.strictEqual(paint.content, '""', 'The Agents stylesheet must generate the painted thumb');
+						results.push({
+							mode, surface, size,
+							hitHeight: slider.getBoundingClientRect().height,
+							paintHeight: paint.height,
+							insets: [paint.top, paint.right, paint.bottom, paint.left],
+							atTop: track.getBoundingClientRect().top === viewport.getBoundingClientRect().top,
+							atBottom: track.getBoundingClientRect().bottom === viewport.getBoundingClientRect().bottom,
+							radius: paint.borderRadius,
+							color: paint.backgroundColor,
+							sliderBackground: mainWindow.getComputedStyle(slider).backgroundColor,
+						});
+						viewport.remove();
+					}
+				}
+			}
+			assert.deepStrictEqual(results, results.map(result => {
+				const modernTabs = (result.mode === 'connected' || result.mode === 'pill') && result.surface === 'tabs';
+				return {
+					...result,
+					hitHeight: result.size,
+					paintHeight: `${result.size - (modernTabs ? 0 : 2)}px`,
+					insets: Array(4).fill(modernTabs ? '0px' : '1px'),
+					atTop: modernTabs,
+					atBottom: !modernTabs,
+					radius: '9999px',
+					color: 'rgb(18, 52, 86)',
+					sliderBackground: 'rgba(0, 0, 0, 0)',
+				};
+			}));
+		} finally {
+			workbench.remove();
+		}
+	});
 
 	test('Connected panel rows match panel header height across hosts', () => {
 		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench modern-ui-tabs modern-ui-connected-editor-tabs');
