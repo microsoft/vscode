@@ -1365,6 +1365,8 @@ suite('Glob', () => {
 			assert.deepStrictEqual(beneath({ 'a': true, '!{a/b,c}/keep.txt': true }, ['a', 'a/b', 'c']), { 'a': true, 'a/b': true, 'c': true });
 			assert.deepStrictEqual(beneath({ 'a': true, '!a/{b/c,d}/keep': true }, ['a/b', 'a/b/c']), { 'a/b': true, 'a/b/c': true });
 			assert.deepStrictEqual(beneath({ '**': true, '!{**,foo}/keep.txt': true }, ['a', 'a/b']), { 'a': true, 'a/b': true });
+			assert.deepStrictEqual(beneath({ 'node_modules': true, '!**.js': true }, ['node_modules', 'node_modules/a/b']), { 'node_modules': false, 'node_modules/a/b': false });
+			assert.deepStrictEqual(beneath({ 'src': true, '!src/**.keep': true }, ['src', 'src/a']), { 'src': true, 'src/a': false });
 		});
 
 		test('exceptions do not re-include version control folders unless an exception names them', () => {

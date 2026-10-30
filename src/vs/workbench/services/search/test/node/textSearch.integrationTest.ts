@@ -10,7 +10,7 @@ import { CancellationTokenSource } from '../../../../../base/common/cancellation
 import * as glob from '../../../../../base/common/glob.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import * as path from '../../../../../base/common/path.js';
-import { isWindows } from '../../../../../base/common/platform.js';
+import { isLinux, isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { flakySuite, getRandomTestPath } from '../../../../../base/test/node/testUtils.js';
 import { deserializeSearchError, IFolderQuery, ISearchRange, ISerializedFileMatch, ITextQuery, ITextSearchContext, ITextSearchMatch, QueryType, SearchErrorCode } from '../../common/search.js';
@@ -199,6 +199,16 @@ flakySuite('TextSearch-integration', function () {
 			type: QueryType.Text,
 			folderQueries: [TEST_ROOT_FOLDER, { folder: URI.file(EXAMPLES_FIXTURES) }],
 			contentPattern: { pattern: 'e' },
+			excludePattern: { 'examples': true, '!**/small.js': true }
+		}, 785);
+	});
+
+	(isLinux ? test.skip : test)('Text: exclude exception results skip folders of the query that are inside the folder with different casing', () => {
+		return doSearchTest({
+			type: QueryType.Text,
+			folderQueries: [{ folder: URI.file(path.join(path.dirname(TEST_FIXTURES), 'Fixtures')) }, { folder: URI.file(EXAMPLES_FIXTURES) }],
+			contentPattern: { pattern: 'e' },
+			ignoreGlobCase: true,
 			excludePattern: { 'examples': true, '!**/small.js': true }
 		}, 785);
 	});

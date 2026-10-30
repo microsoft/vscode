@@ -829,7 +829,7 @@ function parseSegmentMatchers(pattern: string, ignoreCase: boolean): SegmentMatc
 			return GLOBSTAR;
 		}
 
-		if (segment.includes(GLOB_SPLIT) || segment.includes(GLOBSTAR)) {
+		if (segment.includes(GLOB_SPLIT) || hasGlobstarAlternative(segment)) {
 			return GLOBSTAR; // a brace expansion with a path separator or a globstar, e.g. `{a/b,c}` or `{**,c}`, can span any number of segments
 		}
 
@@ -841,6 +841,20 @@ function parseSegmentMatchers(pattern: string, ignoreCase: boolean): SegmentMatc
 			return () => false;
 		}
 	});
+}
+
+/**
+ * Whether a brace group of the segment has an alternative that is a globstar, such as `{**,c}`. A globstar
+ * inside an alternative, such as `**.js`, matches within a single segment like `*`.
+ */
+function hasGlobstarAlternative(segment: string): boolean {
+	for (const match of segment.matchAll(/\{(?<alternatives>[^}]*)\}/g)) {
+		if (splitGlobAware(match.groups?.alternatives ?? '', ',').includes(GLOBSTAR)) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 /**
