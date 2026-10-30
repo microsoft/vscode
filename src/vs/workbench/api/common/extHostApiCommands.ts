@@ -52,6 +52,7 @@ const newCommands: ApiCommand[] = [
 						new types.Location(apiArgs[0], typeConverters.Range.to(symbol.range))
 					);
 					res.detail = symbol.detail;
+					res.tooltip = symbol.tooltip;
 					res.range = res.location.range;
 					res.selectionRange = typeConverters.Range.to(symbol.selectionRange);
 					res.children = symbol.children ? symbol.children.map(MergedInfo.to) : [];
@@ -59,6 +60,7 @@ const newCommands: ApiCommand[] = [
 				}
 
 				detail!: string;
+				tooltip?: string;
 				range!: vscode.Range;
 				selectionRange!: vscode.Range;
 				children!: vscode.DocumentSymbol[];
