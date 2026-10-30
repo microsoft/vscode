@@ -161,7 +161,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => restore());
 
-	function fixture(backend: AgentHostRemoteConnectionsBackend = 'devTunnel', options: { quality?: IProductService['quality']; isChatInput?: boolean; precedingAction?: boolean } = { quality: 'insider' }) {
+	function fixture(backend: AgentHostRemoteConnectionsBackend = 'devTunnel', options: { quality?: IProductService['quality']; isChatInput?: boolean; precedingAction?: boolean } = { quality: 'insider', isChatInput: true }) {
 		const instantiation = store.add(new TestInstantiationService());
 		const availability = observableValue('availability', true);
 		instantiation.stub(IMissionControlAvailabilityService, { available: availability });
@@ -177,6 +177,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 				void sharing.setEnabled(false);
 			}
 		}));
+		const commands = new TestCommandService();
 		const notifications = new TestNotificationService();
 		let menuActions: readonly IActionWidgetDropdownAction[] = [];
 		let menuItems: { label: string | undefined; detail: string | undefined; badge: string | undefined; role: string | undefined }[] = [];
@@ -248,7 +249,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			return menuActions;
 		};
 
-		return { configuration, update, remoteTunnel, sharing, quickInput, notifications, executeCommand, run, action, viewItem, container, primary, dropdown, availability, openMenu, closeMenu: () => actionWidget.hide(), menuActions: () => menuActions, menuItems: () => menuItems, listOptions: () => listOptions, instantiation, openSettings };
+		return { configuration, update, remoteTunnel, sharing, commands, quickInput, notifications, executeCommand, run, action, viewItem, container, primary, dropdown, availability, openMenu, closeMenu: () => actionWidget.hide(), menuActions: () => menuActions, menuItems: () => menuItems, listOptions: () => listOptions, instantiation, openSettings };
 	}
 
 	test('shows explanatory second lines and marks GitHub Environments as preview', () => {
@@ -256,9 +257,21 @@ suite('RemoteConnectionsActionViewItem', () => {
 		openMenu();
 		assert.deepStrictEqual(menuItems(), [
 			{ label: 'Off', detail: undefined, badge: undefined, role: 'menuitemcheckbox' },
-			{ label: 'Dev Tunnels', detail: 'Access workspaces and agents on this machine from VS Code or vscode.dev/agents.', badge: undefined, role: 'menuitemcheckbox' },
-			{ label: 'GitHub Environments', detail: 'Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot.', badge: 'Preview', role: 'menuitemcheckbox' },
+			{ label: 'Dev Tunnels', detail: 'Let supported VS Code and browser clients reach agents and folders on this computer. Remote Tunnels can also open the full editor.', badge: undefined, role: 'menuitemcheckbox' },
+			{ label: 'GitHub Environments', detail: 'Continue agents and use folders on this computer from supported VS Code, browser, GitHub, and Copilot clients.', badge: 'Preview', role: 'menuitemcheckbox' },
 		]);
+	});
+
+	test('opens remote host management from the title bar menu', async () => {
+		const { openMenu, commands } = fixture('devTunnel', { quality: 'insider', isChatInput: false });
+		const actions = openMenu();
+		assert.deepStrictEqual(actions.map(action => ({ id: action.id, label: action.label, detail: action.detail })), [
+			{ id: 'remoteConnections.devTunnel', label: 'Dev Tunnels', detail: 'Let supported VS Code and browser clients reach agents and folders on this computer. Remote Tunnels can also open the full editor.' },
+			{ id: 'remoteConnections.githubEnvironment', label: 'GitHub Environments', detail: 'Continue agents and use folders on this computer from supported VS Code, browser, GitHub, and Copilot clients.' },
+			{ id: 'workbench.action.sessions.manageRemoteAgentHosts', label: 'Manage Remote Agent Hosts...', detail: 'View this computer and remote connection routes.' },
+		]);
+		await actions[2].run();
+		assert.deepStrictEqual(commands.commands, [{ id: 'workbench.action.sessions.manageRemoteAgentHosts', args: [] }]);
 	});
 
 	test('connection methods do not add extra hovers', () => {
@@ -797,7 +810,7 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 			_usesMissionControl: () => true,
 			getAriaLabel: () => 'Allow Remote Connections via GitHub environment',
 		}) as { _getHoverContent(): string };
-		assert.strictEqual(viewItem._getHoverContent(), 'Allow Remote Connections via GitHub environment\n\nAccess agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot.');
+		assert.strictEqual(viewItem._getHoverContent(), 'Allow Remote Connections via GitHub environment\n\nContinue agents and use folders on this computer from supported VS Code, browser, GitHub, and Copilot clients.');
 	});
 
 	function backendConfiguration(backend: AgentHostRemoteConnectionsBackend = 'devTunnel') {

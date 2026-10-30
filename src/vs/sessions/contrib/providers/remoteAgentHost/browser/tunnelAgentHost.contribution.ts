@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { derived, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import * as nls from '../../../../../nls.js';
 import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -13,6 +14,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IRemoteTunnelService, TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
@@ -26,6 +28,20 @@ import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
 
 /** Minimum interval between silent status checks (5 minutes). */
 const STATUS_CHECK_INTERVAL = 5 * 60 * 1000;
+const LOCAL_TUNNEL_REGISTRATION_KEY = 'tunnelAgentHost.localRegistrationTunnelId';
+
+export function resolveLocalTunnelRegistrationId(
+	cachedTunnels: readonly Pick<ITunnelInfo, 'tunnelId'>[],
+	rememberedTunnelId: string | undefined,
+	status: TunnelStatus,
+): string | undefined {
+	if (status.type === 'connected' && status.info.tunnelId) {
+		return status.info.tunnelId;
+	}
+	return rememberedTunnelId && cachedTunnels.some(tunnel => tunnel.tunnelId === rememberedTunnelId)
+		? rememberedTunnelId
+		: undefined;
+}
 
 export class TunnelAgentHostContribution extends Disposable implements IWorkbenchContribution {
 
@@ -39,6 +55,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	private _lastStatusCheck = 0;
 	private readonly _hostedTunnelSuppressions = new Set<string>();
 	private _remoteTunnelStatus: TunnelStatus = { type: 'uninitialized' };
+	private readonly _localRegistrationTunnelId = observableValue<string | undefined>(this, undefined);
 	private _hasReceivedRemoteTunnelStatus = false;
 	/**
 	 * `false` until the first {@link _silentStatusCheck} resolves. Until then
@@ -61,11 +78,16 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IHostService private readonly _hostService: IHostService,
 		@IRemoteTunnelService private readonly _remoteTunnelService: IRemoteTunnelService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@IAgentHostFilterService agentHostFilterService: IAgentHostFilterService,
 		@IConnectionDiagnosticsService private readonly _diagnosticsService: IConnectionDiagnosticsService,
 	) {
 		super();
 
+		this._localRegistrationTunnelId.set(this._storageService.get(LOCAL_TUNNEL_REGISTRATION_KEY, StorageScope.APPLICATION), undefined);
+		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, LOCAL_TUNNEL_REGISTRATION_KEY, this._store)(() => {
+			this._localRegistrationTunnelId.set(this._storageService.get(LOCAL_TUNNEL_REGISTRATION_KEY, StorageScope.APPLICATION), undefined);
+		}));
 		this._syncHostedTunnelSuppression();
 		// Create providers for cached tunnels
 		this._reconcileProviders();
@@ -93,6 +115,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		this._register(this._remoteTunnelService.onDidChangeTunnelStatus(status => {
 			this._hasReceivedRemoteTunnelStatus = true;
 			this._remoteTunnelStatus = status;
+			this._rememberLocalRegistration(status);
 			this._syncHostedTunnelSuppression();
 			void this._silentStatusCheck();
 		}));
@@ -143,7 +166,17 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 	private _reconcileProviders(): void {
 		const enabled = this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
-		const cached = enabled ? this._getProviderTunnels() : [];
+		const available = this._getProviderTunnels();
+		const cached = enabled ? available : [];
+		const localRegistrationTunnelId = resolveLocalTunnelRegistrationId(available, this._localRegistrationTunnelId.get(), this._remoteTunnelStatus);
+		if (localRegistrationTunnelId !== this._localRegistrationTunnelId.get()) {
+			if (localRegistrationTunnelId) {
+				this._storageService.store(LOCAL_TUNNEL_REGISTRATION_KEY, localRegistrationTunnelId, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			} else {
+				this._storageService.remove(LOCAL_TUNNEL_REGISTRATION_KEY, StorageScope.APPLICATION);
+			}
+			this._localRegistrationTunnelId.set(localRegistrationTunnelId, undefined);
+		}
 		const desiredAddresses = new Set(cached.map(t => `${TUNNEL_ADDRESS_PREFIX}${t.tunnelId}`));
 
 		// Remove providers no longer cached
@@ -176,7 +209,16 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		if (!this._hasReceivedRemoteTunnelStatus) {
 			this._remoteTunnelStatus = status;
 		}
+		this._rememberLocalRegistration(this._remoteTunnelStatus);
 		this._syncHostedTunnelSuppression();
+	}
+
+	private _rememberLocalRegistration(status: TunnelStatus): void {
+		if (status.type !== 'connected' || !status.info.tunnelId || this._localRegistrationTunnelId.get() === status.info.tunnelId) {
+			return;
+		}
+		this._localRegistrationTunnelId.set(status.info.tunnelId, undefined);
+		this._storageService.store(LOCAL_TUNNEL_REGISTRATION_KEY, status.info.tunnelId, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
 	private _syncHostedTunnelSuppression(): void {
@@ -226,6 +268,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			RemoteAgentHostSessionsProvider, {
 			address,
 			name,
+			localRegistration: derived(this, reader => this._localRegistrationTunnelId.read(reader) === address.slice(TUNNEL_ADDRESS_PREFIX.length) ? 'devTunnel' : undefined),
 			connectOnDemand: () => this._connectTunnel(address, { userInitiated: true }),
 			disconnectOnDemand: () => this._disconnectTunnel(address),
 			removeOnDemand: () => this._removeTunnel(address),

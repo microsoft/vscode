@@ -25,7 +25,7 @@ import { SnippetController2 } from '../../../../../editor/contrib/snippet/browse
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { addWebSocketRemoteAgentHostEntry, IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { addWebSocketRemoteAgentHostEntry, IRemoteAgentHostService, ManageRemoteAgentHostsCommandId, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { computeSSHConnectionKey, ISSHRemoteAgentHostService, isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHResolvedConfig } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { isTunnelHosted, ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
@@ -63,7 +63,7 @@ export const RemoteAgentHostCommandIds = {
 	connectViaTunnel: 'workbench.action.sessions.connectViaTunnel',
 	connectViaMissionControl: 'workbench.action.sessions.connectViaMissionControl',
 	connectViaWSL: 'workbench.action.sessions.connectViaWSL',
-	manageRemoteAgentHosts: 'workbench.action.sessions.manageRemoteAgentHosts',
+	manageRemoteAgentHosts: ManageRemoteAgentHostsCommandId,
 	updateRemoteAgentHost: 'workbench.action.sessions.updateRemoteAgentHost',
 } as const;
 

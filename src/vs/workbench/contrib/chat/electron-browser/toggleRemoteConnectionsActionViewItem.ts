@@ -29,8 +29,18 @@ import { promptToRenameRemoteTunnel, RemoteTunnelCommandIds } from '../../remote
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { ManageRemoteAgentHostsCommandId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 const TUNNEL_ACCESS_DOCS_URL = 'https://aka.ms/vscode-agent-tunnel-access';
+
+function getDevTunnelDetail(): string {
+	return localize('remoteConnections.devTunnel.detail', "Let supported VS Code and browser clients reach agents and folders on this computer. Remote Tunnels can also open the full editor.");
+}
+
+function getGitHubEnvironmentDetail(): string {
+	return localize('remoteConnections.githubEnvironment.detail', "Continue agents and use folders on this computer from supported VS Code, browser, GitHub, and Copilot clients.");
+}
 
 export interface IRemoteTunnelAccessState {
 	readonly isSharing: boolean;
@@ -81,6 +91,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IMissionControlAvailabilityService private readonly _availabilityService: IMissionControlAvailabilityService,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super(undefined, action);
 
@@ -274,7 +285,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		const usesGitHubEnvironment = isGitHubEnvironmentBackend(this._configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId));
 		const state = this._primaryAction.getState();
 		const enabled = state.isSharing || state.isConnecting;
-		return [
+		const connectionMethods: IActionWidgetDropdownAction[] = [
 			toAction({
 				id: 'remoteConnections.off',
 				label: localize('remoteConnections.off', "Off"),
@@ -289,7 +300,8 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 					run: () => this._selectConnectionMethod('devTunnel'),
 				}),
 				labelIcon: Codicon.radioTower,
-				detail: localize('remoteConnections.devTunnel.detail', "Access workspaces and agents on this machine from VS Code or vscode.dev/agents."),
+				detail: getDevTunnelDetail(),
+				category: { label: '', order: 1 },
 			},
 			{
 				...toAction({
@@ -302,10 +314,27 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 				labelIcon: policyDisabled ? Codicon.briefcase : Codicon.github,
 				detail: policyDisabled
 					? localize('remoteConnections.githubEnvironment.policyDisabled', "Disabled by your organization. Contact your administrator to enable GitHub Environments.")
-					: localize('remoteConnections.githubEnvironment.detail', "Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot."),
+					: getGitHubEnvironmentDetail(),
 				badge: localize('remoteConnections.preview', "Preview"),
+				category: { label: '', order: 1 },
 			},
-		].filter(action => action.id !== 'remoteConnections.githubEnvironment' || environmentsEnabled || policyDisabled);
+		];
+		if (!environmentsEnabled && !policyDisabled) {
+			connectionMethods.splice(connectionMethods.findIndex(action => action.id === 'remoteConnections.githubEnvironment'), 1);
+		}
+		if (!this._isChatInput) {
+			connectionMethods.push({
+				...toAction({
+					id: ManageRemoteAgentHostsCommandId,
+					label: localize('remoteConnections.manageRemoteAgentHosts', "Manage Remote Agent Hosts..."),
+					run: () => this._commandService.executeCommand(ManageRemoteAgentHostsCommandId),
+				}),
+				icon: Codicon.settingsGear,
+				detail: localize('remoteConnections.manageRemoteAgentHosts.detail', "View this computer and remote connection routes."),
+				category: { label: '', order: 2 },
+			});
+		}
+		return connectionMethods;
 	}
 
 	private async _selectConnectionMethod(backend: 'off' | 'devTunnel' | 'githubEnvironment'): Promise<void> {
@@ -451,7 +480,7 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 		if (this._usesMissionControl()) {
 			return localize('missionControlSharing.hover', "{0}\n\n{1}",
 				this.getAriaLabel(),
-				localize('remoteConnections.githubEnvironment.detail', "Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot."),
+				getGitHubEnvironmentDetail(),
 			);
 		}
 		const lines: string[] = [];

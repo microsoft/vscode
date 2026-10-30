@@ -8,12 +8,14 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, IMenuService, MenuItemAction, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService, isGitHubEnvironmentBackend } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId, ToggleRemoteConnectionsCommandId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
@@ -25,6 +27,8 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { getStatusLabel, removeRemoteHost, showRemoteHostOptions } from './remoteHostOptions.js';
 import { RemoteAgentHostCommandIds } from './remoteAgentHostActions.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { IRemoteTunnelService, TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
+import { getLocalAgentHostConnectionDescription, getLocalAgentHostHover, getLocalAgentHostRouteLabel, LocalAgentHostRegistration } from '../../../../browser/remoteAgentHostPresentation.js';
 
 interface IRemoteHostQuickPickItem extends IQuickPickItem {
 	readonly kind: 'remote';
@@ -36,7 +40,29 @@ interface IMenuActionQuickPickItem extends IQuickPickItem {
 	readonly action: MenuItemAction;
 }
 
-type ManageHostsPickItem = IRemoteHostQuickPickItem | IMenuActionQuickPickItem;
+interface ILocalHostQuickPickItem extends IQuickPickItem {
+	readonly kind: 'local';
+}
+
+type ManageHostsPickItem = IRemoteHostQuickPickItem | IMenuActionQuickPickItem | ILocalHostQuickPickItem;
+
+export interface IThisComputerPresentation {
+	readonly route: LocalAgentHostRegistration;
+	readonly registrationName: string | undefined;
+	readonly isSharing: boolean;
+}
+
+export function getThisComputerDescription(presentation: IThisComputerPresentation): string {
+	const route = getLocalAgentHostRouteLabel(presentation.route);
+	if (presentation.isSharing) {
+		return presentation.registrationName
+			? localize('manageHosts.thisComputer.sharedAs', "Shared as {0} via {1}", presentation.registrationName, route)
+			: localize('manageHosts.thisComputer.shared', "Shared via {0}", route);
+	}
+	return presentation.registrationName
+		? localize('manageHosts.thisComputer.offRegistered', "Sharing off. Registered as {0} via {1}", presentation.registrationName, route)
+		: localize('manageHosts.thisComputer.off', "Sharing off");
+}
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -60,6 +86,10 @@ registerAction2(class extends Action2 {
 		const instantiationService = accessor.get(IInstantiationService);
 		const hostFilter = accessor.get(IAgentHostFilterService);
 		const notifications = accessor.get(INotificationService);
+		const remoteTunnelService = accessor.get(IRemoteTunnelService);
+		const missionControlSharingService = accessor.get(IMissionControlSharingService);
+		let remoteTunnelStatus: TunnelStatus = { type: 'uninitialized' };
+		remoteTunnelStatus = await remoteTunnelService.getTunnelStatus();
 		let lastFilter = '';
 		let lastActive: ManageHostsPickItem | undefined;
 
@@ -78,14 +108,19 @@ registerAction2(class extends Action2 {
 			const remoteItems: IRemoteHostQuickPickItem[] = remoteProviders.map((p: IAgentHostSessionsProvider) => {
 				const isTunnel = p.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX);
 				const status = p.connectionStatus?.get();
+				const localRegistration = p.localRegistration?.get();
 				const item: IRemoteHostQuickPickItem = {
 					kind: 'remote',
 					provider: p,
 					label: `$(${isTunnel ? 'cloud' : 'remote'}) ${p.label}`,
-					description: status !== undefined ? p.hostDescription
-						? localize('manageHosts.connectionStatus', "Connection: {0}", getStatusLabel(status))
-						: getStatusLabel(status) : undefined,
-					detail: p.hostDescription?.get() ?? p.remoteAddress,
+					description: status !== undefined
+						? localRegistration
+							? getLocalAgentHostConnectionDescription(localRegistration, getStatusLabel(status))
+							: p.hostDescription
+								? localize('manageHosts.connectionStatus', "Connection: {0}", getStatusLabel(status))
+								: getStatusLabel(status)
+						: undefined,
+					detail: localRegistration ? getLocalAgentHostHover(localRegistration) : p.hostDescription?.get() ?? p.remoteAddress,
 					buttons: p.canRemove === false ? [] : p.removeLabel ? [{ ...removeButton, tooltip: p.removeLabel }] : [removeButton],
 				};
 				return item;
@@ -96,6 +131,9 @@ registerAction2(class extends Action2 {
 			for (const [, actions] of menuActions) {
 				for (const action of actions) {
 					if (action instanceof MenuItemAction) {
+						if (action.id === ToggleRemoteConnectionsCommandId) {
+							continue;
+						}
 						const icon = ThemeIcon.isThemeIcon(action.item.icon) ? action.item.icon : undefined;
 						menuActionItems.push({
 							kind: 'menu-action',
@@ -107,7 +145,24 @@ registerAction2(class extends Action2 {
 				}
 			}
 
+			const usesGitHubEnvironment = isGitHubEnvironmentBackend(configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId));
+			const registration = usesGitHubEnvironment ? 'githubEnvironment' : 'devTunnel';
+			const localProvider = remoteProviders.find(provider => provider.localRegistration?.get() === registration);
+			const isSharing = usesGitHubEnvironment
+				? missionControlSharingService.state.get() === 'enabled'
+				: remoteTunnelStatus.type === 'connected';
 			const items: (ManageHostsPickItem | IQuickPickSeparator)[] = [];
+			if (!isWeb) {
+				items.push(
+					{ type: 'separator', label: localize('manageHosts.thisComputerHeader', "This Computer") },
+					{
+						kind: 'local',
+						label: `$(device-desktop) ${localize('manageHosts.thisComputer', "This Computer")}`,
+						description: getThisComputerDescription({ route: registration, registrationName: localProvider?.label, isSharing }),
+						detail: localize('manageHosts.thisComputerDetail', "Sessions run directly here even when sharing is off. Turn sharing on to let other clients connect."),
+					}
+				);
+			}
 			if (remoteItems.length > 0) {
 				items.push({ type: 'separator', label: localize('manageHosts.remoteHostsHeader', "Remote Agent Hosts") });
 				items.push(...remoteItems);
@@ -119,7 +174,8 @@ registerAction2(class extends Action2 {
 			return items;
 		};
 
-		const showManagePicker = () => {
+		const showManagePicker = async () => {
+			remoteTunnelStatus = await remoteTunnelService.getTunnelStatus();
 			const store = new DisposableStore();
 			const picker = quickInputService.createQuickPick<ManageHostsPickItem>({ useSeparators: true });
 			store.add(picker);
@@ -148,7 +204,10 @@ registerAction2(class extends Action2 {
 				if (active) {
 					picker.activeItems = items.filter((item): item is ManageHostsPickItem => item.type !== 'separator')
 						.filter(item => item.kind === active.kind && (item.kind === 'remote' && active.kind === 'remote'
-							? item.provider.id === active.provider.id : item.kind === 'menu-action' && active.kind === 'menu-action' && item.action.id === active.action.id));
+							? item.provider.id === active.provider.id
+							: item.kind === 'menu-action' && active.kind === 'menu-action'
+								? item.action.id === active.action.id
+								: item.kind === 'local' && active.kind === 'local'));
 				}
 				picker.value = lastFilter;
 			};
@@ -165,6 +224,7 @@ registerAction2(class extends Action2 {
 							observerStore.add(autorun(reader => {
 								p.connectionStatus!.read(reader);
 								p.hostDescription?.read(reader);
+								p.localRegistration?.read(reader);
 								refresh();
 							}));
 						}
@@ -176,6 +236,19 @@ registerAction2(class extends Action2 {
 			};
 			subscribeToProviders();
 			store.add(sessionsProvidersService.onDidChangeProviders(() => subscribeToProviders()));
+			store.add(remoteTunnelService.onDidChangeTunnelStatus(status => {
+				remoteTunnelStatus = status;
+				refresh();
+			}));
+			store.add(configurationService.onDidChangeConfiguration(event => {
+				if (event.affectsConfiguration(AgentHostRemoteConnectionsSettingId)) {
+					refresh();
+				}
+			}));
+			store.add(autorun(reader => {
+				missionControlSharingService.state.read(reader);
+				refresh();
+			}));
 
 			store.add(picker.onDidTriggerItemButton(async e => {
 				if (e.item.kind === 'remote') {
@@ -200,11 +273,13 @@ registerAction2(class extends Action2 {
 				if (selected.kind === 'remote') {
 					void instantiationService.invokeFunction(a => showRemoteHostOptions(a, selected.provider, { showBackButton: true })).then(result => {
 						if (result === 'back') {
-							showManagePicker();
+							void showManagePicker();
 						}
 					}).catch(error => notifications.error(error));
 				} else if (selected.kind === 'menu-action') {
-					void commandService.executeCommand(selected.action.id, () => showManagePicker()).catch(error => notifications.error(error));
+					void commandService.executeCommand(selected.action.id, () => void showManagePicker()).catch(error => notifications.error(error));
+				} else {
+					void commandService.executeCommand(ToggleRemoteConnectionsCommandId).then(() => showManagePicker()).catch(error => notifications.error(error));
 				}
 			}));
 
@@ -213,6 +288,6 @@ registerAction2(class extends Action2 {
 			void refreshHosts();
 		};
 
-		showManagePicker();
+		await showManagePicker();
 	}
 });

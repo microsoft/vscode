@@ -239,6 +239,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly hostDescription?: IObservable<string>;
 	/** Availability before applying a user's hidden preference. Defaults to available. */
 	readonly isAvailableInEnvironmentPicker?: IObservable<boolean>;
+	/** Stable backend registration that routes back to the computer running this window. */
+	readonly localRegistration?: IObservable<'devTunnel' | 'githubEnvironment' | undefined>;
 	/** Controls environment and workspace picker visibility without withdrawing existing sessions. Defaults to visible. */
 	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
 	/** Reveals this host after an explicit picker selection without changing its availability. */

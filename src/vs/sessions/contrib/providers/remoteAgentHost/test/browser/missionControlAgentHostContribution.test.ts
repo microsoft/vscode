@@ -114,6 +114,7 @@ suite('Mission Control native provider inventory', () => {
 	} = {}) {
 		const instantiation = store.add(new TestInstantiationService());
 		const hosts = observableValue<readonly IMissionControlHost[]>('hosts', []);
+		const ownEnvironmentId = observableValue<string | undefined>('ownEnvironmentId', undefined);
 		let account = 'first';
 		const created: { provider: TestProvider; options: IEntryDrivenProviderOptions }[] = [];
 		const actions: string[] = [];
@@ -184,6 +185,7 @@ suite('Mission Control native provider inventory', () => {
 		}());
 		instantiation.stub(IMissionControlEnvironmentService, new class extends mock<IMissionControlEnvironmentService>() {
 			override readonly hosts = hosts;
+			override readonly ownEnvironmentId = ownEnvironmentId;
 			override readonly enabled = true;
 			override get accountKey() { return account; }
 			override async refresh() { actions.push('discover'); await options.refresh?.(); }
@@ -213,7 +215,7 @@ suite('Mission Control native provider inventory', () => {
 			}
 		}));
 		return {
-			hosts, created, actions, contribution, configuration, sharedProjects, recentQueries, providerChanges, rediscover, sharedStartup, setConnectionStatus,
+			hosts, ownEnvironmentId, created, actions, contribution, configuration, sharedProjects, recentQueries, providerChanges, rediscover, sharedStartup, setConnectionStatus,
 			whenConnected: (id: string) => {
 				const isConnected = () => RemoteAgentHostConnectionStatus.isConnected(connections.get(`cloudsandbox:${id}`)?.status);
 				return isConnected() ? Promise.resolve() : Event.toPromise(Event.filter(connectionsChanged.event, isConnected), connectionListeners);
@@ -223,6 +225,25 @@ suite('Mission Control native provider inventory', () => {
 			changeAccount: () => { hosts.set([], undefined); connections.clear(); account = 'second'; },
 		};
 	}
+
+	test('marks this computer by stable environment ID without auto-connecting it', async () => {
+		const { hosts, ownEnvironmentId, created, actions, rediscover } = fixture('profile', { web: true, autoConnect: true });
+		ownEnvironmentId.set('local-environment', undefined);
+		hosts.set([
+			{ id: 'local-environment', name: 'This Mac', kind: 'user-local', status: 'online' },
+			{ id: 'remote-environment', name: 'Other Mac', kind: 'user-local', status: 'online' },
+		], undefined);
+		await rediscover();
+		assert.deepStrictEqual({
+			registrations: created.map(({ options }) => options.localRegistration?.get()),
+			visibleInPicker: created.map(({ options }) => options.isVisibleInEnvironmentPicker?.get()),
+			connects: actions.filter(action => action.startsWith('connect:')),
+		}, {
+			registrations: ['githubEnvironment', undefined],
+			visibleInPicker: [false, true],
+			connects: ['connect:remote-environment'],
+		});
+	});
 
 	for (const web of [false, true]) {
 		test(`hides cached sessions from disconnected native hosts on ${web ? 'web' : 'desktop'}`, () => {

@@ -13,12 +13,13 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ToggleRemoteConnectionsCommandId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IRemoteTunnelService } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { RemoteConnectionsActionViewItem } from '../../../../workbench/contrib/chat/electron-browser/toggleRemoteConnectionsActionViewItem.js';
 import { executeToggleRemoteConnections, TUNNEL_HOST_SHARING_KEY } from '../../../../workbench/contrib/chat/electron-browser/tunnelHost.contribution.js';
 import { Menus } from '../../../browser/menus.js';
 
-export const TOGGLE_SHARING_FROM_AGENTS_ID = 'sessions.tunnelHost.toggleSharingFromAgents';
+export const TOGGLE_SHARING_FROM_AGENTS_ID = ToggleRemoteConnectionsCommandId;
 
 export class SessionsTunnelHostTitlebarContribution extends Disposable implements IWorkbenchContribution {
 
@@ -40,6 +41,18 @@ export class SessionsTunnelHostTitlebarContribution extends Disposable implement
 			},
 			group: 'navigation',
 			order: 90,
+			when: ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext, IsAuxiliaryWindowContext.toNegated())
+		}));
+		this._register(MenuRegistry.appendMenuItem(Menus.SessionWorkspaceManage, {
+			command: {
+				id: TOGGLE_SHARING_FROM_AGENTS_ID,
+				title: localize('toggleSharing', "Allow Remote Connections"),
+				icon: Codicon.radioTower,
+				precondition: ChatContextKeys.enabled,
+				toggled: ContextKeyExpr.equals(TUNNEL_HOST_SHARING_KEY, true),
+			},
+			group: '0_local',
+			order: 1,
 			when: ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext, IsAuxiliaryWindowContext.toNegated())
 		}));
 

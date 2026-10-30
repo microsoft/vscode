@@ -123,7 +123,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		}
 		for (const host of this._inventory.hosts.get()) {
 			const provider = this._providerInstances.get(cloudSandboxAddress(host.id));
-			if (host.status !== 'online' || !provider
+			if (host.id === this._inventory.ownEnvironmentId.get() || host.status !== 'online' || !provider
 				|| !this.isWebPlatform && !this._storageService.getBoolean(this._previouslyConnectedKey(host.id, account), StorageScope.PROFILE, false)
 				|| this._storageService.getBoolean(this._autoConnectSuppressionKey(host.id, account), StorageScope.PROFILE, false)
 				|| !RemoteAgentHostConnectionStatus.isDisconnected(provider.connectionStatus.get())) {
@@ -249,7 +249,8 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 			},
 			sessionCacheKey: `missionControl.userLocalSessions.v1.${encodeURIComponent(this._profileService.currentProfile.id)}.${encodeURIComponent(account)}.${id}`,
 			readOnlyWhenDisconnected: true,
-			isVisibleInEnvironmentPicker: derived(this, reader => this._inventory.hosts.read(reader).some(host => host.id === id && host.status === 'online')),
+			isVisibleInEnvironmentPicker: derived(this, reader => this._inventory.ownEnvironmentId.read(reader) !== id
+				&& this._inventory.hosts.read(reader).some(host => host.id === id && host.status === 'online')),
 			pickerVisibilityKey: getRemoteAgentHostPickerKey(cloudSandboxAddress(id), account),
 			disconnectLabel: localize('missionControl.disconnectHost', "Disconnect"),
 			hostDescription: derived(this, reader => {
@@ -258,6 +259,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 				return host?.status === 'online' ? localize('missionControl.available', "Online")
 					: localize('missionControl.unavailable', "Offline");
 			}),
+			localRegistration: derived(this, reader => this._inventory.ownEnvironmentId.read(reader) === id ? 'githubEnvironment' : undefined),
 			connectionLabels: {
 				unavailableTitle: localize('missionControl.unavailableTitle', "Environment Disconnected"),
 				unavailableDescription: localize('missionControl.unavailableDescription', "Start the environment's owning application, then reconnect. This does not start or replace its compute."),

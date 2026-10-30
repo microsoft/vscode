@@ -40,6 +40,7 @@ import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../common/constants.js';
+import { getLocalAgentHostConnectionDescription, getLocalAgentHostHover, getThisComputerHover } from '../../../browser/remoteAgentHostPresentation.js';
 
 export interface ISessionCreationEnvironment {
 	readonly id: string;
@@ -48,6 +49,7 @@ export interface ISessionCreationEnvironment {
 	readonly icon: ThemeIcon;
 	readonly providerIds: readonly string[];
 	readonly description?: string;
+	readonly hover?: string;
 }
 
 export function getSessionCreationEnvironments(providers: readonly ISessionsProvider[]): ISessionCreationEnvironment[] {
@@ -57,7 +59,14 @@ export function getSessionCreationEnvironments(providers: readonly ISessionsProv
 	const cloud = visible.filter(provider => provider.environment.id === 'cloud' && !isAgentHostProvider(provider));
 	const environments: ISessionCreationEnvironment[] = [];
 	if (local.length) {
-		environments.push({ id: 'local', kind: 'local', label: localize('environmentPicker.local', "This Computer"), icon: Codicon.deviceDesktop, providerIds: local.map(provider => provider.id) });
+		environments.push({
+			id: 'local',
+			kind: 'local',
+			label: localize('environmentPicker.local', "This Computer"),
+			icon: Codicon.deviceDesktop,
+			providerIds: local.map(provider => provider.id),
+			hover: getThisComputerHover(),
+		});
 	}
 	if (cloud.length) {
 		environments.push({ id: 'cloud', kind: 'cloud', label: localize('environmentPicker.cloud', "Cloud"), icon: Codicon.cloud, providerIds: cloud.map(provider => provider.id) });
@@ -76,12 +85,15 @@ export function getRemoteSessionCreationEnvironment(provider: ISessionsProvider,
 	if (!isRemoteSessionCreationEnvironment(provider)) {
 		return undefined;
 	}
+	const connectionDescription = getAgentHostConnectionStatusLabel(provider.connectionStatus.get());
+	const localRegistration = provider.localRegistration?.get();
 	return {
 		id: containerRequested ? `container:${provider.id}` : provider.id,
 		kind: containerRequested ? 'container' : 'remote',
 		label: containerRequested ? localize('environmentPicker.container', "Dev Container") : provider.label,
 		icon: containerRequested ? Codicon.remote : provider.icon, providerIds: [provider.id],
-		description: getAgentHostConnectionStatusLabel(provider.connectionStatus.get()),
+		description: localRegistration ? getLocalAgentHostConnectionDescription(localRegistration, connectionDescription) : connectionDescription,
+		hover: localRegistration ? getLocalAgentHostHover(localRegistration) : undefined,
 	};
 }
 
@@ -227,6 +239,7 @@ export class SessionEnvironmentPicker extends Disposable {
 			label: environment.label,
 			description: environment.description,
 			submenuActions: showManage && this.isManagedInRemotes(environment) ? undefined : this.getActions(environment),
+			hover: environment.hover ? { content: environment.hover } : undefined,
 			group: { title: '', icon: environment.icon },
 			item: { run: () => this.select(environment), checked: environment.id === this.selected.get()?.id },
 		}));

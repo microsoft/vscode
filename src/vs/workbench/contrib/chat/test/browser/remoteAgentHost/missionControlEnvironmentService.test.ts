@@ -61,7 +61,7 @@ suite('Mission Control inventory', () => {
 		const events: { eventName: string; data: ITelemetryData | undefined }[] = [];
 		let account: string | undefined = initialAccount;
 		let hidden = false;
-		let own = 'own';
+		let own: string | undefined = 'own';
 		let list: Promise<readonly IMissionControlEnvironment[]> = Promise.resolve([host('remote'), host('own'), { ...host('managed'), kind: 'managed-sandbox' }]);
 		let discoveryToken: CancellationToken | undefined;
 		let listed = new DeferredPromise<void>();
@@ -134,7 +134,7 @@ suite('Mission Control inventory', () => {
 			setDeleting: (result: Promise<void>) => { deleting = result; },
 			changeAccount: (value: string | undefined) => { account = value; accountChanged.fire(value); },
 			disableAI: () => { hidden = true; sentimentChanged.fire(); },
-			setOwn: (id: string) => { own = id; },
+			setOwn: (id: string | undefined) => { own = id; },
 			setConnectionStatus: (status: RemoteAgentHostConnectionStatus) => { connectionStatus = status; },
 		};
 	}
@@ -161,11 +161,13 @@ suite('Mission Control inventory', () => {
 		]);
 	}));
 
-	test('discovers native hosts before connection and excludes self and managed compute', async () => {
-		const { service, calls } = fixture();
+	test('discovers native hosts before connection, including this computer, and excludes managed compute', async () => {
+		const { service, calls, setList } = fixture();
+		setList(Promise.resolve([host('remote'), host('own'), { ...host('managed'), kind: 'managed-sandbox' }]));
 		await service.refresh(CancellationToken.None);
-		assert.deepStrictEqual({ hosts: service.hosts.get(), calls }, {
-			hosts: [{ ...host('remote'), displayName: undefined }],
+		assert.deepStrictEqual({ hosts: service.hosts.get(), ownEnvironmentId: service.ownEnvironmentId.get(), calls }, {
+			hosts: [{ ...host('remote'), displayName: undefined }, { ...host('own'), displayName: undefined }],
+			ownEnvironmentId: 'own',
 			calls: { lists: 1, lookups: [], connects: [], disconnects: [], waits: [] },
 		});
 	});
@@ -283,7 +285,29 @@ suite('Mission Control inventory', () => {
 		});
 	}
 
-	test('excludes a native host whose registration becomes ready during discovery', async () => {
+	test('remembers this computer registration while sharing is off and clears deleted registrations', async () => {
+		const context = fixture();
+		context.setList(Promise.resolve([host('remote'), host('own')]));
+		await context.service.refresh(CancellationToken.None);
+		context.service.dispose();
+		const reopened = fixture(context.storage);
+		reopened.setOwn(undefined);
+		await reopened.service.initialize();
+		reopened.setList(Promise.resolve([host('remote'), host('own')]));
+		await reopened.service.refresh(CancellationToken.None);
+		const whileOff = reopened.service.ownEnvironmentId.get();
+		reopened.setList(Promise.resolve([host('remote')]));
+		await reopened.service.refresh(CancellationToken.None);
+		assert.deepStrictEqual({
+			whileOff,
+			afterDeletion: reopened.service.ownEnvironmentId.get(),
+		}, {
+			whileOff: 'own',
+			afterDeletion: undefined,
+		});
+	});
+
+	test('identifies a native host whose registration becomes ready during discovery', async () => {
 		const { service, setList, setOwn, calls } = fixture();
 		const inventory = new DeferredPromise<readonly IMissionControlEnvironment[]>();
 		const listed = setList(inventory.p);
@@ -292,7 +316,11 @@ suite('Mission Control inventory', () => {
 		setOwn('remote');
 		await inventory.complete([host('remote')]);
 		await refresh;
-		assert.deepStrictEqual({ hosts: service.hosts.get(), connects: calls.connects }, { hosts: [], connects: [] });
+		assert.deepStrictEqual({ hosts: service.hosts.get().map(host => host.id), ownEnvironmentId: service.ownEnvironmentId.get(), connects: calls.connects }, {
+			hosts: ['remote'],
+			ownEnvironmentId: 'remote',
+			connects: [],
+		});
 	});
 
 	test('restores account/profile-local metadata before network and preserves rename on refresh', async () => {
@@ -506,8 +534,9 @@ suite('Mission Control inventory', () => {
 		const signedOut = service.hosts.get();
 		const firstAgain = fixture(storage);
 		await firstAgain.service.initialize();
-		assert.deepStrictEqual({ switched, secondHosts, signedOut, firstAgain: firstAgain.service.hosts.get() }, {
+		assert.deepStrictEqual({ switched, secondHosts, signedOut, ownEnvironmentId: service.ownEnvironmentId.get(), firstAgain: firstAgain.service.hosts.get() }, {
 			switched: [], secondHosts: [{ ...host('remote'), displayName: undefined }], signedOut: [],
+			ownEnvironmentId: undefined,
 			firstAgain: [{ ...host('remote'), displayName: 'First account label' }],
 		});
 	});
