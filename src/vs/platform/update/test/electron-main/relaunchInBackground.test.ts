@@ -11,7 +11,7 @@ import { timeout } from '../../../../base/common/async.js';
 import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { isCommit, relaunchInBackground } from '../../electron-main/relaunchInBackground.js';
+import { isCommit, keepAwakeWhileUpdating, relaunchInBackground } from '../../electron-main/relaunchInBackground.js';
 
 (isWindows ? suite.skip : suite)('relaunchInBackground', () => {
 
@@ -104,5 +104,23 @@ import { isCommit, relaunchInBackground } from '../../electron-main/relaunchInBa
 
 	test('isCommit', () => {
 		assert.deepStrictEqual([newCommit, 'abc1234', 'ABCDEF0', 'unknown', '', undefined, 'abc', `${newCommit}0`].map(isCommit), [true, true, true, false, false, false, false, false]);
+	});
+
+	test('keeps the machine awake for a minute while updating, outliving the application', async function () {
+		this.timeout(10000);
+
+		const root = await fs.mkdtemp(join(tmpdir(), 'vscode-keep-awake-'));
+		try {
+			const argsPath = join(root, 'caffeinate-args');
+			const caffeinateCommand = join(root, 'caffeinate');
+			await fs.writeFile(caffeinateCommand, `#!/bin/sh\nprintf '%s\\n' "$@" > '${argsPath}'\n`, { mode: 0o755 });
+
+			const caffeinate = keepAwakeWhileUpdating(caffeinateCommand);
+			await new Promise(resolve => caffeinate.once('exit', resolve));
+
+			assert.deepStrictEqual((await fs.readFile(argsPath, 'utf8')).trim().split('\n'), ['-i', '-t', '60']);
+		} finally {
+			await fs.rm(root, { recursive: true, force: true });
+		}
 	});
 });

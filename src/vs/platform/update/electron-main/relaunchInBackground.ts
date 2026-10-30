@@ -13,6 +13,13 @@ import { dirname, join } from '../../../base/common/path.js';
 const INSTALLER_GONE_SECONDS = 5;
 
 /**
+ * How long the machine is kept awake after quitting to install an update while the user is
+ * away. ShipIt keeps it awake for only 10 seconds, but installing can take longer, and the
+ * application then relaunches and restores its windows.
+ */
+const UPDATE_KEEP_AWAKE_SECONDS = 60;
+
+/**
  * Waits for process `$1` to exit, then until `$3` (`product.json`) contains commit `$2`,
  * or until ShipIt, whose launchd job is named after bundle identifier `$4`, has not run
  * for `$7` seconds. Then launches bundle `$6` with `$5` (`open`) without activating it.
@@ -80,6 +87,21 @@ export function relaunchInBackground(options: IBackgroundRelaunchOptions): Child
 		bundlePath,
 		String(options.installerGoneSeconds ?? INSTALLER_GONE_SECONDS)
 	], {
+		detached: true,
+		stdio: 'ignore'
+	});
+	child.unref();
+
+	return child;
+}
+
+/**
+ * macOS: keeps the machine from going to sleep while idle for a while, so that it does not go
+ * to sleep while the update installs after the application quit. Unlike the power save blockers
+ * of the application, this outlives its process.
+ */
+export function keepAwakeWhileUpdating(caffeinateCommand = '/usr/bin/caffeinate'): ChildProcess {
+	const child = spawn(caffeinateCommand, ['-i', '-t', String(UPDATE_KEEP_AWAKE_SECONDS)], {
 		detached: true,
 		stdio: 'ignore'
 	});
