@@ -22,7 +22,7 @@ import { withCustomizationEnablement } from '../../../../../../platform/agentHos
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_DISPLAY_NAME, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
-import { IgnoreFile } from '../../../../../../workbench/services/search/common/ignoreFile.js';
+import { IgnoreFile } from '../../../../../../base/common/ignoreFile.js';
 
 // Re-export so existing consumers don't need to change their import source.
 export { SYNCED_CUSTOMIZATION_SCHEME };
