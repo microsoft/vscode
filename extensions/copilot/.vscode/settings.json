@@ -76,14 +76,6 @@
 	"typescript.format.insertSpaceBeforeFunctionParenthesis": false,
 	"typescript.format.placeOpenBraceOnNewLineForFunctions": false,
 	"typescript.format.placeOpenBraceOnNewLineForControlBlocks": false,
-	"json.schemas": [
-		{
-			"fileMatch": [
-				"**/*.state.json"
-			],
-			"url": "./.vscode/state.schema.json"
-		}
-	],
 	"git.detectSubmodules": false,
 	"githubPullRequests.upstreamRemote": "never",
 	"extension-test-runner.debugOptions": {
