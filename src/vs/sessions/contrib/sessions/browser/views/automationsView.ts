@@ -1751,8 +1751,10 @@ class AutomationHistorySection extends Disposable {
 		const disposables = new DisposableStore();
 		const element = DOM.append(this.ownersContainer, $('.automations-history-owner.session-item', { role: 'group' }));
 		const main = DOM.append(element, $('.session-main'));
-		const title = DOM.append(main, $('span.session-title'));
-		const description = DOM.append(main, $('span.session-description'));
+		const titleRow = DOM.append(main, $('.session-title-row'));
+		const title = DOM.append(titleRow, $('span.session-title'));
+		const detailsRow = DOM.append(main, $('.session-details-row'));
+		const description = DOM.append(detailsRow, $('span.session-description'));
 		const actions = DOM.append(element, $('.automations-run-actions'));
 		const button = disposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true }));
 		disposables.add(button.onDidClick(() => void this.confirmAndDeleteHistory(run)));
