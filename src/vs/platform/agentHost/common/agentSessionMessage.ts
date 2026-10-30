@@ -7,7 +7,7 @@ import { isEqual } from '../../../base/common/resources.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { readAgentMessageDelegationMeta, type IAgentMessageSessionDelegationMeta } from './meta/agentMessageDelegationMeta.js';
-import { PendingMessageKind, type ChatState, type Message, type PendingMessage } from './state/sessionState.js';
+import { PendingMessageKind, type AgentSelection, type ChatState, type Message, type PendingMessage } from './state/sessionState.js';
 
 export type AgentSessionMessageState =
 	| { readonly status: 'pending'; readonly kind: PendingMessageKind; readonly message: Message }
@@ -19,6 +19,15 @@ export function getPendingSteeringMessages(state: Pick<ChatState, 'steeringMessa
 	const steering = state.queuedMessages?.filter(message => message.kind === PendingMessageKind.Steering) ?? [];
 	const legacy = state.steeringMessage;
 	return legacy && !state.queuedMessages?.some(message => message.id === legacy.id) ? [legacy, ...steering] : steering;
+}
+
+/**
+ * The custom agent the chat's latest turn runs with. A turn applies the agent its message carries
+ * and a message without one switches the chat to the default agent, so a message the host writes
+ * for an existing chat carries this to keep the agent the chat is using.
+ */
+export function getLatestTurnAgent(state: Pick<ChatState, 'activeTurn' | 'turns'> | undefined): AgentSelection | undefined {
+	return (state?.activeTurn ?? state?.turns.at(-1))?.message.agent;
 }
 
 /** Finds an inter-session message wherever it currently lives in a chat. */

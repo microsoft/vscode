@@ -169,7 +169,7 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { ChatModel, ChatResponseModel, IntendedModelSlot, reviveSerializableInputState, type ChatRequestModel, type IChatModel, type IChatModelInputState, type IChatPendingRequest, type IChatRequestModel, type IChatResponseModel, type IInputModel } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatResponseModel, IntendedModelSlot, reviveSerializableInputState, type ChatRequestModel, type IChatModel, type IChatModelInputState, type IChatPendingRequest, type IChatRequestModeInstructions, type IChatRequestModel, type IChatResponseModel, type IInputModel } from '../../../common/model/chatModel.js';
 import { ModelSelectionReason } from '../../../common/modelSelection.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
 import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, createChatReferenceVariableEntry, isChatReferenceVariableEntry, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
@@ -19212,6 +19212,53 @@ suite('AgentHostChatContribution', () => {
 				});
 			}
 		}
+
+		test('pending messages carry the custom agent they were queued with', async () => {
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'pending-agent');
+			const reviewer = { uri: 'file:///agents/reviewer.agent.md' };
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(), provider: 'copilot', title: 'Test',
+					status: SessionStatus.InProgress, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeTurn: createActiveTurn('active-turn', { text: 'Working', origin: { kind: MessageKind.User }, agent: reviewer }, new Date(0).toISOString()),
+				queuedMessages: [{ id: 'from the host', message: { text: 'from the host', origin: { kind: MessageKind.Agent }, agent: reviewer } }],
+			});
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/pending-agent' });
+			disposables.add(await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
+			const pendingRequests: IChatPendingRequest[] = [];
+			const chatModel = createPendingChatModel(sessionResource, pendingRequests);
+			chatService.applyRemotePendingRequests = (_resource, requests) => {
+				pendingRequests.splice(0, pendingRequests.length, ...requests.map(remote => ({
+					request: upcastPartial<IChatRequestModel>({ id: remote.id, message: { text: remote.message, parts: [] } }),
+					kind: remote.kind,
+					sendOptions: { agentHostMessageOrigin: remote.agentHostMessageOrigin },
+				})));
+				chatModel.firePendingRequestsChanged();
+			};
+			chatService.setSession(sessionResource, chatModel.model);
+			agentHostService.dispatchedActions.length = 0;
+
+			const queue = (text: string, modeInstructions: IChatRequestModeInstructions | undefined) => pendingRequests.push({
+				request: upcastPartial<IChatRequestModel>({ id: text, message: { text, parts: [] } }),
+				kind: ChatRequestQueueKind.Queued,
+				sendOptions: { modeInfo: { kind: ChatModeKind.Agent, isBuiltin: !modeInstructions, modeInstructions, telemetryModeId: modeInstructions ? 'custom' : 'agent', applyCodeBlockSuggestionId: undefined } },
+			});
+			queue('with the reviewer', { uri: toAgentHostUri(URI.parse(reviewer.uri), LOCAL_AGENT_HOST_AUTHORITY), name: 'Reviewer', content: '', toolReferences: [] });
+			queue('with the default agent', undefined);
+			chatModel.firePendingRequestsChanged();
+
+			// The message from the host keeps its agent, so it is not sent again.
+			assert.deepStrictEqual(
+				agentHostService.dispatchedActions.flatMap(({ action }) => action.type === ActionType.ChatPendingMessageSet ? [{ id: action.id, agent: action.message.agent }] : []),
+				[
+					{ id: 'with the reviewer', agent: reviewer },
+					{ id: 'with the default agent', agent: undefined },
+				],
+			);
+		});
 
 		for (const provider of ['codex', 'copilot', 'claude']) {
 			test(`keeps successive steering messages visible until consumed (${provider})`, async () => {

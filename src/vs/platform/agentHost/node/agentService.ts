@@ -31,7 +31,7 @@ import { ILogService } from '../../log/common/log.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { chatUriFormatOf, createChatUriError, mintDefaultChatUri, subagentChatUri } from '../common/agentHostChatMinting.js';
 import { AgentChatMigrationDeferred, type AgentCanvasDefinitionSnapshot, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, getChatSurfaceOptions, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, type IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, type IAgentExtensionInventory, IAgentLegacyChat, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
-import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
+import { getLatestTurnAgent, getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentCreateChatInitialMessageContext, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService, type IAgentServiceCreateSessionConfig } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { EDIT_ATTRIBUTION_RESOURCE_SCHEME, IAgentEditAttributionService } from '../common/fileEditAttribution.js';
@@ -2583,10 +2583,13 @@ export class AgentService extends Disposable implements IAgentService {
 	 * client-initiated turn takes (which sends the message to the provider).
 	 */
 	private async _startSessionPrompt(session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource): Promise<void> {
+		// Keep the chat's agent: a message without one switches the chat to the default agent.
+		const agent = getLatestTurnAgent(this._stateManager.getChatState(chat.toString()));
 		// The calling agent authored this prompt, not the user.
 		const message: Message = {
 			text: prompt,
 			origin: { kind: MessageKind.Agent },
+			...(agent ? { agent } : {}),
 			...(delegation ? { _meta: toAgentMessageDelegationMeta(delegation) } : {}),
 		};
 		await this._startSessionMessage(chat, message, credentials);

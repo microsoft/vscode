@@ -4264,6 +4264,22 @@ suite('AgentSideEffects', () => {
 				chat: call.chat?.toString(),
 			})), [{ session: sessionUri.toString(), agent: { uri: 'file:///agents/reviewer.md' }, chat: chatChannel }]);
 		});
+
+		test('a turn whose message has no agent switches the chat back to the default agent', async () => {
+			setupSession();
+			const reviewer = { uri: 'file:///agents/reviewer.md' };
+			for (const [turnId, selection] of [['turn-1', reviewer], ['turn-2', undefined]] as const) {
+				sideEffects.handleAction(defaultChatUri, {
+					type: ActionType.ChatTurnStarted,
+					turnId,
+					startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'hello', origin: { kind: MessageKind.User }, ...(selection ? { agent: selection } : {}) },
+				});
+				await waitForSendMessageCalls(turnId === 'turn-1' ? 1 : 2);
+			}
+
+			assert.deepStrictEqual(agent.changeAgentCalls.map(call => call.agent), [reviewer, undefined]);
+		});
 	});
 
 	// ---- registerProgressListener ---------------------------------------

@@ -438,6 +438,11 @@ function requestMessage(text: string, attachments: readonly MessageAttachment[] 
 	};
 }
 
+/** The custom agent a request selects, or `undefined` when it uses the provider's default agent. */
+function getRequestedAgentUri(modeInstructions: IChatAgentRequest['modeInstructions']): string | undefined {
+	return modeInstructions?.uri ? fromAgentHostUri(modeInstructions.uri).toString() : undefined;
+}
+
 /** Whether `err` reports that the host has no such resource (AHP `NotFound`). */
 export function isNotFoundError(err: unknown): boolean {
 	return err instanceof ProtocolError && err.code === AHP_NOT_FOUND;
@@ -2519,12 +2524,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const isSystemInitiated = p.request.isSystemInitiated ?? p.sendOptions.isSystemInitiated;
 			const metadata = p.sendOptions.metadata ?? previousMessage?._meta;
 			const roundTripMetadata = previousMessage && previousMessage.text !== p.request.message.text ? withoutAgentMessageDelegationMeta(metadata) : metadata;
+			// The host applies the agent a message carries when the message starts a turn, and a
+			// message without one runs with the default agent. Like a direct send, a message queued
+			// here carries the agent selected when it was queued; one that came from the host has no
+			// local mode and keeps the agent it already has.
+			const queuedAgentUri = getRequestedAgentUri(p.sendOptions.modeInfo?.modeInstructions);
+			const agent = queuedAgentUri ? { uri: queuedAgentUri } : p.sendOptions.modeInfo ? undefined : previousMessage?.agent;
 			const snapshot = {
 				id: p.request.id,
 				kind: p.kind === ChatRequestQueueKind.Steering ? PendingMessageKind.Steering : PendingMessageKind.Queued,
 				message: {
 					...requestMessage(p.request.message.text, attachments, roundTripMetadata, isSystemInitiated, previousMessage?.origin ?? p.sendOptions.agentHostMessageOrigin),
 					...(model ? { model } : {}),
+					...(agent ? { agent } : {}),
 				},
 			};
 			current.push(snapshot);
@@ -3657,7 +3669,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// actions. The host applies the selection carried by the message before
 		// sending the turn to the agent backend.
 		const selectedModel = this._createModelSelection(request.userSelectedModelId, request.modelConfiguration);
-		const requestedAgentUri = request.modeInstructions?.uri ? fromAgentHostUri(request.modeInstructions.uri).toString() : undefined;
+		const requestedAgentUri = getRequestedAgentUri(request.modeInstructions);
 		if (this._configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) === false) {
 			const agent = this._customizationService.getCustomAgents(request.sessionResource).find(agent => agent.uri === requestedAgentUri);
 			if (!agent || readAgentCustomizationMeta(agent)['vscode.chatMode'] !== 'ask') {
