@@ -384,6 +384,8 @@ export class McpHTTPHandle extends Disposable {
 	private readonly _cts = new CancellationTokenSource();
 	private readonly _abortCtrl = new AbortController();
 	private _authMetadata?: AuthMetadata;
+	/** Request headers whose `Authorization` value was supplied by authentication rather than by the server configuration */
+	private readonly _authenticatedHeaders = new WeakSet<Record<string, string>>();
 	private _didSendClose = false;
 
 	constructor(
@@ -785,6 +787,7 @@ export class McpHTTPHandle extends Disposable {
 					});
 				if (token) {
 					setHostHeader(headers, 'Authorization', `Bearer ${token}`);
+					this._authenticatedHeaders.add(headers);
 				}
 			} catch (e) {
 				if (UserInteractionRequiredError.is(e)) {
@@ -809,6 +812,7 @@ export class McpHTTPHandle extends Disposable {
 				);
 				if (token) {
 					setHostHeader(headers, 'Authorization', `Bearer ${token}`);
+					this._authenticatedHeaders.add(headers);
 					this._log(LogLevel.Info, 'Successfully obtained token from provided authentication config');
 				}
 			} catch (e) {
@@ -844,7 +848,6 @@ export class McpHTTPHandle extends Disposable {
 	 */
 	private async _fetchWithAuthRetry(mcpUrl: string, init: MinimalRequestInit, headers: Record<string, string>, transportHeaders?: Readonly<Record<string, string>>): Promise<CommonResponse> {
 		const doFetch = () => this._fetch(mcpUrl, init, { transportHeaders });
-		const configuredAuthorization = this._launch.headers.find(([name]) => name.toLowerCase() === 'authorization')?.[1];
 
 		let res = await doFetch();
 		if (isAuthStatusCode(res.status)) {
@@ -862,10 +865,11 @@ export class McpHTTPHandle extends Disposable {
 					log: (level, message) => this._log(level, message)
 				});
 				this._proxy.$logMcpAuthSetup(authMetadata.telemetry);
-				// A server that rejects the configured Authorization header and advertises no OAuth metadata
-				// uses static credentials. Guessing OAuth endpoints for it can only lead to a failed client
+				// A server that rejects the configured Authorization header and neither advertises nor publishes OAuth
+				// metadata uses static credentials. Guessing OAuth endpoints for it can only lead to a failed client
 				// registration and a sign-in page that does not exist.
-				if (configuredAuthorization !== undefined && !this._launch.oauth && !this._launch.authentication
+				if (this._launch.headers.some(([name]) => name.toLowerCase() === 'authorization')
+					&& !this._launch.oauth && !this._launch.authentication && !authMetadata.resourceMetadataChallenge
 					&& authMetadata.telemetry.resourceMetadataSource === IAuthResourceMetadataSource.None
 					&& authMetadata.telemetry.serverMetadataSource === IAuthServerMetadataSource.Default) {
 					this._log(LogLevel.Warning, `Server rejected the configured Authorization header with status ${res.status} and does not advertise OAuth metadata, not attempting OAuth. Check the credentials configured for this server.`);
@@ -890,9 +894,9 @@ export class McpHTTPHandle extends Disposable {
 				}
 			}
 		}
-		// If an OAuth token is still rejected, retry with a new auth registration. A rejected configured
-		// header is not fixed by registering a new OAuth client.
-		if (headers['Authorization'] && headers['Authorization'] !== configuredAuthorization && isAuthStatusCode(res.status)) {
+		// If a token supplied by authentication is still rejected, retry with a new auth registration. A rejected
+		// configured header is not fixed by registering a new OAuth client.
+		if (this._authenticatedHeaders.has(headers) && isAuthStatusCode(res.status)) {
 			const errorText = await this._getErrText(res);
 			this._log(LogLevel.Info, `Received ${res.status} status with Authorization header, retrying with new auth registration. Error details: ${errorText || 'no additional details'}`);
 			await this._addAuthHeader(headers, { forceNewRegistration: true });
@@ -1066,6 +1070,8 @@ export interface IAuthMetadata {
 	readonly authorizationServer: URI;
 	readonly serverMetadata: IAuthorizationServerMetadata;
 	readonly resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined;
+	/** The resource metadata URL advertised by the `WWW-Authenticate` challenge, even if it could not be fetched */
+	readonly resourceMetadataChallenge: string | undefined;
 	readonly scopes: string[] | undefined;
 	/** Telemetry data about how auth metadata was discovered */
 	readonly telemetry: IAuthMetadataSource;
@@ -1089,6 +1095,7 @@ class AuthMetadata implements IAuthMetadata {
 		public readonly authorizationServer: URI,
 		public readonly serverMetadata: IAuthorizationServerMetadata,
 		public readonly resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
+		public readonly resourceMetadataChallenge: string | undefined,
 		scopes: string[] | undefined,
 		public readonly telemetry: IAuthMetadataSource,
 		private readonly _log: AuthMetadataLogger,
@@ -1234,6 +1241,7 @@ export async function createAuthMetadata(
 			URI.parse(serverMetadataUrl),
 			metadata,
 			resource,
+			resourceMetadataChallenge,
 			scopesChallenge,
 			{ resourceMetadataSource, serverMetadataSource },
 			log
@@ -1249,6 +1257,7 @@ export async function createAuthMetadata(
 		URI.parse(baseUrl),
 		defaultMetadata,
 		resource,
+		resourceMetadataChallenge,
 		scopesChallenge,
 		{ resourceMetadataSource, serverMetadataSource: IAuthServerMetadataSource.Default },
 		log

@@ -594,6 +594,35 @@ suite('ExtHostMcp', () => {
 					tokenRequests: [{ authorizationEndpoint: `${TEST_AUTH_SERVER}/authorize`, forceNewRegistration: false }],
 				});
 			});
+
+			test('guesses OAuth endpoints when the server advertises resource metadata that cannot be fetched', async () => {
+				assert.deepStrictEqual(await fetchWithAuthRetry({
+					headers: configuredHeaders,
+					respond: (url, init) => {
+						const response = respondWithoutOAuthMetadata(url, init);
+						return url === TEST_MCP_URL && response.status === 401
+							? createMockResponse({ status: 401, headers: { 'WWW-Authenticate': `Bearer resource_metadata="${TEST_RESOURCE_METADATA_URL}"` } })
+							: response;
+					},
+				}), {
+					status: 202,
+					tokenRequests: [{ authorizationEndpoint: 'https://example.com/authorize', forceNewRegistration: false }],
+				});
+			});
+
+			test('forces a new client registration when a rejected OAuth token matches the configured header', async () => {
+				assert.deepStrictEqual(await fetchWithAuthRetry({
+					// The same value as the OAuth token returned by the test proxy
+					headers: [['Authorization', 'Bearer test-access-token']],
+					respond: (url, init) => url === TEST_MCP_URL ? createMockResponse({ status: 401 }) : respondWithOAuthMetadata(url, init),
+				}), {
+					status: 401,
+					tokenRequests: [
+						{ authorizationEndpoint: `${TEST_AUTH_SERVER}/authorize`, forceNewRegistration: false },
+						{ authorizationEndpoint: `${TEST_AUTH_SERVER}/authorize`, forceNewRegistration: true },
+					],
+				});
+			});
 		});
 
 		suite('first destinations', () => {
