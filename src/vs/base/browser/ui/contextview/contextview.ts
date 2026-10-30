@@ -7,6 +7,7 @@ import { BrowserFeatures } from '../../canIUse.js';
 import * as DOM from '../../dom.js';
 import { createStyleSheet } from '../../domStylesheets.js';
 import { StandardMouseEvent } from '../../mouseEvent.js';
+import { onUnexpectedError } from '../../../common/errors.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../common/lifecycle.js';
 import { AnchorAlignment, AnchorAxisAlignment, AnchorPosition, IRect, layout2d } from '../../../common/layout.js';
 import * as platform from '../../../common/platform.js';
@@ -18,7 +19,36 @@ export { AnchorAlignment, AnchorAxisAlignment, AnchorPosition } from '../../../c
 export const enum ContextViewDOMPosition {
 	ABSOLUTE = 1,
 	FIXED,
-	FIXED_SHADOW
+	FIXED_SHADOW,
+	/**
+	 * Hosts the view inside the container (the owner) as a manual popover,
+	 * so focus stays inside the owner while the view renders in the top layer.
+	 */
+	POPOVER,
+	/**
+	 * Like {@link ContextViewDOMPosition.POPOVER}, with the view in a shadow root.
+	 */
+	POPOVER_SHADOW
+}
+
+export function isPopoverDOMPosition(domPosition: ContextViewDOMPosition): boolean {
+	return domPosition === ContextViewDOMPosition.POPOVER || domPosition === ContextViewDOMPosition.POPOVER_SHADOW;
+}
+
+export interface IContextViewRenderContext {
+	/**
+	 * Where the view is actually hosted. A popover position can fall back
+	 * to a fixed position when the popover cannot be shown.
+	 */
+	readonly domPosition: ContextViewDOMPosition;
+}
+
+export interface IContextViewOptions {
+	/**
+	 * Returns the container to use when a popover cannot be shown in its owner.
+	 * Defaults to the owner's document body.
+	 */
+	readonly getFallbackContainer?: (owner: HTMLElement) => HTMLElement;
 }
 
 export interface IAnchor {
@@ -42,7 +72,7 @@ export interface IDelegate {
 	 * or an `IAnchor` to position it at a specific location.
 	 */
 	getAnchor(): HTMLElement | StandardMouseEvent | IAnchor;
-	render(container: HTMLElement): IDisposable | null;
+	render(container: HTMLElement, context?: IContextViewRenderContext): IDisposable | null;
 	focus?(): void;
 	layout?(): void;
 	anchorAlignment?: AnchorAlignment; // default: left
@@ -228,10 +258,32 @@ export function getAnchorRect(anchor: HTMLElement | StandardMouseEvent | IAnchor
 	}
 }
 
+const POPOVER_RESET_STYLES: Readonly<Record<string, string>> = {
+	inset: 'auto',
+	margin: '0',
+	padding: '0',
+	border: '0',
+	background: 'transparent',
+	overflow: 'visible',
+	color: 'inherit',
+	position: 'fixed',
+	width: 'auto',
+	height: 'auto',
+};
+
+function getDeepActiveElement(doc: Document): Element | null {
+	let result = doc.activeElement;
+	while (result?.shadowRoot?.activeElement) {
+		result = result.shadowRoot.activeElement;
+	}
+	return result;
+}
+
 export class ContextView extends Disposable {
 
 	private static readonly BUBBLE_UP_EVENTS = ['click', 'keydown', 'focus', 'blur'];
 	private static readonly BUBBLE_DOWN_EVENTS = ['click'];
+	private static readonly ISOLATED_KEY_EVENTS = ['keydown', 'keyup', 'keypress'];
 
 	private container: HTMLElement | null = null;
 	private view: HTMLElement;
@@ -243,8 +295,11 @@ export class ContextView extends Disposable {
 	private hidingContextView: { readonly disposable: IDisposable; readonly toDispose: IDisposable; readonly className: string } | undefined;
 	private shadowRoot: ShadowRoot | null = null;
 	private shadowRootHostElement: HTMLElement | null = null;
+	private domPosition: ContextViewDOMPosition = ContextViewDOMPosition.ABSOLUTE;
+	private readonly toDisposeOnPopoverHide = this._register(new DisposableStore());
+	private focusToRestore: HTMLElement | null = null;
 
-	constructor(container: HTMLElement, domPosition: ContextViewDOMPosition) {
+	constructor(container: HTMLElement, domPosition: ContextViewDOMPosition, private readonly options: IContextViewOptions = {}) {
 		super();
 
 		ensureContextViewMenuMotionStyleSheet();
@@ -257,18 +312,26 @@ export class ContextView extends Disposable {
 	}
 
 	setContainer(container: HTMLElement | null, domPosition: ContextViewDOMPosition): void {
+		const previousDOMPosition = this.domPosition;
+		this.domPosition = domPosition;
 		this.useFixedPosition = domPosition !== ContextViewDOMPosition.ABSOLUTE;
 		const usedShadowDOM = this.useShadowDOM;
-		this.useShadowDOM = domPosition === ContextViewDOMPosition.FIXED_SHADOW;
+		this.useShadowDOM = domPosition === ContextViewDOMPosition.FIXED_SHADOW || domPosition === ContextViewDOMPosition.POPOVER_SHADOW;
 
-		if (container === this.container && usedShadowDOM === this.useShadowDOM) {
-			return; // container is the same and no shadow DOM usage has changed
+		if (container === this.container && usedShadowDOM === this.useShadowDOM && isPopoverDOMPosition(previousDOMPosition) === isPopoverDOMPosition(domPosition)) {
+			return; // container is the same and neither shadow DOM nor popover usage has changed
 		}
 
 		if (this.container) {
+			if (isPopoverDOMPosition(previousDOMPosition)) {
+				this.hide(undefined, true);
+				this.completeHideAnimation();
+			}
+
 			this.toDisposeOnSetContainer.dispose();
 
 			this.view.remove();
+			this.resetPopoverElement(this.view);
 			if (this.shadowRoot) {
 				this.shadowRoot = null;
 				this.shadowRootHostElement?.remove();
@@ -280,6 +343,7 @@ export class ContextView extends Disposable {
 
 		if (container) {
 			this.container = container;
+			const isPopover = isPopoverDOMPosition(domPosition);
 
 			if (this.useShadowDOM) {
 				this.shadowRootHostElement = DOM.$('.shadow-root-host');
@@ -290,6 +354,11 @@ export class ContextView extends Disposable {
 					width: '0',
 					height: '0'
 				});
+				if (isPopover) {
+					this.preparePopoverElement(this.shadowRootHostElement);
+					this.shadowRootHostElement.style.width = '0';
+					this.shadowRootHostElement.style.height = '0';
+				}
 				this.container.appendChild(this.shadowRootHostElement);
 				this.shadowRoot = this.shadowRootHostElement.attachShadow({ mode: 'open' });
 				const style = document.createElement('style');
@@ -298,10 +367,22 @@ export class ContextView extends Disposable {
 				this.shadowRoot.appendChild(this.view);
 				this.shadowRoot.appendChild(DOM.$('slot'));
 			} else {
+				if (isPopover) {
+					this.preparePopoverElement(this.view);
+				}
 				this.container.appendChild(this.view);
 			}
 
 			const toDisposeOnSetContainer = new DisposableStore();
+
+			if (isPopover) {
+				// Keep keys pressed in the view from reaching the owner or
+				// window-level keybinding listeners while the view is hosted.
+				const popoverElement = this.getPopoverElement();
+				ContextView.ISOLATED_KEY_EVENTS.forEach(event => {
+					toDisposeOnSetContainer.add(DOM.addDisposableListener(popoverElement, event, e => e.stopPropagation()));
+				});
+			}
 
 			ContextView.BUBBLE_UP_EVENTS.forEach(event => {
 				toDisposeOnSetContainer.add(DOM.addStandardDisposableListener(this.container!, event, e => {
@@ -326,6 +407,14 @@ export class ContextView extends Disposable {
 			this.hide(undefined, true);
 		}
 
+		const ownerDocument = this.container?.ownerDocument ?? DOM.getActiveDocument();
+		const activeElement = getDeepActiveElement(ownerDocument);
+		this.focusToRestore = DOM.isHTMLElement(activeElement) ? activeElement : null;
+
+		if (isPopoverDOMPosition(this.domPosition)) {
+			this.showPopover();
+		}
+
 		// Show static box
 		DOM.clearNode(this.view);
 		this.view.className = 'context-view monaco-component';
@@ -340,10 +429,14 @@ export class ContextView extends Disposable {
 		DOM.show(this.view);
 
 		// Render content
-		this.toDisposeOnClean = delegate.render(this.view) || Disposable.None;
+		this.toDisposeOnClean = delegate.render(this.view, { domPosition: this.domPosition }) || Disposable.None;
 
 		// Set active delegate
 		this.delegate = delegate;
+
+		if (isPopoverDOMPosition(this.domPosition)) {
+			this.trackPopoverOwner();
+		}
 
 		// Layout
 		this.doLayout();
@@ -354,6 +447,128 @@ export class ContextView extends Disposable {
 
 	getViewElement(): HTMLElement {
 		return this.view;
+	}
+
+	/**
+	 * The position the view is hosted at, after any popover fallback.
+	 */
+	getEffectiveDOMPosition(): ContextViewDOMPosition {
+		return this.domPosition;
+	}
+
+	private getPopoverElement(): HTMLElement {
+		return this.shadowRootHostElement ?? this.view;
+	}
+
+	private preparePopoverElement(element: HTMLElement): void {
+		element.setAttribute('popover', 'manual');
+		Object.assign(element.style, POPOVER_RESET_STYLES);
+		element.style.top = '0';
+		element.style.left = '0';
+	}
+
+	private resetPopoverElement(element: HTMLElement): void {
+		if (!element.hasAttribute('popover')) {
+			return;
+		}
+
+		element.removeAttribute('popover');
+		for (const property of Object.keys(POPOVER_RESET_STYLES)) {
+			element.style.removeProperty(property);
+		}
+	}
+
+	private showPopover(): void {
+		const owner = this.container;
+		if (!owner) {
+			return;
+		}
+
+		const popoverElement = this.getPopoverElement();
+		let error: unknown;
+		if (typeof popoverElement.showPopover !== 'function') {
+			error = new Error('ContextView: popovers are not supported, falling back to a fixed position');
+		} else if (!owner.isConnected) {
+			error = new Error('ContextView: popover owner is not connected, falling back to a fixed position');
+		} else {
+			try {
+				if (!popoverElement.matches(':popover-open')) {
+					popoverElement.showPopover();
+				}
+				return;
+			} catch (e) {
+				error = e;
+			}
+		}
+
+		onUnexpectedError(error);
+		const fallbackContainer = this.options.getFallbackContainer?.(owner) ?? DOM.getWindow(owner).document.body;
+		this.setContainer(fallbackContainer, this.domPosition === ContextViewDOMPosition.POPOVER_SHADOW ? ContextViewDOMPosition.FIXED_SHADOW : ContextViewDOMPosition.FIXED);
+	}
+
+	private trackPopoverOwner(): void {
+		const owner = this.container;
+		if (!owner) {
+			return;
+		}
+
+		const popoverElement = this.getPopoverElement();
+		const targetWindow = DOM.getWindow(owner);
+
+		// Dismiss on pointer presses outside both the view and its owner, without restoring focus
+		this.toDisposeOnPopoverHide.add(DOM.addDisposableListener(targetWindow, DOM.EventType.POINTER_DOWN, e => {
+			const path = e.composedPath();
+			if (!path.includes(popoverElement) && !path.includes(owner)) {
+				this.hideWithoutRestoringFocus();
+			}
+		}, true));
+
+		const ResizeObserverCtor = (targetWindow as Window & typeof globalThis).ResizeObserver;
+		if (typeof ResizeObserverCtor === 'function') {
+			const observer = new ResizeObserverCtor(() => this.checkPopoverOwner());
+			observer.observe(owner);
+			this.toDisposeOnPopoverHide.add(toDisposable(() => observer.disconnect()));
+		}
+	}
+
+	private isPopoverOwnerLost(): boolean {
+		const owner = this.container;
+		return !owner || !owner.isConnected || owner.getClientRects().length === 0;
+	}
+
+	private checkPopoverOwner(): boolean {
+		if (this.isVisible() && isPopoverDOMPosition(this.domPosition) && this.isPopoverOwnerLost()) {
+			this.hideWithoutRestoringFocus();
+			return false;
+		}
+		return true;
+	}
+
+	private hideWithoutRestoringFocus(): void {
+		this.focusToRestore = null;
+		this.hide(undefined, true);
+	}
+
+	private restorePopoverFocus(): void {
+		const focusToRestore = this.focusToRestore;
+		this.focusToRestore = null;
+		if (!focusToRestore?.isConnected) {
+			return;
+		}
+
+		const activeElement = getDeepActiveElement(focusToRestore.ownerDocument);
+		if (activeElement && (activeElement === focusToRestore.ownerDocument.body || DOM.isAncestor(activeElement, this.view))) {
+			focusToRestore.focus();
+		}
+	}
+
+	private hidePopover(): void {
+		this.toDisposeOnPopoverHide.clear();
+
+		const popoverElement = this.getPopoverElement();
+		if (popoverElement.hasAttribute('popover') && popoverElement.matches(':popover-open')) {
+			popoverElement.hidePopover();
+		}
 	}
 
 	layout(): void {
@@ -374,6 +589,10 @@ export class ContextView extends Disposable {
 	private doLayout(): void {
 		// Check that we still have a delegate - this.delegate.layout may have hidden
 		if (!this.isVisible()) {
+			return;
+		}
+
+		if (!this.checkPopoverOwner()) {
 			return;
 		}
 
@@ -421,6 +640,15 @@ export class ContextView extends Disposable {
 
 		delegate.onHide?.(data);
 
+		const isPopover = isPopoverDOMPosition(this.domPosition);
+		if (isPopover) {
+			// Restore focus before the view becomes inert or hidden, so that
+			// focus never leaves the owner while the view closes
+			this.restorePopoverFocus();
+		} else {
+			this.focusToRestore = null;
+		}
+
 		const closeAnimation = delegate.closeAnimation;
 		if (!skipAnimation && closeAnimation && closeAnimation.duration > 0 && hasRequiredAncestorClasses(this.view, closeAnimation.requiredAncestorClasses)) {
 			this.view.style.setProperty(CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, `${closeAnimation.duration}ms`);
@@ -433,11 +661,17 @@ export class ContextView extends Disposable {
 				toDispose,
 				className: closeAnimation.className
 			};
+			if (isPopover) {
+				this.toDisposeOnPopoverHide.clear();
+			}
 			return;
 		}
 
 		toDispose.dispose();
 		DOM.hide(this.view);
+		if (isPopover) {
+			this.hidePopover();
+		}
 	}
 
 	private isVisible(): boolean {
@@ -459,6 +693,9 @@ export class ContextView extends Disposable {
 		hidingContextView.toDispose.dispose();
 		DOM.hide(this.view);
 		this.view.inert = false;
+		if (isPopoverDOMPosition(this.domPosition)) {
+			this.hidePopover();
+		}
 	}
 
 	private prepareMenuCloseAnimation(): void {
@@ -487,7 +724,7 @@ export class ContextView extends Disposable {
 	}
 
 	override dispose(): void {
-		this.hide();
+		this.hide(undefined, true);
 		this.completeHideAnimation();
 
 		super.dispose();

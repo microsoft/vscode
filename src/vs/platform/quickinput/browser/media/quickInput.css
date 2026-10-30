@@ -20,14 +20,10 @@
 	--vscode-quickInputList-focusHighlightForeground: var(--vscode-list-highlightForeground);
 }
 
-/*
- * Context menus are hosted inside the widget and positioned fixed. A transform
- * that outlives the animation (or will-change: transform) would turn the widget
- * into their containing block and clip them, so only fill backwards.
- */
 .modern-ui.monaco-enable-motion .quick-input-widget:not(.quick-input-widget-overlay) {
-	animation: quick-input-widget-open 250ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+	animation: quick-input-widget-open 250ms cubic-bezier(0.22, 1, 0.36, 1) both;
 	transform-origin: top center;
+	will-change: transform, opacity;
 }
 
 .modern-ui.monaco-enable-motion .quick-input-widget.quick-input-widget-closing:not(.quick-input-widget-overlay) {

@@ -20,7 +20,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { TerminalFindCommandId } from '../common/terminal.find.js';
 import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.clipboard.contribution.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
-import { createTextInputActions } from '../../../../../platform/clipboard/browser/textInputActions.js';
+import { createTextInputActions } from '../../../../browser/actions/textInputActions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 

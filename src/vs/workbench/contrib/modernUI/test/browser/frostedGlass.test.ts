@@ -477,13 +477,13 @@ suite('Frosted glass styles', () => {
 		assert.deepStrictEqual({ opening, closing, reducedMotion: state() }, {
 			opening: {
 				animation: supported ? 'none' : 'quick-input-widget-open',
-				willChange: 'auto',
+				willChange: supported ? 'auto' : 'transform, opacity',
 				filter: 'none',
 				paintFilter: supported ? 'blur(12px)' : 'none',
 			},
 			closing: {
 				animation: supported ? 'none' : 'quick-input-widget-close',
-				willChange: 'auto',
+				willChange: supported ? 'auto' : 'transform, opacity',
 				filter: 'none',
 				paintFilter: supported ? 'blur(12px)' : 'none',
 			},

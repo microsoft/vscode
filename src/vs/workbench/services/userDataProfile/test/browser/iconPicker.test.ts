@@ -10,8 +10,6 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { IQuickInputHideEvent, IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickWillAcceptEvent, ItemActivation, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { TerminalIconPicker } from '../../../../contrib/terminal/browser/terminalIconPicker.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -47,10 +45,8 @@ suite('Shared IconPicker', () => {
 			},
 		});
 		instantiationService.stub(IQuickInputService, 'createQuickPick', () => quickPick);
-		const menus: IContextMenuDelegate[] = [];
-		instantiationService.stub(IContextMenuService, 'showContextMenu', (delegate: IContextMenuDelegate) => { menus.push(delegate); });
 		const picker = disposables.add(instantiationService.createInstance(IconPicker));
-		return { picker, host, hidden, accepting, accepted, quickPick, menus, grid: () => grid!, disposed: () => disposed };
+		return { picker, host, hidden, accepting, accepted, quickPick, grid: () => grid!, disposed: () => disposed };
 	}
 
 	test('terminal and session consumers share the original icon picker implementation', () => {
@@ -98,26 +94,6 @@ suite('Shared IconPicker', () => {
 		harness.accepting.fire({ veto: () => vetoed = true });
 		const selected = await result;
 		assert.deepStrictEqual({ vetoed, selectedIcon: selected?.id !== undefined }, { vetoed: true, selectedIcon: true });
-	});
-
-	test('the context menu of the icon search box is rendered inside the icon grid', async () => {
-		const harness = setup();
-		const result = harness.picker.pickIcons();
-		const input = harness.grid().querySelector<HTMLInputElement>('input')!;
-		const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 });
-		input.dispatchEvent(event);
-		harness.hidden.fire({ reason: QuickInputHideReason.Gesture });
-		await result;
-		assert.deepStrictEqual({
-			defaultPrevented: event.defaultPrevented,
-			menus: harness.menus.map(menu => ({ hostIsGrid: menu.domForShadowRoot === harness.grid(), context: menu.getActionsContext?.() === input, actions: (menu.getActions?.() ?? []).map(action => action.id) })),
-		}, {
-			defaultPrevented: true,
-			menus: [{
-				hostIsGrid: true, context: true,
-				actions: ['undo', 'redo', 'vs.actions.separator', 'editor.action.clipboardCutAction', 'editor.action.clipboardCopyAction', 'editor.action.clipboardPasteAction', 'vs.actions.separator', 'editor.action.selectAll'],
-			}],
-		});
 	});
 
 	test('accepting an empty icon search neither resets nor throws', async () => {

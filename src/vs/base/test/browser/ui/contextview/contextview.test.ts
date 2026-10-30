@@ -6,7 +6,10 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { $, getDomNodePagePosition, getWindow } from '../../../../browser/dom.js';
-import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLASS, CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS, ContextView, ContextViewDOMPosition, contextViewMenuCloseAnimation, IDelegate } from '../../../../browser/ui/contextview/contextview.js';
+import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLASS, CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS, ContextView, ContextViewDOMPosition, contextViewMenuCloseAnimation, IContextViewRenderContext, IDelegate } from '../../../../browser/ui/contextview/contextview.js';
+import { mainWindow } from '../../../../browser/window.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../common/errors.js';
+import { DeferredPromise, timeout } from '../../../../common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('ContextView', () => {
@@ -322,5 +325,374 @@ suite('ContextView', () => {
 
 		contextView.dispose();
 		container.remove();
+	});
+
+	suite('popover hosting', () => {
+
+		let disposables: (() => void)[] = [];
+		let unexpectedErrors: unknown[] = [];
+
+		setup(() => {
+			unexpectedErrors = [];
+			const previousHandler = errorHandler.getUnexpectedErrorHandler();
+			setUnexpectedErrorHandler(e => unexpectedErrors.push(e));
+			disposables.push(() => setUnexpectedErrorHandler(previousHandler));
+		});
+
+		teardown(() => {
+			for (const dispose of disposables.reverse()) {
+				dispose();
+			}
+			disposables = [];
+		});
+
+		function createOwner(style = '') {
+			const owner = $('.owner');
+			owner.tabIndex = -1;
+			owner.style.cssText = `position: absolute; top: 20px; left: 20px; width: 200px; height: 40px; overflow: hidden; transform: scale(0.97); ${style}`;
+			const input = $('input') as HTMLInputElement;
+			owner.appendChild(input);
+			const outside = $('button.outside') as HTMLButtonElement;
+			outside.textContent = 'outside';
+			mainWindow.document.body.append(owner, outside);
+			disposables.push(() => { owner.remove(); outside.remove(); });
+			return { owner, input, outside };
+		}
+
+		function createDelegate(overrides: Partial<IDelegate> = {}) {
+			const contexts: (IContextViewRenderContext | undefined)[] = [];
+			const hides: unknown[] = [];
+			let item: HTMLButtonElement | undefined;
+			const delegate: IDelegate = {
+				getAnchor: () => ({ x: 20, y: 200 }),
+				render: (container, context) => {
+					contexts.push(context);
+					item = $('button.item') as HTMLButtonElement;
+					item.textContent = 'item';
+					container.appendChild(item);
+					return null;
+				},
+				onHide: data => hides.push(data),
+				...overrides
+			};
+			return { delegate, contexts, hides, item: () => item! };
+		}
+
+		function createContextView(owner: HTMLElement, domPosition: ContextViewDOMPosition, fallback?: HTMLElement) {
+			const contextView = new ContextView(owner, domPosition, fallback ? { getFallbackContainer: () => fallback } : undefined);
+			disposables.push(() => contextView.dispose());
+			return contextView;
+		}
+
+		function isOpen(element: Element) {
+			return element.matches(':popover-open');
+		}
+
+		test('hosts the view inside its owner as a manual popover in the top layer', () => {
+			const { owner } = createOwner();
+			const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER);
+			const { delegate, contexts, item } = createDelegate();
+
+			contextView.show(delegate);
+
+			const view = contextView.getViewElement();
+			const itemRect = item().getBoundingClientRect();
+			const ownerRect = owner.getBoundingClientRect();
+			assert.deepStrictEqual({
+				insideOwner: owner.contains(view),
+				popover: view.getAttribute('popover'),
+				open: isOpen(view),
+				context: contexts,
+				effectivePosition: contextView.getEffectiveDOMPosition(),
+				itemBelowOwner: itemRect.top >= ownerRect.bottom,
+				itemHittable: mainWindow.document.elementFromPoint(itemRect.left + 2, itemRect.top + 2) === item(),
+				errors: unexpectedErrors.length
+			}, {
+				insideOwner: true,
+				popover: 'manual',
+				open: true,
+				context: [{ domPosition: ContextViewDOMPosition.POPOVER }],
+				effectivePosition: ContextViewDOMPosition.POPOVER,
+				itemBelowOwner: true,
+				itemHittable: true,
+				errors: 0
+			});
+
+			contextView.hide();
+			assert.strictEqual(isOpen(view), false);
+		});
+
+		test('hosts a shadow root popover inside its owner', () => {
+			const { owner } = createOwner();
+			const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER_SHADOW);
+			const { delegate, contexts } = createDelegate();
+
+			contextView.show(delegate);
+
+			const host = owner.querySelector('.shadow-root-host') as HTMLElement;
+			const view = contextView.getViewElement();
+			assert.deepStrictEqual({
+				hostPopover: host.getAttribute('popover'),
+				hostOpen: isOpen(host),
+				viewPopover: view.hasAttribute('popover'),
+				viewInShadow: view.getRootNode() === host.shadowRoot,
+				context: contexts
+			}, {
+				hostPopover: 'manual',
+				hostOpen: true,
+				viewPopover: false,
+				viewInShadow: true,
+				context: [{ domPosition: ContextViewDOMPosition.POPOVER_SHADOW }]
+			});
+
+			contextView.hide();
+			assert.strictEqual(isOpen(host), false);
+		});
+
+		test('falls back to a fixed position in the fallback container when showPopover throws, before rendering and without moving focus', () => {
+			const { owner, input } = createOwner();
+			const fallback = $('.fallback');
+			mainWindow.document.body.appendChild(fallback);
+			disposables.push(() => fallback.remove());
+			const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER, fallback);
+			const errorsAtRender: number[] = [];
+			const { delegate, contexts } = createDelegate();
+			const render = delegate.render;
+			delegate.render = (container, context) => {
+				errorsAtRender.push(unexpectedErrors.length);
+				return render(container, context);
+			};
+			const showPopover = sinon.stub(HTMLElement.prototype, 'showPopover').throws(new Error('showPopover failed'));
+			input.focus();
+
+			contextView.show(delegate);
+
+			const view = contextView.getViewElement();
+			assert.deepStrictEqual({
+				showPopoverCalls: showPopover.callCount,
+				errors: unexpectedErrors.length,
+				errorsAtRender,
+				context: contexts,
+				effectivePosition: contextView.getEffectiveDOMPosition(),
+				inFallback: fallback.contains(view),
+				inOwner: owner.contains(view),
+				popover: view.hasAttribute('popover'),
+				position: view.style.position,
+				focus: mainWindow.document.activeElement === input
+			}, {
+				showPopoverCalls: 1,
+				errors: 1,
+				errorsAtRender: [1],
+				context: [{ domPosition: ContextViewDOMPosition.FIXED }],
+				effectivePosition: ContextViewDOMPosition.FIXED,
+				inFallback: true,
+				inOwner: false,
+				popover: false,
+				position: 'fixed',
+				focus: true
+			});
+		});
+
+		test('falls back to a fixed shadow position in the owner document body when the owner is disconnected', () => {
+			const owner = $('.owner');
+			const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER_SHADOW);
+			const { delegate, contexts } = createDelegate();
+
+			contextView.show(delegate);
+
+			const host = mainWindow.document.body.querySelector(':scope > .shadow-root-host') as HTMLElement | null;
+			assert.deepStrictEqual({
+				errors: unexpectedErrors.length,
+				context: contexts,
+				hostInBody: !!host && host.shadowRoot === contextView.getViewElement().getRootNode(),
+				hostPopover: host?.hasAttribute('popover')
+			}, {
+				errors: 1,
+				context: [{ domPosition: ContextViewDOMPosition.FIXED_SHADOW }],
+				hostInBody: true,
+				hostPopover: false
+			});
+		});
+
+		test('restores focus to the element focused before show when hiding', () => {
+			const { owner, input } = createOwner();
+			const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER);
+			const { delegate, item } = createDelegate({ focus: () => item().focus() });
+			input.focus();
+
+			contextView.show(delegate);
+			const focusWhileShown = mainWindow.document.activeElement === item();
+			contextView.hide();
+
+			assert.deepStrictEqual({ focusWhileShown, focusAfterHide: mainWindow.document.activeElement === input }, { focusWhileShown: true, focusAfterHide: true });
+		});
+
+		test('does not steal focus back when it already moved elsewhere', () => {
+			const { owner, input, outside } = createOwner();
+			const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER);
+			const { delegate } = createDelegate();
+			input.focus();
+
+			contextView.show(delegate);
+			outside.focus();
+			contextView.hide();
+
+			assert.strictEqual(mainWindow.document.activeElement, outside);
+		});
+
+		test('legacy positions neither use popovers nor restore focus', () => {
+			const { owner, input } = createOwner();
+			const contextView = createContextView(owner, ContextViewDOMPosition.FIXED);
+			const { delegate, contexts, item } = createDelegate({ focus: () => item().focus() });
+			input.focus();
+
+			contextView.show(delegate);
+			const popover = contextView.getViewElement().hasAttribute('popover');
+			contextView.hide();
+
+			assert.deepStrictEqual({ popover, context: contexts, focusRestored: mainWindow.document.activeElement === input }, { popover: false, context: [{ domPosition: ContextViewDOMPosition.FIXED }], focusRestored: false });
+		});
+
+		test('hides without restoring focus on a pointer press outside the view and its owner', () => {
+			const { owner, input, outside } = createOwner();
+			const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER);
+			const { delegate, hides, item } = createDelegate({ focus: () => item().focus() });
+			input.focus();
+			contextView.show(delegate);
+
+			item().dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true }));
+			input.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true }));
+			const hidesInside = hides.length;
+			outside.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true }));
+
+			assert.deepStrictEqual({
+				hidesInside,
+				hidesOutside: hides.length,
+				open: isOpen(contextView.getViewElement()),
+				focusRestored: mainWindow.document.activeElement === input
+			}, { hidesInside: 0, hidesOutside: 1, open: false, focusRestored: false });
+		});
+
+		test('keeps keys pressed in the view from reaching the owner and the window', () => {
+			const { owner, input } = createOwner();
+			const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER);
+			const { delegate, item } = createDelegate();
+			contextView.show(delegate);
+			const received: string[] = [];
+			const onOwner = (e: KeyboardEvent) => received.push(`owner:${e.type}:${(e.target as HTMLElement).className}`);
+			const onWindow = (e: KeyboardEvent) => received.push(`window:${e.type}:${(e.target as HTMLElement).className}`);
+			for (const type of ['keydown', 'keyup', 'keypress'] as const) {
+				owner.addEventListener(type, onOwner);
+				mainWindow.addEventListener(type, onWindow);
+				disposables.push(() => { owner.removeEventListener(type, onOwner); mainWindow.removeEventListener(type, onWindow); });
+			}
+
+			for (const type of ['keydown', 'keyup', 'keypress']) {
+				item().dispatchEvent(new KeyboardEvent(type, { key: 'Enter', bubbles: true, composed: true }));
+			}
+			input.className = 'input';
+			input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, composed: true }));
+
+			assert.deepStrictEqual(received, ['owner:keydown:input', 'window:keydown:input']);
+		});
+
+		test('hides without restoring focus on layout when the owner is removed or hidden', () => {
+			for (const lose of [(owner: HTMLElement) => owner.remove(), (owner: HTMLElement) => owner.style.display = 'none']) {
+				const { owner, input } = createOwner();
+				const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER);
+				const { delegate, hides } = createDelegate();
+				input.focus();
+				contextView.show(delegate);
+
+				lose(owner);
+				contextView.layout();
+
+				assert.deepStrictEqual({ hides: hides.length, open: isOpen(contextView.getViewElement()) }, { hides: 1, open: false });
+			}
+		});
+
+		test('hides when the owner is removed or hidden without a layout', async () => {
+			for (const lose of [(owner: HTMLElement) => owner.remove(), (owner: HTMLElement) => owner.style.display = 'none']) {
+				const { owner } = createOwner();
+				const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER);
+				const hidden = new DeferredPromise<void>();
+				let hideCount = 0;
+				const { delegate } = createDelegate({ onHide: () => { hideCount++; hidden.complete(); } });
+				contextView.show(delegate);
+				await timeout(50);
+
+				lose(owner);
+				await hidden.p;
+
+				assert.strictEqual(hideCount, 1);
+			}
+		});
+
+		test('stays open while a rendered owner has zero size', async () => {
+			const { owner } = createOwner();
+			const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER);
+			const { delegate, hides } = createDelegate();
+			contextView.show(delegate);
+
+			owner.style.width = '0';
+			owner.style.height = '0';
+			await timeout(100);
+			contextView.layout();
+
+			assert.deepStrictEqual({ hides: hides.length, open: isOpen(contextView.getViewElement()) }, { hides: 0, open: true });
+			contextView.hide();
+		});
+
+		test('rebuilds the view when switching between popover and legacy hosting', () => {
+			const { owner } = createOwner();
+			const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER);
+			const { delegate, hides } = createDelegate();
+			contextView.show(delegate);
+			const view = contextView.getViewElement();
+
+			contextView.setContainer(owner, ContextViewDOMPosition.FIXED);
+			const afterSwitch = { hides: hides.length, open: isOpen(view), popover: view.hasAttribute('popover'), inset: view.style.inset, inOwner: owner.contains(view) };
+
+			contextView.setContainer(owner, ContextViewDOMPosition.POPOVER);
+			contextView.show(delegate);
+			const afterSwitchBack = { popover: view.getAttribute('popover'), open: isOpen(view) };
+			contextView.hide();
+
+			assert.deepStrictEqual({ afterSwitch, afterSwitchBack }, {
+				afterSwitch: { hides: 1, open: false, popover: false, inset: '', inOwner: true },
+				afterSwitchBack: { popover: 'manual', open: true }
+			});
+		});
+
+		test('restores focus immediately and keeps the popover open until the close animation completes', async () => {
+			const { owner, input } = createOwner();
+			const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER);
+			const { delegate, item } = createDelegate({ focus: () => item().focus(), closeAnimation: { className: 'closing', duration: 50 } });
+			input.focus();
+			contextView.show(delegate);
+			const view = contextView.getViewElement();
+
+			contextView.hide();
+			const during = { focusRestored: mainWindow.document.activeElement === input, open: isOpen(view), inert: view.inert };
+			await timeout(100);
+			const after = { open: isOpen(view), inert: view.inert };
+
+			assert.deepStrictEqual({ during, after }, {
+				during: { focusRestored: true, open: true, inert: true },
+				after: { open: false, inert: false }
+			});
+		});
+
+		test('closes the popover when disposed', () => {
+			const { owner } = createOwner();
+			const contextView = new ContextView(owner, ContextViewDOMPosition.POPOVER);
+			const { delegate, hides } = createDelegate();
+			contextView.show(delegate);
+			const view = contextView.getViewElement();
+
+			contextView.dispose();
+
+			assert.deepStrictEqual({ hides: hides.length, open: isOpen(view), inOwner: owner.contains(view) }, { hides: 1, open: false, inOwner: false });
+		});
 	});
 });
