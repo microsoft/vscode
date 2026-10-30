@@ -7,9 +7,11 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import type { IInstantiationService } from '../../../instantiation/common/instantiation.js';
+import type { IInstantiationService, ServicesAccessor } from '../../../instantiation/common/instantiation.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IAgentHostChatContributions, ITurnEnd } from '../../common/agentHostChatContributionsService.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import type { IAgentHostChatContributionHost, IAgentHostChatContributions, ISendTurnMessageOptions, ITurnEnd } from '../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageKind, SessionStatus, TurnState } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -128,6 +130,61 @@ suite('AgentHostTurnService', () => {
 		}, {
 			continued: false,
 			activeTurnId: replacement.turnId,
+		});
+	});
+
+	test('returns a client initial-message admission rejection without sending to the provider', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const rejection = { errorType: 'permissionDenied', message: 'Initial message is not permitted' };
+		const sent: ISendTurnMessageOptions[] = [];
+		const host: IAgentHostChatContributionHost = {
+			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+			sendTurnMessage(request): void {
+				sent.push(request);
+			},
+		};
+		const contributions = new class extends mock<IAgentHostChatContributions>() {
+			override getHost(): IAgentHostChatContributionHost {
+				return host;
+			}
+		}();
+		const instantiationService = new class extends mock<IInstantiationService>() {
+			override invokeFunction<R>(_fn: (accessor: ServicesAccessor, ...args: any[]) => R, ...args: any[]): R {
+				(args[0] as { onRejected?: (error: typeof rejection) => void }).onRejected?.(rejection);
+				return undefined as R;
+			}
+		}();
+		const service = new AgentHostTurnService(stateManager, contributions, instantiationService, createTestChatOwnershipService(stateManager));
+		const session = URI.parse('copilot:/client-initial-message');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		stateManager.createSession({
+			resource: session.toString(),
+			provider: 'copilot',
+			title: 'Initial message',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+			defaultChat: chat.toString(),
+		});
+
+		const result = service.startClientTurn(chat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'prepared-turn',
+			startedAt: new Date(0).toISOString(),
+			message: { text: 'Start from the fork', origin: { kind: MessageKind.User } },
+		}, 'submitting-client', {
+			...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
+			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+		});
+
+		assert.deepStrictEqual({
+			result,
+			sent,
+			activeTurn: stateManager.getChatState(chat.toString())?.activeTurn?.id,
+		}, {
+			result: rejection,
+			sent: [],
+			activeTurn: 'prepared-turn',
 		});
 	});
 });

@@ -5,9 +5,9 @@
 
 import type WebSocket from 'ws';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
-import { createHash, randomUUID } from 'crypto';
+import { createHash } from 'crypto';
 import { EventEmitter as NodeEventEmitter } from 'events';
-import { lstat, mkdtemp, rename, rm, stat, writeFile } from 'fs/promises';
+import { mkdtemp, rm, stat } from 'fs/promises';
 import { Duplex } from 'stream';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
@@ -28,9 +28,10 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { IRequestService } from '../../request/common/request.js';
+import { writeCertificatesFile, writeUserDataCertificatesFile } from '../../request/node/certificates.js';
 import { IGitHubService } from '../../github/common/githubService.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
-import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
+import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, IDiscoveredDevContainer, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
 import { IRelayMessage } from '../common/relayTransport.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import type { AgentHostEndpointAddress } from '../common/agentHostEndpointRegistry.js';
@@ -53,14 +54,29 @@ import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCo
 import { DevContainerSample, devContainerSamples, devContainerSampleUri, getDevContainerSampleFolder, IDevContainerRepository, IDevContainerSampleSource } from '../common/devContainerSamples.js';
 import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
 import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
+import { DevContainerShell, IDevContainerShellResult } from './devContainerShell.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
 const DEV_CONTAINER_LOG_ARGS = ['--log-level', 'debug'] as const;
 const DEV_CONTAINER_RELAY_CONNECTION_TIMEOUT_MS = 30_000;
 
+function getDevContainerShellArgs(workspaceFolder: string | readonly string[]): readonly string[] {
+	return ['exec', ...DEV_CONTAINER_LOG_ARGS, ...typeof workspaceFolder === 'string' ? ['--workspace-folder', workspaceFolder] : workspaceFolder, '/bin/sh'];
+}
+
 export function getDevContainerExecArgs(workspaceFolder: string | readonly string[], command: string): readonly string[] {
-	return ['exec', ...DEV_CONTAINER_LOG_ARGS, ...typeof workspaceFolder === 'string' ? ['--workspace-folder', workspaceFolder] : workspaceFolder, '/bin/sh', '-c', command];
+	return [...getDevContainerShellArgs(workspaceFolder), '-c', command];
+}
+
+function toDevContainerExec(run: (command: string) => Promise<IDevContainerShellResult>): ISshExec {
+	return async (command, options) => {
+		const result = await run(command);
+		if (result.code !== 0 && !options?.ignoreExitCode) {
+			throw new Error(localize('devContainerAgentHost.commandFailed', "Dev Container command failed (exit {0}): {1}\nstderr: {2}", result.code, command, result.stderr));
+		}
+		return result;
+	};
 }
 
 function getSourceKey(source: string | IDevContainerSampleSource): string {
@@ -136,6 +152,10 @@ interface IGitIdentity {
 	readonly email: string | undefined;
 }
 
+export interface IDevContainerShellExec extends IDisposable {
+	readonly exec: ISshExec;
+}
+
 const devContainerUpResultValidator = vObj({
 	outcome: vLiteral('success'),
 	containerId: vString(),
@@ -205,7 +225,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	private _nativeRequire: NodeJS.Require | undefined;
 	private _shellEnvironment: Promise<typeof process.env> | undefined;
 	private _dockerExecutable: Promise<string | undefined> | undefined;
-	private _devContainerEnvironment: Promise<typeof process.env> | undefined;
+	private _certificatesFile: Promise<string | undefined> | undefined;
 	private _dockerAvailable: Promise<boolean> | undefined;
 
 	constructor(
@@ -276,13 +296,14 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				repository = prepared.repository;
 			} else {
 				workspaceSelector = config.workspaceFolder;
-				const cacheMountArgs = await this._getServerCacheMountArgs(config.connectionId, config.workspaceFolder, tokenSource.token);
+				const configuration = this._readDevContainerConfiguration(config.connectionId, config.workspaceFolder, tokenSource.token);
+				const cacheMountArgs = await this._getServerCacheMountArgs(config.connectionId, configuration, tokenSource.token);
 				if (config.sandboxEnabled) {
 					const directory = await mkdtemp(join(this._environmentService.tmpDir.fsPath, 'vscode-dev-container-sandbox-'));
 					store.add(toDisposable(() => {
 						void rm(directory, { recursive: true, force: true }).catch(error => this._logService.error(`${LOG_PREFIX} Failed to remove sandbox override`, error));
 					}));
-					const sandbox = await this._prepareSandboxConfiguration(config.connectionId, config.workspaceFolder, directory, tokenSource.token);
+					const sandbox = await this._prepareSandboxConfiguration(configuration, config.workspaceFolder, directory, tokenSource.token);
 					workspaceSelector = ['--workspace-folder', config.workspaceFolder, ...sandbox.args];
 					sandboxEnvironment = sandbox.environment;
 				}
@@ -302,7 +323,10 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 			const sandboxSupported = await this._getSandboxSupported(config.connectionId, upResult.containerId, tokenSource.token);
 			this._onDidChangeSandboxSupport.fire({ connectionId: config.connectionId, supported: sandboxSupported });
-			const exec = this._createExec(config.connectionId, workspaceSelector, tokenSource.token, sandboxEnvironment);
+			// The container ID skips the CLI's container lookup.
+			const execSelector = [...typeof workspaceSelector === 'string' ? ['--workspace-folder', workspaceSelector] : workspaceSelector, '--container-id', upResult.containerId];
+			const shell = store.add(await this._startShell(config.connectionId, execSelector, tokenSource.token, sandboxEnvironment));
+			const exec = shell.exec;
 			const safeDirectoryStopWatch = StopWatch.create(false);
 			try {
 				await this._configureGitSafeDirectory(config.connectionId, upResult.containerId, upResult.remoteWorkspaceFolder, exec, tokenSource.token);
@@ -366,7 +390,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					initial.userDataPath,
 					telemetryLevelToAgentHostValue(this._telemetryService.telemetryLevel),
 				)}`;
-				void exec(spawnCommand, { ignoreExitCode: true }).catch(error => {
+				// The Agent Host keeps this command running, so it cannot share the startup shell.
+				void this._createExec(config.connectionId, execSelector, tokenSource.token, sandboxEnvironment)(spawnCommand, { ignoreExitCode: true }).catch(error => {
 					this._logService.warn(`${LOG_PREFIX} Agent Host spawn command failed`, error);
 				});
 				this._logService.info(`${LOG_PREFIX} Waiting for the new agent host to register...`);
@@ -385,9 +410,10 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			}
 
 			const relayCommand = buildAgentRelayCommand(cliBin, cliDataDir, endpoint.instanceId, initial.userDataPath);
+			store.delete(shell);
 			const relay = await this._createRelay(
 				config.connectionId,
-				workspaceSelector,
+				execSelector,
 				relayCommand,
 				endpoint.endpoint,
 				endpoint.connectionToken,
@@ -410,6 +436,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				name: config.name,
 				remoteWorkspaceFolder: upResult.remoteWorkspaceFolder,
 				sandboxSupported,
+				...await this._shouldForwardCertificates(tokenSource.token) ? { forwardClientCertificates: true } : {},
 				...(repository ? { repository } : {}),
 				...(hasKey(config, { workspaceFolder: true }) ? { hostWorkspaceFolder: config.workspaceFolder } : {}),
 			};
@@ -445,9 +472,9 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					const signal = CancellationToken.toAbortSignal(token, lifetime);
 					signal.throwIfAborted();
 					const client = lifetime.add(this._gitHubService.acquireAnonymousClient());
-					const repo = getDevContainerSampleFolder(sample);
-					const commitSha = await client.content.resolveRef('microsoft', repo, 'HEAD', signal);
-					const content = await client.content.getRawFile('microsoft', repo, commitSha, '.devcontainer/devcontainer.json', signal);
+					const repository = { owner: 'microsoft', repo: getDevContainerSampleFolder(sample) };
+					const commitSha = await client.content.resolveRef(repository, 'HEAD', signal);
+					const content = await client.content.getRawFile(repository, commitSha, '.devcontainer/devcontainer.json', signal);
 					return { commitSha, content };
 				} finally {
 					lifetime.dispose();
@@ -456,12 +483,16 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		}, sandboxEnabled);
 	}
 
-	protected async _prepareSandboxConfiguration(connectionId: string, workspaceFolder: string, directory: string, token: CancellationToken): Promise<IDevContainerSandboxConfiguration> {
-		const result = await this._runDevContainer(connectionId, ['read-configuration', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', workspaceFolder], token);
+	private async _readDevContainerConfiguration(connectionId: string, workspaceFolder: string, token: CancellationToken): Promise<string> {
+		const result = await this._runDevContainer(connectionId, ['read-configuration', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', workspaceFolder, '--include-merged-configuration'], token);
 		if (result.code !== 0) {
-			throw new Error(`Cannot read Dev Container configuration for sandboxing (exit ${result.code}): ${result.stderr}`);
+			throw new Error(`Cannot read Dev Container configuration (exit ${result.code}): ${result.stderr}`);
 		}
-		return prepareDevContainerSandboxConfiguration(result.stdout, directory, workspaceFolder, await this._resolveDevContainerEnvironment());
+		return result.stdout;
+	}
+
+	protected async _prepareSandboxConfiguration(configuration: Promise<string>, workspaceFolder: string, directory: string, token: CancellationToken): Promise<IDevContainerSandboxConfiguration> {
+		return prepareDevContainerSandboxConfiguration(await configuration, directory, workspaceFolder, await this._resolveDevContainerEnvironment(), token);
 	}
 
 	protected async _getSandboxSupported(_connectionId: string, containerId: string, token: CancellationToken): Promise<boolean> {
@@ -472,13 +503,9 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return isDevContainerSandboxSupported(result.stdout);
 	}
 
-	private async _getServerCacheMountArgs(connectionId: string, workspaceFolder: string, token: CancellationToken): Promise<readonly string[]> {
+	private async _getServerCacheMountArgs(connectionId: string, configuration: Promise<string>, token: CancellationToken): Promise<readonly string[]> {
 		try {
-			const config = await this._runDevContainer(connectionId, ['read-configuration', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', workspaceFolder, '--include-merged-configuration'], token);
-			if (config.code !== 0) {
-				throw new Error(`Cannot read Dev Container configuration (exit ${config.code}): ${config.stderr}`);
-			}
-			if (canAddDevContainerServerCacheMount(config.stdout)) {
+			if (canAddDevContainerServerCacheMount(await configuration)) {
 				return ['--mount', devContainerServerCacheMount];
 			}
 			this._logService.info(`${LOG_PREFIX} Keeping configured container mounts; server cache sharing requires an existing vscode volume mount`);
@@ -657,18 +684,19 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	}
 
 	protected _createExec(connectionId: string, workspaceFolder: string | readonly string[], token: CancellationToken, environment?: NodeJS.ProcessEnv): ISshExec {
-		return async (command, options) => {
-			const result = await this._runDevContainer(
-				connectionId,
-				getDevContainerExecArgs(workspaceFolder, command),
-				token,
-				environment,
-			);
-			if (result.code !== 0 && !options?.ignoreExitCode) {
-				throw new Error(localize('devContainerAgentHost.commandFailed', "Dev Container command failed (exit {0}): {1}\nstderr: {2}", result.code, command, result.stderr));
-			}
-			return result;
-		};
+		return toDevContainerExec(command => this._runDevContainer(connectionId, getDevContainerExecArgs(workspaceFolder, command), token, environment));
+	}
+
+	/** Starts one container shell for all startup commands; each separate Dev Container CLI exec takes seconds to start. */
+	protected async _startShell(connectionId: string, workspaceFolder: string | readonly string[], token: CancellationToken, environmentOverride?: NodeJS.ProcessEnv): Promise<IDevContainerShellExec> {
+		const environment = environmentOverride ?? await this._resolveDevContainerEnvironment();
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const args = getDevContainerShellArgs(workspaceFolder);
+		this._reportOutput(connectionId, `$ devcontainer ${args.map(arg => JSON.stringify(arg)).join(' ')}\n`);
+		const shell = new DevContainerShell(this._spawnDevContainer(args, environment), token, text => this._reportOutput(connectionId, text));
+		return { exec: toDevContainerExec(command => shell.run(command)), dispose: () => shell.dispose() };
 	}
 
 	protected _runLocalCommand(command: string, args: readonly string[], environment: NodeJS.ProcessEnv, token: CancellationToken, cwd?: string): Promise<{ stdout: string; stderr: string; code: number }> {
@@ -845,7 +873,14 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	}
 
 	protected abstract _resolveUserShellEnvironment(): Promise<typeof process.env>;
-	protected abstract _useSystemCertificates(): boolean;
+
+	protected _useSystemCertificates(): boolean {
+		return true;
+	}
+
+	protected async _shouldForwardCertificates(_token: CancellationToken): Promise<boolean> {
+		return false;
+	}
 
 	protected _resolveShellEnvironment(): Promise<typeof process.env> {
 		this._shellEnvironment ??= this._doResolveShellEnvironment();
@@ -869,27 +904,27 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return environment;
 	}
 
-	protected _resolveDevContainerEnvironment(): Promise<typeof process.env> {
-		this._devContainerEnvironment ??= this._doResolveDevContainerEnvironment();
-		return this._devContainerEnvironment;
+	protected async _resolveDevContainerEnvironment(): Promise<typeof process.env> {
+		const environment = await this._resolveShellEnvironment();
+		const path = await this._resolveCertificatesFile(environment);
+		return path ? { ...environment, NODE_EXTRA_CA_CERTS: path } : environment;
 	}
 
-	private async _doResolveDevContainerEnvironment(): Promise<typeof process.env> {
-		const environment = await this._resolveShellEnvironment();
+	/** Matches Remote Containers: a supplied bundle is used as-is; otherwise system roots are written once when enabled. */
+	protected _resolveCertificatesFile(environment: typeof process.env): Promise<string | undefined> {
+		this._certificatesFile ??= this._doResolveCertificatesFile(environment);
+		return this._certificatesFile;
+	}
+
+	private async _doResolveCertificatesFile(environment: typeof process.env): Promise<string | undefined> {
 		if (environment.NODE_EXTRA_CA_CERTS && await this._isFile(environment.NODE_EXTRA_CA_CERTS)) {
-			return environment;
+			return environment.NODE_EXTRA_CA_CERTS;
 		}
 		if (!this._useSystemCertificates()) {
-			return environment;
+			return undefined;
 		}
 		const certificates = await this._requestService.loadCertificates();
-		if (certificates.length === 0) {
-			return environment;
-		}
-		return {
-			...environment,
-			NODE_EXTRA_CA_CERTS: await this._writeCertificatesFile(certificates),
-		};
+		return certificates.length ? this._writeCertificatesFile(certificates) : undefined;
 	}
 
 	protected async _isFile(path: string): Promise<boolean> {
@@ -904,51 +939,16 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		}
 	}
 
-	protected async _writeCertificatesFile(certificates: readonly string[]): Promise<string> {
-		const content = certificates.join(process.platform === 'win32' ? '\r\n' : '\n');
-		const hash = createHash('sha256').update(content).digest('hex');
+	protected async _writeCertificatesFile(certificates: readonly string[]): Promise<string | undefined> {
 		const directory = this._getCertificatesDirectory();
 		await prepareOwnerOnlyDirectory(directory);
-		const path = join(directory, `certificates-${hash}.pem`);
-		if (await this._isSecureCacheFile(path)) {
-			return path;
-		}
-		const temporaryPath = `${path}-${randomUUID()}`;
-		await writeFile(temporaryPath, content, { mode: 0o600 });
-		try {
-			await this._renameCertificateFile(temporaryPath, path);
-		} catch (error) {
-			if (!await this._isSecureCacheFile(path)) {
-				await rm(temporaryPath, { force: true });
-				throw error;
-			}
-			await rm(temporaryPath, { force: true });
-		}
-		return path;
+		return writeCertificatesFile(certificates, directory, this._logService);
 	}
 
 	protected _getCertificatesDirectory(): string {
 		const owner = process.getuid?.().toString()
 			?? createHash('sha256').update(this._environmentService.userDataPath).digest('hex').slice(0, 12);
 		return join(this._environmentService.tmpDir.fsPath, `vscode-dev-container-${owner}`);
-	}
-
-	protected async _isSecureCacheFile(path: string): Promise<boolean> {
-		try {
-			const fileStat = await lstat(path);
-			return fileStat.isFile() && !fileStat.isSymbolicLink()
-				&& (!process.getuid || fileStat.uid === process.getuid());
-		} catch (error) {
-			const code = (error as NodeJS.ErrnoException).code;
-			if (code === 'ENOENT' || code === 'ENOTDIR') {
-				return false;
-			}
-			throw error;
-		}
-	}
-
-	protected _renameCertificateFile(from: string, to: string): Promise<void> {
-		return rename(from, to);
 	}
 
 	protected _reportOutput(connectionId: string, data: string): void {
@@ -958,6 +958,31 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	isDockerAvailable(): Promise<boolean> {
 		this._dockerAvailable ??= this._resolveDockerExecutable().then(executable => executable !== undefined);
 		return this._dockerAvailable;
+	}
+
+	async listDevContainers(token: CancellationToken): Promise<readonly IDiscoveredDevContainer[]> {
+		if (!await this.isDockerAvailable()) {
+			return [];
+		}
+		const result = await this._runDocker(['ps', '--all', '--no-trunc', '--format',
+			'{"id":{{json .ID}},"name":{{json .Names}},"workspaceFolder":{{json (.Label "devcontainer.local_folder")}},"legacyFolder":{{json (.Label "vsch.local.folder")}},"metadata":{{json (.Label "devcontainer.metadata")}}}',
+		], token);
+		if (result.code !== 0) {
+			throw new Error(localize('devContainerAgentHost.discoveryFailed', "Could not list Dev Containers (exit {0}): {1}", result.code, result.stderr.trim()));
+		}
+		const schema = vObj({ id: vString(), name: vString(), workspaceFolder: vString(), legacyFolder: vString(), metadata: vString() });
+		const containers: IDiscoveredDevContainer[] = [];
+		for (const line of result.stdout.split(/\r?\n/).filter(line => line.trim())) {
+			const container = schema.validateOrThrow(JSON.parse(line));
+			if (container.workspaceFolder || container.legacyFolder || container.metadata) {
+				containers.push({
+					id: container.id,
+					name: container.name,
+					workspaceFolder: container.workspaceFolder || container.legacyFolder || undefined,
+				});
+			}
+		}
+		return containers;
 	}
 
 	async stopContainer(source: string | IDevContainerSampleSource): Promise<boolean> {
@@ -1092,16 +1117,62 @@ export class DevContainerAgentHostMainService extends DevContainerAgentHostServi
 	protected override _useSystemCertificates(): boolean {
 		return this._configurationService.getValue<boolean>('http.systemCertificates') !== false;
 	}
+
+	protected override async _shouldForwardCertificates(token: CancellationToken): Promise<boolean> {
+		try {
+			const environment = await this._resolveShellEnvironment();
+			if (environment.VSCODE_DOCKER_HOST) {
+				return false;
+			}
+			// Docker resolves DOCKER_HOST before DOCKER_CONTEXT and the active context.
+			let host = environment.DOCKER_HOST;
+			if (!host) {
+				const result = await this._runDocker(['context', 'inspect', '--format', '{{.Endpoints.docker.Host}}'], token);
+				if (result.code !== 0 || !result.stdout.trim()) {
+					this._mainLogService.warn(`${LOG_PREFIX} Cannot determine whether Docker is local; not forwarding certificates`, result.stderr);
+					return false;
+				}
+				host = result.stdout.trim();
+			}
+			return host.startsWith('unix://') || host.startsWith('npipe://');
+		} catch (error) {
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			this._mainLogService.warn(`${LOG_PREFIX} Cannot determine whether Docker is local; not forwarding certificates`, getErrorMessage(error));
+			return false;
+		}
+	}
 }
 
 /** Standalone hosts inherit the environment of their SSH, tunnel, or CLI launcher. */
 export class RemoteDevContainerAgentHostService extends DevContainerAgentHostService {
+	constructor(
+		@ILogService private readonly _remoteLogService: ILogService,
+		@IProductService productService: IProductService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@INativeEnvironmentService private readonly _remoteEnvironmentService: INativeEnvironmentService,
+		@IRequestService private readonly _remoteRequestService: IRequestService,
+		@IGitHubService gitHubService: IGitHubService,
+	) {
+		super(_remoteLogService, productService, telemetryService, _remoteEnvironmentService, _remoteRequestService, gitHubService);
+	}
+
 	protected override _resolveUserShellEnvironment(): Promise<typeof process.env> {
 		return Promise.resolve(process.env);
 	}
 
-	protected override _useSystemCertificates(): boolean {
-		return true;
+	/**
+	 * Refreshes Copilot's shared bundle before each CLI run. Agent Host roots include its `NODE_EXTRA_CA_CERTS` file;
+	 * native roots are loaded once and client roots once per connection.
+	 */
+	protected override async _resolveCertificatesFile(): Promise<string | undefined> {
+		try {
+			return await writeUserDataCertificatesFile(await this._remoteRequestService.loadCertificates(), this._remoteEnvironmentService.userDataPath, this._remoteLogService);
+		} catch (error) {
+			this._remoteLogService.warn(`${LOG_PREFIX} Failed to configure CA certificates for the Dev Container CLI`, getErrorMessage(error));
+			return undefined;
+		}
 	}
 }
 

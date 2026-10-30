@@ -23,7 +23,7 @@ parameters:
     default: ""
   - name: timeoutInMinutes
     type: number
-    default: 300
+    default: 360
   - name: extractArtifactSteps
     type: stepList
     default: []
@@ -80,10 +80,7 @@ jobs:
       - ${{ each step in parameters.extractArtifactSteps }}:
         - ${{ step }}
 
-      - task: NodeTool@0
-        inputs:
-          versionSource: fromFile
-          versionFilePath: .nvmrc
+      - template: ./setup-node.yml@self
 
       - task: AzureKeyVault@2
         displayName: ${{ parameters.keyVaultDisplayName }}

@@ -112,8 +112,8 @@ export class AgentHostLocalTurns implements IAgentHostLocalTurns {
 	 * `seq` order so the caller can interleave them into that chat's SDK-derived
 	 * turns during restore.
 	 */
-	async loadForChat(session: string, chat: string): Promise<ILocalPersistedTurnRecord[]> {
-		return this._load(session, chat);
+	async loadForChat(session: string, chat: string, visibleTurnIds?: ReadonlySet<string>): Promise<ILocalPersistedTurnRecord[]> {
+		return this._load(session, chat, visibleTurnIds);
 	}
 
 	/** Note a local turn in memory only (used by fork seeding). */
@@ -140,9 +140,9 @@ export class AgentHostLocalTurns implements IAgentHostLocalTurns {
 		this._byChat.delete(chat);
 	}
 
-	private async _load(session: string, chat: string): Promise<ILocalPersistedTurnRecord[]> {
+	private async _load(session: string, chat: string, visibleTurnIds?: ReadonlySet<string>): Promise<ILocalPersistedTurnRecord[]> {
 		try {
-			const persisted = await this._chatRows.getPersistedTurns(URI.parse(session), URI.parse(chat));
+			const persisted = await this._chatRows.getPersistedTurns(URI.parse(session), URI.parse(chat), visibleTurnIds);
 			for (const record of persisted) {
 				this._seqBySession.set(session, Math.max(this._seqBySession.get(session) ?? 0, record.seq));
 				if (record.kind === 'local') {

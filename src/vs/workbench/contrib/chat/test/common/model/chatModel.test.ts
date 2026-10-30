@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { createTestArtifactRequestPresentation } from '../../../../../../platform/artifactIntegrations/test/common/artifactIntegrationTestUtils.js';
 import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
@@ -133,6 +134,24 @@ suite('ChatModel', () => {
 			[{ id: 'legacy', requestSource: undefined }, { id: 'merge', requestSource: 'agentMerge' }],
 			[{ id: 'legacy', requestSource: undefined }, { id: 'merge', requestSource: 'agentMerge' }],
 		]);
+	});
+
+	test('artifact action snapshots survive JSON and operation log roundtrips without changing prompt text', () => {
+		const presentation = createTestArtifactRequestPresentation();
+		const data: IExportableChatData = {
+			initialLocation: ChatAgentLocation.Chat, responderUsername: 'bot',
+			requests: [{
+				requestId: 'artifact-request', message: { text: 'Model-facing instructions', parts: [] }, variableData: { variables: [] },
+				response: [], isSystemInitiated: true, requestSource: 'artifactIntegration', artifactRequest: presentation,
+			}],
+		};
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, { value: data, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const operationLog = new ChatSessionOperationLog();
+		assert.deepStrictEqual([model.toJSON(), operationLog.read(operationLog.createInitial(model))].map(value => {
+			const restored = testDisposables.add(instantiationService.createInstance(ChatModel, { value, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const request = restored.getRequests()[0];
+			return { prompt: request.message.text, source: request.requestSource, presentation: request.artifactRequest };
+		}), Array(2).fill({ prompt: 'Model-facing instructions', source: 'artifactIntegration', presentation }));
 	});
 
 	test('backfills and persists legacy Agent Merge sources without reclassifying other requests', () => {
@@ -486,6 +505,27 @@ suite('ChatModel', () => {
 			markdown: 'Before after',
 			copyText: 'Before after',
 			persistedKinds: ['markdown', 'markdown'],
+		});
+	});
+
+	test('a progress message with the same id replaces its row and a removal drops it', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const text = 'hello';
+		const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+		const rows = () => request.response!.response.value.map(part => part.kind === 'progressMessage' ? `${part.id}:${part.content.value}` : part.kind);
+
+		model.acceptResponseProgress(request, { kind: 'progressMessage', id: 'activity', content: new MarkdownString('Loading') });
+		model.acceptResponseProgress(request, { kind: 'progressMessage', id: 'activity', content: new MarkdownString('Still loading') });
+		const replaced = rows();
+		model.acceptResponseProgress(request, { kind: 'progressMessage', id: 'other', content: new MarkdownString(), remove: true });
+		model.acceptResponseProgress(request, { kind: 'progressMessage', id: 'activity', content: new MarkdownString(), remove: true });
+		const removed = rows();
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Answer') });
+
+		assert.deepStrictEqual({ replaced, removed, final: rows() }, {
+			replaced: ['activity:Still loading'],
+			removed: [],
+			final: ['markdownContent'],
 		});
 	});
 
@@ -905,9 +945,10 @@ suite('ChatModel', () => {
 			assert.deepStrictEqual(response.value.map(part => part.kind === 'thinking' ? {
 				kind: part.kind,
 				value: part.value,
+				reasoningStartedAt: part.reasoningStartedAt,
 				reasoningDurationMs: part.reasoningDurationMs,
 			} : { kind: part.kind }), [
-				{ kind: 'thinking', value: ['First', ' thought'], reasoningDurationMs: 1500 },
+				{ kind: 'thinking', value: ['First', ' thought'], reasoningStartedAt: 1000, reasoningDurationMs: 1500 },
 				{ kind: 'markdownContent' },
 			]);
 		} finally {
@@ -926,7 +967,153 @@ suite('ChatModel', () => {
 			request.response?.complete();
 
 			const thinkingPart = request.response?.entireResponse.value.find(part => part.kind === 'thinking');
-			assert.strictEqual(thinkingPart?.kind === 'thinking' ? thinkingPart.reasoningDurationMs : undefined, 2300);
+			assert.deepStrictEqual(thinkingPart?.kind === 'thinking' ? { startedAt: thinkingPart.reasoningStartedAt, durationMs: thinkingPart.reasoningDurationMs } : undefined, { startedAt: 1000, durationMs: 2300 });
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('keeps the recorded timing of restored reasoning instead of timing the replay', () => {
+		const clock = sinon.useFakeTimers({ now: 9000 });
+		try {
+			const response = testDisposables.add(new Response([]));
+			response.updateContent({ kind: 'thinking', id: 'recorded', value: 'Recorded reasoning', reasoningStartedAt: 1000, reasoningDurationMs: 4200 }, false, true);
+			response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Between') }, false, true);
+			response.updateContent({ kind: 'thinking', id: 'untimed', value: 'Untimed reasoning' }, false, true);
+			clock.tick(800);
+			response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Done') }, false, true);
+			response.finalizeReasoningDuration();
+
+			assert.deepStrictEqual(response.value.flatMap(part => part.kind === 'thinking'
+				? [{ id: part.id, startedAt: part.reasoningStartedAt, durationMs: part.reasoningDurationMs }]
+				: []), [
+				{ id: 'recorded', startedAt: 1000, durationMs: 4200 },
+				{ id: 'untimed', startedAt: undefined, durationMs: undefined },
+			]);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('provider-owned reasoning stays untimed after reconnect while local providers retain measurement', () => {
+		const clock = sinon.useFakeTimers({ now: 900_000 });
+		try {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const request = model.addRequest({ text: 'Question', parts: [] }, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'remote', value: 'Restored', reasoningTimingSource: 'provider' }, false, true);
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'remote', value: ' continuation', reasoningTimingSource: 'provider' });
+			clock.tick(5000);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Remote answer') });
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'local', value: 'Local reasoning' });
+			clock.tick(2000);
+			request.response?.complete();
+			const restored = testDisposables.add(instantiationService.createInstance(ChatModel, { value: model.toJSON(), serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+
+			assert.deepStrictEqual(restored.getRequests()[0].response?.entireResponse.value.filter(part => part.kind === 'thinking'), [
+				{ kind: 'thinking', id: 'remote', value: 'Restored continuation', reasoningTimingSource: 'provider' },
+				{ kind: 'thinking', id: 'local', value: 'Local reasoning', reasoningStartedAt: 905_000, reasoningDurationMs: 2000 },
+			]);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('provider-owned timing accepts a late recorded zero without a client-clock fallback', () => {
+		const response = testDisposables.add(new Response([]));
+		response.updateContent({ kind: 'thinking', id: 'remote', value: 'Reasoning', reasoningTimingSource: 'provider' });
+		response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Answer') });
+		response.updateContent({ kind: 'thinking', id: 'remote', value: '', reasoningTimingSource: 'provider', reasoningDurationMs: 0 });
+		response.finalizeReasoningDuration();
+
+		assert.deepStrictEqual(response.value[0], { kind: 'thinking', id: 'remote', value: 'Reasoning', reasoningTimingSource: 'provider', reasoningDurationMs: 0 });
+	});
+
+	test('applies timing-only reasoning updates without replaying text or measuring a remote clock', () => {
+		const clock = sinon.useFakeTimers({ now: 900_000 });
+		try {
+			const response = testDisposables.add(new Response([]));
+			response.updateContent({ kind: 'thinking', id: 'reasoning', value: 'First', reasoningStartedAt: 1000 });
+			response.updateContent({ kind: 'thinking', id: 'reasoning', value: ' thought', reasoningStartedAt: 1000 });
+			const renderedPart = response.value[0];
+			clock.tick(5000);
+			response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Done') });
+			response.updateContent({ kind: 'thinking', id: 'reasoning', value: '', reasoningDurationMs: 45_000 });
+			response.finalizeReasoningDuration();
+
+			assert.deepStrictEqual({ parts: response.value, keepsRenderedPart: response.value[0] === renderedPart }, {
+				parts: [
+					{ kind: 'thinking', id: 'reasoning', value: 'First thought', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 },
+					{ kind: 'markdownContent', content: new MarkdownString('Done') },
+				],
+				keepsRenderedPart: true,
+			});
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('managed reasoning remains one run across notifications and SDK completion markers', () => {
+		const response = testDisposables.add(new Response([]));
+		response.updateContent({ kind: 'thinking', id: 'run', value: 'First', reasoningStartedAt: 1000 });
+		response.updateContent({ kind: 'systemNotification', content: new MarkdownString('Background work completed') });
+		response.updateContent({ kind: 'thinking', value: '' });
+		response.updateContent({ kind: 'thinking', id: 'run', value: 'Second', reasoningStartedAt: 1000 });
+		response.updateContent({ kind: 'thinking', id: 'run', value: [''], reasoningDurationMs: 5000 });
+		response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Between') });
+		response.updateContent({ kind: 'thinking', id: 'next', value: 'Next', reasoningStartedAt: 8000, reasoningDurationMs: 12_000 });
+
+		assert.deepStrictEqual(response.value, [
+			{ kind: 'thinking', id: 'run', value: 'FirstSecond', reasoningStartedAt: 1000, reasoningDurationMs: 5000 },
+			{ kind: 'systemNotification', content: new MarkdownString('Background work completed') },
+			{ kind: 'markdownContent', content: new MarkdownString('Between') },
+			{ kind: 'thinking', id: 'next', value: 'Next', reasoningStartedAt: 8000, reasoningDurationMs: 12_000 },
+		]);
+	});
+
+	test('keeps consecutive reasoning ids and zero durations distinct', () => {
+		const response = testDisposables.add(new Response([]));
+		response.updateContent({ kind: 'thinking', id: 'first', value: 'First', reasoningDurationMs: 45_000 });
+		response.updateContent({ kind: 'thinking', id: 'second', value: 'Second', reasoningDurationMs: 0 });
+		response.finalizeReasoningDuration();
+
+		assert.deepStrictEqual(response.value, [
+			{ kind: 'thinking', id: 'first', value: 'First', reasoningDurationMs: 45_000 },
+			{ kind: 'thinking', id: 'second', value: 'Second', reasoningDurationMs: 0 },
+		]);
+	});
+
+	test('recorded reasoning timing survives chat model serialization and restoration', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'hello', parts: [] }, { variables: [] }, 0);
+		model.acceptResponseProgress(request, { kind: 'thinking', id: 'reasoning', value: 'Working through it', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 });
+		request.response?.complete();
+		const restored = testDisposables.add(instantiationService.createInstance(ChatModel, { value: model.toJSON(), serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+
+		assert.deepStrictEqual(restored.getRequests()[0].response?.entireResponse.value, [
+			{ kind: 'thinking', id: 'reasoning', value: 'Working through it', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 },
+		]);
+	});
+
+	test('leaves tool calls replayed from history untimed', async () => {
+		const clock = sinon.useFakeTimers({ now: 9000 });
+		try {
+			const response = testDisposables.add(new Response([]));
+			const rebuilt = new ChatToolInvocation({ invocationMessage: 'Reading a.ts' }, { id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal }, 'rebuilt', undefined, {});
+			response.updateContent(rebuilt, false, true);
+			response.updateContent({ kind: 'externalToolInvocationUpdate', toolCallId: 'external', toolName: 'search', isComplete: true, invocationMessage: 'Searched' }, false, true);
+			response.updateContent({ kind: 'externalToolInvocationUpdate', toolCallId: 'live', toolName: 'search', isComplete: false, invocationMessage: 'Searching' });
+			clock.tick(700);
+			response.updateContent({ kind: 'externalToolInvocationUpdate', toolCallId: 'live', toolName: 'search', isComplete: true, invocationMessage: 'Searched' });
+			clock.tick(300);
+			await rebuilt.didExecuteTool(undefined);
+
+			assert.deepStrictEqual(response.value.flatMap(part => part.kind === 'toolInvocation'
+				? [{ toolCallId: part.toolCallId, startedAt: part.startedAt, completedAt: part.completedAt }]
+				: []), [
+				{ toolCallId: 'rebuilt', startedAt: undefined, completedAt: undefined },
+				{ toolCallId: 'external', startedAt: undefined, completedAt: undefined },
+				{ toolCallId: 'live', startedAt: 9000, completedAt: 9700 },
+			]);
 		} finally {
 			clock.restore();
 		}
@@ -3263,6 +3450,22 @@ suite('ChatModel - Pending Requests', () => {
 			isSystemInitiated: restored.isSystemInitiated,
 			systemInitiatedLabel: restored.systemInitiatedLabel,
 		}, provenance);
+	});
+
+	test('request versions fall back to 0 unless they are non-negative safe integers', () => {
+		const model = createModel();
+		const versionOf = (version: number | undefined) => new ChatRequestModel({
+			session: model,
+			message: { text: 'hello', parts: [] },
+			variableData: { variables: [] },
+			timestamp: 0,
+			version,
+		}).version;
+
+		assert.deepStrictEqual(
+			[undefined, 0, 2, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1].map(versionOf),
+			[0, 0, 2, 0, 0, 0, 0, 0]
+		);
 	});
 });
 

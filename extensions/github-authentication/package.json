@@ -21,7 +21,8 @@
     "authIssuers",
     "authProviderSpecific",
     "authSessionAccountIcon",
-    "authSessionExpiration"
+    "authSessionExpiration",
+    "notificationTelemetry"
   ],
   "activationEvents": [],
   "capabilities": {

@@ -102,7 +102,7 @@ export class RequestQueue extends Disposable {
 				: requests.filter(request => request.context.caller === context.caller).length >= limit(this._options.maximumCallerRequests) ? 'caller'
 					: undefined;
 		if (rejection) {
-			this._telemetry?.recordRejection(rejection);
+			this._telemetry?.recordRejection(rejection, context.domain);
 			return Promise.reject(new RequestError('Request capacity exceeded', 'overloaded'));
 		}
 

@@ -96,14 +96,14 @@ gh run download <RUN_ID> --pattern '*' --dir /dev/null 2>&1 || gh run view <RUN_
 
 # Download log artifacts for a specific failed job
 # Artifact naming convention: logs-<platform>-<arch>-<test-type>-<attempt>
-# Examples: logs-linux-x64-electron-1, logs-linux-x64-remote-1
-gh run download <RUN_ID> -n "logs-linux-x64-electron-1" -D /tmp/ci-logs
+# Examples: logs-linux-x64-electron-extension-host-1, logs-linux-x64-remote-smoke-1
+gh run download <RUN_ID> -n "logs-linux-x64-electron-extension-host-1" -D /tmp/ci-logs
 
 # Download crash dumps if available
-gh run download <RUN_ID> -n "crash-dump-linux-x64-electron-1" -D /tmp/ci-crashes
+gh run download <RUN_ID> -n "crash-dump-linux-x64-electron-extension-host-1" -D /tmp/ci-crashes
 ```
 
-> **Tip**: Use the test runner name from the failed check (e.g., "Linux / Electron" → `electron`, "Linux / Remote" → `remote`) and platform map ("Windows" → `windows-x64`, "Linux" → `linux-x64`, "macOS" → `macos-arm64`) to construct the artifact name.
+> **Tip**: The `<test-type>` is the `ARTIFACT_NAME` in the `env` of the failed job in `.github/workflows/pr-<linux|darwin|win32>-test.yml` (e.g., "Linux / Electron (extension host)" → `electron-extension-host`, "Linux / Remote (integration)" → `remote`, "macOS / Electron" → `electron`). Map the platform with "Windows" → `windows-x64`, "Linux" → `linux-x64`, "macOS" → `macos-arm64`.
 
 > **Warning**: Log artifacts may be empty if the test runner crashed before producing output (e.g., Electron download failure). In that case, fall back to **Option C**.
 
@@ -138,7 +138,7 @@ grep -n -E 'HTTPError|ECONNRESET|ETIMEDOUT|502|exit code|Process completed|node:
 
 Downloaded log artifacts typically contain:
 ```
-logs-linux-x64-electron-1/
+logs-linux-x64-electron-extension-host-1/
   main.log              # Main process log
   terminal.log          # Terminal/pty host log (key for run_in_terminal issues)
   window1/

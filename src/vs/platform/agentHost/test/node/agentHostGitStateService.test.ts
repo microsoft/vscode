@@ -34,6 +34,7 @@ import { AgentHostAuthenticationService, type IAgentHostAuthenticationService } 
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { AgentHostDiscardChangesOperationHandler } from '../../node/agentHostDiscardChangesOperationHandler.js';
+import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { AgentHostFileEditRevert } from '../../node/agentHostFileEditRevert.js';
 import { InProcessDiffComputeService } from './inProcessDiffComputeService.js';
 import { isAuthRequiredError, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
@@ -47,6 +48,7 @@ import { resolveAgentMergeOwningChat, resolveGitHubStateFolder } from '../../nod
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
 import { RepositoryRef } from '../../../github/common/client/types.js';
+import { GitHubRequestError } from '../../../github/common/githubTypes.js';
 import { IPullRequestsClient, ListPullRequestsOptions, PullRequestSummary } from '../../../github/common/core/pullRequests.js';
 import { TestSessionDatabase, createNoopChangesetService, createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
@@ -467,6 +469,7 @@ suite('AgentHostGitStateService', () => {
 			discardFileService,
 			new NullLogService(), h.stateManager,
 			createNoopChangesetService(),
+			new InProcessDiffComputeService(), disposables.add(new AgentHostFileEditCoordinator()),
 		);
 		const result = await handler.invoke({
 			channel,
@@ -1189,7 +1192,7 @@ suite('AgentHostGitStateService', () => {
 			mainFolder: h.service.getGitHubState(SESSION),
 			peerFolder: h.service.getGitHubState(peer),
 		}, {
-			artifacts: [{ chat: peer, type: SessionArtifactType.PullRequest, label: 'Feature PR', isArtifact: true, link: url, isGitHub: true }],
+			artifacts: [{ chat: peer, type: SessionArtifactType.PullRequest, label: 'Feature PR', isArtifact: true, link: url, isGitHub: true, origin: { chat: peer } }],
 			mainFolder: { owner: 'contoso', repo: 'main' },
 			peerFolder: {
 				owner: 'microsoft', repo: 'vscode',
@@ -1852,7 +1855,7 @@ suite('AgentHostGitStateService', () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const calls: { owner: string; repo: string; branch: string; headOwner: string | undefined }[] = [];
 			const query = new class extends mock<IPullRequestsClient>() {
-				override async list({ owner, name: repo }: RepositoryRef, _signal: AbortSignal, options?: ListPullRequestsOptions) {
+				override async list({ owner, repo }: RepositoryRef, _signal: AbortSignal, options?: ListPullRequestsOptions) {
 					const head = options?.query?.head;
 					assert.ok(head);
 					const separator = head.indexOf(':');
@@ -2136,6 +2139,33 @@ suite('AgentHostGitStateService', () => {
 			});
 		});
 	});
+
+	for (const autoAttachPullRequests of [false, true]) {
+		test(`returns a pull request lookup GitHub refused for single sign-on, with its authorization page (${autoAttachPullRequests ? 'automatic' : 'restricted'} association)`, async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const gitState: ISessionGitState = { branchName: 'local/pr-2', baseBranchName: 'main' };
+				const ssoAuthorizationUrl = 'https://github.com/orgs/microsoft/sso?authorization_request=abc';
+				const refusal = new GitHubRequestError('GitHub API request failed: GET repos/microsoft/vscode/pulls - 403 Forbidden - Resource protected by organization SAML enforcement.', 'authorization', 403, undefined, undefined, 'Forbidden', { ssoAuthorizationUrl });
+				const h = createHarness({
+					autoAttachPullRequests,
+					query: new class extends mock<IPullRequestsClient>() {
+						override async list(): Promise<never> { throw refusal; }
+					}(),
+				});
+				seedSession(h.stateManager, {
+					workingDirectory: WORKING_DIRECTORY,
+					gitState,
+					gitHubState: { owner: 'microsoft', repo: 'vscode' },
+					artifacts: [pullRequestArtifact(2)],
+				});
+				h.setGitResult(gitState);
+
+				assert.deepStrictEqual(await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY)), {
+					kind: 'authorization', message: refusal.message, ssoAuthorizationUrl,
+				});
+			});
+		});
+	}
 
 	test('reconciles an existing automatically discovered PR when the setting is disabled', async () => {
 		const gitState: ISessionGitState = { branchName: 'feature', baseBranchName: 'main' };

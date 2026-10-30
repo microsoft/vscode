@@ -49,10 +49,12 @@ class TestGitService implements IAgentHostGitService {
 	hasGitRoot() { return constObservable(undefined); }
 	async getRepositoryRoot(): Promise<URI | undefined> { return URI.file('/repo'); }
 	async getWorktreeRoots(): Promise<URI[]> { return []; }
+	async getWorktrees() { return []; }
 	async addWorktree(): Promise<void> { }
 	async copyWorktreeIncludeFiles(): Promise<void> { }
 	async symlinkWorktreeFolders(): Promise<readonly string[]> { return []; }
 	async addExistingWorktree(): Promise<void> { }
+	async isWorktreeRegistered(): Promise<boolean> { return true; }
 	async removeWorktree(): Promise<void> { }
 	async branchExists(): Promise<boolean> { return false; }
 	async createBranch(): Promise<void> { }
@@ -142,6 +144,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	refreshChangesetCatalog(session: string): void { this.calls.push(`refreshChangesets:${session}`); }
 	refreshBranchChangeset(session: string): void { this.calls.push(`refreshBranch:${session}`); }
 	refreshSessionChangeset(session: string): void { this.calls.push(`refreshSession:${session}`); }
+	refreshWorkingSetChangeset(): void { }
 	onWorkingDirectoryAvailable(_session: string): void { }
 	recomputeSubscribedChangesets(_session: string): void { }
 	async computeUncommittedChangeset(session: string): Promise<string> { this.calls.push(`computeUncommitted:${session}`); return `${session}/changeset/uncommitted`; }
@@ -153,6 +156,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	openTrackedTurnDatabase(): undefined { return undefined; }
 	openTrackedSessionDatabases() { return { sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }; }
 	onFileEditsDiscarded(): void { }
+	onFileEditsAccepted(): void { }
 	ensureChatChangesSummary(): void { }
 	refreshChatChangesSummary(): void { }
 }

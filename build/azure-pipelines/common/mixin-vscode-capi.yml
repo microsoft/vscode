@@ -8,6 +8,20 @@ steps:
     retryCountOnTaskFailure: 3
     displayName: Checkout microsoft/vscode-capi
 
+  # npm ci starts from a clean node_modules, so it is safe to retry; transient registry errors
+  # here (ENOTFOUND, ECONNRESET, E503, ETIMEDOUT) failed 8 main CI builds in 90 days.
+  - pwsh: |
+      $ErrorActionPreference = 'Stop'
+      Push-Location (Join-Path '$(Build.SourcesDirectory)' '.build/vscode-capi')
+      try {
+        npm ci
+        if ($LASTEXITCODE -ne 0) { throw "npm ci failed with exit code $LASTEXITCODE" }
+      } finally {
+        Pop-Location
+      }
+    retryCountOnTaskFailure: 2
+    displayName: Install vscode-capi dependencies
+
   - pwsh: |
       $ErrorActionPreference = 'Stop'
 
@@ -23,7 +37,6 @@ steps:
       Push-Location $CapiPath
 
       try {
-        Invoke-CheckedCommand { npm ci }
         $env:BUILD_SOURCESDIRECTORY = '$(Build.SourcesDirectory)'
         Invoke-CheckedCommand { npm run mixin_vscode }
       } finally {

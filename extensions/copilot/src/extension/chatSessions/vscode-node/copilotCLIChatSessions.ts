@@ -18,7 +18,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { isUri } from '../../../util/common/types';
-import { DeferredPromise, IntervalTimer, raceCancellation } from '../../../util/vs/base/common/async';
+import { DeferredPromise, IntervalTimer, Limiter, raceCancellation } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { isCancellationError } from '../../../util/vs/base/common/errors';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
@@ -44,10 +44,10 @@ import { getCopilotCLISessionDir } from '../copilotcli/node/cliHelpers';
 import { ICopilotCLIModels, ICopilotCLISDK } from '../copilotcli/node/copilotCli';
 import { CopilotCLIPromptResolver } from '../copilotcli/node/copilotcliPromptResolver';
 import { builtinSlashSCommands, CopilotCLICommand, copilotCLICommands, CopilotCLIQuotaExceededError, ICopilotCLISession } from '../copilotcli/node/copilotcliSession';
-import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../copilotcli/node/copilotcliSessionService';
+import { CHAT_SESSION_ITEM_MAX_PARALLELISM, ICopilotCLISessionItem, ICopilotCLISessionService } from '../copilotcli/node/copilotcliSessionService';
 import { buildMcpServerMappings } from '../copilotcli/node/mcpHandler';
 import { ICopilotCLISessionTracker } from '../copilotcli/vscode-node/copilotCLISessionTracker';
-import { ICopilotCLITerminalIntegration, TerminalOpenLocation } from './copilotCLITerminalIntegration';
+import { ICopilotCLITerminalIntegration } from './copilotCLITerminalIntegration';
 import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
 import { UNTRUSTED_FOLDER_MESSAGE } from './folderRepositoryManagerImpl';
 import { IPullRequestDetectionService } from './pullRequestDetectionService';
@@ -63,7 +63,6 @@ export interface ICopilotCLIChatSessionItemProvider extends IDisposable {
 	refreshSession(refreshOptions: { reason: 'update'; sessionId: string } | { reason: 'update'; sessionIds: string[] } | { reason: 'delete'; sessionId: string }): Promise<void>;
 }
 
-const OPEN_IN_COPILOT_CLI_COMMAND_ID = 'github.copilot.cli.openInCopilotCLI';
 const CHECK_FOR_STEERING_DELAY = 100; // ms
 
 const _invalidCopilotCLISessionIdsWithErrorMessage = new Map<string, string>();
@@ -102,35 +101,6 @@ function getSessionLoadFailureIssueInfo(invalidSessionMessage: string): { readon
 	return { issueBody, issueUrl };
 }
 
-/**
- * Resolves candidate session directories for a CLI terminal, ordered by
- * terminal affinity.
- *
- * Sessions whose owning terminal matches `terminal` are returned first so the
- * link provider's file-existence probing hits the correct session-state dir
- * before unrelated ones. Unrelated sessions are still included at the tail
- * because a new session may not have registered its terminal yet (session IDs
- * arrive later via MCP?).
- */
-export async function resolveSessionDirsForTerminal(
-	sessionTracker: ICopilotCLISessionTracker,
-	terminal: vscode.Terminal,
-): Promise<Uri[]> {
-	const activeIds = sessionTracker.getSessionIds();
-	const matching: Uri[] = [];
-	const rest: Uri[] = [];
-	for (const id of activeIds) {
-		const sessionTerminal = await sessionTracker.getTerminal(id);
-		const dir = Uri.file(getCopilotCLISessionDir(id));
-		if (sessionTerminal === terminal) {
-			matching.push(dir);
-		} else {
-			rest.push(dir);
-		}
-	}
-	return [...matching, ...rest];
-}
-
 export class CopilotCLIChatSessionContentProvider extends Disposable implements vscode.ChatSessionContentProvider, ICopilotCLIChatSessionItemProvider {
 	private readonly _onDidCommitChatSessionItem = this._register(new Emitter<{ original: vscode.ChatSessionItem; modified: vscode.ChatSessionItem }>());
 	public readonly onDidCommitChatSessionItem: Event<{ original: vscode.ChatSessionItem; modified: vscode.ChatSessionItem }> = this._onDidCommitChatSessionItem.event;
@@ -165,7 +135,8 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 			void this._metadataStore.refresh().catch(error => this.logService.error(error, 'Failed to refresh session metadata store during session list refresh'));
 			try {
 				const sessions = await this.sessionService.getAllSessions(CancellationToken.None);
-				const items = await Promise.all(sessions.map(async session => this.toChatSessionItem(session)));
+				const limiter = new Limiter<vscode.ChatSessionItem>(CHAT_SESSION_ITEM_MAX_PARALLELISM);
+				const items = await Promise.all(sessions.map(session => limiter.queue(() => this.toChatSessionItem(session))));
 
 				const count = items.length;
 				void this.commandExecutionService.executeCommand('setContext', 'github.copilot.chat.cliSessionsEmpty', count === 0);
@@ -1092,11 +1063,6 @@ export function registerCLIChatCommands(
 		return siblings.length > 0;
 	}
 
-	// Terminal integration setup: resolve session dirs for terminal links.
-	disposableStore.add(terminalIntegration);
-	terminalIntegration.setSessionDirResolver(terminal =>
-		resolveSessionDirsForTerminal(sessionTracker, terminal)
-	);
 	disposableStore.add(vscode.commands.registerCommand('github.copilot.cli.sessions.delete', async (sessionItem?: vscode.ChatSessionItem) => {
 		if (sessionItem?.resource) {
 			const id = SessionIdForCLI.parse(sessionItem.resource);
@@ -1208,22 +1174,6 @@ export function registerCLIChatCommands(
 		}
 	}));
 
-	const createCopilotCLITerminal = async (location: TerminalOpenLocation = 'editor', name?: string, cwd?: string): Promise<void> => {
-		// TODO@rebornix should be set by CLI
-		const terminalName = name || process.env.COPILOTCLI_TERMINAL_TITLE || l10n.t('Copilot CLI');
-		await terminalIntegration.openTerminal(terminalName, [], cwd, location);
-	};
-
-	disposableStore.add(vscode.commands.registerCommand('github.copilot.cli.newSession', async () => {
-		await createCopilotCLITerminal('editor', l10n.t('Copilot CLI'));
-	}));
-	disposableStore.add(vscode.commands.registerCommand('github.copilot.cli.newSessionToSide', async () => {
-		await createCopilotCLITerminal('editorBeside', l10n.t('Copilot CLI'));
-	}));
-	disposableStore.add(vscode.commands.registerCommand(OPEN_IN_COPILOT_CLI_COMMAND_ID, async (sourceControlContext?: unknown) => {
-		const rootUri = getSourceControlRootUri(sourceControlContext);
-		await createCopilotCLITerminal('editor', l10n.t('Copilot CLI'), rootUri?.fsPath);
-	}));
 	disposableStore.add(vscode.commands.registerCommand('github.copilot.cli.sessions.openWorktreeInNewWindow', async (sessionItem?: vscode.ChatSessionItem) => {
 		if (!sessionItem?.resource) {
 			return;
@@ -1269,44 +1219,6 @@ export function registerCLIChatCommands(
 		});
 
 		return folderUris && folderUris.length > 0 ? folderUris[0] : undefined;
-	}
-
-	function getSourceControlRootUri(sourceControlContext?: unknown): vscode.Uri | undefined {
-		if (!sourceControlContext) {
-			return undefined;
-		}
-
-		if (Array.isArray(sourceControlContext)) {
-			return getSourceControlRootUri(sourceControlContext[0]);
-		}
-
-		if (isUri(sourceControlContext)) {
-			return sourceControlContext;
-		}
-
-		if (typeof sourceControlContext !== 'object') {
-			return undefined;
-		}
-
-		const candidate = sourceControlContext as {
-			rootUri?: unknown;
-			sourceControl?: { rootUri?: unknown };
-			repository?: { rootUri?: unknown };
-		};
-
-		if (isUri(candidate.rootUri)) {
-			return candidate.rootUri;
-		}
-
-		if (isUri(candidate.sourceControl?.rootUri)) {
-			return candidate.sourceControl.rootUri;
-		}
-
-		if (isUri(candidate.repository?.rootUri)) {
-			return candidate.repository.rootUri;
-		}
-
-		return undefined;
 	}
 
 	// Command handler receives `{ inputState, sessionResource }` context args (new API)

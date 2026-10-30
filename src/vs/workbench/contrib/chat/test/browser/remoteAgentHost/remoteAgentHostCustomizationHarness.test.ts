@@ -22,6 +22,7 @@ import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { FileOperationError, FileOperationResult, IFileService, type IFileContent, type IFileStat, type IFileStatWithMetadata } from '../../../../../../platform/files/common/files.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -33,6 +34,10 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentCustomizationItemProvider } from '../../../browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
+
+const labelService = new class extends mock<ILabelService>() {
+	override getUriLabel(resource: URI): string { return resource.toString(); }
+}();
 
 class MockPromptsService extends BaseMockPromptsService {
 	override getDisabledPromptFiles(): ResourceSet {
@@ -271,7 +276,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [pluginA, pluginB]),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
@@ -289,7 +294,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 		provider.setDraftCustomAgents(observableValue<readonly AgentCustomization[]>('draftAgents', [{
 			type: CustomizationType.Agent,
@@ -330,7 +335,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [hostScoped]),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		connection.fireAction({
@@ -372,7 +377,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [hostPlugin]),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		connection.fireAction({
@@ -456,7 +461,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		connection.fireAction({
@@ -501,7 +506,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		connection.fireAction({
@@ -547,7 +552,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [pluginRef]),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		connection.fireAction({
@@ -585,7 +590,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [pluginRef]),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		let changeCount = 0;
@@ -667,7 +672,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		connection.fireAction({
@@ -721,7 +726,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			new class extends mock<IFileService>() { }(),
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [container]),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
@@ -777,7 +782,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [plugin]),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
@@ -837,7 +842,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		connection.fireAction({
@@ -889,7 +894,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 		connection.fireAction({
 			channel: agentHostSessionId,
@@ -950,7 +955,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		connection.fireAction({
@@ -1004,7 +1009,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [plugin]),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		const harnessId = 'remote-agent-host-test';

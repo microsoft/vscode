@@ -20,7 +20,7 @@ import { ChatInteractivity, IChat, ISession, ISessionCanvas, ISessionCanvasDefin
 import { SessionsNavigation } from '../../browser/sessionNavigation.js';
 import { getRecencyEntryKey, SessionsRecencyHistory } from '../../browser/sessionsRecencyHistory.js';
 import { Event } from '../../../../../base/common/event.js';
-import { ISendRequestOptions } from '../../common/sessionsProvider.js';
+import { INestedChatWorkspace, ISendRequestOptions } from '../../common/sessionsProvider.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -112,6 +112,7 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly onDidRenameSession = Event.None;
 	readonly onDidReplaceSession = Event.None;
 	readonly onDidMoveChat = Event.None;
+	readonly onDidInvokeChangesetOperation = Event.None;
 	readonly onDidDiscardNewSession = Event.None;
 	readonly onDidReplaceNewDraftSession = Event.None;
 	readonly onDidToggleSessionStickiness = Event.None;
@@ -198,6 +199,7 @@ class MockSessionStore implements ISessionsManagementService {
 	getSessionTypesForFolder(_folderUri: URI): IProviderSessionType[] { return []; }
 	getQuickChatSessionTypes(): IProviderSessionType[] { return []; }
 	isNewSessionTargetAvailable(_folderUri: URI, _options?: ICreateNewSessionOptions): boolean { return false; }
+	getNewSessionTarget() { return undefined; }
 	isQuickChatTargetAvailable(_options?: ICreateNewSessionOptions): boolean { return false; }
 	resolveWorkspace(_folderUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined { return undefined; }
 
@@ -245,6 +247,7 @@ class MockSessionStore implements ISessionsManagementService {
 	usesCombinedNewSessionConfigPicker(): boolean { return false; }
 	createQuickChat(_options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	createNewChatInSession(_session: ISession): Promise<IChat | undefined> { throw new Error('not implemented'); }
+	applyNestedChatWorkspace(_session: ISession, _chat: IChat, _workspace: INestedChatWorkspace, _prompt: string): Promise<void> { throw new Error('not implemented'); }
 	forkChatInSession(_session: ISession, _sourceChat: URI, _turnId: string): Promise<IChat> { throw new Error('not implemented'); }
 	createSideChatInSession(_session: ISession, _sourceChat: URI, _turnId: string, _selection?: ISideChatSelection): Promise<IChat> { throw new Error('not implemented'); }
 	discardNewSession(): void { throw new Error('not implemented'); }
@@ -270,6 +273,7 @@ class MockSessionStore implements ISessionsManagementService {
 	unarchiveChat(_session: ISession, _chat: IChat): Promise<void> { throw new Error('not implemented'); }
 	setSessionReadState(_session: ISession, _isRead: boolean): Promise<void> { throw new Error('not implemented'); }
 	markChatRead(_session: ISession, _chat: IChat): Promise<void> { throw new Error('not implemented'); }
+	markChatUnread(_session: ISession, _chat: IChat): Promise<void> { throw new Error('not implemented'); }
 	markChatsRead(_session: ISession, _chats: readonly IChat[]): Promise<void> { throw new Error('not implemented'); }
 	markRead(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	markUnread(_session: ISession): Promise<void> { throw new Error('not implemented'); }
@@ -279,7 +283,12 @@ class MockSessionStore implements ISessionsManagementService {
 	deleteChat(_session: ISession, _chatUri: URI): Promise<boolean> { throw new Error('not implemented'); }
 	renameChat(_session: ISession, _chatUri: URI, _title: string): Promise<void> { throw new Error('not implemented'); }
 	renameSession(_session: ISession, _title: string): Promise<void> { throw new Error('not implemented'); }
+	canMoveChat(_session: ISession, _chat: IChat): boolean { return false; }
+	moveChat(): Promise<void> { throw new Error('not implemented'); }
+	canMoveSessionUnder(_session: ISession): boolean { return false; }
+	moveSessionUnder(): Promise<void> { throw new Error('not implemented'); }
 	removeSessionArtifact(_session: ISession, _artifactId: string): Promise<void> { throw new Error('not implemented'); }
+	async acquireArtifactIntegration() { return undefined; }
 	listCanvases(_session: ISession, _chat: IChat): Promise<readonly ISessionCanvasDefinition[]> { throw new Error('not implemented'); }
 	openCanvas(_session: ISession, _chat: IChat, _canvas: ISessionCanvasDefinition, _instanceId: string): Promise<void> { throw new Error('not implemented'); }
 	closeCanvas(_session: ISession, _chat: IChat, _canvas: ISessionCanvas): Promise<void> { throw new Error('not implemented'); }

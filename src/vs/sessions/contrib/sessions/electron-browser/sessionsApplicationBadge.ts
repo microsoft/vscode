@@ -13,7 +13,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IApplicationBadge, INativeHostService } from '../../../../platform/native/common/native.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import product from '../../../../platform/product/common/product.js';
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -24,7 +23,7 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { BlockedSessions } from '../../blockedSessions/browser/blockedSessions.js';
 
 export const SESSIONS_APPLICATION_BADGE_SETTING = 'sessions.showApplicationBadge';
-export const SESSIONS_APPLICATION_BADGE_DEFAULT = product.quality !== 'stable';
+export const SESSIONS_APPLICATION_BADGE_DEFAULT = true;
 export const SESSIONS_APPLICATION_BADGE_OPTIONS_SETTING = 'sessions.applicationBadge';
 export const SESSIONS_APPLICATION_BADGE_OPTIONS_DEFAULT = {
 	inputNeeded: true,

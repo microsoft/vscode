@@ -6,17 +6,20 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChat, ISession, SessionStatus } from '../../common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { ISessionListModelChangeEvent, SessionListModelChangeKind, SessionsListModelService } from '../../browser/sessionsListModelService.js';
+import { ISessionListModelChangeEvent, SessionListModelChangeKind, SessionSortEntry, SessionsListModelService } from '../../browser/sessionsListModelService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 
-function createSession(id: string, status: SessionStatus = SessionStatus.Completed, opts?: { createdAt?: Date; updatedAt?: Date; createdBySession?: URI }): ISession {
+function createSession(id: string, status: SessionStatus = SessionStatus.Completed, opts?: { createdAt?: Date; updatedAt?: Date; createdBySession?: URI; isAutomation?: boolean }): ISession {
 	return {
 		sessionId: id,
 		resource: URI.parse(`session://${id}`),
@@ -28,6 +31,7 @@ function createSession(id: string, status: SessionStatus = SessionStatus.Complet
 		icon: Codicon.account,
 		createdAt: opts?.createdAt ?? new Date(),
 		workspace: observableValue(`workspace-${id}`, undefined),
+		isAutomation: observableValue(`isAutomation-${id}`, opts?.isAutomation ?? false),
 		createdBySession: constObservable(opts?.createdBySession ? { session: opts.createdBySession } : undefined),
 		title: observableValue(`title-${id}`, id),
 		updatedAt: observableValue(`updatedAt-${id}`, opts?.updatedAt ?? new Date()),
@@ -54,11 +58,14 @@ suite('SessionsListModelService', () => {
 	let sessions: ISession[];
 	let instantiationService: TestInstantiationService;
 	let storageService: InMemoryStorageService;
+	let configurationService: TestConfigurationService;
 
 	setup(() => {
 		instantiationService = disposables.add(new TestInstantiationService());
 		storageService = disposables.add(new InMemoryStorageService());
 		instantiationService.stub(IStorageService, storageService);
+		configurationService = new TestConfigurationService();
+		instantiationService.stub(IConfigurationService, configurationService);
 		sessionsChangedEmitter = disposables.add(new Emitter<ISessionsChangeEvent>());
 		sessionDeletedEmitter = disposables.add(new Emitter<ISession>());
 		sessions = [];
@@ -70,6 +77,20 @@ suite('SessionsListModelService', () => {
 			onDidDeleteSession: sessionDeletedEmitter.event,
 		});
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+	});
+
+	test('untitled sessions ignore the completed-state icon', () => {
+		const completedStateIcon = Codicon.gitPullRequest;
+		const readIcon = service.getStatusIcon(SessionStatus.Untitled, true, false, completedStateIcon);
+		const unreadIcon = service.getStatusIcon(SessionStatus.Untitled, false, false, completedStateIcon);
+
+		assert.deepStrictEqual({
+			read: { id: readIcon.id, color: readIcon.color?.id },
+			unread: { id: unreadIcon.id, color: unreadIcon.color?.id },
+		}, {
+			read: { id: Codicon.circleSmallFilled.id, color: 'agentSessionReadIndicator.foreground' },
+			unread: { id: Codicon.circleFilled.id, color: 'textLink.foreground' },
+		});
 	});
 
 	test('unread state takes precedence over the completed-state icon', () => {
@@ -172,6 +193,140 @@ suite('SessionsListModelService', () => {
 		service.unpinSessions([s1, s2]);
 
 		assert.strictEqual(changeCount, 0);
+	});
+
+	// -- Automation sessions --
+
+	test('lists automation sessions only while they are shown and persists the shown state', () => {
+		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
+		const otherAutomation = createSession('other-automation', SessionStatus.Completed, { isAutomation: true });
+		const regular = createSession('regular');
+		const events: ISessionListModelChangeEvent[] = [];
+		disposables.add(service.onDidChange(e => events.push(e)));
+		const listed = () => [automation, otherAutomation, regular].filter(session => service.isSessionListed(session)).map(session => session.sessionId);
+		const stored = () => storageService.get('sessionsListControl.shownAutomationSessions', StorageScope.PROFILE);
+
+		const initial = listed();
+		service.showAutomationSessions([automation, automation]);
+		service.showAutomationSessions([automation]);
+		const shown = { listed: listed(), stored: stored() };
+		service.hideAutomationSessions([automation, otherAutomation]);
+
+		assert.deepStrictEqual({ initial, shown, hidden: { listed: listed(), stored: stored() }, events }, {
+			initial: ['regular'],
+			shown: { listed: ['automation', 'regular'], stored: JSON.stringify(['automation']) },
+			hidden: { listed: ['regular'], stored: undefined },
+			events: [
+				{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] },
+				{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] },
+			],
+		});
+	});
+
+	test('tracks automation provenance and the shown state through the reader', () => {
+		const isAutomation = observableValue('isAutomation', false);
+		const session: ISession = { ...createSession('session'), isAutomation };
+		const states: boolean[] = [];
+		disposables.add(autorun(reader => { states.push(service.isSessionListed(session, reader)); }));
+
+		isAutomation.set(true, undefined);
+		service.showAutomationSessions([session]);
+		service.hideAutomationSessions([session]);
+
+		assert.deepStrictEqual(states, [true, false, true, false]);
+	});
+
+	test('keeps a shown automation session across eviction and reconstruction until it is deleted', () => {
+		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
+		service.showAutomationSessions([automation]);
+		sessionsChangedEmitter.fire({ added: [], removed: [automation], changed: [] });
+		const afterEviction = service.isSessionListed(automation);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		const afterReconstruction = service.isSessionListed(automation);
+		const events: ISessionListModelChangeEvent[] = [];
+		disposables.add(service.onDidChange(e => events.push(e)));
+
+		sessionDeletedEmitter.fire(automation);
+
+		assert.deepStrictEqual({
+			afterEviction,
+			afterReconstruction,
+			afterDeletion: service.isSessionListed(automation),
+			stored: storageService.get('sessionsListControl.shownAutomationSessions', StorageScope.PROFILE),
+			events,
+		}, {
+			afterEviction: true,
+			afterReconstruction: true,
+			afterDeletion: false,
+			stored: undefined,
+			events: [{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] }],
+		});
+	});
+
+	test('lists every automation session the user did not hide when the setting is always', () => {
+		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
+		sessions = [automation, createSession('regular')];
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const setMode = (mode: AutomationSessionsListMode) => {
+			configurationService.setUserConfiguration(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, mode);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: key => key === SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING,
+				affectedKeys: new Set([SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]),
+				change: { keys: [SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING], overrides: [] },
+				source: ConfigurationTarget.USER,
+			});
+		};
+		const events: ISessionListModelChangeEvent[] = [];
+		disposables.add(service.onDidChange(e => events.push(e)));
+		const listed: boolean[] = [service.isSessionListed(automation)];
+
+		setMode(AutomationSessionsListMode.Always);
+		listed.push(service.isSessionListed(automation));
+		service.hideAutomationSessions([automation]);
+		listed.push(service.isSessionListed(automation));
+		setMode(AutomationSessionsListMode.Never);
+		listed.push(service.isSessionListed(automation));
+		service.showAutomationSessions([automation]);
+		listed.push(service.isSessionListed(automation));
+		setMode(AutomationSessionsListMode.Always);
+		listed.push(service.isSessionListed(automation));
+
+		const change = { changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] };
+		assert.deepStrictEqual({ listed, events }, {
+			listed: [false, true, false, false, true, true],
+			events: [change, change, change],
+		});
+	});
+
+	test('a message does not show an automation session the user hid, across reloads, until the user shows it again', () => {
+		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
+		const reload = () => {
+			service.dispose();
+			service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		};
+		const stored = () => storageService.get('sessionsListControl.hiddenAutomationSessions', StorageScope.PROFILE);
+
+		service.showRepliedAutomationSession(automation);
+		const afterReply = service.isSessionListed(automation);
+		service.hideAutomationSessions([automation]);
+		reload();
+		service.showRepliedAutomationSession(automation);
+		const afterHiddenReply = { listed: service.isSessionListed(automation), stored: stored() };
+		service.showAutomationSessions([automation]);
+		service.hideAutomationSessions([automation]);
+		service.showAutomationSessions([automation]);
+		reload();
+		const afterExplicitShow = { listed: service.isSessionListed(automation), stored: stored() };
+		service.hideAutomationSessions([automation]);
+		sessionDeletedEmitter.fire(automation);
+
+		assert.deepStrictEqual({ afterReply, afterHiddenReply, afterExplicitShow, afterDeletion: stored() }, {
+			afterReply: true,
+			afterHiddenReply: { listed: false, stored: JSON.stringify(['automation']) },
+			afterExplicitShow: { listed: true, stored: undefined },
+			afterDeletion: undefined,
+		});
 	});
 
 	// -- onDidChange --
@@ -559,6 +714,19 @@ suite('SessionsListModelService', () => {
 
 	// -- Storage persistence --
 
+	test('persists independent comparison sort keys without changing participant timestamps', () => {
+		const comparison: SessionSortEntry = { sessionId: 'group:comparison', createdAt: new Date(100), updatedAt: constObservable(new Date(200)) };
+		service.applySortChanges('created', new Map([[comparison.sessionId, 300]]), []);
+		service.applySortChanges('updated', new Map([[comparison.sessionId, 400]]), []);
+		const restored = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual({
+			created: restored.getSortKey(comparison, 'created'),
+			updated: restored.getSortKey(comparison, 'updated'),
+			naturalCreated: restored.getNaturalSortKey(comparison, 'created'),
+			naturalUpdated: restored.getNaturalSortKey(comparison, 'updated'),
+		}, { created: 300, updated: 400, naturalCreated: 100, naturalUpdated: 200 });
+	});
+
 	test('state is loaded from storage on construction', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 
@@ -567,6 +735,7 @@ suite('SessionsListModelService', () => {
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
 
@@ -580,6 +749,7 @@ suite('SessionsListModelService', () => {
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
 
@@ -594,6 +764,7 @@ suite('SessionsListModelService', () => {
 		storageService.store('sessionsListControl.sortOverrides', 'not-valid-json{', StorageScope.PROFILE, StorageTarget.USER);
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ISessionsManagementService, {
 			...mock<ISessionsManagementService>(),
 			getSessions: () => [createdSession, creator],
@@ -611,6 +782,21 @@ suite('SessionsListModelService', () => {
 			created: true,
 			updated: true,
 		});
+	});
+
+	test('removes the retired list-owned nested chat order on construction, which a second construction leaves removed', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store('sessionsListControl.chatOrder', JSON.stringify({ created: { s1: ['chat://a', 'chat://b'] }, updated: {} }), StorageScope.PROFILE, StorageTarget.USER);
+		const createService = () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IStorageService, storageService);
+			instantiationService.stub(IConfigurationService, new TestConfigurationService());
+			instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
+			disposables.add(instantiationService.createInstance(SessionsListModelService));
+			return storageService.get('sessionsListControl.chatOrder', StorageScope.PROFILE);
+		};
+
+		assert.deepStrictEqual([createService(), createService()], [undefined, undefined]);
 	});
 
 	// -- Legacy read-state migration --
@@ -631,6 +817,7 @@ suite('SessionsListModelService', () => {
 			const unreadMarks: string[] = [];
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IStorageService, storage);
+			instantiationService.stub(IConfigurationService, new TestConfigurationService());
 			instantiationService.stub(ISessionsManagementService, {
 				...mock<ISessionsManagementService>(),
 				getSessions: () => [],
@@ -689,6 +876,7 @@ suite('SessionsListModelService', () => {
 			const makeService = () => {
 				const instantiationService = disposables.add(new TestInstantiationService());
 				instantiationService.stub(IStorageService, storage);
+				instantiationService.stub(IConfigurationService, new TestConfigurationService());
 				instantiationService.stub(ISessionsManagementService, {
 					...mock<ISessionsManagementService>(),
 					getSessions: () => [],

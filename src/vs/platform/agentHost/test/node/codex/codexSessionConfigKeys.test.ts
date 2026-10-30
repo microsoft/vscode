@@ -44,6 +44,7 @@ function createAgent(disposables: Pick<DisposableStore, 'add'>): CodexAgent {
 	instantiationService.stub(IAgentConfigurationService, {
 		_serviceBrand: undefined,
 		onDidRootConfigChange: Event.None,
+		onDidChatConfigChange: Event.None,
 		getRootValue: () => undefined,
 	});
 	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());

@@ -144,6 +144,29 @@ suite('KeybindingsEditing', () => {
 		return assert.deepStrictEqual(await getUserKeybindings(), expected);
 	});
 
+	test('add a keybinding preserves command arguments and the system-wide flag', async () => {
+		const expected: IUserFriendlyKeybinding[] = [{
+			key: 'ctrl+cmd+a',
+			command: 'workbench.action.openAgentsWindow',
+			args: { source: 'keyboardShortcut' },
+			systemWide: true,
+		}];
+		const keybinding = new ResolvedKeybindingItem(
+			undefined,
+			'workbench.action.openAgentsWindow',
+			{ source: 'keyboardShortcut' },
+			undefined,
+			false,
+			null,
+			false,
+			true,
+		);
+
+		await testObject.addKeybinding(keybinding, 'ctrl+cmd+a', undefined);
+
+		assert.deepStrictEqual(await getUserKeybindings(), expected);
+	});
+
 	test('add a new default keybinding', async () => {
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }];
 		await testObject.addKeybinding(aResolvedKeybindingItem({ command: 'a' }), 'alt+c', undefined);

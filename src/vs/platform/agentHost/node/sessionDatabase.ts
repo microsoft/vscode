@@ -6,10 +6,11 @@
 import * as fs from 'fs';
 import { Sequencer, SequencerByKey } from '../../../base/common/async.js';
 import type { Database, RunResult } from '@vscode/sqlite3';
-import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionRowsWatermark, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord } from '../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionRowsWatermark, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord, type StoredAssistantResponsePart } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
-import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type Message } from '../common/state/sessionState.js';
+import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, ResponsePartKind, type Message } from '../common/state/sessionState.js';
+import { configureSqliteJournal } from './agentHostSqliteJournal.js';
 
 /**
  * Turn ids kept for older builds on behalf of other chats, read from the persisted metadata inside
@@ -260,7 +261,40 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			PRIMARY KEY (tool_call_id, ordinal)
 		)`,
 	},
+	{
+		version: 17,
+		sql: `CREATE TABLE IF NOT EXISTS reasoning_timing (
+			response_id TEXT PRIMARY KEY NOT NULL,
+			turn_id      TEXT NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+			started_at   TEXT NOT NULL,
+			duration     INTEGER NOT NULL CHECK(duration >= 0)
+		)`,
+	},
+	{
+		version: 18,
+		sql: `CREATE TABLE IF NOT EXISTS assistant_response_parts (
+			response_id TEXT PRIMARY KEY NOT NULL,
+			turn_id      TEXT NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+			parts        TEXT NOT NULL
+		)`,
+	},
 ];
+
+function isStoredAssistantResponsePart(part: unknown): part is StoredAssistantResponsePart {
+	if (!part || typeof part !== 'object' || !('kind' in part)) {
+		return false;
+	}
+	if (part.kind === ResponsePartKind.ToolCall) {
+		return 'toolCallId' in part && typeof part.toolCallId === 'string';
+	}
+	if ((part.kind !== ResponsePartKind.Markdown && part.kind !== ResponsePartKind.Reasoning)
+		|| !('id' in part) || typeof part.id !== 'string' || !('content' in part) || typeof part.content !== 'string') {
+		return false;
+	}
+	return part.kind === ResponsePartKind.Markdown
+		|| ((!('startedAt' in part) || part.startedAt === undefined || (typeof part.startedAt === 'string' && Number.isFinite(Date.parse(part.startedAt))))
+			&& (!('duration' in part) || part.duration === undefined || (typeof part.duration === 'number' && Number.isSafeInteger(part.duration) && part.duration >= 0)));
+}
 
 // ---- Promise wrappers around callback-based @vscode/sqlite3 API -----------
 
@@ -622,6 +656,7 @@ export class SessionDatabase implements ISessionDatabase {
 				await fs.promises.mkdir(dirname(this._path), { recursive: true });
 				const db = await dbOpen(this._path);
 				try {
+					await configureSqliteJournal(db, this._path);
 					await runMigrations(db, this._migrations);
 				} catch (err) {
 					await dbClose(db);
@@ -760,6 +795,37 @@ export class SessionDatabase implements ISessionDatabase {
 			}
 			return result;
 		});
+	}
+
+	setAssistantResponseParts(turnId: string, responseId: string, parts: readonly StoredAssistantResponsePart[]): Promise<void> {
+		const valid = parts.every(isStoredAssistantResponsePart);
+		const serialized = JSON.stringify(parts);
+		return this._mutate(async db => {
+			if (!valid) {
+				throw new Error('Invalid assistant response parts');
+			}
+			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [turnId]);
+			await dbRun(db, 'INSERT OR REPLACE INTO assistant_response_parts (response_id, turn_id, parts) VALUES (?, ?, ?)',
+				[responseId, turnId, serialized]);
+		});
+	}
+
+	async getAssistantResponseParts(): Promise<Map<string, readonly StoredAssistantResponsePart[]>> {
+		await this.whenIdle();
+		const db = await this._ensureDb();
+		const rows = await dbAll(db, 'SELECT response_id, parts FROM assistant_response_parts', []);
+		const result = new Map<string, readonly StoredAssistantResponsePart[]>();
+		for (const row of rows) {
+			if (typeof row.response_id !== 'string' || typeof row.parts !== 'string') {
+				throw new Error('Invalid persisted assistant response parts');
+			}
+			const parts: unknown = JSON.parse(row.parts);
+			if (!Array.isArray(parts) || !parts.every(isStoredAssistantResponsePart)) {
+				throw new Error(`Invalid persisted assistant response parts for ${row.response_id}`);
+			}
+			result.set(row.response_id, parts);
+		}
+		return result;
 	}
 
 	setTurnDelegation(turnId: string, delegation: string): Promise<void> {
@@ -962,6 +1028,21 @@ export class SessionDatabase implements ISessionDatabase {
 		});
 	}
 
+	deleteProviderTurns(providerTurnIds: readonly string[], afterHostTurnId?: string): Promise<void> {
+		return this._mutateMetadataAndTurnUsage(async db => {
+			const foreign = await this._mayHaveForeignTurns(db);
+			await dbRun(db,
+				`DELETE FROM turns
+					WHERE (id IN (SELECT value FROM json_each(?1)) OR event_id IN (SELECT value FROM json_each(?1))
+						OR (rowid > (SELECT rowid FROM turns WHERE id = ?2${andOwnTurn('id', foreign)})
+							AND event_id = (SELECT event_id FROM turns WHERE id = ?2${andOwnTurn('id', foreign)})))
+						AND id NOT IN (SELECT turn_id FROM local_turns)${andOwnTurn('id', foreign)}`,
+				[JSON.stringify(providerTurnIds), afterHostTurnId ?? null],
+			);
+			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
+		});
+	}
+
 	// ---- Host-persisted turns -------------------------------------------
 
 	insertPersistedTurn(record: IPersistedTurnRecord): Promise<void> {
@@ -1007,7 +1088,7 @@ export class SessionDatabase implements ISessionDatabase {
 		return this._track(() => this._fileEditSequencer.queue(edit.filePath, () => this._queueMutation(db => insertFileEdit(db, edit))));
 	}
 
-	storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: () => Promise<void> | void): Promise<void> {
+	storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: (readContent: ISessionDatabase['readFileEditContent']) => Promise<void> | void): Promise<void> {
 		if (edits.length === 0) {
 			return Promise.resolve();
 		}
@@ -1019,7 +1100,7 @@ export class SessionDatabase implements ISessionDatabase {
 			for (const edit of edits) {
 				await insertFileEdit(db, edit);
 			}
-			await beforeCommit?.();
+			await beforeCommit?.((toolCallId, path) => this._readFileEditContent(db, toolCallId, path));
 		})));
 	}
 
@@ -1070,13 +1151,15 @@ export class SessionDatabase implements ISessionDatabase {
 
 	async getFileEditsByTurn(turnId: string): Promise<IFileEditRecord[]> {
 		const db = await this._ensureDb();
+		const foreign = await this._mayHaveForeignTurns(db);
 		const rows = await dbAll(
 			db,
 			`SELECT turn_id, tool_call_id, file_path, edit_type, original_path, added_lines, removed_lines
 				FROM file_edits
-				WHERE turn_id = COALESCE(
-					(SELECT id FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1),
-					?1
+				WHERE turn_id IN (
+					SELECT id FROM turns WHERE (id = ?1 OR (event_id = ?1 AND NOT EXISTS (
+						SELECT 1 FROM turns WHERE id = ?1${andOwnTurn('id', foreign)}
+					)))${andOwnTurn('id', foreign)}
 				)
 				ORDER BY rowid`,
 			[turnId],
@@ -1093,23 +1176,24 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	async readFileEditContent(toolCallId: string, filePath: string): Promise<IFileEditContent | undefined> {
-		return this._fileEditSequencer.queue(filePath, async () => {
-			const db = await this._ensureDb();
-			const row = await dbGet(
-				db,
-				`SELECT before_content, after_content
-					FROM file_edits
-					WHERE tool_call_id = ? AND file_path = ?`,
-				[toolCallId, filePath],
-			);
-			if (!row) {
-				return undefined;
-			}
-			return {
-				beforeContent: row.before_content ? toUint8Array(row.before_content) : undefined,
-				afterContent: row.after_content ? toUint8Array(row.after_content) : undefined,
-			};
-		});
+		return this._fileEditSequencer.queue(filePath, async () => this._readFileEditContent(await this._ensureDb(), toolCallId, filePath));
+	}
+
+	private async _readFileEditContent(db: Database, toolCallId: string, filePath: string): Promise<IFileEditContent | undefined> {
+		const row = await dbGet(
+			db,
+			`SELECT before_content, after_content
+				FROM file_edits
+				WHERE tool_call_id = ? AND file_path = ?`,
+			[toolCallId, filePath],
+		);
+		if (!row) {
+			return undefined;
+		}
+		return {
+			beforeContent: row.before_content ? toUint8Array(row.before_content) : undefined,
+			afterContent: row.after_content ? toUint8Array(row.after_content) : undefined,
+		};
 	}
 
 	// ---- Terminal outputs -----------------------------------------------
@@ -1145,6 +1229,24 @@ export class SessionDatabase implements ISessionDatabase {
 		return this._queueTurnData(async db => {
 			const row = await dbGet(db, 'SELECT length(output) AS size FROM terminal_outputs WHERE tool_call_id = ?', [toolCallId]);
 			return row?.size as number | undefined ?? undefined;
+		});
+	}
+
+	getTerminalOutputSizes(toolCallIds: readonly string[]): Promise<Map<string, number>> {
+		return this._queueTurnData(async db => {
+			const result = new Map<string, number>();
+			if (toolCallIds.length === 0) {
+				return result;
+			}
+			// Bind the ids as one JSON array so large sessions stay within SQLite's bound-parameter limit.
+			const rows = await dbAll(db,
+				'SELECT tool_call_id, length(output) AS size FROM terminal_outputs WHERE tool_call_id IN (SELECT value FROM json_each(?))',
+				[JSON.stringify(toolCallIds)],
+			);
+			for (const row of rows) {
+				result.set(row.tool_call_id as string, row.size as number);
+			}
+			return result;
 		});
 	}
 
@@ -1587,6 +1689,8 @@ export class SessionDatabase implements ISessionDatabase {
 			// or the forked session would restore with no gauge and zero cost.
 			for (const [oldId, newId] of mapping) {
 				await dbRun(db, 'UPDATE turn_usage SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+				await dbRun(db, 'UPDATE reasoning_timing SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+				await dbRun(db, 'UPDATE assistant_response_parts SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE turn_delegation SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE turn_workspace_transition SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 			}

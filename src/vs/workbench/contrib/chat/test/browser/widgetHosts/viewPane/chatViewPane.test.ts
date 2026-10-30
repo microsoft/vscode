@@ -10,7 +10,9 @@ import { Event } from '../../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
 import { MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { AgentHostClaudeAgentEnabledSettingId } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { AccountPolicyGateState } from '../../../../../../services/policies/common/accountPolicyService.js';
@@ -27,13 +29,24 @@ import { IChatModel } from '../../../../common/model/chatModel.js';
 suite('ChatViewPane managed permission rules', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const policyKey of ['permissions.deny', 'permissions.disableBypassPermissionsMode', 'permissions.defaultMode', 'sandbox.enabled', COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]) {
+	for (const [policyKey, policyValue, required] of [
+		['permissions.deny', '["Shell"]', true],
+		['permissions.deny', '[]', false],
+		['permissions.ask', '["Shell"]', false],
+		['permissions.allow', '[]', false],
+		['permissions.disableBypassPermissionsMode', 'disable', false],
+		['permissions.defaultMode', 'manual', false],
+		['sandbox.enabled', true, true],
+		[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, false, true],
+	] as const) {
 		for (const result of ['missing', 'error'] as const) {
-			test(`${policyKey} waits for policy and rejects ${result} Copilot without a Local fallback`, async () => {
+			test(`${policyKey}=${policyValue} waits for policy and ${required ? 'prohibits' : 'preserves'} Local with ${result} Copilot`, async () => {
 				const ready = new DeferredPromise<void>();
 				let rules: string | boolean | undefined = undefined;
 				const selected: string[] = [];
 				const errors: string[] = [];
+				const localModel = { object: upcastPartial<IChatModel>({}), dispose: () => { } };
+				let localStarts = 0;
 				const pane: { acquireDefaultNewSession(token: CancellationToken): Promise<{ modelRef?: IChatModelReference }> } = Object.assign(Object.create(ChatViewPane.prototype), {
 					accountPolicyGateService: { gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: () => ready.p },
 					managedSettingsService: new class extends NullManagedSettingsService {
@@ -48,7 +61,7 @@ suite('ChatViewPane managed permission rules', () => {
 					logService: new NullLogService(),
 					notificationService: { error: (message: string) => errors.push(message) },
 					chatService: {
-						startNewLocalSession: () => assert.fail('Local fallback is not allowed'),
+						startNewLocalSession: () => { localStarts++; return localModel; },
 						acquireOrLoadSession: async (resource: URI): Promise<IChatModelReference | undefined> => {
 							selected.push(getChatSessionType(resource));
 							if (result === 'error') {
@@ -60,11 +73,15 @@ suite('ChatViewPane managed permission rules', () => {
 				});
 				const pending = pane.acquireDefaultNewSession(CancellationToken.None);
 				const before = [...selected];
-				rules = policyKey === COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY ? false : policyKey === 'sandbox.enabled' ? true : policyKey === 'permissions.defaultMode' ? 'manual' : policyKey === 'permissions.disableBypassPermissionsMode' ? 'disable' : '[]';
+				rules = policyValue;
 				ready.complete();
-				await assert.rejects(pending);
-				assert.deepStrictEqual({ before, selected, explained: errors.some(error => error.includes('organization requires the new Copilot experience')) }, {
-					before: [], selected: [SessionType.AgentHostCopilot], explained: true,
+				if (required) {
+					await assert.rejects(pending);
+				} else {
+					assert.strictEqual((await pending).modelRef, localModel);
+				}
+				assert.deepStrictEqual({ before, selected, localStarts, explained: errors.some(error => error.includes('organization requires the new Copilot experience')) }, {
+					before: [], selected: required ? [SessionType.AgentHostCopilot] : [], localStarts: required ? 0 : 1, explained: required,
 				});
 			});
 		}
@@ -152,5 +169,50 @@ suite('ChatViewPane chat open diagnostics', () => {
 		const { pane, events } = createPane({ restored: false, acquired: chat });
 		await pane.loadSession(chat);
 		assert.deepStrictEqual(summarize(events), []);
+	});
+});
+
+suite('ChatViewPane restored chat with a harness disabled by policy', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function restore(sessionResource: URI, hasRequests: boolean, claudeDisabled: boolean) {
+		const configurationService = new TestConfigurationService();
+		const inspect = configurationService.inspect.bind(configurationService);
+		configurationService.inspect = <T>(key: string) => {
+			const value = inspect<T>(key);
+			return claudeDisabled && key === AgentHostClaudeAgentEnabledSettingId ? { ...value, policyValue: false as T } : value;
+		};
+		let disposed = false;
+		const pane: { acquireTransferredOrPersistedSession(token: CancellationToken, debugOwner: string): Promise<{ modelRef?: IChatModelReference }> } = Object.assign(Object.create(ChatViewPane.prototype), {
+			viewState: { sessionResource },
+			managedSettingsService: new NullManagedSettingsService(),
+			configurationService,
+			workspaceContextService: new TestContextService(),
+			storageService: store.add(new TestStorageService()),
+			chatSessionsService: new MockChatSessionsService(),
+			agentHostEnablementService: { enabled: constObservable(true), managedSandboxEnforced: constObservable(false) },
+			chatService: {
+				transferredSessionResource: undefined,
+				acquireOrLoadSession: async (resource: URI): Promise<IChatModelReference> => ({ object: upcastPartial<IChatModel>({ sessionResource: resource, hasRequests }), dispose: () => { disposed = true; } }),
+			},
+		});
+		const { modelRef } = await pane.acquireTransferredOrPersistedSession(CancellationToken.None, 'test');
+		return { restored: !!modelRef, disposed };
+	}
+
+	test('skips only an empty draft of the disabled harness', async () => {
+		const draft = URI.from({ scheme: SessionType.AgentHostClaude, path: '/untitled-abc' });
+		const saved = URI.from({ scheme: SessionType.AgentHostClaude, path: '/abc' });
+		assert.deepStrictEqual({
+			emptyDraft: await restore(draft, false, true),
+			draftWithRequests: await restore(draft, true, true),
+			savedChat: await restore(saved, false, true),
+			allowedDraft: await restore(draft, false, false),
+		}, {
+			emptyDraft: { restored: false, disposed: true },
+			draftWithRequests: { restored: true, disposed: false },
+			savedChat: { restored: true, disposed: false },
+			allowedDraft: { restored: true, disposed: false },
+		});
 	});
 });
