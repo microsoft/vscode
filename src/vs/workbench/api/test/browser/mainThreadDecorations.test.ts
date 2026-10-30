@@ -149,4 +149,51 @@ suite('MainThreadDecorations', () => {
 		}, { firstCancelled: true, secondCancelled: false, tooltip: 'Live', parent: undefined });
 		await timeout(0);
 	});
+
+	test('overlapping batches can finish out of order', async () => {
+		const batches = [new DeferredPromise<DecorationRequest[]>(), new DeferredPromise<DecorationRequest[]>()];
+		const replies = [new DeferredPromise<DecorationReply>(), new DeferredPromise<DecorationReply>()];
+		let calls = 0;
+		const { service, mainThread } = createDecorations(new class extends mock<ExtHostDecorationsShape>() {
+			override $provideDecorations(_handle: number, requests: DecorationRequest[]) {
+				const index = calls++;
+				batches[index].complete(requests);
+				return replies[index].p;
+			}
+		});
+		mainThread.$registerDecorationProvider(1, 'Test');
+		service.getDecoration(uri, false);
+		const firstBatch = await batches[0].p;
+		const otherUri = URI.parse('test:/other.txt');
+		service.getDecoration(otherUri, false);
+		const secondBatch = await batches[1].p;
+		await replies[1].complete({ [secondBatch[0].id]: [false, 'Second', 'S', { id: 'test.color' }] });
+		await timeout(0);
+		const second = store.add(service.getDecoration(otherUri, false)!);
+		await replies[0].complete({ [firstBatch[0].id]: [false, 'First', 'F', { id: 'test.color' }] });
+		await timeout(0);
+		const first = store.add(service.getDecoration(uri, false)!);
+		assert.deepStrictEqual([first.tooltip, second.tooltip], ['First', 'Second']);
+	});
+
+	test('replacing a provider handle disposes its previous entry', async () => {
+		const started = new DeferredPromise<CancellationToken>();
+		const reply = new DeferredPromise<DecorationReply>();
+		const { service, mainThread } = createDecorations(new class extends mock<ExtHostDecorationsShape>() {
+			override $provideDecorations(_handle: number, _requests: DecorationRequest[], token: CancellationToken) {
+				started.complete(token);
+				return reply.p;
+			}
+		});
+		mainThread.$registerDecorationProvider(1, 'First');
+		service.getDecoration(uri, false);
+		const token = await started.p;
+		try {
+			mainThread.$registerDecorationProvider(1, 'Replacement');
+			assert.strictEqual(token.isCancellationRequested, true);
+		} finally {
+			await reply.complete({});
+			await timeout(0);
+		}
+	});
 });
