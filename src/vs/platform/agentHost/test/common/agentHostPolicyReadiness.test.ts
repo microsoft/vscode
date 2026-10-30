@@ -14,13 +14,17 @@ import { Registry } from '../../../registry/common/platform.js';
 import { AgentSandboxSettingId } from '../../../sandbox/common/settings.js';
 import { getAgentHostPolicyGapImpact, getAgentHostPolicyGaps } from '../../common/agentHostPolicyReadiness.js';
 import { agentHostPolicySupport } from '../../common/agentHostPolicySupport.js';
+import { AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOutfileSettingId } from '../../common/agentService.js';
 
 suite('AgentHostPolicyReadiness', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
-		sinon.stub(Registry.as<IConfigurationRegistry>(Extensions.Configuration), 'getPolicyConfigurations')
-			.returns(new Map(Object.keys(agentHostPolicySupport).map(name => [name, name])));
+		const policyConfigurations = new Map(Object.keys(agentHostPolicySupport).map(name => [name, name]));
+		policyConfigurations.set('CopilotOtelEnabled', AgentHostOTelEnabledSettingId);
+		policyConfigurations.set('CopilotOtelProtocol', AgentHostOTelExporterTypeSettingId);
+		policyConfigurations.set('CopilotOtelOutfile', AgentHostOTelOutfileSettingId);
+		sinon.stub(Registry.as<IConfigurationRegistry>(Extensions.Configuration), 'getPolicyConfigurations').returns(policyConfigurations);
 	});
 	teardown(() => sinon.restore());
 
@@ -69,6 +73,32 @@ suite('AgentHostPolicyReadiness', () => {
 		})), []);
 	});
 
+	test('OTel requirements follow the active registered-policy composition', () => {
+		const policies: Record<string, unknown> = {
+			[AgentHostOTelEnabledSettingId]: false,
+			[AgentHostOTelExporterTypeSettingId]: 'file',
+			[AgentHostOTelOutfileSettingId]: '/managed/synthetic-otel.jsonl',
+		};
+		const service = configuration(policies, {
+			[AgentHostOTelOutfileSettingId]: '/personal/synthetic-otel.jsonl',
+		});
+		const gaps = () => getAgentHostPolicyGaps(service).filter(gap => gap.policyName.startsWith('CopilotOtel')).map(gap => gap.policyName);
+
+		assert.deepStrictEqual([
+			gaps(),
+			(delete policies[AgentHostOTelEnabledSettingId], gaps()),
+			(delete policies[AgentHostOTelOutfileSettingId], gaps()),
+			(policies[AgentHostOTelExporterTypeSettingId] = 'otlp-grpc', gaps()),
+			(delete policies[AgentHostOTelExporterTypeSettingId], gaps()),
+		], [
+			[],
+			[],
+			['CopilotOtelProtocol'],
+			['CopilotOtelProtocol'],
+			[],
+		]);
+	});
+
 	test('restrictive values and required functionality are covered for each gap', () => {
 		const policies = {
 			ChatMCP: 'registry',
@@ -77,8 +107,6 @@ suite('AgentHostPolicyReadiness', () => {
 			ChatPluginsEnabled: false,
 			ChatHooks: false,
 			CopilotOtelCaptureIdentity: false,
-			CopilotOtelEnabled: false,
-			CopilotOtelProtocol: 'otlp-http',
 			ChatAllowManagedMcpServersOnly: true,
 			ChatAllowManagedHooksOnly: true,
 			ChatStrictPluginOnlyCustomization: true,

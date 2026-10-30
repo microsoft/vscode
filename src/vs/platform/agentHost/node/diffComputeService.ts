@@ -7,7 +7,7 @@ import { Worker } from 'worker_threads';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../base/common/network.js';
 import { ILogService } from '../../log/common/log.js';
-import { DEFAULT_DIFF_TIMEOUT_MS, IDiffComputeService, type IDetailedDiffResult, type IDiffCountResult } from '../common/diffComputeService.js';
+import { DEFAULT_DIFF_TIMEOUT_MS, IDiffComputeService, type IDetailedDiffResult, type IDiffCountResult, type IDiffHunksResult } from '../common/diffComputeService.js';
 
 /**
  * Node.js implementation of {@link IDiffComputeService} that runs
@@ -21,7 +21,7 @@ export class NodeWorkerDiffComputeService extends Disposable implements IDiffCom
 	private _worker: Worker | undefined;
 	private _workerFailures = 0;
 	private _nextId = 1;
-	private readonly _pending = new Map<number, { resolve: (value: IDiffCountResult | IDetailedDiffResult) => void; reject: (err: Error) => void }>();
+	private readonly _pending = new Map<number, { resolve: (value: IDiffCountResult | IDetailedDiffResult | IDiffHunksResult) => void; reject: (err: Error) => void }>();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -37,7 +37,11 @@ export class NodeWorkerDiffComputeService extends Disposable implements IDiffCom
 		return this._callWorker('computeDetailedDiff', original, modified, timeoutMs);
 	}
 
-	private async _callWorker<T extends IDiffCountResult | IDetailedDiffResult>(functionName: string, original: string, modified: string, timeoutMs: number): Promise<T> {
+	async computeDiffHunks(original: string, modified: string, timeoutMs: number = DEFAULT_DIFF_TIMEOUT_MS): Promise<IDiffHunksResult> {
+		return this._callWorker('computeDiffHunks', original, modified, timeoutMs);
+	}
+
+	private async _callWorker<T extends IDiffCountResult | IDetailedDiffResult | IDiffHunksResult>(functionName: string, original: string, modified: string, timeoutMs: number): Promise<T> {
 		const worker = this._ensureWorker();
 		const id = this._nextId++;
 		return new Promise<T>((resolve, reject) => {
@@ -58,7 +62,7 @@ export class NodeWorkerDiffComputeService extends Disposable implements IDiffCom
 		if (!this._worker) {
 			const workerPath = FileAccess.asFileUri('vs/platform/agentHost/node/diffWorkerMain.js').fsPath;
 			const w = new Worker(workerPath, { name: 'Diff compute worker' });
-			w.on('message', (msg: { id: number; res?: IDiffCountResult | IDetailedDiffResult; err?: { message: string; stack?: string } }) => {
+			w.on('message', (msg: { id: number; res?: IDiffCountResult | IDetailedDiffResult | IDiffHunksResult; err?: { message: string; stack?: string } }) => {
 				const handler = this._pending.get(msg.id);
 				if (!handler) {
 					return;

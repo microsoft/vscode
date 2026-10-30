@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { createTestGitHubService } from './testGitHubService.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -47,6 +48,7 @@ suite('AgentHostSyncOperationHandler', () => {
 				}(),
 				new NullLogService(),
 				stateManager,
+				createTestGitHubService(),
 			),
 			stateManager,
 			refreshedSessions,

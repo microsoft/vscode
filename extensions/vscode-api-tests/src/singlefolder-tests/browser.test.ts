@@ -7,7 +7,10 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import * as http from 'http';
+import * as dgram from 'dgram';
 import * as vscode from 'vscode';
+import { WebSocketServer } from 'ws';
 import { window, commands, ViewColumn, workspace } from 'vscode';
 import { assertNoRpc, closeAllEditors } from '../utils';
 
@@ -182,23 +185,53 @@ import { assertNoRpc, closeAllEditors } from '../utils';
 		const tab = await window.openBrowserTab('about:blank');
 		const session = await tab.startCDPSession();
 
-		const response = new Promise<any>(resolve => {
-			const disposable = session.onDidReceiveMessage((msg: any) => {
-				if (msg.id === 1) {
-					disposable.dispose();
-					resolve(msg);
-				}
-			});
+		// openBrowserTab resolves before the tab's initial navigation commits (in remote
+		// workspaces it first waits for the tunnel proxy), and until then CDP reports the
+		// target's URL as ''. Track the URL from target events so we can wait for the commit.
+		const urls = new Map<string, string>();
+		let onUrlChanged: (() => void) | undefined;
+		const responses = new Map<number, (msg: any) => void>();
+		const listener = session.onDidReceiveMessage((msg: any) => {
+			if (msg.method === 'Target.targetCreated' || msg.method === 'Target.targetInfoChanged') {
+				urls.set(msg.params.targetInfo.targetId, msg.params.targetInfo.url);
+				onUrlChanged?.();
+			} else if (typeof msg.id === 'number') {
+				responses.get(msg.id)?.(msg);
+			}
 		});
+		const send = async (id: number, method: string, params?: object) => {
+			const response = new Promise<any>(resolve => responses.set(id, resolve));
+			await session.sendMessage({ id, method, params });
+			return response;
+		};
 
-		await session.sendMessage({ id: 1, method: 'Target.getTargets' });
-		const msg = await response;
-		assert.ok(msg.result);
-		const targets: any[] = msg.result.targetInfos;
-		assert.equal(targets.length, 1);
-		assert.equal(targets[0].url, 'about:blank');
+		try {
+			await send(1, 'Target.setDiscoverTargets', { discover: true });
+			const msg = await send(2, 'Target.getTargets');
+			assert.ok(msg.result);
+			const targets: any[] = msg.result.targetInfos;
+			assert.equal(targets.length, 1);
 
-		await session.close();
+			const targetId: string = targets[0].targetId;
+			if (!urls.has(targetId)) {
+				urls.set(targetId, targets[0].url);
+			}
+			if (urls.get(targetId) !== 'about:blank') {
+				await new Promise<void>((resolve, reject) => {
+					const timeout = setTimeout(() => reject(new Error(`Browser target is still at '${urls.get(targetId)}' 10s after opening about:blank`)), 10_000);
+					onUrlChanged = () => {
+						if (urls.get(targetId) === 'about:blank') {
+							clearTimeout(timeout);
+							resolve();
+						}
+					};
+				});
+			}
+			assert.equal(urls.get(targetId), 'about:blank');
+		} finally {
+			listener.dispose();
+			await session.close();
+		}
 	});
 
 	test('CDP session.close fires onDidClose', async () => {
@@ -214,6 +247,170 @@ import { assertNoRpc, closeAllEditors } from '../utils';
 
 		await session.close();
 		await closed;
+	});
+
+	test('remote Agent Host network loads native Chromium protocols and fails closed', async function () {
+		this.timeout(60_000);
+		let pageRequests = 0;
+		let eventRequests = 0;
+		let websocketConnections = 0;
+		let udpPackets = 0;
+		const udpServer = dgram.createSocket('udp4');
+		udpServer.on('message', () => udpPackets++);
+		await new Promise<void>((resolve, reject) => {
+			udpServer.once('error', reject);
+			udpServer.bind(0, '127.0.0.1', resolve);
+		});
+		const udpAddress = udpServer.address();
+		assert.ok(typeof udpAddress !== 'string');
+		const largeResponseBytes = 8 * 1024 * 1024;
+		const server = http.createServer(async (request, response) => {
+			switch (request.url) {
+				case '/redirect':
+					response.writeHead(302, { Location: '/page' });
+					response.end();
+					return;
+				case '/page':
+					pageRequests++;
+					response.writeHead(200, { 'Content-Type': 'text/html' });
+					response.end(`<!DOCTYPE html><title>m0-pending</title><script>
+						let sse = false;
+						let websocket = false;
+						let rtc = false;
+						let large = false;
+						let largeBytes = 0;
+						const ready = () => {
+							document.title = sse && websocket && rtc && large
+								? 'm0-ready:' + largeBytes
+								: 'm0-' + (sse ? 'sse' : 'no-sse') + '-' + (websocket ? 'ws' : 'no-ws') + '-' + (rtc ? 'rtc' : 'no-rtc') + '-' + (large ? largeBytes : 'no-large');
+						};
+						const events = new EventSource('/events');
+						events.onmessage = () => {
+							sse = true;
+							events.close();
+							ready();
+						};
+						const socket = new WebSocket('ws://' + location.host + '/socket');
+						socket.onmessage = () => {
+							websocket = true;
+							socket.close();
+							ready();
+						};
+						const peer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:127.0.0.1:${udpAddress.port}' }] });
+						peer.createDataChannel('probe');
+						peer.onicegatheringstatechange = () => {
+							if (peer.iceGatheringState === 'complete') {
+								rtc = true;
+								peer.close();
+								ready();
+							}
+						};
+						peer.createOffer().then(offer => peer.setLocalDescription(offer));
+						setTimeout(() => {
+							if (!rtc) {
+								rtc = true;
+								peer.close();
+								ready();
+							}
+						}, 3000);
+						fetch('/large').then(response => response.arrayBuffer()).then(buffer => {
+							largeBytes = buffer.byteLength;
+							large = true;
+							ready();
+						});
+					</script>`);
+					return;
+				case '/events':
+					eventRequests++;
+					response.writeHead(200, {
+						'Content-Type': 'text/event-stream',
+						'Cache-Control': 'no-cache',
+						Connection: 'keep-alive',
+					});
+					response.end('data: ready\n\n');
+					return;
+				case '/large': {
+					response.writeHead(200, {
+						'Content-Type': 'application/octet-stream',
+						'Content-Length': String(largeResponseBytes),
+						'Cache-Control': 'no-store',
+					});
+					const chunk = Buffer.alloc(64 * 1024, 0x5a);
+					for (let sent = 0; sent < largeResponseBytes; sent += chunk.byteLength) {
+						if (!response.write(chunk)) {
+							await new Promise<void>(resolve => response.once('drain', resolve));
+						}
+						await new Promise(resolve => setTimeout(resolve, 1));
+					}
+					response.end();
+					return;
+				}
+				default:
+					response.writeHead(404);
+					response.end();
+			}
+		});
+		const websocketServer = new WebSocketServer({ noServer: true });
+		websocketServer.on('connection', socket => {
+			websocketConnections++;
+			socket.send('ready');
+		});
+		server.on('upgrade', (request, socket, head) => {
+			if (request.url !== '/socket') {
+				socket.destroy();
+				return;
+			}
+			websocketServer.handleUpgrade(request, socket, head, client => websocketServer.emit('connection', client, request));
+		});
+		await new Promise<void>((resolve, reject) => {
+			server.once('error', reject);
+			server.listen(0, '127.0.0.1', resolve);
+		});
+		const address = server.address();
+		assert.ok(address && typeof address !== 'string');
+		const url = `http://127.0.0.1:${address.port}/redirect`;
+		const browserConfig = vscode.workspace.getConfiguration('workbench.browser');
+		const previousRemoteProxy = browserConfig.inspect<boolean>('enableRemoteProxy')?.globalValue;
+		let viewId: string | undefined;
+		try {
+			await browserConfig.update('enableRemoteProxy', false, vscode.ConfigurationTarget.Global);
+			await assert.rejects(
+				async () => commands.executeCommand('_workbench.test.openBrowserViewViaAgentHostNetwork', url, `m0-ready:${largeResponseBytes}`),
+				/required remote network is unavailable/i,
+			);
+			assert.deepStrictEqual({ pageRequests, eventRequests, websocketConnections, udpPackets }, { pageRequests: 0, eventRequests: 0, websocketConnections: 0, udpPackets: 0 });
+
+			await browserConfig.update('enableRemoteProxy', true, vscode.ConfigurationTarget.Global);
+			const result = await commands.executeCommand<{ id: string; title: string; networkAuthority: string }>(
+				'_workbench.test.openBrowserViewViaAgentHostNetwork',
+				url,
+				`m0-ready:${largeResponseBytes}`,
+			);
+			viewId = result.id;
+			assert.deepStrictEqual({
+				title: result.title,
+				networkIsAmbient: result.networkAuthority === 'local',
+				pageRequests,
+				eventRequests,
+				websocketConnections,
+				udpPackets,
+			}, {
+				title: `m0-ready:${largeResponseBytes}`,
+				networkIsAmbient: true,
+				pageRequests: 1,
+				eventRequests: 1,
+				websocketConnections: 1,
+				udpPackets: 0,
+			});
+		} finally {
+			if (viewId) {
+				await commands.executeCommand('_workbench.test.closeExternalBrowserView', viewId);
+			}
+			await browserConfig.update('enableRemoteProxy', previousRemoteProxy, vscode.ConfigurationTarget.Global);
+			websocketServer.close();
+			await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+			await new Promise<void>(resolve => udpServer.close(() => resolve()));
+		}
 	});
 
 	// #endregion

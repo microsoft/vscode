@@ -219,27 +219,6 @@ export function sendConversationalMessageTelemetry(
 	return standardTelemetryData.raw;
 }
 
-export function sendSuggestionShownTelemetryData(
-	telemetryService: ITelemetryService,
-	suggestion: string,
-	messageId: string,
-	suggestionId: string,
-	doc: TextDocument | TextDocumentSnapshot | undefined
-): TelemetryData {
-	const telemetryData = sendUserActionTelemetry(
-		telemetryService,
-		doc,
-		{
-			suggestion: suggestion,
-			messageId: messageId,
-			suggestionId: suggestionId,
-		},
-		{},
-		'conversation.suggestionShown'
-	);
-	return telemetryData;
-}
-
 /** Create new telemetry data based on baseTelemetryData and send event with name */
 export function sendUserActionTelemetry(
 	telemetryService: ITelemetryService,

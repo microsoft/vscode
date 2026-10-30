@@ -7,14 +7,16 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { IDefaultAccountService } from '../../../defaultAccount/common/defaultAccount.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
 import { ILabelService } from '../../../label/common/label.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
@@ -662,7 +664,7 @@ class TestRemoteAgentHostLocationPreferenceService implements IRemoteAgentHostLo
 
 suite('SSHRemoteAgentHostService (renderer)', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let mainService: MockSSHMainService;
 	let remoteAgentHostService: MockRemoteAgentHostService;
 	let configurationService: TestConfigurationService;
@@ -732,8 +734,6 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		service = disposables.add(instantiationService.createInstance(SSHRemoteAgentHostService));
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const sampleConfig: ISSHAgentHostConfig = {
 		host: 'remote.example',
@@ -1275,7 +1275,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 
 suite('SSHRemoteAgentHostService endpoint selection preference (renderer)', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let mainService: MockSSHMainService;
 	let locationPreferenceService: TestRemoteAgentHostLocationPreferenceService;
 	let dialogServiceStub: Partial<IDialogService>;
@@ -1318,8 +1318,6 @@ suite('SSHRemoteAgentHostService endpoint selection preference (renderer)', () =
 		disposables.add(instantiationService.createInstance(SSHRemoteAgentHostService));
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const connectionKey = 'ssh:remote.example';
 
@@ -1542,7 +1540,7 @@ suite('SSHRemoteAgentHostService endpoint selection preference (renderer)', () =
 
 suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let mainService: MockSSHMainService;
 	let hostKeyTrustService: SSHHostKeyTrustService;
 	let notificationService: CapturingNotificationService;
@@ -1604,8 +1602,6 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 		disposables.add(instantiationService.createInstance(TestableService));
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Settles once every verification the test has triggered has finished. */
 	async function settleVerifications(): Promise<void> {
@@ -2112,7 +2108,7 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 });
 
 suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const config: ISSHAgentHostConfig = {
 		host: 'remote.example',
 		username: 'user',
@@ -2136,6 +2132,7 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, configurationService as Partial<IConfigurationService>);
+		instantiationService.stub(IDefaultAccountService, { policyData: null, onDidChangePolicyData: Event.None });
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
 		instantiationService.stub(ILabelService, { registerFormatter: () => toDisposable(() => undefined) } as Partial<ILabelService>);
@@ -2179,8 +2176,6 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 		service = disposables.add(instantiationService.createInstance(SSHRemoteAgentHostService));
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function waitForTransport(count: number): Promise<void> {
 		while (transports.length < count) {
@@ -2193,6 +2188,7 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 		const rendererStorageService = disposables.add(new InMemoryStorageService());
 		rendererInstantiationService.stub(ILogService, new NullLogService());
 		rendererInstantiationService.stub(IConfigurationService, new TestConfigurationService() as Partial<IConfigurationService>);
+		rendererInstantiationService.stub(IDefaultAccountService, { policyData: null, onDidChangePolicyData: Event.None });
 		rendererInstantiationService.stub(IStorageService, rendererStorageService);
 		rendererInstantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
 		rendererInstantiationService.stub(ILabelService, { registerFormatter: () => toDisposable(() => undefined) } as Partial<ILabelService>);
@@ -2274,7 +2270,8 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 		});
 	});
 
-	test('releases a late replacement relay after the protocol client is disposed', async () => {
+	test('releases a late replacement relay after the protocol client is disposed', () => runWithFakedTimers({}, async () => {
+		// The relay reconnects after the default real-time backoff; advance it in virtual time.
 		const initial = await mainService.connect(config);
 		const replacement = new DeferredPromise<{ connectionId: string }>();
 		const replacementStarted = new DeferredPromise<void>();
@@ -2293,9 +2290,10 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 		await lateRelease;
 
 		assert.deepStrictEqual(mainService.releaseRelayCalls, [initial.connectionId, 'late-relay']);
-	});
+	}));
 
-	test('two renderer services keep independent protocol leases through recovery and disposal', async () => {
+	test('two renderer services keep independent protocol leases through recovery and disposal', () => runWithFakedTimers({}, async () => {
+		// The relay reconnects after the default real-time backoff; advance it in virtual time.
 		const firstRenderer = createIsolatedRenderer();
 		const secondRenderer = createIsolatedRenderer();
 
@@ -2329,7 +2327,7 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 			releasedRelays: ['ssh:remote.example:3'],
 			secondConnected: true,
 		});
-	});
+	}));
 
 	test('config-less persisted recovery acquires an independent relay lease', async () => {
 		const directConfig = { ...config, sshConfigHost: undefined };

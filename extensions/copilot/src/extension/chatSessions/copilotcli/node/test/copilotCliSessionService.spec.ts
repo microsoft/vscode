@@ -70,10 +70,16 @@ export class NullAgentSessionsWorkspace implements IAgentSessionsWorkspace {
 
 class TrackingFileSystemService extends MockFileSystemService {
 	readDirectoryCallCount = 0;
+	readonly statPaths: string[] = [];
 
 	override async readDirectory(uri: URI): Promise<[string, FileType][]> {
 		this.readDirectoryCallCount++;
 		return super.readDirectory(uri);
+	}
+
+	override async stat(uri: URI) {
+		this.statPaths.push(uri.path);
+		return super.stat(uri);
 	}
 }
 
@@ -635,7 +641,7 @@ describe('CopilotCLISessionService', () => {
 
 			expect(partialHistory).toBeDefined();
 			expect(partialHistory).toHaveLength(2);
-			expect(partialService.getSessionWorkingDirectory(sessionId)?.fsPath).toBe(URI.file('/workspace/project').fsPath);
+			expect((await partialService.getSessionWorkingDirectory(sessionId))?.fsPath).toBe(URI.file('/workspace/project').fsPath);
 		});
 
 		it('returns cached result on second call without re-reading the file', async () => {
@@ -719,12 +725,136 @@ describe('CopilotCLISessionService', () => {
 				sessionIds: result.map(item => item.id),
 				targetedAgentHostItem,
 				readDirectoryCallCount: fileSystem.readDirectoryCallCount,
-				statCallCount: fileSystem.getStatCallCount(),
+				agentHostDataStats: fileSystem.statPaths.filter(path => path.includes('agentSessionData')),
+				detailsRead: filteredManager.enrichedSessionIds,
 			}).toEqual({
 				sessionIds: ['extension-host', 'standalone'],
 				targetedAgentHostItem: undefined,
 				readDirectoryCallCount: 1,
-				statCallCount: 0,
+				agentHostDataStats: [],
+				// `legacy:owned` is dropped by its agent host data folder before any read.
+				detailsRead: ['agent-host', 'extension-host', 'standalone'],
+			});
+		});
+
+		it('lists ids only and reads details just for sessions VS Code created', async () => {
+			const sessions = [
+				{ id: 'vscode-a', origin: 'vscode' },
+				{ id: 'external-a', origin: 'other' },
+				{ id: 'vscode-empty', origin: 'vscode' },
+				{ id: 'external-b', origin: 'other' },
+				{ id: 'vscode-b', origin: 'vscode' },
+			] as const;
+			for (const { id, origin } of sessions) {
+				const sdkSession = new MockCliSdkSession(id, new Date(0));
+				sdkSession.summary = id;
+				manager.sessions.set(id, sdkSession);
+				metadataStore.setSessionOriginForTest(id, origin);
+			}
+			manager.emptySessionIds.add('vscode-empty');
+
+			const result = await service.getAllSessions(CancellationToken.None);
+
+			expect({
+				listSessionsCalls: manager.listSessionsCalls,
+				detailsRead: manager.enrichedSessionIds,
+				sessionIds: result.map(item => item.id),
+			}).toEqual({
+				listSessionsCalls: [{ metadataLimit: 0, includeDetached: false }],
+				detailsRead: ['vscode-a', 'vscode-empty', 'vscode-b'],
+				sessionIds: ['vscode-a', 'vscode-b'],
+			});
+		});
+
+		it('bounds concurrent detail reads', async () => {
+			for (let i = 0; i < 40; i++) {
+				const sdkSession = new MockCliSdkSession(`session-${i}`, new Date(0));
+				sdkSession.summary = `session ${i}`;
+				manager.sessions.set(sdkSession.sessionId, sdkSession);
+			}
+			let inFlight = 0;
+			let maxInFlight = 0;
+			const enrich = manager.enrichSessionMetadata.bind(manager);
+			manager.enrichSessionMetadata = async sessions => {
+				maxInFlight = Math.max(maxInFlight, ++inFlight);
+				await new Promise(resolve => setTimeout(resolve, 1));
+				inFlight--;
+				return enrich(sessions);
+			};
+
+			const result = await service.getAllSessions(CancellationToken.None);
+
+			expect({ shown: result.length, maxInFlight }).toEqual({ shown: 40, maxInFlight: 10 });
+		});
+
+		it('reuses session details until events.jsonl or workspace.yaml change', async () => {
+			const fileSystem = new MockFileSystemService();
+			const cachingService = disposables.add(createSessionService({ fileSystem }));
+			const cachingManager = await cachingService.getSessionManager() as unknown as MockCliSdkSessionManager;
+			const sdkSession = new MockCliSdkSession('cached', new Date(0));
+			sdkSession.summary = 'Original';
+			cachingManager.sessions.set(sdkSession.sessionId, sdkSession);
+			const workspaceFile = URI.joinPath(URI.file(getCopilotCLISessionDir('cached')), 'workspace.yaml');
+			fileSystem.mockFile(workspaceFile, 'id: cached', 1);
+
+			const labels: string[] = [];
+			const list = async () => labels.push((await cachingService.getAllSessions(CancellationToken.None))[0].label);
+			await list();
+			sdkSession.summary = 'Changed without touching any file';
+			await list();
+			sdkSession.modifiedTime = new Date(1);
+			sdkSession.summary = 'After events.jsonl change';
+			await list();
+			fileSystem.mockFile(workspaceFile, 'id: cached\nname: x', 2);
+			sdkSession.summary = 'After workspace.yaml change';
+			await list();
+
+			expect({ labels, detailsRead: cachingManager.enrichedSessionIds.length }).toEqual({
+				labels: ['Original', 'Original', 'After events.jsonl change', 'After workspace.yaml change'],
+				detailsRead: 3,
+			});
+		});
+
+		it('drops a session once the agent host adopts it, even with cached details', async () => {
+			const fileSystem = new TrackingFileSystemService();
+			const adoptingService = disposables.add(createSessionService({
+				extensionContext: new TestExtensionContext(URI.file('/user-data/User/globalStorage/github.copilot-chat')),
+				fileSystem,
+			}));
+			const adoptingManager = await adoptingService.getSessionManager() as unknown as MockCliSdkSessionManager;
+			const sdkSession = new MockCliSdkSession('legacy-session', new Date(0));
+			sdkSession.summary = 'Legacy';
+			sdkSession.clientName = 'vscode';
+			adoptingManager.sessions.set(sdkSession.sessionId, sdkSession);
+
+			const beforeAdoption = await adoptingService.getAllSessions(CancellationToken.None);
+			fileSystem.mockDirectory(URI.file('/user-data/agentSessionData'), [['legacy-session', FileType.Directory]]);
+			const afterAdoption = await adoptingService.getAllSessions(CancellationToken.None);
+
+			expect({
+				beforeAdoption: beforeAdoption.map(item => item.id),
+				afterAdoption: afterAdoption.map(item => item.id),
+			}).toEqual({
+				beforeAdoption: ['legacy-session'],
+				afterAdoption: [],
+			});
+		});
+
+		it('resolves the working directory of a session that was never listed', async () => {
+			const external = new MockCliSdkSession('external-unlisted', new Date(0));
+			external.summary = 'external';
+			external.context = { cwd: URI.file('/workspace/external').fsPath };
+			manager.sessions.set(external.sessionId, external);
+			metadataStore.setSessionOriginForTest(external.sessionId, 'other');
+
+			const listed = await service.getAllSessions(CancellationToken.None);
+
+			expect({
+				listed: listed.map(item => item.id),
+				workingDirectory: (await service.getSessionWorkingDirectory(external.sessionId))?.fsPath,
+			}).toEqual({
+				listed: [],
+				workingDirectory: URI.file('/workspace/external').fsPath,
 			});
 		});
 

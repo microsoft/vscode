@@ -17,6 +17,7 @@ import { isObject, Mutable } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ConfigurationTarget, ConfigurationTargetToString } from '../../configuration/common/configuration.js';
+import { parseConfigurationVariable } from '../../configuration/common/configurationVariables.js';
 import { FileOperationError, FileOperationResult, IFileContent, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -61,7 +62,8 @@ export interface IMcpResourceScannerService {
 	 */
 	updateMcpServer(name: string, previous: IMcpServerConfiguration, config: IMcpServerConfiguration, mcpResource: URI, target?: McpResourceTarget, format?: McpResourceFormat): Promise<void>;
 	updateSandboxConfig(updateFn: (data: IScannedMcpServers) => IScannedMcpServers, mcpResource: URI, target?: McpResourceTarget, format?: McpResourceFormat): Promise<void>;
-	removeMcpServers(serverNames: string[], mcpResource: URI, target?: McpResourceTarget, format?: McpResourceFormat): Promise<void>;
+	/** Removes servers and their unreferenced input definitions, preserving unrelated inputs and dependencies of retained inputs. */
+	removeMcpServers(serverNames: string[], mcpResource: URI, target?: McpResourceTarget, format?: McpResourceFormat, preserveInputIds?: readonly string[]): Promise<void>;
 }
 
 export class McpResourceScannerService extends Disposable implements IMcpResourceScannerService {
@@ -192,7 +194,7 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 		await this.withProfileMcpServers(mcpResource, target, updateFn);
 	}
 
-	async removeMcpServers(serverNames: string[], mcpResource: URI, target?: McpResourceTarget, format = McpResourceFormat.Vscode): Promise<void> {
+	async removeMcpServers(serverNames: string[], mcpResource: URI, target?: McpResourceTarget, format = McpResourceFormat.Vscode, preserveInputIds?: readonly string[]): Promise<void> {
 		if (format === McpResourceFormat.CopilotGlobal) {
 			await this.withCopilotGlobalMcpServers(mcpResource, content => {
 				for (const name of serverNames) {
@@ -212,10 +214,29 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 			return;
 		}
 		await this.withProfileMcpServers(mcpResource, target, scannedMcpServers => {
+			const removedInputs = new Set<string>();
 			for (const serverName of serverNames) {
 				if (scannedMcpServers.servers?.[serverName]) {
+					collectMcpInputIds(scannedMcpServers.servers[serverName], removedInputs);
 					delete scannedMcpServers.servers[serverName];
 				}
+			}
+			if (removedInputs.size && scannedMcpServers.inputs) {
+				const remainingInputs = new Set(preserveInputIds);
+				for (const server of Object.values(scannedMcpServers.servers ?? {})) {
+					collectMcpInputIds(server, remainingInputs);
+				}
+				collectMcpInputIds(scannedMcpServers.sandbox, remainingInputs);
+				for (const input of scannedMcpServers.inputs) {
+					if (!removedInputs.has(input.id)) {
+						remainingInputs.add(input.id);
+					}
+				}
+				// Set iteration also visits newly discovered dependencies, without revisiting cycles.
+				for (const id of remainingInputs) {
+					collectMcpInputIds(scannedMcpServers.inputs.filter(input => input.id === id), remainingInputs);
+				}
+				scannedMcpServers.inputs = scannedMcpServers.inputs.filter(input => !removedInputs.has(input.id) || remainingInputs.has(input.id));
 			}
 			return scannedMcpServers;
 		});
@@ -430,6 +451,28 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 
 registerSingleton(IMcpResourceScannerService, McpResourceScannerService, InstantiationType.Delayed);
 
+export function collectMcpInputIds(value: unknown, result: Set<string>): void {
+	if (typeof value === 'string') {
+		let offset = value.indexOf('${');
+		while (offset !== -1) {
+			const parsed = parseConfigurationVariable(value, offset);
+			if (parsed?.replacement.name === 'input' && parsed.replacement.arg !== undefined) {
+				result.add(parsed.replacement.arg);
+			}
+			offset = value.indexOf('${', parsed ? parsed.end + 1 : offset + 2);
+		}
+	} else if (Array.isArray(value)) {
+		for (const item of value) {
+			collectMcpInputIds(item, result);
+		}
+	} else if (isObject(value)) {
+		for (const [key, item] of Object.entries(value)) {
+			collectMcpInputIds(key, result);
+			collectMcpInputIds(item, result);
+		}
+	}
+}
+
 /**
  * The part of {@link config} that an update to {@link previous} has to validate: the changed
  * properties plus `type`, `command` and `url`, which define the server. Unchanged properties, and
@@ -470,13 +513,12 @@ export function getEditedMcpServerConfiguration(previous: IMcpServerConfiguratio
 
 /**
  * A server entry in the Copilot CLI's configuration, as {@link IMcpResourceScannerService.updateMcpServer}
- * writes it. Unlike {@link toCopilotMcpServerConfiguration}, which targets the SDK, it uses the
- * canonical `stdio` type (`local` is a legacy alias) and keeps `env` values as they are instead of
- * converting them to strings.
+ * writes it. Unlike {@link toCopilotMcpServerConfiguration}, which targets the SDK, it keeps `env`
+ * values as they are instead of converting them to strings.
  */
 function toCopilotGlobalMcpServerEntry(config: IMcpServerConfiguration): object {
 	const entry = toCopilotMcpServerConfiguration(config);
-	return config.type === McpServerType.LOCAL ? { ...entry, type: McpServerType.LOCAL, env: config.env } : entry;
+	return config.type === McpServerType.LOCAL ? { ...entry, env: config.env } : entry;
 }
 
 /**

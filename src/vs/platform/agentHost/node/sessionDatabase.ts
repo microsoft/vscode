@@ -10,6 +10,7 @@ import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEd
 import { dirname } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type Message } from '../common/state/sessionState.js';
+import { configureSqliteJournal } from './agentHostSqliteJournal.js';
 
 /**
  * Turn ids kept for older builds on behalf of other chats, read from the persisted metadata inside
@@ -322,6 +323,29 @@ function dbOpen(path: string): Promise<Database> {
 	});
 }
 
+async function insertFileEdit(db: Database, edit: IFileEditRecord & IFileEditContent): Promise<void> {
+	// Ensure the turn exists — lazily insert since the turn record
+	// may not have been created by an explicit createTurn() call.
+	await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [edit.turnId]);
+	await dbRun(
+		db,
+		`INSERT OR REPLACE INTO file_edits
+			(turn_id, tool_call_id, file_path, edit_type, original_path, before_content, after_content, added_lines, removed_lines)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		[
+			edit.turnId,
+			edit.toolCallId,
+			edit.filePath,
+			edit.kind,
+			edit.originalPath ?? null,
+			edit.beforeContent ? Buffer.from(edit.beforeContent) : null,
+			edit.afterContent ? Buffer.from(edit.afterContent) : null,
+			edit.addedLines ?? null,
+			edit.removedLines ?? null,
+		],
+	);
+}
+
 function validateCatalogSyncInteger(name: string, value: number): void {
 	if (!Number.isSafeInteger(value) || value < 0) {
 		throw new Error(`Catalog sync ${name} must be a non-negative safe integer`);
@@ -599,6 +623,7 @@ export class SessionDatabase implements ISessionDatabase {
 				await fs.promises.mkdir(dirname(this._path), { recursive: true });
 				const db = await dbOpen(this._path);
 				try {
+					await configureSqliteJournal(db, this._path);
 					await runMigrations(db, this._migrations);
 				} catch (err) {
 					await dbClose(db);
@@ -939,6 +964,21 @@ export class SessionDatabase implements ISessionDatabase {
 		});
 	}
 
+	deleteProviderTurns(providerTurnIds: readonly string[], afterHostTurnId?: string): Promise<void> {
+		return this._mutateMetadataAndTurnUsage(async db => {
+			const foreign = await this._mayHaveForeignTurns(db);
+			await dbRun(db,
+				`DELETE FROM turns
+					WHERE (id IN (SELECT value FROM json_each(?1)) OR event_id IN (SELECT value FROM json_each(?1))
+						OR (rowid > (SELECT rowid FROM turns WHERE id = ?2${andOwnTurn('id', foreign)})
+							AND event_id = (SELECT event_id FROM turns WHERE id = ?2${andOwnTurn('id', foreign)})))
+						AND id NOT IN (SELECT turn_id FROM local_turns)${andOwnTurn('id', foreign)}`,
+				[JSON.stringify(providerTurnIds), afterHostTurnId ?? null],
+			);
+			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
+		});
+	}
+
 	// ---- Host-persisted turns -------------------------------------------
 
 	insertPersistedTurn(record: IPersistedTurnRecord): Promise<void> {
@@ -981,27 +1021,22 @@ export class SessionDatabase implements ISessionDatabase {
 	// ---- File edits -----------------------------------------------------
 
 	storeFileEdit(edit: IFileEditRecord & IFileEditContent): Promise<void> {
-		return this._track(() => this._fileEditSequencer.queue(edit.filePath, () => this._queueMutation(async db => {
-			// Ensure the turn exists — lazily insert since the turn record
-			// may not have been created by an explicit createTurn() call.
-			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [edit.turnId]);
-			await dbRun(
-				db,
-				`INSERT OR REPLACE INTO file_edits
-					(turn_id, tool_call_id, file_path, edit_type, original_path, before_content, after_content, added_lines, removed_lines)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				[
-					edit.turnId,
-					edit.toolCallId,
-					edit.filePath,
-					edit.kind,
-					edit.originalPath ?? null,
-					edit.beforeContent ? Buffer.from(edit.beforeContent) : null,
-					edit.afterContent ? Buffer.from(edit.afterContent) : null,
-					edit.addedLines ?? null,
-					edit.removedLines ?? null,
-				],
-			);
+		return this._track(() => this._fileEditSequencer.queue(edit.filePath, () => this._queueMutation(db => insertFileEdit(db, edit))));
+	}
+
+	storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: (readContent: ISessionDatabase['readFileEditContent']) => Promise<void> | void): Promise<void> {
+		if (edits.length === 0) {
+			return Promise.resolve();
+		}
+		const filePath = edits[0].filePath;
+		if (edits.some(edit => edit.filePath !== filePath)) {
+			return Promise.reject(new Error('storeFileEdits requires edits of a single file'));
+		}
+		return this._track(() => this._fileEditSequencer.queue(filePath, () => this._queueTransaction(async db => {
+			for (const edit of edits) {
+				await insertFileEdit(db, edit);
+			}
+			await beforeCommit?.((toolCallId, path) => this._readFileEditContent(db, toolCallId, path));
 		})));
 	}
 
@@ -1052,13 +1087,15 @@ export class SessionDatabase implements ISessionDatabase {
 
 	async getFileEditsByTurn(turnId: string): Promise<IFileEditRecord[]> {
 		const db = await this._ensureDb();
+		const foreign = await this._mayHaveForeignTurns(db);
 		const rows = await dbAll(
 			db,
 			`SELECT turn_id, tool_call_id, file_path, edit_type, original_path, added_lines, removed_lines
 				FROM file_edits
-				WHERE turn_id = COALESCE(
-					(SELECT id FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1),
-					?1
+				WHERE turn_id IN (
+					SELECT id FROM turns WHERE (id = ?1 OR (event_id = ?1 AND NOT EXISTS (
+						SELECT 1 FROM turns WHERE id = ?1${andOwnTurn('id', foreign)}
+					)))${andOwnTurn('id', foreign)}
 				)
 				ORDER BY rowid`,
 			[turnId],
@@ -1075,23 +1112,24 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	async readFileEditContent(toolCallId: string, filePath: string): Promise<IFileEditContent | undefined> {
-		return this._fileEditSequencer.queue(filePath, async () => {
-			const db = await this._ensureDb();
-			const row = await dbGet(
-				db,
-				`SELECT before_content, after_content
-					FROM file_edits
-					WHERE tool_call_id = ? AND file_path = ?`,
-				[toolCallId, filePath],
-			);
-			if (!row) {
-				return undefined;
-			}
-			return {
-				beforeContent: row.before_content ? toUint8Array(row.before_content) : undefined,
-				afterContent: row.after_content ? toUint8Array(row.after_content) : undefined,
-			};
-		});
+		return this._fileEditSequencer.queue(filePath, async () => this._readFileEditContent(await this._ensureDb(), toolCallId, filePath));
+	}
+
+	private async _readFileEditContent(db: Database, toolCallId: string, filePath: string): Promise<IFileEditContent | undefined> {
+		const row = await dbGet(
+			db,
+			`SELECT before_content, after_content
+				FROM file_edits
+				WHERE tool_call_id = ? AND file_path = ?`,
+			[toolCallId, filePath],
+		);
+		if (!row) {
+			return undefined;
+		}
+		return {
+			beforeContent: row.before_content ? toUint8Array(row.before_content) : undefined,
+			afterContent: row.after_content ? toUint8Array(row.after_content) : undefined,
+		};
 	}
 
 	// ---- Terminal outputs -----------------------------------------------
@@ -1127,6 +1165,24 @@ export class SessionDatabase implements ISessionDatabase {
 		return this._queueTurnData(async db => {
 			const row = await dbGet(db, 'SELECT length(output) AS size FROM terminal_outputs WHERE tool_call_id = ?', [toolCallId]);
 			return row?.size as number | undefined ?? undefined;
+		});
+	}
+
+	getTerminalOutputSizes(toolCallIds: readonly string[]): Promise<Map<string, number>> {
+		return this._queueTurnData(async db => {
+			const result = new Map<string, number>();
+			if (toolCallIds.length === 0) {
+				return result;
+			}
+			// Bind the ids as one JSON array so large sessions stay within SQLite's bound-parameter limit.
+			const rows = await dbAll(db,
+				'SELECT tool_call_id, length(output) AS size FROM terminal_outputs WHERE tool_call_id IN (SELECT value FROM json_each(?))',
+				[JSON.stringify(toolCallIds)],
+			);
+			for (const row of rows) {
+				result.set(row.tool_call_id as string, row.size as number);
+			}
+			return result;
 		});
 	}
 

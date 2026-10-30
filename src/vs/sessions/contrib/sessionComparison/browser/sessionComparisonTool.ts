@@ -120,6 +120,10 @@ export class ReadSessionComparisonTool implements IToolImpl {
 				? this.sessionsManagementService.getSessionContextReference(session.mainChat.get().resource)
 				: undefined;
 			const reasoningEffort = participant.harness.modelConfiguration?.[ReasoningEffortConfigKey];
+			const currentModelId = session?.mainChat.get().modelId.get();
+			const modelSelectionDiffers = currentModelId !== undefined && participant.harness.modelId !== undefined
+				? currentModelId !== participant.harness.modelId
+				: undefined;
 			const attemptNumber = attemptNumbers.get(participant.id)!;
 			return {
 				attemptNumber,
@@ -127,6 +131,12 @@ export class ReadSessionComparisonTool implements IToolImpl {
 				harness: {
 					agent: participant.harness.label,
 					model: participant.harness.modelLabel ?? 'Default',
+					modelId: participant.harness.modelId,
+					currentModelId,
+					modelSelectionDiffers,
+					modelSelectionWarning: modelSelectionDiffers
+						? 'The model and reasoning effort above describe the launch configuration, but the current model selection differs. Mention this in the assessment and avoid attributing the entire attempt to one model. Current selection is not a history of models actually used.'
+						: undefined,
 					reasoningEffort: typeof reasoningEffort === 'string' ? reasoningEffort : 'default',
 					permissions: {
 						id: participant.harness.permissionId ?? 'default',

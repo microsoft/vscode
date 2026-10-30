@@ -5,7 +5,10 @@
 
 import { URI } from '../../base/common/uri.js';
 import { stringHash } from '../../base/common/hash.js';
-import { DraggedChatReferenceIdentifier, fillInChatReferenceDragData, LocalSelectionTransfer } from '../../platform/dnd/browser/dnd.js';
+import { CodeDataTransfers, DraggedChatReferenceIdentifier, fillInChatReferenceDragData, LocalSelectionTransfer } from '../../platform/dnd/browser/dnd.js';
+import { isHTMLElement } from '../../base/browser/dom.js';
+import { getInputDropTargets, isInputDropTarget } from '../../workbench/browser/dnd.js';
+import { ISession } from '../services/sessions/common/session.js';
 
 /**
  * Code data transfer mime types specific to the Agents window.
@@ -15,7 +18,49 @@ export const SessionsDataTransfers = {
 	SESSION: 'application/vnd.code.session',
 	/** Mime type used to identify a chat being dragged into or between groups within a session. */
 	CHAT: 'application/vnd.code.session.chat',
+	/** Marks a chat dragged from a standalone pane, readable during dragover. */
+	DETACHED_CHAT: 'application/vnd.code.session.chat.detached',
 };
+
+/** Attachment inputs take precedence over grid placement for chat references. */
+export function isChatReferenceInputDrop(event: DragEvent): boolean {
+	return !!event.dataTransfer?.types.includes(CodeDataTransfers.CHAT_REFERENCE)
+		&& isHTMLElement(event.target) && isInputDropTarget(event.target, event);
+}
+
+/** Leave composer inputs outside the placement overlay's pointer hit region. */
+export function getChatReferenceDropClipPath(container: HTMLElement, event: DragEvent): string {
+	if (!event.dataTransfer?.types.includes(CodeDataTransfers.CHAT_REFERENCE)) {
+		return '';
+	}
+	const bounds = container.getBoundingClientRect();
+	const holes = getInputDropTargets(container).flatMap(input => {
+		const rect = input.getBoundingClientRect();
+		const left = Math.max(0, rect.left - bounds.left);
+		const top = Math.max(0, rect.top - bounds.top);
+		const right = Math.min(bounds.width, rect.right - bounds.left);
+		const bottom = Math.min(bounds.height, rect.bottom - bounds.top);
+		return right > left && bottom > top
+			? [`${left}px ${top}px, ${right}px ${top}px, ${right}px ${bottom}px, ${left}px ${bottom}px, ${left}px ${top}px, 0 0`]
+			: [];
+	});
+	return holes.length ? `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${holes.join(', ')})` : '';
+}
+
+/** Keep a small drag-free buffer beside the pane's resize boundaries. */
+export function isSessionDragFromPaneEdge(element: HTMLElement, event: MouseEvent): boolean {
+	const pane = element.closest<HTMLElement>('.chat-group-view, .session-view');
+	if (!pane) {
+		return false;
+	}
+	const bounds = pane.getBoundingClientRect();
+	if (bounds.width === 0 || bounds.height === 0) {
+		return false;
+	}
+	const gap = 6;
+	return event.clientX < bounds.left + gap || event.clientX > bounds.right - gap
+		|| event.clientY < bounds.top + gap || event.clientY > bounds.bottom - gap;
+}
 
 /**
  * Identifier used to track a session being dragged via
@@ -25,9 +70,18 @@ export const SessionsDataTransfers = {
 export class DraggedSessionIdentifier {
 
 	constructor(
-		readonly sessionId: string,
-		readonly resource: URI,
+		readonly sessionId: string | undefined,
+		readonly resource: URI | undefined,
 	) { }
+}
+
+/** Attach a session placement payload; an absent session represents the empty composer. */
+export function fillSessionDragData(event: DragEvent, session: ISession | undefined): void {
+	LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>().setData(
+		[new DraggedSessionIdentifier(session?.sessionId, session?.resource)],
+		DraggedSessionIdentifier.prototype,
+	);
+	event.dataTransfer?.setData(SessionsDataTransfers.SESSION, JSON.stringify({ sessionId: session?.sessionId, resource: session?.resource.toString() }));
 }
 
 /**
@@ -46,15 +100,19 @@ export class DraggedSessionIdentifier {
 export interface IDraggedSessionChat {
 	readonly sessionId: string;
 	readonly resource: string;
+	readonly isDetached?: boolean;
 }
 
 /**
  * Attaches the {@link IDraggedSessionChat} group-placement payload to a chat drag.
  */
-export function fillSessionChatDragData(e: DragEvent, sessionId: string, resource: URI): void {
-	const data: IDraggedSessionChat = { sessionId, resource: resource.toString() };
+export function fillSessionChatDragData(e: DragEvent, sessionId: string, resource: URI, isDetached = false): void {
+	const data: IDraggedSessionChat = { sessionId, resource: resource.toString(), ...(isDetached ? { isDetached: true } : {}) };
 	e.dataTransfer?.setData(SessionsDataTransfers.CHAT, JSON.stringify(data));
 	e.dataTransfer?.setData(getSessionChatDragType(sessionId), '');
+	if (isDetached) {
+		e.dataTransfer?.setData(SessionsDataTransfers.DETACHED_CHAT, '');
+	}
 }
 
 /**

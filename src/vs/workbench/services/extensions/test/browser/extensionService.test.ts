@@ -22,7 +22,7 @@ import { TestNotificationService } from '../../../../../platform/notification/te
 import product from '../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { RemoteAuthorityResolverService } from '../../../../../platform/remote/browser/remoteAuthorityResolverService.js';
-import { IRemoteAuthorityResolverService, ResolverResult } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, ResolverResult, WebSocketRemoteConnection } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IRemoteExtensionsScannerService } from '../../../../../platform/remote/common/remoteExtensionsScanner.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -239,8 +239,18 @@ suite('ExtensionService', () => {
 		protected _onExtensionHostExit(code: number): Promise<void> {
 			throw new Error('Method not implemented.');
 		}
-		protected _resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
-			throw new Error('Method not implemented.');
+		public readonly resolveAuthorityResults: (ResolverResult | Error)[] = [];
+		public resolveAuthorityAttempts = 0;
+		protected async _resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
+			this.resolveAuthorityAttempts++;
+			const result = this.resolveAuthorityResults.shift();
+			if (!result || result instanceof Error) {
+				throw result ?? new Error('Method not implemented.');
+			}
+			return result;
+		}
+		public resolveAuthorityInitial(remoteAuthority: string): Promise<ResolverResult> {
+			return this._resolveAuthorityInitial(remoteAuthority);
 		}
 	}
 
@@ -385,5 +395,34 @@ suite('ExtensionService', () => {
 		assert.ok(activatedKinds.includes(ExtensionHostKind.LocalProcess), 'Should activate on LocalProcess');
 		assert.ok(activatedKinds.includes(ExtensionHostKind.LocalWebWorker), 'Should activate on LocalWebWorker');
 		assert.ok(activatedKinds.includes(ExtensionHostKind.Remote), 'Should activate on Remote');
+	});
+
+	test('Initial authority resolution retries temporary failures', async () => {
+		const resolverResult: ResolverResult = { authority: { authority: 'test+remote', connectTo: new WebSocketRemoteConnection('localhost', 8080), connectionToken: undefined } };
+		extService.resolveAuthorityResults.push(
+			new RemoteAuthorityResolverError('test', RemoteAuthorityResolverErrorCode.TemporarilyNotAvailable),
+			new Error('test'),
+			resolverResult,
+		);
+
+		const result = await extService.resolveAuthorityInitial('test+remote');
+
+		assert.deepStrictEqual({ attempts: extService.resolveAuthorityAttempts, result }, { attempts: 3, result: resolverResult });
+	});
+
+	test('Initial authority resolution stops retrying after five failures', async () => {
+		extService.resolveAuthorityResults.push(...Array.from({ length: 6 }, (_, i) => new RemoteAuthorityResolverError(`attempt ${i + 1}`, RemoteAuthorityResolverErrorCode.TemporarilyNotAvailable)));
+
+		const error = await extService.resolveAuthorityInitial('test+remote').catch(err => err);
+
+		assert.deepStrictEqual({ attempts: extService.resolveAuthorityAttempts, message: error.message }, { attempts: 5, message: 'attempt 5' });
+	});
+
+	test('Initial authority resolution does not retry when not available', async () => {
+		extService.resolveAuthorityResults.push(new RemoteAuthorityResolverError('test', RemoteAuthorityResolverErrorCode.NotAvailable, true));
+
+		const error = await extService.resolveAuthorityInitial('test+remote').catch(err => err);
+
+		assert.deepStrictEqual({ attempts: extService.resolveAuthorityAttempts, notAvailable: RemoteAuthorityResolverError.isNotAvailable(error) }, { attempts: 1, notAvailable: true });
 	});
 });

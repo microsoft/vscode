@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize2 } from '../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -24,7 +26,11 @@ import { IActiveSession, ISessionsManagementService } from '../../../services/se
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession, ISessionWorkspace } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ITerminalProfileService } from '../../../../workbench/contrib/terminal/common/terminal.js';
+import { ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../../../../workbench/contrib/terminal/common/terminal.js';
+import { TerminalContextKeys } from '../../../../workbench/contrib/terminal/common/terminalContextKey.js';
+import { ActivePanelContext, IsAuxiliaryWindowContext, PanelVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { CustomViewVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionTaskRunnerRegistry } from '../../chat/browser/sessionTaskRunner.js';
 import { AgentHostSessionTaskRunner } from './agentHostSessionTaskRunner.js';
 
@@ -58,15 +64,6 @@ function getSessionTerminalInfo(session: ISession | undefined, reader?: IReader)
 		return undefined;
 	}
 	const workspace = reader ? session.workspace.read(reader) : session.workspace.get();
-	return getWorkspaceTerminalInfo(workspace);
-}
-
-function getActiveSessionTerminalInfo(session: IActiveSession | undefined, reader?: IReader): ISessionTerminalInfo | undefined {
-	if (!session) {
-		return undefined;
-	}
-	const activeChat = reader ? session.activeChat.read(reader) : session.activeChat.get();
-	const workspace = reader ? activeChat.workspace.read(reader) : activeChat.workspace.get();
 	return getWorkspaceTerminalInfo(workspace);
 }
 
@@ -183,7 +180,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 				this._agentHostTerminalService.setDefaultCwd(undefined);
 				return;
 			}
-			const info = getActiveSessionTerminalInfo(session, reader);
+			const info = this._getActiveSessionTerminalInfo(session, reader);
 			this._agentHostTerminalService.setDefaultCwd(info?.cwd);
 		}));
 
@@ -212,7 +209,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 				}
 				return;
 			}
-			const info = getActiveSessionTerminalInfo(session, reader);
+			const info = this._getActiveSessionTerminalInfo(session, reader);
 			this._onActiveSessionChanged(session, info);
 		}));
 
@@ -454,12 +451,36 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		return provider.remoteAddress ?? LOCAL_AGENT_HOST_ADDRESS;
 	}
 
-	private async _onActiveSessionChanged(session: IActiveSession | undefined, info = getActiveSessionTerminalInfo(session)): Promise<void> {
+	private _getActiveSessionTerminalInfo(session: IActiveSession | undefined, reader?: IReader): ISessionTerminalInfo | undefined {
+		if (!session) {
+			return undefined;
+		}
+		const activeChat = reader ? session.activeChat.read(reader) : session.activeChat.get();
+		const workspace = reader ? activeChat.workspace.read(reader) : activeChat.workspace.get();
+		const info = getWorkspaceTerminalInfo(workspace);
+		if (info || workspace) {
+			return info;
+		}
+		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		if (!provider || !isAgentHostProvider(provider) || !provider.remoteAddress) {
+			return undefined;
+		}
+		const workingDirectory = provider.getWorkingDirectory(session.sessionId, reader);
+		const cwd = workingDirectory ? URI.parse(workingDirectory) : undefined;
+		return cwd?.scheme === Schemas.file ? { cwd, agentHostCwd: cwd } : undefined;
+	}
+
+	private async _onActiveSessionChanged(session: IActiveSession | undefined, info = this._getActiveSessionTerminalInfo(session)): Promise<void> {
 		if (!session) {
 			return;
 		}
+		const targetAgentHostAddress = this._getSessionAgentHostAddress(session);
 		if (!info && session.activeChat.get().workspace.get()?.isVirtualWorkspace === false) {
 			this._logService.trace(`[SessionsTerminal] Waiting for a filesystem working directory for ${session.sessionId}`);
+			return;
+		}
+		if (!info && targetAgentHostAddress && targetAgentHostAddress !== LOCAL_AGENT_HOST_ADDRESS) {
+			this._logService.trace(`[SessionsTerminal] Waiting for the remote working directory for ${session.sessionId}`);
 			return;
 		}
 
@@ -475,7 +496,6 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			}
 			const targetPath = info?.cwd ?? await this._pathService.userHome();
 			const targetKey = targetPath.fsPath.toLowerCase();
-			const targetAgentHostAddress = this._getSessionAgentHostAddress(session);
 			if (this._activeKey === targetKey && this._activeAgentHostAddress === targetAgentHostAddress && this._activeSessionId === session.sessionId) {
 				return;
 			}
@@ -963,3 +983,21 @@ class ShowAllTerminalsAction extends Action2 {
 }
 
 registerAction2(ShowAllTerminalsAction);
+
+// Reveals the terminal in the panel, creating one when there is none; the panel toggle follows it.
+// Checked while the panel shows the terminal, when activating the entry hides the panel.
+MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
+	command: {
+		id: TerminalCommandId.Focus,
+		title: localize('sessionActivityBar.terminal', "Terminal"),
+		icon: Codicon.terminal,
+		precondition: CustomViewVisibleContext.negate(),
+		toggled: ContextKeyExpr.and(PanelVisibleContext, ActivePanelContext.isEqualTo(TERMINAL_VIEW_ID)),
+	},
+	group: SessionActivityBarGroup.Panel,
+	order: 0,
+	when: ContextKeyExpr.and(
+		IsAuxiliaryWindowContext.toNegated(),
+		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+	),
+});

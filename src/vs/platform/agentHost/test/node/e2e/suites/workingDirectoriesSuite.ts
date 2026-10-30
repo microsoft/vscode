@@ -11,11 +11,10 @@ import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { editorWindowAgentHostClientInfo } from '../../../../common/agentHostClientInfo.js';
-import { AgentHostClaudeMultiRootEnabledConfigKey, AgentHostCodexMultiRootEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey } from '../../../../common/agentHostSchema.js';
 import { ChatSourceKind, CompletionItemKind, type CompletionsResult, type ListSessionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, type StateAction } from '../../../../common/state/sessionActions.js';
-import { MessageAttachmentKind, ROOT_STATE_URI, withSessionMultiRootMetadata, type ChatState, type RootState, type SessionState } from '../../../../common/state/sessionState.js';
+import { MessageAttachmentKind, ROOT_STATE_URI, withSessionMultiRootMetadata, type ChatState, type SessionState } from '../../../../common/state/sessionState.js';
 import { driveChatTurnToCompletion, initTestGitRepo, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
@@ -34,9 +33,6 @@ interface IWorkspaceSession {
 
 export function defineWorkingDirectoriesTests(context: IAgentHostE2ETestContext): void {
 	const { config } = context;
-	const multiRootKey = config.provider === 'claude'
-		? AgentHostClaudeMultiRootEnabledConfigKey
-		: config.provider === 'codex' ? AgentHostCodexMultiRootEnabledConfigKey : AgentHostCopilotMultiRootEnabledConfigKey;
 	let clientSequence = 30_000;
 
 	async function initialize(prefix: string): Promise<void> {
@@ -65,15 +61,6 @@ export function defineWorkingDirectoriesTests(context: IAgentHostE2ETestContext)
 		assert.strictEqual(getActionEnvelope(notification).rejectionReason, undefined);
 	}
 
-	async function setMultiRoot(enabled: boolean): Promise<boolean> {
-		const result = await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
-		const wasEnabled = (result.snapshot!.state as RootState).config?.values[multiRootKey] === true;
-		if (wasEnabled !== enabled) {
-			await dispatch(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [multiRootKey]: enabled } });
-		}
-		return wasEnabled;
-	}
-
 	async function withSession(prefix: string, run: (session: IWorkspaceSession) => Promise<void>, includeSecondary = true): Promise<void> {
 		const workspace = createTestDirectory(join(tmpdir(), 'ahp-working-directories-'));
 		context.tempDirs.push(workspace);
@@ -88,24 +75,19 @@ export function defineWorkingDirectoriesTests(context: IAgentHostE2ETestContext)
 		writeFileSync(workspaceFile.fsPath, JSON.stringify({ folders: [{ path: 'primary' }, { path: 'secondary' }] }));
 		context.client.setWorkingDirectory(workspace);
 		await initialize(prefix);
-		const wasMultiRootEnabled = await setMultiRoot(true);
-		try {
-			const session = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
-			await context.client.call('createSession', {
-				channel: session,
-				provider: config.provider,
-				workingDirectories: (includeSecondary ? [primary, secondary] : [primary]).map(directory => directory.toString()),
-				config: { isolation: 'folder', ...config.sessionConfig },
-				_meta: withSessionMultiRootMetadata(undefined, { workspaceFile: workspaceFile.toString() }),
-			});
-			context.createdSessions.push(session);
-			await sessionState(session);
-			const chat = defaultChatChannel(session);
-			await chatState(chat);
-			await run({ session, chat, workspace, primary, secondary, replacement });
-		} finally {
-			await setMultiRoot(wasMultiRootEnabled);
-		}
+		const session = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
+		await context.client.call('createSession', {
+			channel: session,
+			provider: config.provider,
+			workingDirectories: (includeSecondary ? [primary, secondary] : [primary]).map(directory => directory.toString()),
+			config: { isolation: 'folder', ...config.sessionConfig },
+			_meta: withSessionMultiRootMetadata(undefined, { workspaceFile: workspaceFile.toString() }),
+		});
+		context.createdSessions.push(session);
+		await sessionState(session);
+		const chat = defaultChatChannel(session);
+		await chatState(chat);
+		await run({ session, chat, workspace, primary, secondary, replacement });
 	}
 
 	async function sessionState(session: string): Promise<SessionState> {

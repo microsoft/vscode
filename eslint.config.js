@@ -188,6 +188,17 @@ export default defineConfig(
 			'local/code-no-sync-fs': 'error',
 		},
 	},
+	// Enforce this rule in migrated areas only.
+	{
+		files: [
+			'src/vs/platform/agentHost/node/claude/**/*.ts',
+			'src/vs/workbench/api/browser/mainThreadMcp.ts',
+			'src/vs/workbench/api/common/extHostQuickOpen.ts',
+		],
+		rules: {
+			'local/code-prefer-event-or-observable': 'error',
+		},
+	},
 	// Disallow bracket notation for property names that can use dot notation.
 	{
 		files: [
@@ -939,6 +950,7 @@ export default defineConfig(
 			'local/code-must-use-super-dispose': 'off',
 			'local/code-no-test-only': 'error',
 			'local/code-no-test-async-suite': 'warn',
+			'local/code-no-nested-test': 'error',
 			'local/code-must-use-result': [
 				'warn',
 				[
@@ -971,6 +983,17 @@ export default defineConfig(
 					// Files should (only) be removed from the list they adopt the leak detector
 					'exclude': [
 						'src/vs/workbench/services/userActivity/test/browser/domActivityTracker.test.ts',
+					]
+				}
+			],
+			'local/code-run-with-faked-timers-whole-test': 'warn',
+			'local/code-no-timeout-polling-loop': [
+				'warn',
+				{
+					// Files should (only) be removed from the list once they no longer poll
+					'exclude': [
+						'src/vs/sessions/contrib/layout/test/browser/chatLayoutOwnership.test.ts',
+						'src/vs/sessions/contrib/layout/test/browser/desktopLayoutController.test.ts',
 					]
 				}
 			]
@@ -1789,18 +1812,6 @@ export default defineConfig(
 						'zod', // used by agentHost for Claude client-tool MCP input schemas
 						{ 'when': 'hasNode', 'pattern': 'libsodium-wrappers' },
 						{ 'when': 'hasNode', 'pattern': '@hpke/core' },
-						{
-							'when': 'test',
-							'pattern': 'events'
-						},
-						{
-							'when': 'test',
-							'pattern': 'module'
-						},
-						{
-							'when': 'test',
-							'pattern': 'websocket'
-						}
 					]
 				},
 				{
@@ -2420,6 +2431,13 @@ export default defineConfig(
 					]
 				},
 				{
+					'target': 'test/unit/**',
+					'restrictions': [
+						'test/unit/**',
+						'*' // node modules
+					]
+				},
+				{
 					'target': 'test/monaco/**',
 					'restrictions': [
 						'test/monaco/**',
@@ -2437,19 +2455,6 @@ export default defineConfig(
 						'@vscode/*',
 						'@parcel/*',
 						'@playwright/*',
-						'*' // node modules
-					]
-				},
-				{
-					'target': 'test/mcp/**',
-					'restrictions': [
-						'test/automation',
-						'test/scenario',
-						'test/mcp/**',
-						'@vscode/*',
-						'@parcel/*',
-						'@playwright/*',
-						'@modelcontextprotocol/sdk/**/*',
 						'*' // node modules
 					]
 				},
@@ -2621,7 +2626,6 @@ export default defineConfig(
 			'extensions/markdown-language-features/preview-src/**/*.ts',
 			'extensions/mermaid-markdown-features/preview-src/chat/**/*.ts',
 			'extensions/mermaid-markdown-features/src/**/*.ts',
-			'extensions/media-preview/src/**/*.ts',
 			'extensions/simple-browser/**/*.ts',
 			'extensions/typescript-language-features/**/*.ts',
 		],
@@ -2634,10 +2638,7 @@ export default defineConfig(
 					'extensions/markdown-language-features/notebook/tsconfig.json',
 					'extensions/markdown-language-features/preview-src/tsconfig.json',
 
-					// Media preview
-					'extensions/media-preview/tsconfig.json',
-
-					// Media preview
+					// Simple browser
 					'extensions/simple-browser/tsconfig.json',
 					'extensions/simple-browser/preview-src/tsconfig.json',
 
@@ -2768,7 +2769,7 @@ export default defineConfig(
 							from: ['./extensions/copilot/src/extension']
 						},
 						{
-							target: ['./extensions/copilot/test', '!./extensions/copilot/test/base/extHostContext/*.ts'],
+							target: './extensions/copilot/test',
 							from: ['**/vscode-node/**', '**/vscode-worker/**']
 						},
 						{

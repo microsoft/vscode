@@ -241,7 +241,7 @@ suite('ChatStatusPromo', () => {
 			pip: f.entry?.showPip, sameTooltip: f.entry?.tooltip === tooltip,
 			seen: f.storage.get('chat.seenPromoIds', StorageScope.APPLICATION),
 			dismissed: f.storage.get('chat.dismissedPromoIds', StorageScope.APPLICATION), events: f.telemetry.events,
-		}, { pip: false, sameTooltip: true, seen: '["sale"]', dismissed: undefined, events: ['chatPromoWidgetShown'] });
+		}, { pip: false, sameTooltip: true, seen: '["sale"]', dismissed: undefined, events: ['chatPromoWidgetArmed', 'chatPromoWidgetShown'] });
 	});
 
 	test('withdraws a displayed offer without dismissing it', () => {
@@ -345,7 +345,7 @@ suite('ChatStatusPromo', () => {
 				pip: f.entry?.showPip, dismissed: f.storage.get('chat.dismissedPromoIds', StorageScope.APPLICATION), events: f.telemetry.events,
 			}, {
 				text: interaction === 'refresh' || interaction === 'pinnedRefresh' ? ' Updated offer' : ' Save 20%',
-				action: 'Try GPT-5', focused: interaction !== 'refresh', pip: false, dismissed: undefined, events: ['chatPromoWidgetShown'],
+				action: 'Try GPT-5', focused: interaction !== 'refresh', pip: false, dismissed: undefined, events: ['chatPromoWidgetArmed', 'chatPromoWidgetShown'],
 			});
 			if (interaction !== 'refresh') {
 				item.labelContainer.click();

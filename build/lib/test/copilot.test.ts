@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spawnSync } from 'child_process';
 import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { suite, test } from 'node:test';
 import { create } from 'tar';
-import { copilotPlatforms, ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotRuntimeVersion, prepareBuiltInCopilotRipgrepShim } from '../copilot.ts';
+import { copilotPlatforms, ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotRuntimeVersion, prepareBuiltInCopilotRipgrepShim, renderCopilotShimLauncher } from '../copilot.ts';
 
 /**
  * Builds a fake `@github/copilot-win32-x64@1.0.73` tarball on disk and returns
@@ -385,6 +386,141 @@ suite('copilot', () => {
 			]
 		);
 	});
+});
+
+suite('copilot shim launcher', () => {
+	const template = fs.readFileSync(path.join(import.meta.dirname, '..', '..', '..', 'resources', 'win32', 'bin', 'copilot.sh'), 'utf8');
+	const commit = '0123456789abcdef0123456789abcdef01234567';
+	const unixShells = process.platform === 'win32' ? [] : ['sh', 'bash'].filter(shell => spawnSync(shell, ['-c', 'exit 0']).status === 0);
+	const inWsl = process.platform === 'linux' && /microsoft/i.test(os.release());
+
+	interface ILauncherFixture {
+		readonly root: string;
+		readonly home: string;
+		readonly launcher: string;
+		readonly launcherDir: string;
+	}
+
+	/**
+	 * Lays out the launcher the way Windows setup publishes it, under a folder name with a space like
+	 * `Microsoft VS Code Insiders`, next to a `copilot.exe` stand-in.
+	 */
+	function createLauncher(root: string, folder: string): ILauncherFixture {
+		const launcherDir = path.join(root, folder, 'bin', 'copilot-shim');
+		fs.mkdirSync(launcherDir, { recursive: true });
+		const launcher = path.join(launcherDir, 'copilot');
+		fs.writeFileSync(launcher, renderCopilotShimLauncher(template, { commit, quality: 'insider', applicationName: 'code-insiders', dataFolderName: '.vscode-insiders', serverDataFolderName: '.vscode-server-insiders' }), { mode: 0o755 });
+		fs.writeFileSync(path.join(launcherDir, 'copilot.exe'), '#!/bin/sh\nprintf "%s\\n" "shim=copilot.exe" "args=$*"\n', { mode: 0o755 });
+		return { root, home: path.join(root, 'home'), launcher, launcherDir };
+	}
+
+	/**
+	 * Adds a copilot shim stand-in to a VS Code Server under the home folder, modified at the given time.
+	 */
+	function addShim(fixture: ILauncherFixture, relativeServer: string, modified: number, mode = 0o755): void {
+		const shimDir = path.join(fixture.home, relativeServer, 'bin', 'copilot-shim');
+		fs.mkdirSync(shimDir, { recursive: true });
+		const shim = path.join(shimDir, 'copilot');
+		fs.writeFileSync(shim, `#!/bin/sh\nprintf "%s\\n" "shim=${relativeServer}" "args=$*" "path=$PATH"\n`, { mode });
+		fs.utimesSync(shim, modified, modified);
+	}
+
+	function runLauncher(shell: string, fixture: ILauncherFixture, args: string[], env: Record<string, string>): { status: number | null; stdout: Record<string, string>; stderr: string } {
+		const result = spawnSync(shell, [fixture.launcher, ...args], { encoding: 'utf8', env: { PATH: `${fixture.launcherDir}:/usr/bin:/bin`, HOME: fixture.home, ...env } });
+		const stdout = Object.fromEntries(result.stdout.split('\n').filter(Boolean).map(line => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]));
+		return { status: result.status, stdout, stderr: result.stderr };
+	}
+
+	function withFixture(callback: (root: string) => void): void {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-copilot-launcher-'));
+		try {
+			callback(root);
+		} finally {
+			fs.rmSync(root, { recursive: true, force: true });
+		}
+	}
+
+	test('renders every product placeholder, with the marker where PATH filtering reads it', () => {
+		const rendered = renderCopilotShimLauncher(template, { commit, quality: 'stable', applicationName: 'code', dataFolderName: '.vscode', serverDataFolderName: '.vscode-server' });
+		assert.deepStrictEqual(
+			[/@@\w+@@/.test(rendered), rendered.includes(`COMMIT="${commit}"`), rendered.includes('DATAFOLDER=".vscode"'), rendered.includes('SERVERDATAFOLDER=".vscode-server"'), Buffer.from(rendered).subarray(0, 512).includes('vscode-copilot-launcher')],
+			[false, true, true, true, true]
+		);
+	});
+
+	for (const shell of unixShells) {
+		test(`${shell}: in WSL, runs the shim of the VS Code Server for this commit, or else the newest one`, () => {
+			withFixture(root => {
+				const fixture = createLauncher(root, 'Microsoft VS Code Insiders');
+				const wsl = { WSL_DISTRO_NAME: 'Test' };
+				const select = (servers: [string, number, number?][], env: Record<string, string> = {}) => {
+					fs.rmSync(fixture.home, { recursive: true, force: true });
+					for (const [server, modified, mode] of servers) {
+						addShim(fixture, server, modified, mode);
+					}
+					return runLauncher(shell, fixture, [], { ...wsl, ...env }).stdout.shim;
+				};
+
+				assert.deepStrictEqual({
+					remoteWslLayout: select([[`.vscode-server-insiders/bin/${commit}`, 1], ['.vscode-server-insiders/bin/newer', 9]]),
+					remoteSshLayout: select([[`.vscode-server-insiders/cli/servers/Insiders-${commit}/server`, 1], ['.vscode-server-insiders/bin/newer', 9]]),
+					codeCliLayout: select([[`.vscode-insiders/cli/servers/Insiders-${commit}/server`, 1], ['.vscode-server-insiders/bin/newer', 9]]),
+					codeCliDataDir: select([[`cli-data/servers/Insiders-${commit}/server`, 1], ['.vscode-server-insiders/bin/newer', 9]], { VSCODE_CLI_DATA_DIR: path.join(fixture.home, 'cli-data') }),
+					newestOfAnyQuality: select([['.vscode-server-insiders/bin/older', 1], ['.vscode-server/cli/servers/Stable-other/server', 5], ['.vscode-server/bin/newest', 9]]),
+					newestIncludesCodeCli: select([['.vscode-server-insiders/bin/older', 1], ['.vscode/cli/servers/Stable-other/server', 9]]),
+					skipsNonExecutable: select([[`.vscode-server-insiders/bin/${commit}`, 9, 0o644], ['.vscode-server/bin/other', 1]]),
+					agentFolder: select([[`custom/bin/${commit}`, 1], ['.vscode-server-insiders/bin/newer', 9]], { VSCODE_AGENT_FOLDER: path.join(fixture.home, 'custom') }),
+				}, {
+					remoteWslLayout: `.vscode-server-insiders/bin/${commit}`,
+					remoteSshLayout: `.vscode-server-insiders/cli/servers/Insiders-${commit}/server`,
+					codeCliLayout: `.vscode-insiders/cli/servers/Insiders-${commit}/server`,
+					codeCliDataDir: `cli-data/servers/Insiders-${commit}/server`,
+					newestOfAnyQuality: '.vscode-server/bin/newest',
+					newestIncludesCodeCli: '.vscode/cli/servers/Stable-other/server',
+					skipsNonExecutable: '.vscode-server/bin/other',
+					agentFolder: `custom/bin/${commit}`,
+				});
+			});
+		});
+
+		test(`${shell}: in WSL, hides VS Code launchers from the shim and passes the arguments`, () => {
+			withFixture(root => {
+				const fixture = createLauncher(root, 'Microsoft VS Code Insiders');
+				const other = createLauncher(root, 'Microsoft VS Code');
+				const unrelated = path.join(root, 'unrelated');
+				fs.mkdirSync(unrelated);
+				fs.writeFileSync(path.join(unrelated, 'copilot'), '#!/bin/sh\n', { mode: 0o755 });
+				// Like a Copilot CLI executable that happens to contain the marker text far from its start.
+				const large = path.join(root, 'large');
+				fs.mkdirSync(large);
+				fs.writeFileSync(path.join(large, 'copilot'), Buffer.concat([Buffer.alloc(4096, 0x7f), Buffer.from('vscode-copilot-launcher')]), { mode: 0o755 });
+				addShim(fixture, `.vscode-server-insiders/bin/${commit}`, 1);
+
+				const result = runLauncher(shell, fixture, ['--resume', 'a b'], { WSL_DISTRO_NAME: 'Test', PATH: `${fixture.launcherDir}::/usr/bin:${other.launcherDir}:${unrelated}:${large}:/bin` });
+				assert.deepStrictEqual(result, {
+					status: 0,
+					stdout: { shim: `.vscode-server-insiders/bin/${commit}`, args: '--resume a b', path: `:/usr/bin:${unrelated}:${large}:/bin` },
+					stderr: '',
+				});
+			});
+		});
+
+		test(`${shell}: in WSL, explains how to set up the command when no VS Code Server is installed`, () => {
+			withFixture(root => {
+				const fixture = createLauncher(root, 'Microsoft VS Code Insiders');
+				const result = runLauncher(shell, fixture, [], { WSL_DISTRO_NAME: 'Test' });
+				assert.deepStrictEqual([result.status, result.stdout, /Run 'code-insiders \.' to open a folder from WSL in VS Code/.test(result.stderr)], [127, {}, true]);
+			});
+		});
+
+		test(`${shell}: outside WSL, runs copilot.exe from its folder`, { skip: inWsl ? 'The test runs in WSL' : false }, () => {
+			withFixture(root => {
+				const fixture = createLauncher(root, 'Microsoft VS Code Insiders');
+				const result = runLauncher(shell, fixture, ['--resume', 'a b'], {});
+				assert.deepStrictEqual(result, { status: 0, stdout: { shim: 'copilot.exe', args: '--resume a b' }, stderr: '' });
+			});
+		});
+	}
 });
 
 function assertCopilotPlatformPackageIncludes(patterns: string[], packageDir: string, relativeFiles: string[]): void {

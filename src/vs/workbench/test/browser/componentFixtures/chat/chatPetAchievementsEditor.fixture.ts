@@ -10,17 +10,21 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ChatPetAchievementsEditor } from '../../../../contrib/chat/browser/chatPetAchievementsEditor.js';
 import { ChatPetAchievementsEditorInput, ChatPetCustomizationTab } from '../../../../contrib/chat/browser/chatPetAchievementsEditorInput.js';
 import { chatPetAchievements, ChatPetAccessoryIds, ChatPetAchievementIds } from '../../../../contrib/chat/browser/chatPetAchievements.js';
+import { chatPetColorPresets } from '../../../../contrib/chat/browser/chatPetColors.js';
 import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { TestChatEntitlementService } from '../../../common/workbenchTestServices.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
-import { configureChatPetFixtureFileRoot, FixtureChatPetService, IChatPetFixtureOptions } from './chatPetFixtureUtils.js';
+import { configureChatPetFixtureFileRoot, FixtureChatPetService, IChatPetFixtureOptions, waitForChatPetAchievementPreviews } from './chatPetFixtureUtils.js';
+import '../../../../contrib/modernUI/browser/media/tabs.css';
+import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
 
 interface IAchievementsEditorFixtureOptions extends IChatPetFixtureOptions {
 	readonly width?: number;
 	readonly height?: number;
 	readonly tab?: ChatPetCustomizationTab;
+	readonly modernUITabs?: 'pill' | 'connected';
 }
 
 function createMockEditorGroup(): IEditorGroup {
@@ -34,6 +38,8 @@ async function renderAchievementsEditor(context: ComponentFixtureContext, option
 	const height = options.height ?? 600;
 	context.container.style.width = `${width}px`;
 	context.container.style.height = `${height}px`;
+	context.container.classList.toggle('modern-ui-tabs', options.modernUITabs !== undefined);
+	context.container.classList.toggle('modern-ui-connected-editor-tabs', options.modernUITabs === 'connected');
 	configureChatPetFixtureFileRoot(context.disposableStore);
 
 	const chatPetService = context.disposableStore.add(new FixtureChatPetService(options));
@@ -50,24 +56,8 @@ async function renderAchievementsEditor(context: ComponentFixtureContext, option
 	editor.layout(new Dimension(width, height));
 	const input = context.disposableStore.add(ChatPetAchievementsEditorInput.getOrCreate());
 	await editor.setInput(input, { tab: options.tab }, {}, CancellationToken.None);
-	if (options.tab === 'color') {
-		await new Promise<void>((resolve, reject) => {
-			const deadline = mainWindow.performance.now() + 5_000;
-			const check = () => {
-				const previews = Array.from(context.container.querySelectorAll<HTMLCanvasElement>('.chat-pet-color-preview'));
-				const scrollbars = Array.from(context.container.querySelectorAll<HTMLElement>('.scrollbar'));
-				const scrollbarsSettled = scrollbars.every(scrollbar => scrollbar.classList.contains('invisible') && mainWindow.getComputedStyle(scrollbar).opacity === '0');
-				if (scrollbarsSettled && previews.length === 11 && previews.every(preview => preview.getContext('2d')?.getImageData(0, 0, preview.width, preview.height).data.some((value, index) => index % 4 === 3 && value !== 0))) {
-					resolve();
-				} else if (mainWindow.performance.now() >= deadline) {
-					reject(new Error('Color customization previews and scrollbars did not finish rendering.'));
-				} else {
-					mainWindow.requestAnimationFrame(check);
-				}
-			};
-			check();
-		});
-	}
+	// One preview per color preset plus the custom color, or one per achievement plus "No Hat".
+	await waitForChatPetAchievementPreviews(context.container, options.tab === 'color' ? chatPetColorPresets.length + 1 : chatPetAchievements.length + 1);
 }
 
 export default defineThemedFixtureGroup({ path: 'chat/petAchievements/standaloneModal/' }, {
@@ -146,6 +136,38 @@ export default defineThemedFixtureGroup({ path: 'chat/petAchievements/standalone
 			unlockedAchievements: [ChatPetAchievementIds.IntegratedBrowserShared],
 			width: 550,
 			height: 500,
+		}),
+	}),
+	ModernUIPillAchievements: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderAchievementsEditor(context, {
+			enabled: true,
+			modernUITabs: 'pill',
+			unlockedAchievements: [ChatPetAchievementIds.RequestRevision, ChatPetAchievementIds.FirstChatMessage],
+			unseenAchievements: [ChatPetAchievementIds.FirstChatMessage],
+			selectedAccessory: ChatPetAccessoryIds.TopHatMonocle,
+		}),
+	}),
+	ModernUIAchievements: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		render: context => renderAchievementsEditor(context, {
+			enabled: true,
+			modernUITabs: 'connected',
+			unlockedAchievements: [ChatPetAchievementIds.RequestRevision, ChatPetAchievementIds.FirstChatMessage],
+			unseenAchievements: [ChatPetAchievementIds.FirstChatMessage],
+			selectedAccessory: ChatPetAccessoryIds.TopHatMonocle,
+		}),
+	}),
+	ModernUIColor: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		render: context => renderAchievementsEditor(context, {
+			enabled: true,
+			modernUITabs: 'connected',
+			tab: 'color',
+			unlockedAchievements: [ChatPetAchievementIds.Blobby],
+			color: '#a277e6',
 		}),
 	}),
 });

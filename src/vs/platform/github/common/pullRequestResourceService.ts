@@ -32,6 +32,7 @@ import { GitHubRequestError } from './githubTransport.js';
 import { EffectivePullRequestFragmentInterest, pullRequestOptionsForFragment, unionPullRequestInterests } from './pullRequestInterests.js';
 import { IPullRequestQuery, PullRequestFragmentResult } from './pullRequestQueryService.js';
 import { PullRequestScheduler } from './pullRequestScheduler.js';
+import { classifyRequiredPullRequestChecks, getPullRequestCheckState } from './pullRequestRequiredChecks.js';
 
 export interface IPullRequestResources {
 	subscribePullRequest(ref: PullRequestRef, options: PullRequestSubscriptionOptions): PullRequestSubscription;
@@ -956,16 +957,15 @@ function isHeadFragment(fragment: PullRequestFragment): fragment is 'reviewThrea
 	return fragment === 'reviewThreads' || fragment === 'checks' || fragment === 'mergeability';
 }
 
+/**
+ * Whether a check may still change: one is running, or a required check or a
+ * check suite that counts has not reported yet (see
+ * `classifyRequiredPullRequestChecks`), so its result is polled for sooner.
+ */
 function checksPending(value: PullRequestChecks | undefined): boolean {
-	if (!value) {
-		return true;
-	}
-	return value.checks.some(check => {
-		if (check.type === 'checkRun') {
-			return check.status !== 'COMPLETED';
-		}
-		return check.status === 'PENDING' || check.status === 'EXPECTED';
-	});
+	return !value
+		|| value.checks.some(check => getPullRequestCheckState(check) === 'pending')
+		|| classifyRequiredPullRequestChecks(value).pending;
 }
 
 function fragmentState(snapshot: PullRequestSnapshot, fragment: PullRequestFragment): AnyFragmentState {
@@ -992,7 +992,8 @@ function withFragmentState(snapshot: PullRequestSnapshot, fragment: PullRequestF
 
 function toFragmentError(error: unknown): GitHubFragmentError {
 	if (error instanceof GitHubRequestError) {
-		return { message: error.message, kind: error.kind, statusCode: error.statusCode };
+		const ssoAuthorizationUrl = error.responseMetadata?.ssoAuthorizationUrl;
+		return { message: error.message, kind: error.kind, statusCode: error.statusCode, ...(ssoAuthorizationUrl ? { ssoAuthorizationUrl } : {}) };
 	}
 	return { message: error instanceof Error ? error.message : String(error), kind: 'unknown' };
 }

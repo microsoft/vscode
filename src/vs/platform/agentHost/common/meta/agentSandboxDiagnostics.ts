@@ -3,4 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { agentSandboxDiagnosticsMetaKey, readAgentSandboxDiagnostics } from './vscode/agentSandboxDiagnostics.js';
+export { agentSandboxDiagnosticsMetaKey, agentSandboxLocalNetworkRequiredMetaKey, readAgentSandboxDiagnostics, readAgentSandboxLocalNetworkRequired } from './vscode/agentSandboxDiagnostics.js';

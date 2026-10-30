@@ -132,6 +132,10 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 		return result;
 	}
 
+	async deleteProviderTurns(...[providerTurnIds, afterHostTurnId]: Parameters<ISessionDatabase['deleteProviderTurns']>): ReturnType<ISessionDatabase['deleteProviderTurns']> {
+		return this.raw.deleteProviderTurns(providerTurnIds, afterHostTurnId);
+	}
+
 	async insertPersistedTurn(...[record]: Parameters<ISessionDatabase['insertPersistedTurn']>): ReturnType<ISessionDatabase['insertPersistedTurn']> {
 		const result = await this.raw.insertPersistedTurn({ ...record, chatUri: this.identity.toStorage(record.chatUri), payload: this.identity.turnPayload(record.payload, 'storage') });
 		return result;
@@ -186,6 +190,11 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 		return result;
 	}
 
+	async storeFileEdits(...[edits, beforeCommit]: Parameters<ISessionDatabase['storeFileEdits']>): ReturnType<ISessionDatabase['storeFileEdits']> {
+		const result = await this.raw.storeFileEdits(edits, beforeCommit);
+		return result;
+	}
+
 	async getFileEdits(...[toolCallIds]: Parameters<ISessionDatabase['getFileEdits']>): ReturnType<ISessionDatabase['getFileEdits']> {
 		const result = await this.raw.getFileEdits(toolCallIds);
 		return result;
@@ -218,6 +227,11 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 
 	async getTerminalOutputSize(...[toolCallId]: Parameters<ISessionDatabase['getTerminalOutputSize']>): ReturnType<ISessionDatabase['getTerminalOutputSize']> {
 		const result = await this.raw.getTerminalOutputSize(toolCallId);
+		return result;
+	}
+
+	async getTerminalOutputSizes(...[toolCallIds]: Parameters<ISessionDatabase['getTerminalOutputSizes']>): ReturnType<ISessionDatabase['getTerminalOutputSizes']> {
+		const result = await this.raw.getTerminalOutputSizes(toolCallIds);
 		return result;
 	}
 

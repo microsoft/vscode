@@ -4,6 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const agentSandboxDiagnosticsMetaKey = 'vscode.sandboxDiagnostics';
+export const agentSandboxLocalNetworkRequiredMetaKey = 'vscode.sandboxLocalNetworkRequired';
+
+/** Windows host guidance, published only after the backend and all capabilities report support. */
+export function readAgentSandboxLocalNetworkRequired(source: { readonly _meta?: Record<string, unknown> }): boolean {
+	return source._meta?.[agentSandboxLocalNetworkRequiredMetaKey] === true;
+}
 
 /** Reads host-reported sandbox diagnostics without interpreting runtime policy. */
 export function readAgentSandboxDiagnostics(source: { readonly _meta?: Record<string, unknown> }): readonly string[] | undefined {

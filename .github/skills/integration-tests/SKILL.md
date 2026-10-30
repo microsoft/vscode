@@ -15,7 +15,7 @@ Integration tests in VS Code are split into two categories:
 - **macOS / Linux:** `./scripts/test-integration.sh [options]`
 - **Windows:** `.\scripts\test-integration.bat [options]`
 
-When run **without filters**, both scripts execute all node.js integration tests followed by all extension host tests. The deterministic Agent Host E2E entrypoints are parallelized across isolated test processes during the node.js phase, then excluded from the remaining serial node.js run.
+When run **without filters**, both scripts execute all node.js integration tests followed by all extension host tests. They do **not** run the deterministic Agent Host E2E suites: those run with `./scripts/test-agent-host-e2e.sh` (or `.\scripts\test-agent-host-e2e.bat`, or `npm run test-agent-host-e2e`), which runs each suite in its own isolated test process, in parallel. GitHub CI runs them in parallel with the integration tests, in the separate `Linux / Agent-Host-E2E` job on Linux and the `Windows / Agent-Host-E2E (shard 1/2)` and `Windows / Agent-Host-E2E (shard 2/2)` jobs on Windows, and as a separate step before `🧪 Run integration tests (Electron)` on macOS; ADO runs them as the `integration-agent-host-e2e` test ID in a separate `Agent Host E2E Tests (Electron)` job, not in the `Integration Tests (Electron)` job (`integration-electron`). See `src/vs/platform/agentHost/test/node/e2e/README.md`. `--run` still accepts a single Agent Host E2E file.
 
 When run **with `--run` or `--runGlob`** (without `--suite`), only the node.js integration tests are run and the filter is applied. Extension host tests are skipped since these filters are node.js-specific.
 
@@ -38,7 +38,7 @@ Selects the `out-build/` directory instead of `out/` for node.js integration tes
 Accepts a **source file path** (starting with `src/`). Works identically to `scripts/test.sh --run`.
 
 ```bash
-./scripts/test-integration.sh --run src/vs/workbench/services/search/test/browser/search.integrationTest.ts
+./scripts/test-integration.sh --run src/vs/workbench/services/search/test/node/search.integrationTest.ts
 ```
 
 ### `--runGlob <pattern>` (aliases: `--glob`, `--runGrep`) - Select test files by path
@@ -79,6 +79,17 @@ The `css`, `html`, and `json` suites are standalone extension tests that run in 
 ./scripts/test-integration.sh --suite api-folder --grep 'should open'
 ```
 
+### `--only-node-tests`, `--only-extension-host-tests` - Run one part
+
+Runs only the node.js integration tests, or only the extension host tests (all suites, including `css`, `html` and `json`). `--grep` still applies to both. `--only-node-tests` cannot be combined with `--suite`, and `--only-extension-host-tests` cannot be combined with `--run` or `--runGlob`.
+
+GitHub pull request CI runs the two parts as separate steps. `🧪 Run integration tests (Electron)` runs the node.js integration tests and reruns failed tests (`--rerun-failed-files 2`). `🧪 Run extension host integration tests (Electron)` runs the extension host suites, which are not rerun; it also runs after the integration tests or Agent Host E2E failed.
+
+```bash
+./scripts/test-integration.sh --only-node-tests --rerun-failed-files 2
+./scripts/test-integration.sh --only-extension-host-tests
+```
+
 ### `--help`, `-h` - Show help
 
 ```bash
@@ -96,7 +107,7 @@ All other options (e.g. `--timeout`, `--coverage`, `--reporter`) are forwarded t
 ./scripts/test-integration.sh
 
 # Run a single integration test file
-./scripts/test-integration.sh --run src/vs/workbench/services/search/test/browser/search.integrationTest.ts
+./scripts/test-integration.sh --run src/vs/workbench/services/search/test/node/search.integrationTest.ts
 
 # Run integration tests matching a grep pattern
 ./scripts/test-integration.sh --grep "TextSearchProvider"
@@ -117,7 +128,7 @@ All other options (e.g. `--timeout`, `--coverage`, `--reporter`) are forwarded t
 ./scripts/test-integration.sh --suite api-folder --grep 'should open'
 
 # Combine file and grep
-./scripts/test-integration.sh --run src/vs/workbench/services/search/test/browser/search.integrationTest.ts --grep "should search"
+./scripts/test-integration.sh --run src/vs/workbench/services/search/test/node/search.integrationTest.ts --grep "should search"
 ```
 
 ## Compilation requirement
