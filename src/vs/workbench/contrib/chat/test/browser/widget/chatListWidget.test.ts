@@ -955,6 +955,9 @@ suite('ChatListWidget', () => {
 		widget.refresh();
 		widget.layout(300, 500);
 		await waitForStableLayout(widget);
+		// Rows only measure once they render, so render the first exchange before reading the second request's position.
+		widget.scrollTop = 0;
+		await waitForStableLayout(widget);
 		const secondRequestItem = viewModel.getItems().filter(isRequestVM)[1];
 		const secondRequestTop = widget.getElementTop(secondRequestItem);
 		assert.notStrictEqual(secondRequestTop, undefined);
