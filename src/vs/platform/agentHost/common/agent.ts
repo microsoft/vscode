@@ -2036,6 +2036,13 @@ export interface IAgent {
 	/** Optional adoption hook for providers with a predecessor-owned on-disk format. */
 	ensureChatAdopted?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult>;
 
+	/**
+	 * The worktree a predecessor recorded for a session it still owns (one not
+	 * adopted yet), so deleting the session removes it as the predecessor's
+	 * delete did. `undefined` once the session has Agent Host metadata.
+	 */
+	readLegacyChatWorktree?(session: URI): Promise<IAgentAdoptedWorktree | undefined>;
+
 	/** Optional recovery hook for providers with historical backings but no persisted provider data. */
 	recoverLegacyChat?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult | void>;
 

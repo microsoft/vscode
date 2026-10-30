@@ -63,9 +63,10 @@ export interface IAgentHostWorktreeCleanupService {
 	/**
 	 * The removal requests for a deleted session's worktree and its detached
 	 * worktrees, for the caller to record in the same transaction as the
-	 * session's tombstone. Reads no Git.
+	 * session's tombstone. Reads no Git. `predecessorWorktree` is the worktree a
+	 * predecessor recorded for a session the host has no worktree record of.
 	 */
-	prepareSessionDeletion(session: URI, detachedWorktreeHandles: readonly string[], mode: Extract<WorktreeRemovalMode, 'delete' | 'synced'>): Promise<readonly IWorktreeRemovalRequest[]>;
+	prepareSessionDeletion(session: URI, detachedWorktreeHandles: readonly string[], mode: Extract<WorktreeRemovalMode, 'delete' | 'synced'>, predecessorWorktree?: IRecordedWorktree): Promise<readonly IWorktreeRemovalRequest[]>;
 	/** Schedules a debounced pass, after removal requests were recorded or a session that may keep a worktree in use was archived or deleted. */
 	schedule(): void;
 	/** Starts clean-up once startup settled: reconciles unclaimed detached worktrees, then runs a pass. */
@@ -430,10 +431,10 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		}
 	}
 
-	async prepareSessionDeletion(session: URI, detachedWorktreeHandles: readonly string[], mode: Extract<WorktreeRemovalMode, 'delete' | 'synced'>): Promise<readonly IWorktreeRemovalRequest[]> {
+	async prepareSessionDeletion(session: URI, detachedWorktreeHandles: readonly string[], mode: Extract<WorktreeRemovalMode, 'delete' | 'synced'>, predecessorWorktree?: IRecordedWorktree): Promise<readonly IWorktreeRemovalRequest[]> {
 		const requests: IWorktreeRemovalRequest[] = [];
 		// Under the lock, a worktree still being created is complete before it is read.
-		const worktree = await this._worktree.runExclusive(AgentSession.id(session), () => this._worktree.readSessionWorktreeForRemoval(session, { includeUnpersisted: true }));
+		const worktree = await this._worktree.runExclusive(AgentSession.id(session), () => this._worktree.readSessionWorktreeForRemoval(session, { includeUnpersisted: true })) ?? predecessorWorktree;
 		if (worktree) {
 			requests.push(this._request('session', session.toString(), session, worktree, mode, true));
 		}

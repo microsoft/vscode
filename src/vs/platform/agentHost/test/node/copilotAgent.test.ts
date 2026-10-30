@@ -30982,6 +30982,50 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('reads the recorded worktree of an un-adopted extension-host session only, for deletion to remove it', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const repositoryRoot = await fs.mkdtemp(`${os.tmpdir()}/adopt-repo-`);
+			// A checkout that exists without a recorded base branch: adoption leaves it to the probe, deletion must not.
+			const worktreePath = join(repositoryRoot, '..', `delete.worktrees-${Date.now()}`, 'feature-d');
+			await fs.mkdir(worktreePath, { recursive: true });
+			const worktreeProperties = { worktreePath, repositoryPath: repositoryRoot, branchName: 'feature/d' };
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession('legacy-delete-adopted', worktreePath)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, 'legacy-delete-worktree', { origin: 'vscode', worktreeProperties });
+				await writeExtensionHostMarker(userHome, 'legacy-delete-folder', { origin: 'vscode', repositoryProperties: { repositoryPath: repositoryRoot } });
+				await writeExtensionHostMarker(userHome, 'legacy-delete-other-host', { origin: 'other', worktreeProperties });
+				await writeExtensionHostMarker(userHome, 'legacy-delete-adopted', { origin: 'vscode', worktreeProperties });
+				const adoptedSession = AgentSession.uri('copilotcli', 'legacy-delete-adopted');
+				const adopted = (await ensureDefaultChatAdopted(agent, adoptedSession)).adopted;
+
+				const read = async (sessionId: string) => {
+					const worktree = await agent.readLegacyChatWorktree(AgentSession.uri('copilotcli', sessionId));
+					return worktree && { branchName: worktree.branchName, baseBranch: worktree.baseBranch, worktreePath: worktree.worktreePath.fsPath, repositoryRoot: worktree.repositoryRoot.fsPath };
+				};
+				assert.deepStrictEqual({
+					unadopted: await read('legacy-delete-worktree'),
+					folder: await read('legacy-delete-folder'),
+					otherHost: await read('legacy-delete-other-host'),
+					adopted,
+					afterAdoption: await read('legacy-delete-adopted'),
+				}, {
+					unadopted: { branchName: 'feature/d', baseBranch: undefined, worktreePath: URI.file(worktreePath).fsPath, repositoryRoot: URI.file(repositoryRoot).fsPath },
+					folder: undefined,
+					otherHost: undefined,
+					adopted: true,
+					afterAdoption: undefined,
+				});
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(repositoryRoot, { recursive: true, force: true });
+				await fs.rm(join(worktreePath, '..'), { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
 		test('bridges an existing worktree checkout so the recorded base branch survives without a remote', async () => {
 			// #333642: the CLI committed the session's work onto the worktree branch.
 			// The checkout still exists, so the old bridge skipped it and — with no

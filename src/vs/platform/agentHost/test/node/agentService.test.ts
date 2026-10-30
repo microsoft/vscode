@@ -48,7 +48,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
-import { AgentPermissionKind, AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef } from '../../common/agent.js';
+import { AgentPermissionKind, AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentAdoptedWorktree, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef } from '../../common/agent.js';
 import { AgentHostPrewarmSessionsSettingId, IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, platformSessionSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactIntegrationsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPrewarmSessionsConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../common/agentHostSchema.js';
@@ -14187,6 +14187,60 @@ suite('AgentService (node dispatcher)', () => {
 					{ kind: 'session', owner: session.toString(), mode: 'delete', worktreePath: 'file:///worktree', repositoryRoot: 'file:///repo', branch: 'agents/session' },
 					{ kind: 'detached', owner: additionalWorktreeHandle, mode: 'delete', worktreePath: additionalWorktree.toString(), repositoryRoot: 'file:///additional-repository', branch: 'agents/additional' },
 				],
+				registered: [],
+			});
+		});
+
+		test('removes the worktree the predecessor recorded for an un-adopted legacy session once no sibling uses it', async () => {
+			// The extension host's delete removed a session's worktree unless another of
+			// its sessions still used it; deleting an un-adopted row from the host must too.
+			const worktree = URI.file('/repo/.worktrees/legacy');
+			const repositoryRoot = URI.file('/repo');
+			const first = AgentSession.uri('copilot', 'legacy-worktree-first');
+			const sibling = AgentSession.uri('copilot', 'legacy-worktree-sibling');
+			const unreadable = AgentSession.uri('copilot', 'legacy-worktree-unreadable');
+			class LegacyWorktreeAgent extends MockAgent {
+				async readLegacyChatWorktree(session: URI): Promise<IAgentAdoptedWorktree | undefined> {
+					if (session.toString() === unreadable.toString()) {
+						throw new Error('marker unreadable');
+					}
+					return { branchName: 'copilot/legacy', baseBranch: 'main', worktreePath: worktree, repositoryRoot };
+				}
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			const agent = disposables.add(new LegacyWorktreeAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			await svc.listSessions();
+			for (const session of [first, sibling, unreadable]) {
+				(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+			}
+			agent.fireDiscoveredChats([first, sibling, unreadable].map(session => ({
+				...discoveredChat(session, false),
+				workingDirectories: [worktree],
+				_meta: withSessionEhcliAdoptable(undefined),
+			})));
+			await svc.whenDiscoveredChatsRegistered();
+			const database = getTestAgentHostDatabase(svc);
+			const state = async (deleted: URI) => ({
+				removals: (await database.listPendingWorktreeRemovals()).map(removal => `${removal.kind}:${removal.owner}:${removal.mode}:${removal.worktreePath}:${removal.repositoryRoot}:${removal.branch}`),
+				inUse: await database.isWorktreeInUse(worktree.toString(), deleted.toString()),
+			});
+
+			await svc.disposeSession(unreadable);
+			const afterUnreadable = await state(unreadable);
+			await svc.disposeSession(first);
+			const afterFirst = await state(first);
+			await svc.disposeSession(sibling);
+			const afterSibling = await state(sibling);
+
+			const removal = (session: URI) => `session:${session.toString()}:delete:${worktree.toString()}:${repositoryRoot.toString()}:copilot/legacy`;
+			assert.deepStrictEqual({ afterUnreadable, afterFirst, afterSibling, registered: await svc.getRegisteredSessions() }, {
+				// A predecessor record that cannot be read does not block deletion.
+				afterUnreadable: { removals: [], inUse: true },
+				// The sibling still works there, so the clean-up pass keeps the folder.
+				afterFirst: { removals: [removal(first)], inUse: true },
+				afterSibling: { removals: [removal(first), removal(sibling)], inUse: false },
 				registered: [],
 			});
 		});

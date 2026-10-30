@@ -6387,6 +6387,28 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
+	/** The worktree the extension host recorded for a session the Agent Host has not adopted. */
+	async readLegacyChatWorktree(session: URI): Promise<IAgentAdoptedWorktree | undefined> {
+		if (!AgentSession.isCanonical(session)) {
+			return undefined;
+		}
+		// Adoption records the worktree in the host's own metadata, which then owns its removal.
+		if ((await this._readStoredSessionMetadata(sessionMetadataScope(session)))?.workingDirectory) {
+			return undefined;
+		}
+		const marker = await this._readExtensionHostCliMarker(AgentSession.id(session));
+		const worktree = isExtensionHostCliMarker(marker) ? marker?.worktreeProperties : undefined;
+		if (!worktree?.worktreePath || !worktree.repositoryPath || !worktree.branchName) {
+			return undefined;
+		}
+		return {
+			branchName: worktree.branchName,
+			baseBranch: worktree.baseBranchName,
+			worktreePath: URI.file(worktree.worktreePath),
+			repositoryRoot: URI.file(worktree.repositoryPath),
+		};
+	}
+
 	/**
 	 * Repairs durable metadata on a legacy Copilot CLI session adopted by a build
 	 * that predates it. Keyed off the extension-host marker, so it never claims a

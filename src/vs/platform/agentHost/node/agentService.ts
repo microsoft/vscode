@@ -124,7 +124,7 @@ import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostCatalogListReader, type AgentHostCatalogListManyResult } from './agentHostCatalogListReader.js';
 import { AgentHostSessionsV2CandidateResolution, AgentHostSessionsV2MigrationService, IAgentHostSessionsV2Candidate, type IAgentHostSessionsV2MigrationReport } from './agentHostSessionsV2MigrationService.js';
 
-import { detachedWorktreeRecordUri, getPullRequestSessionBranchName, IAgentHostWorktreeIsolation, type IWorktreeHandOver, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
+import { detachedWorktreeRecordUri, getPullRequestSessionBranchName, IAgentHostWorktreeIsolation, type IRecordedWorktree, type IWorktreeHandOver, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { findMcpServerName } from './shared/mcpCustomizationController.js';
 import type { IAgentHostSessionLifecycleCandidate } from './agentHostSessionLifecycle.js';
@@ -10278,6 +10278,24 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
+	 * The worktree a predecessor recorded for a session it still owns, so its
+	 * deletion removes the worktree as the predecessor's delete did. Best-effort:
+	 * a failure to read it must not fail the deletion.
+	 */
+	private async _readLegacyChatWorktree(provider: IAgent | undefined, session: URI): Promise<IRecordedWorktree | undefined> {
+		if (!provider?.readLegacyChatWorktree) {
+			return undefined;
+		}
+		try {
+			const worktree = await provider.readLegacyChatWorktree(session);
+			return worktree && { worktree: worktree.worktreePath, repositoryRoot: worktree.repositoryRoot, branchName: worktree.branchName };
+		} catch (error) {
+			this._logService.warn(`[AgentService] Failed to read the predecessor's worktree of ${session.toString()}; deleting without removing it`, error);
+			return undefined;
+		}
+	}
+
+	/**
 	 * Destructively tears a session down: dispose peer chats first and the
 	 * default chat last, and still visit every chat if one rejects.
 	 */
@@ -11212,7 +11230,9 @@ export class AgentService extends Disposable implements IAgentService {
 			const additionalWorktrees = await readSessionAdditionalWorktrees(this._sessionStateStore, session);
 			// The worktrees are removed in the background; deletion only records that, with the tombstone.
 			traceStage('readWorktreeMetadata');
-			const worktreeRemovals = await this._worktreeCleanup.prepareSessionDeletion(session, additionalWorktrees.map(worktree => worktree.handle), worktreeRemovalMode);
+			// Read before the provider disposes the session, which deletes the predecessor's record of the worktree.
+			const predecessorWorktree = await this._readLegacyChatWorktree(provider, session);
+			const worktreeRemovals = await this._worktreeCleanup.prepareSessionDeletion(session, additionalWorktrees.map(worktree => worktree.handle), worktreeRemovalMode, predecessorWorktree);
 			const worktree = worktreeRemovals.find(removal => removal.kind === 'session');
 			const candidateCleanupWorkingDirectoryUris = (worktree
 				? [worktree.repositoryRoot, ...(workingDirectories?.slice(1) ?? [])]
