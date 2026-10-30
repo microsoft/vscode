@@ -779,6 +779,23 @@ async function evaluateDiagnosticsCommitHook(repository: Repository, options: Co
 	return false;
 }
 
+/**
+ * Resolve a resource to the repository that owns its SCM command.
+ * Git links for submodules are tracked in the parent repository, even when
+ * the submodule repository is closed and not returned by getRepository().
+ */
+export function getRepositoryForSCMCommand(model: Pick<Model, 'getRepository' | 'getRepositoryForSubmodule'>, resource: Uri): Repository | undefined {
+	const repository = model.getRepository(resource);
+
+	// A submodule root can be an open repository or a closed one.
+	// In either case, stage/discard its gitlink in the parent repository.
+	if (!repository || pathEquals(resource.fsPath, repository.root)) {
+		return model.getRepositoryForSubmodule(resource) ?? repository;
+	}
+
+	return repository;
+}
+
 export class CommandCenter {
 
 	private disposables: Disposable[];
@@ -5755,16 +5772,11 @@ export class CommandCenter {
 		const isSingleResource = arg instanceof Uri;
 
 		const groups = resources.reduce((result, resource) => {
-			let repository = this.model.getRepository(resource);
+			const repository = getRepositoryForSCMCommand(this.model, resource);
 
 			if (!repository) {
 				console.warn('Could not find git repository for ', resource);
 				return result;
-			}
-
-			// Could it be a submodule?
-			if (pathEquals(resource.fsPath, repository.root)) {
-				repository = this.model.getRepositoryForSubmodule(resource) || repository;
 			}
 
 			const tuple = result.filter(p => p.repository === repository)[0];
