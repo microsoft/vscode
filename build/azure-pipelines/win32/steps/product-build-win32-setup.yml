@@ -109,11 +109,12 @@ steps:
 
   # NuGetAuthenticate@1 exposes its access token to all later steps as the
   # VSS_NUGET_ACCESSTOKEN environment variable, from where tests can write it to
-  # published logs. Only installing dependencies needs it, so clear it now.
-  - ${{ if and(eq(parameters.VSCODE_CIBUILD, false), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, false)) }}:
-    - powershell: echo "##vso[task.setvariable variable=VSS_NUGET_ACCESSTOKEN]"
-      displayName: Clear NuGet access token
-      condition: always()
+  # published logs and crash dumps. Only installing dependencies needs it, so
+  # clear it now. This runs in every build so that it can't fall out of sync
+  # with the condition of the authentication step.
+  - powershell: echo "##vso[task.setvariable variable=VSS_NUGET_ACCESSTOKEN]"
+    displayName: Clear package feed credentials
+    condition: always()
 
   - powershell: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
     displayName: Verify native optional dependency binaries

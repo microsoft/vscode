@@ -84,7 +84,7 @@ steps:
 
   # Only the ONNX downloads need the access token from the NuGetAuthenticate@1
   # step above. Clear it so that later steps, such as the packaged Agent Host
-  # smoke test, cannot write it to logs.
+  # smoke test, cannot write it to logs or crash dumps.
   - pwsh: Write-Host "##vso[task.setvariable variable=VSS_NUGET_ACCESSTOKEN]"
     displayName: "Dictation runtime: clear NuGet access token"
     condition: and(always(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))

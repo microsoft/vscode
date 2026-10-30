@@ -160,7 +160,7 @@ jobs:
           displayName: Install SignTool (Windows ARM64)
 
         # The NuGet access token is only needed to download SignTool. Clear it so
-        # that the sanity tests cannot write it to their logs.
+        # that the sanity tests cannot write it to their logs or crash dumps.
         - powershell: echo "##vso[task.setvariable variable=VSS_NUGET_ACCESSTOKEN]"
           displayName: Clear NuGet access token
           condition: always()

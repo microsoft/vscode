@@ -119,7 +119,8 @@ jobs:
 
       # NuGetAuthenticate@1 exposes its access token to all later steps as the
       # VSS_NUGET_ACCESSTOKEN environment variable, from where tests can write it
-      # to logs. Only installing dependencies needs it, so clear it now.
+      # to logs and crash dumps. Only installing dependencies needs it, so clear
+      # it now.
       - script: echo "##vso[task.setvariable variable=VSS_NUGET_ACCESSTOKEN]"
         displayName: Clear NuGet access token
         condition: always()
