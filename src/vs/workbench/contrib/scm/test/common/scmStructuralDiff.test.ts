@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
@@ -13,6 +13,7 @@ import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { linesDiffComputers } from '../../../../../editor/common/diff/linesDiffComputers.js';
@@ -24,6 +25,7 @@ import { ILanguageFeaturesService } from '../../../../../editor/common/services/
 import { LanguageFeaturesService } from '../../../../../editor/common/services/languageFeaturesService.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
@@ -99,6 +101,9 @@ suite('SCM structural diff model', () => {
 	let instantiationService: TestInstantiationService;
 	let registration: { dispose(): void };
 	let errors: number;
+	let maxComputationTimeSetting: unknown;
+	let textDiffTimedOut: boolean;
+	let textDiffTimeBudgets: number[];
 	let languageChanges: Emitter<{ model: ITextModel; oldLanguageId: string }>;
 	let languageRegistryChanges: Emitter<void>;
 
@@ -121,6 +126,9 @@ suite('SCM structural diff model', () => {
 		languageChanges = store.add(new Emitter<{ model: ITextModel; oldLanguageId: string }>());
 		languageRegistryChanges = store.add(new Emitter<void>());
 		errors = 0;
+		maxComputationTimeSetting = undefined;
+		textDiffTimedOut = false;
+		textDiffTimeBudgets = [];
 		instantiationService = store.add(new TestInstantiationService());
 		instantiationService.set(ITextModelService, resolver);
 		instantiationService.set(ILanguageFeaturesService, features);
@@ -138,10 +146,14 @@ suite('SCM structural diff model', () => {
 		instantiationService.set(ILogService, new class extends NullLogService {
 			override error(): void { errors++; }
 		});
+		instantiationService.set(ITextResourceConfigurationService, new class extends mock<ITextResourceConfigurationService>() {
+			override getValue<T>(): T { return maxComputationTimeSetting as T; }
+		});
 		instantiationService.set(IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
 			override async computeDiff(_original: URI, _modified: URI, options: IDocumentDiffProviderOptions): Promise<IDocumentDiff> {
+				textDiffTimeBudgets.push(options.maxComputationTimeMs);
 				const result = linesDiffComputers.getDefault().computeDiff(original.getLinesContent(), modified.getLinesContent(), options);
-				return { identical: false, quitEarly: result.hitTimeout, changes: result.changes, moves: result.moves };
+				return { identical: false, quitEarly: textDiffTimedOut || result.hitTimeout, changes: result.changes, moves: result.moves };
 			}
 		});
 		model = store.add(instantiationService.createInstance(SCMStructuralDiffModel));
@@ -510,5 +522,64 @@ suite('SCM structural diff model', () => {
 		step(() => languageRegistryChanges.fire());
 		// Cumulative tree refreshes: both language events with a provider, its removal, then both language events again without one.
 		assert.deepStrictEqual(refreshes, [1, 2, 3, 3, 3]);
+	});
+
+	function createResources(count: number): ISCMResource[] {
+		return Array.from({ length: count }, (_, index) => {
+			const uri = URI.file(`file${index}.ts`);
+			return new TestResource(group, uri, original.uri, uri);
+		});
+	}
+
+	test('analyzes only a few files at a time and queues the rest', async () => {
+		provider.pending = new DeferredPromise<StructuralDiff | undefined>();
+		const loads = createResources(5).map(file => model.getChildren(file));
+		await timeout(0);
+		const started = provider.calls;
+		await provider.pending.complete(provider.result);
+		const loaded = (await Promise.all(loads)).map(children => children.length);
+		assert.deepStrictEqual({ started, calls: provider.calls, loaded }, { started: 3, calls: 5, loaded: [1, 1, 1, 1, 1] });
+	});
+
+	test('skips queued files that were collapsed before their turn', async () => {
+		provider.pending = new DeferredPromise<StructuralDiff | undefined>();
+		const files = createResources(4);
+		const loads = files.map(file => model.getChildren(file));
+		await timeout(0);
+		model.release(files[3]);
+		await provider.pending.complete(provider.result);
+		const loaded = (await Promise.all(loads)).map(children => children.length);
+		assert.deepStrictEqual({ calls: provider.calls, loaded }, { calls: 3, loaded: [1, 1, 1, 0] });
+	});
+
+	test('shows a status row and stops the provider when loading takes too long', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		provider.pending = new DeferredPromise<StructuralDiff | undefined>();
+		provider.started = new DeferredPromise<CancellationToken>();
+		const start = Date.now();
+		const children = await model.getChildren(resource);
+		const token = await provider.started.p;
+		assert.deepStrictEqual({
+			labels: children.map(getSCMStructuralDiffLabel),
+			elapsed: Date.now() - start,
+			providerCancelled: token.isCancellationRequested,
+			released: resolver.released,
+			cached: await model.getChildren(resource) === children,
+			calls: provider.calls,
+			errors,
+		}, {
+			labels: ['Structural changes took too long to load'], elapsed: 30000, providerCancelled: true,
+			released: [original.uri, modified.uri], cached: true, calls: 1, errors: 0,
+		});
+	}));
+
+	test('shows a status row, not an error, when the text diff exceeds its time budget', async () => {
+		textDiffTimedOut = true;
+		maxComputationTimeSetting = 1234;
+		const children = await model.getChildren(resource);
+		assert.deepStrictEqual({
+			labels: children.map(getSCMStructuralDiffLabel), errors, calls: provider.calls, budgets: textDiffTimeBudgets, released: resolver.released,
+		}, {
+			labels: ['Structural changes took too long to load'], errors: 0, calls: 0, budgets: [1234], released: [original.uri, modified.uri],
+		});
 	});
 });

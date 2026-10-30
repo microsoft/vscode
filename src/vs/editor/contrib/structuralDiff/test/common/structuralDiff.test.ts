@@ -21,8 +21,9 @@ import { IEditorWorkerService } from '../../../../common/services/editorWorker.j
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../common/services/resolverService.js';
+import { ITextResourceConfigurationService } from '../../../../common/services/textResourceConfiguration.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
-import { getStructuralDiff } from '../../common/structuralDiff.js';
+import { StructuralDiffTimeoutError, getStructuralDiff } from '../../common/structuralDiff.js';
 import '../../common/structuralDiff.contribution.js';
 
 suite('Structural diff', () => {
@@ -31,6 +32,9 @@ suite('Structural diff', () => {
 	let modified: ITextModel;
 	let languageFeatures: LanguageFeaturesService;
 	let worker: IEditorWorkerService;
+	let configuration: ITextResourceConfigurationService;
+	let maxComputationTimeSetting: unknown;
+	let textDiffTimeBudgets: number[];
 	let computations: number;
 
 	setup(() => {
@@ -38,12 +42,21 @@ suite('Structural diff', () => {
 		modified = store.add(createTextModel('const value = 2;\n', undefined, undefined, URI.parse('modified:/file.ts')));
 		languageFeatures = new LanguageFeaturesService();
 		computations = 0;
+		maxComputationTimeSetting = undefined;
+		textDiffTimeBudgets = [];
+		configuration = new class extends mock<ITextResourceConfigurationService>() {
+			override getValue<T>(resource: URI | undefined): T {
+				assert.strictEqual(resource, modified.uri);
+				return maxComputationTimeSetting as T;
+			}
+		};
 		worker = new class extends mock<IEditorWorkerService>() {
 			override async computeDiff(originalUri: URI, modifiedUri: URI, options: IDocumentDiffProviderOptions): Promise<IDocumentDiff> {
 				computations++;
-				assert.deepStrictEqual([originalUri, modifiedUri, options], [original.uri, modified.uri, {
+				const { maxComputationTimeMs, ...otherOptions } = options;
+				textDiffTimeBudgets.push(maxComputationTimeMs);
+				assert.deepStrictEqual([originalUri, modifiedUri, otherOptions], [original.uri, modified.uri, {
 					ignoreTrimWhitespace: false,
-					maxComputationTimeMs: 0,
 					computeMoves: false,
 				}]);
 				const result = linesDiffComputers.getDefault().computeDiff(original.getLinesContent(), modified.getLinesContent(), options);
@@ -76,7 +89,7 @@ suite('Structural diff', () => {
 	}
 
 	function compute(token: CancellationToken = CancellationToken.None): Promise<StructuralDiffResult | undefined> {
-		return getStructuralDiff(worker, languageFeatures.structuralDiffProvider, original, modified, token);
+		return getStructuralDiff(worker, configuration, languageFeatures.structuralDiffProvider, original, modified, token);
 	}
 
 	test('computes paired character changes and selects using the modified model', async () => {
@@ -215,7 +228,18 @@ suite('Structural diff', () => {
 			store.add(languageFeatures.structuralDiffProvider.register('*', {
 				provideStructuralDiff: () => { throw new Error('Must not classify an unavailable text diff'); },
 			}));
-			await assert.rejects(compute(), /without a complete text diff/);
+			await assert.rejects(compute(), unavailable ? /without a complete text diff/ : StructuralDiffTimeoutError);
+		});
+	}
+
+	for (const [setting, expected] of [[undefined, 5000], [1234, 1234], [0, 0], ['nonsense', 5000]] as const) {
+		test(`limits the text diff to ${expected} ms when diffEditor.maxComputationTime is ${JSON.stringify(setting)}`, async () => {
+			maxComputationTimeSetting = setting;
+			store.add(languageFeatures.structuralDiffProvider.register('*', {
+				provideStructuralDiff: (_original, _modified, context) => createResult(context),
+			}));
+			assert.ok(await compute());
+			assert.deepStrictEqual(textDiffTimeBudgets, [expected]);
 		});
 	}
 
@@ -285,6 +309,7 @@ suite('Structural diff', () => {
 			const released: URI[] = [];
 			const instantiationService = store.add(new TestInstantiationService());
 			instantiationService.set(IEditorWorkerService, worker);
+			instantiationService.set(ITextResourceConfigurationService, configuration);
 			instantiationService.set(ILanguageFeaturesService, languageFeatures);
 			instantiationService.set(ITextModelService, new class extends mock<ITextModelService>() {
 				override async createModelReference(resource: URI) {

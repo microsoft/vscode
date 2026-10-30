@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { Limiter, RunOnceScheduler, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -17,13 +17,20 @@ import { IEditorWorkerService } from '../../../../editor/common/services/editorW
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
-import { getStructuralDiff } from '../../../../editor/contrib/structuralDiff/common/structuralDiff.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { StructuralDiffTimeoutError, getStructuralDiff } from '../../../../editor/contrib/structuralDiff/common/structuralDiff.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ISCMProvider, ISCMResource, ISCMResourceGroup } from './scm.js';
 
 export const SCM_STRUCTURAL_DIFF_ID_PREFIX = 'scmStructuralDiff:';
+
+/** Structural changes load when a file is expanded, for example many at once when a view with expanded files is restored. Only a few are analyzed at a time. */
+const MAX_CONCURRENT_LOADS = 3;
+
+/** A load that takes longer is abandoned, so one hung provider cannot occupy a load slot forever. */
+const MAX_LOAD_TIME_MS = 30_000;
 
 interface SCMStructuralDiffElementBase {
 	readonly id: string;
@@ -41,7 +48,7 @@ export interface SCMStructuralDiffNode extends SCMStructuralDiffElementBase {
 
 export interface SCMStructuralDiffStatus extends SCMStructuralDiffElementBase {
 	readonly type: 'structuralDiffStatus';
-	readonly status: 'incomplete' | 'error';
+	readonly status: 'incomplete' | 'error' | 'timedOut';
 	readonly parent: ISCMResource;
 }
 
@@ -56,7 +63,9 @@ export function getSCMStructuralDiffLabel(element: SCMStructuralDiffElement): st
 	if (element.type === 'structuralDiffStatus') {
 		return element.status === 'incomplete'
 			? localize('structuralDiff.incomplete', "Partial structural changes")
-			: localize('structuralDiff.error', "Unable to load structural changes");
+			: element.status === 'timedOut'
+				? localize('structuralDiff.timedOut', "Structural changes took too long to load")
+				: localize('structuralDiff.error', "Unable to load structural changes");
 	}
 	return (element.node.modified ?? element.node.original)!.name;
 }
@@ -139,6 +148,7 @@ class StructuralDiffEntry extends Disposable {
 	pending?: Promise<readonly SCMStructuralDiffElement[]>;
 	children?: readonly SCMStructuralDiffElement[];
 	disposed = false;
+	timedOut = false;
 
 	constructor(readonly resource: ISCMResource, readonly generation: number) {
 		super();
@@ -176,6 +186,7 @@ export class SCMStructuralDiffModel extends Disposable {
 	readonly hasProvider = observableFromEvent(this, this.languageFeaturesService.structuralDiffProvider.onDidChange, () => hasSCMStructuralDiffProvider(this.languageFeaturesService));
 
 	private readonly entries = this._register(new DisposableMap<ISCMResource, StructuralDiffEntry>());
+	private readonly loadLimiter = this._register(new Limiter<readonly SCMStructuralDiffElement[]>(MAX_CONCURRENT_LOADS));
 	private readonly _onDidChange = this._register(new Emitter<ISCMResource | undefined>());
 	readonly onDidChange = this._onDidChange.event;
 	private generation = 0;
@@ -194,6 +205,7 @@ export class SCMStructuralDiffModel extends Disposable {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
+		@ITextResourceConfigurationService private readonly configurationService: ITextResourceConfigurationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
 	) {
@@ -247,7 +259,7 @@ export class SCMStructuralDiffModel extends Disposable {
 	}
 
 	getChildren(resource: ISCMResource): Promise<readonly SCMStructuralDiffElement[]> {
-		if (!this.canProvide(resource)) {
+		if (this._store.isDisposed || !this.canProvide(resource)) {
 			return Promise.resolve([]);
 		}
 		let entry = this.entries.get(resource);
@@ -258,7 +270,7 @@ export class SCMStructuralDiffModel extends Disposable {
 		if (entry.children !== undefined) {
 			return Promise.resolve(entry.children);
 		}
-		entry.pending ??= this.load(entry);
+		entry.pending ??= this.loadLimiter.queue(() => this.loadWithinBudget(entry));
 		return entry.pending;
 	}
 
@@ -339,6 +351,15 @@ export class SCMStructuralDiffModel extends Disposable {
 		return reference.object.textEditorModel;
 	}
 
+	/** Loads within the time budget, so a load that never completes cannot occupy one of the limited load slots forever. */
+	private async loadWithinBudget(entry: StructuralDiffEntry): Promise<readonly SCMStructuralDiffElement[]> {
+		const children = await raceTimeout(this.load(entry), MAX_LOAD_TIME_MS, () => {
+			entry.timedOut = true;
+			entry.cancellation.cancel();
+		});
+		return children ?? this.fail(entry, 'timedOut');
+	}
+
 	private async load(entry: StructuralDiffEntry): Promise<readonly SCMStructuralDiffElement[]> {
 		const resource = entry.resource;
 		try {
@@ -348,7 +369,7 @@ export class SCMStructuralDiffModel extends Disposable {
 				entry.listeners.add(model.onDidChangeContent(() => this.invalidate(entry)));
 				entry.listeners.add(model.onWillDispose(() => this.invalidate(entry)));
 			}
-			const result = await getStructuralDiff(this.editorWorkerService, this.languageFeaturesService.structuralDiffProvider, original, modified, entry.cancellation.token);
+			const result = await getStructuralDiff(this.editorWorkerService, this.configurationService, this.languageFeaturesService.structuralDiffProvider, original, modified, entry.cancellation.token);
 			this.checkCancellation(entry);
 			const ids = new Set<string>();
 			const wrap = (node: StructuralDiffNode, parent: ISCMResource | SCMStructuralDiffNode, order: number): SCMStructuralDiffNode => {
@@ -374,18 +395,33 @@ export class SCMStructuralDiffModel extends Disposable {
 			}
 			return children;
 		} catch (error) {
+			if (entry.timedOut) {
+				return [];
+			}
 			if (entry.disposed || isCancellationError(error)) {
 				if (!entry.disposed) {
 					this.entries.deleteAndDispose(resource);
 				}
 				return [];
 			}
+			if (error instanceof StructuralDiffTimeoutError) {
+				this.logService.info('[SCM] Structural changes took too long to compute', resource.sourceUri, error.message);
+				return this.fail(entry, 'timedOut');
+			}
 			this.logService.error('[SCM] Error loading structural changes', resource.sourceUri, error);
-			entry.releaseModels();
-			const children = [this.createStatus(entry, 'error', 0)];
-			entry.children = children;
-			return children;
+			return this.fail(entry, 'error');
 		}
+	}
+
+	/** Releases the models and shows a status row instead of structural changes, until the entry is invalidated. */
+	private fail(entry: StructuralDiffEntry, status: 'error' | 'timedOut'): readonly SCMStructuralDiffElement[] {
+		if (entry.disposed) {
+			return [];
+		}
+		entry.releaseModels();
+		const children = [this.createStatus(entry, status, 0)];
+		entry.children = children;
+		return children;
 	}
 
 	private createStatus(entry: StructuralDiffEntry, status: SCMStructuralDiffStatus['status'], order: number): SCMStructuralDiffStatus {

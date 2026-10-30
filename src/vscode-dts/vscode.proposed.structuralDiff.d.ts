@@ -235,6 +235,10 @@ declare module 'vscode' {
 	 * The result of executing the `vscode.executeStructuralDiffProvider` command,
 	 * which takes the {@link Uri uris} of the original and the modified document
 	 * and resolves to `undefined` when no provider supplies a result.
+	 *
+	 * The command rejects when the textual diff does not complete within the time
+	 * configured by the `diffEditor.maxComputationTime` setting, because the
+	 * textual changes would be incomplete.
 	 */
 	export interface StructuralDiffResult extends StructuralDiff {
 		/**
