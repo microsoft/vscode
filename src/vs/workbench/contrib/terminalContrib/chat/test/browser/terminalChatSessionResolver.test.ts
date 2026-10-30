@@ -7,7 +7,6 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, errorHandler, isCancellationError, setUnexpectedErrorHandler } from '../../../../../../base/common/errors.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -90,7 +89,7 @@ class TestChatService extends mock<IChatService>() {
 }
 
 suite('TerminalChatSessionResolver', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 	let chatSessionsService: TestChatSessionsService;
 	let chatService: TestChatService;
@@ -108,12 +107,6 @@ suite('TerminalChatSessionResolver', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		resolver = instantiationService.createInstance(TerminalChatSessionResolver);
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('uses the Agent Host session when it supports the terminal location', async () => {
 		const agentHostReference = new TestModelReference();

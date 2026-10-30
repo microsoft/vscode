@@ -3,16 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
+import { URI } from '../../../../base/common/uri.js';
 import type { MultiDiffEditorVariant } from '../../../../editor/common/multiDiffEditor.js';
 import { localize } from '../../../../nls.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ActiveEditorContext } from '../../../common/contextkeys.js';
+
+/** The editor pane identifier of the multi diff editor. */
+export const MULTI_DIFF_EDITOR_ID = 'multiDiffEditor';
 
 export const multiDiffEditorExperimentalVariantSetting = 'multiDiffEditor.experimental.variant';
 export const defaultMultiDiffEditorExperimentalVariant = 'noCards';
@@ -42,6 +50,16 @@ export const MultiDiffEditorFileListEnabledContext = new RawContextKey<boolean>(
 /** Whether the file list is currently rendered, including responsive hiding. */
 export const MultiDiffEditorFileListVisibleContext = new RawContextKey<boolean>('multiDiffEditorFileListVisible', false, localize('multiDiffEditorFileListVisible', "Whether the multi diff editor shows the list of changed files"));
 export const MultiDiffEditorFileListFocusedContext = new RawContextKey<boolean>('multiDiffEditorFileListFocus', true, localize('multiDiffEditorFileListFocus', "Whether focus is in the multi diff editor changed files list"));
+
+/** Whether the active editor is a multi diff editor that supports the changed files list. */
+export const ActiveMultiDiffEditorHasFileListContext = ContextKeyExpr.and(
+	ActiveEditorContext.isEqualTo(MULTI_DIFF_EDITOR_ID),
+	ContextKeyExpr.has(`config.${multiDiffEditorExperimentalFileListSetting}`),
+	MultiDiffEditorFileListAvailableContext,
+)!;
+
+/** The submenu that switches the changed files list between a list and a tree, and moves it to either side of the diffs. */
+export const MultiDiffEditorFilesViewAndPositionMenu = new MenuId('MultiDiffEditorFilesViewAndPosition');
 
 /**
  * Observes whether the file list should be shown. All multi diff editors share
@@ -89,6 +107,52 @@ export function setMultiDiffEditorFileListViewMode(storageService: IStorageServi
 	}
 }
 
+/** Sorts like the Source Control view's tree: folders first, then by name. */
+function compareFileListTreeNodes<T>(a: IResourceNode<T, null>, b: IResourceNode<T, null>): number {
+	const aIsFolder = a.childrenCount > 0;
+	const bIsFolder = b.childrenCount > 0;
+	if (aIsFolder !== bIsFolder) {
+		return aIsFolder ? -1 : 1;
+	}
+	return compareFileNames(a.name, b.name);
+}
+
+/**
+ * Sorts items in the order in which the file list shows them, like the Source
+ * Control view: by path in the flat list, and folders first in the tree.
+ */
+export function sortMultiDiffEditorFileListItems<T>(items: readonly T[], getUri: (item: T) => URI, viewMode: MultiDiffEditorFileListViewMode): T[] {
+	if (viewMode === 'list') {
+		return items.toSorted((a, b) => comparePaths(getUri(a).fsPath, getUri(b).fsPath));
+	}
+
+	// Group by path only: the sides of a diff can use different schemes (e.g. `git:` for a deleted file).
+	const rootUri = URI.from({ scheme: 'multiDiffEditorFileList', path: '/' });
+
+	// Several items can share a path: a deleted file `config` and
+	// an added `config/settings.json`, or two diffs of the same file.
+	const resourceTree = new ResourceTree<T[], null>(null, rootUri);
+	for (const item of items) {
+		const uri = rootUri.with({ path: getUri(item).path });
+		const node = resourceTree.getNode(uri);
+		if (node?.element) {
+			node.element.push(item);
+		} else {
+			resourceTree.add(uri, [item]);
+		}
+	}
+
+	const result: T[] = [];
+	const collect = (folder: IResourceNode<T[], null>) => {
+		for (const child of [...folder.children].sort(compareFileListTreeNodes)) {
+			result.push(...child.element ?? []);
+			collect(child);
+		}
+	};
+	collect(resourceTree.root);
+	return result;
+}
+
 export type MultiDiffEditorFileListPosition = 'left' | 'right';
 
 const multiDiffEditorFileListPositionStorageKey = 'multiDiffEditor.fileListPosition';
@@ -126,6 +190,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			],
 			default: defaultMultiDiffEditorExperimentalVariant,
 			description: localize('multiDiffEditor.experimental.variant', "Controls the experimental variant of the multi diff editor."),
+			agentsWindow: { default: 'cards' },
 			scope: ConfigurationScope.WINDOW,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
@@ -134,6 +199,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'boolean',
 			default: false,
 			description: localize('multiDiffEditor.experimental.fileList', "Controls whether newly created multi diff editors support a list of the changed files alongside the diffs. Reload the window to apply this change to existing editors."),
+			agentsWindow: { default: true },
 			scope: ConfigurationScope.WINDOW,
 			tags: ['experimental'],
 		},

@@ -53,6 +53,26 @@ suite('SessionDatabase', () => {
 				await fs.rm(tempRoot, { recursive: true, force: true });
 			}
 		}).timeout(10_000);
+
+		test('stores a database file in write-ahead log mode', async () => {
+			const tempRoot = await fs.mkdtemp(join(tmpdir(), 'session-db-wal-' + generateUuid()));
+			try {
+				const databasePath = join(tempRoot, 'session.db');
+				const database = await SessionDatabase.open(databasePath);
+				let writeAheadLogWhileOpen: boolean;
+				try {
+					await database.setMetadata('key', 'value');
+					writeAheadLogWhileOpen = await fs.stat(`${databasePath}-wal`).then(() => true, () => false);
+				} finally {
+					await database.close();
+				}
+
+				// SQLite's file format version (header offset 18) is 2 for a database in write-ahead log mode.
+				assert.deepStrictEqual({ writeAheadLogWhileOpen, fileFormat: (await fs.readFile(databasePath)).readUInt8(18) }, { writeAheadLogWhileOpen: true, fileFormat: 2 });
+			} finally {
+				await fs.rm(tempRoot, { recursive: true, force: true });
+			}
+		}).timeout(10_000);
 	});
 
 	/**
@@ -294,6 +314,41 @@ suite('SessionDatabase', () => {
 				await db.getFileEditsByTurn('event-1'),
 				await db.getFileEditsByTurn('request-1'),
 			);
+		});
+
+		test('provider truncation removes every mapped segment while preserving local and foreign turns', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			for (const [id, eventId] of [
+				['kept', 'native-kept'], ['first-segment', 'native-removed'], ['second-segment', 'native-removed'],
+				['foreign', 'native-removed'], ['failed-local', 'native-removed'], ['native-direct', 'native-direct'],
+			]) {
+				await db.setTurnEventId(id, eventId);
+				await db.storeFileEdit({ turnId: id, toolCallId: id, filePath: `/${id}.ts`, kind: FileEditKind.Edit, addedLines: 1, removedLines: 1 });
+			}
+			await db.setForeignRows('chat:owner', ['foreign']);
+			await db.insertPersistedTurn({ kind: 'failed', turnId: 'failed-local', chatUri: 'chat:owner', anchorTurnId: undefined, payload: '{}' });
+			await db.insertPersistedTurn({ kind: 'local', turnId: 'bang-command', chatUri: 'chat:owner', anchorTurnId: undefined, payload: '{}' });
+			await db.deleteProviderTurns(['native-removed', 'native-direct', 'absent']);
+			assert.deepStrictEqual({
+				edits: (await db.getAllFileEdits()).map(edit => edit.turnId),
+				local: (await db.getPersistedTurns()).map(turn => turn.turnId),
+			}, { edits: ['kept', 'foreign', 'failed-local'], local: ['failed-local', 'bang-command'] });
+		});
+
+		test('truncating host segments of one native turn keeps local, foreign, and other native rows', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			for (const id of ['first', 'failed-local', 'steering', 'foreign', 'other-native']) {
+				await db.setTurnEventId(id, id === 'other-native' ? 'native-2' : 'native-1');
+				await db.storeFileEdit({ turnId: id, toolCallId: id, filePath: `/${id}.ts`, kind: FileEditKind.Edit, addedLines: 1, removedLines: 1 });
+			}
+			await db.setForeignRows('chat:owner', ['foreign']);
+			await db.insertPersistedTurn({ kind: 'failed', turnId: 'failed-local', chatUri: 'chat:owner', anchorTurnId: undefined, payload: '{}' });
+			await db.insertPersistedTurn({ kind: 'local', turnId: 'bang', chatUri: 'chat:owner', anchorTurnId: 'first', payload: '{}' });
+			await db.deleteProviderTurns([], 'first');
+			assert.deepStrictEqual({
+				edits: (await db.getAllFileEdits()).map(edit => edit.turnId),
+				local: (await db.getPersistedTurns()).map(turn => turn.turnId),
+			}, { edits: ['first', 'failed-local', 'foreign', 'other-native'], local: ['failed-local', 'bang'] });
 		});
 
 		test('retrieve multiple edits for a single tool call', async () => {

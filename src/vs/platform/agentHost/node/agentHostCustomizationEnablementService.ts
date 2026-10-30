@@ -12,6 +12,7 @@ import { AgentSession } from '../common/agentService.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
 import { DEFAULT_CUSTOMIZATION_ENABLED, isCustomizationEnabled, sortCustomizationEnablement, withCustomizationEnablement } from '../common/customizationEnablement.js';
 import { isAhpChatChannel, readSessionWorkspaceless } from '../common/state/sessionState.js';
+import { isChatWorkspaceless } from './agentChatContext.js';
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
@@ -66,6 +67,8 @@ export interface ICustomizationEnablementTarget {
 	 * Whether the client supplied this customization and therefore owns its global decision.
 	 */
 	readonly isClientBundled?: boolean;
+	/** Provider-discovered enablement inherited when no host or client decision exists. */
+	readonly defaultEnabled?: boolean;
 }
 
 /**
@@ -232,7 +235,11 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 
 	getWorkingDirectoryState(session: string): WorkingDirectoryState {
 		const summary = this._sessionState.getSessionSummary(session);
-		if (readSessionWorkspaceless(summary?._meta)) {
+		// The session's customizations follow its default chat, so the default chat's own decision applies.
+		const defaultChat = this._chatOwnership.getDefaultChat(session);
+		if (defaultChat !== undefined
+			? isChatWorkspaceless(this._sessionState, defaultChat, this._sessionStateStore.peek(URI.parse(session)), readSessionWorkspaceless(summary?._meta))
+			: readSessionWorkspaceless(summary?._meta)) {
 			return { kind: 'workspaceless' };
 		}
 		if (this._worktree.isWorkingDirectoryPending(AgentSession.id(session))) {
@@ -275,6 +282,8 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 			const clientGlobalDecision = this._clientGlobalEnablement.get(session)?.get(persistentKey);
 			if (clientGlobalDecision !== undefined) {
 				decisions.push({ kind: CustomizationEnablementKind.Global, enabled: clientGlobalDecision });
+			} else if (target.defaultEnabled !== undefined) {
+				decisions.push({ kind: CustomizationEnablementKind.Global, enabled: target.defaultEnabled });
 			}
 		}
 
@@ -466,7 +475,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	private _setGlobalEnablement(session: string, target: ICustomizationEnablementTarget, enabled: boolean | undefined, removeRedundantWorkspaceDecisions: boolean): void {
 		const key = this._persistentKey(target);
 		const global = this._persistent.global ?? {};
-		this._setPersistentDecision('global', global, key, enabled, this._clientGlobalEnablement.get(session)?.get(key) ?? DEFAULT_CUSTOMIZATION_ENABLED);
+		this._setPersistentDecision('global', global, key, enabled, this._clientGlobalEnablement.get(session)?.get(key) ?? target.defaultEnabled ?? DEFAULT_CUSTOMIZATION_ENABLED);
 		this._persistent = { ...this._persistent, global };
 		if (removeRedundantWorkspaceDecisions && global[key] !== undefined) {
 			this._removeRedundantWorkspaceDecisions(key);
@@ -502,7 +511,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 
 	private _globalEnablement(session: string, target: ICustomizationEnablementTarget): boolean {
 		const key = this._persistentKey(target);
-		return this._persistent.global?.[key] ?? this._clientGlobalEnablement.get(session)?.get(key) ?? DEFAULT_CUSTOMIZATION_ENABLED;
+		return this._persistent.global?.[key] ?? this._clientGlobalEnablement.get(session)?.get(key) ?? target.defaultEnabled ?? DEFAULT_CUSTOMIZATION_ENABLED;
 	}
 
 	private _setWorkspace(session: string, target: ICustomizationEnablementTarget, workingDirectory: URI, enabled: boolean | undefined): void {

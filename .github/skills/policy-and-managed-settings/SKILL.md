@@ -3,57 +3,34 @@ name: policy-and-managed-settings
 description: Use whenever adding, modifying, or reviewing any Copilot, agent, LLM, AI, tool, permission, sandbox, MCP, model, telemetry, feature-gate, setting, configuration, or enterprise control—especially anything an organization or administrator may need to manage. Start here to decide whether it belongs in runtime managed settings, a typed SDK contract, VS Code configuration policy, extension policy, or a split implementation. Run on every new Copilot/agent/LLM control and ANY change that adds a `policy:` field.
 ---
 
-# Adding an Enterprise Policy
+# Enterprise Policy and Managed Settings
 
-Choose the policy destination by **where the governed behavior is implemented**, not by which team requested it. Most controls for Copilot agent behavior belong in the SDK/runtime rather than VS Code.
+Route a control by **where the governed behavior is implemented**, not by who requested it. Most Copilot agent controls belong in the runtime, not VS Code.
 
-```mermaid
-flowchart TD
-	A[Enterprise control] --> P{Existing permission policy<br/>introduced before VS Code 1.133.0?}
-	P -->|Yes| L[Pre-1.133 compatibility migration]
-	P -->|No| B{Where is the governed behavior implemented?}
-
-	B -->|Copilot runtime, tools, MCP,<br/>sandbox, or agent loop| R[SDK/runtime managed setting]
-	B -->|VS Code editor or workbench| V[VS Code configuration policy]
-	B -->|Extension-provided setting| E[Extension policy]
-	B -->|Independent runtime and editor behavior| M[Split runtime/editor control]
-```
-
-Follow the matching guide:
-
-- [SDK/runtime managed setting](./sdk-runtime-policy.md)
-- [VS Code configuration policy](./vscode-policy.md)
-- [Extension-provided setting](./extension-policy.md)
-- [Split runtime/editor control](./mixed-policy.md)
-- [Pre-1.133 permission-policy migration](./legacy-permission-policy.md)
-- [Agent Host policy support and migration readiness](./policy-support-maintenance.md)
-
-Use the support-maintenance guide when changing policy classifications, applied-requirement predicates, or admin migration-readiness diagnostics. It applies when reviewing an existing control as well as when adding a new one.
-
-General rules:
-
-- Runtime enforcement is authoritative for behavior executed inside the runtime.
-- Do not duplicate a runtime parser, matcher, or security decision in VS Code.
-- A VS Code policy is appropriate only for editor/workbench-owned behavior.
-- New Copilot enterprise controls should target the shared managed-settings/SDK model.
-- The VS Code settings-to-managed-settings bridge is a compatibility path for legacy settings only. Do not add a new VS Code setting in order to bridge it; define new runtime-owned controls directly in the managed-settings/SDK contract. The bridge itself is unconditional; do not reintroduce a compatibility gate for it.
-- Run `npm run export-policy-data` for every VS Code or extension policy change. Never edit `build/lib/policies/policyData.jsonc` manually.
-
-## Deprecated and Historical Channels
-
-Some policy channels remain supported for existing controls but are closed to new properties:
-
-- **GitHub token/account policy data** (`IPolicyData` fields consumed by `AccountPolicyService`) is deprecated for new controls. Do not add new entitlement or policy properties from the GitHub token. Existing fields remain for compatibility.
-- New Copilot enterprise controls use managed settings and runtime/SDK enforcement.
-- Pre-1.133 permission-policy translation is a bounded migration, not a reusable channel.
-
-When another channel is deprecated, record the boundary here and keep implementation details in the relevant destination guide.
+| Governed behavior | Destination | Guide |
+|---|---|---|
+| Copilot runtime: tools, shell, files, URLs, MCP, plugins, subagents, permissions, sandbox, runtime model/telemetry | Runtime managed setting (SDK type only if the host owns the value) | [sdk-runtime-policy.md](./sdk-runtime-policy.md) |
+| VS Code editor/workbench | VS Code configuration `policy:` | [vscode-policy.md](./vscode-policy.md) |
+| Extension-contributed setting | `extensionConfigurationPolicy` in vscode-distro | [extension-policy.md](./extension-policy.md) |
+| Independent runtime **and** editor behavior | Split: runtime setting for agent behavior, VS Code policy for editor behavior only | both of the above |
+| Existing permission policy introduced before 1.133 | Bounded migration only | [legacy-permission-policy.md](./legacy-permission-policy.md) |
 
 Supporting references:
 
-- [GitHub Copilot managed settings](./github-managed-settings.md)
-- [Local policy testing](./local-testing.md)
+- [github-managed-settings.md](./github-managed-settings.md): projecting managed settings into VS Code policy (channels, precedence, key declaration).
+- [policy-support-maintenance.md](./policy-support-maintenance.md): Agent Host support inventory and Policy Diagnostics readiness.
+- [local-testing.md](./local-testing.md): mock policy server.
 
-Keep these guides contract-focused. Document contributor decisions and behavioral invariants; point to source rather than copying implementation that will drift.
+## Rules
 
-Trust executable source and tests over planning documents.
+- Runtime enforcement is authoritative. Do not duplicate runtime parsing, matching, or security decisions in VS Code, and never substitute editor UI suppression for runtime enforcement.
+- New Copilot controls go directly in the shared managed-settings schema/SDK contract. Do not add a VS Code setting to mirror or bridge one.
+- Closed to new properties (existing entries stay for compatibility): GitHub token/account `IPolicyData` fields consumed by `AccountPolicyService`, the legacy VS Code setting bridge, and pre-1.133 permission translation.
+- Split controls: add the runtime capability first and keep existing editor behavior until it ships. Keep both projections semantically aligned; keep permission authorization separate from sandbox containment; make create/resume/removal/peer/subagent/cloud behavior explicit.
+- Every VS Code or extension policy change needs an `agentHostPolicySupport` entry and `npm run export-policy-data`. Never hand-edit `build/lib/policies/policyData.jsonc`.
+- Never log raw enterprise rules/values or add telemetry containing them.
+- Trust source and tests over these docs. Document decisions and invariants; link to source instead of copying it.
+
+## Policy-disabled UI
+
+Prefer an option that stays visible but disabled, with the briefcase managed-policy indicator, a localized reason, and an accessible next step, over silently hiding it ([design guidance](../design-philosophy/SKILL.md#make-unavailable-features-understandable)). Use policy provenance to distinguish prohibition from unsupported, feature-gated, or pending states. Presentation never changes authorization: a disabled option must not re-enter the runtime's allowed set or bypass create/resume/write validation. Test policy refresh/removal, keyboard and pointer activation, and stale menus; preserve AI-hiding behavior.

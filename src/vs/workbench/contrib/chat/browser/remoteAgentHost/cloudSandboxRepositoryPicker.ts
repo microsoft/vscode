@@ -6,8 +6,7 @@
 import { raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, cancelOnDispose } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IGitHubClient } from '../../../../../platform/github/common/githubService.js';
-import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
+import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 import { getGitHubRepositoryFromRemoteUrl } from '../../../git/common/utils.js';
@@ -16,10 +15,6 @@ import { RepositoryPicker } from '../agentSessions/repositoryPicker.js';
 const REQUEST_CALLER = 'cloudSandbox.repositoryPicker';
 const PAGE_SIZE = 100;
 
-interface IGitHubLoginResponse {
-	readonly login?: string;
-}
-
 /** A pasted GitHub URL stands for its `owner/repo`, both for the search and for filtering its results. */
 function toRepositorySearchTerm(value: string): string {
 	const trimmed = value.trim();
@@ -27,7 +22,7 @@ function toRepositorySearchTerm(value: string): string {
 	return remote ? `${remote.owner}/${remote.repo}` : trimmed;
 }
 
-/** Searches the signed-in account's GitHub repositories in the renderer, so no extension host is required. */
+/** Searches the signed-in account's GitHub repositories without requiring an extension host. */
 export class CloudSandboxRepositoryPicker extends Disposable {
 
 	private readonly _currentPick = this._register(new MutableDisposable<DisposableStore>());
@@ -48,7 +43,7 @@ export class CloudSandboxRepositoryPicker extends Disposable {
 		const controller = new AbortController();
 		store.add(toDisposable(() => controller.abort()));
 		try {
-			const client = store.add(await raceCancellationError(this._gitHubService.acquireDefaultAccountClient(controller.signal), pickToken)).object;
+			const client = store.add(await raceCancellationError(this._gitHubService.acquireDefaultAccountApiClient(controller.signal), pickToken));
 			// The viewer and their organizations scope every search, so resolve them once per pick.
 			let scope: Promise<string> | undefined;
 			const resolveScope = (signal: AbortSignal) => scope ??= this._resolveSearchScope(client, signal).catch(error => { scope = undefined; throw error; });
@@ -71,32 +66,32 @@ export class CloudSandboxRepositoryPicker extends Disposable {
 		}
 	}
 
-	private async _searchRepositories(client: IGitHubClient, query: string, resolveScope: (signal: AbortSignal) => Promise<string>, signal: AbortSignal): Promise<readonly string[]> {
-		const { account } = await client.credentials.getCredential(signal);
+	private async _searchRepositories(client: IGitHubAccountClient, query: string, resolveScope: (signal: AbortSignal) => Promise<string>, signal: AbortSignal): Promise<readonly string[]> {
 		const term = toRepositorySearchTerm(query);
 		if (!term) {
-			const page = await client.query.listRepositories(account, signal, {
-				affiliation: ['owner', 'collaborator', 'organization_member'],
-				sort: 'updated',
-				perPage: PAGE_SIZE,
+			const repositories = await client.repositories.listForAuthenticatedUser(signal, {
+				caller: REQUEST_CALLER,
+				query: {
+					affiliation: 'owner,collaborator,organization_member',
+					sort: 'updated',
+					per_page: PAGE_SIZE,
+				},
 			});
-			return page.repositories.map(repository => repository.nameWithOwner);
+			return repositories.map(repository => repository.full_name);
 		}
-		const page = await client.query.searchRepositories(account, `${term} in:name fork:true ${await resolveScope(signal)}`, signal, { sort: 'updated', perPage: PAGE_SIZE });
-		return page.repositories.map(repository => repository.nameWithOwner);
+		const page = await client.search.repositories(`${term} in:name fork:true ${await resolveScope(signal)}`, signal, {
+			caller: REQUEST_CALLER,
+			query: { sort: 'updated', per_page: PAGE_SIZE },
+		});
+		return page.items.map(repository => repository.full_name);
 	}
 
 	/** `user:<login> org:<org>...` qualifiers restricting search to repositories the account can reach. */
-	private async _resolveSearchScope(client: IGitHubClient, signal: AbortSignal): Promise<string> {
-		const { account, token } = await client.credentials.getCredential(signal);
-		const apiBaseUri = client.endpoint.getApiBaseUri();
+	private async _resolveSearchScope(client: IGitHubAccountClient, signal: AbortSignal): Promise<string> {
 		const [user, organizations] = await Promise.all([
-			client.transport.rest<IGitHubLoginResponse>(account, token, { caller: REQUEST_CALLER, method: 'GET', url: `${apiBaseUri}/user`, etag: true, priority: 'interactive' }, signal),
-			client.transport.rest<readonly IGitHubLoginResponse[]>(account, token, { caller: REQUEST_CALLER, method: 'GET', url: `${apiBaseUri}/user/orgs?per_page=${PAGE_SIZE}`, etag: true, priority: 'interactive' }, signal),
+			client.users.getAuthenticated(signal, { caller: REQUEST_CALLER }),
+			client.organizations.listForAuthenticatedUser(signal, { caller: REQUEST_CALLER, query: { per_page: PAGE_SIZE } }),
 		]);
-		if (!user.data?.login || !Array.isArray(organizations.data)) {
-			throw new GitHubRequestError('GitHub did not return an account and organizations for repository search', 'malformedResponse');
-		}
-		return [`user:${user.data.login}`, ...organizations.data.flatMap(organization => organization.login ? [`org:${organization.login}`] : [])].join(' ');
+		return [`user:${user.login}`, ...organizations.map(organization => `org:${organization.login}`)].join(' ');
 	}
 }

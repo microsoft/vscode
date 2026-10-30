@@ -28,6 +28,11 @@ export interface IChatParserContext {
 	forcedAgent?: IChatAgentData;
 	attachmentCapabilities?: IChatAgentAttachmentCapabilities;
 	sessionType?: string;
+	/**
+	 * The references in the query, when they were taken from an input that is
+	 * gone by the time the query is parsed, instead of those of the chat's input.
+	 */
+	references?: ReadonlyArray<IDynamicVariable>;
 }
 
 export class ChatRequestParser {
@@ -39,7 +44,7 @@ export class ChatRequestParser {
 	) { }
 
 	parseChatRequest(sessionResource: URI, message: string, location: ChatAgentLocation = ChatAgentLocation.Chat, context: IChatParserContext = {}): IParsedChatRequest {
-		const references = this.variableService.getDynamicVariables(sessionResource); // must access this list before any async calls
+		const references = context.references ?? this.variableService.getDynamicVariables(sessionResource); // must access this list before any async calls
 		const selectedToolAndToolSets = this.variableService.getSelectedToolAndToolSets(sessionResource);
 		if (!context.sessionType) {
 			context = { ...context, sessionType: getChatSessionType(sessionResource) };
@@ -67,7 +72,9 @@ export class ChatRequestParser {
 			const previousChar = message.charAt(i - 1);
 			const char = message.charAt(i);
 			let newPart: IParsedChatRequestPart | undefined;
-			if (previousChar.match(/\s/) || i === 0) {
+			// What a part covers, such as the name in a reference, does not start another part.
+			const isInPart = i < (parts.at(-1)?.range.endExclusive ?? 0);
+			if (!isInPart && (previousChar.match(/\s/) || i === 0)) {
 				if (char === chatVariableLeader) {
 					newPart = this.tryToParseVariable(message.slice(i), i, new Position(lineNumber, column), parts, toolsByName, toolSetsByName);
 				} else if (char === chatAgentLeader) {

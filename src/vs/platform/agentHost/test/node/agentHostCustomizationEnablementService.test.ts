@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore, type IReference } from '../../../../base/common/lifecycle.js';
+import { type IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -22,7 +22,7 @@ import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolat
 import { TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
-import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { createLiveChatOwnership, createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 class EnablementSessionDatabase extends TestSessionDatabase {
 	metadataLoad: Promise<string | undefined> | undefined;
@@ -144,7 +144,7 @@ class TestWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 
 suite('AgentHostCustomizationEnablementService', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const session = 'ahp://copilot/session-1';
 	const workspace = URI.file('/repo');
 	let storage: AgentHostStorageService;
@@ -170,8 +170,6 @@ suite('AgentHostCustomizationEnablementService', () => {
 		await service.initializeSession(session);
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('resolves session, workspace, global, and default decisions in precedence order', () => {
 		service.setEnablement(session, plugin, CustomizationEnablementKind.Global, false);
@@ -210,6 +208,23 @@ suite('AgentHostCustomizationEnablementService', () => {
 			enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: false }],
 			workingDirectory: { kind: 'directory', uri: workspace.toString() },
 		});
+	});
+
+	test('inherits provider enablement without persisting discovery as user intent', async () => {
+		const server: ICustomizationEnablementTarget = {
+			id: 'native-server', name: 'native-server', type: CustomizationType.McpServer,
+			source: URI.file('/plugins/native/.mcp.json'), defaultEnabled: false,
+		};
+		const before = service.resolve(session, server);
+		service.setEnablement(session, server, CustomizationEnablementKind.Workspace, true);
+		const overridden = service.resolve(session, server);
+		service.setEnablement(session, server, CustomizationEnablementKind.Workspace, false);
+		const inherited = service.resolve(session, { ...server, defaultEnabled: true });
+		assert.deepStrictEqual([before, overridden, inherited].map(serializableResolution), [
+			{ kind: 'resolved', enabled: false, workingDirectory: { kind: 'directory', uri: workspace.toString() }, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] },
+			{ kind: 'resolved', enabled: true, workingDirectory: { kind: 'directory', uri: workspace.toString() }, enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true }, { kind: CustomizationEnablementKind.Global, enabled: false }] },
+			{ kind: 'resolved', enabled: true, workingDirectory: { kind: 'directory', uri: workspace.toString() }, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
+		]);
 	});
 
 	test('resolves a global decision for a newly registered plugin MCP child', async () => {
@@ -694,6 +709,31 @@ suite('AgentHostCustomizationEnablementService', () => {
 		state.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: workspace.toString() });
 		const directoryState = service.getWorkingDirectoryState(session);
 		assert.deepStrictEqual(directoryState.kind === 'directory' ? { kind: directoryState.kind, uri: directoryState.uri.toString() } : directoryState, { kind: 'directory', uri: workspace.toString() });
+	});
+
+	test('an unmarked session whose default chat is in a recorded scratch folder is workspace-less', () => {
+		state.deleteSession(session);
+		state.createSession(makeSummary(session, [workspace.toString()]));
+		const defaultChat = buildDefaultChatUri(session);
+		const store = createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionData);
+		const chatEntry = (folder: string) => ({ isDefault: true, storage: undefined, title: undefined, titleSource: undefined, isRead: undefined, workingDirectories: undefined, launchWorkingDirectories: [folder], changes: undefined });
+		const chatFolders: string[] = [];
+		store.peek = () => ({
+			session,
+			authority: 2 as const,
+			revision: 1,
+			values: new Map(),
+			folders: new Map(),
+			chats: new Map(chatFolders.map(folder => [defaultChat, chatEntry(folder)])),
+		});
+		const chatAware = disposables.add(new AgentHostCustomizationEnablementService(storage, state, new NullLogService(), worktree, createLiveChatOwnership(() => undefined, () => defaultChat), store));
+
+		chatFolders.push(workspace.toString());
+		const regularFolder = chatAware.getWorkingDirectoryState(session);
+		state.setScratchFolder(workspace.toString(), true);
+		const scratchFolder = chatAware.getWorkingDirectoryState(session);
+
+		assert.deepStrictEqual({ regularFolder: regularFolder.kind === 'directory' ? regularFolder.uri.toString() : regularFolder.kind, scratchFolder }, { regularFolder: workspace.toString(), scratchFolder: { kind: 'workspaceless' } });
 	});
 
 	test('queues a workspace replacement while the working directory is pending and applies it when registered', () => {

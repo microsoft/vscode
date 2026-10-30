@@ -27,7 +27,14 @@ import { IChatAgentResult } from '../participants/chatAgents.js';
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
 export interface IChatEditingSessionProvider {
-	createEditingSession(chatSessionResource: URI): IChatEditingSession;
+	/**
+	 * Creates the editing session of a chat. The chat model may not be
+	 * registered with the chat service yet.
+	 *
+	 * @param isGlobalEditingSession Whether the session is the long lived one of
+	 * a chat in the chat view or an editor, rather than a short lived one.
+	 */
+	createEditingSession(chatSessionResource: URI, isGlobalEditingSession: boolean): IChatEditingSession;
 }
 
 export interface IChatEditingService {
@@ -113,7 +120,7 @@ export interface ISnapshotEntry {
  * and multi-diff via {@link IChatEditingSession}.
  */
 export interface IChatEditReviewSession extends IDisposable {
-	readonly isGlobalEditingSession: boolean;
+	readonly isGlobalEditingSession: IObservable<boolean>;
 	readonly chatSessionResource: URI;
 	readonly onDidDispose: Event<void>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
@@ -123,8 +130,23 @@ export interface IChatEditReviewSession extends IDisposable {
 	reject(...uris: URI[]): Promise<void>;
 }
 
+/** Finds the pending review for a file, without letting a settled entry in another session hide it. */
+export function findChatEditingSessionEntry(sessions: readonly IChatEditReviewSession[], uri: URI, reader?: IReader): { session: IChatEditReviewSession; entry: IModifiedFileEntry } | undefined {
+	for (const session of sessions) {
+		const entry = reader ? session.readEntry(uri, reader) : session.getEntry(uri);
+		if (entry?.state.read(reader) === ModifiedFileEntryState.Modified) {
+			return { session, entry };
+		}
+	}
+	return undefined;
+}
+
 export interface IChatEditingSession extends IChatEditReviewSession {
-	readonly supportsKeepUndo: boolean;
+	readonly supportsKeepUndo: IObservable<boolean>;
+	/** Provider-owned review files without editor entries, such as deleted or binary files. */
+	readonly additionalReviewFiles?: IObservable<readonly IEditSessionEntryDiff[]>;
+	/** Waits for provider-owned entries to catch up before opening a review editor. */
+	resolveEntry?(uri: URI): Promise<IModifiedFileEntry | undefined>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	/** Requests disabled by undo/redo in the session */
 	readonly requestDisablement: IObservable<IChatRequestDisablement[]>;
@@ -421,7 +443,11 @@ export interface IModifiedFileEntry {
 	readonly lastModifyingRequestId: string;
 
 	readonly state: IObservable<ModifiedFileEntryState>;
-	readonly isCurrentlyBeingModifiedBy: IObservable<{ responseModel: IChatResponseModel; undoStopId: string | undefined } | undefined>;
+	/**
+	 * Set while an agent writes the file. The response is unknown when the
+	 * agent runs elsewhere, like an agent host's, which only reports the file.
+	 */
+	readonly isCurrentlyBeingModifiedBy: IObservable<{ responseModel: IChatResponseModel | undefined; undoStopId: string | undefined } | undefined>;
 	readonly lastModifyingResponse: IObservable<IChatResponseModel | undefined>;
 	readonly rewriteRatio: IObservable<number>;
 

@@ -95,6 +95,7 @@ class TestConfigurationResolverService {
 
 class TestMcpHostDelegate implements IMcpHostDelegate {
 	priority = 0;
+	resolvePolicyVariables = async () => ({});
 
 	substituteVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch> {
 		return Promise.resolve(launch);

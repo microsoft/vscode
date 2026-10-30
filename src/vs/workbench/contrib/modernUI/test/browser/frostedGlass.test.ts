@@ -105,27 +105,41 @@ suite('Frosted glass styles', () => {
 		const glassMotionTest = supportsGlass(document.body) && (domPosition !== ContextViewDOMPosition.FIXED_SHADOW || supportsShadowSelectors) ? test : test.skip;
 
 		for (const windowClass of ['modern-ui', 'agent-sessions-workbench']) {
-			glassMotionTest(`closing motion scales ${name} menu contents and glass together in ${windowClass}`, () => {
+			glassMotionTest(`closing motion scales and fades ${name} menu contents and glass together in ${windowClass}`, () => {
 				const { root, container, surface, contextView, finishOpening } = createNestedMenu(domPosition, windowClass);
 				finishOpening();
 				contextView.hide();
-				container.getAnimations({ subtree: true }).forEach(animation => {
-					animation.pause();
-					animation.currentTime = 75;
-				});
+				const closingAnimations = container.getAnimations({ subtree: true });
 				const targetWindow = getWindow(container);
-				const paint = targetWindow.getComputedStyle(container, '::before');
-				const contents = targetWindow.getComputedStyle(surface);
 				const scale = (transform: string) => transform === 'none' ? 1 : new DOMMatrixReadOnly(transform).a;
+				const read = (currentTime: number) => {
+					closingAnimations.forEach(animation => {
+						animation.pause();
+						animation.currentTime = currentTime;
+					});
+					const paint = targetWindow.getComputedStyle(container, '::before');
+					const contents = targetWindow.getComputedStyle(surface);
+					return {
+						paintAnimation: paint.animationName,
+						contentAnimation: contents.animationName,
+						paintScale: scale(paint.transform),
+						contentScale: scale(contents.transform),
+						paintOpacity: Number(paint.opacity),
+						contentOpacity: Number(contents.opacity),
+					};
+				};
+				const midway = read(75);
 				const state = {
 					hasEditorMarker: root.classList.contains('modern-ui'),
 					closing: container.classList.contains(CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS),
 					inert: container.inert,
-					paintAnimation: paint.animationName,
-					contentAnimation: contents.animationName,
-					scalesTogether: scale(paint.transform) === scale(contents.transform),
-					shrinking: scale(contents.transform) < 1 && scale(contents.transform) > 0.99,
-					paintOpacity: paint.opacity,
+					paintAnimation: midway.paintAnimation,
+					contentAnimation: midway.contentAnimation,
+					scalesTogether: midway.paintScale === midway.contentScale,
+					shrinking: midway.contentScale < 1 && midway.contentScale > 0.99,
+					// The glass must not outlive the contents (#343443).
+					fadesTogether: midway.paintOpacity === midway.contentOpacity && midway.paintOpacity < 1,
+					glassGoneNearEnd: read(145).paintOpacity < 0.01,
 				};
 				contextView.hide(undefined, true);
 				assert.deepStrictEqual(state, {
@@ -136,7 +150,8 @@ suite('Frosted glass styles', () => {
 					contentAnimation: 'context-view-menu-motion-close',
 					scalesTogether: true,
 					shrinking: true,
-					paintOpacity: '1',
+					fadesTogether: true,
+					glassGoneNearEnd: true,
 				});
 			});
 		}

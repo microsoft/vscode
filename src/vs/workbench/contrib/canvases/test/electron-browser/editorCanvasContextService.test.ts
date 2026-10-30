@@ -134,9 +134,10 @@ suite('EditorCanvasContextService', () => {
 			const owner = harness.createOwner('materialized', harness.groups[0], editorResource);
 			assert.deepStrictEqual({
 				visible: harness.service.isOwnerVisible(owner.owner),
+				sessionResource: harness.service.getFrontendSessionResource(owner.owner)?.toString(),
 				target: harness.service.getEditorGroup(owner.owner, owner.input)?.id,
 				additions: harness.additions,
-			}, { visible: true, target: 2, additions: [1] });
+			}, { visible: true, sessionResource: 'agent-host-copilotcli:/materialized', target: 2, additions: [1] });
 		});
 	}
 

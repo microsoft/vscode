@@ -17,6 +17,7 @@ import { AgentHostIpcChannelTransport } from '../../browser/agentHostIpcChannelT
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
 import type { IAgentHostIpcConnectionOptions } from '../../common/agentService.js';
 import { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
+import { getProtocolMessageSize } from '../../common/state/sessionTransport.js';
 
 class FakeChannel extends Disposable implements IChannel {
 	readonly frameEmitter = this._register(new Emitter<string>());
@@ -49,6 +50,17 @@ class FakeChannel extends Disposable implements IChannel {
 
 suite('AgentHostIpcChannelTransport', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('preserves original IPC JSON sizes for windowed delivery', async () => {
+		const channel = ds.add(new FakeChannel());
+		const transport = ds.add(new AgentHostIpcChannelTransport(channel));
+		const sizes: number[] = [];
+		ds.add(transport.onMessage(message => sizes.push(getProtocolMessageSize(message))));
+		await transport.connect();
+		const text = '{ "jsonrpc":"2.0", "method":"tcp/data", "params": { "channel":"ahp-tcp:/test", "data":"\\u005aA==" } }';
+		channel.frameEmitter.fire(text);
+		assert.deepStrictEqual(sizes, [text.length * 2]);
+	});
 
 	test('round-trips frames in both directions', async () => {
 		const channel = ds.add(new FakeChannel());
