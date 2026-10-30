@@ -21,7 +21,7 @@ import { IAccessibilityService } from '../../../../../../../platform/accessibili
 import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestTelemetryService } from '../../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { ChatThinkingContentPart, maybePickFunWorkingMessage, splitReasoningSummaryRows } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { getToolInvocationIcon } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
@@ -705,14 +705,7 @@ suite('ChatThinkingContentPart', () => {
 		});
 
 		test('logs telemetry when the user toggles the header', () => {
-			const telemetryService = new class extends NullTelemetryServiceShape {
-				readonly events: { readonly name: string; readonly data: unknown }[] = [];
-				override publicLog2(eventName?: string, data?: unknown): void {
-					if (eventName) {
-						this.events.push({ name: eventName, data });
-					}
-				}
-			}();
+			const telemetryService = new TestTelemetryService();
 			instantiationService.stub(ITelemetryService, telemetryService);
 
 			const part = store.add(instantiationService.createInstance(
