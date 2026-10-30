@@ -13,11 +13,12 @@ import { URI } from '../../../base/common/uri.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IUndoRedoService, ResourceEditStackSnapshot } from '../../../platform/undoRedo/common/undoRedo.js';
-import { clampedInt } from '../config/editorOptions.js';
+
 import { EditOperation, ISingleEditOperation } from '../core/editOperation.js';
 import { EDITOR_MODEL_DEFAULTS } from '../core/misc/textModelDefaults.js';
 import { Range } from '../core/range.js';
 import { ILanguageSelection } from '../languages/language.js';
+import { clampedInt } from '../config/editorOptions.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../languages/modesRegistry.js';
 import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from '../model.js';
 import { isEditStackElement } from '../model/editStack.js';
@@ -58,6 +59,7 @@ interface IRawEditorConfig {
 	trimAutoWhitespace?: unknown;
 	creationOptions?: unknown;
 	largeFileOptimizations?: unknown;
+	largeFileSizeLimit?: unknown;
 	bracketPairColorization?: unknown;
 }
 
@@ -159,6 +161,23 @@ export class ModelService extends Disposable implements IModelService {
 		if (config.editor && typeof config.editor.largeFileOptimizations !== 'undefined') {
 			largeFileOptimizations = (config.editor.largeFileOptimizations === 'false' ? false : Boolean(config.editor.largeFileOptimizations));
 		}
+
+		let largeFileSizeLimit = EDITOR_MODEL_DEFAULTS.largeFileSizeLimit;
+		if (config.editor && typeof config.editor.largeFileSizeLimit !== 'undefined') {
+			const rawValue = typeof config.editor.largeFileSizeLimit === 'string' ? parseFloat(config.editor.largeFileSizeLimit) : config.editor.largeFileSizeLimit;
+			if (typeof rawValue === 'number' && !isNaN(rawValue)) {
+				// Only treat exactly 0 as "no limit", negative values fall back to default
+				if (rawValue === 0) {
+					largeFileSizeLimit = 0; // 0 means no limit
+				} else if (rawValue < 0) {
+					largeFileSizeLimit = EDITOR_MODEL_DEFAULTS.largeFileSizeLimit; // negative values use default
+				} else {
+					// Use the value as-is (including fractional values), clamped to valid range
+					largeFileSizeLimit = Math.min(rawValue, Number.MAX_SAFE_INTEGER);
+				}
+			}
+		}
+
 		let bracketPairColorizationOptions = EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions;
 		if (config.editor?.bracketPairColorization && typeof config.editor.bracketPairColorization === 'object') {
 			const bpConfig = config.editor.bracketPairColorization as { enabled?: unknown; independentColorPoolPerBracketType?: unknown };
@@ -177,6 +196,7 @@ export class ModelService extends Disposable implements IModelService {
 			defaultEOL: newDefaultEOL,
 			trimAutoWhitespace: trimAutoWhitespace,
 			largeFileOptimizations: largeFileOptimizations,
+			largeFileSizeLimit: largeFileSizeLimit,
 			bracketPairColorizationOptions
 		};
 	}
