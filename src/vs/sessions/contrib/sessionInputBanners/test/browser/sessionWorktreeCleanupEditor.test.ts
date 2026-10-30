@@ -619,18 +619,18 @@ suite('SessionWorktreeCleanupEditor', () => {
 			selectable: section.querySelectorAll('[role="checkbox"]').length,
 			sessionlessReason: [...container.querySelectorAll('.session-worktree-cleanup-reason')].some(element => element.textContent?.startsWith('Cleanup failed; retry scheduled: git add exited with code 128')),
 		}, {
-			unavailable: 'Needs attention (3)',
-			titles: ['blocked', 'retryable', 'agents/unlinked'],
-			reason: 'Unarchive and archive the session to remove this worktree.',
+			unavailable: 'Needs attention (1)',
+			titles: ['retryable'],
+			reason: 'Cleanup failed; retry scheduled: git timed out',
 			selectable: 0,
-			sessionlessReason: true,
+			sessionlessReason: false,
 		});
 		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
 		await timeout(0);
 		assert.deepStrictEqual(cleaned, []);
 	});
 
-	test('moves a git-add exit-128 failure out of an already submitted cleanup batch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('hides a git-add exit-128 failure detected after scheduling cleanup', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const worktree = { ...createWorktree('blocked', '/repos/app', 'archived'), cleanupStatus: { state: 'unknown' as const } };
 		const failed = { ...worktree, cleanupStatus: { state: 'failed' as const, message: 'git add exited with code 128' } };
 		const { editor, container } = createEditor({
@@ -650,8 +650,8 @@ suite('SessionWorktreeCleanupEditor', () => {
 			reason: section.querySelector('.session-worktree-cleanup-reason')?.textContent,
 			retryDisabled: container.querySelector('.session-worktree-cleanup-retry')?.getAttribute('aria-disabled'),
 		}, {
-			unavailable: 'Needs attention (1)',
-			reason: 'Unarchive and archive the session to remove this worktree.',
+			unavailable: 'Needs attention (0)',
+			reason: undefined,
 			retryDisabled: 'true',
 		});
 	}));
@@ -2105,20 +2105,24 @@ suite('SessionWorktreeCleanupEditor', () => {
 		assert.strictEqual(container.querySelector('.session-worktree-cleanup-reason')?.textContent, 'Couldn\'t read cleanup status: host disconnected');
 	});
 
-	test('omits initializing locks but preserves other locked worktrees and Git errors', async () => {
+	test('omits all cleanup exit code 128 errors but preserves other exit codes and locks', async () => {
 		const initializingError = 'Error: git worktree exited with code 128: fatal: cannot remove a locked working tree, lock reason: initializing\n    at cleanup';
 		const { container } = await openEditor([
 			{ ...createWorktree('initializing', '/repos/app', 'archived'), cleanupStatus: { state: 'failed', message: initializingError } },
 			{ ...createUnlinkedWorktree('initializing'), cleanupStatus: { state: 'failed', message: initializingError } },
 			{ ...createWorktree('locked', '/repos/app', 'archived'), cleanupStatus: { state: 'failed', message: initializingError.replace('lock reason: initializing', 'lock reason: user locked') } },
 			{ ...createWorktree('other-error', '/repos/app', 'archived'), cleanupStatus: { state: 'failed', message: 'git worktree exited with code 128: fatal: permission denied' } },
+			{ ...createWorktree('git-add', '/repos/app', 'archived'), cleanupStatus: { state: 'failed', message: 'git add exited with code 128: fatal: not a git repository' } },
+			{ ...createWorktree('different-code', '/repos/app', 'archived'), cleanupStatus: { state: 'failed', message: 'git worktree exited with code 129: invalid option' } },
+			{ ...createWorktree('code-prefix', '/repos/app', 'archived'), cleanupStatus: { state: 'failed', message: 'git worktree exited with code 1280' } },
+			{ ...createWorktree('lock-without-code', '/repos/app', 'archived'), cleanupStatus: { state: 'failed', message: 'cannot remove a locked working tree' } },
 		]);
-		assert.deepStrictEqual([...container.querySelectorAll('.session-worktree-cleanup-session-link')].map(link => link.textContent), ['locked', 'other-error']);
+		assert.deepStrictEqual([...container.querySelectorAll('.session-worktree-cleanup-session-link')].map(link => link.textContent), ['different-code', 'code-prefix', 'lock-without-code']);
 	});
 
-	test('hides initializing locks reported while scheduling without offering retries', async () => {
-		const worktree = createWorktree('initializing', '/repos/app');
-		const message = 'git worktree exited with code 128: fatal: cannot remove a locked working tree, lock reason: initializing';
+	test('hides exit code 128 reported while scheduling without offering retries', async () => {
+		const worktree = createWorktree('failed', '/repos/app');
+		const message = 'git worktree exited with code 128: fatal: permission denied';
 		const { editor, container, errors } = createEditor({
 			getWorktrees: async () => [worktree],
 			cleanupWorktrees: async ([candidate], onProgress) => {

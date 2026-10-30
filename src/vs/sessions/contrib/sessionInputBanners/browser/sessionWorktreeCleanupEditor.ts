@@ -749,12 +749,12 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 				worktrees.set(sessionId, { ...entry.candidate, sizeBytes: entry.state === 'removed' ? 0 : undefined, worktreeExists: entry.state === 'removed' ? false : undefined, cleanupState: 'archived' });
 			}
 		}
-		return [...worktrees.values()].filter(worktree => (worktree.isListedByHost !== false || worktree.worktreeExists === false) && !this.isInitializingWorktree(worktree));
+		return [...worktrees.values()].filter(worktree => (worktree.isListedByHost !== false || worktree.worktreeExists === false) && !this.hasCleanupExitCode128(worktree));
 	}
 
-	private isInitializingWorktree(worktree: ISessionWorktree): boolean {
+	private hasCleanupExitCode128(worktree: ISessionWorktree): boolean {
 		const message = this.withSchedulingFailure(worktree).cleanupStatus?.message;
-		return !!message && /git worktree exited with code 128:\s*fatal: cannot remove a locked working tree,\s*lock reason: initializing\s*$/m.test(message);
+		return !!message && /\bexited with code 128\b/.test(message);
 	}
 
 	private getMatchingWorktrees(): readonly ISessionWorktree[] {
