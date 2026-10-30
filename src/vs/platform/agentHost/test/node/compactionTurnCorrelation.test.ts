@@ -78,6 +78,23 @@ suite('CompactionTurnCorrelation', () => {
 		});
 	});
 
+	test('a later record of the same attempt keeps it from eviction', () => runWithFakedTimers({}, async () => {
+		const correlation = new CompactionTurnCorrelation({ cacheLimit: 2, timeoutMs: 100 });
+		correlation.record('attempt-1', 'turn-1');
+		correlation.record('attempt-2', 'turn-2');
+		// The completion of attempt-1 is recorded after attempt-2 started.
+		correlation.record('attempt-1', 'turn-1');
+		correlation.record('attempt-3', 'turn-3');
+
+		assert.deepStrictEqual({
+			refreshed: await correlation.resolve('attempt-1'),
+			evicted: (await correlation.resolve('attempt-2')).outcome,
+		}, {
+			refreshed: { turnId: 'turn-1', outcome: 'mappingAvailable' },
+			evicted: 'waitExpired',
+		});
+	}));
+
 	test('identifies compaction telemetry kinds', () => {
 		assert.deepStrictEqual(
 			['session_compaction_start', 'session_compaction_complete', 'session_truncation', 'response.success'].map(isCompactionTelemetryKind),

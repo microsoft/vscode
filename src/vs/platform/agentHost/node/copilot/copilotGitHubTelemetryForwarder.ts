@@ -7,7 +7,7 @@ import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
 import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import type { IAgentTelemetryContext } from '../../common/agent.js';
 import { toCopilotTelemetryData } from '../shared/copilotSkuTelemetry.js';
-import type { ICompactionTurnCorrelationResult } from './compactionTurnCorrelation.js';
+import type { IForwardedCompactionCorrelation } from './compactionTurnCorrelation.js';
 import type { ModelCallTurnCorrelationOutcome, ModelCallTurnCorrelationRecordStatus } from './modelCallTurnCorrelation.js';
 
 export interface ICopilotModelCallCorrelationTelemetry {
@@ -591,7 +591,7 @@ export class CopilotGitHubTelemetryForwarder {
 	 * Forwards `session_compaction_start` / `session_compaction_complete`, replacing any runtime
 	 * turn identity with the Agent Host turn that owned the compaction, as response telemetry does.
 	 */
-	forwardCompaction(notification: GitHubTelemetryNotification, correlation: ICompactionTurnCorrelationResult, telemetryContext?: IAgentTelemetryContext): void {
+	forwardCompaction(notification: GitHubTelemetryNotification, correlation: IForwardedCompactionCorrelation, telemetryContext?: IAgentTelemetryContext): void {
 		if (notification.restricted && !this._isRestrictedTelemetryEnabled()) {
 			return;
 		}
@@ -601,7 +601,7 @@ export class CopilotGitHubTelemetryForwarder {
 		if (correlation.waitMs !== undefined) {
 			data.ahCompactionCorrelationWaitMs = correlation.waitMs;
 		}
-		if (correlation.turnId) {
+		if (correlation.turnId !== undefined) {
 			data.turnId = correlation.turnId;
 		} else {
 			delete data.turnId;

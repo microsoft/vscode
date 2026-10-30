@@ -18,11 +18,18 @@ export function isCompactionTelemetryKind(kind: string): boolean {
 	return kind === 'session_compaction_start' || kind === 'session_compaction_complete';
 }
 
-export type CompactionTurnCorrelationOutcome = 'mappingAvailable' | 'mappingWaited' | 'waitExpired' | 'noOwningTurn' | 'missingAttemptId' | 'sessionNotFound';
+export type CompactionTurnCorrelationOutcome = 'mappingAvailable' | 'mappingWaited' | 'waitExpired' | 'noOwningTurn';
 
 export interface ICompactionTurnCorrelationResult {
 	readonly turnId: string | undefined;
 	readonly outcome: CompactionTurnCorrelationOutcome;
+	readonly waitMs?: number;
+}
+
+/** A forwarded compaction row's correlation, including the outcomes decided before the correlator is consulted. */
+export interface IForwardedCompactionCorrelation {
+	readonly turnId: string | undefined;
+	readonly outcome: CompactionTurnCorrelationOutcome | 'missingAttemptId' | 'sessionNotFound';
 	readonly waitMs?: number;
 }
 
@@ -55,7 +62,8 @@ export class CompactionTurnCorrelation {
 
 	/** Records the owner of a compaction attempt. The first owner recorded is retained. */
 	record(attemptId: string, turnId: string | undefined): void {
-		if (this._turnIdsByAttemptId.has(attemptId)) {
+		// `get` also refreshes the attempt's recency, so a later record keeps it from eviction.
+		if (this._turnIdsByAttemptId.get(attemptId) !== undefined) {
 			return;
 		}
 		const owner = turnId ?? null;
