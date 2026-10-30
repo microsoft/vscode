@@ -31,6 +31,7 @@ type ExtensionGalleryAccessProviderId = 'github' | 'microsoft';
 
 const PREFERRED_ACCOUNT_KEY = 'marketplace.account';
 const PROTECTED_RESOURCE_CACHE_TTL_SECONDS = 5 * 60;
+const PROTECTED_RESOURCE_ABSENCE_TTL_SECONDS = 30;
 
 // Well-known MSA (personal account) tenant ids. Duplicated from the microsoft-authentication
 // extension, which lives in the extension host and is not importable here.
@@ -67,13 +68,15 @@ interface IPreferredAccount {
 interface IMarketplaceProtectedResource {
 	readonly authorizationServer: string;
 	readonly scopes: readonly string[];
+	readonly invalidScopes?: boolean;
 }
 
 interface IMarketplaceProtectedResourceCache {
 	readonly serviceIndexUrl: string;
-	value?: IMarketplaceProtectedResource;
+	/** `null` represents confirmed absence, not a discovery failure. */
+	value?: IMarketplaceProtectedResource | null;
 	expiresAt?: number;
-	request?: Promise<IMarketplaceProtectedResource | undefined>;
+	request?: Promise<IMarketplaceProtectedResource | null | undefined>;
 }
 
 /** Status bookkeeping and eligibility reporting shared by the provider implementations. */
@@ -216,7 +219,7 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 			return {};
 		}
 		const protectedResource = await this.getProtectedResource(cache);
-		if (!protectedResource) {
+		if (!protectedResource || protectedResource.invalidScopes) {
 			return { accessToken: session.accessToken };
 		}
 		return { accessToken: (await this.getResourceSession(session, protectedResource))?.accessToken ?? session.accessToken };
@@ -279,12 +282,12 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 		}
 	}
 
-	private async getProtectedResource(cache: IMarketplaceProtectedResourceCache): Promise<IMarketplaceProtectedResource | undefined> {
+	private async getProtectedResource(cache: IMarketplaceProtectedResourceCache, bypassNegativeCache = false): Promise<IMarketplaceProtectedResource | undefined> {
 		if (this._store.isDisposed || this.protectedResourceCache !== cache) {
 			return undefined;
 		}
-		if (cache.value && !isExpired(cache.expiresAt)) {
-			return cache.value;
+		if (cache.value !== undefined && !isExpired(cache.expiresAt) && !(bypassNegativeCache && cache.value === null)) {
+			return cache.value ?? undefined;
 		}
 		if (!cache.request) {
 			cache.value = undefined;
@@ -298,17 +301,21 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 		}
 		if (cache.request === request) {
 			cache.request = undefined;
-			if (protectedResource) {
+			if (protectedResource !== undefined && !protectedResource?.invalidScopes) {
 				cache.value = protectedResource;
-				cache.expiresAt = getExpirationTime(PROTECTED_RESOURCE_CACHE_TTL_SECONDS);
+				cache.expiresAt = getExpirationTime(protectedResource ? PROTECTED_RESOURCE_CACHE_TTL_SECONDS : PROTECTED_RESOURCE_ABSENCE_TTL_SECONDS);
 			}
 		}
-		return protectedResource;
+		return protectedResource ?? undefined;
 	}
 
-	private async discoverProtectedResource(serviceIndexUrl: string): Promise<IMarketplaceProtectedResource | undefined> {
+	private async discoverProtectedResource(serviceIndexUrl: string): Promise<IMarketplaceProtectedResource | null | undefined> {
+		const attempts: { status?: number }[] = [];
 		const fetcher = async (input: string, init: { method: string; headers: Record<string, string> }) => {
+			const attempt: { status?: number } = {};
+			attempts.push(attempt);
 			const context = await this.requestService.request({ type: init.method, url: input, headers: init.headers, callSite: 'extensionGalleryAccountService.discoverProtectedResource' }, CancellationToken.None);
+			attempt.status = context.res.statusCode;
 			return {
 				status: context.res.statusCode ?? 0,
 				statusText: '',
@@ -340,11 +347,11 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 			// RFC 6749 section 3.3 defines the allowed characters of a scope token.
 			if (!Array.isArray(scopes) || !scopes.every(scope => typeof scope === 'string' && scope.length > 0 && !/[^\x21\x23-\x5B\x5D-\x7E]/.test(scope))) {
 				this.logService.warn('[Marketplace] Ignoring invalid protected resource scopes');
-				return undefined;
+				return { authorizationServer, scopes: [], invalidScopes: true };
 			}
 			return { authorizationServer, scopes };
 		} catch {
-			return undefined;
+			return attempts.length > 0 && attempts.every(attempt => attempt.status === 404 || attempt.status === 410) ? null : undefined;
 		}
 	}
 
@@ -414,8 +421,8 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 		if (!cache) {
 			return;
 		}
-		const protectedResource = await this.getProtectedResource(cache);
-		if (!protectedResource) {
+		const protectedResource = await this.getProtectedResource(cache, true);
+		if (!protectedResource || protectedResource.invalidScopes) {
 			return;
 		}
 		if (await this.getResourceSession(session, protectedResource)) {
