@@ -9,16 +9,21 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAutomationLeaderElection } from '../../browser/automationLeaderElection.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { AutomationSchedulerCore, CRASH_RECOVERY_REASON, RUN_TIMEOUT_REASON_PREFIX } from '../../browser/automationScheduler.js';
+import { AutomationSchedulerCore, CRASH_RECOVERY_REASON } from '../../browser/automationScheduler.js';
+import { AutomationRunner } from '../../browser/automationRunner.js';
 import { AutomationService } from '../../browser/automationService.js';
 import { AutomationRunTrigger, AutomationTarget, IAutomationDescriptor, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { createAutomationService, TestAutomationStorageService } from './automationTestUtils.js';
+import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 const FOLDER = URI.parse('file:///workspace');
 const TARGET: AutomationTarget = { kind: 'workspace', folderUri: FOLDER, isolation: { kind: 'default' } };
@@ -86,6 +91,7 @@ class RecordingRunner implements IAutomationRunner {
 		return {
 			whenDispatched: operation,
 			whenCompleted: operation.then(() => undefined),
+			timeout: async () => { },
 		};
 	}
 }
@@ -100,6 +106,7 @@ class SkippingRunner implements IAutomationRunner {
 		return {
 			whenDispatched: Promise.resolve({ kind: 'notStarted', reason: 'targetUnavailable' }),
 			whenCompleted: Promise.resolve(),
+			timeout: async () => { },
 		};
 	}
 }
@@ -412,52 +419,31 @@ suite('AutomationSchedulerCore', () => {
 
 		let now = T0;
 		service.setClockForTesting(() => now);
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
-		const b = await service.createAutomation({ name: 'B', prompt: 'q', schedule: hourly(), target: TARGET });
+		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
+		await service.createAutomation({ name: 'B', prompt: 'q', schedule: hourly(), target: TARGET });
 
-		// The first run hangs until cancellation and tries to record `Cancelled`,
-		// matching the real runner's timeout behavior.
-		let hungAutomationId: string | undefined;
-		class HangingRunner implements IAutomationRunner {
-			declare readonly _serviceBrand: undefined;
-			readonly hung = new DeferredPromise<void>();
-			calls = 0;
-			cancelObserved = false;
-			runOnce(automation: IAutomationDescriptor, trigger: AutomationRunTrigger, leaderWindowId: number, token?: CancellationToken): IAutomationRunOperation {
-				this.calls++;
-				const whenCompleted = this._run(automation, trigger, leaderWindowId, token);
-				return {
-					whenDispatched: Promise.resolve({ kind: 'notStarted', reason: 'error' }),
-					whenCompleted,
-				};
-			}
-
-			private async _run(automation: IAutomationDescriptor, trigger: AutomationRunTrigger, leaderWindowId: number, token?: CancellationToken): Promise<void> {
-				if (this.calls === 1) {
-					hungAutomationId = automation.id;
-					await service.recordRunStart(automation.id, trigger, leaderWindowId);
-					const listener = token?.onCancellationRequested(() => {
-						this.cancelObserved = true;
-						const active = service.getActiveRunFor(automation.id);
-						if (active) {
-							void service.updateRun(active.id, {
-								status: 'failed',
-								errorMessage: 'Cancelled',
-							});
-						}
-						this.hung.complete();
-					});
-					try {
-						await this.hung.p;
-					} finally {
-						listener?.dispose();
-					}
-					return;
-				}
-				await service.recordRunStart(automation.id, trigger, leaderWindowId);
+		const hung = new DeferredPromise<ISession>();
+		const tokens: CancellationToken[] = [];
+		const session = upcastPartial<ISession>({
+			resource: SESSION_RESOURCE,
+			mainChat: observableValue('main-chat', upcastPartial<IChat>({ status: observableValue('status', SessionStatus.Completed) })),
+		});
+		const sessionsManagement = upcastPartial<ISessionsManagementService>({
+			isNewSessionTargetAvailable: () => true,
+			createAndSendNewChatRequest: async (_folder, _options, _createOptions, token = CancellationToken.None) => {
+				tokens.push(token);
+				return tokens.length === 1 ? hung.p : session;
+			},
+		});
+		const operations: IAutomationRunOperation[] = [];
+		class RecordingAutomationRunner extends AutomationRunner {
+			override runOnce(...args: Parameters<AutomationRunner['runOnce']>): IAutomationRunOperation {
+				const operation = super.runOnce(...args);
+				operations.push(operation);
+				return operation;
 			}
 		}
-		const runner = new HangingRunner();
+		const runner = new RecordingAutomationRunner(service, sessionsManagement, log, NullTelemetryService, new TestNotificationService());
 		const leader = new FakeLeaderElection(false);
 
 		// Use a very short timeout so the test finishes quickly.
@@ -472,20 +458,26 @@ suite('AutomationSchedulerCore', () => {
 		leader.set(true);
 		await core.waitForPendingRuns();
 
-		// Both A and B should have been dispatched (the second was
-		// not blocked by the first's hang). The hung automation's run
-		// row must be failed with the timeout reason; the runner must
-		// have observed cancellation.
-		assert.strictEqual(runner.calls, 2, 'both A and B should have been dispatched');
-		assert.strictEqual(runner.cancelObserved, true, 'runner should observe cancellation on timeout');
-		assert.ok(hungAutomationId, 'runner should have recorded a hung automation id');
-		const otherId = hungAutomationId === a.id ? b.id : a.id;
-		const hungRun = service.runs.get().find(r => r.automationId === hungAutomationId);
-		assert.strictEqual(hungRun?.status, 'failed');
-		assert.ok(hungRun?.errorMessage?.startsWith(RUN_TIMEOUT_REASON_PREFIX), `expected timeout marker, got: ${hungRun?.errorMessage}`);
-		// The non-hung automation's row should NOT have been touched
-		// by the timeout path.
-		const otherRun = service.runs.get().find(r => r.automationId === otherId);
-		assert.notStrictEqual(otherRun?.status, 'failed');
+		assert.deepStrictEqual({
+			calls: tokens.length,
+			cancelled: tokens[0].isCancellationRequested,
+			outcomes: service.runs.get().map(run => ({ status: run.status, errorMessage: run.errorMessage })).sort((x, y) => x.status.localeCompare(y.status)),
+		}, {
+			calls: 2,
+			cancelled: true,
+			outcomes: [
+				{ status: 'completed', errorMessage: undefined },
+				{ status: 'failed', errorMessage: 'Timed out after 0 minute(s).' },
+			],
+		});
+		await hung.complete(session);
+		await Promise.all(operations.map(operation => operation.whenCompleted));
+		assert.deepStrictEqual(service.runs.get().map(run => ({
+			status: run.status,
+			session: run.sessionResource?.toString(),
+		})).sort((x, y) => x.status.localeCompare(y.status)), [
+			{ status: 'completed', session: SESSION_RESOURCE.toString() },
+			{ status: 'failed', session: SESSION_RESOURCE.toString() },
+		]);
 	});
 });

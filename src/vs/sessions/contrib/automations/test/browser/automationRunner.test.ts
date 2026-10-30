@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -13,11 +14,33 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { createAutomationService } from './automationTestUtils.js';
+import { TestAutomationStorageService } from './automationTestUtils.js';
 import { AutomationTarget, AutomationWorkspaceIsolation, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { AutomationRunner } from '../../browser/automationRunner.js';
+import { AutomationService } from '../../browser/automationService.js';
+
+class ControlledAutomationService extends AutomationService {
+	beforeUpdateRun?: (patch: IUpdateAutomationRunOptions) => Promise<void>;
+	afterRunStart?: () => Promise<void>;
+
+	override async updateRun(id: string, patch: IUpdateAutomationRunOptions) {
+		if (this.beforeUpdateRun) {
+			await this.beforeUpdateRun(patch);
+		}
+		return super.updateRun(id, patch);
+	}
+
+	override async recordRunStart(...args: Parameters<AutomationService['recordRunStart']>) {
+		const claim = await super.recordRunStart(...args);
+		if (this.afterRunStart) {
+			await this.afterRunStart();
+		}
+		return claim;
+	}
+}
 
 function hourly(): IAutomationSchedule {
 	return { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
@@ -121,7 +144,7 @@ suite('AutomationRunner', () => {
 	function setup() {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
+		const service = teardown.add(new ControlledAutomationService(storage, log, NullTelemetryService, new TestAutomationStorageService(storage)));
 		const sessionsMgmt = new FakeSessionsManagementService();
 		const notifications = new RecordingNotificationService();
 		const runner = new AutomationRunner(service, sessionsMgmt, log, NullTelemetryService, notifications);
@@ -356,7 +379,9 @@ suite('AutomationRunner', () => {
 
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
 		await service.recordRunStart(a.id, 'manual', 1);
-		await runner.runOnce(a, 'schedule', 2).whenCompleted;
+		const operation = runner.runOnce(a, 'schedule', 2);
+		await operation.whenCompleted;
+		await operation.timeout(60_000);
 		assert.strictEqual(sessionsMgmt.calls.length, 0);
 		const runs = service.runs.get();
 		assert.strictEqual(runs.length, 1);
@@ -452,6 +477,114 @@ suite('AutomationRunner', () => {
 			errorMessage: 'Timed out',
 		});
 		cts.dispose();
+	});
+
+	for (const first of ['completion', 'timeout', 'cancellation'] as const) {
+		test(`retains ${first} when other terminal signals arrive during persistence`, async () => {
+			const { service, sessionsMgmt, runner } = setup();
+			const cts = teardown.add(new CancellationTokenSource());
+			const status = observableValue('status-racing', SessionStatus.InProgress);
+			sessionsMgmt.nextSession = fakeSession('racing', status);
+			const writing = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const terminalWrites: IUpdateAutomationRunOptions[] = [];
+			service.beforeUpdateRun = async patch => {
+				if (patch.status === 'completed' || patch.status === 'failed') {
+					terminalWrites.push(patch);
+					await writing.complete();
+					await release.p;
+				}
+			};
+			const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+			const operation = runner.runOnce(a, 'schedule', 1, cts.token);
+			await operation.whenDispatched;
+
+			let firstTimeout: Promise<void> | undefined;
+			if (first === 'completion') {
+				status.set(SessionStatus.Completed, undefined);
+			} else if (first === 'timeout') {
+				firstTimeout = operation.timeout(60_000);
+			} else {
+				cts.cancel();
+			}
+			await writing.p;
+			const timeout = operation.timeout(60_000);
+			cts.cancel();
+			status.set(SessionStatus.Completed, undefined);
+			await release.complete();
+			await Promise.all([operation.whenCompleted, firstTimeout, timeout]);
+
+			const run = service.runs.get()[0];
+			assert.deepStrictEqual({
+				status: run.status,
+				errorMessage: run.errorMessage,
+				terminalWrites: terminalWrites.map(patch => ({ status: patch.status, errorMessage: patch.errorMessage })),
+			}, {
+				status: first === 'completion' ? 'completed' : 'failed',
+				errorMessage: first === 'completion' ? undefined : first === 'timeout' ? 'Timed out after 1 minute(s).' : 'Cancelled',
+				terminalWrites: [{
+					status: first === 'completion' ? 'completed' : 'failed',
+					errorMessage: first === 'completion' ? undefined : first === 'timeout' ? 'Timed out after 1 minute(s).' : 'Cancelled',
+				}],
+			});
+		});
+	}
+
+	test('remembers a timeout while the atomic claim is pending without sending a request', async () => {
+		const { service, sessionsMgmt, runner } = setup();
+		const claiming = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		service.afterRunStart = async () => {
+			await claiming.complete();
+			await release.p;
+		};
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+		const operation = runner.runOnce(a, 'schedule', 1);
+		await claiming.p;
+		await operation.timeout(60_000);
+		await release.complete();
+		await operation.whenCompleted;
+
+		assert.deepStrictEqual({
+			calls: sessionsMgmt.calls.length,
+			status: service.runs.get()[0].status,
+			errorMessage: service.runs.get()[0].errorMessage,
+			dispatch: (await operation.whenDispatched).kind,
+		}, {
+			calls: 0,
+			status: 'failed',
+			errorMessage: 'Timed out after 1 minute(s).',
+			dispatch: 'notStarted',
+		});
+	});
+
+	test('records a timeout without waiting for session creation and links a late session', async () => {
+		const { service, sessionsMgmt, runner } = setup();
+		const sending = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		sessionsMgmt.nextSession = fakeSession('late');
+		sessionsMgmt.onSendHook = async () => {
+			await sending.complete();
+			await release.p;
+		};
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+		const operation = runner.runOnce(a, 'schedule', 1);
+		await sending.p;
+		await operation.timeout(60_000);
+		assert.strictEqual(service.runs.get()[0].status, 'failed');
+		await release.complete();
+		await operation.whenCompleted;
+
+		const run = service.runs.get()[0];
+		assert.deepStrictEqual({
+			status: run.status,
+			errorMessage: run.errorMessage,
+			sessionResource: run.sessionResource?.toString(),
+		}, {
+			status: 'failed',
+			errorMessage: 'Timed out after 1 minute(s).',
+			sessionResource: 'vscode-chat-session://test/late',
+		});
 	});
 
 	test('completes the run even when the service returns undefined', async () => {

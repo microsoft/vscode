@@ -26,8 +26,6 @@ export const DEFAULT_SCHEDULER_TICK_MS = 60_000;
 // Stored on stale run rows on leader startup.
 export const CRASH_RECOVERY_REASON = localize('automations.crashRecoveryReason', "Interrupted by app shutdown");
 
-export const RUN_TIMEOUT_REASON_PREFIX = 'Timed out after';
-
 export interface IAutomationSchedulerCoreOptions {
 	readonly tickIntervalMs?: number;
 	readonly now?: () => Date;
@@ -156,14 +154,15 @@ export class AutomationSchedulerCore extends Disposable {
 		const timeoutMs = this._getRunTimeoutMs();
 		const perRunCts = new CancellationTokenSource(this._runCts.token);
 		try {
+			const operation = this.runner.runOnce(automation, trigger, leaderWindowId, perRunCts.token);
 			if (timeoutMs <= 0) {
-				await this.runner.runOnce(automation, trigger, leaderWindowId, perRunCts.token).whenCompleted;
+				await operation.whenCompleted;
 				return;
 			}
 
 			let timedOut = false;
 			await raceTimeout(
-				this.runner.runOnce(automation, trigger, leaderWindowId, perRunCts.token).whenCompleted,
+				operation.whenCompleted,
 				timeoutMs,
 				() => {
 					timedOut = true;
@@ -174,27 +173,11 @@ export class AutomationSchedulerCore extends Disposable {
 				return;
 			}
 
-			// Best-effort: mark the active run row as failed so the UI doesn't show "running" forever.
 			try {
-				const active = this.automationService.getActiveRunFor(automation.id);
-				if (active) {
-					const updated = await this.automationService.updateRun(active.id, {
-						status: 'failed',
-						errorMessage: localize('automation.timedOut', "Timed out after {0} minute(s).", Math.round(timeoutMs / 60_000)),
-						completedAt: this._now().toISOString(),
-					});
-					if (updated) {
-						this.logService.warn(`[AutomationScheduler] automation ${automation.id} timed out after ${timeoutMs}ms; marked run ${active.id} failed (previousStatus=${active.status}, session=${updated.sessionResource?.toString() ?? '(none)'}).`);
-					} else {
-						this.logService.warn(`[AutomationScheduler] automation ${automation.id} timed out after ${timeoutMs}ms, but active run ${active.id} disappeared before it could be marked failed (previousStatus=${active.status}, session=${active.sessionResource?.toString() ?? '(none)'}).`);
-					}
-				} else {
-					this.logService.warn(`[AutomationScheduler] automation ${automation.id} timed out after ${timeoutMs}ms with no active run recorded.`);
-				}
-			} catch (err) {
-				this.logService.warn(`[AutomationScheduler] automation ${automation.id} timed out after ${timeoutMs}ms and failed to mark its active run as failed.`, err);
+				await operation.timeout(timeoutMs);
+			} finally {
+				perRunCts.cancel();
 			}
-			perRunCts.cancel();
 		} finally {
 			perRunCts.dispose();
 		}

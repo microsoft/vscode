@@ -179,6 +179,7 @@ class RecordingAutomationRunner extends mock<IAutomationRunner>() {
 		return {
 			whenDispatched,
 			whenCompleted: Promise.all([whenDispatched, this.whenCompleted]).then(() => undefined),
+			timeout: async () => { },
 		};
 	}
 }

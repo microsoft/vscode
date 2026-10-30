@@ -250,7 +250,7 @@ class FakeRunner extends mock<IAutomationRunner>() {
 
 	override runOnce(_automation: IAutomationDescriptor, _trigger: AutomationRunTrigger, _leaderWindowId: number, _token?: CancellationToken): IAutomationRunOperation {
 		this.runCalls++;
-		return { whenDispatched: this.whenDispatched, whenCompleted: Promise.resolve() };
+		return { whenDispatched: this.whenDispatched, whenCompleted: Promise.resolve(), timeout: async () => { } };
 	}
 }
 
