@@ -90,9 +90,9 @@ export class ContextMenuService implements IContextMenuService {
 		this.impl.showContextMenu(delegate);
 	}
 
-	hideContextMenu(delegate: IContextMenuDelegate | IContextMenuMenuDelegate): void {
+	hideContextMenu(): void {
 		if (!(this.impl instanceof NativeContextMenuService)) {
-			this.impl.hideContextMenu(delegate);
+			this.impl.hideContextMenu();
 		}
 	}
 }

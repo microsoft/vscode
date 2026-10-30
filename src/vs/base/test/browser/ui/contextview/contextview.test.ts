@@ -671,25 +671,6 @@ suite('ContextView', () => {
 			contextView.hide();
 		});
 
-		test('hides when an owner without size is removed or hidden without a layout', async () => {
-			for (const lose of [(owner: HTMLElement) => owner.remove(), (owner: HTMLElement) => owner.style.display = 'none']) {
-				const { owner } = createOwner('width: 0; height: 0;');
-				const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER);
-				const hidden = new DeferredPromise<void>();
-				let hideCount = 0;
-				const { delegate } = createDelegate({ onHide: () => { hideCount++; hidden.complete(); } });
-				contextView.show(delegate);
-				await timeout(50);
-
-				lose(owner);
-				const timer = timeout(1000);
-				await Promise.race([hidden.p, timer]);
-				timer.cancel();
-
-				assert.strictEqual(hideCount, 1);
-			}
-		});
-
 		test('reports focus inside a context view hosted in a shadow root', () => {
 			const { owner, input } = createOwner();
 			const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER_SHADOW);

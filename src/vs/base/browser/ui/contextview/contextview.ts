@@ -532,15 +532,6 @@ export class ContextView extends Disposable {
 			observer.observe(owner);
 			this.toDisposeOnPopoverHide.add(toDisposable(() => observer.disconnect()));
 		}
-
-		// Resizes are not observed when an owner without size is removed or hidden,
-		// but it then stops intersecting the viewport
-		const IntersectionObserverCtor = (targetWindow as Window & typeof globalThis).IntersectionObserver;
-		if (typeof IntersectionObserverCtor === 'function') {
-			const observer = new IntersectionObserverCtor(() => this.checkPopoverOwner());
-			observer.observe(owner);
-			this.toDisposeOnPopoverHide.add(toDisposable(() => observer.disconnect()));
-		}
 	}
 
 	private isPopoverOwnerLost(): boolean {

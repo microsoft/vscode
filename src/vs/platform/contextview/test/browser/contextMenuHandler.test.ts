@@ -6,17 +6,14 @@
 import assert from 'assert';
 import { $, getActiveElement } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { IContextMenuDelegate } from '../../../../base/browser/contextmenu.js';
-import { Action, ActionRunner, Separator } from '../../../../base/common/actions.js';
+import { Action, Separator } from '../../../../base/common/actions.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ContextMenuHandler } from '../../browser/contextMenuHandler.js';
-import { ContextMenuService } from '../../browser/contextMenuService.js';
-import { IMenuService } from '../../../actions/common/actions.js';
 import { IContextViewDelegate, IContextViewService } from '../../browser/contextView.js';
 import { ContextViewDOMPosition } from '../../../../base/browser/ui/contextview/contextview.js';
-import { MockContextKeyService, MockKeybindingService } from '../../../keybinding/test/common/mockKeybindingService.js';
+import { MockKeybindingService } from '../../../keybinding/test/common/mockKeybindingService.js';
 import { TestNotificationService } from '../../../notification/test/common/testNotificationService.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 
@@ -124,14 +121,14 @@ suite('ContextMenuHandler', () => {
 			}
 		});
 
-		async function showMenuAndHide(domPosition: ContextViewDOMPosition, hide: (handler: ContextMenuHandler, hideContextView: (data?: unknown) => void, runAction: () => Promise<void>) => void | Promise<void>): Promise<{ didCancel: boolean[]; hideContextViewCalls: unknown[] }> {
+		test('hides the shown menu as cancelled on request, and nothing once it is hidden', () => {
 			const container = mainWindow.document.body.appendChild($('div'));
 			store.add(toDisposable(() => container.remove()));
 			const hideContextViewCalls: unknown[] = [];
 			let hideContextView: (data?: unknown) => void = () => { };
 			const contextViewService = upcastPartial<IContextViewService>({
 				showContextView: delegate => {
-					const rendering = delegate.render(container, { domPosition });
+					const rendering = delegate.render(container, { domPosition: ContextViewDOMPosition.POPOVER });
 					hideContextView = data => {
 						hideContextView = () => { };
 						delegate.onHide?.(data);
@@ -146,111 +143,19 @@ suite('ContextMenuHandler', () => {
 			});
 			const handler = new ContextMenuHandler(contextViewService, NullTelemetryService, new TestNotificationService(), new MockKeybindingService());
 			const action = store.add(new Action('first', 'First'));
-			const actionRunner = store.add(new ActionRunner());
 			const didCancel: boolean[] = [];
 			handler.showContextMenu({
 				getAnchor: () => container,
 				getActions: () => [action],
 				onHide: cancel => didCancel.push(cancel),
-				actionRunner,
 				hostAsPopover: true,
 				skipTelemetry: true,
 			});
-			await hide(handler, data => hideContextView(data), () => actionRunner.run(action));
-			return { didCancel, hideContextViewCalls };
-		}
 
-		test('reports a popover dismissed by the context view itself as cancelled, unlike running an action', async () => {
-			const dismissed = await showMenuAndHide(ContextViewDOMPosition.POPOVER_SHADOW, (_handler, hideContextView) => hideContextView());
-			const legacy = await showMenuAndHide(ContextViewDOMPosition.FIXED, (_handler, hideContextView) => hideContextView());
-			const actionRun = await showMenuAndHide(ContextViewDOMPosition.POPOVER_SHADOW, (_handler, _hideContextView, runAction) => runAction());
+			handler.hideContextMenu();
+			handler.hideContextMenu();
 
-			assert.deepStrictEqual({ dismissed: dismissed.didCancel, legacy: legacy.didCancel, actionRun: actionRun.didCancel }, {
-				dismissed: [true],
-				legacy: [false],
-				actionRun: [false]
-			});
-		});
-
-		test('hides the shown menu as cancelled on request, and nothing once it is hidden', async () => {
-			const result = await showMenuAndHide(ContextViewDOMPosition.POPOVER, handler => {
-				handler.hideContextMenu();
-				handler.hideContextMenu();
-			});
-
-			assert.deepStrictEqual(result, { didCancel: [true], hideContextViewCalls: [true] });
-		});
-	});
-
-	suite('ContextMenuService', () => {
-		function createService() {
-			const container = mainWindow.document.body.appendChild($('div'));
-			store.add(toDisposable(() => container.remove()));
-			const hideContextViewCalls: unknown[] = [];
-			let hideContextView: (data?: unknown) => void = () => { };
-			const contextViewService = upcastPartial<IContextViewService>({
-				showContextView: delegate => {
-					hideContextView();
-					const rendering = delegate.render(container);
-					hideContextView = data => {
-						hideContextView = () => { };
-						delegate.onHide?.(data);
-						rendering?.dispose();
-					};
-					return { close: () => hideContextView() };
-				},
-				hideContextView: (data?: unknown) => {
-					hideContextViewCalls.push(data);
-					hideContextView(data);
-				},
-			});
-			const service = store.add(new ContextMenuService(NullTelemetryService, new TestNotificationService(), contextViewService, new MockKeybindingService(), upcastPartial<IMenuService>({}), new MockContextKeyService()));
-			const action = store.add(new Action('first', 'First'));
-			const hidden: string[] = [];
-			const createDelegate = (name: string, actions: readonly Action[] = [action]): IContextMenuDelegate => ({
-				getAnchor: () => container,
-				getActions: () => actions,
-				onHide: () => hidden.push(name),
-			});
-			return { service, hidden, hideContextViewCalls, createDelegate };
-		}
-
-		test('hides a context menu on request only for the delegate it is shown for', () => {
-			const { service, hidden, hideContextViewCalls, createDelegate } = createService();
-			const empty = createDelegate('empty', []);
-			const first = createDelegate('first');
-			const second = createDelegate('second');
-			service.showContextMenu(empty);
-			service.showContextMenu(first);
-			service.showContextMenu(second);
-			service.hideContextMenu(empty);
-			service.hideContextMenu(first);
-			const beforeHide = [...hidden];
-			service.hideContextMenu(second);
-			service.hideContextMenu(second);
-
-			assert.deepStrictEqual({ beforeHide, hidden, hideContextViewCalls }, {
-				beforeHide: ['first'],
-				hidden: ['first', 'second'],
-				hideContextViewCalls: [true]
-			});
-		});
-
-		test('keeps the ownership of a shown context menu when an empty one is requested', () => {
-			const { service, hidden, hideContextViewCalls, createDelegate } = createService();
-			const first = createDelegate('first');
-			const empty = createDelegate('empty', []);
-			service.showContextMenu(first);
-			service.showContextMenu(empty);
-			service.hideContextMenu(empty);
-			const beforeHide = [...hidden];
-			service.hideContextMenu(first);
-
-			assert.deepStrictEqual({ beforeHide, hidden, hideContextViewCalls }, {
-				beforeHide: [],
-				hidden: ['first'],
-				hideContextViewCalls: [true]
-			});
+			assert.deepStrictEqual({ didCancel, hideContextViewCalls }, { didCancel: [true], hideContextViewCalls: [true] });
 		});
 	});
 });

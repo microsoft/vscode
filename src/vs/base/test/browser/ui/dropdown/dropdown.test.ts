@@ -56,12 +56,12 @@ suite('DropdownMenu', () => {
 
 	test('hides the shown menu when the label is pressed again', () => {
 		const delegates: IContextMenuDelegate[] = [];
-		const hideRequests: IContextMenuDelegate[] = [];
+		let hideRequests = 0;
 		const contextMenuProvider: IContextMenuProvider = {
 			showContextMenu: delegate => delegates.push(delegate),
-			hideContextMenu: delegate => {
-				hideRequests.push(delegate);
-				delegate.onHide?.(true);
+			hideContextMenu: () => {
+				hideRequests++;
+				delegates.at(-1)?.onHide?.(true);
 			}
 		};
 		const container = mainWindow.document.body.appendChild($('.container'));
@@ -79,12 +79,12 @@ suite('DropdownMenu', () => {
 		pressLabel();
 		const shown = { delegates: delegates.length, active: dropdown.element.classList.contains('active'), visible: dropdown.isVisible() };
 		pressLabel();
-		const hidden = { hideRequests: hideRequests.length, sameDelegate: hideRequests[0] === delegates[0], active: dropdown.element.classList.contains('active'), visible: dropdown.isVisible() };
+		const hidden = { hideRequests, active: dropdown.element.classList.contains('active'), visible: dropdown.isVisible() };
 		dropdown.hide();
 
-		assert.deepStrictEqual({ shown, hidden, hideRequests: hideRequests.length, visibility }, {
+		assert.deepStrictEqual({ shown, hidden, hideRequests, visibility }, {
 			shown: { delegates: 1, active: true, visible: true },
-			hidden: { hideRequests: 1, sameDelegate: true, active: false, visible: false },
+			hidden: { hideRequests: 1, active: false, visible: false },
 			hideRequests: 1,
 			visibility: [true, false]
 		});

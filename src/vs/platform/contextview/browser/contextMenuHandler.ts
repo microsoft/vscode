@@ -140,9 +140,7 @@ export class ContextMenuHandler {
 			},
 
 			onHide: (didCancel?: boolean) => {
-				// A popover-hosted context view dismisses itself without data on outside
-				// presses or when its owner goes away; only running an action is no cancel
-				delegate.onHide?.(this.lastHostedAsPopover ? didCancel !== false : !!didCancel);
+				delegate.onHide?.(!!didCancel);
 
 				if (this.block) {
 					this.block.remove();
