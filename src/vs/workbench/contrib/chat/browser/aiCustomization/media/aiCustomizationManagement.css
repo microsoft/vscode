@@ -201,6 +201,21 @@
 	pointer-events: none;
 }
 
+.ai-customization-management-editor .sidebar-sections-list .monaco-list .monaco-list-row.section-list-item.section-separator-before:is(:hover, .hovered):not(.selected):not(.focused) {
+	z-index: 0;
+	background-color: transparent;
+}
+
+.ai-customization-management-editor .sidebar-sections-list .monaco-list .monaco-list-row.section-list-item.section-separator-before:is(:hover, .hovered):not(.selected):not(.focused)::after {
+	content: '';
+	position: absolute;
+	inset: var(--vscode-spacing-size80) 0 0;
+	z-index: -1;
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-list-hoverBackground);
+	pointer-events: none;
+}
+
 .ai-customization-management-editor .monaco-list .monaco-list-row.section-list-item.selected .section-count {
 	color: inherit;
 }
