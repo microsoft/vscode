@@ -29,6 +29,34 @@ suite('Default theme colors', () => {
 		return theme;
 	}
 
+	for (const { name, file, selector } of [
+		{ name: 'Dark 2026', file: '2026-dark.json', selector: 'vs-dark' },
+		{ name: 'Light 2026', file: '2026-light.json', selector: 'vs' },
+	] as const) {
+		test(`${name} defines a distinct confetti palette visible on workbench surfaces`, async () => {
+			const theme = await loadDefaultTheme(file, selector);
+			const surfaces = ['editor.background', 'sideBar.background', 'agents.background', 'agentsChatInput.background', 'editorWidget.background'];
+			const palette = Array.from({ length: 6 }, (_, index) => {
+				const id = `confetti.color${index + 1}`;
+				return { id, color: theme.getColor(id, false) };
+			});
+			assert.deepStrictEqual({
+				distinctColors: new Set(palette.map(({ color }) => color?.toString())).size,
+				palette: palette.map(({ id, color }) => ({
+					id,
+					opaque: color?.isOpaque(),
+					visible: surfaces.every(surface => {
+						const background = theme.getColor(surface);
+						return color !== undefined && background !== undefined && color.getContrastRatio(background) >= 3;
+					}),
+				})),
+			}, {
+				distinctColors: 6,
+				palette: palette.map(({ id }) => ({ id, opaque: true, visible: true })),
+			});
+		});
+	}
+
 	test('Light 2026 inline code and code links remain distinct and readable on Markdown surfaces', async () => {
 		const theme = await loadDefaultTheme('2026-light.json', 'vs');
 		const editorBackground = theme.getColor('editor.background')!;
