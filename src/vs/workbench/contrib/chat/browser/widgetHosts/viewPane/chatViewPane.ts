@@ -54,7 +54,7 @@ import { ILifecycleService, StartupKind } from '../../../../../services/lifecycl
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { getPortableChatDraft, IChatModel, IChatModelInputState, IPortableChatDraft, restorePortableChatDraft } from '../../../common/model/chatModel.js';
+import { IChatModel, IChatModelInputState } from '../../../common/model/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../../../common/participants/chatParticipantContribTypes.js';
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
@@ -110,8 +110,6 @@ interface IChatViewPaneState extends Partial<IChatModelInputState> {
 interface IChatSessionAcquisitionResult {
 	modelRef: IChatModelReference | undefined;
 	localFallbackSelectionReason?: SessionTypeSelectionReason;
-	/** Unsent content of a restored draft that was not shown, to carry into the new chat. */
-	draft?: IPortableChatDraft;
 }
 
 type ChatViewPaneOpenedClassification = {
@@ -348,8 +346,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						try {
 							this._widget.setVisible(false);
 
-							await this.showModel(CancellationToken.None, session.modelRef, true, !session.modelRef, undefined, session.localFallbackSelectionReason, session.draft);
-							this.replaceUnusableEmptyDraft('restored');
+							await this.showModel(CancellationToken.None, session.modelRef, true, !session.modelRef, undefined, session.localFallbackSelectionReason);
 						} finally {
 							this._widget.setVisible(wasVisible);
 						}
@@ -1188,9 +1185,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 
 		// When the empty draft's session type is withdrawn (e.g. its feature setting was turned
-		// off, or a policy that arrived after it was restored disabled it), start a new draft on the
-		// default type so the picker is not stuck on a dead type.
-		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.replaceUnusableEmptyDraft('availabilityChanged')));
+		// off), start a new draft on the default type so the picker is not stuck on a dead type.
+		this._register(this.chatSessionsService.onDidChangeAvailability(() => {
+			const model = chatWidget.viewModel?.model;
+			const sessionResource = model?.sessionResource;
+			if (!sessionResource || model.hasRequests || !isUntitledChatSession(sessionResource)) {
+				return;
+			}
+			const sessionType = getChatSessionType(sessionResource);
+			if (sessionType !== localChatSessionType && !this.chatSessionsService.getChatSessionContribution(sessionType)) {
+				this.clear();
+			}
+		}));
 
 		// When showing sessions stacked, adjust the height of the sessions list to make room for chat input
 		this._register(autorun(reader => {
@@ -1268,11 +1274,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private async _applyModel(token: CancellationToken): Promise<void> {
 		const session = await this.acquireTransferredOrPersistedSession(token, 'ChatViewPane#applyModel');
-		await this.showModel(token, session.modelRef, true, !session.modelRef, undefined, session.localFallbackSelectionReason, session.draft);
-		if (!token.isCancellationRequested) {
-			// Account policy can settle while the restored draft is shown; the input stays usable meanwhile.
-			this.replaceUnusableEmptyDraft('restored');
-		}
+		await this.showModel(token, session.modelRef, true, !session.modelRef, undefined, session.localFallbackSelectionReason);
 	}
 
 	/**
@@ -1351,9 +1353,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		if (this.shouldSkipRestoredSession(sessionResource, modelRef.object)) {
-			const draft = getPortableChatDraft(modelRef.object.inputModel.state.get());
 			modelRef.dispose();
-			return { modelRef: undefined, draft };
+			return { modelRef: undefined };
 		}
 
 		return { modelRef };
@@ -1374,7 +1375,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			&& sessionType === localChatSessionType;
 	}
 
-	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true, ignoreTransferredSession = false, inputBeforeLoad?: string, localFallbackSelectionReason?: SessionTypeSelectionReason, draft?: IPortableChatDraft): Promise<IChatModel | undefined> {
+	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true, ignoreTransferredSession = false, inputBeforeLoad?: string, localFallbackSelectionReason?: SessionTypeSelectionReason): Promise<IChatModel | undefined> {
 		const oldModelResource = this._widget.viewModel?.sessionResource;
 		if (oldModelResource) {
 			this.widgetViewStates.set(getComparisonKey(oldModelResource), this._widget.getViewState());
@@ -1399,7 +1400,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				const defaultSession = await this.acquireDefaultNewSession(token, localFallbackSelectionReason);
 				ref = defaultSession.modelRef
 					?? this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatViewPane#showModel', sessionTypeSelectionReason: defaultSession.localFallbackSelectionReason });
-				restorePortableChatDraft(ref.object, draft);
 			}
 			if (!ref) {
 				throw new Error('Could not start chat session');
@@ -1503,37 +1503,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
-	private async clear(draft?: IPortableChatDraft): Promise<void> {
+	private async clear(): Promise<void> {
 		// Cancel any in-flight loadSession call to prevent it from
 		// overwriting the fresh session we are about to create.
 		this.loadSessionCts.value?.cancel();
 
 		// Grab the widget's latest view state because it will be loaded back into the widget
 		this.updateViewState();
-		await this.showModel(CancellationToken.None, undefined, true, false, undefined, undefined, draft);
+		await this.showModel(CancellationToken.None);
 
 		// Update the toolbar context with new sessionId
 		this.updateActions();
-	}
-
-	/**
-	 * Replaces an empty draft whose session type is disabled by policy, or was withdrawn when
-	 * availability changed, with a new chat on the default type, keeping its unsent content.
-	 * Reacts to policy instead of waiting for it, so restoring the Chat view never blocks the
-	 * input on account policy.
-	 */
-	private replaceUnusableEmptyDraft(trigger: 'restored' | 'availabilityChanged'): void {
-		const model = this._widget?.viewModel?.model;
-		const sessionResource = model?.sessionResource;
-		if (!sessionResource || model.hasRequests || !isUntitledChatSession(sessionResource)) {
-			return;
-		}
-		const sessionType = getChatSessionType(sessionResource);
-		const withdrawn = trigger === 'availabilityChanged' && !this.chatSessionsService.getChatSessionContribution(sessionType);
-		if (sessionType === localChatSessionType || (!withdrawn && !isLocalAgentHostSessionTypeDisabledByPolicy(sessionType, this.configurationService))) {
-			return;
-		}
-		this.clear(getPortableChatDraft(model.inputModel.state.get()));
 	}
 
 	async loadSession(sessionResource: URI, sessionTypeSelectionReason?: SessionTypeSelectionReason): Promise<IChatModel | undefined> {

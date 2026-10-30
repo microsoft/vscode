@@ -2477,25 +2477,6 @@ export interface ISerializableChatModelInputState {
 	contrib: Record<string, unknown>;
 }
 
-/** Unsent draft content that can move to a chat on another session type. */
-export type IPortableChatDraft = Pick<IChatModelInputState, 'inputText' | 'attachments' | 'selections'>;
-
-/**
- * Returns the unsent text, attachments and selections of a draft, or `undefined` when it has none.
- * Leaves out the state that belongs to the draft's session type: its model, mode, permission level
- * and contributed state.
- */
-export function getPortableChatDraft(state: IChatModelInputState | undefined): IPortableChatDraft | undefined {
-	return state && (state.inputText || state.attachments.length) ? { inputText: state.inputText, attachments: state.attachments, selections: state.selections } : undefined;
-}
-
-/** Seeds a chat's input with a draft carried over from another chat, unless it has a draft of its own. */
-export function restorePortableChatDraft(model: IChatModel, draft: IPortableChatDraft | undefined): void {
-	if (draft && !getPortableChatDraft(model.inputModel.state.get())) {
-		model.inputModel.setState(draft);
-	}
-}
-
 /**
  * Legacy shape of {@link ISerializableChatModelInputState} as persisted by older
  * versions, where the selected model's configuration was stored as a sibling
