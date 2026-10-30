@@ -45,7 +45,7 @@ import { ChatUserInteraction, ChatUserInteractionTimingResult, IChatUserInteract
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicatorState, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
-import { ChatViewPaneTarget, IChatAcceptInputOptions, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions } from '../../../browser/chat.js';
+import { ChatViewPaneTarget, IChatAcceptInputOptions, IChatListItemRendererOptions, IChatScrollAnchor, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions } from '../../../browser/chat.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatRequestVariableSet } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
@@ -2257,6 +2257,9 @@ suite('ChatWidget', () => {
 	});
 
 	test('captures and restores transcript scroll state', () => {
+		const anchor: IChatScrollAnchor = { requestId: 'request_1', kind: 'response', offset: 40 };
+		const removed: IChatScrollAnchor = { requestId: 'request_removed', kind: 'request', offset: 0 };
+		const revealed: IChatScrollAnchor[] = [];
 		const listWidget = {
 			scrollTop: 200,
 			scrollHeight: 1000,
@@ -2267,22 +2270,41 @@ suite('ChatWidget', () => {
 			scrollToEnd() {
 				this.scrollTop = this.scrollHeight - this.renderHeight;
 			},
+			getScrollAnchor: () => anchor,
+			revealScrollAnchor(target: IChatScrollAnchor) {
+				revealed.push(target);
+				if (target.requestId !== anchor.requestId) {
+					return false;
+				}
+				this.scrollTop = 640;
+				return true;
+			},
 		};
 		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), { listWidget });
 
 		const scrolledUp = widget.getViewState();
-		widget.restoreViewState({ scrollTop: 350 });
+		widget.restoreViewState({ scrollTop: 350, isAtBottom: false, scrollAnchor: anchor });
+		const anchoredScrollTop = listWidget.scrollTop;
+		widget.restoreViewState({ scrollTop: 350, isAtBottom: false, scrollAnchor: removed });
+		const removedAnchorScrollTop = listWidget.scrollTop;
+		widget.restoreViewState({ scrollTop: 450 });
 		const legacyScrollTop = listWidget.scrollTop;
 		widget.restoreViewState({ scrollTop: 200, isAtBottom: true });
 
 		assert.deepStrictEqual({
 			scrolledUp,
+			anchoredScrollTop,
+			removedAnchorScrollTop,
 			legacyScrollTop,
-			bottomScrollTop: listWidget.scrollTop,
+			atBottom: widget.getViewState(),
+			revealed,
 		}, {
-			scrolledUp: { scrollTop: 200, isAtBottom: false },
-			legacyScrollTop: 350,
-			bottomScrollTop: 700,
+			scrolledUp: { scrollTop: 200, isAtBottom: false, scrollAnchor: anchor },
+			anchoredScrollTop: 640,
+			removedAnchorScrollTop: 350,
+			legacyScrollTop: 450,
+			atBottom: { scrollTop: 700, isAtBottom: true, scrollAnchor: undefined },
+			revealed: [anchor, removed],
 		});
 	});
 

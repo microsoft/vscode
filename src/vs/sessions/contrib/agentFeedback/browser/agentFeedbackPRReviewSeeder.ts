@@ -107,12 +107,12 @@ export class AgentFeedbackPRReviewSeederContribution extends Disposable implemen
 
 		for (const comment of comments) {
 			const mirror = mirrorBySource.get(comment.id);
-			if (mirror && !mirror.sourcePullRequest) {
+			if (mirror && (!mirror.sourcePullRequest || (!mirror.sourcePRReviewCommentAuthor && comment.author))) {
 				this._agentFeedbackService.updateFeedbackSourcePullRequest(sessionResource, mirror.id, {
 					owner: comment.pullRequest.owner,
 					repo: comment.pullRequest.repo,
 					number: comment.pullRequest.number,
-				});
+				}, comment.author || undefined);
 			}
 			const createdMirror = createdMirrorBySource.get(comment.id);
 			if (createdMirror) {
@@ -140,6 +140,7 @@ export class AgentFeedbackPRReviewSeederContribution extends Disposable implemen
 						repo: comment.pullRequest.repo,
 						number: comment.pullRequest.number,
 					},
+					comment.author || undefined,
 				);
 			}
 		}

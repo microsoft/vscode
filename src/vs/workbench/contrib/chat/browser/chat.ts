@@ -508,6 +508,16 @@ export interface IChatWidgetViewModelChangeEvent {
 export interface IChatWidgetViewState {
 	readonly scrollTop: number;
 	readonly isAtBottom?: boolean;
+	/** The row at the top of the viewport. Unlike `scrollTop`, it lands on the same content when the rows above it haven't been measured yet. */
+	readonly scrollAnchor?: IChatScrollAnchor;
+}
+
+/** A transcript row and how far the viewport is scrolled past its top. */
+export interface IChatScrollAnchor {
+	/** The ID of the request, or of the request that the response answers. Response IDs can change when a chat is restored. */
+	readonly requestId: string;
+	readonly kind: 'request' | 'response';
+	readonly offset: number;
 }
 
 export const CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT = 100;

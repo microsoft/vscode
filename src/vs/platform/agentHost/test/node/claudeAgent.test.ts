@@ -1344,6 +1344,7 @@ function reducerBackedEnablementService(stateManager: AgentHostStateManager): IC
 		_serviceBrand: undefined,
 		onDidChange: reducerBackedEnablementChangeEvent(stateManager),
 		initializeSession: async () => { },
+		adoptMcpServerOwnership: () => { },
 		getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
 		resolve,
 		applyClientGlobalEnablement: resolve,
@@ -8875,6 +8876,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 				onDidChange: reducerBackedEnablementChangeEvent(stateManager),
 				initializeSession: async () => { },
 				getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
+				adoptMcpServerOwnership: () => { },
 				resolve: resolveReducerEnablement,
 				applyClientGlobalEnablement: (session, target, clientEnablement) => {
 					const existing = resolveReducerEnablement(session, target);

@@ -18,7 +18,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { LOCAL_AGENT_HOST_AUTHORITY, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { ArtifactIntegrationsSettingId, IArtifactModel } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactIntegrationsSettingId, ArtifactRun, ArtifactSnapshot, IArtifactModel } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -70,7 +70,27 @@ suite('Session Artifacts', () => {
 		},
 	};
 
-	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo, commit?: GitHubCommit, getCommit?: ISessionsGitHubService['getCommit'], fromChat = false, workbenchGitHubService?: IWorkbenchGitHubService, followChat = false, withIntegrations = false) {
+	/**
+	 * A record whose main integration presents it, in a pill of its own when the integration assigns a group ID. Records
+	 * bound to the same resource key are aliases, and runs give a record state of its own.
+	 */
+	function integratedSnapshot(id: string, groupId: string | undefined, changes: { readonly resourceKey?: string; readonly runs?: number } = {}): ArtifactSnapshot {
+		return {
+			authority: { id: 'client', targetHost: 'host', location: 'client' }, session: 'session',
+			artifact: { id, label: id, resource: `https://example.test/${id}` },
+			mainIntegrationId: 'integration',
+			contributions: [{
+				integrationId: 'integration', label: 'Integration', actions: [], options: [],
+				configuration: { revision: 0, values: {}, generations: {}, disablements: {} },
+				...(changes.resourceKey ? { resourceKey: changes.resourceKey } : {}),
+				view: { availability: { kind: 'available' }, ...(groupId ? { groupId } : {}), sections: [], stateActions: [], generalActions: [], automationAvailability: [] },
+			}],
+			runs: Array.from({ length: changes.runs ?? 0 }, () => upcastPartial<ArtifactRun>({})),
+		};
+	}
+
+	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo, commit?: GitHubCommit, getCommit?: ISessionsGitHubService['getCommit'], fromChat = false, workbenchGitHubService?: IWorkbenchGitHubService, followChat = false, integrations: boolean | ((artifactId: string) => ArtifactSnapshot) = false) {
+		const withIntegrations = !!integrations;
 		const artifacts = observableValue('artifacts', entries);
 		const loading = observableValue('loading', false);
 		const removed: string[] = [];
@@ -89,6 +109,7 @@ suite('Session Artifacts', () => {
 		const telemetryEvents: { readonly name: string | undefined; readonly data: unknown }[] = [];
 		let removalError: Error | undefined;
 		const gitHubInfo = observableValue<IGitHubInfo | undefined>('gitHubInfo', info);
+		const browserUrls = observableValue<ReadonlySet<string>>('browserUrls', new Set());
 		const root = URI.file('/repo');
 		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', {
 			uri: root,
@@ -123,7 +144,7 @@ suite('Session Artifacts', () => {
 		const presentation = disposables.add(new SessionArtifacts(
 			session,
 			chat,
-			constObservable(new Set<string>()),
+			browserUrls,
 			gitHubReferences,
 			{ id: 'test-artifact-details', selected: constObservable(undefined), toggle() { }, release() { } },
 			new class extends mock<IClipboardService>() { }(),
@@ -140,7 +161,9 @@ suite('Session Artifacts', () => {
 			}(),
 			new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = Event.None;
-				override async acquireArtifactIntegration() { return withIntegrations ? { object: upcastPartial<IArtifactModel>({}), dispose() { } } : undefined; }
+				override async acquireArtifactIntegration(_session: IActiveSession, artifactId: string) {
+					return withIntegrations ? { object: upcastPartial<IArtifactModel>({ snapshot: constObservable(typeof integrations === 'function' ? integrations(artifactId) : integratedSnapshot(artifactId, 'integration')) }), dispose() { } } : undefined;
+				}
 				override async removeSessionArtifact(_session: IActiveSession, artifactId: string): Promise<void> {
 					removed.push(artifactId);
 					if (removalError) {
@@ -155,10 +178,10 @@ suite('Session Artifacts', () => {
 			upcastPartial<ISessionsGitHubService>({ getCommit: getCommit ?? (() => commit ? Promise.resolve(commit) : new Promise(() => { })) }),
 			new class extends mock<IInstantiationService>() {
 				// Stands in for an integration presentation that contributes to its artifact, or for a file download.
-				override createInstance = ((ctor: unknown) => ctor === FileDownload ? {
+				override createInstance = ((ctor: unknown, model?: IArtifactModel) => ctor === FileDownload ? {
 					download: async (sources: { resource: URI; name: string; isDirectory: boolean }[]) => { resourceDownloads.push(sources); },
 				} : {
-					snapshot: constObservable({ contributions: [{}] }),
+					snapshot: model?.snapshot,
 					decorate: (entry: IChatPillEntry) => entry,
 					dispose() { },
 				}) as IInstantiationService['createInstance'];
@@ -202,7 +225,7 @@ suite('Session Artifacts', () => {
 			}(),
 		));
 		return {
-			presentation, session, chat, chatModels, openedImages, openedResources, configurationService, artifacts, loading, workspace, gitHubInfo, gitHubReferences, removed, errors, telemetryEvents, downloadedResources, savedImages, executedCommands, resourceDownloads,
+			presentation, session, chat, chatModels, openedImages, openedResources, configurationService, artifacts, loading, workspace, gitHubInfo, gitHubReferences, browserUrls, removed, errors, telemetryEvents, downloadedResources, savedImages, executedCommands, resourceDownloads,
 			setRemovalError: (error: Error | undefined) => { removalError = error; },
 			setCancelDownload: () => { cancelDownload = true; },
 			setDownloadError: (error: Error) => { downloadError = error; },
@@ -978,6 +1001,34 @@ suite('Session Artifacts', () => {
 			// The pull request and issue are promoted into their own pills.
 			artifacts: ['upper-site', 'lower-site', 'upper-file', 'lower-file'],
 			integrated: ['pr', 'issue', 'upper-file', 'lower-file', 'upper-site', 'lower-site'],
+		});
+	});
+
+	test('lists integrated records without a group ID in the artifacts and references pills, once per resource, even when a browser shows them', async () => {
+		const site = (id: string, isArtifact: boolean): ISessionArtifact => ({ id, kind: SessionArtifactKind.Website, label: id, isArtifact, link: URI.parse(`https://example.test/${id}`) });
+		const snapshots: Record<string, ArtifactSnapshot> = {
+			grouped: integratedSnapshot('grouped', 'experiments'),
+			scorecard: integratedSnapshot('scorecard', undefined, { resourceKey: 'step' }),
+			step: integratedSnapshot('step', undefined, { resourceKey: 'step' }),
+			active: integratedSnapshot('active', undefined, { resourceKey: 'step', runs: 1 }),
+			docs: integratedSnapshot('docs', undefined, { resourceKey: 'docs' }),
+			plain: { ...integratedSnapshot('plain', undefined), contributions: [], mainIntegrationId: undefined },
+		};
+		const { presentation, browserUrls } = createPresentation(Object.keys(snapshots).map(id => site(id, id !== 'scorecard' && id !== 'active' && id !== 'docs')),
+			undefined, undefined, undefined, false, undefined, false, id => snapshots[id]);
+		await timeout(0);
+		const listed = { integrated: presentation.integratedEntries.get().map(entry => entry.id), ...visibleEntries(presentation) };
+		// The browsers pill only opens a page, so integrated records stay where their details are reached.
+		browserUrls.set(new Set(['https://example.test/docs', 'https://example.test/plain']), undefined);
+
+		assert.deepStrictEqual({ listed, inBrowser: visibleEntries(presentation) }, {
+			listed: {
+				integrated: ['grouped'],
+				// The step artifact stands in for the scorecard reference bound to the same resource; a record with activity stays.
+				artifacts: ['step', 'plain'],
+				references: ['active', 'docs'],
+			},
+			inBrowser: { artifacts: ['step'], references: ['active', 'docs'] },
 		});
 	});
 
