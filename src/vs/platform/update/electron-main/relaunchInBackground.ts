@@ -13,6 +13,11 @@ import { dirname, join } from '../../../base/common/path.js';
 const INSTALLER_GONE_SECONDS = 5;
 
 /**
+ * How long to wait between two checks for the process, the update and the installer.
+ */
+const CHECK_INTERVAL_SECONDS = 1;
+
+/**
  * How long the machine is kept awake after quitting to install an update while the user is
  * away. ShipIt keeps it awake for only 10 seconds, but installing can take longer, and the
  * application then relaunches and restores its windows.
@@ -21,18 +26,18 @@ const UPDATE_KEEP_AWAKE_SECONDS = 60;
 
 /**
  * Waits for process `$1` to exit, then until `$3` (`product.json`) contains commit `$2`,
- * or until ShipIt, whose launchd job is named after bundle identifier `$4`, has not run
- * for `$7` seconds. Then launches bundle `$6` with `$5` (`open`) without activating it.
- * Seconds only count while the machine is awake, and there is no timeout: if the machine
- * sleeps, the script continues where it left off.
+ * or until ShipIt, whose launchd job is named after bundle identifier `$4`, was not running
+ * for `$7` checks in a row, `$8` seconds apart. Then launches bundle `$6` with `$5` (`open`)
+ * without activating it. Checks only happen while the machine is awake, and there is no
+ * timeout: if the machine sleeps, the script continues where it left off.
  */
 const RELAUNCH_SCRIPT = [
-	'while kill -0 "$1" 2>/dev/null; do sleep 1; done',
+	'while kill -0 "$1" 2>/dev/null; do sleep "$8"; done',
 	'gone=0',
 	'while [ "$gone" -lt "$7" ]; do',
 	'  if [ -n "$2" ] && grep -qF -- "$2" "$3" 2>/dev/null; then break; fi',
 	'  if pgrep -f -- "/ShipIt $4.ShipIt" >/dev/null; then gone=0; else gone=$((gone+1)); fi',
-	'  sleep 1',
+	'  sleep "$8"',
 	'done',
 	'exec "$5" -g -a "$6"',
 ].join('\n');
@@ -61,6 +66,7 @@ export interface IBackgroundRelaunchOptions {
 
 	readonly openCommand?: string;
 	readonly installerGoneSeconds?: number;
+	readonly checkIntervalSeconds?: number;
 }
 
 /**
@@ -77,6 +83,8 @@ export function isCommit(value: string | undefined): value is string {
  */
 export function relaunchInBackground(options: IBackgroundRelaunchOptions): ChildProcess {
 	const bundlePath = dirname(dirname(dirname(options.appRoot)));
+	const checkInterval = options.checkIntervalSeconds ?? CHECK_INTERVAL_SECONDS;
+	const installerGoneChecks = Math.max(1, Math.round((options.installerGoneSeconds ?? INSTALLER_GONE_SECONDS) / checkInterval));
 	const child = spawn('/bin/sh', [
 		'-c', RELAUNCH_SCRIPT, 'code-relaunch',
 		String(options.pid),
@@ -85,7 +93,8 @@ export function relaunchInBackground(options: IBackgroundRelaunchOptions): Child
 		options.bundleIdentifier,
 		options.openCommand ?? '/usr/bin/open',
 		bundlePath,
-		String(options.installerGoneSeconds ?? INSTALLER_GONE_SECONDS)
+		String(installerGoneChecks),
+		String(checkInterval)
 	], {
 		detached: true,
 		stdio: 'ignore'
