@@ -24,7 +24,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IHoverService, WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -385,10 +385,12 @@ class AutomationCardsSection extends Disposable {
 	private partialUnavailableProviders: readonly IAutomationProviderDescriptor[] = [];
 	private pendingFocusAutomationId: string | undefined;
 	private focusRequestGeneration = 0;
+	private readonly promptHoverDelegate: WorkbenchHoverDelegate;
 
 	constructor(
 		parent: HTMLElement,
 		private readonly focusRoot: HTMLElement,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IAutomationService private readonly automationService: IAutomationService,
 		@IAutomationRunner private readonly automationRunner: IAutomationRunner,
 		@IAutomationDialogService private readonly automationDialogService: IAutomationDialogService,
@@ -403,6 +405,7 @@ class AutomationCardsSection extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
+		this.promptHoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, { persistence: { hideOnHover: false } }));
 		this.seenPluginTemplateIds = this.readSeenPluginTemplateIds();
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY, this._store)(() => {
 			this.seenPluginTemplateIds = this.readSeenPluginTemplateIds();
@@ -753,7 +756,7 @@ class AutomationCardsSection extends Disposable {
 		const startingRuns = observableValue<ReadonlySet<string> | undefined>(this, undefined);
 
 		const promptEl = DOM.append(main, $('.automations-card-prompt'));
-		const promptHover = disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), promptEl, () => promptEl.textContent ?? ''));
+		const promptHover = disposables.add(this.hoverService.setupManagedHover(this.promptHoverDelegate, promptEl, () => promptEl.textContent ?? ''));
 		disposables.add(DOM.addDisposableListener(main, DOM.EventType.FOCUS, () => {
 			if (main.matches(':focus-visible')) {
 				promptHover.show();
