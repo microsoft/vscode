@@ -25,6 +25,7 @@ import { IDefaultAccountService } from '../../../../../platform/defaultAccount/c
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { getIconRegistry, IconContribution } from '../../../../../platform/theme/common/iconRegistry.js';
 import { ICodeReviewService, ICodeReviewSuggestion } from '../../../codeReview/browser/codeReviewService.js';
 import { AgentFeedbackEditorWidget, IComposerDraftState } from '../../browser/agentFeedbackEditorWidget.js';
 import { IAgentFeedbackContext } from '../../browser/agentFeedbackEditorUtils.js';
@@ -591,6 +592,23 @@ suite('AgentFeedbackEditorWidget', () => {
 		assert.deepStrictEqual(presentations, variants.map(variant => ({
 			...variant, opacity: '1', visibility: 'visible', pointerEvents: 'auto',
 		})));
+	});
+
+	test('uses the PR-comment glyph for pull request review cards', () => {
+		let presentation: { defaultIcon: IconContribution['defaults'] | undefined; semanticIcon: boolean; ariaHidden: string | null } | undefined;
+		withWidget(({ domNode }) => {
+			const icon = domNode.querySelector('.agent-feedback-widget-review-icon')!;
+			presentation = {
+				defaultIcon: getIconRegistry().getIcon('agent-feedback-pr-review')?.defaults,
+				semanticIcon: icon.classList.contains('codicon-agent-feedback-pr-review'),
+				ariaHidden: icon.getAttribute('aria-hidden'),
+			};
+		}, { ...comment, kind: AgentFeedbackKind.PRReview });
+		assert.deepStrictEqual(presentation, {
+			defaultIcon: { id: 'git-pull-request-comment' },
+			semanticIcon: true,
+			ariaHidden: 'true',
+		});
 	});
 
 	for (const { kind, author, state, expectedAuthor, expectedStatus, expectedActions } of [

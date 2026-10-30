@@ -49,7 +49,7 @@ interface ICommentItemActions {
 	addReplyAction?: Action;
 }
 
-const reviewIcon = registerIcon('agent-feedback-pr-review', Codicon.gitPullRequest, nls.localize('agentFeedback.reviewIcon', "Icon for a pull request review comment."));
+const reviewIcon = registerIcon('agent-feedback-pr-review', Codicon.gitPullRequestComment, nls.localize('agentFeedback.reviewIcon', "Icon for a pull request review comment."));
 const acceptIcon = registerIcon('agent-feedback-accept', Codicon.check, nls.localize('agentFeedback.acceptIcon', "Icon for sharing a comment with the agent."));
 const deleteIcon = registerIcon('agent-feedback-delete', Codicon.trash, nls.localize('agentFeedback.deleteIcon', "Icon for deleting a comment."));
 const editIcon = registerIcon('agent-feedback-edit', Codicon.edit, nls.localize('agentFeedback.editIcon', "Icon for editing a comment."));
