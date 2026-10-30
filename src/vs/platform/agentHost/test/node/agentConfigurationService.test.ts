@@ -21,6 +21,7 @@ import { AgentConfigurationService, seedMultipleChatProvidersFromEnvironment, ge
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { ChatProvidersConfigKey, chatProvidersRootConfigSchema } from '../../common/agentHostChatProviders.js';
 import { AgentHostMultipleChatProvidersEnabledEnvVar, buildAgentSdkEnv } from '../../common/agentService.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 
 suite('AgentConfigurationService', () => {
 
@@ -466,6 +467,26 @@ suite('AgentConfigurationService', () => {
 				{ session: uri, config: { level: 'high' }, origin: undefined },
 				{ session: uri, config: { level: 'low' }, origin: { clientId: 'picker', clientSeq: 7 } },
 			]);
+		});
+	});
+
+	test('advertises and reads the requested Copilot M365 rollout value', () => {
+		const property = manager.rootState.config?.schema.properties[CopilotCliConfigKey.M365Enabled];
+		const unset = service.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.M365Enabled);
+		const values = [true, false].map(value => {
+			service.updateRootConfig(copilotCliConfigSchema.values({ [CopilotCliConfigKey.M365Enabled]: value }));
+			return service.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.M365Enabled);
+		});
+		assert.deepStrictEqual({
+			type: property?.type,
+			default: property?.default,
+			unset,
+			values,
+		}, {
+			type: 'boolean',
+			default: false,
+			unset: undefined,
+			values: [true, false],
 		});
 	});
 
