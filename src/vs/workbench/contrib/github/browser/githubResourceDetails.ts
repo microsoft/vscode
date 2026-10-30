@@ -121,9 +121,13 @@ export class GitHubResourceDetailsResolver extends Disposable {
 			const presentation = options.kind === 'issue'
 				? derived(this, reader => getGitHubResourceDetailsPresentation('issue', target, this.getIssueState(target).read(reader), options.fallbackLabel))
 				: derived(this, reader => getGitHubResourceDetailsPresentation('pullRequest', target, this.getPullRequestState(target).read(reader), options.fallbackLabel));
+			const hoverPresentation = options.kind === 'issue'
+				? derived(this, reader => this.getIssueState(target).read(reader).status === 'failed' ? undefined : hover)
+				: derived(this, reader => this.getPullRequestState(target).read(reader).status === 'failed' ? undefined : hover);
 			details = {
 				presentation,
-				...(hover ? { hover } : {}),
+				hover: hoverPresentation,
+				prefetch: hover?.prefetch,
 			};
 			this._details.set(identity, details);
 		}
@@ -451,7 +455,8 @@ export interface IGitHubResourceDetailsOptions {
 
 export interface IGitHubResourceDetails {
 	readonly presentation: IObservable<GitHubResourcePresentation>;
-	readonly hover?: IGitHubResourceDetailsHover;
+	readonly hover: IObservable<IGitHubResourceDetailsHover | undefined>;
+	readonly prefetch: (() => void) | undefined;
 }
 
 export function createGitHubResourceDetailsHover(options: IGitHubResourceDetailsHoverOptions): IGitHubResourceDetailsHover {

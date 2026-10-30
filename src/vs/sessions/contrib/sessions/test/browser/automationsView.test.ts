@@ -1642,7 +1642,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.strictEqual(widget.element.querySelector('.automations-card-schedule')?.textContent, `Daily at ${time}`);
 	});
 
-	test('uses uppercase CRON for saved cards and accessible schedule text', () => {
+	test('uses sentence-case Cron for saved cards and accessible schedule text', () => {
 		const { widget, automationService } = setup();
 		const item = automation({
 			schedule: { interval: 'cron', cronExpression: '*/15 * * * *', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
@@ -1650,8 +1650,8 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([item]);
 		assert.deepStrictEqual({
 			label: widget.element.querySelector('.automations-card-schedule')?.textContent,
-			accessible: buildAutomationsAccessibleContent([item], [], 'ready', []).includes('CRON: */15 * * * *'),
-		}, { label: 'CRON: */15 * * * *', accessible: true });
+			accessible: buildAutomationsAccessibleContent([item], [], 'ready', []).includes('Cron: */15 * * * *'),
+		}, { label: 'Cron: */15 * * * *', accessible: true });
 	});
 
 	test('renders collapsible ownership sections with repository guidance and removes empty groups', () => {
@@ -4532,6 +4532,13 @@ suite('AutomationsCardsWidget', () => {
 		const owner = widget.element.querySelector<HTMLElement>('.automations-history-owner');
 		const button = owner?.querySelector<HTMLElement>('.monaco-button');
 		assert.ok(owner && button);
+		const title = owner.querySelector<HTMLElement>('.session-title')!;
+		const description = owner.querySelector<HTMLElement>('.session-description')!;
+		const ownerContent = {
+			title: title.textContent,
+			description: description.textContent,
+			descriptionBelowTitle: title.getBoundingClientRect().height > 0 && description.getBoundingClientRect().top >= title.getBoundingClientRect().bottom,
+		};
 		button.focus();
 		button.click();
 		await timeout(0);
@@ -4551,6 +4558,7 @@ suite('AutomationsCardsWidget', () => {
 		const retry = widget.element.querySelector<HTMLElement>('.automations-history-owner .monaco-button');
 
 		assert.deepStrictEqual({
+			ownerContent,
 			ownerLabel: owner.getAttribute('aria-label'),
 			deleteHistoryCalls: automationService.deleteHistoryCalls,
 			focusAfterDelete,
@@ -4558,6 +4566,7 @@ suite('AutomationsCardsWidget', () => {
 			retry: { label: retry?.textContent, disabled: retry?.classList.contains('disabled') },
 			sessionRows: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
 		}, {
+			ownerContent: { title: 'Daily review', description: 'Run history is retained.', descriptionBelowTitle: true },
 			ownerLabel: 'Daily review, Run history is retained.',
 			deleteHistoryCalls: ['automation-1'],
 			focusAfterDelete: true,

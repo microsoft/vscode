@@ -1095,7 +1095,11 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			}
 			definition = entry.definition;
 			const sessionTemplate = getExecutionSessionTemplate(definition);
-			const template = { ...sessionTemplate, agent: this._customizations.resolveAgent(sessionTemplate, entry.customizations ?? []) };
+			const agent = this._customizations.resolveAgent({
+				...sessionTemplate,
+				agent: definition.message.agent ?? sessionTemplate.agent,
+			}, entry.customizations ?? []);
+			const template = { ...sessionTemplate, agent };
 			const activeClient = this._customizations.toRunActiveClient(entry);
 			if (!this._execution.isSessionTemplateAvailable(template)) {
 				this._logService.info(`[AgentHostAutomationService] Deferring Automation run until its provider is available: run=${initialRun.resource}.`);
@@ -1113,10 +1117,12 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				await this._execution.cancelSession(session);
 				return;
 			}
-			// Clients restore the last turn's model configuration, not the SDK's creation defaults.
-			const message: Message = definition.message.model === undefined && template.model !== undefined
-				? { ...definition.message, model: template.model }
-				: definition.message;
+			// Each turn applies its own model and agent, independently of the session's creation defaults.
+			const message: Message = {
+				...definition.message,
+				...(definition.message.model === undefined && template.model !== undefined ? { model: template.model } : {}),
+				...(template.agent !== undefined ? { agent: template.agent } : {}),
+			};
 			await this._execution.startSession(session, message);
 		} catch (error) {
 			try {

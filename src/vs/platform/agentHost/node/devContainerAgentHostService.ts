@@ -54,14 +54,29 @@ import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCo
 import { DevContainerSample, devContainerSamples, devContainerSampleUri, getDevContainerSampleFolder, IDevContainerRepository, IDevContainerSampleSource } from '../common/devContainerSamples.js';
 import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
 import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
+import { DevContainerShell, IDevContainerShellResult } from './devContainerShell.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
 const DEV_CONTAINER_LOG_ARGS = ['--log-level', 'debug'] as const;
 const DEV_CONTAINER_RELAY_CONNECTION_TIMEOUT_MS = 30_000;
 
+function getDevContainerShellArgs(workspaceFolder: string | readonly string[]): readonly string[] {
+	return ['exec', ...DEV_CONTAINER_LOG_ARGS, ...typeof workspaceFolder === 'string' ? ['--workspace-folder', workspaceFolder] : workspaceFolder, '/bin/sh'];
+}
+
 export function getDevContainerExecArgs(workspaceFolder: string | readonly string[], command: string): readonly string[] {
-	return ['exec', ...DEV_CONTAINER_LOG_ARGS, ...typeof workspaceFolder === 'string' ? ['--workspace-folder', workspaceFolder] : workspaceFolder, '/bin/sh', '-c', command];
+	return [...getDevContainerShellArgs(workspaceFolder), '-c', command];
+}
+
+function toDevContainerExec(run: (command: string) => Promise<IDevContainerShellResult>): ISshExec {
+	return async (command, options) => {
+		const result = await run(command);
+		if (result.code !== 0 && !options?.ignoreExitCode) {
+			throw new Error(localize('devContainerAgentHost.commandFailed', "Dev Container command failed (exit {0}): {1}\nstderr: {2}", result.code, command, result.stderr));
+		}
+		return result;
+	};
 }
 
 function getSourceKey(source: string | IDevContainerSampleSource): string {
@@ -135,6 +150,10 @@ interface IDevContainerMount {
 interface IGitIdentity {
 	readonly name: string | undefined;
 	readonly email: string | undefined;
+}
+
+export interface IDevContainerShellExec extends IDisposable {
+	readonly exec: ISshExec;
 }
 
 const devContainerUpResultValidator = vObj({
@@ -304,7 +323,10 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 			const sandboxSupported = await this._getSandboxSupported(config.connectionId, upResult.containerId, tokenSource.token);
 			this._onDidChangeSandboxSupport.fire({ connectionId: config.connectionId, supported: sandboxSupported });
-			const exec = this._createExec(config.connectionId, workspaceSelector, tokenSource.token, sandboxEnvironment);
+			// The container ID skips the CLI's container lookup.
+			const execSelector = [...typeof workspaceSelector === 'string' ? ['--workspace-folder', workspaceSelector] : workspaceSelector, '--container-id', upResult.containerId];
+			const shell = store.add(await this._startShell(config.connectionId, execSelector, tokenSource.token, sandboxEnvironment));
+			const exec = shell.exec;
 			const safeDirectoryStopWatch = StopWatch.create(false);
 			try {
 				await this._configureGitSafeDirectory(config.connectionId, upResult.containerId, upResult.remoteWorkspaceFolder, exec, tokenSource.token);
@@ -368,7 +390,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					initial.userDataPath,
 					telemetryLevelToAgentHostValue(this._telemetryService.telemetryLevel),
 				)}`;
-				void exec(spawnCommand, { ignoreExitCode: true }).catch(error => {
+				// The Agent Host keeps this command running, so it cannot share the startup shell.
+				void this._createExec(config.connectionId, execSelector, tokenSource.token, sandboxEnvironment)(spawnCommand, { ignoreExitCode: true }).catch(error => {
 					this._logService.warn(`${LOG_PREFIX} Agent Host spawn command failed`, error);
 				});
 				this._logService.info(`${LOG_PREFIX} Waiting for the new agent host to register...`);
@@ -387,9 +410,10 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			}
 
 			const relayCommand = buildAgentRelayCommand(cliBin, cliDataDir, endpoint.instanceId, initial.userDataPath);
+			store.delete(shell);
 			const relay = await this._createRelay(
 				config.connectionId,
-				workspaceSelector,
+				execSelector,
 				relayCommand,
 				endpoint.endpoint,
 				endpoint.connectionToken,
@@ -660,18 +684,19 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	}
 
 	protected _createExec(connectionId: string, workspaceFolder: string | readonly string[], token: CancellationToken, environment?: NodeJS.ProcessEnv): ISshExec {
-		return async (command, options) => {
-			const result = await this._runDevContainer(
-				connectionId,
-				getDevContainerExecArgs(workspaceFolder, command),
-				token,
-				environment,
-			);
-			if (result.code !== 0 && !options?.ignoreExitCode) {
-				throw new Error(localize('devContainerAgentHost.commandFailed', "Dev Container command failed (exit {0}): {1}\nstderr: {2}", result.code, command, result.stderr));
-			}
-			return result;
-		};
+		return toDevContainerExec(command => this._runDevContainer(connectionId, getDevContainerExecArgs(workspaceFolder, command), token, environment));
+	}
+
+	/** Starts one container shell for all startup commands; each separate Dev Container CLI exec takes seconds to start. */
+	protected async _startShell(connectionId: string, workspaceFolder: string | readonly string[], token: CancellationToken, environmentOverride?: NodeJS.ProcessEnv): Promise<IDevContainerShellExec> {
+		const environment = environmentOverride ?? await this._resolveDevContainerEnvironment();
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const args = getDevContainerShellArgs(workspaceFolder);
+		this._reportOutput(connectionId, `$ devcontainer ${args.map(arg => JSON.stringify(arg)).join(' ')}\n`);
+		const shell = new DevContainerShell(this._spawnDevContainer(args, environment), token, text => this._reportOutput(connectionId, text));
+		return { exec: toDevContainerExec(command => shell.run(command)), dispose: () => shell.dispose() };
 	}
 
 	protected _runLocalCommand(command: string, args: readonly string[], environment: NodeJS.ProcessEnv, token: CancellationToken, cwd?: string): Promise<{ stdout: string; stderr: string; code: number }> {

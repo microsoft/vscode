@@ -43,11 +43,6 @@ export const CODE_SEARCH_CACHE_SALT = '';
 export const CACHING_DIAGNOSTICS_PROVIDER_CACHE_SALT = 4;
 
 /**
- * Used by the clang diagnostics provider.
- */
-export const CLANG_DIAGNOSTICS_PROVIDER_CACHE_SALT = 6;
-
-/**
  * Used by the TS diagnostics provider.
  */
 export const TS_SERVER_DIAGNOSTICS_PROVIDER_CACHE_SALT = 5;

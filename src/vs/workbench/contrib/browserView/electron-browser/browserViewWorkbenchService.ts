@@ -247,6 +247,11 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		if (!this._isNetworkProxyEnabled()) {
 			return undefined;
 		}
+		return this._resolveNetwork(owner) ?? undefined;
+	}
+
+	/** The owner's network, whether or not views may use it; `null` when the owner is unknown. */
+	private _resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | null | undefined {
 		if (this._networkResolver) {
 			return this._networkResolver.resolveNetwork(owner);
 		}
@@ -467,15 +472,23 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	}
 
 	async createExternalBrowserView(initialUrl: string, openSource?: IBrowserViewWorkbenchCreateOptions['openSource'], networkOwner?: IBrowserViewOwner): Promise<IBrowserViewModel> {
+		// Embedded pages have no network indicator, so they require their owner's network, resolved even while
+		// proxying is disabled, rather than silently load from the local network. It is resolved before any
+		// asynchronous work, so an owner that goes away meanwhile cannot leave the view on the local network.
+		const requestedNetwork = networkOwner && this._resolveNetwork(networkOwner);
+		const unavailable = () => new Error(localize('browser.requiredNetworkUnavailable', "The required remote network is unavailable."));
+		if (requestedNetwork === null) {
+			throw unavailable();
+		}
 		await this.workspaceTrustManagementService.workspaceTrustInitialized;
 		await this._updateWindowConfiguration();
 		if (this._store.isDisposed) {
 			throw new CancellationError();
 		}
-		const { session, network } = await this._resolveViewSession({
-			scope: BrowserViewStorageScope.Ephemeral,
-			network: networkOwner && this.resolveNetwork(networkOwner),
-		});
+		const { session, network } = await this._resolveViewSession({ scope: BrowserViewStorageScope.Ephemeral, network: requestedNetwork });
+		if (requestedNetwork && !network) {
+			throw unavailable();
+		}
 		const hold = network && await this._holdNetworkProxy(network, this._disposeToken);
 		let model: IBrowserViewModel;
 		try {

@@ -20,6 +20,7 @@ import { IWorkbenchEnvironmentService } from '../../../environment/common/enviro
 import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
+import type { IAgentHostTcpConnection } from '../../../../../platform/agentHost/common/agentHostTcpConnection.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { IAgentHostDebugLogsArtifact, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import type { IClientTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -250,6 +251,8 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		};
 		const remoteAgentService = new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection(channel)));
 		let connectCalls = 0;
+		const tcpTargets: Array<{ host: string; port: number }> = [];
+		const tcpConnection = upcastPartial<IAgentHostTcpConnection>({});
 		const onDidChangeConnectionState = disposables.add(new Emitter<AgentHostClientState>());
 		const protocolClient = {
 			clientId: 'test-client',
@@ -257,6 +260,10 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			connect: async () => {
 				connectCalls++;
 				throw new Error('Initial connection failed');
+			},
+			openTcpConnection: async (target: { host: string; port: number }) => {
+				tcpTargets.push(target);
+				return tcpConnection;
 			},
 			onDidClose: Event.None,
 			onDidChangeConnectionState: onDidChangeConnectionState.event,
@@ -319,6 +326,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		const protocolClientCall = createInstanceSpy.getCalls().find(call => call.args[0] === AgentHostProtocolClient);
 		const createTransport = protocolClientCall?.args[2] as () => IClientTransport;
 		const transport = disposables.add(createTransport());
+		const openedTcpConnection = await service.openTcpConnection({ host: 'canvas.test', port: 4321 });
 		assert.deepStrictEqual({
 			beforeReady,
 			afterReady: connectCalls,
@@ -328,6 +336,8 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			registeredAuthorities,
 			registeredFormatters: registeredFormatters.map(formatter => formatter.formatting),
 			mapsRemoteDirectories: transport instanceof EditorRemoteAgentHostTransport,
+			tcpTargets,
+			openedTcpConnection: openedTcpConnection === tcpConnection,
 		}, {
 			beforeReady: 0,
 			afterReady: 1,
@@ -341,6 +351,8 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 				normalizeDriveLetter: true,
 			}],
 			mapsRemoteDirectories: true,
+			tcpTargets: [{ host: 'canvas.test', port: 4321 }],
+			openedTcpConnection: true,
 		});
 	});
 

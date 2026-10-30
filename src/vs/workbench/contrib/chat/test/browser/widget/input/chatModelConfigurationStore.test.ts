@@ -312,6 +312,33 @@ suite('ChatModelConfigurationStore', () => {
 		});
 	});
 
+	test('switching chats notifies once per update, after it applies to every model', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setSchema(schema, ['thinkingEffort']);
+		const editor = createStore(storage, control.service);
+		const OTHER = 'copilot/other';
+		const snapshot = (thinkingEffort: string) => ({
+			models: {
+				[MODEL]: { defaults: { thinkingEffort }, readOnly: [] },
+				[OTHER]: { defaults: { thinkingEffort }, readOnly: [] },
+			},
+		});
+		editor.setSessionModelConfiguration(snapshot('low'));
+		const changes: { modelIds: readonly string[]; efforts: unknown[] }[] = [];
+		store.add(editor.onDidChange(modelIds => changes.push({ modelIds, efforts: [MODEL, OTHER].map(modelId => editor.getModelConfiguration(modelId)?.thinkingEffort) })));
+
+		editor.setSessionModelConfiguration(undefined);
+		editor.notifyConversationChanged();
+		editor.setSessionModelConfiguration(snapshot('high'));
+
+		assert.deepStrictEqual(changes, [
+			{ modelIds: [MODEL, OTHER], efforts: ['medium', 'medium'] },
+			{ modelIds: [MODEL, OTHER], efforts: ['medium', 'medium'] },
+			{ modelIds: [MODEL, OTHER], efforts: ['high', 'high'] },
+		]);
+	});
+
 	test('an explicit choice equal to a host default survives reopen and later default changes', async () => {
 		const storage = store.add(new InMemoryStorageService());
 		const control = createControllableService();
@@ -1087,7 +1114,7 @@ suite('ChatModelConfigurationStore', () => {
 		const editor = createStore(storage, createStubService());
 
 		const fired: string[] = [];
-		store.add(editor.onDidChange(id => fired.push(id)));
+		store.add(editor.onDidChange(ids => fired.push(...ids)));
 
 		editor.setModelConfiguration(MODEL, { thinkingEffort: 'high' });
 		assert.deepStrictEqual(fired, [MODEL]);
@@ -1102,7 +1129,7 @@ suite('ChatModelConfigurationStore', () => {
 
 		const changes: (IStringDictionary<unknown> | undefined)[] = [];
 		const selections: { modelId: string; configuration: IStringDictionary<unknown> | undefined }[] = [];
-		store.add(editor.onDidChange(modelId => changes.push(editor.getModelConfiguration(modelId))));
+		store.add(editor.onDidChange(modelIds => changes.push(...modelIds.map(modelId => editor.getModelConfiguration(modelId)))));
 		store.add(editor.onDidSelectConfiguration(modelId => selections.push({ modelId, configuration: editor.getModelConfiguration(modelId) })));
 
 		control.setRegistered(true);
@@ -1139,7 +1166,7 @@ suite('ChatModelConfigurationStore', () => {
 		editor.setModelConfiguration(MODEL, { thinkingEffort: 'high' });
 
 		const fired: string[] = [];
-		store.add(editor.onDidChange(id => fired.push(id)));
+		store.add(editor.onDidChange(ids => fired.push(...ids)));
 		let writes = 0;
 		const ds = store.add(new DisposableStore());
 		store.add(storage.onDidChangeValue(StorageScope.APPLICATION, KEY, ds)(() => writes++));
@@ -1173,7 +1200,7 @@ suite('ChatModelConfigurationStore', () => {
 		await editor.setModelConfiguration(MODEL, { thinkingEffort: 'high' });
 		control.setConfigCalls.length = 0;
 		const changes: string[] = [];
-		store.add(editor.onDidChange(modelId => changes.push(modelId)));
+		store.add(editor.onDidChange(modelIds => changes.push(...modelIds)));
 		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
 			_modelConfigStore: editor,
 			_requestProgrammaticLanguageModel: async () => true,
@@ -1299,7 +1326,7 @@ suite('ChatModelConfigurationStore', () => {
 		assert.strictEqual(editor.getModelConfiguration(OTHER), undefined);
 
 		const fired: string[] = [];
-		store.add(editor.onDidChange(id => fired.push(id)));
+		store.add(editor.onDidChange(ids => fired.push(...ids)));
 
 		// Providers register; the schema and a non-default global become available.
 		controls.setRegistered(true);
@@ -1328,7 +1355,7 @@ suite('ChatModelConfigurationStore', () => {
 		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { thinkingEffort: 'high' });
 
 		const fired: string[] = [];
-		store.add(editor.onDidChange(id => fired.push(id)));
+		store.add(editor.onDidChange(ids => fired.push(...ids)));
 
 		registered = true;
 		emitter.fire('copilot');
@@ -1364,7 +1391,7 @@ suite('ChatModelConfigurationStore', () => {
 		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { thinkingEffort: 'high' });
 
 		const fired: string[] = [];
-		store.add(editor.onDidChange(id => fired.push(id)));
+		store.add(editor.onDidChange(ids => fired.push(...ids)));
 
 		registered = true;
 		emitter.fire('copilot');
@@ -1504,7 +1531,7 @@ suite('ChatModelConfigurationStore', () => {
 		assert.strictEqual(editor.getModelConfiguration(MODEL), undefined);
 
 		const fired: string[] = [];
-		store.add(editor.onDidChange(id => fired.push(id)));
+		store.add(editor.onDidChange(ids => fired.push(...ids)));
 
 		registered = true;
 		emitter.fire('copilot');
@@ -1545,7 +1572,7 @@ suite('ChatModelConfigurationStore', () => {
 			metadata()?.maxInputTokens,
 		);
 		const denominators: (number | undefined)[] = [computeDenominator()];
-		store.add(editor.onDidChange(id => { if (id === MODEL) { denominators.push(computeDenominator()); } }));
+		store.add(editor.onDidChange(ids => { if (ids.includes(MODEL)) { denominators.push(computeDenominator()); } }));
 
 		// Schema loads: the store heals the snapshot and notifies the widget.
 		registered = true;

@@ -20,7 +20,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestTelemetryService } from '../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
@@ -47,16 +47,6 @@ suite('ChatPetWidget', () => {
 		}
 	});
 	teardown(() => sinon.restore());
-
-	class TestTelemetryService extends NullTelemetryServiceShape {
-		readonly events: { readonly name: string; readonly data: unknown }[] = [];
-
-		override publicLog2(eventName?: string, data?: unknown): void {
-			if (eventName) {
-				this.events.push({ name: eventName, data });
-			}
-		}
-	}
 
 	function createHopHarness(initialLeft = 48, minimumLeft = 0, maximumLeft = 96) {
 		const events: string[] = [];

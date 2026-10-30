@@ -1180,11 +1180,11 @@ export class AgentHostSessionInputPills extends Disposable {
 				}), chatPillCopyUrlHoverLabel)],
 				...getChatPillResourceLocation(resource, resourceLabel),
 				...presentation?.entry,
-				...(stateDescription ? {
-					ariaDescription: checksDescription
+				ariaDescription: stateDescription
+					? checksDescription
 						? localize('agentHostSessionPills.referenceDescriptionWithChecks', "{0}. {1}. {2}", stateDescription, checksDescription, resource.toString(true))
-						: localize('agentHostSessionPills.referenceDescription', "{0}. {1}", stateDescription, resource.toString(true)),
-				} : {}),
+						: localize('agentHostSessionPills.referenceDescription', "{0}. {1}", stateDescription, resource.toString(true))
+					: resource.toString(true),
 				...(liveTitle || title ? { tooltip: `${resourceLabel}\n${resource.toString(true)}` } : {}),
 				open: () => this._openExternal(resource),
 			};
@@ -1324,7 +1324,9 @@ export class AgentHostSessionInputPills extends Disposable {
 				: gitHubKind
 					? getGitHubResourcePresentation(link, gitHubKind, undefined, label)
 					: undefined;
+			const gitHubHover = gitHubDetails?.hover.read(reader);
 			const displayLabel = gitHubPresentation?.label ?? label;
+			const resourceLocation = getChatPillResourceLocation(link, displayLabel);
 			const entry: IChatPillEntry = {
 				id: artifact.id,
 				label: displayLabel,
@@ -1338,9 +1340,11 @@ export class AgentHostSessionInputPills extends Disposable {
 						run: () => this._clipboardService.writeText(artifact.commitHash ?? commit!.sha),
 					}), chatPillCopyHashHoverLabel)],
 				} : {}),
-				...getChatPillResourceLocation(link, displayLabel),
+				...resourceLocation,
 				...gitHubPresentation,
-				...gitHubDetails?.hover,
+				...gitHubHover,
+				...(gitHubDetails ? { prefetch: gitHubDetails.prefetch } : {}),
+				...(gitHubDetails && !gitHubHover ? { ariaDescription: resourceLocation.ariaDescription } : {}),
 				open: () => this._openExternal(link),
 			};
 			return artifact.type === SessionArtifactType.Commit

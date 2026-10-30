@@ -50,8 +50,10 @@ import { getGitHubResourcePresentation, GitHubResourceDetailsResolver } from '..
 import { ChatPillHoverCache, createChatPillHover } from '../../../../workbench/browser/chatPillHover.js';
 import { IWorkbenchGitHubService } from '../../../../workbench/services/github/common/githubService.js';
 import { linkKey } from '../../../common/sessionLinks.js';
-import { getChatSessionArtifacts, getSessionArtifactKey, SessionArtifactKind, type IChat, type ISessionArtifact } from '../../../services/sessions/common/session.js';
+import { getChatSessionArtifacts, getSessionArtifactKey, SessionArtifactKind, type IChat, type IGitHubPullRequestRef, type ISessionArtifact } from '../../../services/sessions/common/session.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ArtifactIntegrationPresentation, IArtifactDetailsHost } from './artifactIntegrationPresentation.js';
+import { collapseArtifactIntegrationAliases, getArtifactIntegrationAliasCandidate, getArtifactIntegrationGroupId } from './artifactIntegrationPillSources.js';
 import { ISessionsManagementService, type IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
 import { ISessionGitHubReferences, parseGitHubArtifactLink } from '../../github/common/sessionGitHubReferences.js';
@@ -59,6 +61,7 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { IGitHubService as ISessionsGitHubService } from '../../github/browser/githubService.js';
+import { OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../github/common/types.js';
 
 /** Action id of the references pill. */
 export const SESSION_REFERENCES_PILL_ID = 'sessions.chatPills.references';
@@ -93,6 +96,8 @@ export interface ISessionArtifactActions {
 	/** Downloads a remote file or folder to this device. */
 	downloadResource?(uri: URI, name: string): Promise<void>;
 	copy(text: string): void;
+	/** Opens a GitHub pull request's changes in a multi-file diff editor. */
+	openPullRequestChanges(pullRequest: IGitHubPullRequestRef): void;
 	/**
 	 * Deletes the session's record of an artifact or reference by its stable id.
 	 * Never mutates or deletes the underlying file, resource, PR, issue or other
@@ -110,6 +115,8 @@ export interface ISessionArtifactImage {
 
 interface ISessionArtifactPresentation extends ISessionArtifact {
 	readonly generatedImageMimeType?: string;
+	/** An integration presents the record, whose entry alone reaches its details, so a browser showing its page never replaces it. */
+	readonly integrated?: boolean;
 }
 
 function artifactValueKey(artifact: ISessionArtifact): string {
@@ -266,6 +273,16 @@ function openArtifact(artifact: ISessionArtifact, actions: ISessionArtifactActio
 	actions.recordOpen(artifact);
 }
 
+/** The row action opening a pull request's changes, shared by the pull requests pill and recorded pull request rows. */
+export function createOpenPullRequestChangesAction(pullRequest: Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>, run: () => unknown): IChatPillAction {
+	return withChatPillHoverLabel(toAction({
+		id: `sessionChatPills.openPullRequestChanges.${pullRequest.owner.toLowerCase()}.${pullRequest.repo.toLowerCase()}.${pullRequest.number}`,
+		label: localize('sessionChatPills.openPullRequestChanges', "Open Pull Request Changes"),
+		class: ThemeIcon.asClassName(Codicon.diffMultiple),
+		run,
+	}), localize('sessionChatPills.openChanges', "Open Changes"));
+}
+
 function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, commit?: GitHubCommit, gitHubResolver?: GitHubResourceDetailsResolver, reader?: IReader, commitHoverCache?: ChatPillHoverCache): IChatPillEntry | undefined {
 	if (artifact.kind === SessionArtifactKind.File) {
 		if (!artifact.uri) {
@@ -403,15 +420,28 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 		: gitHubKind
 			? getGitHubResourcePresentation(link, gitHubKind, undefined, artifact.label)
 			: undefined;
+	const gitHubHover = gitHubDetails?.hover.read(reader);
 	const displayLabel = gitHubPresentation?.label ?? artifact.label;
+	const location = sessionArtifactLocationText(link, labelService);
+	const pullRequest = artifact.kind === SessionArtifactKind.PullRequest ? parseGitHubArtifactLink(artifact) : undefined;
+	const pullRequestChangesAction = pullRequest
+		? [createOpenPullRequestChangesAction(pullRequest, () => actions.openPullRequestChanges({
+			...pullRequest,
+			uri: link,
+			...(artifact.label ? { title: artifact.label } : {}),
+			recordedReferenceId: artifact.id,
+		}))]
+		: [];
 	return withRemoveAction(artifact, {
 		id: artifact.id,
 		label: displayLabel,
 		icon,
-		toolbarActions: copyLinkAction,
-		...sessionArtifactLocation(sessionArtifactLocationText(link, labelService), displayLabel),
+		toolbarActions: [...pullRequestChangesAction, ...copyLinkAction],
+		...sessionArtifactLocation(location, displayLabel),
 		...gitHubPresentation,
-		...gitHubDetails?.hover,
+		...gitHubHover,
+		...(gitHubDetails ? { prefetch: gitHubDetails.prefetch } : {}),
+		...(gitHubDetails && !gitHubHover ? { ariaDescription: location === displayLabel ? undefined : location } : {}),
 		open: () => openArtifact(artifact, actions, () => actions.openExternal(link)),
 	}, actions);
 }
@@ -421,7 +451,8 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
  * the artifacts pill and the references pill each build their own. Entries keep
  * the order they arrive in, which is newest first, so each section opens on
  * what the session recorded last. Websites the browsers pill already lists are
- * left out, so the same page is offered once across the pills.
+ * left out, so the same page is offered once across the pills, unless an
+ * integration presents them.
  */
 export function buildSessionArtifactSections(artifacts: readonly ISessionArtifactPresentation[], actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>, commits: ReadonlyMap<string, GitHubCommit> = new Map(), gitHubResolver?: GitHubResourceDetailsResolver, reader?: IReader, commitHoverCache?: ChatPillHoverCache): readonly IChatPillSection[] {
 	const entriesByKind = new Map<SessionArtifactKind, IChatPillEntry[]>();
@@ -439,7 +470,7 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 	}
 
 	for (const artifact of artifacts) {
-		if (artifact.kind === SessionArtifactKind.Website && isShownInBrowser(artifact.link, browserKeys)) {
+		if (artifact.kind === SessionArtifactKind.Website && !artifact.integrated && isShownInBrowser(artifact.link, browserKeys)) {
 			continue;
 		}
 		const generatedImage = generatedImages.get(artifactValueKey(artifact));
@@ -598,7 +629,10 @@ export class SessionArtifacts extends Disposable {
 	readonly sections: IObservable<readonly IChatPillSection[]>;
 	/** Sections for the references pill: what the session points the user at. */
 	readonly referenceSections: IObservable<readonly IChatPillSection[]>;
-	/** Undecorated entries of the artifacts and references an integration presents; see {@link getPresentation}. */
+	/**
+	 * Undecorated entries of the artifacts and references an integration presents in pills of their own, because their
+	 * main integration assigns them a group ID; see {@link getPresentation}. The sections list the other integrated records.
+	 */
 	readonly integratedEntries: IObservable<readonly IChatPillEntry[]>;
 
 	constructor(
@@ -626,6 +660,7 @@ export class SessionArtifacts extends Disposable {
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
 
@@ -784,13 +819,25 @@ export class SessionArtifacts extends Disposable {
 			locationFormatting.read(reader);
 			const actions = this._actions(current, chat.read(reader)?.resource ?? current.resource, reader);
 			return chatArtifacts.read(reader).flatMap(artifact => {
-				if (!this.hasIntegration(artifact.id, reader)) {
+				if (!this.hasOwnPill(artifact.id, reader)) {
 					return [];
 				}
 				const target = artifact.kind === SessionArtifactKind.Commit && artifact.link ? parseGitHubCommitTarget(artifact.link) : undefined;
 				const entry = toEntry(artifact, actions, this._labelService, target ? commitResolver.get(target).read(reader) : undefined);
 				return entry ? [entry] : [];
 			});
+		});
+
+		// Integrated records listed in the pills for their kind show once per resource, like those in pills of their own.
+		const hiddenAliases = derived(this, reader => {
+			const integrated = presentations.read(reader);
+			const candidates = chatArtifacts.read(reader).flatMap(artifact => {
+				const snapshot = integrated.get(artifact.id)?.snapshot.read(reader);
+				return snapshot && snapshot.contributions.length > 0 && getArtifactIntegrationGroupId(snapshot) === undefined
+					? [{ id: artifact.id, isArtifact: artifact.isArtifact, ...getArtifactIntegrationAliasCandidate(snapshot) }] : [];
+			});
+			const kept = new Set(collapseArtifactIntegrationAliases(candidates).map(candidate => candidate.id));
+			return new Set(candidates.filter(candidate => !kept.has(candidate.id)).map(candidate => candidate.id));
 		});
 
 		const sectionsFor = (isArtifact: boolean) => derived(this, reader => {
@@ -809,12 +856,15 @@ export class SessionArtifacts extends Disposable {
 				...gitHubReferences?.pullRequests ?? [],
 				...gitHubReferences?.issues ?? [],
 			].map(ref => linkKey(ref.uri.toString())));
+			const hidden = hiddenAliases.read(reader);
+			const integrated = presentations.read(reader);
 			const artifacts: ISessionArtifactPresentation[] = chatArtifacts.read(reader).filter(artifact =>
 				artifact.isArtifact === isArtifact
 				&& !surfacedIds.has(artifact.id)
-				&& !this.hasIntegration(artifact.id, reader)
+				&& !this.hasOwnPill(artifact.id, reader)
+				&& !hidden.has(artifact.id)
 				&& !(artifact.link && parseGitHubArtifactLink(artifact) && surfacedLinks.has(linkKey(artifact.link.toString())))
-			);
+			).map(artifact => (integrated.get(artifact.id)?.snapshot.read(reader).contributions.length ?? 0) > 0 ? { ...artifact, integrated: true } : artifact);
 			if (isArtifact) {
 				artifacts.push(...generatedImages.read(reader));
 			}
@@ -823,7 +873,6 @@ export class SessionArtifacts extends Disposable {
 				const commit = target ? commitResolver.get(target).read(reader) : undefined;
 				return commit ? [[artifact.id, commit] as const] : [];
 			}));
-			const integrated = presentations.read(reader);
 			return buildSessionArtifactSections(
 				artifacts,
 				this._actions(current, chat.read(reader)?.resource ?? current.resource, reader),
@@ -841,7 +890,7 @@ export class SessionArtifacts extends Disposable {
 		this.referenceSections = sectionsFor(false);
 	}
 
-	decorateEntry(entry: IChatPillEntry, reader: IReader): IChatPillEntry {
+	decorateEntry<T extends IChatPillEntry>(entry: T, reader: IReader): T {
 		return this.presentations.read(reader).get(entry.id)?.decorate(entry, reader) ?? entry;
 	}
 
@@ -849,8 +898,10 @@ export class SessionArtifacts extends Disposable {
 		return this.presentations.read(reader).get(id);
 	}
 
-	hasIntegration(id: string, reader: IReader): boolean {
-		return (this.presentations.read(reader).get(id)?.snapshot.read(reader).contributions.length ?? 0) > 0;
+	/** Whether an integration presents the record in a pill of its own, rather than in the pill for its kind. */
+	hasOwnPill(id: string, reader: IReader): boolean {
+		const snapshot = this.presentations.read(reader).get(id)?.snapshot.read(reader);
+		return !!snapshot && getArtifactIntegrationGroupId(snapshot) !== undefined;
 	}
 
 	private _actions(session: IActiveSession, chatResource: URI, reader: IReader): ISessionArtifactActions {
@@ -900,6 +951,10 @@ export class SessionArtifacts extends Disposable {
 				}
 			},
 			copy: text => { void this._clipboardService.writeText(text); },
+			openPullRequestChanges: pullRequest => {
+				this._sessionsService.setActive(session);
+				void this._commandService.executeCommand(OPEN_PULL_REQUEST_CHANGES_ACTION_ID, { pullRequest });
+			},
 			...(session.capabilities.read(reader).supportsRemoveArtifacts ? {
 				remove: async (id: string, label: string) => {
 					try {
