@@ -909,9 +909,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (index === -1) {
 				return;
 			}
-			infos.splice(index, 1);
-			if (infos.length === 0) {
+			const remainingInfos = infos.toSpliced(index, 1);
+			if (remainingInfos.length === 0) {
 				this._taskSystemInfos.delete(key);
+			} else {
+				this._taskSystemInfos.set(key, remainingInfos);
 			}
 			this._onDidChangeTaskSystemInfo.fire();
 		});
