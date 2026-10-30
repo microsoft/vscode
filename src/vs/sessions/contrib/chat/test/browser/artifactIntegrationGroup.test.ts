@@ -24,11 +24,11 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import '../../../../../platform/theme/common/colors/chartsColors.js';
 import { ChatPillsWidget, IChatPillAction, IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
 import { ChatInputPillPins } from '../../../../../workbench/contrib/chat/browser/chatInputPills.js';
-import { SessionChatPillKind } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
+import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ArtifactDetailsSelection } from '../../browser/artifactDetailsView.js';
 import { ArtifactIntegrationGroup, getArtifactGroupRowActions, getArtifactIntegrationGroupSummary, IArtifactIntegrationGroupMember } from '../../browser/artifactIntegrationGroup.js';
-import { ArtifactIntegrationPillSources, collapseArtifactIntegrationAliases, getArtifactIntegrationAliasKey, getArtifactIntegrationGroupKey, IArtifactIntegrationPillItem, layoutArtifactIntegrationPills } from '../../browser/artifactIntegrationPillSources.js';
+import { ArtifactIntegrationPillSources, collapseArtifactIntegrationAliases, getArtifactIntegrationAliasKey, IArtifactIntegrationPillItem, layoutArtifactIntegrationPills } from '../../browser/artifactIntegrationPillSources.js';
 import { ArtifactIntegrationPresentation, IArtifactDetailsHost } from '../../browser/artifactIntegrationPresentation.js';
 
 function snapshot(id: string, changes: { readonly group?: { readonly icon: string; readonly color?: string; readonly priority: number }; readonly groupLabel?: string; readonly sections?: readonly { readonly id: string; readonly label: string; readonly icon: string }[]; readonly automation?: boolean } = {}): ArtifactSnapshot {
@@ -70,7 +70,7 @@ suite('Artifact Integration Groups', () => {
 			grouped: describe(new Set(['pinned'])),
 			pinnedFirst: describe(new Set(['pinned', 'a'])),
 			lastPinned: describe(new Set(['pinned', 'a', 'b'])),
-			// Pinning never applies to an artifact without a group, such as a reference.
+			// Pinning never applies to a record without a group, such as one without a main integration.
 			keyless: describe(new Set(['ref'])),
 		}, {
 			grouped: ['group:a,b,c', 'single:ref', 'single:issue', 'pinned:pinned'],
@@ -78,23 +78,6 @@ suite('Artifact Integration Groups', () => {
 			lastPinned: ['pinned:a', 'single:ref', 'pinned:b', 'single:issue', 'single:c', 'pinned:pinned'],
 			keyless: ['group:a,b,c,pinned', 'single:ref', 'single:issue'],
 		});
-	});
-
-	test('only artifacts with a main integration get a group key, which separates pill kinds and integrations', () => {
-		assert.deepStrictEqual([
-			getArtifactIntegrationGroupKey(SessionChatPillKind.PullRequests, true, 'github.pullRequest'),
-			getArtifactIntegrationGroupKey(SessionChatPillKind.Artifacts, true, 'github.pullRequest'),
-			getArtifactIntegrationGroupKey(SessionChatPillKind.PullRequests, true, 'other'),
-			// A reference keeps its own pill even when an integration presents it.
-			getArtifactIntegrationGroupKey(SessionChatPillKind.References, false, 'github.pullRequest'),
-			getArtifactIntegrationGroupKey(SessionChatPillKind.Artifacts, true, undefined),
-		], [
-			JSON.stringify([SessionChatPillKind.PullRequests, 'github.pullRequest']),
-			JSON.stringify([SessionChatPillKind.Artifacts, 'github.pullRequest']),
-			JSON.stringify([SessionChatPillKind.PullRequests, 'other']),
-			undefined,
-			undefined,
-		]);
 	});
 
 	test('collapses records the main integration bound to the same resource into one, preferring the first artifact', () => {
@@ -174,6 +157,8 @@ suite('Artifact Integration Groups', () => {
 			override getContainer(): HTMLElement { return host; }
 		}());
 		instantiation.stub(IContextViewService, store.add(instantiation.createInstance(ContextViewService)));
+		const visibility = store.add(instantiation.createInstance(SessionChatPillVisibility));
+		instantiation.stub(ISessionChatPillVisibilityService, visibility);
 		const hovers = new Map<HTMLElement, IDelayedHoverOptions | (() => IDelayedHoverOptions)>();
 		instantiation.stub(IHoverService, new class extends mock<IHoverService>() {
 			override setupDelayedHover(target: HTMLElement, options: IDelayedHoverOptions | (() => IDelayedHoverOptions)) {
@@ -235,7 +220,7 @@ suite('Artifact Integration Groups', () => {
 		};
 		const keyCodes: Record<string, number> = { ArrowDown: 40, ArrowRight: 39, Escape: 27 };
 		const key = (target: HTMLElement, code: string) => target.dispatchEvent(new KeyboardEvent('keydown', { key: code, code, keyCode: keyCodes[code], bubbles: true, cancelable: true }));
-		return { instantiation, detailsHost, members, models, group, button, dropdown, rows, describeRow, focused, key, toggles, ran, selected, member, hovers };
+		return { instantiation, detailsHost, members, models, group, button, dropdown, rows, describeRow, focused, key, toggles, ran, selected, member, hovers, visibility };
 	}
 
 	test('renders the group pill with its summary and an Autopilot section, and lists each artifact like its own pill', () => {
@@ -367,7 +352,7 @@ suite('Artifact Integration Groups', () => {
 		assert.deepStrictEqual({ before, during, after: pill.classList.contains('artifact-pill-selected') }, { before: false, during: true, after: false });
 	});
 
-	test('pill sources keep a group pill while its members change, pin through shared storage, and never group references', () => {
+	test('pill sources keep a group pill while its members change, pin through shared storage, and group references with their integration\'s artifacts', () => {
 		const f = fixture();
 		const [one, two, three] = ['1', '2', '3'].map(id => f.member(snapshot(id, { groupLabel: 'Experiments' })));
 		const reference = f.member(snapshot('ref'));
@@ -388,10 +373,42 @@ suite('Artifact Integration Groups', () => {
 		const pinned = { labels: labels(), menu: pinnedSource?.getContextMenuPrimaryActions?.(pinnedSource.pills.get()[0]).map(action => action.id) };
 		pins.setPinned('chat', SessionChatPillKind.Artifacts, '2', 'Recorded 2', false);
 		assert.deepStrictEqual({ grouped, shrunk, pinned, unpinned: labels() }, {
-			grouped: ['3 Experiments', 'Recorded ref'],
-			shrunk: { labels: ['2 Experiments', 'Recorded ref'], samePill: true },
-			pinned: { labels: ['Recorded 1', 'Recorded ref', 'Recorded 2'], menu: ['chatInputPills.artifacts.unpin.2', 'remove.2'] },
-			unpinned: ['2 Experiments', 'Recorded ref'],
+			grouped: ['4 Experiments'],
+			shrunk: { labels: ['3 Experiments'], samePill: true },
+			pinned: { labels: ['2 Experiments', 'Recorded 2'], menu: ['chatInputPills.artifacts.unpin.2', 'remove.2'] },
+			unpinned: ['3 Experiments'],
+		});
+	});
+
+	test('pill sources show a group mixing references and artifacts as artifacts, and leave records of hidden pill kinds out of it', () => {
+		const f = fixture();
+		const item = (id: string, isArtifact: boolean): IArtifactIntegrationPillItem => {
+			const member = f.member(snapshot(id, { groupLabel: 'Experiments' }));
+			return { entry: member.entry, presentation: member.presentation, kind: isArtifact ? SessionChatPillKind.Artifacts : SessionChatPillKind.References, isArtifact, visible: true };
+		};
+		const items = observableValue<readonly IArtifactIntegrationPillItem[]>('items', [item('scorecard', false), item('draft', true), item('corrected', true)]);
+		const sources = store.add(f.instantiation.createInstance(ArtifactIntegrationPillSources, items, constObservable('chat'), f.detailsHost));
+		store.add(autorun(reader => sources.sources.read(reader).forEach(source => { source.pills.read(reader); source.isVisible?.read(reader); })));
+		const describe = () => sources.sources.get().map(source => source.isVisible?.get() === false
+			? `${source.kind} (hidden)`
+			: `${source.kind}: ${source.pills.get().map(pill => pill.action.label).join(', ')}`);
+		const grouped = describe();
+		f.visibility.toggle(SessionChatPillKind.References);
+		const referencesHidden = describe();
+		f.visibility.toggle(SessionChatPillKind.References);
+		f.visibility.toggle(SessionChatPillKind.Artifacts);
+		const artifactsHidden = describe();
+		f.visibility.toggle(SessionChatPillKind.Artifacts);
+		const pins = store.add(f.instantiation.createInstance(ChatInputPillPins));
+		pins.setPinned('chat', SessionChatPillKind.References, 'scorecard', 'Recorded scorecard', true);
+		const pinnedSource = sources.sources.get().find(source => source.pills.get()[0]?.action.label === 'Recorded scorecard');
+		const pinned = { sources: describe(), menu: pinnedSource?.getContextMenuPrimaryActions?.(pinnedSource.pills.get()[0]).map(action => action.id) };
+		assert.deepStrictEqual({ grouped, referencesHidden, artifactsHidden, pinned }, {
+			// The group takes its first artifact's kind, while a hidden source keeps the references kind counted.
+			grouped: ['artifacts: 3 Experiments', 'references (hidden)'],
+			referencesHidden: ['artifacts: 2 Experiments', 'references (hidden)'],
+			artifactsHidden: ['references: Recorded scorecard', 'artifacts (hidden)', 'artifacts (hidden)'],
+			pinned: { sources: ['references: Recorded scorecard', 'artifacts: 2 Experiments'], menu: ['chatInputPills.references.unpin.scorecard', 'remove.scorecard'] },
 		});
 	});
 
@@ -415,10 +432,11 @@ suite('Artifact Integration Groups', () => {
 		store.add(autorun(reader => { pills.read(reader); }));
 		const labels = () => pills.get().map(pill => pill.action.label);
 		const references = labels();
-		// Recording the step as an artifact moves it into the group, still once.
+		// Recording the step as an artifact makes it represent the scorecards, still once.
 		items.set([...items.get(), item(bound('stepArtifact', 'step'), true)], undefined);
 		assert.deepStrictEqual({ references, artifact: labels() }, {
-			references: ['2 Experiments', 'Recorded scorecard1'],
+			// The scorecards show once, in the group with the experiments of their integration.
+			references: ['3 Experiments'],
 			artifact: ['3 Experiments'],
 		});
 	});

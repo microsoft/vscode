@@ -2538,7 +2538,7 @@ suite('SessionChatInputToolbar', () => {
 		}
 	}
 
-	test('promotes matched artifacts and references, groups artifacts sharing an integration, keeps unmatched entries grouped, and scopes removal to the clicked pill', async () => {
+	test('promotes matched artifacts and references, groups records sharing an integration, keeps unmatched entries grouped, and scopes removal to the clicked pill', async () => {
 		const { instantiationService, configuration } = createServices();
 		const setEnabled = async (enabled: boolean) => {
 			await configuration.setUserConfiguration(ArtifactIntegrationsSettingId, enabled);
@@ -2551,7 +2551,8 @@ suite('SessionChatInputToolbar', () => {
 		const records: readonly ISessionArtifact[] = [
 			{ id: 'one', kind: SessionArtifactKind.Website, label: 'One', isArtifact: true, link: URI.parse('https://experiments.test/one') },
 			{ id: 'two', kind: SessionArtifactKind.Website, label: 'Two', isArtifact: true, link: URI.parse('https://experiments.test/two') },
-			{ id: 'reference', kind: SessionArtifactKind.Website, label: 'Reference', isArtifact: false, link: URI.parse('https://experiments.test/reference') },
+			{ id: 'scorecard', kind: SessionArtifactKind.Website, label: 'Scorecard', isArtifact: false, link: URI.parse('https://experiments.test/scorecard') },
+			{ id: 'reference', kind: SessionArtifactKind.Website, label: 'Reference', isArtifact: false, link: URI.parse('https://other.test/reference') },
 			{ id: 'plain', kind: SessionArtifactKind.Website, label: 'Plain', isArtifact: true, link: URI.parse('https://example.test/plain') },
 		];
 		const artifacts = observableValue('artifacts', records);
@@ -2596,12 +2597,12 @@ suite('SessionChatInputToolbar', () => {
 			acquired: acquired.length,
 		};
 		await setEnabled(true);
-		for (const id of ['one', 'two', 'reference']) {
+		for (const [id, integrationId, label] of [['one', 'experiments', 'Experiments'], ['two', 'experiments', 'Experiments'], ['scorecard', 'experiments', 'Experiments'], ['reference', 'other', 'Other']]) {
 			const snapshot = snapshots.get(id)!;
 			snapshot.set({
-				...snapshot.get(), mainIntegrationId: 'experiments',
+				...snapshot.get(), mainIntegrationId: integrationId,
 				contributions: [{
-					integrationId: 'experiments', label: 'Experiments', actions: [], options: [],
+					integrationId, label, actions: [], options: [],
 					configuration: { revision: 0, values: {}, generations: {}, disablements: {} },
 					view: {
 						availability: { kind: 'available' }, main: { icon: { id: 'beaker' }, label: id, detailsId: 'main' },
@@ -2614,7 +2615,7 @@ suite('SessionChatInputToolbar', () => {
 		const group = toolbar.element.querySelector<HTMLElement>('.artifact-integration-group-pill')!;
 		const promoted = {
 			labels: integrated.map(pill => pill.querySelector('.chat-pill-label')?.textContent),
-			// Artifacts sharing an integration share one pill; the reference keeps its own.
+			// Artifacts and references sharing an integration share one pill; a record without company keeps its own.
 			group: group.querySelector('.chat-pill-label')?.textContent,
 			referencesGrouped: !!toolbar.element.querySelector('[aria-label="Show 1 reference"]'),
 			artifactsGrouped: !!toolbar.element.querySelector('[aria-label="Show 3 artifacts"]'),
@@ -2628,21 +2629,21 @@ suite('SessionChatInputToolbar', () => {
 		assert.deepStrictEqual({
 			initial, promoted, groupRemovalIds, removalIds, removed,
 			remaining: [...toolbar.element.querySelectorAll('.artifact-integration-pill .chat-pill-label')].map(label => label.textContent),
-			groupRemaining: !!toolbar.element.querySelector('.artifact-integration-group-pill'),
+			groupRemaining: toolbar.element.querySelector('.artifact-integration-group-pill .chat-pill-label')?.textContent,
 			regrouped: !!toolbar.element.querySelector('[aria-label="Show 2 artifacts"]'),
 		}, {
 			initial: { integrated: 0, grouped: true, acquired: 0 },
-			promoted: { labels: ['reference'], group: 'Experiments (2)', referencesGrouped: false, artifactsGrouped: false },
+			promoted: { labels: ['reference'], group: 'Experiments (3)', referencesGrouped: false, artifactsGrouped: false },
 			groupRemovalIds: [], removalIds: ['sessions.artifacts.remove.reference'], removed: ['reference'],
-			remaining: ['one'], groupRemaining: false, regrouped: true,
+			remaining: [], groupRemaining: 'Experiments (2)', regrouped: true,
 		});
 		await setEnabled(false);
 		const disabled = {
-			pills: toolbar.element.querySelectorAll('.artifact-integration-pill').length,
+			pills: toolbar.element.querySelectorAll('.artifact-integration-pill, .artifact-integration-group-pill').length,
 			grouped: !!toolbar.element.querySelector('[aria-label="Show 3 artifacts"]'),
 		};
 		await setEnabled(true);
-		assert.deepStrictEqual({ disabled, restored: toolbar.element.querySelectorAll('.artifact-integration-pill').length }, {
+		assert.deepStrictEqual({ disabled, restored: toolbar.element.querySelectorAll('.artifact-integration-pill, .artifact-integration-group-pill').length }, {
 			disabled: { pills: 0, grouped: true }, restored: 1,
 		});
 	});

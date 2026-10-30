@@ -862,7 +862,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
-			.split('\n').find(line => line.startsWith('When two or more artifacts of the same kind share an integration'));
+			.split('\n').find(line => line.startsWith('When two or more artifacts or references share an integration'));
 
 		assert.deepStrictEqual({
 			grouped: content?.includes('they appear as one pill named by the integration'),

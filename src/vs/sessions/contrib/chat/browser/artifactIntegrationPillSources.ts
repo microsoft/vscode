@@ -10,7 +10,7 @@ import { ArtifactSnapshot, getArtifactMainContribution } from '../../../../platf
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatPillEntry } from '../../../../workbench/browser/chatPills.js';
 import { ChatInputPillPins, createChatInputPillSource, IChatInputPillSource } from '../../../../workbench/contrib/chat/browser/chatInputPills.js';
-import { SessionChatPillKind } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
+import { ISessionChatPillVisibilityService, SessionChatPillKind } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { ArtifactIntegrationGroup, IArtifactIntegrationGroupMember } from './artifactIntegrationGroup.js';
 import { ArtifactIntegrationPresentation, countEnabledArtifactAutomations, IArtifactDetailsHost } from './artifactIntegrationPresentation.js';
 
@@ -24,14 +24,6 @@ export interface IArtifactIntegrationPillItem {
 	readonly isArtifact: boolean;
 	/** Whether the pill kind's own filter, such as showing only open pull requests, keeps the artifact. */
 	readonly visible: boolean;
-}
-
-/**
- * The group an integrated record can join: artifacts of the same pill kind and main integration share one. References
- * never join a group, nor do records without a main integration.
- */
-export function getArtifactIntegrationGroupKey(kind: SessionChatPillKind, isArtifact: boolean, mainIntegrationId: string | undefined): string | undefined {
-	return isArtifact && mainIntegrationId !== undefined ? JSON.stringify([kind, mainIntegrationId]) : undefined;
 }
 
 /**
@@ -87,9 +79,12 @@ export function collapseArtifactIntegrationAliases<T extends IArtifactIntegratio
 	});
 }
 
-/** An artifact that can be listed in a group of artifacts sharing its main integration. */
+/** A record that can be listed in a group of records sharing its main integration. */
 export interface IArtifactIntegrationPillCandidate {
-	/** Identifies the group the artifact can join; artifacts without a key never join a group. */
+	/**
+	 * Identifies the group the record can join: artifacts and references the same main integration presents share one,
+	 * such as experiments and the scorecards of their steps. Records without a key never join a group.
+	 */
 	readonly groupKey?: string;
 }
 
@@ -98,8 +93,8 @@ export type ArtifactIntegrationPillLayout<T extends IArtifactIntegrationPillCand
 	| { readonly kind: 'group'; readonly key: string; readonly items: readonly T[] };
 
 /**
- * Arranges integrated artifacts into pills: two or more unpinned artifacts sharing a group key collapse into one
- * group, shown where the first of them would be. Pinned artifacts and artifacts without company keep pills of
+ * Arranges integrated records into pills: two or more unpinned records sharing a group key collapse into one
+ * group, shown where the first of them would be. Pinned records and records without company keep pills of
  * their own, in their recorded order.
  */
 export function layoutArtifactIntegrationPills<T extends IArtifactIntegrationPillCandidate>(items: readonly T[], isPinned: (item: T) => boolean): readonly ArtifactIntegrationPillLayout<T>[] {
@@ -133,9 +128,9 @@ interface IArtifactIntegrationPillPlacement extends IArtifactIntegrationPillItem
 }
 
 /**
- * Places integrated artifacts in the chat input pill row: artifacts sharing an integration collapse into a group
- * pill with a dropdown, while artifacts the user pinned out of their group, and those without company, keep pills
- * of their own. Pinning uses the same storage as other pill dropdowns.
+ * Places integrated artifacts and references in the chat input pill row: records sharing an integration collapse
+ * into a group pill with a dropdown, while records the user pinned out of their group, and those without company,
+ * keep pills of their own. Pinning uses the same storage as other pill dropdowns.
  */
 export class ArtifactIntegrationPillSources extends Disposable {
 	readonly sources: IObservable<readonly IChatInputPillSource[]>;
@@ -145,6 +140,7 @@ export class ArtifactIntegrationPillSources extends Disposable {
 		pinScope: IObservable<string | undefined>,
 		detailsHost: IArtifactDetailsHost,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ISessionChatPillVisibilityService visibility: ISessionChatPillVisibilityService,
 	) {
 		super();
 		const pins = this._register(instantiationService.createInstance(ChatInputPillPins));
@@ -155,7 +151,9 @@ export class ArtifactIntegrationPillSources extends Disposable {
 				const pinned = pins.getPinned(scope, item.kind, reader).has(item.entry.id);
 				const placement: IArtifactIntegrationPillPlacement = {
 					...item,
-					groupKey: getArtifactIntegrationGroupKey(item.kind, item.isArtifact, snapshot.mainIntegrationId),
+					// A group can mix pill kinds, so a hidden kind removes its records before grouping rather than hiding the group.
+					visible: item.visible && visibility.isVisible(item.kind, reader),
+					groupKey: snapshot.mainIntegrationId,
 					aliasKey: getArtifactIntegrationAliasKey(snapshot),
 					hasOwnState: countEnabledArtifactAutomations(snapshot) > 0 || snapshot.runs.length > 0,
 					pinned,
@@ -207,7 +205,7 @@ export class ArtifactIntegrationPillSources extends Disposable {
 		this.sources = derived(this, reader => {
 			const groupsByKey = new Map(groups.read(reader).map(({ key, group }) => [key, group]));
 			const singlesByPresentation = new Map(singles.read(reader).map(single => [single.presentation, single]));
-			// Filtered-out artifacts keep a hidden source, so their pill kind's options stay reachable from the row.
+			// Filtered-out records keep a hidden source, so their pill kind's options stay reachable from the row.
 			const hidden = placements.read(reader).filter(item => !item.visible).map((item): IChatInputPillSource => ({
 				...createChatInputPillSource(item.presentation.inlinePill, item.kind),
 				isVisible: constObservable(false),
@@ -215,7 +213,17 @@ export class ArtifactIntegrationPillSources extends Disposable {
 			return [...layout.read(reader).flatMap((item): IChatInputPillSource[] => {
 				if (item.kind === 'group') {
 					const group = groupsByKey.get(item.key);
-					return group ? [createChatInputPillSource(group.pill, item.items[0].kind)] : [];
+					if (!group) {
+						return [];
+					}
+					// The group pill takes its first artifact's kind; members of other kinds, such as references among
+					// artifacts, keep a hidden source so the row still counts their kinds as shown.
+					const kind = (item.items.find(member => member.isArtifact) ?? item.items[0]).kind;
+					const others = new Map(item.items.filter(member => member.kind !== kind).map(member => [member.kind, member]));
+					return [createChatInputPillSource(group.pill, kind), ...[...others.values()].map((member): IChatInputPillSource => ({
+						...createChatInputPillSource(member.presentation.inlinePill, member.kind),
+						isVisible: constObservable(false),
+					}))];
 				}
 				const single = singlesByPresentation.get(item.item.presentation);
 				if (!single) {
