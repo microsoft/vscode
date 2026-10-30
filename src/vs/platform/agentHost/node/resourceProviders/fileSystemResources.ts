@@ -5,7 +5,7 @@
 
 import { open, unlink, type FileHandle } from 'fs/promises';
 import { ResourceQueue } from '../../../../base/common/async.js';
-import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { decodeBase64, encodeBase64, streamToBuffer, VSBuffer } from '../../../../base/common/buffer.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { getMediaOrTextMime } from '../../../../base/common/mime.js';
@@ -14,6 +14,7 @@ import { dirname as resourcesDirname, extUriBiasedIgnorePathCase } from '../../.
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../files/common/files.js';
+import type { IAgentHostResourceReadRange } from '../../common/meta/agentHostResourceReadRangeMeta.js';
 import { AhpErrorCodes, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceType, ResourceWriteMode, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from '../../common/state/sessionProtocol.js';
 import type { IAgentHostResourceProvider } from '../agentHostResourceProviders.js';
 
@@ -36,16 +37,34 @@ export class FileSystemResources extends Disposable implements IAgentHostResourc
 				contentType: getMediaOrTextMime(uri.path) ?? 'application/octet-stream',
 			};
 		} catch (e) {
-			const error = e instanceof Error ? e : new Error(String(e));
-			const result = toFileOperationResult(error);
-			if (result === FileOperationResult.FILE_NOT_FOUND) {
-				throw new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${uri.toString()}`);
-			}
-			if (result === FileOperationResult.FILE_PERMISSION_DENIED) {
-				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${uri.toString()}`);
-			}
-			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Failed to read content: ${uri.toString()}: ${toErrorMessage(error)}`);
+			throw this._toReadError(uri, e);
 		}
+	}
+
+	async readRange(uri: URI, range: IAgentHostResourceReadRange): Promise<ResourceReadResult> {
+		try {
+			// `readFileStream` reads only the range; `readFile` reads the whole file first when the provider can.
+			const content = await this._fileService.readFileStream(uri, { position: range.position, length: range.length });
+			return {
+				data: encodeBase64(await streamToBuffer(content.value)),
+				encoding: ContentEncoding.Base64,
+				contentType: getMediaOrTextMime(uri.path) ?? 'application/octet-stream',
+			};
+		} catch (e) {
+			throw this._toReadError(uri, e);
+		}
+	}
+
+	private _toReadError(uri: URI, e: unknown): ProtocolError {
+		const error = e instanceof Error ? e : new Error(String(e));
+		const result = toFileOperationResult(error);
+		if (result === FileOperationResult.FILE_NOT_FOUND) {
+			return new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${uri.toString()}`);
+		}
+		if (result === FileOperationResult.FILE_PERMISSION_DENIED) {
+			return new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${uri.toString()}`);
+		}
+		return new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Failed to read content: ${uri.toString()}: ${toErrorMessage(error)}`);
 	}
 
 	async list(uri: URI): Promise<ResourceListResult> {

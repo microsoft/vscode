@@ -26,6 +26,7 @@ import { supportsAgentHostWorktreeDiskUsage } from '../common/meta/agentHostWork
 import { supportsAgentHostManagedWorktrees, supportsAgentHostWorktreeCleanup, supportsForceWorktreeCleanup } from '../common/meta/agentHostWorktreeCleanupMeta.js';
 import { CleanupManagedWorktreeExtensionMethod, ListManagedWorktreesExtensionMethod, managedWorktreesValidator, SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupStatusValidator, type IAgentHostManagedWorktree, type IAgentHostWorktreeCleanupStatus } from '../common/agentHostWorktreeCleanup.js';
 import { serializeChatWorkspace, withCreateChatWorkspaceMeta } from '../common/meta/agentHostCreateChatWorkspaceMeta.js';
+import { withAgentHostResourceReadRange, type IAgentHostResourceReadRange } from '../common/meta/agentHostResourceReadRangeMeta.js';
 import { AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS, serializeCreateSessionImport, splitCreateSessionImportChunks, StageCreateSessionImportChunkExtensionMethod, supportsAgentHostCreateSessionImport, withCreateSessionImportMeta, withStagedCreateSessionImportMeta } from '../common/meta/agentHostCreateSessionImportMeta.js';
 import { vArray, vEnum, vObj, vOptionalProp, vString, vUndefined, vUnknown } from '../../../base/common/validation.js';
 import { AgentHostChannelScheduler, readChannelFlowControl } from '../common/agentHostChannelDelivery.js';
@@ -2906,10 +2907,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	/**
-	 * Read the content of a resource on the remote host.
+	 * Read the content of a resource on the remote host, or only the bytes in {@link range} when the host advertises
+	 * ranged reads (`supportsAgentHostResourceReadRanges`).
 	 */
-	async resourceRead(uri: URI, encoding?: ContentEncoding): Promise<CommandMap['resourceRead']['result']> {
-		return this._sendRequest('resourceRead', { channel: ROOT_STATE_URI, uri: uri.toString(), encoding });
+	async resourceRead(uri: URI, encoding?: ContentEncoding, range?: IAgentHostResourceReadRange): Promise<CommandMap['resourceRead']['result']> {
+		return this._sendRequest('resourceRead', { channel: ROOT_STATE_URI, uri: uri.toString(), encoding, ...(range ? { _meta: withAgentHostResourceReadRange(undefined, range) } : {}) });
 	}
 
 	async resourceWrite(params: CommandMap['resourceWrite']['params']): Promise<CommandMap['resourceWrite']['result']> {

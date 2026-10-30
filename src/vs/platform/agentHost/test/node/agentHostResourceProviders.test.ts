@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { newWriteableStream } from '../../../../base/common/stream.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IFileService } from '../../../files/common/files.js';
+import { FileSystemProviderCapabilities, FileType, IFileReadStreamOptions, IFileService, IFileSystemProviderWithFileReadStreamCapability, IStat } from '../../../files/common/files.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
@@ -172,5 +175,98 @@ suite('AgentHostResourceProviders', () => {
 			{ data: 'file', encoding: ContentEncoding.Utf8, contentType: 'text/plain' },
 			{ data: 'replacement', encoding: ContentEncoding.Utf8, contentType: 'text/plain' },
 		]);
+	});
+
+	suite('ranged reads', () => {
+		const text = (result: ResourceReadResult) => ({ ...result, data: decodeBase64(result.data).toString() });
+
+		test('return just the requested bytes of a file, as base64', async () => {
+			const uri = URI.from({ scheme: Schemas.inMemory, path: '/content.txt' });
+			await fileService.writeFile(uri, VSBuffer.fromString('0123456789abcdef'));
+
+			assert.deepStrictEqual([
+				text(await resources.read(uri, ContentEncoding.Utf8, { position: 4, length: 6 })),
+				text(await resources.read(uri, ContentEncoding.Utf8, { position: 10 })),
+				text(await resources.read(uri, ContentEncoding.Utf8, { position: 100, length: 4 })),
+			], [
+				{ data: '456789', encoding: ContentEncoding.Base64, contentType: 'text/plain' },
+				{ data: 'abcdef', encoding: ContentEncoding.Base64, contentType: 'text/plain' },
+				{ data: '', encoding: ContentEncoding.Base64, contentType: 'text/plain' },
+			]);
+		});
+
+		test('ask the file system for only the requested bytes', async () => {
+			const content = VSBuffer.fromString('0123456789abcdef');
+			const requests: { position?: number; length?: number }[] = [];
+			disposables.add(fileService.registerProvider('ranged-file', new class implements IFileSystemProviderWithFileReadStreamCapability {
+				readonly capabilities = FileSystemProviderCapabilities.FileReadStream | FileSystemProviderCapabilities.Readonly;
+				readonly onDidChangeCapabilities = Event.None;
+				readonly onDidChangeFile = Event.None;
+				watch() { return Disposable.None; }
+				async stat(): Promise<IStat> { return { type: FileType.File, ctime: 0, mtime: 0, size: content.byteLength }; }
+				async mkdir(): Promise<void> { throw new Error('not supported'); }
+				async readdir(): Promise<[string, FileType][]> { return []; }
+				async delete(): Promise<void> { throw new Error('not supported'); }
+				async rename(): Promise<void> { throw new Error('not supported'); }
+				readFileStream(_resource: URI, opts: IFileReadStreamOptions) {
+					requests.push({ position: opts.position, length: opts.length });
+					const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
+					const start = opts.position ?? 0;
+					stream.end(content.slice(start, opts.length === undefined ? undefined : start + opts.length).buffer);
+					return stream;
+				}
+			}));
+
+			const result = text(await resources.read(URI.parse('ranged-file:/content.bin'), ContentEncoding.Utf8, { position: 2, length: 3 }));
+
+			assert.deepStrictEqual({ result: result.data, requests }, { result: '234', requests: [{ position: 2, length: 3 }] });
+		});
+
+		test('slice whole reads from providers that cannot read ranges', async () => {
+			const encodings: ContentEncoding[] = [];
+			disposables.add(resources.registerProvider('blob-resource', {
+				read: async (_uri, encoding) => {
+					encodings.push(encoding);
+					return { data: 'hello world', encoding: ContentEncoding.Utf8, contentType: 'text/plain' };
+				},
+			}));
+
+			const uri = URI.parse('blob-resource:/blob');
+			assert.deepStrictEqual({
+				results: [
+					text(await resources.read(uri, ContentEncoding.Utf8, { position: 6, length: 3 })),
+					text(await resources.read(uri, ContentEncoding.Utf8, { position: 6 })),
+				],
+				encodings,
+			}, {
+				results: [
+					{ data: 'wor', encoding: ContentEncoding.Base64, contentType: 'text/plain' },
+					{ data: 'world', encoding: ContentEncoding.Base64, contentType: 'text/plain' },
+				],
+				encodings: [ContentEncoding.Base64, ContentEncoding.Base64],
+			});
+		});
+
+		test('use a provider\'s own ranged read, and its whole read without a range', async () => {
+			const calls: string[] = [];
+			disposables.add(resources.registerProvider('ranged-resource', {
+				read: async (_uri, encoding) => {
+					calls.push(`read ${encoding}`);
+					return { data: 'whole', encoding };
+				},
+				readRange: async (_uri, range) => {
+					calls.push(`readRange ${range.position}+${range.length}`);
+					return { data: 'cGFydA==', encoding: ContentEncoding.Base64 };
+				},
+			}));
+
+			const uri = URI.parse('ranged-resource:/content');
+			const results = [await resources.read(uri, ContentEncoding.Base64, { position: 1, length: 4 }), await resources.read(uri, ContentEncoding.Utf8)];
+
+			assert.deepStrictEqual({ calls, results }, {
+				calls: ['readRange 1+4', 'read utf-8'],
+				results: [{ data: 'cGFydA==', encoding: ContentEncoding.Base64 }, { data: 'whole', encoding: ContentEncoding.Utf8 }],
+			});
+		});
 	});
 });

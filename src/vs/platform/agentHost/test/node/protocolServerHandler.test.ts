@@ -22,6 +22,7 @@ import { dirname, join, parse } from '../../../../base/common/path.js';
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
 import { withCreateChatWorkspaceMeta } from '../../common/meta/agentHostCreateChatWorkspaceMeta.js';
+import type { IAgentHostResourceReadRange } from '../../common/meta/agentHostResourceReadRangeMeta.js';
 import { AgentHostCreateSessionImportMetaKey, serializeCreateSessionImport, splitCreateSessionImportChunks, StageCreateSessionImportChunkExtensionMethod, supportsAgentHostCreateSessionImport, withCreateSessionImportMeta, withStagedCreateSessionImportMeta } from '../../common/meta/agentHostCreateSessionImportMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
 import { supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryDeletionState, supportsAgentHostAutomationHistoryReceipts } from '../../common/meta/agentHostAutomationsMeta.js';
@@ -780,6 +781,33 @@ suite('ProtocolServerHandler', () => {
 		}, { request: undefined, certificates: [] });
 	});
 
+	test('resourceRead forwards a byte range from _meta and rejects a malformed one', async () => {
+		const calls: { uri: string; encoding: ContentEncoding | undefined; range: IAgentHostResourceReadRange | undefined }[] = [];
+		agentService.resourceRead = async (uri: URI, encoding?: ContentEncoding, range?: IAgentHostResourceReadRange) => {
+			calls.push({ uri: uri.toString(), encoding, range });
+			return { data: 'AAEC', encoding: ContentEncoding.Base64 };
+		};
+		const transport = connectClient('ranged-reader');
+		transport.simulateMessage(request(2, 'resourceRead', { channel: ROOT_STATE_URI, uri: 'file:///test.bin', encoding: ContentEncoding.Base64, _meta: { 'vscode.range': { position: 16384 } } }));
+		transport.simulateMessage(request(3, 'resourceRead', { channel: ROOT_STATE_URI, uri: 'file:///test.bin', _meta: { 'vscode.range': { position: -1, length: 4 } } }));
+		transport.simulateMessage(request(4, 'resourceRead', { channel: ROOT_STATE_URI, uri: 'file:///test.bin' }));
+		await handler.whenIdle();
+
+		const invalid = findResponse(transport.sent, 3);
+		assert.deepStrictEqual({
+			calls,
+			ranged: findResponse(transport.sent, 2),
+			invalid: invalid && hasKey(invalid, { error: true }) ? invalid.error.code : undefined,
+		}, {
+			calls: [
+				{ uri: 'file:///test.bin', encoding: ContentEncoding.Base64, range: { position: 16384 } },
+				{ uri: 'file:///test.bin', encoding: undefined, range: undefined },
+			],
+			ranged: { jsonrpc: '2.0', id: 2, result: { data: 'AAEC', encoding: ContentEncoding.Base64 } },
+			invalid: JsonRpcErrorCodes.InvalidParams,
+		});
+	});
+
 	test('handshake returns initialize response', () => {
 		const transport = connectClient('client-1');
 
@@ -799,6 +827,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.agentHost': true,
 				'vscode.ahpSessionUris': true,
 				'vscode.ahpChatUris': true,
+				'vscode.resourceReadRanges': true,
 				'vscode.detachedWorktrees': true,
 				'vscode.createChatWorkspace': true,
 				'vscode.createSessionImport': true,
