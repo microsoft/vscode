@@ -61,6 +61,15 @@ class TrackingMenuService extends MenuService {
 suite('ChatEditingCodeEditorIntegration', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	setup(async () => {
+		const menuRegistered = Event.toPromise(Event.filter(MenuRegistry.onDidChangeMenu, event => event.has(MenuId.ChatEditingEditorHunk)));
+		disposables.add(MenuRegistry.appendMenuItem(MenuId.ChatEditingEditorHunk, {
+			command: { id: 'test.keepHunk', title: 'Keep' }
+		}));
+		// Flush registration before creating menus so it cannot rebuild a focused toolbar later.
+		await menuRegistered;
+	});
+
 	function createIntegration(actionViewItems?: MenuEntryActionViewItem[]) {
 		const container = mainWindow.document.createElement('div');
 		mainWindow.document.body.appendChild(container);
@@ -114,9 +123,6 @@ suite('ChatEditingCodeEditorIntegration', () => {
 		});
 		const menuService = disposables.add(instantiationService.createInstance(TrackingMenuService));
 		instantiationService.stub(IMenuService, menuService);
-		disposables.add(MenuRegistry.appendMenuItem(MenuId.ChatEditingEditorHunk, {
-			command: { id: 'test.keepHunk', title: 'Keep' }
-		}));
 
 		const lines = Array.from({ length: 20 }, (_, i) => `line ${i}`);
 		const originalModel = disposables.add(createTextModel(lines.join('\n')));
@@ -392,21 +398,25 @@ suite('ChatEditingCodeEditorIntegration', () => {
 		const toolbar = container.querySelector('.chat-diff-change-content-widget.hover .monaco-toolbar');
 		const action = toolbar?.querySelector<HTMLElement>('.action-label');
 		assert.ok(action);
+		let focusedOnCompletion = false;
 		disposables.add(actionViewItem.actionRunner.onDidRun(() => {
 			editor.setPosition({ lineNumber: 3, column: 1 });
 			action.focus();
+			focusedOnCompletion = mainWindow.document.activeElement === action;
 		}));
 		action.click();
 		await timeout(200);
 		const result = {
 			menus: menuService.activeHunkMenus.size,
 			sameToolbar: container.querySelector('.chat-diff-change-content-widget.hover .monaco-toolbar') === toolbar,
+			sameAction: toolbar?.querySelector('.action-label') === action,
+			focusedOnCompletion,
 			sameFocus: mainWindow.document.activeElement === action,
 		};
 		integration.dispose();
 		editor.dispose();
 
-		assert.deepStrictEqual(result, { menus: 1, sameToolbar: true, sameFocus: true });
+		assert.deepStrictEqual(result, { menus: 1, sameToolbar: true, sameAction: true, focusedOnCompletion: true, sameFocus: true });
 	}));
 
 	test('waits for all concurrent actions before releasing a hidden toolbar', () => runWithFakedTimers({}, async () => {
