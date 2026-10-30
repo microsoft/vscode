@@ -309,16 +309,24 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			await (this._discoveryQueued ?? this._discoveryInFlight);
 			return;
 		}
-		if (!this._hostService.hasFocus || (this._lastDiscoveryAttempt !== undefined && Date.now() - this._lastDiscoveryAttempt < this._discoveryRetryInterval)) {
+		if (!this._hostService.hasFocus || (this._lastDiscoveryAttempt !== undefined && Date.now() - this._lastDiscoveryAttempt < this._pollInterval())) {
 			return;
 		}
 		await this._discoverAndSeed({ incremental: true, trigger });
 	}
 
+	/** An account without any known sandbox only needs the periodic full reconciliation. */
+	private _pollInterval(): number {
+		return this._environments.size === 0 && this._lastFullDiscovery !== undefined
+			? Math.max(this._discoveryRetryInterval, FULL_DISCOVERY_INTERVAL_MS)
+			: this._discoveryRetryInterval;
+	}
+
 	/** Time until the current interval elapses since the latest inventory pass, spread so windows do not poll in lockstep. */
 	private _nextPollDelay(): number {
-		const due = this._lastDiscoveryAttempt === undefined ? 0 : this._lastDiscoveryAttempt + this._discoveryRetryInterval - Date.now();
-		return (due > 0 ? due : this._discoveryRetryInterval) + this._pollJitter();
+		const interval = this._pollInterval();
+		const due = this._lastDiscoveryAttempt === undefined ? 0 : this._lastDiscoveryAttempt + interval - Date.now();
+		return (due > 0 ? due : interval) + this._pollJitter();
 	}
 
 	protected _pollJitter(): number {
@@ -357,6 +365,10 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		this._discoveryInFlight = this._doDiscoverAndSeed(this._discoveryToken, this._discoveryIncremental, trigger, taskIds).finally(() => {
 			this._discoveryInFlight = undefined;
 			this._discoveryToken = undefined;
+			// The pass may have changed the interval (backoff, idle inventory), so re-arm from its outcome.
+			if (this._discoveryPoll.isScheduled()) {
+				this._discoveryPoll.schedule(this._nextPollDelay());
+			}
 		});
 		return this._discoveryInFlight;
 	}

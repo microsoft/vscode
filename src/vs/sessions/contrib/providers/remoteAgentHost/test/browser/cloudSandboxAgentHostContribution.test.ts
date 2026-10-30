@@ -2603,7 +2603,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 				batches.push(options?.taskIds);
 				return options?.incremental
 					? { kind: 'incremental', sessions: [], removedTaskIds: [] }
-					: { kind: 'complete', sessions: [] };
+					: { kind: 'complete', sessions: [discoveredSession()] };
 			},
 		});
 		for (let i = 0; i < 4; i++) {
@@ -2634,7 +2634,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		const harness = await createContribution(store, [], {
 			listSessions: async (_token, options) => options?.incremental
 				? { kind: 'incremental', sessions: [], removedTaskIds: [] }
-				: { kind: 'complete', sessions: [] },
+				: { kind: 'complete', sessions: [discoveredSession()] },
 		});
 		harness.setFocused(false);
 		harness.setFocused(true);
@@ -2702,7 +2702,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 				},
 			});
 			harness.discovered = [discoveredSession()];
-			await timeout(5 * 60_000 + 1);
+			await timeout(15 * 60_000 + 1);
 			await harness.contribution.checkForUpdates();
 			const afterPoll = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))?.seeded.map(session => session.summary);
 			await timeout(10 * 60_000);
@@ -2857,6 +2857,19 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		});
 	}));
 
+	test('polls at the full-scan interval until the account has a sandbox', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const harness = await createContribution(store, []);
+		await timeout(10 * 60_000 + 1);
+		const whileEmpty = harness.discoveryModes.length;
+		harness.discovered = [discoveredSession()];
+		await timeout(5 * 60_000);
+		const afterReconciliation = harness.discoveryModes.length;
+		await timeout(5 * 60_000 + 1);
+		assert.deepStrictEqual({ whileEmpty, afterReconciliation, modes: harness.discoveryModes }, {
+			whileEmpty: 1, afterReconciliation: 2, modes: [false, false, true],
+		});
+	}));
+
 	test('replaces account-scoped discovery subscriptions on account changes and cancels them on disablement', async () => {
 		const subscriptions: { disposed: boolean }[] = [];
 		const harness = await createContribution(store, [discoveredSession()], {
@@ -2879,7 +2892,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		const harness = await createContribution(store, [], {
 			listSessions: async (_token, options) => options?.incremental
 				? { kind: 'failed', reason: 'temporarily unavailable' }
-				: { kind: 'complete', sessions: [] },
+				: { kind: 'complete', sessions: [discoveredSession()] },
 		});
 		await timeout(5 * 60_000);
 		await harness.contribution.checkForUpdates();
@@ -2898,7 +2911,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 	test('queues one full refresh when manual requests overlap an incremental scan', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
 		const harness = await createContribution(store, [], {
-			listSessions: async (_token, options) => options?.incremental ? pending.p : { kind: 'complete', sessions: [] },
+			listSessions: async (_token, options) => options?.incremental ? pending.p : { kind: 'complete', sessions: [discoveredSession()] },
 		});
 		await timeout(5 * 60_000);
 		const automatic = harness.contribution.checkForUpdates();
