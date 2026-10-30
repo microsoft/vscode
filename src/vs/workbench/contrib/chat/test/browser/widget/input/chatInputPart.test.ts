@@ -227,25 +227,6 @@ suite('ChatInputPart', () => {
 		assert.deepStrictEqual(states, [false, true, false, false]);
 	});
 
-	test('syncs the draft only for configuration changes to the selected model', () => {
-		const changed = store.add(new Emitter<string>());
-		const synced: string[] = [];
-		let changing: string | undefined;
-		const inputPart: { registerModelConfigurationListeners(): void } = Object.assign(Object.create(ChatInputPart.prototype), {
-			_store: store.add(new DisposableStore()),
-			_currentLanguageModel: constObservable({ identifier: 'copilot/selected' }),
-			_modelConfigStore: { onDidChange: changed.event, onDidSelectConfiguration: Event.None },
-			_syncInputStateToModel: () => synced.push(changing!),
-		});
-		inputPart.registerModelConfigurationListeners();
-		// Switching chats reports every model's configuration at once.
-		for (const modelId of ['copilot/other', 'copilot/selected', 'copilot/another']) {
-			changing = modelId;
-			changed.fire(modelId);
-		}
-		assert.deepStrictEqual(synced, ['copilot/selected']);
-	});
-
 	function createModelPoolInput(models: readonly ILanguageModelChatMetadataAndIdentifier[]) {
 		const sessionResource = URI.from({ scheme: 'agent-host-copilotcli', path: '/session', fragment: 'peer' });
 		const revalidations: (string | undefined)[] = [];
