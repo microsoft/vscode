@@ -30,7 +30,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { ActiveTunnelMode, INACTIVE_TUNNEL_MODE, IRemoteTunnelService, TunnelMode, TunnelStatus } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
-import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
 import { IHostService } from '../../../../../../workbench/services/host/browser/host.js';
@@ -271,9 +271,9 @@ suite('TunnelAgentHostContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createInstantiationService(): TestInstantiationService {
+	function createInstantiationService(storageService = store.add(new TestStorageService())): TestInstantiationService {
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
+		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IConnectionDiagnosticsService, {
 			trackDiscovery: (_trigger, discover) => discover(() => { }),
 			recordHostAction: () => { },
@@ -358,6 +358,38 @@ suite('TunnelAgentHostContribution', () => {
 			'unknown',
 			undefined,
 		]);
+	});
+
+	test('clears a remembered local registration after authoritative empty discovery', async () => {
+		const storageService = store.add(new TestStorageService());
+		storageService.store('tunnelAgentHost.localRegistrationTunnelId', 'deleted-tunnel', StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const tunnelService = store.add(new StubTunnelService());
+		tunnelService.setCached([]);
+		tunnelService.setListed([]);
+		const instantiationService = createInstantiationService(storageService);
+		instantiationService.stub(ITunnelAgentHostService, tunnelService);
+		instantiationService.stub(IRemoteAgentHostService, store.add(new StubRemoteAgentHostService()));
+		instantiationService.stub(ISessionsProvidersService, store.add(new StubSessionsProvidersService()));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }));
+		instantiationService.stub(INotificationService, new TestNotificationService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None });
+		instantiationService.stub(ITelemetryService, { publicLog2: () => { } });
+		instantiationService.stub(IHostService, new StubHostService());
+		instantiationService.stub(IRemoteTunnelService, store.add(new StubRemoteTunnelService()));
+		let discover: (() => Promise<void>) | undefined;
+		instantiationService.stub(IAgentHostFilterService, {
+			registerDiscoveryHandler: handler => {
+				discover = handler;
+				return toDisposable(() => { discover = undefined; });
+			},
+			rediscover: async () => true,
+		});
+
+		store.add(instantiationService.createInstance(TestTunnelContribution));
+		assert.ok(discover);
+		await discover();
+		assert.strictEqual(storageService.get('tunnelAgentHost.localRegistrationTunnelId', StorageScope.APPLICATION), undefined);
 	});
 
 	test('newly-cached tunnel binds to subsequent live connection', async () => {

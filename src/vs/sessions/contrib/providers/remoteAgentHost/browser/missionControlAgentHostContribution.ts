@@ -260,6 +260,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 					: localize('missionControl.unavailable', "Offline");
 			}),
 			localRegistration: derived(this, reader => this._inventory.ownEnvironmentId.read(reader) === id ? 'githubEnvironment' : undefined),
+			localRegistrationName: derived(this, reader => this._inventory.hosts.read(reader).find(host => host.id === id)?.name),
 			connectionLabels: {
 				unavailableTitle: localize('missionControl.unavailableTitle', "Environment Disconnected"),
 				unavailableDescription: localize('missionControl.unavailableDescription', "Start the environment's owning application, then reconnect. This does not start or replace its compute."),

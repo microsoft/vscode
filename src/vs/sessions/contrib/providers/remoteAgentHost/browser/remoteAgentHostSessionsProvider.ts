@@ -112,6 +112,7 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly connectionLabels?: IAgentHostConnectionLabels;
 	readonly hostDescription?: IObservable<string>;
 	readonly localRegistration?: IObservable<'devTunnel' | 'githubEnvironment' | undefined>;
+	readonly localRegistrationName?: IObservable<string | undefined>;
 	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
 	/** Overrides the stable host key for account-scoped picker preferences. */
 	readonly pickerVisibilityKey?: string;
@@ -202,6 +203,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly hostDescription?: IObservable<string>;
 	readonly isAvailableInEnvironmentPicker?: IObservable<boolean>;
 	readonly localRegistration?: IObservable<'devTunnel' | 'githubEnvironment' | undefined>;
+	readonly localRegistrationName?: IObservable<string | undefined>;
 	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
 	readonly showInEnvironmentPicker: () => void;
 	readonly removeLabel?: string;
@@ -356,6 +358,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.connectionLabels = config.connectionLabels;
 		this.hostDescription = config.hostDescription;
 		this.localRegistration = config.localRegistration;
+		this.localRegistrationName = config.localRegistrationName;
 		const pickerVisibility = this._register(new RemoteAgentHostPickerVisibility(storageService));
 		const pickerKey = config.pickerVisibilityKey ?? getRemoteAgentHostPickerKey(config.preferenceKey ?? config.address);
 		const manageRemotes = observableConfigValue(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, true, this._configurationService);

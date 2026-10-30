@@ -153,6 +153,9 @@ registerAction2(class extends Action2 {
 			const usesGitHubEnvironment = isGitHubEnvironmentBackend(configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId));
 			const registration = usesGitHubEnvironment ? 'githubEnvironment' : 'devTunnel';
 			const localProvider = remoteProviders.find(provider => provider.localRegistration?.get() === registration);
+			const registrationName = usesGitHubEnvironment
+				? missionControlSharingService.environmentName.get() ?? localProvider?.localRegistrationName?.get()
+				: localProvider?.localRegistrationName?.get();
 			const sharingState = usesGitHubEnvironment
 				? missionControlSharingService.state.get() === 'enabled' ? 'on' : missionControlSharingService.state.get() === 'connecting' ? 'connecting' : 'off'
 				: remoteTunnelStatus.type === 'connected' ? 'on' : remoteTunnelStatus.type === 'connecting' ? 'connecting' : 'off';
@@ -163,7 +166,7 @@ registerAction2(class extends Action2 {
 					{
 						kind: 'local',
 						label: `$(device-desktop) ${localize('manageHosts.thisComputer', "This Computer")}`,
-						description: getThisComputerDescription({ route: registration, registrationName: localProvider?.label, sharingState }),
+						description: getThisComputerDescription({ route: registration, registrationName, sharingState }),
 						detail: sharingState === 'connecting'
 							? localize('manageHosts.thisComputerConnectingDetail', "Sharing is starting. Select to cancel. Sessions continue to run directly here.")
 							: localize('manageHosts.thisComputerDetail', "Sessions run directly here even when sharing is off. Turn sharing on to let other clients connect."),
@@ -232,6 +235,7 @@ registerAction2(class extends Action2 {
 								p.connectionStatus!.read(reader);
 								p.hostDescription?.read(reader);
 								p.localRegistration?.read(reader);
+								p.localRegistrationName?.read(reader);
 								refresh();
 							}));
 						}
@@ -254,6 +258,7 @@ registerAction2(class extends Action2 {
 			}));
 			store.add(autorun(reader => {
 				missionControlSharingService.state.read(reader);
+				missionControlSharingService.environmentName.read(reader);
 				refresh();
 			}));
 

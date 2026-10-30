@@ -234,12 +234,18 @@ suite('Mission Control native provider inventory', () => {
 			{ id: 'remote-environment', name: 'Other Mac', kind: 'user-local', status: 'online' },
 		], undefined);
 		await rediscover();
+		hosts.set([
+			{ id: 'local-environment', name: 'This Mac', displayName: 'Profile Alias', kind: 'user-local', status: 'online' },
+			{ id: 'remote-environment', name: 'Other Mac', kind: 'user-local', status: 'online' },
+		], undefined);
 		assert.deepStrictEqual({
 			registrations: created.map(({ options }) => options.localRegistration?.get()),
+			registrationNames: created.map(({ options }) => options.localRegistrationName?.get()),
 			visibleInPicker: created.map(({ options }) => options.isVisibleInEnvironmentPicker?.get()),
 			connects: actions.filter(action => action.startsWith('connect:')),
 		}, {
 			registrations: ['githubEnvironment', undefined],
+			registrationNames: ['This Mac', 'Other Mac'],
 			visibleInPicker: [false, true],
 			connects: ['connect:remote-environment'],
 		});

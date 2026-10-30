@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { derived, observableValue } from '../../../../../base/common/observable.js';
+import { derived, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import * as nls from '../../../../../nls.js';
 import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -268,11 +268,13 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	}
 
 	protected _instantiateProvider(address: string, name: string): RemoteAgentHostSessionsProvider {
+		const tunnelId = address.slice(TUNNEL_ADDRESS_PREFIX.length);
 		return this._instantiationService.createInstance(
 			RemoteAgentHostSessionsProvider, {
 			address,
 			name,
-			localRegistration: derived(this, reader => this._localRegistrationTunnelId.read(reader) === address.slice(TUNNEL_ADDRESS_PREFIX.length) ? 'devTunnel' : undefined),
+			localRegistration: derived(this, reader => this._localRegistrationTunnelId.read(reader) === tunnelId ? 'devTunnel' : undefined),
+			localRegistrationName: observableFromEvent(this, this._tunnelService.onDidChangeTunnels, () => this._tunnelService.getCachedTunnels().find(tunnel => tunnel.tunnelId === tunnelId)?.name),
 			connectOnDemand: () => this._connectTunnel(address, { userInitiated: true }),
 			disconnectOnDemand: () => this._disconnectTunnel(address),
 			removeOnDemand: () => this._removeTunnel(address),
@@ -520,6 +522,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 					this._tunnelService.cacheTunnel(tunnel, 'github');
 				}
 			}
+			this._reconcileProviders();
 
 			// Update online/offline status based on hostConnectionCount for
 			// tunnels that do not currently have a service-owned connection.
