@@ -5,6 +5,7 @@
 
 import * as browser from '../../../../base/browser/browser.js';
 import { getActiveDocument, getActiveWindow } from '../../../../base/browser/dom.js';
+import { IReadonlyVSDataTransfer } from '../../../../base/common/dataTransfer.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import * as platform from '../../../../base/common/platform.js';
 import * as nls from '../../../../nls.js';
@@ -14,12 +15,14 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { CopyOptions, generateDataToCopyAndStoreInMemory, InMemoryClipboardMetadataManager } from '../../../browser/controller/editContext/clipboardUtils.js';
+import { CopyOptions, createClipboardCopyEventFromData, createClipboardPasteEventFromData, generateDataToCopyAndStoreInMemory, InMemoryClipboardMetadataManager } from '../../../browser/controller/editContext/clipboardUtils.js';
 import { NativeEditContextRegistry } from '../../../browser/controller/editContext/native/nativeEditContextRegistry.js';
+import { toDataTransfer, toVSDataTransfer } from '../../../browser/dataTransfer.js';
 import { IActiveCodeEditor, ICodeEditor } from '../../../browser/editorBrowser.js';
 import { Command, EditorAction, MultiCommand, registerEditorAction } from '../../../browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Selection } from '../../../common/core/selection.js';
 import { Handler } from '../../../common/editorCommon.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { CopyPasteController } from '../../dropOrPasteInto/browser/copyPasteController.js';
@@ -32,13 +35,14 @@ const supportsCopy = (platform.isNative || (document.queryCommandSupported && do
 // See https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#Browser_compatibility
 // When loading over http, navigator.clipboard can be undefined. See https://github.com/microsoft/monaco-editor/issues/2313
 const supportsPaste = (typeof navigator.clipboard === 'undefined' || browser.isFirefox) ? document.queryCommandSupported && document.queryCommandSupported('paste') : true;
+const supportsClipboardApi = typeof navigator.clipboard !== 'undefined';
 
 function registerCommand<T extends Command>(command: T): T {
 	command.register();
 	return command;
 }
 
-export const CutAction = supportsCut ? registerCommand(new MultiCommand({
+export const CutAction = (supportsCut || supportsClipboardApi) ? registerCommand(new MultiCommand({
 	id: 'editor.action.clipboardCutAction',
 	precondition: undefined,
 	kbOpts: (
@@ -75,7 +79,7 @@ export const CutAction = supportsCut ? registerCommand(new MultiCommand({
 	}]
 })) : undefined;
 
-export const CopyAction = supportsCopy ? registerCommand(new MultiCommand({
+export const CopyAction = (supportsCopy || supportsClipboardApi) ? registerCommand(new MultiCommand({
 	id: 'editor.action.clipboardCopyAction',
 	precondition: undefined,
 	kbOpts: (
@@ -115,7 +119,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, { submenu: MenuId.EditorContex
 MenuRegistry.appendMenuItem(MenuId.EditorContext, { submenu: MenuId.EditorContextShare, title: nls.localize2('share', "Share"), group: '11_share', order: -1, when: ContextKeyExpr.and(ContextKeyExpr.notEquals('resourceScheme', 'output'), EditorContextKeys.editorTextFocus) });
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, { submenu: MenuId.ExplorerContextShare, title: nls.localize2('share', "Share"), group: '11_share', order: -1 });
 
-export const PasteAction = supportsPaste ? registerCommand(new MultiCommand({
+export const PasteAction = (supportsPaste || supportsClipboardApi) ? registerCommand(new MultiCommand({
 	id: 'editor.action.clipboardPasteAction',
 	precondition: undefined,
 	kbOpts: (
@@ -168,7 +172,7 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
 		const logService = accessor.get(ILogService);
 		const clipboardService = accessor.get(IClipboardService);
 		logService.trace('ExecCommandCopyWithSyntaxHighlightingAction#run');
@@ -182,6 +186,16 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends EditorAction {
 			return;
 		}
 
+		if (editor.getOption(EditorOption.experimentalClipboardApi)) {
+			editor.focus();
+			try {
+				CopyOptions.forceCopyWithSyntaxHighlighting = true;
+				return executeClipboardApiCopy(editor, clipboardService, logService);
+			} finally {
+				CopyOptions.forceCopyWithSyntaxHighlighting = false;
+			}
+		}
+
 		CopyOptions.forceCopyWithSyntaxHighlighting = true;
 		editor.focus();
 		logService.trace('ExecCommandCopyWithSyntaxHighlightingAction (before execCommand copy)');
@@ -191,21 +205,99 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends EditorAction {
 	}
 }
 
-function executeClipboardCopyWithWorkaround(editor: IActiveCodeEditor, clipboardService: IClipboardService) {
+async function executeClipboardApiCopy(editor: IActiveCodeEditor, clipboardService: IClipboardService, logService: ILogService): Promise<void> {
+	const result = await tryWriteClipboardApiData(editor, clipboardService, logService, false);
+	if (result) {
+		return;
+	}
+	try {
+		const execCommandCopy = executeClipboardCopyWithWorkaround(editor, clipboardService);
+		if (execCommandCopy === false) {
+			throw new Error(nls.localize('clipboard.copyFailed', "Unable to copy to the clipboard."));
+		}
+		await execCommandCopy;
+	} catch (error) { throw error; }
+}
+
+async function executeClipboardApiCut(editor: IActiveCodeEditor, clipboardService: IClipboardService, logService: ILogService): Promise<void> {
+	const model = editor.getModel();
+	const versionId = model.getVersionId();
+	const selections = editor.getSelections();
+	const isCutStateCurrent = () => editor.getModel() === model
+		&& model.getVersionId() === versionId
+		&& Selection.selectionsArrEqual(selections, editor.getSelections());
+	const result = await tryWriteClipboardApiData(editor, clipboardService, logService, true);
+	if (!isCutStateCurrent()) {
+		logService.trace('Skipping clipboard cut because the editor state changed during the clipboard write.');
+		return;
+	}
+	if (result) {
+		editor.trigger('keyboard', Handler.Cut, undefined);
+		return;
+	}
+	try {
+		const editContext = editor.getOption(EditorOption.effectiveEditContext);
+		if (editContext) {
+			const execCommandCopy = executeClipboardCopyWithWorkaround(editor, clipboardService);
+			if (execCommandCopy === false) {
+				throw new Error(nls.localize('clipboard.cutFailed', "Unable to cut to the clipboard."));
+			}
+			await execCommandCopy;
+			if (!isCutStateCurrent()) {
+				logService.trace('Skipping clipboard cut because the editor state changed during the clipboard fallback.');
+				return;
+			}
+			editor.trigger(undefined, Handler.Cut, undefined);
+		} else {
+			const execCommandCut = editor.getContainerDomNode().ownerDocument.execCommand('cut');
+			if (!execCommandCut) {
+				throw new Error(nls.localize('clipboard.cutFailed', "Unable to cut to the clipboard."));
+			}
+		}
+	} catch (error) { throw error; }
+}
+
+async function tryWriteClipboardApiData(editor: IActiveCodeEditor, clipboardService: IClipboardService, logService: ILogService, isCut: boolean): Promise<boolean> {
+	if (!clipboardService.supportsClipboardData) {
+		return false;
+	}
+	const data = new DataTransfer();
+	const event = createClipboardCopyEventFromData(
+		data,
+		isCut,
+		editor._getViewModel(),
+		logService,
+		browser.isFirefox
+	);
+	// Let other providers contribute to the clipboard data before we write it
+	editor.triggerOnWillCopyOrCut(event);
+	// Same pattern as in NativeEditContext and TextAreaEditContextInput
+	event.ensureClipboardGetsEditorData();
+	try {
+		await clipboardService.writeData(toVSDataTransfer(data));
+		return true;
+	} catch (error) {
+		logService.warn('Clipboard API write unavailable; falling back to a clipboard event.', error);
+		return false;
+	}
+}
+
+function executeClipboardCopyWithWorkaround(editor: IActiveCodeEditor, clipboardService: IClipboardService): boolean | Promise<void> {
 	// !!!!!
 	// This is a workaround for what we think is an Electron bug where
 	// execCommand('copy') does not always work (it does not fire a clipboard event)
 	// We will use this as a signal that we have executed a copy command
 	// !!!!!
 	CopyOptions.electronBugWorkaroundCopyEventHasFired = false;
-	editor.getContainerDomNode().ownerDocument.execCommand('copy');
+	const commandSucceeded = editor.getContainerDomNode().ownerDocument.execCommand('copy');
 	if (platform.isNative && CopyOptions.electronBugWorkaroundCopyEventHasFired === false) {
 		// We have encountered the Electron bug!
 		// As a workaround, we will write (only the plaintext data) to the clipboard in a different way
 		// We will use the clipboard service (which in the native case will go to electron's clipboard API)
 		const { dataToCopy } = generateDataToCopyAndStoreInMemory(editor._getViewModel(), undefined, browser.isFirefox);
-		clipboardService.writeText(dataToCopy.text);
+		return clipboardService.writeText(dataToCopy.text);
 	}
+	return commandSucceeded;
 }
 
 function registerExecCommandImpl(target: MultiCommand | undefined, browserCommand: 'cut' | 'copy'): void {
@@ -226,6 +318,11 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 			const selection = focusedEditor.getSelection();
 			if (selection && selection.isEmpty() && !emptySelectionClipboard) {
 				return true;
+			}
+			if (focusedEditor.getOption(EditorOption.experimentalClipboardApi)) {
+				return browserCommand === 'cut'
+					? executeClipboardApiCut(focusedEditor, clipboardService, logService)
+					: executeClipboardApiCopy(focusedEditor, clipboardService, logService);
 			}
 			// TODO this is very ugly. The entire copy/paste/cut system needs a complete refactoring.
 			if (focusedEditor.getOption(EditorOption.effectiveEditContext) && browserCommand === 'cut') {
@@ -294,6 +391,10 @@ if (PasteAction) {
 				}
 			}
 
+			if (focusedEditor.getOption(EditorOption.experimentalClipboardApi)) {
+				return executeClipboardApiPaste(focusedEditor, clipboardService, logService);
+			}
+
 			logService.trace('registerExecCommandImpl (before triggerPaste)');
 			const triggerPaste = clipboardService.triggerPaste(getActiveWindow().vscodeWindowId);
 			if (triggerPaste) {
@@ -347,6 +448,50 @@ if (PasteAction) {
 	});
 }
 
-if (supportsCopy) {
+if (supportsCopy || supportsClipboardApi) {
 	registerEditorAction(ExecCommandCopyWithSyntaxHighlightingAction);
+}
+
+async function executeClipboardApiPaste(editor: IActiveCodeEditor, clipboardService: IClipboardService, logService: ILogService): Promise<void> {
+	let data: IReadonlyVSDataTransfer | undefined;
+	if (clipboardService.supportsClipboardData) {
+		try {
+			data = await clipboardService.readData();
+			if (data) {
+				const clipboardData = await toDataTransfer(data);
+				const event = createClipboardPasteEventFromData(clipboardData);
+				editor.triggerOnWillPaste(event);
+				if (event.isHandled || !event.text) {
+					// Paste providers can handle rich formats; do not also run the plain-text fallback below.
+					return CopyPasteController.get(editor)?.finishedPaste();
+				}
+				const metadata = event.metadata;
+				let isBlock = false;
+				let pasteOnNewLine = false;
+				let multicursorText: string[] | null = null;
+				let mode: string | null = null;
+				if (metadata) {
+					isBlock = !!metadata.isBlock;
+					pasteOnNewLine = (editor.getOption(EditorOption.emptySelectionClipboard) && !!metadata.isFromEmptySelection);
+					multicursorText = (typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null);
+					mode = metadata.mode;
+				}
+				return editor.trigger('keyboard', Handler.Paste, {
+					text: event.text,
+					pasteOnNewLine,
+					multicursorText,
+					isBlock,
+					mode,
+				});
+			}
+		} catch (error) {
+			logService.warn('Clipboard API read failed; using clipboard fallback.', error);
+		}
+	}
+	const triggerPaste = clipboardService.triggerPaste(getActiveWindow().vscodeWindowId);
+	if (triggerPaste) {
+		await triggerPaste;
+		logService.trace('triggerPaste called on clipboardService');
+		return CopyPasteController.get(editor)?.finishedPaste();
+	}
 }
