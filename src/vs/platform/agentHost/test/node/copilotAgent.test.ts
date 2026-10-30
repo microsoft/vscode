@@ -18590,6 +18590,40 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('uses the host gate passed to discovery over the setting a client mirrored after host startup', async () => {
+			const discovered = async (hostGate: boolean, mirroredSetting: boolean) => {
+				const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/host-gate-home-`));
+				const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/host-gate-cwd-`);
+				const sessionId = `host-gate-${hostGate}`;
+				const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+				await writeExtensionHostMarker(userHome, sessionId);
+				const { agent } = createTestAgentContext(disposables, {
+					copilotClient: client,
+					userHome,
+					rootConfig: { [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: mirroredSetting },
+				});
+				const discoveredChats: Array<readonly IAgentChatMetadata[]> = [];
+				const listener = agent.onDidDiscoverChats(chats => discoveredChats.push(chats));
+				try {
+					await agent.startChatDiscovery({ migrateLegacyChats: hostGate });
+					return discoveredChats.flatMap(chats => chats.map(chat => sessionIdOfChat(chat.chat)));
+				} finally {
+					listener.dispose();
+					await fs.rm(userHome.fsPath, { recursive: true, force: true });
+					await fs.rm(workingDirectory, { recursive: true, force: true });
+					await disposeAgent(agent);
+				}
+			};
+
+			assert.deepStrictEqual({
+				hostOffMirroredOn: await discovered(false, true),
+				hostOnMirroredOff: await discovered(true, false),
+			}, {
+				hostOffMirroredOn: [],
+				hostOnMirroredOff: ['host-gate-true'],
+			});
+		});
+
 		test('does not discover an extension-host chat with an empty Agent Host database', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/ghost-migration-event-home-`));
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/ghost-migration-event-cwd-`);
