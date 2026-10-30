@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { TreeVisibility } from '../../../../../base/browser/ui/tree/tree.js';
+import { Event } from '../../../../../base/common/event.js';
 import { IExpression } from '../../../../../base/common/glob.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -13,7 +14,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { NullFilesConfigurationService } from '../../../../test/common/workbenchTestServices.js';
+import { NullFilesConfigurationService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
 import { IExplorerService } from '../../browser/files.js';
 import { FilesFilter } from '../../browser/views/explorerViewer.js';
 import { ExplorerItem } from '../../common/explorerModel.js';
@@ -22,9 +23,9 @@ suite('Files - FilesFilter', () => {
 
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createFilter(exclude: IExpression) {
+	function createFilter(exclude: IExpression, excludeGitIgnore = false) {
 		const instantiationService = workbenchInstantiationService({
-			configurationService: () => new TestConfigurationService({ files: { exclude }, explorer: { excludeGitIgnore: false } }),
+			configurationService: () => new TestConfigurationService({ files: { exclude }, explorer: { excludeGitIgnore } }),
 		}, ds);
 		instantiationService.stub(IExplorerService, {
 			getEditableData: () => undefined,
@@ -38,7 +39,7 @@ suite('Files - FilesFilter', () => {
 		const createItem = (parent: ExplorerItem, name: string, isDirectory: boolean) => new ExplorerItem(joinPath(parent.resource, name), fileService, configurationService, NullFilesConfigurationService, parent, isDirectory);
 		const filter = ds.add(instantiationService.createInstance(FilesFilter));
 
-		return { root, createItem, filter };
+		return { root, createItem, filter, fileService: fileService as TestFileService };
 	}
 
 	test('shows exclude exceptions and the folders that lead to them without marking those folders as excluded', () => {
@@ -69,6 +70,25 @@ suite('Files - FilesFilter', () => {
 			'node_modules/react': { visible: false, isExcluded: true },
 			'gulpfile.js': { visible: true, isExcluded: false },
 			'index.js': { visible: false, isExcluded: true },
+		});
+	});
+
+	test('gitignored folders that lead to an exception are not ignored', async () => {
+		const { root, createItem, filter, fileService } = createFilter({ '!build/keep.txt': true }, true);
+		fileService.setContent('build/\nout/\n');
+		const changed = Event.toPromise(filter.onDidChange);
+		filter.filter(createItem(root, '.gitignore', false), TreeVisibility.Visible);
+		await changed;
+
+		const build = createItem(root, 'build', true);
+		assert.deepStrictEqual({
+			folderLeadingToException: filter.isIgnored(build.resource, root.resource, true),
+			exception: filter.isIgnored(createItem(build, 'keep.txt', false).resource, root.resource, false),
+			ignoredFolder: filter.isIgnored(createItem(root, 'out', true).resource, root.resource, true),
+		}, {
+			folderLeadingToException: false,
+			exception: false,
+			ignoredFolder: true,
 		});
 	});
 });
