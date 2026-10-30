@@ -3,34 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createHash } from 'node:crypto';
 import { Duplex } from 'node:stream';
 import { stripVTControlCharacters } from 'node:util';
-import { RelayConnectionError, TunnelRelayTunnelClient } from '@microsoft/dev-tunnels-connections';
+import { ConnectionStatus, RelayConnectionError, TunnelRelayTunnelClient } from '@microsoft/dev-tunnels-connections';
 import type { Tunnel } from '@microsoft/dev-tunnels-contracts';
 import { ManagementApiVersions, TunnelAccessTokenProperties, TunnelManagementHttpClient } from '@microsoft/dev-tunnels-management';
 import { CancellationTokenSource } from '@microsoft/dev-tunnels-ssh';
-import WebSocket from 'ws';
-import { deadline, maxBufferedBytes, MessageConnection, record, text, timeoutMs } from './wire.js';
+import { agentHostPort, openAgentHost, type AgentHostConnection, type ChooseHost, type Machine } from './agentHost.js';
+import { deadline } from './wire.js';
 
-const agentHostPort = 31546;
+export { openSocket, selectHost } from './agentHost.js';
+export type { AgentHostConnection, ChooseHost, Host, HostSelection, Machine } from './agentHost.js';
+
 const launcherLabel = 'vscode-server-launcher';
-
-export interface Machine {
-	id: string;
-	cluster: string;
-	name: string;
-	protocolVersion: number;
-	online: boolean;
-}
-
-export interface Host {
-	instanceId: string;
-	type: 'editor' | 'standalone';
-	pid: number;
-}
-
-export type HostSelection = { instanceId: string } | { newDedicated: true };
 
 export function hasAgentHostPort(tunnel: Tunnel): boolean {
 	return tunnel.ports?.some(port => port.portNumber === agentHostPort) ?? false;
@@ -123,86 +108,21 @@ export async function discoverMachines(token: string, provider: 'github' | 'micr
 	}
 }
 
-export async function openSocket(stream: Duplex, path: string, signal?: AbortSignal): Promise<MessageConnection> {
-	const socket = new WebSocket(`ws://localhost:${agentHostPort}${path}`, {
-		createConnection: () => stream,
-		followRedirects: false,
-		handshakeTimeout: timeoutMs,
-		maxPayload: maxBufferedBytes,
-		perMessageDeflate: false,
-	});
-	const connection = new MessageConnection(socket);
-	let onOpen: (() => void) | undefined;
-	let onError: (() => void) | undefined;
-	let onClose: (() => void) | undefined;
-	try {
-		await deadline(new Promise<void>((resolve, reject) => {
-			onOpen = resolve;
-			onError = () => reject(new Error('Agent-host WebSocket upgrade failed. Check tunnel/host compatibility.'));
-			onClose = () => reject(new Error('Agent-host connection closed during upgrade.'));
-			socket.once('open', onOpen);
-			socket.once('error', onError);
-			socket.once('close', onClose);
-		}), 'Agent-host WebSocket upgrade', signal);
-		return connection;
-	} catch (error) {
-		connection.dispose();
-		stream.destroy();
-		throw error;
-	} finally {
-		if (onOpen) { socket.off('open', onOpen); }
-		if (onError) { socket.off('error', onError); }
-		if (onClose) { socket.off('close', onClose); }
-	}
+/** An authenticated relay session that can open any number of streams to the agent-host port. */
+export interface RelayConnection {
+	/** The machine with the protocol version advertised by the freshly fetched tunnel metadata. */
+	readonly machine: Machine;
+	readonly connected: boolean;
+	openStream(signal: AbortSignal): Promise<Duplex>;
+	dispose(): Promise<void>;
 }
 
-export async function selectHost(
-	connection: MessageConnection,
-	choose: (hosts: Host[], canCreate: boolean) => Promise<HostSelection>,
-	signal: AbortSignal,
-): Promise<void> {
-	const inventory = await deadline(connection.read(), 'Host inventory', signal);
-	if (!Array.isArray(inventory.endpoints)) {
-		throw new Error('Malformed gateway inventory: missing endpoints.');
-	}
-	const hosts = inventory.endpoints.map((value): Host => {
-		const entry = record(value, 'host');
-		if ((entry.type !== 'editor' && entry.type !== 'standalone') || typeof entry.pid !== 'number' || !Number.isInteger(entry.pid)) {
-			throw new Error('Malformed gateway host.');
-		}
-		return { instanceId: text(entry.instanceId, 'host ID'), type: entry.type, pid: entry.pid };
-	});
-	const selection = await choose(hosts, inventory.delegatedInstanceId === undefined);
-	if ('instanceId' in selection) {
-		if (!hosts.some(host => host.instanceId === selection.instanceId)) {
-			throw new Error('Selected host is not in the gateway inventory.');
-		}
-	} else if (inventory.delegatedInstanceId !== undefined) {
-		throw new Error('This tunnel cannot create a dedicated host.');
-	}
-	connection.send(selection);
-	const response = await deadline(connection.read(), 'Host selection/startup', signal, 120_000);
-	if (response.ok !== true) {
-		throw new Error(`Gateway rejected host selection: ${text(response.error, 'gateway error')}`);
-	}
-	const selected = record(response.selected, 'selected host');
-	if ((selected.type !== 'editor' && selected.type !== 'standalone') || selected.role !== 'primary'
-		|| (selected.lifecycle !== 'external' && selected.lifecycle !== 'managed') || typeof selected.instanceId !== 'string') {
-		throw new Error('Malformed gateway selection acknowledgement.');
-	}
-	if (('instanceId' in selection && selected.instanceId !== selection.instanceId)
-		|| ('newDedicated' in selection && selected.type !== 'standalone')) {
-		throw new Error('Gateway selected a different host than requested.');
-	}
-}
-
-export async function connectMachine(
+export async function connectRelay(
 	machine: Machine,
 	token: string,
 	provider: 'github' | 'microsoft',
-	choose: (hosts: Host[], canCreate: boolean) => Promise<HostSelection>,
 	signal: AbortSignal,
-): Promise<{ connection: MessageConnection; dispose(): Promise<void> }> {
+): Promise<RelayConnection> {
 	if (machine.protocolVersion < 5) {
 		throw new Error('This tunnel predates agent-host support (launcher protocol 5 required). Update the remote tunnel CLI/build.');
 	}
@@ -210,22 +130,14 @@ export async function connectMachine(
 	const relay = new TunnelRelayTunnelClient(management);
 	const cancellation = new CancellationTokenSource();
 	relay.acceptLocalConnectionsForForwardedPorts = false;
-	let connection: MessageConnection | undefined;
-	let stream: Duplex | undefined;
 	let disposed = false;
-	const onAbort = (): void => {
-		cancellation.cancel();
-		connection?.dispose();
-		stream?.destroy();
-	};
+	const onAbort = (): void => cancellation.cancel();
 	signal.addEventListener('abort', onAbort, { once: true });
 	const dispose = async (): Promise<void> => {
 		if (disposed) { return; }
 		disposed = true;
 		signal.removeEventListener('abort', onAbort);
 		cancellation.cancel();
-		connection?.dispose();
-		stream?.destroy();
 		try {
 			await relay.dispose();
 		} finally {
@@ -282,31 +194,31 @@ export async function connectMachine(
 				? 'Agent-host port wait cancelled.'
 				: 'The tunnel advertises port 31546, but its remote host is not accepting it. Restart the remote tunnel/agent-host command and keep that process running.');
 		}
-		try {
-			stream = await deadline(relay.connectToForwardedPort(agentHostPort, cancellation.token), 'Agent-host port connection', signal);
-		} catch {
-			throw new Error(signal.aborted
-				? 'Agent-host port connection cancelled.'
-				: 'The tunnel publishes port 31546, but opening its forwarded stream failed. Restart the remote tunnel/agent-host command and check its logs.');
-		}
-		// The SDK carries this WebSocket over its authenticated relay stream, not local TCP.
-		const version = parseMachine(tunnel).protocolVersion;
-		if (version < 5) {
+		const fresh = { ...machine, protocolVersion: parseMachine(tunnel).protocolVersion };
+		if (fresh.protocolVersion < 5) {
 			throw new Error('The tunnel no longer advertises agent-host support. Refresh the machine list.');
 		}
-		let path = '/agent-host/select';
-		if (version < 6) {
-			let connectionToken = createHash('sha256').update(machine.id).digest('base64url');
-			if (connectionToken.startsWith('-')) {
-				connectionToken = `a${connectionToken}`;
-			}
-			path = `/?tkn=${encodeURIComponent(connectionToken)}`;
-		}
-		connection = await openSocket(stream, path, signal);
-		if (version >= 6) {
-			await selectHost(connection, choose, signal);
-		}
-		return { connection, dispose };
+		return {
+			machine: fresh,
+			get connected() { return !disposed && relay.connectionStatus === ConnectionStatus.Connected; },
+			openStream: async (streamSignal: AbortSignal): Promise<Duplex> => {
+				const streamCancellation = new CancellationTokenSource();
+				const onStreamAbort = (): void => streamCancellation.cancel();
+				streamSignal.addEventListener('abort', onStreamAbort, { once: true });
+				try {
+					// The SDK carries the agent-host WebSocket over its authenticated relay stream, not local TCP.
+					return await deadline(relay.connectToForwardedPort(agentHostPort, streamCancellation.token), 'Agent-host port connection', streamSignal);
+				} catch {
+					throw new Error(streamSignal.aborted
+						? 'Agent-host port connection cancelled.'
+						: 'The tunnel publishes port 31546, but opening its forwarded stream failed. Restart the remote tunnel/agent-host command and check its logs.');
+				} finally {
+					streamSignal.removeEventListener('abort', onStreamAbort);
+					streamCancellation.dispose();
+				}
+			},
+			dispose,
+		};
 	} catch (error) {
 		try {
 			await dispose();
@@ -316,3 +228,33 @@ export async function connectMachine(
 		throw error;
 	}
 }
+
+export async function connectMachine(
+	machine: Machine,
+	token: string,
+	provider: 'github' | 'microsoft',
+	choose: ChooseHost,
+	signal: AbortSignal,
+): Promise<AgentHostConnection> {
+	const relay = await connectRelay(machine, token, provider, signal);
+	try {
+		const stream = await relay.openStream(signal);
+		const connection = await openAgentHost(stream, relay.machine, choose, signal);
+		return {
+			connection,
+			dispose: async () => {
+				connection.dispose();
+				stream.destroy();
+				await relay.dispose();
+			},
+		};
+	} catch (error) {
+		try {
+			await relay.dispose();
+		} catch {
+			throw new Error('Tunnel connection failed and the relay could not be cleanly disposed.');
+		}
+		throw error;
+	}
+}
+

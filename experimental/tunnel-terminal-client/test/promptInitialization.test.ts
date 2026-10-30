@@ -13,6 +13,29 @@ import xterm from '@xterm/headless';
 import { createPromptInitialization } from '../src/promptInitialization.js';
 
 const bashPath = process.platform === 'win32' ? join(process.env.ProgramFiles ?? 'C:\\Program Files', 'Git', 'bin', 'bash.exe') : '/bin/bash';
+const powerShellPath = process.platform === 'win32' ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe') : '';
+
+test('Windows PowerShell decompresses the initialization, executes it, and acknowledges success', { skip: !powerShellPath || !existsSync(powerShellPath), timeout: 30_000 }, async () => {
+	const setup = createPromptInitialization('powershell', 'my-machine');
+	assert.ok(setup);
+	try {
+		const { stdout } = await promisify(execFile)(powerShellPath, ['-NoProfile', '-NonInteractive', '-Command', `${setup.command.trimEnd()}; prompt`], {
+			timeout: 25_000,
+		});
+		assert.ok(stdout.includes(setup.successMarker));
+		assert.match(setup.accept(stdout), /\[my-machine\] PS /);
+		await setup.ready;
+	} finally {
+		setup.dispose();
+	}
+});
+
+test('the typed PowerShell initialization stays compact, because PSReadLine slows down on long input', () => {
+	const setup = createPromptInitialization('pwsh', 'my-machine');
+	assert.ok(setup);
+	assert.ok(setup.command.length < 5000, `command is ${setup.command.length} characters`);
+	setup.dispose();
+});
 
 test('native Bash executes the encoded initialization and acknowledges success', { skip: !existsSync(bashPath), timeout: 15_000 }, async () => {
 	const setup = createPromptInitialization('bash', 'my-machine');

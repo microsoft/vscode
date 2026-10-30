@@ -108,7 +108,10 @@ export function createPowerShellPromptScript(tunnelName: string): string {
 	const prefix = promptPrefix(tunnelName);
 	const state = `$global:${powerShellState}`;
 	const bashStartup = `if [ -r "$HOME/.bashrc" ]; then . "$HOME/.bashrc"; fi\n${createBashPromptScript(tunnelName)}`;
-	const startupCommand = `exec bash --rcfile <(printf %s ${Buffer.from(bashStartup, 'utf8').toString('base64')} | base64 -d) -i`;
+	// Encode the WSL startup at run time: raw text compresses far better than nested base64,
+	// which keeps the typed initialization short. promptPrefix() rejects line breaks, so no
+	// line of the here-string can start with its terminator.
+	const startupCommand = `'exec bash --rcfile <(printf %s ' + [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(@'\n${bashStartup}\n'@)) + ' | base64 -d) -i'`;
 	return `
 & {
 	$ErrorActionPreference = 'Stop'
@@ -133,7 +136,7 @@ export function createPowerShellPromptScript(tunnelName: string): string {
 		${state}.OriginalPrompt = $currentPrompt.ScriptBlock
 	}
 	${state}.Prefix = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from(prefix, 'utf8').toString('base64')}'))
-	${state}.BashStartupCommand = '${startupCommand}'
+	${state}.BashStartupCommand = ${startupCommand}
 	function global:prompt {
 		$previousSuccess = $?
 		$previousExitCode = Microsoft.PowerShell.Utility\\Get-Variable LASTEXITCODE -Scope Global -ErrorAction Ignore

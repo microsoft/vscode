@@ -5,6 +5,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { stripVTControlCharacters } from 'node:util';
+import { deflateRawSync } from 'node:zlib';
 import { createBashPromptScript, createPowerShellPromptScript } from './promptScripts.js';
 
 const viewportReset = '\x1b[0m\x1b[2J\x1b[H';
@@ -131,8 +132,10 @@ export function createPromptInitialization(shellTitle: string, tunnelName: strin
 		const encoded = Buffer.from(createBashPromptScript(tunnelName), 'utf8').toString('base64');
 		command = `printf '\\033[0m\\033[2J\\033[H\\033${prefix}start\\007'; if __tunnel_prompt_setup=$(printf %s '${encoded}' | base64 -d) && . <(printf %s "$__tunnel_prompt_setup"); then printf '\\033${prefix}ok\\007'; else printf '%s\\n' 'Tunnel prompt initialization failed.' >&2; printf '\\033${prefix}error\\007'; fi; unset __tunnel_prompt_setup\r`;
 	} else {
-		const encoded = Buffer.from(createPowerShellPromptScript(tunnelName), 'utf8').toString('base64');
-		command = `[Console]::Write(([char]27)+'[0m'+([char]27)+'[2J'+([char]27)+'[H'+([char]27)+'${prefix}start'+[char]7); $__tunnel_prompt_preference=$ErrorActionPreference; try { $ErrorActionPreference='Stop'; . ([scriptblock]::Create([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encoded}')))); [Console]::Write(([char]27)+'${prefix}ok'+[char]7) } catch { Write-Error $_ -ErrorAction Continue; [Console]::Write(([char]27)+'${prefix}error'+[char]7) } finally { $ErrorActionPreference=$__tunnel_prompt_preference; Remove-Variable __tunnel_prompt_preference }\r`;
+		// PSReadLine processes typed input superlinearly (~5 s for 11 KB), so send the script compressed.
+		const encoded = deflateRawSync(Buffer.from(createPowerShellPromptScript(tunnelName), 'utf8'), { level: 9 }).toString('base64');
+		const script = `(New-Object IO.StreamReader((New-Object IO.Compression.DeflateStream((New-Object IO.MemoryStream(,[Convert]::FromBase64String('${encoded}'))),[IO.Compression.CompressionMode]::Decompress)),[Text.Encoding]::UTF8)).ReadToEnd()`;
+		command = `[Console]::Write(([char]27)+'[0m'+([char]27)+'[2J'+([char]27)+'[H'+([char]27)+'${prefix}start'+[char]7); $__tunnel_prompt_preference=$ErrorActionPreference; try { $ErrorActionPreference='Stop'; . ([scriptblock]::Create(${script})); [Console]::Write(([char]27)+'${prefix}ok'+[char]7) } catch { Write-Error $_ -ErrorAction Continue; [Console]::Write(([char]27)+'${prefix}error'+[char]7) } finally { $ErrorActionPreference=$__tunnel_prompt_preference; Remove-Variable __tunnel_prompt_preference }\r`;
 	}
 	return new PromptInitialization(command, startMarker, successMarker, errorMarker);
 }
