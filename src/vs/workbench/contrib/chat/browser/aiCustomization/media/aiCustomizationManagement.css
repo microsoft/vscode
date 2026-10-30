@@ -204,6 +204,7 @@
 .ai-customization-management-editor .sidebar-sections-list .monaco-list .monaco-list-row.section-list-item.section-separator-before:is(:hover, .hovered):not(.selected):not(.focused) {
 	z-index: 0;
 	background-color: transparent;
+	outline: none;
 }
 
 .ai-customization-management-editor .sidebar-sections-list .monaco-list .monaco-list-row.section-list-item.section-separator-before:is(:hover, .hovered):not(.selected):not(.focused)::after {
@@ -213,6 +214,8 @@
 	z-index: -1;
 	border-radius: var(--vscode-cornerRadius-small);
 	background-color: var(--vscode-list-hoverBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+	outline-offset: -1px;
 	pointer-events: none;
 }
 
