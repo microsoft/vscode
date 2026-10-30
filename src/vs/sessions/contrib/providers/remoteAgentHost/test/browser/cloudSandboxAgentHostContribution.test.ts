@@ -39,6 +39,7 @@ import {
 	type ICloudSandboxDiscoveredSession,
 	type ICloudSandboxDiscoveryResult,
 	type ICloudSandboxDiscoveryOptions,
+	type CloudSandboxDiscoveryTrigger,
 	type ICloudSandboxSessionFeedConnection,
 } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -2637,11 +2638,17 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 	});
 
 	test('refreshes on stale focus and host selection but not while blurred or fresh', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const triggers: (CloudSandboxDiscoveryTrigger | undefined)[] = [];
 		const harness = await createContribution(store, [], {
-			listSessions: async (_token, options) => options?.incremental
-				? { kind: 'incremental', sessions: [], removedTaskIds: [] }
-				: { kind: 'complete', sessions: [discoveredSession()] },
+			listSessions: async (_token, options) => {
+				triggers.push(options?.trigger);
+				return options?.incremental
+					? { kind: 'incremental', sessions: [], removedTaskIds: [] }
+					: { kind: 'complete', sessions: [discoveredSession()] };
+			},
 		});
+		// The inventory goes stale exactly one interval after a pass; keep the poll due later so focus and selection do the refreshing.
+		harness.contribution.pollJitter = 30_000;
 		harness.setFocused(false);
 		harness.setFocused(true);
 		await harness.contribution.checkForUpdates();
@@ -2661,8 +2668,8 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		harness.selectSandboxHost();
 		await harness.contribution.checkForUpdates();
 
-		assert.deepStrictEqual({ fresh, blurred, modes: harness.discoveryModes }, {
-			fresh: 1, blurred: 1, modes: [false, true, true],
+		assert.deepStrictEqual({ fresh, blurred, modes: harness.discoveryModes, triggers }, {
+			fresh: 1, blurred: 1, modes: [false, true, true], triggers: ['startup', 'focus', 'selection'],
 		});
 	}));
 
