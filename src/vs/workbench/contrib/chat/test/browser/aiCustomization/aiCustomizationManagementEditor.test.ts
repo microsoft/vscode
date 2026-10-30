@@ -24,6 +24,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { Range } from '../../../../../../editor/common/core/range.js';
 import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -934,14 +935,7 @@ suite('aiCustomizationManagementEditor', () => {
 			}),
 			findHarnessById: () => undefined,
 		};
-		editor.hoverService = hoverService ?? {
-			setupManagedHover: () => ({
-				dispose() { },
-				show() { },
-				hide() { },
-				update() { },
-			}),
-		} as unknown as IHoverService;
+		editor.hoverService = hoverService ?? { ...NullHoverService };
 		editor.instantiationService = workbenchInstantiationService({}, editor.editorPreviewDisposables);
 		editor.configurationService = configurationService ?? createConfigurationServiceStub();
 		editor.markdownRendererService = {
