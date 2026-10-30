@@ -5,7 +5,9 @@
 
 const SnippyLexemeRegex = new RegExp('[_\\p{L}\\p{Nd}]+|====+|----+|####+|////+|\\*\\*\\*\\*+|[\\p{P}\\p{S}]', 'gu');
 
-export const MinTokenLength = 65;
+// Client-side Match minimum in Snippy lexemes; the server minimum is index-specific.
+// Keep in sync with src/extension/completions-core/vscode-node/lib/src/snippy/compute.ts.
+export const MinTokenLength = 110;
 
 export function lexemeLength(text: string) {
 	let i = 0;

@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 // This should be kept in sync with snippy at /pkg/fingerprint/compute.go#L20
 const SnippyLexemeRegex = new RegExp('[_\\p{L}\\p{Nd}]+|====+|----+|####+|////+|\\*\\*\\*\\*+|[\\p{P}\\p{S}]', 'gu');
-// This should be kept in sync with snippy at /pkg/fingerprint/settings.go#L108
-export const MinTokenLength = 65;
+// Client-side Match minimum in Snippy lexemes; the server minimum is index-specific.
+// Keep in sync with src/platform/snippy/common/snippyCompute.ts.
+export const MinTokenLength = 110;
 
 export function lexemeLength(text: string) {
 	let i = 0;

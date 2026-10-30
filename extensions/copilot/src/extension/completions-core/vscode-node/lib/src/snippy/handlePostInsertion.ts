@@ -67,7 +67,7 @@ export async function fetchCitations(accessor: ServicesAccessor, uri: string, co
 
 	let potentialMatchContext = completionText;
 
-	// In many cases, we will get completion that is shorter than 65 tokens,
+	// In many cases, we will get a completion that is shorter than the Match minimum,
 	// e.g. a single line or word completion.
 	// When a completion is too short, we should try and get the preceding tokens and
 	// pass that to snippy as part of the context.
