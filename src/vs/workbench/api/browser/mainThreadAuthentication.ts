@@ -653,7 +653,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		const redirectUrls = 'http://127.0.0.1:33418\nhttps://vscode.dev/redirect';
 
 		// Show modal dialog first to explain the situation and get user consent
-		const result = await this.dialogService.prompt({
+		const { result } = await this.dialogService.prompt({
 			type: Severity.Info,
 			message: nls.localize('dcrNotSupported', "Dynamic Client Registration not supported"),
 			detail: nls.localize('dcrNotSupportedDetail', "The authorization server '{0}' does not support automatic client registration. Do you want to proceed by manually providing a client registration (client ID)?\n\nNote: When registering your OAuth application, make sure to include these redirect URIs:\n{1}", authorizationServerUrl, redirectUrls),

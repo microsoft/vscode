@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { URI } from '../../../../base/common/uri.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { TestClipboardService } from '../../../../platform/clipboard/test/common/testClipboardService.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../platform/dialogs/test/common/testDialogService.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -67,6 +70,7 @@ suite('MainThreadAuthentication', () => {
 		services.set(ISecretStorageService, new SyncDescriptor(TestSecretStorageService));
 		services.set(IDynamicAuthenticationProviderStorageService, new SyncDescriptor(DynamicAuthenticationProviderStorageService));
 		services.set(IQuickInputService, new SyncDescriptor(TestQuickInputService));
+		services.set(IClipboardService, new SyncDescriptor(TestClipboardService));
 		services.set(IExtensionService, new SyncDescriptor(TestExtensionService));
 		services.set(IActivityService, new SyncDescriptor(TestActivityService));
 		services.set(IRemoteAgentService, new SyncDescriptor(TestRemoteAgentService));
@@ -235,5 +239,29 @@ suite('MainThreadAuthentication', () => {
 
 		// Undefined options do not survive the trip to the extension host.
 		assert.deepStrictEqual(received, [{ clientId: 'client', silent: true }]);
+	});
+
+	test('returns the client registration entered after choosing to proceed', async () => {
+		const input = sinon.stub(instantiationService.get(IQuickInputService), 'input');
+		input.onFirstCall().resolves(' client-id ');
+		input.onSecondCall().resolves('');
+
+		const registration = await mainThreadAuthentication.$promptForClientRegistration('https://auth.example.com/');
+
+		assert.deepStrictEqual({ registration, copied: await instantiationService.get(IClipboardService).readText() }, {
+			registration: { clientId: 'client-id', clientSecret: undefined },
+			copied: 'http://127.0.0.1:33418\nhttps://vscode.dev/redirect',
+		});
+	});
+
+	test('does not ask for a client registration after the prompt is cancelled', async () => {
+		sinon.stub(instantiationService.get(IDialogService), 'prompt').callsFake(async ({ cancelButton }) => ({
+			result: typeof cancelButton === 'object' ? await cancelButton.run({ checkboxChecked: false }) : undefined,
+		}));
+		const input = sinon.spy(instantiationService.get(IQuickInputService), 'input');
+
+		const registration = await mainThreadAuthentication.$promptForClientRegistration('https://auth.example.com/');
+
+		assert.deepStrictEqual({ registration, inputs: input.callCount }, { registration: undefined, inputs: 0 });
 	});
 });
