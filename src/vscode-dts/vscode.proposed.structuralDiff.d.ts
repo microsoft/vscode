@@ -279,6 +279,11 @@ declare module 'vscode' {
 		 * first non-null result is used; trees from different providers are not
 		 * merged. A failing provider does not prevent querying another provider.
 		 *
+		 * Structural diffs can be requested for documents that are not open, and the
+		 * editor only offers them while a provider is registered. Register providers
+		 * when the extension activates instead of waiting for a language-specific
+		 * activation event such as `onLanguage`.
+		 *
 		 * @param selector A selector for modified documents.
 		 * @param provider A structural diff provider.
 		 * @returns A disposable that unregisters the provider.

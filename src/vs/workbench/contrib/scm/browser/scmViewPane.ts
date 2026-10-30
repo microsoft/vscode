@@ -70,7 +70,7 @@ import { rot } from '../../../../base/common/numbers.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { OpenScmGroupAction } from '../../multiDiffEditor/browser/scmMultiDiffSourceResolver.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
@@ -955,6 +955,7 @@ export const ContextKeys = {
 	SCMViewMode: new RawContextKey<ViewMode>('scmViewMode', ViewMode.List),
 	SCMViewSortKey: new RawContextKey<ViewSortKey>('scmViewSortKey', ViewSortKey.Path),
 	SCMViewShowStructuralDiff: new RawContextKey<boolean>('scmViewShowStructuralDiff', false),
+	SCMViewHasStructuralDiffProvider: new RawContextKey<boolean>('scmViewHasStructuralDiffProvider', false),
 	SCMViewAreAllRepositoriesCollapsed: new RawContextKey<boolean>('scmViewAreAllRepositoriesCollapsed', false),
 	SCMViewIsAnyRepositoryCollapsible: new RawContextKey<boolean>('scmViewIsAnyRepositoryCollapsible', false),
 	SCMProvider: new RawContextKey<string | undefined>('scmProvider', undefined),
@@ -1315,7 +1316,7 @@ class ToggleShowStructuralDiffAction extends ViewAction<SCMViewPane> {
 			viewId: VIEW_PANE_ID,
 			f1: false,
 			toggled: ContextKeys.SCMViewShowStructuralDiff,
-			menu: { id: Menus.ViewSort, group: '3_structuralDiff', order: 1 },
+			menu: { id: Menus.ViewSort, group: '3_structuralDiff', order: 1, when: ContextKeys.SCMViewHasStructuralDiffProvider },
 		});
 	}
 
@@ -1526,6 +1527,7 @@ export class SCMViewPane extends ViewPane {
 		this.viewSortKeyContextKey.set(this.viewSortKey);
 		this.showStructuralDiffContextKey = ContextKeys.SCMViewShowStructuralDiff.bindTo(contextKeyService);
 		this.showStructuralDiffContextKey.set(this.showStructuralDiff);
+		this.disposables.add(bindContextKey(ContextKeys.SCMViewHasStructuralDiffProvider, contextKeyService, reader => this.structuralDiff.hasProvider.read(reader)));
 		this.areAllRepositoriesCollapsedContextKey = ContextKeys.SCMViewAreAllRepositoriesCollapsed.bindTo(contextKeyService);
 		this.isAnyRepositoryCollapsibleContextKey = ContextKeys.SCMViewIsAnyRepositoryCollapsible.bindTo(contextKeyService);
 		this.scmProviderContextKey = ContextKeys.SCMProvider.bindTo(contextKeyService);

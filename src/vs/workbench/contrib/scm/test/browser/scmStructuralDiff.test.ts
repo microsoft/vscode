@@ -20,11 +20,13 @@ import { ICodeEditor, IDiffEditor } from '../../../../../editor/browser/editorBr
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { ISelection, Selection } from '../../../../../editor/common/core/selection.js';
 import { EditorType, ScrollType } from '../../../../../editor/common/editorCommon.js';
-import { StructuralDiffClassification, SymbolKind } from '../../../../../editor/common/languages.js';
+import { StructuralDiffClassification, StructuralDiffProvider, SymbolKind } from '../../../../../editor/common/languages.js';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { LanguageFeaturesService } from '../../../../../editor/common/services/languageFeaturesService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
 import { MenuId, MenuRegistry, isIMenuItem } from '../../../../../platform/actions/common/actions.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -35,6 +37,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { DEFAULT_EDITOR_ASSOCIATION, ITextDiffEditorPane, IUntypedEditorInput } from '../../../../common/editor.js';
 import { IEditorService, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { SCMAccessibilityHelp } from '../../browser/scmAccessibilityHelp.js';
 import { ContextKeys, SCMAccessibilityProvider, SCMTreeDataSource, SCMTreeKeyboardNavigationLabelProvider, SCMTreeSorter, SCMViewPane, isSCMTreeElementCollapsedByDefault } from '../../browser/scmViewPane.js';
 import { SCMStructuralDiffRenderer, openSCMStructuralDiff } from '../../browser/scmStructuralDiffRenderer.js';
 import { ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMViewService, ViewMode } from '../../common/scm.js';
@@ -214,11 +217,30 @@ suite('SCM structural diff tree', () => {
 		assert.ok(item && isIMenuItem(item));
 		const toggled = isICommandActionToggleInfo(item.command.toggled) ? item.command.toggled.condition : item.command.toggled;
 		assert.deepStrictEqual({
-			title: item.command.title, group: item.group, order: item.order, toggled: toggled?.serialize(),
+			title: item.command.title, group: item.group, order: item.order, when: item.when?.serialize(), toggled: toggled?.serialize(),
 		}, {
 			title: 'Show Structural Diff', group: '3_structuralDiff', order: 1,
+			when: ContextKeys.SCMViewHasStructuralDiffProvider.serialize(),
 			toggled: ContextKeys.SCMViewShowStructuralDiff.serialize(),
 		});
+	});
+
+	test('describes structural diff in the accessibility help only while a provider is registered', () => {
+		const features = new LanguageFeaturesService();
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ICommandService, {});
+		instantiationService.stub(ISCMViewService, { visibleRepositories: [] });
+		instantiationService.stub(IViewsService, { getFocusedViewName: () => '' });
+		instantiationService.set(ILanguageFeaturesService, features);
+		const mentionsStructuralDiff = () => {
+			const provider = store.add(instantiationService.invokeFunction(accessor => new SCMAccessibilityHelp().getProvider(accessor)));
+			return provider.provideContent().includes('Show Structural Diff');
+		};
+		const without = mentionsStructuralDiff();
+		const registration = features.structuralDiffProvider.register('*', new class extends mock<StructuralDiffProvider>() { });
+		const withProvider = mentionsStructuralDiff();
+		registration.dispose();
+		assert.deepStrictEqual({ without, withProvider, afterRemoval: mentionsStructuralDiff() }, { without: false, withProvider: true, afterRemoval: false });
 	});
 
 	test('the menu command toggles the active Source Control view', async () => {

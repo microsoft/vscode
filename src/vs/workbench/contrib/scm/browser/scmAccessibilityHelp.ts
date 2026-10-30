@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { localize } from '../../../../nls.js';
 import { AccessibleViewType, AccessibleContentProvider, IAccessibleViewContentProvider, AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -14,6 +15,7 @@ import { FocusedViewContext, SidebarFocusContext } from '../../../common/context
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { HISTORY_VIEW_PANE_ID, ISCMViewService, REPOSITORIES_VIEW_PANE_ID, VIEW_PANE_ID } from '../common/scm.js';
+import { hasSCMStructuralDiffProvider } from '../common/scmStructuralDiff.js';
 
 export class SCMAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly name = 'scm';
@@ -30,8 +32,9 @@ export class SCMAccessibilityHelp implements IAccessibleViewImplementation {
 		const commandService = accessor.get(ICommandService);
 		const scmViewService = accessor.get(ISCMViewService);
 		const viewsService = accessor.get(IViewsService);
+		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 
-		return new SCMAccessibilityHelpContentProvider(commandService, scmViewService, viewsService);
+		return new SCMAccessibilityHelpContentProvider(commandService, scmViewService, viewsService, languageFeaturesService);
 	}
 }
 
@@ -45,7 +48,8 @@ class SCMAccessibilityHelpContentProvider extends Disposable implements IAccessi
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService,
 		@ISCMViewService private readonly _scmViewService: ISCMViewService,
-		@IViewsService private readonly _viewsService: IViewsService
+		@IViewsService private readonly _viewsService: IViewsService,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService
 	) {
 		super();
 		this._focusedView = this._viewsService.getFocusedViewName();
@@ -123,12 +127,14 @@ class SCMAccessibilityHelpContentProvider extends Disposable implements IAccessi
 		content.push(localize('scm-msg3', "Once the Source Control view is opened you can:"));
 		content.push(localize('scm-msg4', " - Use the up/down arrow keys to navigate the list of repositories, resource groups and resources."));
 		content.push(localize('scm-msg5', " - Use the Space key to expand or collapse a resource group."));
-		content.push(localize('scm-structural-toggle', " - Toggle \"Show Structural Diff\" in the \"View & Sort\" menu to show or hide changed symbols below files."));
-		content.push(localize('scm-structural-msg1', " - When \"Show Structural Diff\" is enabled, files with a structural diff provider can be expanded with the right arrow key to show changed symbols. Structural descendants expand automatically to reveal changed leaves. Use the left arrow key to collapse them."));
-		content.push(localize('scm-structural-msg2', " - Press Enter on a changed symbol to open its file diff at that symbol. Deleted symbols open on the original side. File-level actions continue to apply to file rows."));
-		content.push(localize('scm-structural-status', " - Changed symbols have added, deleted, or modified icons. Their status is included in the accessible label. Unchanged containers have no status icon."));
-		content.push(localize('scm-structural-annotations', " - Modified symbols indicate whether their declaration, implementation, or both changed. These details are included in accessible labels."));
-		content.push(localize('scm-structural-rename', " - Detected renames appear with the new symbol name and a rename annotation. The original and new names are included in the hover and accessible label."));
+		if (hasSCMStructuralDiffProvider(this._languageFeaturesService)) {
+			content.push(localize('scm-structural-toggle', " - Toggle \"Show Structural Diff\" in the \"View & Sort\" menu to show or hide changed symbols below files."));
+			content.push(localize('scm-structural-msg1', " - When \"Show Structural Diff\" is enabled, files with a structural diff provider can be expanded with the right arrow key to show changed symbols. Structural descendants expand automatically to reveal changed leaves. Use the left arrow key to collapse them."));
+			content.push(localize('scm-structural-msg2', " - Press Enter on a changed symbol to open its file diff at that symbol. Deleted symbols open on the original side. File-level actions continue to apply to file rows."));
+			content.push(localize('scm-structural-status', " - Changed symbols have added, deleted, or modified icons. Their status is included in the accessible label. Unchanged containers have no status icon."));
+			content.push(localize('scm-structural-annotations', " - Modified symbols indicate whether their declaration, implementation, or both changed. These details are included in accessible labels."));
+			content.push(localize('scm-structural-rename', " - Detected renames appear with the new symbol name and a rename annotation. The original and new names are included in the hover and accessible label."));
+		}
 
 		// Source Control Graph
 		content.push(localize('scm-graph-msg1', "Use the \"Source Control: Focus on Source Control Graph View\" command to open the Source Control Graph view."));

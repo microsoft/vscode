@@ -6,8 +6,9 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -99,6 +100,7 @@ suite('SCM structural diff model', () => {
 	let registration: { dispose(): void };
 	let errors: number;
 	let languageChanges: Emitter<{ model: ITextModel; oldLanguageId: string }>;
+	let languageRegistryChanges: Emitter<void>;
 
 	setup(() => {
 		original = store.add(createTextModel('class Calculator {\n\trun() { return 1; }\n}', undefined, undefined, URI.parse('git:/file.ts')));
@@ -117,6 +119,7 @@ suite('SCM structural diff model', () => {
 		provider.result = createResult();
 		registration = store.add(features.structuralDiffProvider.register({ scheme: 'file', language: 'plaintext', pattern: '**/*.ts' }, provider));
 		languageChanges = store.add(new Emitter<{ model: ITextModel; oldLanguageId: string }>());
+		languageRegistryChanges = store.add(new Emitter<void>());
 		errors = 0;
 		instantiationService = store.add(new TestInstantiationService());
 		instantiationService.set(ITextModelService, resolver);
@@ -126,7 +129,7 @@ suite('SCM structural diff model', () => {
 			override getModel(): ITextModel | null { return null; }
 		});
 		instantiationService.set(ILanguageService, new class extends mock<ILanguageService>() {
-			override readonly onDidChange = Event.None;
+			override readonly onDidChange = languageRegistryChanges.event;
 			override guessLanguageIdByFilepathOrFirstLine(): string { return 'plaintext'; }
 		});
 		instantiationService.set(IUriIdentityService, new class extends mock<IUriIdentityService>() {
@@ -467,5 +470,45 @@ suite('SCM structural diff model', () => {
 		languageChanges.fire({ model: unrelated, oldLanguageId: 'plaintext' });
 		await model.getChildren(resource);
 		assert.deepStrictEqual({ current: model.isCurrent(children[0]), released: resolver.released, calls: provider.calls }, { current: true, released: [], calls: 1 });
+	});
+
+	test('reports provider availability regardless of the languages providers support', () => {
+		const available: boolean[] = [];
+		store.add(autorun(reader => available.push(model.hasProvider.read(reader))));
+		registration.dispose();
+		const python = features.structuralDiffProvider.register({ language: 'python' }, provider);
+		const expandableForOtherLanguage = model.hasChildren(resource);
+		const rust = features.structuralDiffProvider.register({ pattern: '**/*.rs' }, provider);
+		python.dispose();
+		rust.dispose();
+		assert.deepStrictEqual({ available, expandableForOtherLanguage }, { available: [true, false, true, false], expandableForOtherLanguage: false });
+	});
+
+	test('ignores provider and language changes while disabled', () => {
+		model.setEnabled(false);
+		const changes: (ISCMResource | undefined)[] = [];
+		store.add(model.onDidChange(resource => changes.push(resource)));
+		registration.dispose();
+		store.add(features.structuralDiffProvider.register({ scheme: 'file' }, provider));
+		languageChanges.fire({ model: modified, oldLanguageId: 'plaintext' });
+		languageRegistryChanges.fire();
+		assert.deepStrictEqual(changes, []);
+	});
+
+	test('refreshes for language changes only while a provider is registered', () => {
+		const changes: (ISCMResource | undefined)[] = [];
+		store.add(model.onDidChange(resource => changes.push(resource)));
+		const refreshes: number[] = [];
+		const step = (action: () => void) => {
+			action();
+			refreshes.push(changes.length);
+		};
+		step(() => languageChanges.fire({ model: modified, oldLanguageId: 'plaintext' }));
+		step(() => languageRegistryChanges.fire());
+		step(() => registration.dispose());
+		step(() => languageChanges.fire({ model: modified, oldLanguageId: 'plaintext' }));
+		step(() => languageRegistryChanges.fire());
+		// Cumulative tree refreshes: both language events with a provider, its removal, then both language events again without one.
+		assert.deepStrictEqual(refreshes, [1, 2, 3, 3, 3]);
 	});
 });

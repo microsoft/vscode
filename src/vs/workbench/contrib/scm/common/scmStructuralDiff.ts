@@ -8,6 +8,7 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { StructuralDiffClassification, StructuralDiffNode, symbolKindNames } from '../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
@@ -157,9 +158,22 @@ class StructuralDiffEntry extends Disposable {
 	}
 }
 
+/**
+ * Whether any structural diff provider is registered, regardless of the languages it supports.
+ * This decides whether the feature is offered at all. Whether a file can show structural
+ * changes is decided per resource by {@link SCMStructuralDiffModel.hasChildren}, so changes
+ * that span many languages need no special handling.
+ */
+export function hasSCMStructuralDiffProvider(languageFeaturesService: ILanguageFeaturesService): boolean {
+	return languageFeaturesService.structuralDiffProvider.allNoModel().length > 0;
+}
+
 export class SCMStructuralDiffModel extends Disposable {
 	private _enabled = false;
 	get enabled(): boolean { return this._enabled; }
+
+	/** Whether any structural diff provider is registered, see {@link hasSCMStructuralDiffProvider}. */
+	readonly hasProvider = observableFromEvent(this, this.languageFeaturesService.structuralDiffProvider.onDidChange, () => hasSCMStructuralDiffProvider(this.languageFeaturesService));
 
 	private readonly entries = this._register(new DisposableMap<ISCMResource, StructuralDiffEntry>());
 	private readonly _onDidChange = this._register(new Emitter<ISCMResource | undefined>());
@@ -185,10 +199,16 @@ export class SCMStructuralDiffModel extends Disposable {
 	) {
 		super();
 		this._register(this.languageFeaturesService.structuralDiffProvider.onDidChange(() => {
+			if (!this._enabled) {
+				return;
+			}
 			this.clear();
 			this._onDidChange.fire(undefined);
 		}));
 		this._register(this.modelService.onModelLanguageChanged(({ model }) => {
+			if (!this.isActive) {
+				return;
+			}
 			for (const [resource] of this.entries) {
 				if (this.uriIdentityService.extUri.isEqual(resource.multiDiffEditorModifiedUri, model.uri)
 					|| this.uriIdentityService.extUri.isEqual(resource.multiDiffEditorOriginalUri, model.uri)) {
@@ -197,7 +217,11 @@ export class SCMStructuralDiffModel extends Disposable {
 			}
 			this._onDidChange.fire(undefined);
 		}));
-		this._register(this.languageService.onDidChange(() => this._onDidChange.fire(undefined)));
+		this._register(this.languageService.onDidChange(() => {
+			if (this.isActive) {
+				this._onDidChange.fire(undefined);
+			}
+		}));
 	}
 
 	setEnabled(enabled: boolean): void {
@@ -268,6 +292,11 @@ export class SCMStructuralDiffModel extends Disposable {
 		this.changeScheduler.cancel();
 		this.pendingChanges.clear();
 		this.entries.clearAndDisposeAll();
+	}
+
+	/** Language changes cannot affect the tree unless structural children are enabled and a provider can supply them. */
+	private get isActive(): boolean {
+		return this._enabled && hasSCMStructuralDiffProvider(this.languageFeaturesService);
 	}
 
 	private canProvide(resource: ISCMResource): boolean {
