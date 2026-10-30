@@ -237,7 +237,10 @@ export class TextSearchManager {
 			const excludeExceptions = resolveExcludeExceptionsForProvider(this.query.excludePattern, folderExcludes);
 			if (excludeExceptions.length) {
 				options.excludeExceptions = excludeExceptions;
-				options.nestedFolders = this.query.folderQueries.map(other => resources.relativePath(fq.folder, other.folder)).filter((path): path is string => !!path);
+				const extUri = options.ignoreGlobCase ? resources.extUriIgnorePathCase : resources.extUri;
+				options.nestedFolders = this.query.folderQueries
+					.filter(other => extUri.isEqualOrParent(other.folder, fq.folder) && !extUri.isEqual(other.folder, fq.folder))
+					.map(other => other.folder.path.substring(fq.folder.path.length).replace(/^\/+/, ''));
 			}
 		}
 
