@@ -5,18 +5,21 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { Event } from '../../../../base/common/event.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { AuthenticationAccessService } from '../../../services/authentication/browser/authenticationAccessService.js';
 import { AuthenticationService } from '../../../services/authentication/browser/authenticationService.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
+import { RPCProtocol } from '../../../services/extensions/common/rpcProtocol.js';
 import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind.js';
 import { TestEnvironmentService } from '../../../test/browser/workbenchTestServices.js';
 import { TestExtensionService, TestProductService, TestStorageService } from '../../../test/common/workbenchTestServices.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { ExtHostAuthenticationShape, MainThreadAuthenticationShape } from '../../common/extHost.protocol.js';
+import { ExtHostAuthenticationShape, ExtHostContext, MainContext, MainThreadAuthenticationShape } from '../../common/extHost.protocol.js';
 import { ExtHostAuthentication } from '../../common/extHostAuthentication.js';
 import { IExtHostRpcService } from '../../common/extHostRpcService.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
@@ -69,7 +72,7 @@ suite('MainThreadAuthentication', () => {
 			authenticationService = disposables.add(new AuthenticationService(new TestExtensionService(), accessService, TestEnvironmentService, new NullLogService()));
 		});
 
-		function createHost(sessionId: string, proxyOverrides: Partial<Proxied<ExtHostAuthenticationShape>> = {}) {
+		function createHost(sessionId: string, proxyOverrides: Partial<Proxied<ExtHostAuthenticationShape>> = {}, rpc?: RPCProtocol) {
 			const unregistered: string[] = [];
 			let clientRegistrationWrites = 0;
 			let stopped = false;
@@ -83,7 +86,7 @@ suite('MainThreadAuthentication', () => {
 				...proxyOverrides
 			});
 			const context = upcastPartial<IExtHostContext>({
-				getProxy: <T>() => proxy as unknown as Proxied<T>,
+				getProxy: rpc ? identifier => rpc.getProxy(identifier) : <T>() => proxy as unknown as Proxied<T>,
 				extensionHostKind: ExtensionHostKind.LocalProcess
 			});
 			const dynamicStorage = upcastPartial<IDynamicAuthenticationProviderStorageService>({
@@ -98,13 +101,13 @@ suite('MainThreadAuthentication', () => {
 				dynamicStorage, undefined!, undefined!, undefined!, undefined!
 			));
 			return {
-				mainThread, unregistered,
+				mainThread, proxy, unregistered,
 				get clientRegistrationWrites() { return clientRegistrationWrites; },
 				stop: () => { stopped = true; mainThread.dispose(); }
 			};
 		}
 
-		function registerDynamicProvider(host: ReturnType<typeof createHost>, id = 'dynamic-provider') {
+		function registerDynamicProvider(host: { mainThread: Pick<MainThreadAuthenticationShape, '$registerDynamicAuthenticationProvider'> }, id = 'dynamic-provider') {
 			return host.mainThread.$registerDynamicAuthenticationProvider({
 				id, label: id, supportsMultipleAccounts: true, clientId: 'test-client',
 				authorizationServer: authorizationServer.toJSON(), resourceServer: resourceServer.toJSON()
@@ -131,6 +134,48 @@ suite('MainThreadAuthentication', () => {
 				await registerDynamicProvider(second);
 			}
 			assert.strictEqual((await authenticationService.getSessions('dynamic-provider'))[0].id, 'second-host');
+		});
+
+		test('rediscovers dynamic providers after RPC and customer disposal', async () => {
+			function createRpcHost(sessionId: string) {
+				const mainMessages = disposables.add(new Emitter<VSBuffer>());
+				const extHostMessages = disposables.add(new Emitter<VSBuffer>());
+				const mainRpc = disposables.add(new RPCProtocol({
+					onMessage: mainMessages.event,
+					send: message => { queueMicrotask(() => extHostMessages.fire(message)); }
+				}));
+				const extHostRpc = disposables.add(new RPCProtocol({
+					onMessage: extHostMessages.event,
+					send: message => { queueMicrotask(() => mainMessages.fire(message)); }
+				}));
+				const host = createHost(sessionId, {}, mainRpc);
+				mainRpc.set(MainContext.MainThreadAuthentication, host.mainThread);
+				extHostRpc.set(ExtHostContext.ExtHostAuthentication, host.proxy);
+				return {
+					mainThread: extHostRpc.getProxy(MainContext.MainThreadAuthentication),
+					stop: () => {
+						// Model ExtensionHostManager.dispose(): close RPC before disposing customers.
+						mainRpc.dispose();
+						host.stop();
+						extHostRpc.dispose();
+					}
+				};
+			}
+
+			const first = createRpcHost('first-host');
+			await registerDynamicProvider(first);
+			const oldProvider = authenticationService.getProvider('dynamic-provider');
+			assert.strictEqual((await authenticationService.getSessions('dynamic-provider'))[0].id, 'first-host');
+
+			first.stop();
+			// This is RPCProtocol's real cancellation, not a stopped-host test stub.
+			await assert.rejects(oldProvider.getSessions(undefined, {}), isCancellationError);
+			assert.strictEqual(await authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceServer), undefined);
+
+			const second = createRpcHost('second-host');
+			await registerDynamicProvider(second);
+			assert.strictEqual((await authenticationService.getSessions('dynamic-provider'))[0].id, 'second-host');
+			second.stop();
 		});
 
 		test('keeps another host provider when one host is disposed', async () => {
