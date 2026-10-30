@@ -13,8 +13,9 @@ import { localize } from '../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IAgentHostByokLmHandler } from '../../../../platform/agentHost/common/agentHostByokLm.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { buildExternalOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
+import { buildExternalOpenSessionLinkUri, parseNewSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { AgentHostByokLmHandler } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostByokLmHandler.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -105,14 +106,12 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProductService private readonly productService: IProductService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IOpenerService openerService: IOpenerService,
 	) {
 		super();
 		this._workspaceHandoff = this._register(instantiationService.createInstance(AgentsWindowWorkspaceHandoff));
 		this._invitationOnboarding = this._register(instantiationService.createInstance(AgentsWindowInvitationOnboarding));
 		const handleSelectAgentsFolder = (_: unknown, ...args: unknown[]) => {
-			this._workspaceHandoff.cancel();
-			const cancellation = new CancellationTokenSource();
-			this._openIntent.value = toDisposable(() => cancellation.dispose(true));
 			const workspaceUri = args[0] ? URI.revive(args[0] as UriComponents) : undefined;
 			const showNewSession = args[1] === 'new';
 			const sessionResource = args[1] && !showNewSession ? URI.revive(args[1] as UriComponents) : undefined;
@@ -121,30 +120,52 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			const workspaceArgumentIsDefault = args[3] === true;
 			const draftPayload = showNewSession || source === AgentsWindowOpenSource.Link ? args[4] : undefined;
 			if (draftPayload !== undefined && !isAgentsWindowDraft(draftPayload)) {
+				this._workspaceHandoff.cancel();
+				this._openIntent.clear();
 				this.logService.error('[AgentsHandoff] Invalid draft payload');
 				this.notificationService.warn(localize('agentsHandoff.invalidDraft', "The draft could not be copied. Your prompt and attachments are still in the editor."));
 				return;
 			}
-			const draft = draftPayload;
-			const noWorkspace = source === AgentsWindowOpenSource.Link && draft !== undefined && workspaceUri === undefined;
 			this.logService.info(`[AgentsHandoff] IPC received: folderUri=${workspaceUri?.toString() ?? '(none)'} sessionResource=${sessionResource?.toString() ?? '(none)'}`);
-			const telemetry = this._startWindowOpenTelemetry(source, {
-				workspaceArgumentKind: getAgentsWindowWorkspaceArgumentKind(workspaceUri),
-				hasSessionArgument: sessionResource !== undefined,
-				workspaceArgumentIsDefault,
-			});
-
-			const handoff = () => this._handleOpenIntentAndCaptureInitialState(workspaceUri, sessionResource, workspaceArgumentIsDefault, cancellation.token, telemetry, draft, noWorkspace, showNewSession);
-			const opening = onboardingSessionResource && (!sessionResource || isEqual(onboardingSessionResource, sessionResource))
-				? this._invitationOnboarding.runWithHandoff(handoff, async () => {
-					const available = await this.waitForSessionAvailable(onboardingSessionResource, cancellation.token);
-					return available ? this.getSessionForResource(onboardingSessionResource) : undefined;
-				}, cancellation.token, sessionResource !== undefined)
-				: handoff();
-			opening.catch(err => this.logService.error('[AgentsHandoff] handleOpenIntent failed', err));
+			this._open(workspaceUri, sessionResource, showNewSession, source, workspaceArgumentIsDefault, draftPayload, onboardingSessionResource);
 		};
 		ipcRenderer.on('vscode:selectAgentsFolder', handleSelectAgentsFolder);
 		this._register({ dispose: () => ipcRenderer.removeListener('vscode:selectAgentsFolder', handleSelectAgentsFolder) });
+
+		// `agent-host-session://new?...` links clicked in this window prepare the
+		// new-session composer exactly like the external `/new` product link.
+		this._register(openerService.registerOpener({
+			open: async resource => {
+				const link = parseNewSessionLinkUri(resource);
+				if (!link) {
+					return false;
+				}
+				this.logService.info(`[AgentsHandoff] new-session link opened: folderUri=${link.folderUri?.toString() ?? '(none)'}`);
+				this._open(link.folderUri, undefined, true, AgentsWindowOpenSource.Link, false, link.draft, undefined);
+				return true;
+			},
+		}));
+	}
+
+	private _open(workspaceUri: URI | undefined, sessionResource: URI | undefined, showNewSession: boolean, source: AgentsWindowOpenSource, workspaceArgumentIsDefault: boolean, draft: IAgentsWindowDraft | undefined, onboardingSessionResource: URI | undefined): void {
+		this._workspaceHandoff.cancel();
+		const cancellation = new CancellationTokenSource();
+		this._openIntent.value = toDisposable(() => cancellation.dispose(true));
+		const noWorkspace = source === AgentsWindowOpenSource.Link && draft !== undefined && workspaceUri === undefined;
+		const telemetry = this._startWindowOpenTelemetry(source, {
+			workspaceArgumentKind: getAgentsWindowWorkspaceArgumentKind(workspaceUri),
+			hasSessionArgument: sessionResource !== undefined,
+			workspaceArgumentIsDefault,
+		});
+
+		const handoff = () => this._handleOpenIntentAndCaptureInitialState(workspaceUri, sessionResource, workspaceArgumentIsDefault, cancellation.token, telemetry, draft, noWorkspace, showNewSession);
+		const opening = onboardingSessionResource && (!sessionResource || isEqual(onboardingSessionResource, sessionResource))
+			? this._invitationOnboarding.runWithHandoff(handoff, async () => {
+				const available = await this.waitForSessionAvailable(onboardingSessionResource, cancellation.token);
+				return available ? this.getSessionForResource(onboardingSessionResource) : undefined;
+			}, cancellation.token, sessionResource !== undefined)
+			: handoff();
+		opening.catch(err => this.logService.error('[AgentsHandoff] handleOpenIntent failed', err));
 	}
 
 	private _startWindowOpenTelemetry(source: AgentsWindowOpenSource, context: ISessionsWindowOpenContext): SessionsWindowOpenTelemetry | undefined {
