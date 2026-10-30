@@ -1366,7 +1366,8 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	}
 
 	/**
-	 * Whether the resource is hidden by `.gitignore` and not shown again by an exclude exception.
+	 * Whether the resource is hidden by `.gitignore` and not shown again by an exclude exception,
+	 * either because an exception matches it or, for a folder, because it leads to an exception.
 	 */
 	isIgnored(resource: URI, rootResource: URI, isDirectory: boolean): boolean {
 		if (!this.isGitIgnored(resource, rootResource, isDirectory)) {
@@ -1374,7 +1375,8 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		}
 
 		const relativePath = path.relative(rootResource.path, resource.path);
-		return !this.hiddenExpressionPerRoot.get(rootResource.toString())?.parsed.isExcepted(relativePath);
+		const parsed = this.hiddenExpressionPerRoot.get(rootResource.toString())?.parsed;
+		return !parsed?.isExcepted(relativePath) && !(isDirectory && parsed?.couldExceptionMatchBeneath(relativePath));
 	}
 
 	private isGitIgnored(resource: URI, rootResource: URI, isDirectory: boolean): boolean {
