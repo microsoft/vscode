@@ -163,7 +163,7 @@ export class CanvasView extends Disposable {
 		}));
 		this._register(autorun(reader => {
 			const input = this.currentInput.read(reader);
-			if (!input || !this.canvasService.enabled.read(reader) || !this.canvasService.isOwnerPresentable(input.reference, reader)) {
+			if (!input || !this.canvasService.enabled.read(reader) || !this.canvasService.isPresentable(input.reference, reader)) {
 				this.yieldedKey = undefined;
 				this._detach(this.options.notPresentableMessage.read(reader));
 				return;
@@ -263,7 +263,7 @@ export class CanvasView extends Disposable {
 			&& sequence === this.loadSequence
 			&& this.currentInput.get() === input
 			&& isEqual(input.canvas.get()?.source, source)
-			&& this.canvasService.isOwnerPresentable(input.reference);
+			&& this.canvasService.isPresentable(input.reference);
 	}
 
 	/**
@@ -344,7 +344,7 @@ export class CanvasView extends Disposable {
 			this.host.setModel(undefined);
 			const input = this.currentInput.get();
 			const canvas = input?.canvas.get();
-			if (input && canvas?.source && this.canvasService.isOwnerPresentable(input.reference)) {
+			if (input && canvas?.source && this.canvasService.isPresentable(input.reference)) {
 				void this._load(input, getLoadKey(canvas.resource, canvas.source));
 			}
 		}));
@@ -489,7 +489,7 @@ export class CanvasView extends Disposable {
 			{ type, language: 'plaintext' },
 			() => type === AccessibleViewType.Help ? help : this.semanticText,
 			() => {
-				if (input && this.currentInput.get() === input && this._presentationVisible.get() && this.canvasService.isOwnerPresentable(input.reference)) {
+				if (input && this.currentInput.get() === input && this._presentationVisible.get() && this.canvasService.isPresentable(input.reference)) {
 					this.focus();
 				}
 			},
