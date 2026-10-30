@@ -23,7 +23,7 @@ import { getSubagentEditorResource } from '../../../browser/widget/chatContentPa
 import { URI } from '../../../../../../base/common/uri.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
-import { autorun, constObservable, derived, ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, ISettableObservable, observableValue, waitForState, type IObservable } from '../../../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
@@ -171,7 +171,7 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { ChatModel, ChatResponseModel, IntendedModelSlot, reviveSerializableInputState, type ChatRequestModel, type IChatModel, type IChatModelInputState, type IChatPendingRequest, type IChatRequestModel, type IChatResponseModel, type IInputModel } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatResponseModel, IntendedModelSlot, Response, reviveSerializableInputState, type ChatRequestModel, type IChatModel, type IChatModelInputState, type IChatPendingRequest, type IChatRequestModel, type IChatResponseModel, type IInputModel } from '../../../common/model/chatModel.js';
 import { ModelSelectionReason } from '../../../common/modelSelection.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
 import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, createChatReferenceVariableEntry, isChatReferenceVariableEntry, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
@@ -18513,6 +18513,86 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(session.history.length, 2);
 			assert.strictEqual(session.isCompleteObs?.get(), true);
 			assert.deepStrictEqual(session.progressObs?.get(), []);
+		});
+
+		test('receives timing-only reasoning updates after reconnect on an opaque advertised chat', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables, { backendSessionScheme: 'unused-allocation-scheme' });
+			const sessionUri = URI.parse('ahp-session:/opaque-reasoning-session');
+			const chatUri = 'ahp-chat:/host-chosen-reasoning-chat';
+			const state = makeSessionStateWithActiveTurn(sessionUri.toString());
+			agentHostService.seedSessionMetadata(sessionUri, 'copilot');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...state,
+				defaultChat: chatUri,
+				chats: [{ resource: chatUri, title: state.title, status: SessionStatus.InProgress, modifiedAt: '2025-01-01T00:00:00.000Z', origin: { kind: ChatOriginKind.User } }],
+				activeTurn: {
+					...state.activeTurn!,
+					responseParts: [{ kind: ResponsePartKind.Reasoning, id: 'reasoning', content: 'Already received', startedAt: '1970-01-01T00:00:01.000Z' }],
+				},
+			});
+			const session = await sessionHandler.provideChatSessionContent(URI.parse('agent-host-copilot:/opaque-reasoning-session'), CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+			assert.ok(session.isCompleteObs);
+			const completed = waitForState(session.isCompleteObs, complete => complete);
+			const action = { type: ActionType.ChatReasoning as const, turnId: 'turn-active', partId: 'reasoning', content: '', duration: 45_000 };
+			agentHostService.fireAction({ channel: chatUri, action, serverSeq: 100, origin: undefined });
+			agentHostService.fireAction({ channel: chatUri, action, serverSeq: 101, origin: undefined });
+			agentHostService.fireAction({ channel: chatUri, action: { type: ActionType.ChatTurnComplete, turnId: 'turn-active', duration: 50_000 }, serverSeq: 102, origin: undefined });
+			await completed;
+
+			assert.deepStrictEqual({
+				parts: session.progressObs?.get().filter(part => part.kind === 'thinking'),
+				complete: session.isCompleteObs?.get(),
+			}, {
+				parts: [
+					{ kind: 'thinking', id: 'reasoning', value: 'Already received', reasoningTimingSource: 'provider', reasoningStartedAt: 1000 },
+					{ kind: 'thinking', id: 'reasoning', value: '', reasoningTimingSource: 'provider', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 },
+				],
+				complete: true,
+			});
+		});
+
+		test('untimed reasoning remains producer-owned through reconnect and continued live output', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables, { backendSessionScheme: 'unused-allocation-scheme' });
+			const backend = URI.parse('ahp-session:/untimed-reconnect');
+			const chat = 'ahp-chat:/opaque-untimed-chat';
+			const state = makeSessionStateWithActiveTurn(backend.toString());
+			agentHostService.seedSessionMetadata(backend, 'copilot');
+			agentHostService.sessionStates.set(backend.toString(), {
+				...state,
+				defaultChat: chat,
+				chats: [{ resource: chat, title: state.title, status: SessionStatus.InProgress, modifiedAt: '2025-01-01T00:00:00.000Z', origin: { kind: ChatOriginKind.User } }],
+				activeTurn: { ...state.activeTurn!, responseParts: [{ kind: ResponsePartKind.Reasoning, id: 'reasoning', content: 'Restored prefix' }] },
+			});
+			const session = await sessionHandler.provideChatSessionContent(URI.parse('agent-host-copilot:/untimed-reconnect'), CancellationToken.None);
+			disposables.add(session);
+			const response = disposables.add(new Response([]));
+			let consumed = 0;
+			const consume = (restored: boolean) => {
+				const parts = session.progressObs?.get() ?? [];
+				for (const part of parts.slice(consumed)) {
+					if (part.kind === 'thinking' || part.kind === 'markdownContent') {
+						response.updateContent(part, false, restored);
+					}
+				}
+				consumed = parts.length;
+			};
+			consume(true);
+			const clock = sinon.useFakeTimers({ now: 900_000, toFake: ['Date'] });
+			try {
+				agentHostService.fireAction({ channel: chat, action: { type: ActionType.ChatReasoning, turnId: 'turn-active', partId: 'reasoning', content: ' continued' }, serverSeq: 100, origin: undefined });
+				consume(false);
+				clock.tick(5000);
+				agentHostService.fireAction({ channel: chat, action: { type: ActionType.ChatResponsePart, turnId: 'turn-active', part: { kind: ResponsePartKind.Markdown, id: 'answer', content: 'Answer' } }, serverSeq: 101, origin: undefined });
+				consume(false);
+				response.finalizeReasoningDuration();
+
+				assert.deepStrictEqual(JSON.parse(JSON.stringify(response.value.filter(part => part.kind === 'thinking'))), [
+					{ kind: 'thinking', id: 'reasoning', value: 'Restored prefix continued', reasoningTimingSource: 'provider' },
+				]);
+			} finally {
+				clock.restore();
+			}
 		});
 
 		test('includes reasoning in initial progress', async () => {
