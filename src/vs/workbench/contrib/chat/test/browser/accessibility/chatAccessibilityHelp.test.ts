@@ -749,11 +749,12 @@ suite('Chat Accessibility Help', () => {
 		const help = (type: 'agentView' | 'quickChat' | 'inlineChat') => getAccessibilityHelpText(type, new MockKeybindingService(), true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, true);
 		assert.deepStrictEqual({
 			editor: help('agentView').includes('Choose Ask in Side Chat... to open a small Ask Question input'),
-			quote: help('agentView').includes('through the selected response and its quoted text'),
+			quote: help('agentView').includes('Choose Quote to append the selected text as a Markdown quote to the current chat input and focus it'),
+			selectionActions: help('agentView').includes('Select text within an assistant response to show selected text actions'),
 			keyboard: help('agentView').includes('context menu with Shift+F10 or the context menu key'),
 			quick: help('quickChat').includes('Ask Question'),
 			inline: help('inlineChat').includes('Ask Question'),
-		}, { editor: true, quote: true, keyboard: true, quick: false, inline: false });
+		}, { editor: true, quote: true, selectionActions: true, keyboard: true, quick: false, inline: false });
 	});
 
 	test('omits mobile-web selection pop-up help without hiding other sessions help', () => {

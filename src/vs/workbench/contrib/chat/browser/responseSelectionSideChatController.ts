@@ -441,17 +441,32 @@ export class ResponseSelectionSideChatController extends Disposable {
 		this._openQuestionInput();
 	}
 
+	quoteSelection(selection: IResolvedResponseSelection): void {
+		if (!this._responseSelectionSupported || !this._chatResource || this._isReadOnly.get()
+			|| this._chatEntitlementService.sentiment.hidden || this._input.isBusy
+			|| !isEqual(selection.response.sessionResource, this._chatResource) || !selection.range.startContainer.isConnected) {
+			return;
+		}
+		this._resolved = selection;
+		this._quoteSelection();
+	}
+
 	private _quoteSelection(): void {
 		const resolved = this._resolved;
-		if (!resolved || !this._chatResource || this._isReadOnly.get()) {
+		const editor = this._widget.inputEditor;
+		const model = editor.getModel();
+		if (!resolved || !this._chatResource || this._isReadOnly.get() || !model) {
 			return;
 		}
 		const variant = this._visibleVariant ?? this._getConfiguredVariant();
-		const existingInput = this._widget.getInput();
+		const existingInput = model.getValue();
 		const separator = existingInput.length > 0 && !existingInput.endsWith('\n') ? '\n' : '';
 		this._options.onAction?.(variant, 'quote');
 		this._dismiss();
-		this._widget.setInput(`${existingInput}${separator}${formatBlockquote(resolved.text)}`);
+		editor.pushUndoStop();
+		editor.executeEdits('chat.quoteSelection', [{ range: model.getFullModelRange().collapseToEnd(), text: `${separator}${formatBlockquote(resolved.text)}` }]);
+		editor.pushUndoStop();
+		editor.setPosition(model.getFullModelRange().getEndPosition());
 		this._widget.focusInput();
 		status(localize('sessions.responseSelection.quoted', "Quoted selection inserted."));
 	}
@@ -679,7 +694,7 @@ export class EditorResponseSelectionSideChatContribution extends Disposable impl
 			|| (isIChatResourceViewContext(widget.viewContext) && (widget.viewContext.isQuickChat || widget.viewContext.isInlineChat))) {
 			return;
 		}
-		const controller = this._controller = this._register(instantiationService.createInstance(ResponseSelectionSideChatController, widget, isResponseSelectionSupported(), { useActionMenu: () => true, showOnSelection: false }));
+		const controller = this._controller = this._register(instantiationService.createInstance(ResponseSelectionSideChatController, widget, isResponseSelectionSupported(), { useActionMenu: () => true }));
 		const bindModel = () => controller.setChat(widget.viewModel?.sessionResource, widget.viewModel?.model.isReadOnly ?? constObservable(true));
 		this._register(widget.onDidChangeViewModel(bindModel));
 		bindModel();
@@ -687,6 +702,10 @@ export class EditorResponseSelectionSideChatContribution extends Disposable impl
 
 	openQuestionInput(selection: IResolvedResponseSelection): void {
 		this._controller?.openQuestionInput(selection);
+	}
+
+	quoteSelection(selection: IResolvedResponseSelection): void {
+		this._controller?.quoteSelection(selection);
 	}
 }
 
@@ -711,6 +730,31 @@ export class AskSelectionInSideChatAction extends Action2 {
 		const selection = context.responseSelection;
 		const widget = accessor.get(IChatWidgetService).getWidgetBySessionResource(selection.response.sessionResource);
 		widget?.getContrib<EditorResponseSelectionSideChatContribution>(EditorResponseSelectionSideChatContribution.ID)?.openQuestionInput(selection);
+	}
+}
+
+export class QuoteSelectionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.quoteSelection',
+			title: localize2('chat.quoteSelection', "Quote"),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.readOnly.negate()),
+			menu: {
+				id: MenuId.ChatContext,
+				group: 'chat',
+				order: 1,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext.negate(), ChatContextKeys.inQuickChat.negate(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat), ChatContextKeys.isResponse, ChatContextKeys.contextMenuHasResponseSelection),
+			},
+		});
+	}
+
+	run(accessor: ServicesAccessor, context: unknown): void {
+		if (!isChatContextMenuActionContext(context) || !context.responseSelection) {
+			return;
+		}
+		const selection = context.responseSelection;
+		const widget = accessor.get(IChatWidgetService).getWidgetBySessionResource(selection.response.sessionResource);
+		widget?.getContrib<EditorResponseSelectionSideChatContribution>(EditorResponseSelectionSideChatContribution.ID)?.quoteSelection(selection);
 	}
 }
 

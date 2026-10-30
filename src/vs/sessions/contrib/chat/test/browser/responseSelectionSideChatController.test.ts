@@ -13,18 +13,31 @@ import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { TrackedRangeStickiness } from '../../../../../editor/common/model.js';
+import { TestCodeEditorService } from '../../../../../editor/test/browser/editorTestServices.js';
+import { createTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
+import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { INotificationHandle, INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { ChatDynamicVariableModel, dynamicVariableDecorationType } from '../../../../../workbench/contrib/chat/browser/attachments/chatDynamicVariables.js';
 import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, isResponseSelectionSupported } from '../../../../../workbench/contrib/chat/browser/chat.js';
-import { AskSelectionInSideChatAction, EditorResponseSelectionSideChatContribution, ResponseSelectionSideChatController } from '../../../../../workbench/contrib/chat/browser/responseSelectionSideChatController.js';
+import { AskSelectionInSideChatAction, EditorResponseSelectionSideChatContribution, QuoteSelectionAction, ResponseSelectionSideChatController } from '../../../../../workbench/contrib/chat/browser/responseSelectionSideChatController.js';
 import { resolveResponseSelection } from '../../../../../workbench/contrib/chat/browser/responseSelectionResolver.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatSideChatService, IChatSideChatService } from '../../../../../workbench/contrib/chat/common/chatSideChatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -144,7 +157,14 @@ suite('ResponseSelectionSideChatController', () => {
 
 		const response = upcastPartial<IChatResponseViewModel>({ requestId: 'turn-1', sessionResource: URI.parse('test:///chat/source'), setVote: () => undefined });
 		const focusResponseItemCalls: boolean[] = [];
-		let inputValue = options?.initialInput ?? '';
+		const inputModel = store.add(createTextModel(options?.initialInput ?? ''));
+		const codeEditorService = store.add(new TestCodeEditorService(new TestThemeService()));
+		store.add(codeEditorService.registerDecorationType('test', dynamicVariableDecorationType, {
+			rangeBehavior: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		}));
+		const inputEditor = store.add(createTestCodeEditor(inputModel, {
+			serviceCollection: new ServiceCollection([ICodeEditorService, codeEditorService]),
+		}));
 		let focusInputCalls = 0;
 		const onDidScroll = store.add(new Emitter<void>());
 		const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
@@ -161,6 +181,15 @@ suite('ResponseSelectionSideChatController', () => {
 			viewContext: {},
 			get viewModel() { return viewModel; },
 			onDidChangeViewModel: onDidChangeViewModel.event,
+			inputEditor,
+			onDidChangeActiveInputEditor: CommonEvent.None,
+			input: upcastPartial<IChatWidget['input']>({
+				attachmentModel: upcastPartial<IChatWidget['input']['attachmentModel']>({
+					attachments: [],
+					onDidChange: CommonEvent.None,
+				}),
+			}),
+			refreshParsedInput: () => undefined,
 			getElementFromNode: options?.getElementFromNode ?? (() => response),
 			getContrib: () => undefined,
 			focusResponseItem: (lastFocused?: boolean) => { focusResponseItemCalls.push(!!lastFocused); },
@@ -169,8 +198,8 @@ suite('ResponseSelectionSideChatController', () => {
 				autoScrollHolds++;
 				return toDisposable(() => { autoScrollHolds--; });
 			},
-			getInput: () => inputValue,
-			setInput: value => { inputValue = value ?? ''; },
+			getInput: () => inputModel.getValue(),
+			setInput: value => inputModel.setValue(value ?? ''),
 			focusInput: () => { focusInputCalls++; },
 		});
 
@@ -419,7 +448,7 @@ suite('ResponseSelectionSideChatController', () => {
 			sideChat,
 			focusResponseItemCalls,
 			focusInputCalls: () => focusInputCalls,
-			inputValue: () => inputValue,
+			inputValue: () => inputModel.getValue(),
 			clipboardWrites,
 			telemetryEvents,
 			notificationService,
@@ -451,20 +480,67 @@ suite('ResponseSelectionSideChatController', () => {
 		harness.instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
 			getWidgetBySessionResource: resource => extUri.isEqual(resource, harness.chat.resource) ? harness.widget : undefined,
 		}));
-		const openFromContextMenu = () => {
+		const runFromContextMenu = (action: AskSelectionInSideChatAction | QuoteSelectionAction) => {
 			const selection = resolveResponseSelection(harness.widget);
 			assert.ok(selection);
-			harness.instantiationService.invokeFunction(accessor => new AskSelectionInSideChatAction().run(accessor, {
+			harness.instantiationService.invokeFunction(accessor => action.run(accessor, {
 				$chatContextMenu: true,
 				item: selection.response,
 				responseSelection: selection,
 			}));
 		};
-		return { ...harness, contribution, controller, openFromContextMenu };
+		return {
+			...harness, contribution, controller,
+			openFromContextMenu: () => runFromContextMenu(new AskSelectionInSideChatAction()),
+			quoteFromContextMenu: () => runFromContextMenu(new QuoteSelectionAction()),
+		};
 	}
 
 	suite('editor-window host', () => {
-		test('shows nothing automatically and opens the shared input only from the context menu without Agents telemetry', () => {
+		test('offers Quote only for selected responses in AI-enabled editor windows and disables it for read-only chats', () => {
+			const action = new QuoteSelectionAction();
+			const menu = action.desc.menu;
+			assert.ok(menu && !Array.isArray(menu));
+			const when = menu.when;
+			const precondition = action.desc.precondition;
+			assert.ok(when && precondition);
+			const values: Record<string, ContextKeyValue> = {
+				[ChatContextKeys.enabled.key]: true,
+				[IsSessionsWindowContext.key]: false,
+				[ChatContextKeys.inQuickChat.key]: false,
+				[ChatContextKeys.location.key]: ChatAgentLocation.Chat,
+				[ChatContextKeys.isResponse.key]: true,
+				[ChatContextKeys.contextMenuHasResponseSelection.key]: true,
+				[ChatContextKeys.readOnly.key]: false,
+			};
+			const state = (overrides: Record<string, ContextKeyValue> = {}) => {
+				const context = {
+					getValue: <T extends ContextKeyValue>(key: string) => ({ ...values, ...overrides })[key] as T,
+				};
+				return { visible: when.evaluate(context), enabled: precondition.evaluate(context) };
+			};
+			assert.deepStrictEqual({
+				writable: state(),
+				readOnly: state({ [ChatContextKeys.readOnly.key]: true }),
+				noSelection: state({ [ChatContextKeys.contextMenuHasResponseSelection.key]: false }),
+				notResponse: state({ [ChatContextKeys.isResponse.key]: false }),
+				aiDisabled: state({ [ChatContextKeys.enabled.key]: false }),
+				sessionsWindow: state({ [IsSessionsWindowContext.key]: true }),
+				quickChat: state({ [ChatContextKeys.inQuickChat.key]: true }),
+				inlineChat: state({ [ChatContextKeys.location.key]: ChatAgentLocation.EditorInline }),
+			}, {
+				writable: { visible: true, enabled: true },
+				readOnly: { visible: true, enabled: false },
+				noSelection: { visible: false, enabled: true },
+				notResponse: { visible: false, enabled: true },
+				aiDisabled: { visible: false, enabled: false },
+				sessionsWindow: { visible: false, enabled: true },
+				quickChat: { visible: false, enabled: true },
+				inlineChat: { visible: false, enabled: true },
+			});
+		});
+
+		test('shows selection actions and opens the shared input from the context menu without Agents telemetry', () => {
 			const { controller, setSelection, telemetryEvents, openFromContextMenu } = setupEditor();
 			setSelection('hello world');
 			const selectionSurfaces = [menuDomNode(controller).style.display, inputDomNode(controller).style.display];
@@ -475,8 +551,103 @@ suite('ResponseSelectionSideChatController', () => {
 				inputVisible: inputDomNode(controller).style.display !== 'none',
 				focused: dom.getActiveElement() === inputTextArea(controller),
 				telemetryEvents,
-			}, { selectionSurfaces: ['none', 'none'], menuVisible: false, inputVisible: true, focused: true, telemetryEvents: [] });
+			}, { selectionSurfaces: ['', 'none'], menuVisible: false, inputVisible: true, focused: true, telemetryEvents: [] });
 		});
+
+		for (const source of ['selection menu', 'context menu'] as const) {
+			test(`quotes into the current draft from the ${source} without side-chat support`, () => {
+				const { controller, setSelection, inputValue, focusInputCalls, telemetryEvents, callOrder, quoteFromContextMenu } = setupEditor({
+					initialInput: 'Existing prompt',
+					supported: false,
+				});
+				setSelection('first line\nsecond line');
+				if (source === 'selection menu') {
+					triggerMenuAction(controller, 'Quote');
+				} else {
+					quoteFromContextMenu();
+				}
+				assert.deepStrictEqual({
+					input: inputValue(),
+					focusInputCalls: focusInputCalls(),
+					menuVisible: menuDomNode(controller).style.display !== 'none',
+					callOrder,
+					telemetryEvents,
+				}, {
+					input: 'Existing prompt\n> first line\n> second line\n\n',
+					focusInputCalls: 1,
+					menuVisible: false,
+					callOrder: [],
+					telemetryEvents: [],
+				});
+			});
+		}
+
+		test('preserves draft references and supports undo when quoting', async () => {
+			const { controller, setSelection, widget, store } = setupEditor({ initialInput: 'Explain #file.ts' });
+			const variables = store.add(new ChatDynamicVariableModel(widget, upcastPartial<ILabelService>({ getUriLabel: () => '' })));
+			const reference = { id: 'file', range: new Range(1, 9, 1, 17), data: URI.file('/workspace/file.ts') };
+			variables.addReference(reference);
+			setSelection('hello world');
+			triggerMenuAction(controller, 'Quote');
+			const quoted = { text: widget.getInput(), references: variables.variables, position: { ...widget.inputEditor.getPosition() } };
+			await widget.inputEditor.getModel()?.undo();
+			assert.deepStrictEqual({
+				quoted,
+				undone: { text: widget.getInput(), references: variables.variables },
+			}, {
+				quoted: {
+					text: 'Explain #file.ts\n> hello world\n\n',
+					references: [reference],
+					position: { lineNumber: 4, column: 1 },
+				},
+				undone: { text: 'Explain #file.ts', references: [reference] },
+			});
+		});
+
+		test('quotes the captured context-menu selection after the native selection collapses', () => {
+			const { contribution, setSelection, widget, inputValue, focusInputCalls } = setupEditor();
+			setSelection('hello world');
+			const selection = resolveResponseSelection(widget);
+			assert.ok(selection);
+			setSelection('');
+			contribution.quoteSelection(selection);
+			assert.deepStrictEqual({ input: inputValue(), focusInputCalls: focusInputCalls() }, {
+				input: '> hello world\n\n',
+				focusInputCalls: 1,
+			});
+		});
+
+		test('ignores a captured quote after navigating to a different conversation', () => {
+			const { contribution, setSelection, widget, bindModel, inputValue, focusInputCalls } = setupEditor();
+			setSelection('hello world');
+			const selection = resolveResponseSelection(widget);
+			assert.ok(selection);
+			bindModel(URI.parse('test:///chat/other'));
+			contribution.quoteSelection(selection);
+			assert.deepStrictEqual({ input: inputValue(), focusInputCalls: focusInputCalls() }, {
+				input: '',
+				focusInputCalls: 0,
+			});
+		});
+
+		for (const state of ['read-only', 'AI disabled'] as const) {
+			test(`does not quote when ${state}`, () => {
+				const { controller, setSelection, readOnly, inputValue, focusInputCalls, quoteFromContextMenu } = setupEditor({
+					initialInput: 'Existing prompt',
+					aiHidden: state === 'AI disabled',
+				});
+				setSelection('hello world');
+				if (state === 'read-only') {
+					readOnly.set(true, undefined);
+					triggerMenuAction(controller, 'Quote');
+				}
+				quoteFromContextMenu();
+				assert.deepStrictEqual({ input: inputValue(), focusInputCalls: focusInputCalls() }, {
+					input: 'Existing prompt',
+					focusInputCalls: 0,
+				});
+			});
+		}
 
 		test('keeps the captured selection when opening the context menu collapses the native selection', async () => {
 			const { controller, contribution, setSelection, widget, callOrder, sideChat } = setupEditor();
@@ -549,7 +720,7 @@ suite('ResponseSelectionSideChatController', () => {
 			readOnly.set(true, undefined);
 			setSelection('hello world');
 			openFromContextMenu();
-			assert.deepStrictEqual([menuDomNode(controller).style.display, inputDomNode(controller).style.display], ['none', 'none']);
+			assert.deepStrictEqual([menuDomNode(controller).style.display, inputDomNode(controller).style.display], ['', 'none']);
 		});
 
 		test('hides the inline question action when AI is disabled', () => {
