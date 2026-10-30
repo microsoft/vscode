@@ -425,6 +425,77 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		});
 	});
 
+	for (const [target, other] of [['local', 'remote'], ['remote', 'local'], ['web', 'remote'], ['remote', 'web']] as const) {
+		test(`extension state stays scoped to the ${target} server during uninstall and reinstall with a copy on ${other}`, async () => {
+			const gallery = aGalleryExtension('a');
+			const schemes = { local: Schemas.file, remote: Schemas.vscodeRemote, web: Schemas.vscodeUserData };
+			const manifest = { extensionKind: ['workspace', 'web'], browser: 'browser.js' };
+			const targetLocal = aLocalExtension('a', manifest, { identifier: gallery.identifier, location: URI.file('pub.a').with({ scheme: schemes[target] }) });
+			const otherLocal = aLocalExtension('a', manifest, { identifier: gallery.identifier, location: URI.file('pub.a').with({ scheme: schemes[other] }) });
+			const otherDidInstallEvent = disposableStore.add(new Emitter<readonly InstallExtensionResult[]>());
+			const targetService: IProfileAwareExtensionManagementService = {
+				...createExtensionManagementService(),
+				onInstallExtension: installEvent.event,
+				onDidInstallExtensions: didInstallEvent.event,
+				onUninstallExtension: uninstallEvent.event,
+				onDidUninstallExtension: didUninstallEvent.event,
+			};
+			const otherService: IProfileAwareExtensionManagementService = {
+				...createExtensionManagementService(),
+				onDidInstallExtensions: otherDidInstallEvent.event,
+			};
+			const extensionManagementServers: IExtensionManagementServer[] = [
+				{ id: target, label: target, extensionManagementService: targetService },
+				{ id: other, label: other, extensionManagementService: otherService },
+			];
+			const servers = anExtensionManagementServerService(
+				extensionManagementServers.find(server => server.id === 'local') ?? null,
+				extensionManagementServers.find(server => server.id === 'remote') ?? null,
+				extensionManagementServers.find(server => server.id === 'web') ?? null);
+			instantiationService.stub(IExtensionManagementServerService, servers);
+			instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
+			instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
+			testObject = await aWorkbenchService();
+			await testObject.whenInitialized;
+
+			// Keep a gallery result created before either copy is installed: it has no server.
+			const galleryExtension = (await testObject.queryGallery(CancellationToken.None)).firstPage[0];
+			assert.deepStrictEqual([galleryExtension.server, galleryExtension.state], [undefined, ExtensionState.Uninstalled]);
+
+			const identifier = gallery.identifier;
+			didInstallEvent.fire([{ identifier, source: gallery, operation: InstallOperation.Install, local: targetLocal, profileLocation: null! }]);
+			otherDidInstallEvent.fire([{ identifier, source: gallery, operation: InstallOperation.Install, local: otherLocal, profileLocation: null! }]);
+			const extension = testObject.installed.find(extension => extension.local === targetLocal)!;
+			const otherExtension = testObject.installed.find(extension => extension.local === otherLocal)!;
+			const states: ExtensionState[][] = [[extension.state, otherExtension.state]];
+
+			uninstallEvent.fire({ identifier, profileLocation: null! });
+			states.push([extension.state, otherExtension.state]);
+			didUninstallEvent.fire({ identifier, error: 'uninstall failed', profileLocation: null! });
+			states.push([extension.state, otherExtension.state]);
+
+			uninstallEvent.fire({ identifier, profileLocation: null! });
+			didUninstallEvent.fire({ identifier, profileLocation: null! });
+			states.push([extension.state, otherExtension.state]);
+			assert.deepStrictEqual(testObject.installed, [otherExtension]);
+			assert.strictEqual(galleryExtension.state, ExtensionState.Installed);
+
+			installEvent.fire({ identifier, source: gallery, profileLocation: null! });
+			states.push([extension.state, otherExtension.state]);
+			didInstallEvent.fire([{ identifier, source: gallery, operation: InstallOperation.Install, local: targetLocal, profileLocation: null! }]);
+			states.push([extension.state, otherExtension.state]);
+
+			assert.deepStrictEqual(states, [
+				[ExtensionState.Installed, ExtensionState.Installed],
+				[ExtensionState.Uninstalling, ExtensionState.Installed],
+				[ExtensionState.Installed, ExtensionState.Installed],
+				[ExtensionState.Uninstalled, ExtensionState.Installed],
+				[ExtensionState.Installing, ExtensionState.Installed],
+				[ExtensionState.Installed, ExtensionState.Installed],
+			]);
+		});
+	}
+
 	test('test extension doesnot show outdated for system extensions', async () => {
 		const local = aLocalExtension('a', { version: '1.0.1' }, { type: ExtensionType.System });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
