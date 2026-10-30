@@ -50,18 +50,16 @@ import { CHANGES_HEADER_ACTIONS_ID, ChangesPickerActionItem, ChangesPickerSummar
 import { SessionsChangesAccessibilityHelp } from '../../browser/sessionsChangesAccessibilityHelp.js';
 import '../../browser/changesViewActions.js';
 
+// Awaited while this file loads so that the contribution's permanent registrations are in place before
+// any suite runs instead of being registered by this suite.
+const { changesViewWhen } = await import('../../browser/changes.contribution.js');
+
 function getToggledExpression(toggled: ContextKeyExpression | ICommandActionToggleInfo | undefined): ContextKeyExpression | undefined {
 	return toggled && hasKey(toggled, { condition: true }) ? toggled.condition : toggled;
 }
 
 suite('Changes View Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
-	let changesViewWhen: ContextKeyExpression | undefined;
-
-	suiteSetup(async () => {
-		({ changesViewWhen } = await import('../../browser/changes.contribution.js'));
-	});
 
 	test('Changes view is available for new and created workspace sessions', () => {
 		assert.ok(changesViewWhen);
