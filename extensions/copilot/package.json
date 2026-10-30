@@ -2568,11 +2568,6 @@
         "category": "Chat"
       },
       {
-        "command": "github.copilot.debug.workbenchState",
-        "title": "%github.copilot.command.logWorkbenchState%",
-        "category": "Developer"
-      },
-      {
         "command": "github.copilot.debug.togglePowerSaveBlocker",
         "title": "%github.copilot.command.togglePowerSaveBlocker%",
         "category": "Developer"
@@ -5539,10 +5534,6 @@
         {
           "command": "github.copilot.interactiveSession.feedback",
           "when": "github.copilot-chat.activated && !github.copilot.interactiveSession.disabled"
-        },
-        {
-          "command": "github.copilot.debug.workbenchState",
-          "when": "true"
         },
         {
           "command": "github.copilot.chat.rerunWithCopilotDebug",
