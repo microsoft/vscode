@@ -10660,6 +10660,9 @@ class SessionPluginController extends Disposable {
 			if (!native) {
 				continue;
 			}
+			if (!readCustomizationDiscoveryMeta(server) && !owners.has(server.name)) {
+				this._customizationEnablementService.adoptMcpServerOwnership(this._session.toString(), targetForMcpServer(server, undefined, false), URI.parse(native.plugin.uri));
+			}
 			// A confirmed runtime default belongs to both identities of the same SDK declaration.
 			const projected = { ...this._projectForPublish({ ...native.server, id: server.id }), id: native.server.id };
 			result[result.indexOf(native.plugin)] = { ...native.plugin, children: native.plugin.children?.map(child => child === native.server ? projected : child) };

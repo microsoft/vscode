@@ -35,17 +35,12 @@ export function readCustomizationDiscoveryMeta(customization: { readonly _meta?:
 	};
 }
 
-export function withCustomizationDiscoveryMeta(meta: Record<string, unknown> | undefined, discovery: ICustomizationDiscoveryMeta): Record<string, unknown>;
-export function withCustomizationDiscoveryMeta(meta: Record<string, unknown> | undefined, discovery: undefined): Record<string, unknown> | undefined;
-export function withCustomizationDiscoveryMeta(meta: Record<string, unknown> | undefined, discovery: ICustomizationDiscoveryMeta | undefined): Record<string, unknown> | undefined;
-export function withCustomizationDiscoveryMeta(meta: Record<string, unknown> | undefined, discovery: ICustomizationDiscoveryMeta | undefined): Record<string, unknown> | undefined {
+export function withCustomizationDiscoveryMeta(meta: Record<string, unknown> | undefined, discovery: ICustomizationDiscoveryMeta | undefined): Record<string, unknown> {
+	const result = { ...meta };
 	if (discovery === undefined) {
-		if (!meta || !Object.hasOwn(meta, key)) {
-			return meta;
-		}
-		const remaining = { ...meta };
-		delete remaining[key];
-		return Object.keys(remaining).length > 0 ? remaining : undefined;
+		delete result[key];
+	} else {
+		result[key] = discovery;
 	}
-	return { ...meta, [key]: discovery };
+	return result;
 }
