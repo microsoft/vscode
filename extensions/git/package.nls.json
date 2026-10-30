@@ -434,6 +434,14 @@
 	"view.workbench.scm.scanWorkspaceForRepositories": {
 		"message": "Scanning workspace for Git repositories..."
 	},
+	"view.workbench.scm.scanFailed": {
+		"message": "Git repository scan failed or timed out.\n[Reload Window](command:workbench.action.reloadWindow)\nTo learn more about how to use Git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
+		"comment": [
+			"{Locked='](command:workbench.action.reloadWindow'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
+	},
 	"view.workbench.scm.repositoryInParentFolders": {
 		"message": "A Git repository was found in the parent folders of the workspace or the open file(s).\n[Open Repository](command:git.openRepositoriesInParentFolders)\nUse the [git.openRepositoryInParentFolders](command:workbench.action.openSettings?%5B%22git.openRepositoryInParentFolders%22%5D) setting to control whether Git repositories in parent folders of workspaces or open files are opened. To learn more [read our docs](https://aka.ms/vscode-git-repository-in-parent-folders).",
 		"comment": [
