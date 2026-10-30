@@ -95,6 +95,8 @@ suite('MainThreadAuthentication', () => {
 		rpcProtocol.set(MainContext.MainThreadAuthentication, mainThreadAuthentication);
 	});
 
+	teardown(() => sinon.restore());
+
 	test('provider registration completes without errors', async () => {
 		// Test basic registration - this should complete without throwing
 		await mainThreadAuthentication.$registerAuthenticationProvider({
