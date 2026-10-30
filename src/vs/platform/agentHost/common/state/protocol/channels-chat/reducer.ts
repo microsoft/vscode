@@ -684,6 +684,7 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 						pastTenseMessage: tc.pastTenseMessage,
 						content: tc.content,
 						structuredContent: tc.structuredContent,
+						resultMetadata: tc.resultMetadata,
 						error: tc.error,
 					};
 				}

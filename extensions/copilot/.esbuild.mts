@@ -375,8 +375,7 @@ async function main() {
 				`**/baseline.old.json`,
 				`**/*.w.json`,
 				'**/*.sqlite',
-				'**/*.sqlite-journal',
-				'test/aml/out/**'
+				'**/*.sqlite-journal'
 			]
 		});
 		rebuild();

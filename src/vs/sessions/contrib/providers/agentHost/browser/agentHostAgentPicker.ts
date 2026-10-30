@@ -382,7 +382,8 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 		const storedUri = isUntitled
 			? this.storageService.get(agentHostAgentPickerStorageKey(session.resource.scheme), StorageScope.PROFILE)
 			: undefined;
-		const resolved = resolveAgentHostAgent(agents, selectedAgentUri, storedUri);
+		const canonicalUri = (uri: string | undefined) => uri ? provider.resolveCustomAgent?.(session.sessionId, uri)?.uri ?? uri : undefined;
+		const resolved = resolveAgentHostAgent(agents, canonicalUri(selectedAgentUri), canonicalUri(storedUri));
 
 		if (!selectedAgentUri && isUntitled && resolved) {
 			beginInternalSet();

@@ -7,7 +7,7 @@ import { localize } from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { EXTENSION_IDENTIFIER_PATTERN } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY } from '../../../../platform/extensions/common/extensions.js';
+import { EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT } from '../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -23,15 +23,6 @@ import { AgentsWindowExtensionsWidget } from './agentsWindowExtensionsWidget.js'
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'extensions',
 	properties: {
-		[EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY]: {
-			type: 'boolean',
-			scope: ConfigurationScope.APPLICATION,
-			description: localize('extensions.experimental.enableAgentsWindowCapability', "When enabled, non-built-in extensions can declare whether they support running in the Agents window. Built-in extensions can declare support without enabling this setting."),
-			default: true,
-			tags: ['experimental'],
-			experiment: { mode: 'startup' },
-			agentsWindow: { default: true }
-		},
 		[EXTENSIONS_AGENTS_WINDOW_MANAGEMENT]: {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,

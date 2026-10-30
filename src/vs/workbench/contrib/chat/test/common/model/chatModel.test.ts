@@ -3352,6 +3352,22 @@ suite('ChatModel - Pending Requests', () => {
 			systemInitiatedLabel: restored.systemInitiatedLabel,
 		}, provenance);
 	});
+
+	test('request versions fall back to 0 unless they are non-negative safe integers', () => {
+		const model = createModel();
+		const versionOf = (version: number | undefined) => new ChatRequestModel({
+			session: model,
+			message: { text: 'hello', parts: [] },
+			variableData: { variables: [] },
+			timestamp: 0,
+			version,
+		}).version;
+
+		assert.deepStrictEqual(
+			[undefined, 0, 2, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1].map(versionOf),
+			[0, 0, 2, 0, 0, 0, 0, 0]
+		);
+	});
 });
 
 suite('serializeSendOptions', () => {

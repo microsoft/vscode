@@ -88,7 +88,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		this._register(this._agentHostFilterService.registerDiscoveryHandler(() => this._discoverAndSeed()));
 		this._register(this._agentHostFilterService.onDidChange(() => {
 			if (this._agentHostFilterService.selectedHostId === CLOUD_SANDBOX_HOST_GROUP.id) {
-				void this._refreshIfStale();
+				void this._refreshIfStale('selection');
 			}
 		}));
 	}
@@ -118,7 +118,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			if (!this._hostGroupRegistration.value) {
 				this._hostGroupRegistration.value = this._agentHostFilterService.registerHostGroup(CLOUD_SANDBOX_HOST_GROUP);
 			}
-			void this._discoverAndSeed();
+			void this._discoverAndSeed({ trigger: 'startup' });
 		}
 	}
 

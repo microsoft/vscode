@@ -16,6 +16,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { affectsAgentHostProviderPreference, IAgentConnection, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { hasReadableCustomizationContent } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { readMcpServerConnectorName, readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
@@ -329,8 +330,8 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 					status: server.state.kind,
 					authenticating: this._isAutoAuthenticatingMcpServer(sessionResource, target, server),
 					state: server.state,
-					sourceUri: source.scheme === 'mcp-top-level' ? undefined : target.resourceUris.fromAgentHost(source),
-					sourceRange: server.range,
+					sourceUri: source.scheme === 'mcp-top-level' || !hasReadableCustomizationContent(source) ? undefined : target.resourceUris.fromAgentHost(source),
+					sourceRange: source.scheme === 'mcp-top-level' || !hasReadableCustomizationContent(source) ? undefined : server.range,
 					logOutputChannelId: channelIdForMcpServer(sessionResource.toString(), server.id),
 					setEnabled: (enabled: boolean) => target.setCustomizationEnablement(server.id, withCustomizationEnablement(server.enablement, CustomizationEnablementKind.Session, { kind: CustomizationEnablementKind.Session, enabled })),
 					start: () => target.startMcpServer(server.id),

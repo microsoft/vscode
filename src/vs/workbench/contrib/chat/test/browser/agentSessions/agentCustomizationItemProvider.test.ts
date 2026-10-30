@@ -4,39 +4,362 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { CustomizationType, type AgentCustomization, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
+import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentCustomizationItemProvider } from '../../../browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
-import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
+import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { ChatMode, CustomChatMode } from '../../../common/chatModes.js';
-import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IExtensionPromptPath, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
+import { withCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
+import { hasReadableCustomizationContent } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
+import { expandHookFileItems } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
+import { TestPathService } from '../../../../../test/browser/workbenchTestServices.js';
 
-function makePromptsService(): IPromptsService {
+function makePromptsService(extensionFiles: readonly IExtensionPromptPath[] = []): IPromptsService {
 	return upcastPartial<IPromptsService>({
 		onDidChangeSkills: Event.None,
 		getDisabledPromptFiles: () => new ResourceSet(),
-		listPromptFilesForStorage: async () => [],
+		listPromptFilesForStorage: async (_type, storage) => storage === PromptsStorage.extension ? extensionFiles : [],
 	});
 }
 
+const labelService = upcastPartial<ILabelService>({ getUriLabel: resource => resource.toString() });
+
 suite('AgentCustomizationItemProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shows discovery errors even when no hook actions could be loaded', async () => {
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomizations(): readonly Customization[] {
+				return [{
+					type: CustomizationType.Directory, id: 'hooks', uri: 'agent-discovery://copilot/hooks',
+					name: 'Hooks', contents: CustomizationType.Hook, enabled: true, writable: false, children: [],
+					load: { kind: CustomizationLoadStatus.Error, message: 'SDK hook discovery failed' },
+				}];
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'remote', undefined, undefined, upcastPartial<IFileService>({}),
+			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const items = await provider.provideChatSessionCustomizations(URI.parse('other-host:/opaque/session'), CancellationToken.None);
+		assert.deepStrictEqual(items.map(item => ({ name: item.name, status: item.status, message: item.statusMessage, readable: hasReadableCustomizationContent(item.uri) })),
+			[{ name: 'Hooks', status: 'error', message: 'SDK hook discovery failed', readable: false }]);
+	});
+
+	test('shows host-discovered plugin hooks without reading client files and preserves individual enablement', async () => {
+		let readCount = 0;
+		const fileService = upcastPartial<IFileService>({ readFile: async () => { readCount++; throw new Error('Must not read client files'); } });
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomizations(): readonly Customization[] {
+				return [{
+					type: CustomizationType.Directory, id: 'hooks', uri: 'agent-discovery://copilot/hooks',
+					name: 'Hooks', contents: CustomizationType.Hook, enabled: true, writable: false,
+					children: [true, false].map((enabled, index) => ({
+						type: CustomizationType.Hook, id: `hook-${index}`, uri: `agent-discovery://copilot/hooks#${index}`,
+						name: 'sessionStart', enabled,
+						_meta: withCustomizationDiscoveryMeta(undefined, { source: 'plugin', sourceLabel: 'Remote plugin', hookType: 'sessionStart' }),
+					})),
+				}];
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'remote', undefined, undefined, fileService,
+			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const items = await provider.provideChatSessionCustomizations(URI.parse('other-host:/opaque/session'), CancellationToken.None);
+		const expanded = await expandHookFileItems(items, upcastPartial<IAICustomizationWorkspaceService>({ getActiveProjectRoot: () => undefined }), fileService,
+			new TestPathService(URI.file('/client-home')));
+		assert.deepStrictEqual({
+			readCount, items: expanded.map(item => ({
+				key: item.itemKey, name: item.name, source: item.source, description: item.description,
+				enabled: item.enabled, readable: hasReadableCustomizationContent(item.uri),
+			}))
+		}, {
+			readCount: 0, items: [true, false].map((enabled, index) => ({
+				key: `hook-${index}`, name: 'Session Start', source: AICustomizationSources.plugin, description: 'Remote plugin — Source file unavailable',
+				enabled, readable: false,
+			}))
+		});
+	});
+
+	test('keeps case-distinct host agent URIs in their declared plugin sources', async () => {
+		const agents: AgentCustomization[] = ['Reviewer', 'reviewer'].map(id => ({
+			type: CustomizationType.Agent, id, uri: `other-host:/agents/${id}`, name: 'Reviewer',
+		}));
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomAgents() { return agents; }
+			override getCustomizations(): readonly Customization[] {
+				return agents.map((agent, index) => ({
+					type: CustomizationType.Plugin, id: `plugin-${index}`, uri: `other-host:/plugin/${index}`, name: `source-${index}`, children: [agent],
+				}));
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'remote', undefined, undefined, upcastPartial<IFileService>({}), new NullLogService(),
+			new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const result = await provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None);
+		assert.deepStrictEqual(result.map(agent => ({ id: agent.id, source: agent.source.label })), [
+			{ id: agents[0].uri, source: 'Plugin: source-0' },
+			{ id: agents[1].uri, source: 'Plugin: source-1' },
+		]);
+	});
+
+	test('does not treat a case-distinct host agent as a client draft', async () => {
+		const agents: AgentCustomization[] = ['Reviewer', 'reviewer'].map(id => ({
+			type: CustomizationType.Agent, id, uri: `other-host:/agents/${id}`, name: 'Reviewer',
+		}));
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomAgents() { return agents; }
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'remote', undefined, undefined, upcastPartial<IFileService>({}), new NullLogService(),
+			new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		provider.setDraftCustomAgents(observableValue<readonly AgentCustomization[]>('draft', [agents[0]]));
+		const result = await provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None);
+		assert.deepStrictEqual(result.map(agent => agent.source.label), ['VS Code', 'Agent Host']);
+	});
+
+	test('retains agents and logs failures when optional extension label discovery fails', async () => {
+		class TestLogService extends NullLogService {
+			warnings = 0;
+			override warn(): void { this.warnings++; }
+		}
+		const prompts = makePromptsService();
+		prompts.listPromptFilesForStorage = async () => { throw new Error('Extension discovery failed'); };
+		const log = new TestLogService();
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'local', undefined, undefined, upcastPartial<IFileService>({}), log,
+			new NullAgentHostCustomizationService(), prompts, labelService,
+		));
+		provider.setDraftCustomAgents(observableValue<readonly AgentCustomization[]>('draft', [
+			{ type: CustomizationType.Agent, id: 'agent', uri: 'other-host:/agent', name: 'Reviewer' },
+		]));
+		const result = await provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None);
+		assert.deepStrictEqual({ ids: result.map(agent => agent.id), warnings: log.warnings }, { ids: ['other-host:/agent'], warnings: 1 });
+	});
+
+	test('does not turn cancelled extension discovery into a successful agent list', async () => {
+		const prompts = makePromptsService();
+		prompts.listPromptFilesForStorage = async () => { throw new CancellationError(); };
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'local', undefined, undefined, upcastPartial<IFileService>({}), new NullLogService(),
+			new NullAgentHostCustomizationService(), prompts, labelService,
+		));
+		await assert.rejects(() => provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None), isCancellationError);
+	});
+
+	function extensionFile(name: string, displayName?: string): IExtensionPromptPath {
+		return {
+			uri: URI.parse(`file:///extensions/${name}/reviewer.agent.md`),
+			type: PromptsType.agent,
+			storage: PromptsStorage.extension,
+			source: PromptFileSource.ExtensionContribution,
+			extension: upcastPartial<IExtensionDescription>({ identifier: new ExtensionIdentifier(`publisher.${name}`), name, displayName }),
+		};
+	}
+
+	test('labels opaque host agents with extension display names through explicit source metadata', async () => {
+		const files = [extensionFile('first', 'First Extension'), extensionFile('second')];
+		const sources = files.map(file => URI.parse(`client-customizations:/bundle/agents/${file.extension.name}/reviewer.agent.md`));
+		const agents: AgentCustomization[] = sources.map((source, index) => ({
+			type: CustomizationType.Agent, id: `agent-${index}`, uri: `other-host:/opaque/${index}`, name: 'Reviewer',
+			_meta: { 'vscode.sourceUri': source.toString() },
+		}));
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomAgents() { return agents; }
+			override getCustomizations(): readonly Customization[] {
+				return [{ type: CustomizationType.Plugin, id: 'bundle', uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/bundle`, name: 'VS Code Synced Data', children: agents }];
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'remote', undefined,
+			uri => {
+				const index = sources.findIndex(source => isEqual(source, uri));
+				return index < 0 ? undefined : { uri: files[index].uri, source: AICustomizationSources.extension, extensionId: files[index].extension.identifier.value.toUpperCase() };
+			},
+			upcastPartial<IFileService>({}), new NullLogService(), new TestCustomizationService(), makePromptsService(files), labelService,
+		));
+		const result = await provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None);
+		assert.deepStrictEqual(result.map(agent => ({ id: agent.id, name: agent.name, source: agent.source.label })), [
+			{ id: agents[0].uri, name: 'Reviewer', source: 'Extension: First Extension' },
+			{ id: agents[1].uri, name: 'Reviewer', source: 'Extension: second' },
+		]);
+	});
+
+	test('labels original draft extension agents without host source metadata', async () => {
+		const file = extensionFile('draft', 'Draft Extension');
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'local', undefined, undefined, upcastPartial<IFileService>({}), new NullLogService(),
+			new NullAgentHostCustomizationService(), makePromptsService([file]), labelService,
+		));
+		provider.setDraftCustomAgents(observableValue<readonly AgentCustomization[]>('draftAgents', [
+			{ type: CustomizationType.Agent, id: file.uri.toString(), uri: file.uri.toString(), name: 'Reviewer' },
+		]));
+		const result = await provider.provideCustomAgents(URI.parse('agent-host-copilotcli:/draft'), CancellationToken.None);
+		assert.deepStrictEqual(result.map(agent => agent.source.label), ['Extension: Draft Extension']);
+	});
+
+	for (const sourceUri of [undefined, 42, 'relative/agent.md', 'other-source:/unmapped/agent.md']) {
+		test(`retains generic source labels when provenance is unavailable: ${String(sourceUri)}`, async () => {
+			const agents: AgentCustomization[] = [{
+				type: CustomizationType.Agent, id: 'opaque-agent', uri: 'other-host:/opaque/agent', name: 'Reviewer',
+				_meta: { 'vscode.sourceUri': sourceUri },
+			}];
+			class TestCustomizationService extends NullAgentHostCustomizationService {
+				override getCustomAgents() { return agents; }
+				override getCustomizations(): readonly Customization[] {
+					return [{ type: CustomizationType.Plugin, id: 'bundle', uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/bundle`, name: 'VS Code Synced Data', children: agents }];
+				}
+			}
+			const provider = disposables.add(new AgentCustomizationItemProvider(
+				'remote', undefined, () => undefined, upcastPartial<IFileService>({}), new NullLogService(),
+				new TestCustomizationService(), makePromptsService([extensionFile('unrelated', 'Unrelated Extension')]), labelService,
+			));
+			const result = await provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None);
+			assert.deepStrictEqual(result.map(agent => ({ id: agent.id, source: agent.source.label })), [
+				{ id: agents[0].uri, source: 'VS Code' },
+			]);
+		});
+	}
+
+	test('labels declared draft plugin sources before host children are available', async () => {
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'local', undefined, undefined, upcastPartial<IFileService>({}),
+			new NullLogService(), new NullAgentHostCustomizationService(), makePromptsService(), labelService,
+		));
+		provider.setDraftCustomAgents(observableValue<readonly AgentCustomization[]>('draftAgents', [
+			{ type: CustomizationType.Agent, id: 'plugin-agent', uri: 'file:///plugins/review-tools/agents/reviewer.agent.md', name: 'Reviewer' },
+			{ type: CustomizationType.Agent, id: 'extension-agent', uri: 'file:///extensions/reviewer.agent.md', name: 'Reviewer' },
+		]));
+		provider.setDraftCustomizations(observableValue<readonly ClientPluginCustomization[]>('draftCustomizations', [
+			{ type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///plugins/review-tools', name: 'review-tools' },
+			{ type: CustomizationType.Plugin, id: 'bundle', uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/bundle`, name: 'VS Code Synced Data' },
+		]));
+		const agents = await provider.provideCustomAgents(URI.parse('agent-host-copilotcli:/draft'), CancellationToken.None);
+		assert.deepStrictEqual(agents.map(agent => agent.source.label), ['Plugin: review-tools', 'VS Code']);
+	});
+
+	test('labels agent origins using their declared containers rather than backend URI conventions', async () => {
+		const agents: AgentCustomization[] = [
+			{ type: CustomizationType.Agent, id: 'opaque-client-agent', uri: 'other-host:/opaque/first', name: 'Reviewer' },
+			{ type: CustomizationType.Agent, id: 'opaque-native-agent', uri: 'other-host:/opaque/second', name: 'Reviewer' },
+		];
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomAgents() { return agents; }
+			override getCustomizations(): readonly Customization[] {
+				return [
+					{ type: CustomizationType.Plugin, id: 'disabled', uri: 'other-host:/disabled', name: 'Wrong source', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }], children: [agents[0]] },
+					{ type: CustomizationType.Plugin, id: 'bundle', uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/bundle`, name: 'VS Code Synced Data', children: [agents[0]] },
+					{ type: CustomizationType.Plugin, id: 'native', uri: 'other-host:/declared/plugin', name: 'review-tools', children: [agents[1]] },
+				];
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'remote', undefined, undefined, upcastPartial<IFileService>({}),
+			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const result = await provider.provideCustomAgents(URI.parse('remote-agent-host-test-copilot:/session'), CancellationToken.None);
+		assert.deepStrictEqual(result.map(agent => ({ id: agent.id, name: agent.name, source: agent.source.label })), [
+			{ id: agents[0].uri, name: 'Reviewer', source: 'VS Code' },
+			{ id: agents[1].uri, name: 'Reviewer', source: 'Plugin: review-tools' },
+		]);
+	});
+
+	test('adds file names when matching agent labels also share the same source label', async () => {
+		const agents: AgentCustomization[] = ['first', 'second'].map(name => ({
+			type: CustomizationType.Agent, id: name, uri: `other-host:/files/${name}.agent.md`, name: 'Reviewer',
+		}));
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomAgents() { return agents; }
+			override getCustomizations(): readonly Customization[] {
+				return [{ type: CustomizationType.Plugin, id: 'plugin', uri: 'other-host:/plugin', name: 'review-tools', children: agents }];
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'remote', undefined, undefined, upcastPartial<IFileService>({}),
+			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const result = await provider.provideCustomAgents(URI.parse('remote-agent-host-test-copilot:/session'), CancellationToken.None);
+		assert.deepStrictEqual(result.map(agent => agent.source.label), [
+			'Plugin: review-tools (first.agent.md)', 'Plugin: review-tools (second.agent.md)',
+		]);
+	});
+
+	for (const pathStyle of ['posix', 'windows']) {
+		test(`uses compact ${pathStyle} locations when source and file names are both ambiguous`, async () => {
+			const prefix = `/profiles/remote-user/${'customizations/materialized-cache/'.repeat(6)}`;
+			const agents: AgentCustomization[] = ['first', 'second'].map(name => ({
+				type: CustomizationType.Agent, id: name, uri: `other-host:${prefix}${name}/shared.agent.md`, name: 'Reviewer',
+			}));
+			class TestCustomizationService extends NullAgentHostCustomizationService {
+				override getCustomAgents() { return agents; }
+				override getCustomizations(): readonly Customization[] {
+					return [{ type: CustomizationType.Plugin, id: 'plugin', uri: 'other-host:/plugin', name: 'review-tools', children: agents }];
+				}
+			}
+			const provider = disposables.add(new AgentCustomizationItemProvider(
+				'remote', undefined, undefined, upcastPartial<IFileService>({}),
+				new NullLogService(), new TestCustomizationService(), makePromptsService(),
+				upcastPartial<ILabelService>({
+					getUriLabel: resource => pathStyle === 'windows' ? `C:${resource.path.replaceAll('/', '\\')}` : resource.path,
+				}),
+			));
+			const result = await provider.provideCustomAgents(URI.parse('remote-agent-host-test-copilot:/session'), CancellationToken.None);
+			assert.deepStrictEqual(result.map(agent => agent.source.label), pathStyle === 'windows' ? [
+				'Plugin: review-tools (C:\\\u2026\\first\\\u2026)', 'Plugin: review-tools (C:\\\u2026\\second\\\u2026)',
+			] : [
+				'Plugin: review-tools (/profiles/\u2026/first/\u2026)', 'Plugin: review-tools (/profiles/\u2026/second/\u2026)',
+			]);
+		});
+	}
+
+	test('uses original locations to distinguish same-named bundled extension agents', async () => {
+		const agents: AgentCustomization[] = ['first', 'second'].map(name => ({
+			type: CustomizationType.Agent, id: name, uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/bundle/agents/${name}/reviewer.agent.md`, name: 'Reviewer',
+		}));
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomAgents() { return agents; }
+			override getCustomizations(): readonly Customization[] {
+				return [{ type: CustomizationType.Plugin, id: 'bundle', uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/bundle`, name: 'VS Code Synced Data', children: agents }];
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'local', undefined,
+			resource => ({
+				uri: URI.parse(`file:///extensions/${resource.path.includes('/first/') ? 'first' : 'second'}/reviewer.agent.md`),
+				source: AICustomizationSources.extension,
+			}),
+			upcastPartial<IFileService>({}), new NullLogService(), new TestCustomizationService(), makePromptsService(),
+			upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }),
+		));
+		const result = await provider.provideCustomAgents(URI.parse('agent-host-copilotcli:/session'), CancellationToken.None);
+		assert.deepStrictEqual(result.map(agent => agent.source.label), [
+			'VS Code (/extensions/first/\u2026)', 'VS Code (/extensions/second/\u2026)',
+		]);
+	});
 
 	test('provides synced client tools and MCP namespaces without runtime discovery', async () => {
 		let inventoryReads = 0;
@@ -51,7 +374,7 @@ suite('AgentCustomizationItemProvider', () => {
 		}
 		const provider = disposables.add(new AgentCustomizationItemProvider(
 			'remote', undefined, undefined, upcastPartial<IFileService>({}),
-			new NullLogService(), new TestCustomizationService(), makePromptsService(),
+			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
 		));
 
 		const inventory = await provider.provideAgentFileTools(URI.parse('remote-agent-host-test-copilot:/session'), CancellationToken.None);
@@ -84,7 +407,7 @@ suite('AgentCustomizationItemProvider', () => {
 		}
 		const provider = disposables.add(new AgentCustomizationItemProvider(
 			'remote', undefined, undefined, upcastPartial<IFileService>({}),
-			new NullLogService(), new TestCustomizationService(), makePromptsService(),
+			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
 		));
 		const modes = (await provider.provideCustomAgents(URI.parse('remote-agent-host-test-copilot:/session'), CancellationToken.None)).map(agent => new CustomChatMode(agent));
 
@@ -107,8 +430,7 @@ suite('AgentCustomizationItemProvider', () => {
 		const workspaceAgentUri = URI.file('/workspace/.github/agents/reviewer.agent.md');
 		const workspaceSkillUri = URI.file('/workspace/.github/skills/review/SKILL.md');
 		const workspaceInstructionsUri = URI.file('/workspace/.github/instructions/review.instructions.md');
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(SYNCED_CUSTOMIZATION_SCHEME, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, SYNCED_CUSTOMIZATION_SCHEME);
 		await fileService.writeFile(URI.joinPath(bundleUri, 'agents', 'reviewer.agent.md'), VSBuffer.fromString('---\nname: Reviewer\ndescription: Reviews changes\n---\nReview carefully.'));
 		await fileService.writeFile(URI.joinPath(bundleUri, 'skills', 'review', 'SKILL.md'), VSBuffer.fromString('---\nname: Review Skill\ndescription: Reviews code\n---\nReview code.'));
 		await fileService.writeFile(URI.joinPath(bundleUri, 'rules', 'review.instructions.md'), VSBuffer.fromString('---\nname: Review Instructions\ndescription: Review rules\n---\nFollow review rules.'));
@@ -137,7 +459,7 @@ suite('AgentCustomizationItemProvider', () => {
 			fileService,
 			new NullLogService(),
 			new TestCustomizationService(),
-			makePromptsService(),
+			makePromptsService(), labelService,
 		));
 		provider.setDraftCustomizations(observableValue<readonly ClientPluginCustomization[]>('draftCustomizations', [{
 			type: CustomizationType.Plugin,
@@ -191,7 +513,7 @@ suite('AgentCustomizationItemProvider', () => {
 			upcastPartial<IFileService>({}),
 			new NullLogService(),
 			new TestCustomizationService(),
-			makePromptsService(),
+			makePromptsService(), labelService,
 		));
 
 		const items = await provider.provideChatSessionCustomizations(URI.parse('agent-host-codex:///session'), CancellationToken.None);
@@ -243,7 +565,7 @@ suite('AgentCustomizationItemProvider', () => {
 			upcastPartial<IFileService>({}),
 			new NullLogService(),
 			new TestCustomizationService(),
-			makePromptsService(),
+			makePromptsService(), labelService,
 		));
 		provider.setDraftCustomAgents(observableValue<readonly AgentCustomization[]>('draftAgents', [{
 			type: CustomizationType.Agent,
@@ -301,7 +623,7 @@ suite('AgentCustomizationItemProvider', () => {
 			upcastPartial<IFileService>({}),
 			new NullLogService(),
 			new TestCustomizationService(),
-			makePromptsService(),
+			makePromptsService(), labelService,
 		));
 
 		const folders = await provider.provideSourceFolders(URI.parse('agent-host-copilotcli:///session'), PromptsType.instructions, CancellationToken.None);
@@ -336,17 +658,93 @@ suite('AgentCustomizationItemProvider', () => {
 			upcastPartial<IFileService>({}),
 			new NullLogService(),
 			customizationService,
-			makePromptsService(),
+			makePromptsService(), labelService,
 		));
 		const sessionResource = URI.parse('agent-host-copilotcli:///session');
 
 		const first = await provider.provideSourceFolders(sessionResource, PromptsType.agent, CancellationToken.None);
 		const second = await provider.provideSourceFolders(sessionResource, PromptsType.instructions, CancellationToken.None);
 
-		assert.deepStrictEqual({ first, second, readinessCalls: customizationService.readinessCalls }, {
+		assert.deepStrictEqual({ first, second, readiness: provider.getSourceFolderReadiness(sessionResource), readinessCalls: customizationService.readinessCalls }, {
 			first: [],
 			second: [],
+			readiness: 'loading',
 			readinessCalls: 1,
+		});
+	});
+
+	test('updates source folder readiness after a bounded wait completes', async () => {
+		const readiness = new DeferredPromise<boolean>();
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override whenCustomizationsReady(): Promise<boolean> {
+				return readiness.p;
+			}
+		}
+		class TestAgentCustomizationItemProvider extends AgentCustomizationItemProvider {
+			protected override readonly _sourceFolderReadinessTimeoutMs = 1;
+		}
+
+		const provider = disposables.add(new TestAgentCustomizationItemProvider(
+			'local',
+			undefined,
+			undefined,
+			upcastPartial<IFileService>({}),
+			new NullLogService(),
+			new TestCustomizationService(),
+			makePromptsService(),
+			labelService,
+		));
+		const sessionResource = URI.parse('agent-host-copilotcli:///session');
+
+		await provider.provideSourceFolders(sessionResource, PromptsType.agent, CancellationToken.None);
+		const whileLoading = provider.getSourceFolderReadiness(sessionResource);
+		readiness.complete(true);
+		await readiness.p;
+
+		assert.deepStrictEqual({
+			whileLoading,
+			afterSnapshot: provider.getSourceFolderReadiness(sessionResource),
+		}, {
+			whileLoading: 'loading',
+			afterSnapshot: 'ready',
+		});
+	});
+
+	test('retries source folder readiness after an unavailable result', async () => {
+		const results = [false, true];
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			readinessCalls = 0;
+
+			override whenCustomizationsReady(): Promise<boolean> {
+				return Promise.resolve(results[this.readinessCalls++]);
+			}
+		}
+
+		const customizationService = new TestCustomizationService();
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'local',
+			undefined,
+			undefined,
+			upcastPartial<IFileService>({}),
+			new NullLogService(),
+			customizationService,
+			makePromptsService(),
+			labelService,
+		));
+		const sessionResource = URI.parse('agent-host-copilotcli:///session');
+
+		await provider.provideSourceFolders(sessionResource, PromptsType.agent, CancellationToken.None);
+		const first = provider.getSourceFolderReadiness(sessionResource);
+		await provider.provideSourceFolders(sessionResource, PromptsType.agent, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			first,
+			second: provider.getSourceFolderReadiness(sessionResource),
+			readinessCalls: customizationService.readinessCalls,
+		}, {
+			first: 'unavailable',
+			second: 'ready',
+			readinessCalls: 2,
 		});
 	});
 
@@ -385,7 +783,7 @@ suite('AgentCustomizationItemProvider', () => {
 			upcastPartial<IFileService>({}),
 			new NullLogService(),
 			new TestCustomizationService(),
-			makePromptsService(),
+			makePromptsService(), labelService,
 		));
 
 		const items = await provider.provideChatSessionCustomizations(URI.parse('agent-host-codex:///session'), CancellationToken.None);
@@ -407,8 +805,7 @@ suite('AgentCustomizationItemProvider', () => {
 		const bundleUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/bundle' });
 		const bundledSkillUri = URI.joinPath(bundleUri, 'skills', 'create-pr', 'SKILL.md');
 		const builtinSkillUri = URI.file('/builtin/create-pr/SKILL.md');
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(SYNCED_CUSTOMIZATION_SCHEME, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, SYNCED_CUSTOMIZATION_SCHEME);
 		await fileService.writeFile(bundledSkillUri, VSBuffer.fromString('---\nname: create-pr\ndescription: Create a pull request.\n---\nCreate it.'));
 		const promptsService = upcastPartial<IPromptsService>({
 			onDidChangeSkills: Event.None,
@@ -430,7 +827,7 @@ suite('AgentCustomizationItemProvider', () => {
 			fileService,
 			new NullLogService(),
 			new NullAgentHostCustomizationService(),
-			promptsService,
+			promptsService, labelService,
 		));
 		provider.setDraftCustomizations(observableValue<readonly ClientPluginCustomization[]>('draftCustomizations', [{
 			type: CustomizationType.Plugin,
@@ -487,7 +884,7 @@ suite('AgentCustomizationItemProvider', () => {
 			upcastPartial<IFileService>({}),
 			new NullLogService(),
 			new TestCustomizationService(),
-			makePromptsService(),
+			makePromptsService(), labelService,
 		));
 		const items = await provider.provideChatSessionCustomizations(URI.parse('agent-host-codex:///session'), CancellationToken.None);
 
@@ -527,7 +924,7 @@ suite('AgentCustomizationItemProvider', () => {
 			upcastPartial<IFileService>({}),
 			new NullLogService(),
 			new NullAgentHostCustomizationService(),
-			promptsService,
+			promptsService, labelService,
 		));
 		let changeCount = 0;
 		disposables.add(provider.onDidChange(() => changeCount++));

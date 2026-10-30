@@ -212,9 +212,12 @@ export class ChangesActivityContribution extends Disposable implements IWorkbenc
 				return undefined;
 			}
 			// The main window's Changes tab stays a visible editor while the side pane is closed, and can show just its file list in the auxiliary bar while the editor part is hidden.
-			const isViewing = visibleEditorPanes.read(reader).some(pane =>
-				!!pane.input.resource && isEqual(sessionChangesService.getSessionResource(pane.input.resource), value.session.resource)
-				&& (!editorGroupsService.mainPart.getGroup(pane.group.id) || mainSidePaneVisible.read(reader)));
+			// A pane's input is briefly undefined while its editor input is being swapped.
+			const isViewing = visibleEditorPanes.read(reader).some(pane => {
+				const resource = pane.input?.resource;
+				return !!resource && isEqual(sessionChangesService.getSessionResource(resource), value.session.resource)
+					&& (!editorGroupsService.mainPart.getGroup(pane.group.id) || mainSidePaneVisible.read(reader));
+			});
 			return { chat: value.chat.resource.toString(), stats, isViewing };
 		});
 

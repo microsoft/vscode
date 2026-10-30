@@ -41,7 +41,7 @@ import { isLocation, type Location } from '../../../../../../editor/common/langu
 import type { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentHostAllowSignedOutWhenUsableSettingId, AgentHostMcpToolRoutingEnabledSettingId, AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostMcpToolRoutingEnabledSettingId, AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCanvasCollection, getAgentHostCanvasDefinitionsChangedEvent } from '../../../../canvases/common/agentHostCanvas.js';
 import { ICanvasContext, ICanvasOwner, isCanvasOwner } from '../../../../canvases/common/canvas.js';
 import { CanvasReference } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
@@ -6922,8 +6922,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private async _ensureRequiredAuthentication(model: ModelSelection | undefined): Promise<ProtectedResourceMetadata[]> {
 		const agentInfo = this._getRootState()?.agents.find(a => a.provider === this._config.provider);
 		const protectedResources = agentInfo?.protectedResources ?? [];
-		const allowSignedOutWhenUsable = this._configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true;
-		if (modelRequiresAgentAuthentication(agentInfo, model, allowSignedOutWhenUsable) && this._config.resolveAuthentication) {
+
+		if (modelRequiresAgentAuthentication(agentInfo, model) && this._config.resolveAuthentication) {
 			const authenticated = await this._config.resolveAuthentication(protectedResources);
 			if (!authenticated) {
 				throw new Error(localize('agentHost.authRequired', "Authentication is required to start a session. Please sign in and try again."));

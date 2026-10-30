@@ -32,7 +32,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { Delayer } from '../../../../../base/common/async.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
-import { IMatch, matchesContiguousSubString, matchesWords } from '../../../../../base/common/filters.js';
+import { matchesCustomizationSearchQuery } from '../../common/aiCustomizationSearch.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -242,10 +242,6 @@ function promptTypeToIcon(type: PromptsType): ThemeIcon {
  */
 export function formatDisplayName(name: string): string {
 	return name.replace(/\.md$/i, '');
-}
-
-export function matchesCustomizationSearchQuery(query: string, target: string): IMatch[] | null {
-	return matchesContiguousSubString(query, target) ?? matchesWords(query, target, true);
 }
 
 /**

@@ -21,7 +21,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getMultiRootWorkspaceRelativeFilename, getTargetedCreateActionLabel, matchesCustomizationSearchQuery, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
+import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getMultiRootWorkspaceRelativeFilename, getTargetedCreateActionLabel, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
 import { AICustomizationItemNormalizer, IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, splitPathLabel, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
@@ -76,17 +76,23 @@ suite('aiCustomizationListWidget', () => {
 
 	});
 
-	test('matches customization search word separators while preserving substring matching', () => {
+	test('search filter matches dashed and spaced queries with highlights', () => {
+		const items = [
+			{ id: '1', uri: URI.file('/skills/typescript-setup/SKILL.md'), name: 'typescript-setup', filename: 'SKILL.md', description: 'Set up TypeScript', promptType: PromptsType.skill, storage: PromptsStorage.local },
+			{ id: '2', uri: URI.file('/skills/other/SKILL.md'), name: 'other', filename: 'SKILL.md', description: 'Unrelated', promptType: PromptsType.skill, storage: PromptsStorage.local },
+		] as unknown as IAICustomizationListItem[];
+		const filter = (searchQuery: string) => (AICustomizationListWidget.prototype as unknown as {
+			applySearchFilter(this: { searchQuery: string }, items: readonly IAICustomizationListItem[]): IAICustomizationListItem[];
+		}).applySearchFilter.call({ searchQuery }, items).map(item => [item.name, item.nameMatches]);
+
 		assert.deepStrictEqual({
-			spaceSeparated: matchesCustomizationSearchQuery('session timeline', 'session-timeline'),
-			hyphenated: matchesCustomizationSearchQuery('session-timeline', 'session-timeline'),
-			substring: matchesCustomizationSearchQuery('timeline', 'session-timeline'),
-			reordered: matchesCustomizationSearchQuery('timeline session', 'session-timeline'),
+			spaced: filter('typescript setup'),
+			dashed: filter('typescript-setup'),
+			underscored: filter('TypeScript_Setup'),
 		}, {
-			spaceSeparated: [{ start: 0, end: 7 }, { start: 8, end: 16 }],
-			hyphenated: [{ start: 0, end: 16 }],
-			substring: [{ start: 8, end: 16 }],
-			reordered: null,
+			spaced: [['typescript-setup', [{ start: 0, end: 10 }, { start: 11, end: 16 }]]],
+			dashed: [['typescript-setup', [{ start: 0, end: 16 }]]],
+			underscored: [['typescript-setup', [{ start: 0, end: 16 }]]],
 		});
 	});
 

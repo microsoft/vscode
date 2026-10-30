@@ -2317,6 +2317,60 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('compact painted dividers match native borders at display and window zoom scales', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui floating-panels modern-ui-compact');
+		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-surface-border: #334455; --vscode-spacing-size40: 4px; --vscode-spacing-sizeNone: 0px;';
+		store.add(toDisposable(() => root.remove()));
+		const grid = appendElement(root, 'monaco-grid-view');
+		const parts = [
+			'activitybar left',
+			'sidebar left',
+			'panel bottom',
+			'auxiliarybar right',
+			'editor',
+		].map(className => appendElement(grid, `part ${className}`));
+		const results = [];
+		const cases = [
+			{ zoom: 0.5, pixelRatio: 0.5, stroke: 2 },
+			{ zoom: 0.8, pixelRatio: 0.8, stroke: 1.25 },
+			{ zoom: 1, pixelRatio: 1, stroke: 1 },
+			{ zoom: 1, pixelRatio: 1.25, stroke: 0.8 },
+			{ zoom: 1, pixelRatio: 1.5, stroke: 2 / 3 },
+			{ zoom: 1.5, pixelRatio: 1.5, stroke: 2 / 3 },
+			{ zoom: 1.5, pixelRatio: 3, stroke: 1 },
+			{ zoom: 1.728, pixelRatio: 2.16, stroke: 2 / 2.16 },
+			{ zoom: 1.728, pixelRatio: 3.456, stroke: 3 / 3.456 },
+			{ zoom: 2, pixelRatio: 2.5, stroke: 0.8 },
+			{ zoom: 2.48832, pixelRatio: 4.97664, stroke: 4 / 4.97664 },
+		];
+		const strokeWidths = (part: HTMLElement) => getWindow(part).getComputedStyle(part).backgroundSize.split(', ')
+			.map((size, index) => Number.parseFloat(size.split(' ')[index % 2 === 0 ? 1 : 0]));
+		for (const { zoom, pixelRatio, stroke } of cases) {
+			root.style.setProperty('--window-zoom-factor', String(zoom));
+			root.style.setProperty('--window-device-pixel-ratio', String(pixelRatio));
+			for (const part of parts) {
+				const widths = strokeWidths(part);
+				results.push({
+					part: part.className,
+					zoom, pixelRatio,
+					fourEdges: widths.length === 4,
+					matchesExpectedStroke: widths.every(width => Math.abs(width - stroke) < 1 / 64),
+				});
+			}
+		}
+		root.style.setProperty('--window-device-pixel-ratio', String(getWindow(root).devicePixelRatio));
+		const reference = appendElement(root, 'native-border-reference');
+		reference.style.border = 'var(--vscode-strokeThickness) solid transparent';
+		const nativeWidth = Number.parseFloat(getWindow(reference).getComputedStyle(reference).borderRightWidth);
+		assert.deepStrictEqual({
+			results,
+			matchesNativeBorder: parts.every(part => strokeWidths(part).every(width => Math.abs(width - nativeWidth) < 1 / 64)),
+		}, {
+			results: results.map(result => ({ ...result, fourEdges: true, matchesExpectedStroke: true })),
+			matchesNativeBorder: true,
+		});
+	});
+
 	test('compact density keeps the panel cluster flush and square', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-compact floating-panels';

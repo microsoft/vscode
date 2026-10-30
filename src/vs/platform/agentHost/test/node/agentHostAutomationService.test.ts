@@ -8,7 +8,6 @@ import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/a
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../base/common/observable.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -38,6 +37,7 @@ import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporte
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
 import { AgentPluginManager } from '../../node/agentPluginManager.js';
 import { AUTOMATION_ACTIVE_CLIENT_ID, toAgentHostFileUri } from '../../common/agentPluginManager.js';
@@ -47,7 +47,7 @@ import { SCHEDULED_WORK_WAKE_NETWORK_CAP_MS, SCHEDULED_WORK_WAKE_SETTLE_MS } fro
 import type { IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason, McpServerStatus, SessionOriginKind, type Customization, type McpAuthRequirement } from '../../common/state/protocol/channels-session/state.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
-import { getAgentHostAutomationHistoryState } from '../../common/meta/agentHostAutomationsMeta.js';
+import { getAgentHostAutomationHistoryState, withAgentHostAutomationHistoryState } from '../../common/meta/agentHostAutomationsMeta.js';
 
 class RecordingAutomationTelemetry extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
@@ -59,7 +59,7 @@ class RecordingAutomationTelemetry extends NullTelemetryServiceShape {
 
 suite('AgentHostAutomationService', () => {
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let stateManager: AgentHostStateManager;
 	let storageService: AgentHostStorageService;
 	let writeFailures: number;
@@ -74,7 +74,6 @@ suite('AgentHostAutomationService', () => {
 	let authenticationResult: Promise<boolean>;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		clientConnections = disposables.add(new AgentHostClientConnectionService());
 		systemWake = disposables.add(new AgentHostSystemWakeService(new NullLogService()));
 		authenticationRequests = [];
@@ -100,8 +99,7 @@ suite('AgentHostAutomationService', () => {
 		writeAttempts = 0;
 		writeGate = undefined;
 		telemetry = new RecordingAutomationTelemetry();
-		fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		fileService = createInMemoryFileService(disposables, Schemas.file);
 		disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, disposables.add(new InMemoryFileSystemProvider())));
 		pluginManager = new AgentPluginManager(URI.file('/userData'), fileService, new NullLogService());
 		const writer: IAgentHostStorageWriter = {
@@ -124,8 +122,6 @@ suite('AgentHostAutomationService', () => {
 		));
 	});
 
-	teardown(() => disposables.dispose());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function definition(): AutomationDefinition {
 		return {
@@ -528,6 +524,10 @@ suite('AgentHostAutomationService', () => {
 		assert.deepStrictEqual({
 			deleted: deleted.length,
 			remaining: storageService.get<{ historyDeletions: object[] }>('automations')?.historyDeletions,
+			owner: {
+				state: getAgentHostAutomationHistoryState(stateManager.getAutomationCatalogState()!.entries[0]),
+				operations: stateManager.getAutomationCatalogState()!.entries[0].operations,
+			},
 			history: stateManager.getAutomationCatalogState()!.entries[0].runs.length,
 			secondary: service.getLegacySessionOrigin('ahp-session:/secondary-0', 'codex')?.run,
 		}, {
@@ -537,6 +537,7 @@ suite('AgentHostAutomationService', () => {
 				sessions: [{ session: 'ahp-session:/0', provider: 'codex' }],
 				deletedSessions: deleted,
 			}],
+			owner: { state: 'deleting', operations: [AutomationOperation.Remove] },
 			history: 50,
 			secondary: runs[0].resource,
 		});
@@ -788,6 +789,60 @@ suite('AgentHostAutomationService', () => {
 		assert.strictEqual(attempts, 1);
 	});
 
+	test('publishes active history deletion state during automatic recovery', async () => {
+		const automation = createAction().resource;
+		const firstStarted = new DeferredPromise<void>();
+		const releaseFirst = new DeferredPromise<void>();
+		const secondStarted = new DeferredPromise<void>();
+		const releaseSecond = new DeferredPromise<void>();
+		let attempts = 0;
+		storageService.set('automations', {
+			catalog: {
+				automations: [{
+					resource: automation,
+					definition: definition(),
+					runs: [],
+					operations: [],
+					createdAt: new Date(0).toISOString(),
+					modifiedAt: new Date(0).toISOString(),
+					_meta: withAgentHostAutomationHistoryState(undefined, 'deleting'),
+				}],
+			},
+			historyDeletions: [{ automation, sessions: [{ session: 'ahp-session:/retained', provider: 'codex' }] }],
+		});
+		await storageService.whenIdle();
+		const service = createService({
+			deleteSession: async () => {
+				attempts++;
+				if (attempts === 1) {
+					firstStarted.complete();
+					await releaseFirst.p;
+					throw new Error('provider unavailable');
+				}
+				secondStarted.complete();
+				await releaseSecond.p;
+			},
+		});
+		await firstStarted.p;
+		const first = (service as unknown as { _historyDeletionPromises: Map<string, Promise<readonly string[]>> })._historyDeletionPromises.get(automation)!;
+		releaseFirst.complete();
+		await assert.rejects(first, /provider unavailable/);
+		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries[0].operations, [AutomationOperation.Remove]);
+
+		service.handleAgentsChanged();
+		await secondStarted.p;
+		const second = (service as unknown as { _historyDeletionPromises: Map<string, Promise<readonly string[]>> })._historyDeletionPromises.get(automation)!;
+		assert.deepStrictEqual({
+			state: getAgentHostAutomationHistoryState(stateManager.getAutomationCatalogState()!.entries[0]),
+			operations: stateManager.getAutomationCatalogState()?.entries[0].operations,
+		}, {
+			state: 'deleting',
+			operations: [],
+		});
+		releaseSecond.complete();
+		await second;
+	});
+
 	for (const existingOwner of [false, true]) {
 		test(`migrates retained provider identity with ${existingOwner ? 'an existing' : 'a missing'} owner`, async () => {
 			const automation = createAction().resource;
@@ -819,7 +874,7 @@ suite('AgentHostAutomationService', () => {
 			}, {
 				providers: { [run.resource]: 'codex' },
 				origin: { kind: SessionOriginKind.Automation, automation, run: run.resource },
-				owner: existingOwner ? { title: 'Review changes', enabled: true, state: undefined } : { title: 'Deleted automation', enabled: false, state: 'retained' },
+				owner: existingOwner ? { title: 'Review changes', enabled: true, state: undefined } : { title: 'Deleted automation (name unavailable)', enabled: false, state: 'retained' },
 			});
 		});
 	}

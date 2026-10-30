@@ -64,7 +64,7 @@ import { IChatOutputRendererService, type RenderedOutputPart } from '../../chatO
 import { allowedChatMarkdownHtmlTags } from '../chatContentMarkdownRenderer.js';
 import { IMarkdownDiffBlockData, MarkdownDiffBlockPart, parseUnifiedDiff } from './chatDiffBlockPart.js';
 import { ChatEditingActionContext } from '../../chatEditing/chatEditingActions.js';
-import { ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRenderer.js';
+import { ChatInlineAttachmentRenderer, ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRenderer.js';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from './codeBlockPart.js';
 import './media/chatCodeBlockPill.css';
 import { IDisposableReference } from './chatCollections.js';
@@ -90,6 +90,13 @@ export interface IChatMarkdownContentPartOptions {
 		 * */
 		statusMessage?: string;
 	};
+	/**
+	 * Creates the resize observer that re-measures math and table scrollbars when the part resizes.
+	 * Defaults to the window's `ResizeObserver`; tests pass a fake to trigger resizes.
+	 */
+	readonly resizeObserverCtor?: typeof ResizeObserver;
+	/** Renders the attachments of a request that are shown as pills inline with its text. */
+	readonly renderInlineAttachment?: ChatInlineAttachmentRenderer;
 }
 
 interface IMarkdownPartCodeBlockInfo extends IChatCodeBlockInfo {
@@ -423,11 +430,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				}));
 			}
 
-			store.add(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(this.markdown, result.element));
+			store.add(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(this.markdown, result.element, this.rendererOptions.renderInlineAttachment));
 			store.add(this.hookUpImages(result.element, fileImages, element.sessionResource, element.id));
 
 			const layoutParticipants = new Lazy(() => {
-				const observer = store.add(new dom.DisposableResizeObserver('ChatMarkdownContentPart.mathLayout', () => this.mathLayoutParticipants.forEach(layout => layout())));
+				const observer = store.add(new dom.DisposableResizeObserver('ChatMarkdownContentPart.mathLayout', () => this.mathLayoutParticipants.forEach(layout => layout()), undefined, { resizeObserverCtor: this.rendererOptions.resizeObserverCtor }));
 				store.add(observer.observe(this.domNode));
 				return this.mathLayoutParticipants;
 			});

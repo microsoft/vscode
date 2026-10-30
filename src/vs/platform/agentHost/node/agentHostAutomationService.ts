@@ -34,7 +34,7 @@ import { MessageKind } from '../common/state/protocol/channels-chat/state.js';
 import { IAgentHostStateManager, type AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
-import { nextAutomationCronOccurrence, validateAutomationCron } from './automationCron.js';
+import { nextAutomationCronOccurrence, validateAutomationCron } from '../common/automationCron.js';
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, migrateLegacyAutomationSessionConfig } from '../common/automationConfig.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { getModelTelemetryContext } from './agentHostTurnTelemetryContext.js';
@@ -522,9 +522,44 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		if (current) {
 			return current;
 		}
-		const deletion = this._deleteHistory(resource).finally(() => this._historyDeletionPromises.delete(resource));
+		const deletion = this._enqueueMutation(() => this._markHistoryDeletionActive(resource)).then(() => this._deleteHistory(resource)).catch(async error => {
+			await this._enqueueMutation(() => this._markHistoryDeletionInterrupted(resource));
+			throw error;
+		}).finally(() => this._historyDeletionPromises.delete(resource));
 		this._historyDeletionPromises.set(resource, deletion);
 		return deletion;
+	}
+
+	private async _markHistoryDeletionActive(resource: string): Promise<void> {
+		const catalog = this._requireCatalog();
+		const existing = catalog.entries.find(automation => automation.resource === resource);
+		if (!existing || !this._historyDeletions.has(resource) || getAgentHostAutomationHistoryState(existing) !== 'deleting' || !existing.operations.includes(AutomationOperation.Remove)) {
+			return;
+		}
+		const automation = {
+			...existing,
+			operations: existing.operations.filter(operation => operation !== AutomationOperation.Remove),
+		};
+		const next = automationReducer(catalog, { type: ActionType.AutomationSet, automation }, this._log);
+		await this._persist(next, this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations);
+		this._catalog = next;
+		this._publishAutomation(next, resource);
+	}
+
+	private async _markHistoryDeletionInterrupted(resource: string): Promise<void> {
+		const catalog = this._requireCatalog();
+		const existing = catalog.entries.find(automation => automation.resource === resource);
+		if (!existing || !this._historyDeletions.has(resource) || getAgentHostAutomationHistoryState(existing) !== 'deleting') {
+			return;
+		}
+		const automation = {
+			...existing,
+			operations: [AutomationOperation.Remove],
+		};
+		const next = automationReducer(catalog, { type: ActionType.AutomationSet, automation }, this._log);
+		await this._persist(next, this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations);
+		this._catalog = next;
+		this._publishAutomation(next, resource);
 	}
 
 	private async _deleteHistory(resource: string): Promise<readonly string[]> {
@@ -643,7 +678,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			const automation = withRunWindow({
 				resource: run.automation,
 				definition: {
-					title: localize('deletedAutomation', "Deleted automation"),
+					title: localize('deletedAutomationNameUnavailable', "Deleted automation (name unavailable)"),
 					message: { text: '', origin: { kind: MessageKind.Automation } },
 					session: { provider },
 					enabled: false,

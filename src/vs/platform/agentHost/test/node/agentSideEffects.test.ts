@@ -19,7 +19,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/runWithFakedTimers.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
@@ -201,6 +201,7 @@ function createNoopCustomizationEnablementService(): IAgentHostCustomizationEnab
 		_serviceBrand: undefined,
 		onDidChange: Event.None,
 		initializeSession: async () => { },
+		adoptMcpServerOwnership: () => { },
 		getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
 		resolve: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
 		applyClientGlobalEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
@@ -454,9 +455,7 @@ suite('AgentSideEffects', () => {
 	}
 
 	setup(async () => {
-		fileService = disposables.add(new FileService(new NullLogService()));
-		const memFs = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(Schemas.inMemory, memFs));
+		fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 
 		// Seed a file so the handleBrowseDirectory tests can distinguish files from dirs
 		const testDir = URI.from({ scheme: Schemas.inMemory, path: '/testDir' });
@@ -1915,8 +1914,7 @@ suite('AgentSideEffects', () => {
 			});
 			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
-			const diskFileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const diskFileService = createInMemoryFileService(disposables, Schemas.file);
 			await diskFileService.writeFile(URI.joinPath(repository, 'meta.json'), VSBuffer.fromString(''));
 			const telemetry = new TestTelemetryService();
 			let turnService: IAgentHostTurnService | undefined;
@@ -1954,8 +1952,7 @@ suite('AgentSideEffects', () => {
 			});
 			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
-			const diskFileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const diskFileService = createInMemoryFileService(disposables, Schemas.file);
 			await diskFileService.writeFile(URI.joinPath(repository, 'meta.json'), VSBuffer.fromString(''));
 			// Hold the first turn at its turn-start checkpoint, after the outgoing-turn contributions and before the final cancellation check.
 			const firstCapture = new DeferredPromise<void>();
@@ -2016,8 +2013,7 @@ suite('AgentSideEffects', () => {
 			});
 			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
-			const diskFileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const diskFileService = createInMemoryFileService(disposables, Schemas.file);
 			await diskFileService.writeFile(URI.joinPath(repository, 'meta.json'), VSBuffer.fromString(''));
 			const telemetry = new TestTelemetryService();
 			// `/rename` persists the new title, so it needs a real session database.
@@ -2064,8 +2060,7 @@ suite('AgentSideEffects', () => {
 			});
 			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
-			const diskFileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const diskFileService = createInMemoryFileService(disposables, Schemas.file);
 			await diskFileService.writeFile(URI.joinPath(repository, 'repo-only.ts'), VSBuffer.fromString(''));
 			await diskFileService.writeFile(URI.joinPath(worktree, 'meta.json'), VSBuffer.fromString(''));
 			const worktreeIsolation = disposables.add(new FirstSendWorktreeIsolation());
@@ -3208,8 +3203,7 @@ suite('AgentSideEffects', () => {
 			});
 			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
-			const diskFileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const diskFileService = createInMemoryFileService(disposables, Schemas.file);
 			await diskFileService.writeFile(URI.joinPath(repository, 'meta.json'), VSBuffer.fromString(''));
 			// Hold the provider turn at its turn-start checkpoint: after the outgoing-turn contributions, before dispatch.
 			const capture = new DeferredPromise<void>();
@@ -6596,6 +6590,7 @@ suite('AgentSideEffects', () => {
 							pastTenseMessage: 'Got the magic word',
 							content: [{ type: ToolResultContentType.Text, text: 'XYLOPHONE' }],
 							structuredContent: { word: 'XYLOPHONE' },
+							resultMetadata: { ui: { private: [null, false, 0] } },
 						};
 						dispatch({
 							type: ActionType.ChatToolCallComplete, turnId: 'turn-1', toolCallId: 'tc-result',

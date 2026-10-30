@@ -6,7 +6,7 @@
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { derived, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { createConfigureKeybindingAction } from '../../../../platform/actions/common/menuService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -17,15 +17,17 @@ import { getSessionPickerId } from './sessionPickerToolbar.js';
 
 /** Which new-session pickers the user collapsed to their icon (`true`) or expanded to show their label (`false`). */
 const ICON_ONLY_PICKERS_STORAGE_KEY = 'agentSessions.newSession.iconOnlyPickers';
+const SHOW_OPTIONS_TOGGLE_STORAGE_KEY = 'agentSessions.newSession.showOptionsToggle';
 
 /** Lets the user collapse individual pickers in the new-session options row to just their icon. */
 export interface ISessionOptionsIconOnlyPickers {
 	/** Ids of the pickers that show only their icon. */
 	readonly iconOnlyPickerIds: IObservable<ReadonlySet<string>>;
+	readonly showOptionsToggle: IObservable<boolean>;
 	/** Resolves the stable id of the picker that `element` renders, if it can collapse to its icon. */
 	getPickerId(element: HTMLElement): string | undefined;
 	/** Shows the picker's context menu, which collapses it to its icon or shows its label again. */
-	showContextMenu(pickerId: string, anchor: StandardMouseEvent): void;
+	showContextMenu(pickerId: string | undefined, anchor: StandardMouseEvent): void;
 }
 
 function readStoredChoices(storageService: IStorageService): ReadonlyMap<string, boolean> {
@@ -54,6 +56,7 @@ export class IconOnlySessionPickers extends Disposable implements ISessionOption
 
 	private readonly _choices: ISettableObservable<ReadonlyMap<string, boolean>>;
 	readonly iconOnlyPickerIds: IObservable<ReadonlySet<string>>;
+	readonly showOptionsToggle: IObservable<boolean>;
 
 	constructor(
 		/** Resolves pickers that are not hosted by a session picker toolbar, such as repository controls. */
@@ -64,6 +67,8 @@ export class IconOnlySessionPickers extends Disposable implements ISessionOption
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
+		this.showOptionsToggle = observableFromEvent(this, _storageService.onDidChangeValue(StorageScope.PROFILE, SHOW_OPTIONS_TOGGLE_STORAGE_KEY, this._store),
+			() => _storageService.getBoolean(SHOW_OPTIONS_TOGGLE_STORAGE_KEY, StorageScope.PROFILE, true));
 		this._choices = observableValue<ReadonlyMap<string, boolean>>(this, readStoredChoices(_storageService));
 		this._register(_storageService.onDidChangeValue(StorageScope.PROFILE, ICON_ONLY_PICKERS_STORAGE_KEY, this._store)(() => {
 			this._choices.set(readStoredChoices(_storageService), undefined);
@@ -91,16 +96,25 @@ export class IconOnlySessionPickers extends Disposable implements ISessionOption
 		this._storageService.store(ICON_ONLY_PICKERS_STORAGE_KEY, JSON.stringify(Object.fromEntries(choices)), StorageScope.PROFILE, StorageTarget.USER);
 	}
 
-	showContextMenu(pickerId: string, anchor: StandardMouseEvent): void {
-		const iconOnly = this.iconOnlyPickerIds.get().has(pickerId);
-		const actions: IAction[] = [toAction({
-			id: 'sessions.newSession.togglePickerIconOnly',
-			label: localize('sessionPicker.collapseToIcon', "Collapse to Icon"),
-			checked: iconOnly,
-			run: () => this.setIconOnly(pickerId, !iconOnly),
-		})];
+	showContextMenu(pickerId: string | undefined, anchor: StandardMouseEvent): void {
+		const actions: IAction[] = [];
+		if (pickerId) {
+			const iconOnly = this.iconOnlyPickerIds.get().has(pickerId);
+			actions.push(toAction({
+				id: 'sessions.newSession.togglePickerIconOnly',
+				label: localize('sessionPicker.collapseToIcon', "Collapse to Icon"),
+				checked: iconOnly,
+				run: () => this.setIconOnly(pickerId, !iconOnly),
+			}));
+		}
+		actions.push(toAction({
+			id: 'sessions.newSession.showOptionsToggle',
+			label: localize('sessionPicker.showOptionsToggle', "Show Session Options Toggle"),
+			checked: this.showOptionsToggle.get(),
+			run: () => this._storageService.store(SHOW_OPTIONS_TOGGLE_STORAGE_KEY, !this.showOptionsToggle.get(), StorageScope.PROFILE, StorageTarget.USER),
+		}));
 		// Keep the keybinding entry the picker's own context menu offers.
-		if (this._keybindingService.lookupKeybinding(pickerId)) {
+		if (pickerId && this._keybindingService.lookupKeybinding(pickerId)) {
 			actions.push(new Separator(), createConfigureKeybindingAction(this._commandService, this._keybindingService, pickerId));
 		}
 		this._contextMenuService.showContextMenu({

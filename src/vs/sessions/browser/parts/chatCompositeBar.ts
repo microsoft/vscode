@@ -800,10 +800,10 @@ export class ChatCompositeBar extends Disposable {
 				e.preventDefault();
 				e.stopPropagation();
 				finish(false);
-			} else {
-				// Don't let typing leak out to workbench shortcuts (e.g. Space).
-				e.stopPropagation();
 			}
+			// Other keys must bubble: clipboard and editing shortcuts (paste, copy,
+			// select all, undo) are workbench keybindings for plain inputs. The tab's
+			// own key handlers only react to keys targeting the tab itself.
 		}));
 
 		store.add(addDisposableListener(inputBox.inputElement, EventType.BLUR, () => finish(false)));

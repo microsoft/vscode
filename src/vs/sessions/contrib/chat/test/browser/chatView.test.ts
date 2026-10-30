@@ -1602,13 +1602,13 @@ suite('Sessions - Chat View', () => {
 			bindings: [savedDraft], attempts: 0,
 		});
 	});
-	function createSwitchingView(chatService?: Pick<IChatService, 'acquireOrLoadSession'>) {
+	function createSwitchingView(chatService?: Pick<IChatService, 'acquireOrLoadSession'>, options: { inputOnly?: boolean; viewStates?: Map<string, { scroll: number }> } = {}) {
 		const requests: DeferredPromise<IChatModelReference | undefined>[] = [];
 		const completions: Promise<void>[] = [];
 		const models = new Map<string, ChatModel>();
 		const disposedReferences: URI[] = [];
 		const historyKeys: (string | undefined)[] = [];
-		const viewStates = new Map<string, { scroll: number }>();
+		const viewStates = options.viewStates ?? new Map<string, { scroll: number }>();
 		const boundModels: (URI | undefined)[] = [];
 		const widgetState: { input: string; attachments: IChatModelInputState['attachments']; scroll: number; model: IChatModel | undefined } = { input: '', attachments: [], scroll: 0, model: undefined };
 		const openOutcomes: string[] = [];
@@ -1623,6 +1623,7 @@ suite('Sessions - Chat View', () => {
 			_retryUnresolvedChatLoad(addedSessionTypes: readonly string[]): void;
 			dispose(): void;
 		} = Object.assign(Object.create(ChatView.prototype), {
+			_inputOnly: options.inputOnly === true,
 			_store: disposables.add(new DisposableStore()),
 			_transcriptDisposables: disposables.add(new DisposableStore()),
 			chatPillsDebugService: { clear: () => { } },
@@ -1904,6 +1905,30 @@ suite('Sessions - Chat View', () => {
 				historyKeys: ['key-a', 'key-b', 'key-a'],
 			});
 		});
+
+		for (const inputOnly of [undefined, false, true]) {
+			test(`isolates input-only views from full-conversation scroll state on switching and disposal: ${inputOnly}`, async () => {
+				const viewStates = new Map([[resourceA.toString(), { scroll: 120 }], [resourceB.toString(), { scroll: 240 }]]);
+				const { view, createChat, complete, compose, snapshot } = createSwitchingView(undefined, { inputOnly, viewStates });
+				const chatA = createChat(resourceA);
+				view.setChat(chatA);
+				await complete(0, resourceA);
+				const restored = snapshot().scroll;
+				compose('reply draft', 0);
+				view.setChat(createChat(resourceB));
+				await complete(1, resourceB);
+				compose('other draft', 0);
+				view.setChat(chatA);
+				await complete(2, resourceA);
+				const draft = snapshot().input;
+				view.dispose();
+				assert.deepStrictEqual({ restored, draft, saved: [...viewStates.values()] }, {
+					restored: inputOnly ? 0 : 120,
+					draft: 'reply draft',
+					saved: inputOnly ? [{ scroll: 120 }, { scroll: 240 }] : [{ scroll: 0 }, { scroll: 0 }],
+				});
+			});
+		}
 
 		suite('chat open diagnostics', () => {
 			test('still completes when the same chat is set again while it loads and after it is bound', async () => {

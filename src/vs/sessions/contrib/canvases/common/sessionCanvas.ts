@@ -5,8 +5,11 @@
 
 import { IObservable } from '../../../../base/common/observable.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { getCanvasDefinitionInstanceId, getCanvasDefinitionLabels, type ICanvasReference } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition } from '../../../services/sessions/common/session.js';
+
+export const WindowCanvasesAvailableContext = new RawContextKey<boolean>('windowCanvasesAvailable', false);
 
 export function createSessionCanvasReference(session: ISession, chat: IChat, canvas: ISessionCanvas): ICanvasReference {
 	return {
@@ -29,6 +32,8 @@ export const ISessionCanvasRegistryService = createDecorator<ISessionCanvasRegis
 
 export interface ISessionCanvasRegistryService {
 	readonly _serviceBrand: undefined;
+	/** Whether canvases are enabled and the active chat supports them, even when no canvas type is registered. */
+	readonly supportsCanvases: IObservable<boolean>;
 	readonly availableCanvases: IObservable<readonly ISessionCanvasDefinition[]>;
 	openCanvas(canvas: ISessionCanvasDefinition): Promise<void>;
 }
