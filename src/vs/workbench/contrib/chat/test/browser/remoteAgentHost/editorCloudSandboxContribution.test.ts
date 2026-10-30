@@ -74,6 +74,7 @@ import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
 import { ChatSendResult, IChatCommandButton, IChatCompleteResponse, IChatModelReference, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
 import { CloudSandboxStartupError } from '../../../browser/remoteAgentHost/cloudSandboxStartupError.js';
+import { ICloudSandboxTelemetryService } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
@@ -364,6 +365,9 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(IAgentHostService, new class extends mock<IAgentHostService>() { }());
 	instantiationService.stub(IConfigurationService, configuration);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
+	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
+		override reportSessionFeed() { }
+	}());
 	instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 		override readonly onDidAddWidget = widgetAdded.event;
 		override readonly onDidRemoveWidget = widgetRemoved.event;

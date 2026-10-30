@@ -78,6 +78,7 @@ import { ReadOnlyChatSession } from '../../../../../../workbench/contrib/chat/br
 import { createCloudSandboxSessionPreparation } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxLegacySessionPreparation.js';
 import { ICloudSandboxSessionEnvironment } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionContribution.js';
 import { CloudSandboxSessionFeed } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionFeed.js';
+import { ICloudSandboxTelemetryService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxTelemetry.js';
 import { CloudSandboxDraftPreparationService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxDraftPreparationService.js';
 import { IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
@@ -339,6 +340,9 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	let customizationFactory: RemoteAgentHostConnectionCustomizationFactory | undefined;
 	const instantiationService = store.add(new TestInstantiationService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
+	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
+		override reportSessionFeed() { }
+	}());
 	instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }());
 	if (options?.sessionFeed) {
 		instantiationService.stubInstance(CloudSandboxSessionFeed, options.sessionFeed);
@@ -2691,14 +2695,14 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		assert.deepStrictEqual({ order, connected: harness.connectedTo }, { order: ['subscribe', 'list'], connected: [] });
 	});
 
-	for (const failure of ['flag disabled', 'request failed'] as const) {
+	for (const failure of ['flag disabled', 'waiting on a Retry-After'] as const) {
 		test(`normal polling finds new sessions without reprobing when the feed is ${failure}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			let negotiations = 0;
 			const harness = await createContribution(store, [], {
 				connectSessionFeed: async () => {
 					negotiations++;
-					if (failure === 'request failed') {
-						throw new Error('Feed is unavailable');
+					if (failure === 'waiting on a Retry-After') {
+						throw new CloudSandboxRequestError(503, 'Unavailable', 3600);
 					}
 					return undefined;
 				},

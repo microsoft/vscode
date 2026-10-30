@@ -15,6 +15,7 @@ import { CloudSandboxRequestError, ICloudSandboxApiService, ICloudSandboxSession
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { CloudSandboxSessionFeed, type CloudSandboxSessionFeedRefresh } from '../../../browser/remoteAgentHost/cloudSandboxSessionFeed.js';
+import { ICloudSandboxTelemetryService, type ICloudSandboxSessionFeedTelemetryData } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 
 class TestSocket {
 	onmessage: OmitThisParameter<NonNullable<WebSocket['onmessage']>> | null = null;
@@ -68,6 +69,7 @@ function createFeed(store: Pick<DisposableStore, 'add'>, options?: {
 	const warnings: string[] = [];
 	const debugs: string[] = [];
 	const requests: CancellationToken[] = [];
+	const telemetry: ICloudSandboxSessionFeedTelemetryData[] = [];
 	instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
 		override async connectSessionFeed(token: CancellationToken) {
 			requests.push(token);
@@ -77,6 +79,12 @@ function createFeed(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(ILogService, new class extends NullLogService {
 		override warn(message: string) { warnings.push(message); }
 		override debug(message: string) { debugs.push(message); }
+	}());
+	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
+		override reportSessionFeed(data: ICloudSandboxSessionFeedTelemetryData) {
+			// Drop absent optional fields so expectations can omit them.
+			telemetry.push(JSON.parse(JSON.stringify(data)));
+		}
 	}());
 	const feed = store.add(instantiationService.createInstance(CloudSandboxSessionFeed, (refresh: CloudSandboxSessionFeedRefresh) => {
 		invalidations.push(refresh.reason !== 'reconnect');
@@ -98,7 +106,7 @@ function createFeed(store: Pick<DisposableStore, 'add'>, options?: {
 		}
 		return socket;
 	}, () => StopWatch.create(false)));
-	return { feed, sockets, requests, invalidations, reasons, taskBatches, warnings, debugs };
+	return { feed, sockets, requests, invalidations, reasons, taskBatches, warnings, debugs, telemetry };
 }
 
 suite('CloudSandboxSessionFeed', () => {
@@ -181,13 +189,14 @@ suite('CloudSandboxSessionFeed', () => {
 			await timeout(60 * 60_000);
 			assert.deepStrictEqual({
 				connected: h.feed.connected, requests: h.requests.length, closed: h.sockets[0].closed,
-				warnings: h.warnings, diagnostics: h.debugs,
+				warnings: h.warnings, diagnostics: h.debugs, telemetry: h.telemetry,
 			}, {
 				connected: false, requests: 1, closed: true, warnings: [],
 				diagnostics: [
 					'[CloudSandboxSessionFeed] Connected to task status feed.',
 					'[CloudSandboxSessionFeed] Invalid or unsupported feed message; using discovery polling until the next account or feature lifetime.',
 				],
+				telemetry: [{ outcome: 'connected', consecutiveFailures: 0 }, { outcome: 'invalidMessage', consecutiveFailures: 0 }],
 			});
 		}));
 	}
@@ -211,8 +220,9 @@ suite('CloudSandboxSessionFeed', () => {
 		const h = createFeed(store);
 		await h.feed.start();
 		await timeout(24 * 60_000 + 501);
-		assert.deepStrictEqual({ requests: h.requests.length, reasons: h.reasons, taskBatches: h.taskBatches }, {
+		assert.deepStrictEqual({ requests: h.requests.length, reasons: h.reasons, taskBatches: h.taskBatches, telemetry: h.telemetry }, {
 			requests: 4, reasons: ['renewal', 'renewal', 'renewal'], taskBatches: [undefined, undefined, undefined],
+			telemetry: [{ outcome: 'connected', consecutiveFailures: 0 }],
 		});
 	}));
 
@@ -298,8 +308,12 @@ suite('CloudSandboxSessionFeed', () => {
 		h.sockets[0].disconnect();
 		const disconnected = h.feed.connected;
 		await timeout(1_701);
-		assert.deepStrictEqual({ disconnected, sockets: h.sockets.length, connected: h.feed.connected, refreshes: h.invalidations }, {
+		assert.deepStrictEqual({
+			disconnected, sockets: h.sockets.length, connected: h.feed.connected, refreshes: h.invalidations,
+			telemetry: h.telemetry.map(event => [event.outcome, event.consecutiveFailures]),
+		}, {
 			disconnected: false, sockets: 2, connected: true, refreshes: [false],
+			telemetry: [['connected', 0], ['disconnected', 1], ['connected', 1]],
 		});
 	}));
 
@@ -338,91 +352,182 @@ suite('CloudSandboxSessionFeed', () => {
 		await h.feed.start();
 		await timeout(60 * 60_000);
 		await h.feed.start();
-		assert.deepStrictEqual({ requests: h.requests.length, sockets: h.sockets.length, connected: h.feed.connected, warnings: h.warnings }, {
-			requests: 1, sockets: 0, connected: false, warnings: [],
+		assert.deepStrictEqual({ requests: h.requests.length, sockets: h.sockets.length, connected: h.feed.connected, warnings: h.warnings, telemetry: h.telemetry }, {
+			requests: 1, sockets: 0, connected: false, warnings: [], telemetry: [{ outcome: 'unavailable', consecutiveFailures: 0 }],
 		});
 	}));
 
-	for (const status of [401, 403, 404, 429, 503]) {
-		test(`HTTP ${status} falls back quietly without automatic retries`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-			const h = createFeed(store, { connect: async () => { throw new CloudSandboxRequestError(status, 'Unavailable', 30); } });
+	for (const status of [401, 429, 503]) {
+		test(`HTTP ${status} retries negotiation with a slow jittered backoff while polling covers the gap`, () => runWithFakedTimers<void>({ useFakeTimers: true, maxTaskCount: 1000 }, async () => {
+			const attemptTimes: number[] = [];
+			const h = createFeed(store, { connect: async () => { attemptTimes.push(Date.now()); throw new CloudSandboxRequestError(status, 'Unavailable'); } });
 			await h.feed.start();
-			await timeout(60 * 60_000);
-			await h.feed.start();
+			const attempts: { beforeMinimum: number; afterMaximum: number }[] = [];
+			for (const maximumDelay of [60_000, 120_000, 240_000, 480_000, 960_000, 1_800_000, 1_800_000]) {
+				const before = h.requests.length;
+				const last = attemptTimes[attemptTimes.length - 1];
+				await timeout(last + maximumDelay / 2 - Date.now() - 1);
+				const beforeMinimum = h.requests.length - before;
+				await timeout(last + maximumDelay - Date.now() + 1);
+				attempts.push({ beforeMinimum, afterMaximum: h.requests.length - before });
+			}
 			assert.deepStrictEqual({
-				requests: h.requests.length, sockets: h.sockets.length, connected: h.feed.connected, warnings: h.warnings,
-				diagnostic: h.debugs,
+				attempts, sockets: h.sockets.length, connected: h.feed.connected, warnings: h.warnings,
+				diagnostic: h.debugs[0].replace(/\d+ms/, 'Nms'),
+				telemetry: h.telemetry.map(event => [event.outcome, event.consecutiveFailures, event.statusCode]),
 			}, {
-				requests: 1, sockets: 0, connected: false, warnings: [],
-				diagnostic: [`[CloudSandboxSessionFeed] Connection failed (HTTP ${status}); using discovery polling until the next account or feature lifetime.`],
+				attempts: Array.from({ length: 7 }, () => ({ beforeMinimum: 0, afterMaximum: 1 })),
+				sockets: 0, connected: false, warnings: [],
+				diagnostic: `[CloudSandboxSessionFeed] Connection failed (HTTP ${status}); retrying in Nms with discovery polling retained.`,
+				telemetry: Array.from({ length: 8 }, (_, i) => ['negotiationFailed', i + 1, status]),
 			});
 		}));
 	}
 
-	test('a network failure falls back quietly without automatic retries', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const h = createFeed(store, { connect: async () => { throw new Error('Network unavailable'); } });
-		await h.feed.start();
-		await timeout(60 * 60_000);
-		assert.deepStrictEqual({ requests: h.requests.length, sockets: h.sockets.length, warnings: h.warnings, diagnostics: h.debugs.length }, {
-			requests: 1, sockets: 0, warnings: [], diagnostics: 1,
-		});
-	}));
-
-	for (const failure of ['flag disabled', 'service unavailable'] as const) {
-		test(`failed reconnect stops attempts when ${failure}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-			let attempts = 0;
-			const h = createFeed(store, {
-				connect: async () => {
-					if (++attempts === 1) {
-						return connection();
-					}
-					if (failure === 'service unavailable') {
-						throw new CloudSandboxRequestError(503, 'Unavailable', 30);
-					}
-					return undefined;
-				}
-			});
-			await h.feed.start();
-			h.sockets[0].disconnect();
-			await timeout(60 * 60_000);
-			assert.deepStrictEqual({ attempts, connected: h.feed.connected, closed: h.sockets[0].closed, sockets: h.sockets.length, warnings: h.warnings }, {
-				attempts: 2, connected: false, closed: true, sockets: 1, warnings: [],
-			});
-		}));
-	}
-
-	test('failed renewal closes the old socket and stops attempts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		let attempts = 0;
+	test('honors a Retry-After longer than the backoff delay', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const started = Date.now();
+		const attemptTimes: number[] = [];
 		const h = createFeed(store, {
 			connect: async () => {
-				if (++attempts === 1) {
-					return connection();
+				attemptTimes.push(Date.now() - started);
+				if (attemptTimes.length <= 2) {
+					throw new CloudSandboxRequestError(503, 'Unavailable', 600);
 				}
-				throw new CloudSandboxRequestError(404, 'Flag disabled');
+				return connection();
 			}
 		});
 		await h.feed.start();
-		await timeout(60 * 60_000);
-		assert.deepStrictEqual({ attempts, connected: h.feed.connected, closed: h.sockets[0].closed, warnings: h.warnings }, {
-			attempts: 2, connected: false, closed: true, warnings: [],
+		await timeout(20 * 60_000 + 501);
+		assert.deepStrictEqual({ attemptTimes, connected: h.feed.connected, reasons: h.reasons, telemetry: h.telemetry }, {
+			attemptTimes: [0, 600_000, 1_200_000], connected: true, reasons: ['reconnect'],
+			telemetry: [
+				{ outcome: 'negotiationFailed', consecutiveFailures: 1, retryDelayMs: 600_000, statusCode: 503 },
+				{ outcome: 'negotiationFailed', consecutiveFailures: 2, retryDelayMs: 600_000, statusCode: 503 },
+				{ outcome: 'connected', consecutiveFailures: 2 },
+			],
 		});
 	}));
 
-	test('times out an unresponsive WPS handshake', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const h = createFeed(store, { autoReady: false });
+	test('a network failure is retried with the slow backoff', () => runWithFakedTimers<void>({ useFakeTimers: true, maxTaskCount: 1000 }, async () => {
+		const h = createFeed(store, { connect: async () => { throw new Error('Network unavailable'); } });
 		await h.feed.start();
 		await timeout(60 * 60_000);
-		assert.deepStrictEqual({ connected: h.feed.connected, closed: h.sockets[0].closed, warnings: h.warnings.length, attempts: h.requests.length }, {
-			connected: false, closed: true, warnings: 0, attempts: 1,
+		assert.ok(h.requests.length >= 6 && h.requests.length <= 8, `Expected bounded retries, got ${h.requests.length} negotiations in an hour`);
+		assert.deepStrictEqual({
+			sockets: h.sockets.length, warnings: h.warnings,
+			diagnostics: [...new Set(h.debugs.map(line => line.replace(/\d+ms/, 'Nms')))],
+			outcomes: [...new Set(h.telemetry.map(event => event.outcome))],
+			reported: h.telemetry.length === h.requests.length,
+		}, {
+			sockets: 0, warnings: [],
+			diagnostics: ['[CloudSandboxSessionFeed] Connection failed; retrying in Nms with discovery polling retained.'],
+			outcomes: ['negotiationFailed'],
+			reported: true,
 		});
 	}));
 
-	test('never logs credential-bearing socket errors or retries them', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('a reconnect that finds the feed disabled stops attempts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		let attempts = 0;
+		const h = createFeed(store, { connect: async () => ++attempts === 1 ? connection() : undefined });
+		await h.feed.start();
+		h.sockets[0].disconnect();
+		await timeout(60 * 60_000);
+		assert.deepStrictEqual({
+			attempts, connected: h.feed.connected, closed: h.sockets[0].closed, sockets: h.sockets.length, warnings: h.warnings,
+			telemetry: h.telemetry.map(event => [event.outcome, event.consecutiveFailures]),
+		}, {
+			attempts: 2, connected: false, closed: true, sockets: 1, warnings: [],
+			telemetry: [['connected', 0], ['disconnected', 1], ['unavailable', 1]],
+		});
+	}));
+
+	test('a failed reconnect negotiation keeps retrying until the feed is restored', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		let attempts = 0;
+		const h = createFeed(store, {
+			connect: async () => {
+				if (++attempts === 2) {
+					throw new CloudSandboxRequestError(503, 'Unavailable', 600);
+				}
+				return connection();
+			}
+		});
+		await h.feed.start();
+		h.sockets[0].disconnect();
+		await timeout(1_001);
+		const afterFailure = { attempts, connected: h.feed.connected };
+		await timeout(600_000 + 501);
+		assert.deepStrictEqual({
+			afterFailure, attempts, connected: h.feed.connected, reasons: h.reasons, retryAfter: h.telemetry[2].retryDelayMs,
+			telemetry: h.telemetry.map(event => [event.outcome, event.consecutiveFailures, event.statusCode]),
+		}, {
+			afterFailure: { attempts: 2, connected: false }, attempts: 3, connected: true, reasons: ['reconnect'], retryAfter: 600_000,
+			telemetry: [['connected', 0, undefined], ['disconnected', 1, undefined], ['negotiationFailed', 2, 503], ['connected', 2, undefined]],
+		});
+	}));
+
+	test('a renewal that finds the feed disabled closes the old socket and stops attempts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		let attempts = 0;
+		const h = createFeed(store, { connect: async () => ++attempts === 1 ? connection() : undefined });
+		await h.feed.start();
+		await timeout(60 * 60_000);
+		assert.deepStrictEqual({ attempts, connected: h.feed.connected, closed: h.sockets[0].closed, warnings: h.warnings, telemetry: h.telemetry }, {
+			attempts: 2, connected: false, closed: true, warnings: [],
+			telemetry: [{ outcome: 'connected', consecutiveFailures: 0 }, { outcome: 'unavailable', consecutiveFailures: 0 }],
+		});
+	}));
+
+	test('a failed renewal closes the old socket and retries with the slow backoff', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		let attempts = 0;
+		const h = createFeed(store, {
+			connect: async () => {
+				if (++attempts === 2) {
+					throw new CloudSandboxRequestError(503, 'Unavailable');
+				}
+				return connection();
+			}
+		});
+		await h.feed.start();
+		await timeout(8 * 60_000 + 1);
+		const afterFailure = { attempts, connected: h.feed.connected, closed: h.sockets[0].closed };
+		await timeout(60_000 + 501);
+		assert.deepStrictEqual({
+			afterFailure, attempts, connected: h.feed.connected, reasons: h.reasons,
+			telemetry: h.telemetry.map(event => [event.outcome, event.consecutiveFailures, event.statusCode]),
+		}, {
+			afterFailure: { attempts: 2, connected: false, closed: true }, attempts: 3, connected: true, reasons: ['reconnect'],
+			telemetry: [['connected', 0, undefined], ['negotiationFailed', 1, 503], ['connected', 1, undefined]],
+		});
+	}));
+
+	test('times out an unresponsive WPS handshake and retries with the slow backoff', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const h = createFeed(store, { autoReady: false });
+		await h.feed.start();
+		const afterTimeout = { connected: h.feed.connected, closed: h.sockets[0].closed, attempts: h.requests.length };
+		await timeout(30_000 - 1);
+		const beforeMinimum = h.requests.length;
+		await timeout(30_000 + 2);
+		assert.deepStrictEqual({
+			afterTimeout, beforeMinimum, attempts: h.requests.length, warnings: h.warnings.length,
+			first: [h.telemetry[0].outcome, h.telemetry[0].consecutiveFailures],
+		}, {
+			afterTimeout: { connected: false, closed: true, attempts: 1 }, beforeMinimum: 1, attempts: 2, warnings: 0,
+			first: ['socketFailed', 1],
+		});
+	}));
+
+	test('retries a failing socket constructor without logging the credential-bearing error', () => runWithFakedTimers<void>({ useFakeTimers: true, maxTaskCount: 1000 }, async () => {
 		const h = createFeed(store, { socketError: true });
 		await h.feed.start();
 		await timeout(60 * 60_000);
-		assert.deepStrictEqual({ requests: h.requests.length, warnings: h.warnings, diagnostics: h.debugs }, {
-			requests: 1, warnings: [], diagnostics: ['[CloudSandboxSessionFeed] Connection failed; using discovery polling until the next account or feature lifetime.'],
+		assert.ok(h.requests.length >= 6 && h.requests.length <= 8, `Expected bounded retries, got ${h.requests.length} negotiations in an hour`);
+		assert.deepStrictEqual({
+			warnings: h.warnings, leaked: h.debugs.some(line => line.includes('secret')),
+			diagnostics: [...new Set(h.debugs.map(line => line.replace(/\d+ms/, 'Nms')))],
+			outcomes: [...new Set(h.telemetry.map(event => event.outcome))],
+		}, {
+			warnings: [], leaked: false,
+			diagnostics: ['[CloudSandboxSessionFeed] Connection failed; retrying in Nms with discovery polling retained.'],
+			outcomes: ['socketFailed'],
 		});
 	}));
 

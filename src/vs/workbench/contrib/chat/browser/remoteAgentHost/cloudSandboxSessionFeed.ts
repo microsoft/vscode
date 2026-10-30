@@ -12,9 +12,12 @@ import { ICloudSandboxApiService, CloudSandboxRequestError } from '../../../../.
 import { computeReconnectDelay } from '../../../../../platform/agentHost/common/reconnectPolicy.js';
 import { parse } from '../../../../../platform/github/common/client/schema.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ICloudSandboxTelemetryService, type CloudSandboxSessionFeedOutcome } from './cloudSandboxTelemetry.js';
 
 const LOG_PREFIX = '[CloudSandboxSessionFeed]';
 const reconnectPolicy = { initialDelayMs: 1_000, maxDelayMs: 60_000, jitter: true };
+/** Failed negotiations and handshakes retry far more slowly than dropped sockets: the service is the likely cause, and discovery polling covers the gap. */
+const retryPolicy = { initialDelayMs: 60_000, maxDelayMs: 30 * 60_000, jitter: true };
 const healthyConnectionMs = 60_000;
 
 type SessionFeedSocket = Pick<WebSocket, 'onmessage' | 'onerror' | 'onclose' | 'close'>;
@@ -46,7 +49,8 @@ export class CloudSandboxSessionFeed extends Disposable {
 	private _refreshReason: 'renewal' | 'reconnect' | undefined;
 	private _start: Promise<void> | undefined;
 	private _connecting: Promise<void> | undefined;
-	private _reconnectAttempts = 0;
+	/** Dropped sockets and failed attempts since the last healthy connection; drives both backoff policies. */
+	private _consecutiveFailures = 0;
 
 	get connected(): boolean { return !!this._active.value; }
 
@@ -56,6 +60,7 @@ export class CloudSandboxSessionFeed extends Disposable {
 		private readonly _stopWatchFactory: () => Pick<StopWatch, 'elapsed'> = () => StopWatch.create(),
 		@ICloudSandboxApiService private readonly _apiService: ICloudSandboxApiService,
 		@ILogService private readonly _logService: ILogService,
+		@ICloudSandboxTelemetryService private readonly _telemetryService: ICloudSandboxTelemetryService,
 	) {
 		super();
 	}
@@ -86,6 +91,7 @@ export class CloudSandboxSessionFeed extends Disposable {
 		const store = this._pending.value = new DisposableStore();
 		const cancellation = new CancellationTokenSource();
 		store.add(toDisposable(() => cancellation.dispose(true)));
+		let negotiated = false;
 		try {
 			const connectionTime = this._stopWatchFactory();
 			const connection = await this._apiService.connectSessionFeed(cancellation.token);
@@ -95,8 +101,10 @@ export class CloudSandboxSessionFeed extends Disposable {
 			if (!connection) {
 				this._active.clear();
 				this._reconnect.cancel();
+				this._report('unavailable');
 				return;
 			}
+			negotiated = true;
 			const socket = this._webSocketFactory(connection.url, connection.subprotocol);
 			const ready = new DeferredPromise<void>();
 			let closed = false;
@@ -142,12 +150,14 @@ export class CloudSandboxSessionFeed extends Disposable {
 				} else if (this._active.value === store) {
 					this._active.clear();
 					if (reconnect) {
-						const delay = computeReconnectDelay(reconnectPolicy, ++this._reconnectAttempts);
+						const delay = computeReconnectDelay(reconnectPolicy, ++this._consecutiveFailures);
 						this._logService.debug(`${LOG_PREFIX} Disconnected; reconnecting in ${delay}ms with discovery polling retained.`);
 						this._reconnect.schedule(delay);
+						this._report('disconnected', delay);
 					} else {
 						this._logService.debug(`${LOG_PREFIX} Invalid or unsupported feed message; using discovery polling until the next account or feature lifetime.`);
 						this._reconnect.cancel();
+						this._report('invalidMessage');
 					}
 				}
 			};
@@ -161,25 +171,36 @@ export class CloudSandboxSessionFeed extends Disposable {
 				throw new Error('Session feed disconnected during setup');
 			}
 			const continuous = previousConnection !== undefined && this._active.value === previousConnection;
-			store.add(disposableTimeout(() => this._reconnectAttempts = 0, healthyConnectionMs));
+			store.add(disposableTimeout(() => this._consecutiveFailures = 0, healthyConnectionMs));
 			this._active.value = this._pending.clearAndLeak();
 			const reconnectDelay = connection.reconnect_in !== undefined
 				? connection.reconnect_in - connectionTime.elapsed()
 				: Date.parse(connection.reconnect_after) - Date.now();
 			this._reconnect.schedule(Math.max(1_000, reconnectDelay));
 			this._logService.debug(`${LOG_PREFIX} Connected to task status feed.`);
+			if (!continuous) {
+				this._report('connected');
+			}
 			if (refresh) {
 				this._invalidate(continuous ? 'renewal' : 'reconnect');
 			}
 		} catch (error) {
 			if (!this._store.isDisposed) {
 				this._active.clear();
+				const statusCode = error instanceof CloudSandboxRequestError ? error.statusCode : undefined;
+				const retryAfterMs = error instanceof CloudSandboxRequestError && error.retryAfterSeconds !== undefined ? error.retryAfterSeconds * 1000 : 0;
+				const delay = Math.max(computeReconnectDelay(retryPolicy, ++this._consecutiveFailures), retryAfterMs);
 				// Socket errors may contain the token-bearing URL.
-				this._logService.debug(`${LOG_PREFIX} Connection failed${error instanceof CloudSandboxRequestError ? ` (HTTP ${error.statusCode})` : ''}; using discovery polling until the next account or feature lifetime.`);
-				this._reconnect.cancel();
+				this._logService.debug(`${LOG_PREFIX} Connection failed${statusCode !== undefined ? ` (HTTP ${statusCode})` : ''}; retrying in ${delay}ms with discovery polling retained.`);
+				this._reconnect.schedule(delay);
+				this._report(negotiated ? 'socketFailed' : 'negotiationFailed', delay, statusCode);
 			}
 		} finally {
 			this._pending.clear();
 		}
+	}
+
+	private _report(outcome: CloudSandboxSessionFeedOutcome, retryDelayMs?: number, statusCode?: number): void {
+		this._telemetryService.reportSessionFeed({ outcome, consecutiveFailures: this._consecutiveFailures, retryDelayMs, statusCode });
 	}
 }
