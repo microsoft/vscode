@@ -32,7 +32,7 @@ import type { ResourceLabelFormatter } from '../../label/common/label.js';
  * vscode-agent-host://my-server/home/user/foo.ts?_ah=eyJzY2hlbWUiOiJmaWxlIn0
  * ```
  */
-export const AGENT_HOST_SCHEME = 'vscode-agent-host';
+export const AGENT_HOST_SCHEME = Schemas.vscodeAgentHost;
 
 /**
  * Maps resource URIs between the Agent Host and its client.

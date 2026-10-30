@@ -24,6 +24,8 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { localize } from '../../../../nls.js';
 import { ConfirmResult } from '../../../../platform/dialogs/common/dialogs.js';
+import { isConfigured } from '../../../../platform/configuration/common/configuration.js';
+import { ByteSize, FileSystemProviderCapabilities, getLargeFileConfirmationLimit, IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorConfiguration } from '../../../browser/parts/editor/textEditor.js';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, GroupIdentifier, IEditorSerializer, IResourceMultiDiffEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput } from '../../../common/editor.js';
@@ -96,6 +98,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMultiDiffSourceResolverService private readonly _multiDiffSourceResolverService: IMultiDiffSourceResolverService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 		this._name = '';
@@ -212,6 +215,27 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		this._resourceOrder.set(order, undefined);
 	}
 
+	/**
+	 * Whether `resource` exceeds the large file limit of text editors and comes from a file system that can only read
+	 * whole files (such as the agent host's), where even binary detection would transfer the whole file.
+	 */
+	private async _isTooLargeToLoad(resource: URI | undefined): Promise<boolean> {
+		if (!resource
+			|| !this._fileService.hasProvider(resource)
+			|| this._fileService.hasCapability(resource, FileSystemProviderCapabilities.FileReadStream)
+			|| this._fileService.hasCapability(resource, FileSystemProviderCapabilities.FileOpenReadWriteClose)) {
+			return false;
+		}
+
+		const configuredLimitMb = this._textResourceConfigurationService.inspect<number>(resource, null, 'workbench.editorLargeFileConfirmation');
+		const limit = isConfigured(configuredLimitMb) ? configuredLimitMb.value * ByteSize.MB : getLargeFileConfirmationLimit(resource);
+		try {
+			return (await this._fileService.stat(resource)).size > limit;
+		} catch {
+			return false; // loading the model reports the error
+		}
+	}
+
 	private async _createModel(): Promise<IMultiDiffEditorModel & IDisposable> {
 		const source = await this._resolvedSource.getPromise();
 		const textResourceConfigurationService = this._textResourceConfigurationService;
@@ -221,8 +245,15 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			let original: IReference<IResolvedTextEditorModel> | undefined;
 			let modified: IReference<IResolvedTextEditorModel> | undefined;
 
+			// An item with a side that is too large shows a placeholder, so neither side is loaded.
+			const [originalTooLarge, modifiedTooLarge] = await Promise.all([
+				this._isTooLargeToLoad(r.originalUri),
+				this._isTooLargeToLoad(r.modifiedUri),
+			]);
+			const isTooLarge = originalTooLarge || modifiedTooLarge;
+
 			const multiDiffItemStore = new DisposableStore();
-			const createModelReference = async (resource: URI | undefined) => resource ? this._textModelService.createModelReference(resource) : undefined;
+			const createModelReference = async (resource: URI | undefined) => resource && !isTooLarge ? this._textModelService.createModelReference(resource) : undefined;
 
 			const [originalResult, modifiedResult] = await Promise.allSettled([
 				createModelReference(r.originalUri),
@@ -261,8 +292,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			const uri = (r.modifiedUri ?? r.originalUri)!;
 			const result: IDocumentDiffItemWithMultiDiffEditorItem = {
 				multiDiffEditorItem: r,
-				original: r.originalUri ? new DiffItemSource(r.originalUri, original?.object.textEditorModel) : undefined,
-				modified: r.modifiedUri ? new DiffItemSource(r.modifiedUri, modified?.object.textEditorModel) : undefined,
+				original: r.originalUri ? new DiffItemSource(r.originalUri, original?.object.textEditorModel, originalTooLarge) : undefined,
+				modified: r.modifiedUri ? new DiffItemSource(r.modifiedUri, modified?.object.textEditorModel, modifiedTooLarge) : undefined,
 				contextKeys: r.contextKeys,
 				get options() {
 					return {

@@ -8,6 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, observableFromValueWithChangeEvent, observableValue, ValueWithChangeEventFromObservable, waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -19,6 +20,8 @@ import { TestDiffProviderFactoryService } from '../../../../../editor/test/brows
 import { createCodeEditorServices } from '../../../../../editor/test/browser/testCodeEditor.js';
 import { instantiateTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
+import { ByteSize, FileSystemProviderCapabilities, IFileService, IFileStatWithPartialMetadata } from '../../../../../platform/files/common/files.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ITextFileEditorModelManager, ITextFileService, TextFileOperationError, TextFileOperationResult } from '../../../../services/textfile/common/textfiles.js';
 import { MultiDiffEditorInput } from '../../browser/multiDiffEditorInput.js';
@@ -27,6 +30,10 @@ import { IMultiDiffSourceResolverService, MultiDiffEditorItem } from '../../brow
 suite('MultiDiffEditorInput', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const noFileService = new class extends mock<IFileService>() {
+		override hasProvider() { return false; }
+	}();
 
 	test('updates its name from the resolved source label', async () => {
 		const sourceLabel = observableValue('sourceLabel', 'Current Turn Changes');
@@ -53,6 +60,7 @@ suite('MultiDiffEditorInput', () => {
 			createCodeEditorServices(disposables),
 			sourceResolverService,
 			textFileService,
+			noFileService,
 		));
 		await input.getViewModel();
 
@@ -91,6 +99,7 @@ suite('MultiDiffEditorInput', () => {
 			new class extends mock<IInstantiationService>() { }(),
 			new class extends mock<IMultiDiffSourceResolverService>() { }(),
 			textFileService,
+			noFileService,
 		));
 
 		const viewModelPromise = input.getViewModel();
@@ -163,6 +172,7 @@ suite('MultiDiffEditorInput', () => {
 						override readonly onDidChangeDirty = Event.None;
 					}();
 				}(),
+				noFileService,
 			));
 			const viewModel = await input.getViewModel();
 			const documents = observableFromValueWithChangeEvent(input, viewModel.model.documents);
@@ -239,6 +249,7 @@ suite('MultiDiffEditorInput', () => {
 			instantiationService,
 			new class extends mock<IMultiDiffSourceResolverService>() { }(),
 			textFileService,
+			noFileService,
 		));
 		const viewModel = await input.getViewModel();
 		const documentItem = viewModel.items.get()[0].documentDiffItem;
@@ -299,6 +310,7 @@ suite('MultiDiffEditorInput', () => {
 			instantiationService,
 			new class extends mock<IMultiDiffSourceResolverService>() { }(),
 			textFileService,
+			noFileService,
 		));
 
 		const viewModel = await input.getViewModel();
@@ -325,6 +337,74 @@ suite('MultiDiffEditorInput', () => {
 			hasOriginalTextModel: false,
 			hasModifiedTextModel: false,
 			saveCallCount: 0,
+		});
+	});
+
+	test('does not load files above the large file limit from file systems that only read whole files', async () => {
+		const large = URI.from({ scheme: Schemas.vscodeAgentHost, authority: 'host', path: '/repo/capture.pcapng' });
+		const small = URI.from({ scheme: Schemas.vscodeAgentHost, authority: 'host', path: '/repo/README.md' });
+		const sizes = new Map([[large.toString(), 150 * ByteSize.MB], [small.toString(), 80]]);
+		const services = new ServiceCollection();
+		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const loaded: string[] = [];
+		const textModelService = new class extends mock<ITextModelService>() {
+			override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+				loaded.push(resource.path);
+				const model = disposables.add(instantiateTextModel(instantiationService, 'text', undefined, undefined, resource));
+				return {
+					object: new class extends mock<IResolvedTextEditorModel>() {
+						override readonly textEditorModel = model;
+						override isReadonly() { return true; }
+					}(),
+					dispose: () => { },
+				};
+			}
+		}();
+		// Like the agent host's file system: no streamed or ranged reads, so loading a file transfers all of it.
+		const fileService = new class extends mock<IFileService>() {
+			override hasProvider() { return true; }
+			override hasCapability(_resource: URI, capability: FileSystemProviderCapabilities) {
+				return (FileSystemProviderCapabilities.FileReadWrite & capability) !== 0;
+			}
+			override async stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
+				return new class extends mock<IFileStatWithPartialMetadata>() {
+					override readonly size = sizes.get(resource.toString())!;
+				}();
+			}
+		}();
+		const input = disposables.add(new MultiDiffEditorInput(
+			URI.parse('multi-diff-editor:test'),
+			'Test',
+			[new MultiDiffEditorItem(undefined, large, undefined), new MultiDiffEditorItem(undefined, small, undefined)],
+			false,
+			textModelService,
+			new class extends mock<ITextResourceConfigurationService>() {
+				override readonly onDidChangeConfiguration = Event.None;
+				override getValue<T>(): T { return {} as T; }
+				override inspect<T>(): IConfigurationValue<Readonly<T>> { return {}; }
+			}(),
+			instantiationService,
+			new class extends mock<IMultiDiffSourceResolverService>() { }(),
+			new class extends mock<ITextFileService>() {
+				override readonly files = new class extends mock<ITextFileEditorModelManager>() {
+					override readonly onDidChangeDirty = Event.None;
+				}();
+			}(),
+			fileService,
+		));
+
+		const viewModel = await input.getViewModel();
+
+		assert.deepStrictEqual({
+			loaded,
+			items: viewModel.items.get().map(item => ({ path: item.modifiedUri?.path, isBinary: item.isBinary, isTooLarge: item.isTooLarge })),
+		}, {
+			loaded: ['/repo/README.md'],
+			items: [
+				{ path: '/repo/capture.pcapng', isBinary: true, isTooLarge: true },
+				{ path: '/repo/README.md', isBinary: false, isTooLarge: false },
+			],
 		});
 	});
 });
