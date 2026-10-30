@@ -971,9 +971,18 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	itemsCopied(stats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void {
 		this.fileCopiedContextKey.set(stats.length > 0);
 		this.resourceCutContextKey.set(cut && stats.length > 0);
-		previousCut?.forEach(item => this.tree.rerender(item));
+		previousCut?.forEach(item => this.rerenderItem(item));
 		if (cut) {
-			stats.forEach(s => this.tree.rerender(s));
+			stats.forEach(s => this.rerenderItem(s));
+		}
+	}
+
+	private rerenderItem(item: ExplorerItem): void {
+		// A refresh replaces the tree's items, so an item that was cut before it is no longer in the tree.
+		// Rerender the item that shows its resource now, if there is one.
+		const current = this.tree.hasNode(item) ? item : this.explorerService.findClosest(item.resource);
+		if (current && this.tree.hasNode(current)) {
+			this.tree.rerender(current);
 		}
 	}
 
