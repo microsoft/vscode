@@ -1642,7 +1642,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.strictEqual(widget.element.querySelector('.automations-card-schedule')?.textContent, `Daily at ${time}`);
 	});
 
-	test('uses uppercase CRON for saved cards and accessible schedule text', () => {
+	test('uses sentence-case Cron for saved cards and accessible schedule text', () => {
 		const { widget, automationService } = setup();
 		const item = automation({
 			schedule: { interval: 'cron', cronExpression: '*/15 * * * *', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
@@ -1650,8 +1650,8 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([item]);
 		assert.deepStrictEqual({
 			label: widget.element.querySelector('.automations-card-schedule')?.textContent,
-			accessible: buildAutomationsAccessibleContent([item], [], 'ready', []).includes('CRON: */15 * * * *'),
-		}, { label: 'CRON: */15 * * * *', accessible: true });
+			accessible: buildAutomationsAccessibleContent([item], [], 'ready', []).includes('Cron: */15 * * * *'),
+		}, { label: 'Cron: */15 * * * *', accessible: true });
 	});
 
 	test('renders collapsible ownership sections with repository guidance and removes empty groups', () => {

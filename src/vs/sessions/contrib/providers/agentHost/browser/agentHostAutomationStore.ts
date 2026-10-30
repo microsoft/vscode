@@ -1272,7 +1272,7 @@ function scheduleTrigger(schedule: IAutomationSchedule): AutomationDefinition['t
 	switch (schedule.interval) {
 		case 'cron':
 			if (!schedule.cronExpression?.trim()) {
-				throw new Error(localize('automationCronRequired', "A CRON expression is required."));
+				throw new Error(localize('automationCronRequired', "A cron expression is required."));
 			}
 			expression = schedule.cronExpression.trim();
 			break;

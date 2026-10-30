@@ -2300,7 +2300,7 @@ function formatSchedule(schedule: IAutomationSchedule): string {
 	const { interval, scheduleHour, scheduleMinute } = localSchedule;
 	const time = formatHourMinute(scheduleHour, scheduleMinute);
 	switch (interval) {
-		case 'cron': return localize('scheduleCron', "CRON: {0}", schedule.cronExpression);
+		case 'cron': return localize('scheduleCron', "Cron: {0}", schedule.cronExpression);
 		case 'hourly': return localize('scheduleHourly', "Hourly");
 		case 'daily': return localize('scheduleDailyAt', "Daily at {0}", time);
 		case 'weekdays': return localize('scheduleWeekdaysAt', "Weekdays at {0}", time);
@@ -2388,7 +2388,7 @@ function getAutomationBlueprintErrorMessage(error: unknown): string {
 		case 'invalidId':
 			return localize('automationBlueprint.invalidId', "The blueprint id '{0}' is invalid.", error.property ?? '');
 		case 'unsupportedSchedule':
-			return localize('automationBlueprint.unsupportedSchedule', "The CRON expression '{0}' cannot be represented by the current Automation editor.", error.property ?? '');
+			return localize('automationBlueprint.unsupportedSchedule', "The cron expression '{0}' cannot be represented by the current Automation editor.", error.property ?? '');
 		case 'unsupportedTimeZone':
 			return localize('automationBlueprint.unsupportedTimeZone', "The time zone '{0}' is not supported. Use 'local' so the schedule follows the importing user's time zone.", error.property ?? '');
 		case 'missingPrompt':
