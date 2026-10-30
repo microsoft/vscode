@@ -313,21 +313,26 @@ export class ContextView extends Disposable {
 
 	setContainer(container: HTMLElement | null, domPosition: ContextViewDOMPosition): void {
 		const previousDOMPosition = this.domPosition;
+		const usedShadowDOM = this.useShadowDOM;
+		const useShadowDOM = domPosition === ContextViewDOMPosition.FIXED_SHADOW || domPosition === ContextViewDOMPosition.POPOVER_SHADOW;
+		const unchanged = container === this.container && usedShadowDOM === useShadowDOM && isPopoverDOMPosition(previousDOMPosition) === isPopoverDOMPosition(domPosition);
+
+		// Tear down the previous popover while its position is still current, so
+		// that its owner tracking is disposed and its top layer entry is closed
+		if (this.container && !unchanged && isPopoverDOMPosition(previousDOMPosition)) {
+			this.hide(undefined, true);
+			this.completeHideAnimation();
+		}
+
 		this.domPosition = domPosition;
 		this.useFixedPosition = domPosition !== ContextViewDOMPosition.ABSOLUTE;
-		const usedShadowDOM = this.useShadowDOM;
-		this.useShadowDOM = domPosition === ContextViewDOMPosition.FIXED_SHADOW || domPosition === ContextViewDOMPosition.POPOVER_SHADOW;
+		this.useShadowDOM = useShadowDOM;
 
-		if (container === this.container && usedShadowDOM === this.useShadowDOM && isPopoverDOMPosition(previousDOMPosition) === isPopoverDOMPosition(domPosition)) {
+		if (unchanged) {
 			return; // container is the same and neither shadow DOM nor popover usage has changed
 		}
 
 		if (this.container) {
-			if (isPopoverDOMPosition(previousDOMPosition)) {
-				this.hide(undefined, true);
-				this.completeHideAnimation();
-			}
-
 			this.toDisposeOnSetContainer.dispose();
 
 			this.view.remove();

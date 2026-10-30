@@ -416,6 +416,24 @@ suite('QuickInput keeps focus while its context menus are open', () => { // http
 		]);
 	});
 
+	test('hiding a picker hosted in a shadow root returns focus to the editor in that shadow root', async () => {
+		const shadowHost = document.createElement('div');
+		mainWindow.document.body.appendChild(shadowHost);
+		store.add(toDisposable(() => shadowHost.remove()));
+		const shadowRoot = shadowHost.attachShadow({ mode: 'open' });
+		shadowRoot.appendChild(fixture);
+		setupController();
+		const picker = showPicker();
+		const shown = { documentActive: mainWindow.document.activeElement === shadowHost, shadowActive: shadowRoot.activeElement === input };
+
+		picker.hide();
+
+		assert.deepStrictEqual({ shown, hiddenFocus: shadowRoot.activeElement === editor }, {
+			shown: { documentActive: true, shadowActive: true },
+			hiddenFocus: true
+		});
+	});
+
 	test('pasting when the clipboard cannot be read keeps the value and selection', async () => {
 		setupController();
 		await clipboardService.writeText(''); // what the browser clipboard service returns when reading fails

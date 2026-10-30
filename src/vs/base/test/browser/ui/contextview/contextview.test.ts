@@ -664,6 +664,31 @@ suite('ContextView', () => {
 			});
 		});
 
+		for (const animated of [false, true]) {
+			test(`switching from a shadow popover to a legacy position elsewhere disposes the owner tracking (${animated ? 'during' : 'without'} a close animation)`, () => {
+				const { owner } = createOwner();
+				const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER_SHADOW);
+				const popover = createDelegate(animated ? { closeAnimation: { className: 'closing', duration: 1000 } } : {});
+				contextView.show(popover.delegate);
+				const popoverHost = owner.querySelector('.shadow-root-host')!;
+				if (animated) {
+					contextView.hide();
+				}
+
+				contextView.setContainer(mainWindow.document.body, ContextViewDOMPosition.FIXED_SHADOW);
+				const legacy = createDelegate();
+				contextView.show(legacy.delegate);
+				legacy.item().dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true }));
+				const afterItemPress = { legacyHides: legacy.hides.length, popoverHostOpen: isOpen(popoverHost), popoverHostConnected: popoverHost.isConnected };
+
+				contextView.hide();
+				assert.deepStrictEqual({ afterItemPress, popoverHides: popover.hides.length }, {
+					afterItemPress: { legacyHides: 0, popoverHostOpen: false, popoverHostConnected: false },
+					popoverHides: 1
+				});
+			});
+		}
+
 		test('restores focus immediately and keeps the popover open until the close animation completes', async () => {
 			const { owner, input } = createOwner();
 			const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER);
