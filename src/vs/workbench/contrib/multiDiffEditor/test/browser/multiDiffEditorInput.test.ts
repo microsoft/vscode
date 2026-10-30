@@ -21,9 +21,11 @@ import { createCodeEditorServices } from '../../../../../editor/test/browser/tes
 import { instantiateTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
-import { ByteSize, FileSystemProviderCapabilities, IFileService, IFileStatWithPartialMetadata } from '../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { ByteSize, FileSystemProviderCapabilities, FileType, IFileService, IFileStatWithPartialMetadata, IFileSystemProvider, IStat } from '../../../../../platform/files/common/files.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
-import { ITextFileEditorModelManager, ITextFileService, TextFileOperationError, TextFileOperationResult } from '../../../../services/textfile/common/textfiles.js';
+import { IResolvedTextFileEditorModel, ITextFileEditorModel, ITextFileEditorModelManager, ITextFileService, TextFileOperationError, TextFileOperationResult } from '../../../../services/textfile/common/textfiles.js';
 import { MultiDiffEditorInput } from '../../browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolverService, MultiDiffEditorItem } from '../../browser/multiDiffSourceResolverService.js';
 
@@ -31,8 +33,10 @@ suite('MultiDiffEditorInput', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	const noFileService = new class extends mock<IFileService>() {
-		override hasProvider() { return false; }
+	// File systems that read files in chunks, like the local one, load files without checking their size
+	const streamingFileService = new class extends mock<IFileService>() {
+		override hasProvider() { return true; }
+		override hasCapability() { return true; }
 	}();
 
 	test('updates its name from the resolved source label', async () => {
@@ -60,7 +64,7 @@ suite('MultiDiffEditorInput', () => {
 			createCodeEditorServices(disposables),
 			sourceResolverService,
 			textFileService,
-			noFileService,
+			streamingFileService,
 		));
 		await input.getViewModel();
 
@@ -99,7 +103,7 @@ suite('MultiDiffEditorInput', () => {
 			new class extends mock<IInstantiationService>() { }(),
 			new class extends mock<IMultiDiffSourceResolverService>() { }(),
 			textFileService,
-			noFileService,
+			streamingFileService,
 		));
 
 		const viewModelPromise = input.getViewModel();
@@ -172,7 +176,7 @@ suite('MultiDiffEditorInput', () => {
 						override readonly onDidChangeDirty = Event.None;
 					}();
 				}(),
-				noFileService,
+				streamingFileService,
 			));
 			const viewModel = await input.getViewModel();
 			const documents = observableFromValueWithChangeEvent(input, viewModel.model.documents);
@@ -249,7 +253,7 @@ suite('MultiDiffEditorInput', () => {
 			instantiationService,
 			new class extends mock<IMultiDiffSourceResolverService>() { }(),
 			textFileService,
-			noFileService,
+			streamingFileService,
 		));
 		const viewModel = await input.getViewModel();
 		const documentItem = viewModel.items.get()[0].documentDiffItem;
@@ -310,7 +314,7 @@ suite('MultiDiffEditorInput', () => {
 			instantiationService,
 			new class extends mock<IMultiDiffSourceResolverService>() { }(),
 			textFileService,
-			noFileService,
+			streamingFileService,
 		));
 
 		const viewModel = await input.getViewModel();
@@ -340,71 +344,192 @@ suite('MultiDiffEditorInput', () => {
 		});
 	});
 
-	test('does not load files above the large file limit from file systems that only read whole files', async () => {
-		const large = URI.from({ scheme: Schemas.vscodeAgentHost, authority: 'host', path: '/repo/capture.pcapng' });
-		const small = URI.from({ scheme: Schemas.vscodeAgentHost, authority: 'host', path: '/repo/README.md' });
-		const sizes = new Map([[large.toString(), 150 * ByteSize.MB], [small.toString(), 80]]);
-		const services = new ServiceCollection();
-		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
-		const instantiationService = createCodeEditorServices(disposables, services);
-		const loaded: string[] = [];
-		const textModelService = new class extends mock<ITextModelService>() {
-			override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
-				loaded.push(resource.path);
-				const model = disposables.add(instantiateTextModel(instantiationService, 'text', undefined, undefined, resource));
-				return {
-					object: new class extends mock<IResolvedTextEditorModel>() {
-						override readonly textEditorModel = model;
-						override isReadonly() { return true; }
-					}(),
-					dispose: () => { },
-				};
-			}
-		}();
-		// Like the agent host's file system: no streamed or ranged reads, so loading a file transfers all of it.
-		const fileService = new class extends mock<IFileService>() {
-			override hasProvider() { return true; }
-			override hasCapability(_resource: URI, capability: FileSystemProviderCapabilities) {
-				return (FileSystemProviderCapabilities.FileReadWrite & capability) !== 0;
-			}
-			override async stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
-				return new class extends mock<IFileStatWithPartialMetadata>() {
-					override readonly size = sizes.get(resource.toString())!;
-				}();
-			}
-		}();
-		const input = disposables.add(new MultiDiffEditorInput(
-			URI.parse('multi-diff-editor:test'),
-			'Test',
-			[new MultiDiffEditorItem(undefined, large, undefined), new MultiDiffEditorItem(undefined, small, undefined)],
-			false,
-			textModelService,
-			new class extends mock<ITextResourceConfigurationService>() {
-				override readonly onDidChangeConfiguration = Event.None;
-				override getValue<T>(): T { return {} as T; }
-				override inspect<T>(): IConfigurationValue<Readonly<T>> { return {}; }
-			}(),
-			instantiationService,
-			new class extends mock<IMultiDiffSourceResolverService>() { }(),
-			new class extends mock<ITextFileService>() {
+	suite('files from file systems that only read whole files', () => {
+
+		const agentHostUri = (path: string) => URI.from({ scheme: Schemas.vscodeAgentHost, authority: 'host', path });
+
+		/**
+		 * Creates an input whose text model service records the paths of the files it loads.
+		 */
+		function createInput(resources: readonly MultiDiffEditorItem[], fileService: IFileService, textFileService: ITextFileService) {
+			const services = new ServiceCollection();
+			services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+			const instantiationService = createCodeEditorServices(disposables, services);
+			const loaded: string[] = [];
+			const textModelService = new class extends mock<ITextModelService>() {
+				override canHandleResource() { return false; }
+				override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+					loaded.push(resource.path);
+					const model = disposables.add(instantiateTextModel(instantiationService, 'text', undefined, undefined, resource));
+					return {
+						object: new class extends mock<IResolvedTextEditorModel>() {
+							override readonly textEditorModel = model;
+							override isReadonly() { return true; }
+						}(),
+						dispose: () => { },
+					};
+				}
+			}();
+			const input = disposables.add(new MultiDiffEditorInput(
+				URI.parse('multi-diff-editor:test'),
+				'Test',
+				resources,
+				false,
+				textModelService,
+				new class extends mock<ITextResourceConfigurationService>() {
+					override readonly onDidChangeConfiguration = Event.None;
+					override getValue<T>(): T { return {} as T; }
+					override inspect<T>(): IConfigurationValue<Readonly<T>> { return {}; }
+				}(),
+				instantiationService,
+				new class extends mock<IMultiDiffSourceResolverService>() { }(),
+				textFileService,
+				fileService,
+			));
+			return { input, loaded };
+		}
+
+		/**
+		 * Creates a file service like the agent host's: no streamed or ranged reads, so loading a file transfers all of it.
+		 */
+		function createWholeFileReadsFileService(sizes: ReadonlyMap<string, number>, statted: string[] = []) {
+			return new class extends mock<IFileService>() {
+				override hasProvider() { return true; }
+				override hasCapability(_resource: URI, capability: FileSystemProviderCapabilities) {
+					return (FileSystemProviderCapabilities.FileReadWrite & capability) !== 0;
+				}
+				override async stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
+					statted.push(resource.path);
+					return new class extends mock<IFileStatWithPartialMetadata>() {
+						override readonly size = sizes.get(resource.toString())!;
+					}();
+				}
+			}();
+		}
+
+		/**
+		 * Creates a text file service where `openAndDirty` have resolved, dirty models, and that records saves and reverts.
+		 */
+		function createTextFileService(openAndDirty: readonly URI[] = []) {
+			const isOpenAndDirty = (resource: URI) => openAndDirty.some(uri => uri.toString() === resource.toString());
+			const resolvedModel = new class extends mock<ITextFileEditorModel>() {
+				override isResolved(): this is IResolvedTextFileEditorModel { return true; }
+			}();
+			const saved: string[] = [];
+			const reverted: string[] = [];
+			const textFileService = new class extends mock<ITextFileService>() {
 				override readonly files = new class extends mock<ITextFileEditorModelManager>() {
 					override readonly onDidChangeDirty = Event.None;
+					override get(resource: URI) { return isOpenAndDirty(resource) ? resolvedModel : undefined; }
 				}();
-			}(),
-			fileService,
-		));
+				override isDirty(resource: URI) { return isOpenAndDirty(resource); }
+				override async save(resource: URI) {
+					saved.push(resource.path);
+					return resource;
+				}
+				override async revert(resource: URI) {
+					reverted.push(resource.path);
+				}
+			}();
+			return { textFileService, saved, reverted };
+		}
 
-		const viewModel = await input.getViewModel();
+		test('does not load files above the large file limit', async () => {
+			const large = agentHostUri('/repo/capture.pcapng');
+			const small = agentHostUri('/repo/README.md');
+			const { input, loaded } = createInput(
+				[new MultiDiffEditorItem(undefined, large, undefined), new MultiDiffEditorItem(undefined, small, undefined)],
+				createWholeFileReadsFileService(new Map([[large.toString(), 150 * ByteSize.MB], [small.toString(), 80]])),
+				createTextFileService().textFileService,
+			);
 
-		assert.deepStrictEqual({
-			loaded,
-			items: viewModel.items.get().map(item => ({ path: item.modifiedUri?.path, isBinary: item.isBinary, isTooLarge: item.isTooLarge })),
-		}, {
-			loaded: ['/repo/README.md'],
-			items: [
-				{ path: '/repo/capture.pcapng', isBinary: true, isTooLarge: true },
-				{ path: '/repo/README.md', isBinary: false, isTooLarge: false },
-			],
+			const viewModel = await input.getViewModel();
+
+			assert.deepStrictEqual({
+				loaded,
+				items: viewModel.items.get().map(item => ({ path: item.modifiedUri?.path, isBinary: item.isBinary, isTooLarge: item.isTooLarge })),
+			}, {
+				loaded: ['/repo/README.md'],
+				items: [
+					{ path: '/repo/capture.pcapng', isBinary: true, isTooLarge: true },
+					{ path: '/repo/README.md', isBinary: false, isTooLarge: false },
+				],
+			});
+		});
+
+		test('uses the open models of large files, and saves and reverts large files that are open and dirty', async () => {
+			const opened = agentHostUri('/repo/opened.log');
+			const editedOriginal = agentHostUri('/original/repo/edited.log');
+			const edited = agentHostUri('/repo/edited.log');
+			const statted: string[] = [];
+			const { textFileService, saved, reverted } = createTextFileService([opened, edited]);
+			const { input, loaded } = createInput(
+				[new MultiDiffEditorItem(undefined, opened, undefined), new MultiDiffEditorItem(editedOriginal, edited, undefined)],
+				createWholeFileReadsFileService(new Map([opened, editedOriginal, edited].map(uri => [uri.toString(), 150 * ByteSize.MB])), statted),
+				textFileService,
+			);
+
+			const viewModel = await input.getViewModel();
+			await input.save(1);
+			await input.revert(1);
+
+			assert.deepStrictEqual({
+				loaded,
+				statted,
+				items: viewModel.items.get().map(item => ({ path: item.modifiedUri?.path, isBinary: item.isBinary, isTooLarge: item.isTooLarge })),
+				saved: saved.sort(),
+				reverted: reverted.sort(),
+			}, {
+				loaded: ['/repo/opened.log'],
+				statted: ['/original/repo/edited.log'],
+				items: [
+					{ path: '/repo/opened.log', isBinary: false, isTooLarge: false },
+					// The original is too large to load, so the item shows a placeholder
+					{ path: '/repo/edited.log', isBinary: true, isTooLarge: true },
+				],
+				saved: ['/repo/edited.log', '/repo/opened.log'],
+				reverted: ['/repo/edited.log', '/repo/opened.log'],
+			});
+		});
+
+		test('checks the size of files from a file system provider that registers when activated', async () => {
+			const scheme = 'on-demand';
+			const large = URI.from({ scheme, path: '/repo/capture.pcapng' });
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			const provider = new class extends mock<IFileSystemProvider>() {
+				override readonly capabilities = FileSystemProviderCapabilities.FileReadWrite;
+				override readonly onDidChangeCapabilities = Event.None;
+				override readonly onDidChangeFile = Event.None;
+				override async stat(): Promise<IStat> {
+					return { type: FileType.File, ctime: 0, mtime: 0, size: 2048 * ByteSize.MB };
+				}
+			}();
+			// Like a file system that an extension registers when it activates
+			let registration: Promise<void> | undefined;
+			disposables.add(fileService.onWillActivateFileSystemProvider(e => {
+				if (e.scheme === scheme) {
+					registration ??= (async () => {
+						await timeout(0);
+						disposables.add(fileService.registerProvider(scheme, provider));
+					})();
+					e.join(registration);
+				}
+			}));
+			const { input, loaded } = createInput(
+				[new MultiDiffEditorItem(undefined, large, undefined)],
+				fileService,
+				createTextFileService().textFileService,
+			);
+
+			const viewModel = await input.getViewModel();
+
+			assert.deepStrictEqual({
+				loaded,
+				items: viewModel.items.get().map(item => ({ path: item.modifiedUri?.path, isBinary: item.isBinary, isTooLarge: item.isTooLarge })),
+			}, {
+				loaded: [],
+				items: [{ path: '/repo/capture.pcapng', isBinary: true, isTooLarge: true }],
+			});
 		});
 	});
 });

@@ -217,13 +217,28 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 
 	/**
 	 * Whether `resource` exceeds the large file limit of text editors and comes from a file system that can only read
-	 * whole files (such as the agent host's), where even binary detection would transfer the whole file.
+	 * whole files (such as the agent host's), where even binary detection would transfer the whole file. Resources with
+	 * a resolved text file model are never too large, because loading them reuses that model.
 	 */
 	private async _isTooLargeToLoad(resource: URI | undefined): Promise<boolean> {
-		if (!resource
-			|| !this._fileService.hasProvider(resource)
-			|| this._fileService.hasCapability(resource, FileSystemProviderCapabilities.FileReadStream)
+		if (!resource) {
+			return false;
+		}
+
+		// Mirror `createModelReference`: untitled, in-memory and content provider resources are not read from a file
+		// system, and other resources wait for their file system provider, which an extension can register on activation
+		if (!this._fileService.hasProvider(resource)
+			&& (this._textModelService.canHandleResource(resource) || !await this._fileService.canHandleResource(resource))) {
+			return false;
+		}
+
+		if (this._fileService.hasCapability(resource, FileSystemProviderCapabilities.FileReadStream)
 			|| this._fileService.hasCapability(resource, FileSystemProviderCapabilities.FileOpenReadWriteClose)) {
+			return false;
+		}
+
+		// `createModelReference` reuses a resolved model, such as one open and dirty in an editor, without reading the file
+		if (this._textFileService.files.get(resource)?.isResolved()) {
 			return false;
 		}
 
@@ -385,6 +400,11 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		if (items) {
 			await Promise.all(items.map(async item => {
 				if (item.isBinary) {
+					// A file that is too large to show is not loaded here, but either side can be open and dirty in another editor
+					const dirtyUris = item.isTooLarge
+						? [item.originalUri, item.modifiedUri].filter(isDefined).filter(uri => uri.scheme !== Schemas.untitled && this._textFileService.isDirty(uri))
+						: [];
+					await Promise.all(dirtyUris.map(uri => mode === 'save' ? this._textFileService.save(uri, options) : this._textFileService.revert(uri, options)));
 					return;
 				}
 				const model = item.diffEditorViewModel.model;
