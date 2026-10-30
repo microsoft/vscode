@@ -450,9 +450,14 @@ suite('ContextView', () => {
 			assert.strictEqual(isOpen(host), false);
 		});
 
-		for (const domPosition of [ContextViewDOMPosition.POPOVER, ContextViewDOMPosition.POPOVER_SHADOW]) {
-			test(`resets the user agent popover styles with CSS while rendering and once shown, in DOM position ${domPosition}`, () => {
+		for (const [domPosition, inShadowRoot] of [ContextViewDOMPosition.POPOVER, ContextViewDOMPosition.POPOVER_SHADOW].flatMap(p => [[p, false], [p, true]] as const)) {
+			test(`resets the user agent popover styles with CSS while rendering and once shown, in DOM position ${domPosition}${inShadowRoot ? ' with the owner in a shadow root' : ''}`, () => {
 				const { owner } = createOwner();
+				if (inShadowRoot) {
+					const shadowHost = mainWindow.document.body.appendChild($('.embedding-shadow-host'));
+					disposables.push(() => shadowHost.remove());
+					shadowHost.attachShadow({ mode: 'open' }).appendChild(owner);
+				}
 				const contextView = createContextView(owner, domPosition);
 				const getPopover = () => owner.querySelector<HTMLElement>('[popover]')!;
 				const readStyle = () => {

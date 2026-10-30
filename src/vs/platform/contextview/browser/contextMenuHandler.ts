@@ -160,12 +160,6 @@ export class ContextMenuHandler {
 		}, shadowRootElement, !!shadowRootElement, delegate.useWindowContainerForShadowRoot);
 	}
 
-	hideContextMenu(): void {
-		if (this.lastContainer) {
-			this.contextViewService.hideContextView(true);
-		}
-	}
-
 	private onActionRun(e: IRunEvent, logTelemetry: boolean): void {
 		if (logTelemetry) {
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'contextMenu' });

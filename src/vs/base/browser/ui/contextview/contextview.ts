@@ -493,6 +493,7 @@ export class ContextView extends Disposable {
 		if (typeof popoverElement.showPopover === 'function' && owner.isConnected) {
 			try {
 				if (popoverElement.parentElement !== owner) {
+					adoptPopoverResetStyles(owner);
 					owner.appendChild(popoverElement);
 				}
 				if (!popoverElement.matches(':popover-open')) {
@@ -739,6 +740,36 @@ export class ContextView extends Disposable {
 		this.completeHideAnimation();
 
 		super.dispose();
+	}
+}
+
+// Mirrors the popover reset in contextview.css, whose rules do not reach an
+// owner inside a shadow root
+const POPOVER_RESET_CSS = /* css */ `
+	.context-view[popover],
+	.shadow-root-host[popover] {
+		position: fixed;
+		inset: auto;
+		width: auto;
+		height: auto;
+		margin: 0;
+		padding: 0;
+		border: 0;
+		overflow: visible;
+		color: inherit;
+		background: transparent;
+	}
+`;
+
+const shadowRootsWithPopoverReset = new WeakSet<ShadowRoot>();
+
+function adoptPopoverResetStyles(owner: HTMLElement): void {
+	const shadowRoot = DOM.getShadowRoot(owner);
+	if (shadowRoot && !shadowRootsWithPopoverReset.has(shadowRoot)) {
+		shadowRootsWithPopoverReset.add(shadowRoot);
+		const style = owner.ownerDocument.createElement('style');
+		style.textContent = POPOVER_RESET_CSS;
+		shadowRoot.appendChild(style);
 	}
 }
 

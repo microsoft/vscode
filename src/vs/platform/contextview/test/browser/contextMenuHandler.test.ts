@@ -121,41 +121,5 @@ suite('ContextMenuHandler', () => {
 			}
 		});
 
-		test('hides the shown menu as cancelled on request, and nothing once it is hidden', () => {
-			const container = mainWindow.document.body.appendChild($('div'));
-			store.add(toDisposable(() => container.remove()));
-			const hideContextViewCalls: unknown[] = [];
-			let hideContextView: (data?: unknown) => void = () => { };
-			const contextViewService = upcastPartial<IContextViewService>({
-				showContextView: delegate => {
-					const rendering = delegate.render(container, { domPosition: ContextViewDOMPosition.POPOVER });
-					hideContextView = data => {
-						hideContextView = () => { };
-						delegate.onHide?.(data);
-						rendering?.dispose();
-					};
-					return { close: () => hideContextView() };
-				},
-				hideContextView: (data?: unknown) => {
-					hideContextViewCalls.push(data);
-					hideContextView(data);
-				},
-			});
-			const handler = new ContextMenuHandler(contextViewService, NullTelemetryService, new TestNotificationService(), new MockKeybindingService());
-			const action = store.add(new Action('first', 'First'));
-			const didCancel: boolean[] = [];
-			handler.showContextMenu({
-				getAnchor: () => container,
-				getActions: () => [action],
-				onHide: cancel => didCancel.push(cancel),
-				hostAsPopover: true,
-				skipTelemetry: true,
-			});
-
-			handler.hideContextMenu();
-			handler.hideContextMenu();
-
-			assert.deepStrictEqual({ didCancel, hideContextViewCalls }, { didCancel: [true], hideContextViewCalls: [true] });
-		});
 	});
 });
