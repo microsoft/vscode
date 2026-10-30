@@ -10,6 +10,7 @@ import { FileAccess } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { editorRuler } from '../../../../../editor/common/core/editorColorRegistry.js';
 import { IExtensionResourceLoaderService } from '../../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 import { STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_ERROR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ERROR_ITEM_HOVER_FOREGROUND, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND } from '../../../../common/theme.js';
 import { ColorThemeData } from '../../../../services/themes/common/colorThemeData.js';
@@ -62,6 +63,19 @@ suite('Default theme colors', () => {
 			linkDistinction: linkDistinction.map(result => ({ ...result, distinctFromText: true })),
 			readableCodeBlockKeyword: true,
 		});
+	});
+
+	test('Light 2026 rulers have at least the contrast of Light Modern', async () => {
+		const themes = await Promise.all([
+			loadDefaultTheme('2026-light.json', 'vs'),
+			loadDefaultTheme('light_modern.json', 'vs'),
+		]);
+		const [contrast, referenceContrast] = themes.map(theme => {
+			const background = theme.getColor('editor.background')!;
+			return theme.getColor(editorRuler)!.makeOpaque(background).getContrastRatio(background);
+		});
+
+		assert.ok(contrast >= referenceContrast, `Light 2026 ruler contrast ${contrast} is below Light Modern's ${referenceContrast}`);
 	});
 
 	test('Dark 2026 error status hover stays red, distinguishable and readable', async () => {
