@@ -23,6 +23,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from '../../../../editor/contrib/find/browser/findModel.js';
 import { category, getSearchView, openSearchView } from './searchActionsBase.js';
+import { focusSearchInputPreservingQuery } from './searchFocus.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
 import { getActiveElement } from '../../../../base/browser/dom.js';
 import { FileMatchOrMatch, RenderableMatch, ISearchResult, isSearchTreeFolderMatch } from './searchTreeModel/searchTreeCommon.js';
@@ -333,6 +334,27 @@ registerAction2(class ToggleSearchOnTypeAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const searchOnType = configurationService.getValue<boolean>(ToggleSearchOnTypeAction.searchOnTypeKey);
 		return configurationService.updateValue(ToggleSearchOnTypeAction.searchOnTypeKey, !searchOnType);
+	}
+});
+
+// Explicit, keybindable focus target for keyboard-only sidebar navigation.
+// Unlike Find in Files, this does not seed, clear, or launch a search.
+registerAction2(class FocusSearchInputCommandAction extends Action2 {
+	constructor() {
+		super({
+			id: Constants.SearchCommandIds.FocusSearchInputCommandId,
+			title: nls.localize2('focusSearchInputCommandLabel', "Focus Search Input"),
+			category,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const searchView = await openSearchView(accessor.get(IViewsService), false);
+		// Focusing must not import macOS's global Find clipboard over the query.
+		if (searchView) {
+			focusSearchInputPreservingQuery(searchView.searchAndReplaceWidget);
+		}
 	}
 });
 
