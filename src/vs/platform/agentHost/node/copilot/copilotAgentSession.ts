@@ -135,7 +135,7 @@ import type { IAgentHostScopedCredential } from '../../common/agentHostCredentia
 import type { ErrorInfo, ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 import { CopilotMcpToolRoutingCache, getMcpRoutingCacheKey, getMcpRoutingProxyName, type ICopilotMcpRoutingServer, type ICopilotMcpRoutingTool } from './copilotMcpToolRoutingCache.js';
-import { readMcpRoutingServers, withMcpRoutingServers } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpRoutingServers, readMcpServerSource, withMcpRoutingServers } from '../../common/meta/mcpCustomizationMeta.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { type CopilotPluginReloadReason, getCopilotCustomizationCommandHandler, installCopilotPlugin, type ICopilotMcpCommandServer, type ICopilotPluginCommandApi, removeCopilotPluginMarketplace } from './copilotCustomizationCommandDisplay.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
@@ -2285,6 +2285,12 @@ export class CopilotAgentSession extends Disposable {
 			emit: action => this._emitLaunchAction(action),
 			pluginMcpServerSources: () => pluginMcpServerSources,
 			resolveProvenance: serverName => this._resolveMcpServerProvenance(serverName, pluginMcpServerSources),
+			adoptPluginOwnership: (server, owningPluginUri) => {
+				const source = readMcpServerSource(server);
+				if (!readCustomizationDiscoveryMeta(server) && (source === undefined || source === 'plugin')) {
+					this._customizationEnablementService.adoptMcpServerOwnership(this.launchOwner.toString(), targetForMcpServer(server, undefined, false), URI.parse(owningPluginUri));
+				}
+			},
 			resolveEnablement: (server, owningPluginUri) => {
 				const resolution = this._customizationEnablementService.resolve(this.launchOwner.toString(), targetForMcpServer(server, owningPluginUri, false));
 				return resolution.kind === 'resolved' ? resolution.enablement : undefined;
