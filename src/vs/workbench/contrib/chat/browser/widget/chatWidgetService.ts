@@ -74,10 +74,15 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		return this._widgets.find(w => isEqual(w.input.inputUri, uri));
 	}
 
-	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined {
+	getWidgetBySessionResource(sessionResource: URI, options?: { readonly preferInputRequests?: boolean }): IChatWidget | undefined {
 		const matches = (widget: IChatWidget) => isEqual(widget.viewModel?.sessionResource, sessionResource);
-		return this._widgets.find(widget => matches(widget) && widget.supportsInputRequests !== false)
-			?? this._widgets.find(matches);
+		if (options?.preferInputRequests) {
+			const widget = this._widgets.find(widget => matches(widget) && widget.supportsInputRequests !== false);
+			if (widget) {
+				return widget;
+			}
+		}
+		return this._widgets.find(matches);
 	}
 
 	async revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined> {

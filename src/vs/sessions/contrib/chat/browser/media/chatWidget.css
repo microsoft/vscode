@@ -31,11 +31,18 @@
 }
 
 .new-session-send-status {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
 	min-height: 1.4em;
 	margin-top: var(--vscode-spacing-size80);
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label1);
 	line-height: 1.4;
+}
+
+.new-session-send-status > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .new-chat-widget-container.revealed .new-chat-input-container {

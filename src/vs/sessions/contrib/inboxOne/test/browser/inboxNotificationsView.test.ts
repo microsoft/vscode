@@ -246,11 +246,15 @@ suite('InboxNotificationsView', () => {
 		});
 	});
 
-	test('Inbox hides the Sessions pane until explicit navigation, tab hiding, or disposal', () => {
+	test('Inbox only hides the Sessions pane after focus, until explicit navigation, tab hiding, or disposal', () => {
 		const { view, container, navigationRequest, sessionsVisible } = createView(constObservable([]));
 		view.render(container);
+		const previousFocus = mainWindow.document.activeElement;
 		view.setVisible(true);
 		const opened = sessionsVisible();
+		const preservedFocus = mainWindow.document.activeElement === previousFocus;
+		container.dispatchEvent(new FocusEvent('focus'));
+		const focused = sessionsVisible();
 		navigationRequest.set({ token: CancellationToken.None }, undefined);
 		const navigated = sessionsVisible();
 		view.focus();
@@ -258,9 +262,11 @@ suite('InboxNotificationsView', () => {
 		view.setVisible(false);
 		const hidden = sessionsVisible();
 		view.setVisible(true);
+		const restored = sessionsVisible();
+		view.focus();
 		view.dispose();
-		assert.deepStrictEqual({ opened, navigated, refocused, hidden, disposed: sessionsVisible() }, {
-			opened: false, navigated: true, refocused: false, hidden: true, disposed: true,
+		assert.deepStrictEqual({ opened, preservedFocus, focused, navigated, refocused, hidden, restored, disposed: sessionsVisible() }, {
+			opened: true, preservedFocus: true, focused: false, navigated: true, refocused: false, hidden: true, restored: true, disposed: true,
 		});
 	});
 

@@ -567,12 +567,8 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	}
 
 	setVisible(visible: boolean): void {
-		if (!this._store.isDisposed) {
-			if (visible) {
-				this.hideSessionsPane();
-			} else {
-				this.sessionsPaneVisibility.clear();
-			}
+		if (!visible && !this._store.isDisposed) {
+			this.sessionsPaneVisibility.clear();
 		}
 		if (this.visible.get() === visible || this._store.isDisposed) {
 			return;

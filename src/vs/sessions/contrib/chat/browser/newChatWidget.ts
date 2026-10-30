@@ -6,7 +6,9 @@
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Action, toAction } from '../../../../base/common/actions.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isErrorWithActions, toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
@@ -2013,16 +2015,33 @@ export class NewChatWidget extends Disposable {
 				branch,
 			});
 			try {
-				if (!this._backgroundSend && this.configurationService.getValue<boolean>(COMPARE_AGENTS_OPEN_IN_GRID_SETTING)) {
-					// An empty composer would create a new draft and cancel the grid navigation.
-					await this.commandService.executeCommand(OPEN_SESSION_COMPARISON_COMMAND_ID, comparison.id);
+				if (this._backgroundSend) {
+					if (!this._store.isDisposed && !this._pendingWorkspaceCreation
+						&& this.sessionsManagementService.newSession.get()?.sessionId === session.sessionId
+						&& this.sessionsService.activeSession.get()?.sessionId === session.sessionId
+						&& (isQuickChat || isEqual(workspace, this._workspacePicker.selectedFolderUri))) {
+						this._comparisonSelection.reset();
+						// Creating the replacement releases the old draft without an empty-composer handoff.
+						if (isQuickChat) {
+							this._openQuickChat();
+						} else if (workspace) {
+							await this._createNewSession(workspace);
+						}
+					}
+				} else {
+					if (this.configurationService.getValue<boolean>(COMPARE_AGENTS_OPEN_IN_GRID_SETTING)) {
+						// An empty composer would create a new draft and cancel the grid navigation.
+						await this.commandService.executeCommand(OPEN_SESSION_COMPARISON_COMMAND_ID, comparison.id);
+					}
+					this.sessionsManagementService.discardNewSession(session);
 				}
-				this.sessionsManagementService.discardNewSession(session);
 			} catch (error) {
 				this.logService.error('Failed to open session comparison:', error);
 				this.notificationService.error(error);
 			} finally {
-				this._comparisonSelection.reset();
+				if (!this._backgroundSend) {
+					this._comparisonSelection.reset();
+				}
 			}
 			return true;
 		} catch (error) {
@@ -2208,9 +2227,17 @@ export class NewChatWidget extends Disposable {
 		if (!this._backgroundSend) {
 			return;
 		}
-		const status = dom.append(container, dom.$('.new-session-send-status', { role: 'status' }));
+		const status = dom.append(container, dom.$('.new-session-send-status'));
 		this._register(autorun(reader => {
-			status.textContent = this._backgroundSendStatus.read(reader) ?? '';
+			const message = this._backgroundSendStatus.read(reader);
+			dom.clearNode(status);
+			if (message) {
+				const checkmark = renderIcon(Codicon.check);
+				checkmark.setAttribute('aria-hidden', 'true');
+				dom.append(status, dom.$('span', undefined, message), checkmark);
+				this.accessibilityService.status(message);
+				reader.store.add(disposableTimeout(() => this._backgroundSendStatus.set(undefined, undefined), 5000));
+			}
 		}));
 		this._register(this._newChatInput.onDidChangeInput(() => {
 			if (this._newChatInput.hasInput) {

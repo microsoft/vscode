@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { stub } from 'sinon';
 import { Event } from '../../../../../../base/common/event.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -15,14 +17,18 @@ import { IEditorGroupsService } from '../../../../../services/editor/common/edit
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IChatWidget, IQuickChatService } from '../../../browser/chat.js';
+import { ChatDynamicVariableModel } from '../../../browser/attachments/chatDynamicVariables.js';
+import { ChatVariablesService } from '../../../browser/attachments/chatVariables.js';
 import { ChatWidgetService } from '../../../browser/widget/chatWidgetService.js';
+import { IDynamicVariable } from '../../../common/attachments/chatVariables.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatViewModel } from '../../../common/model/chatViewModel.js';
+import { ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 
 suite('ChatWidgetService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('full-session controls are not routed to the Inbox input-only widget', () => {
+	test('only input-request routing prefers the full session over Inbox, preserving the submitting input context', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IEditorGroupsService, {});
 		instantiationService.stub(IViewsService, {});
@@ -32,10 +38,24 @@ suite('ChatWidgetService', () => {
 		instantiationService.stub(IChatService, {});
 		instantiationService.stub(ILogService, new NullLogService());
 		const service = store.add(instantiationService.createInstance(ChatWidgetService));
+		const variablesService = new ChatVariablesService(service);
 		const resource = URI.parse('test:/session');
+		const references: IDynamicVariable[] = [{
+			id: 'inbox-file', isFile: true, data: URI.file('/workspace/file.ts'),
+			range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 9 },
+		}];
+		const inboxTools = ToolAndToolSetEnablementMap.fromEntries([]);
 		const createWidget = (supportsInputRequests: boolean) => upcastPartial<IChatWidget>({
 			supportsInputRequests,
+			supportsFileReferences: true,
 			viewModel: upcastPartial<IChatViewModel>({ sessionResource: resource }),
+			getContrib: stub().returns(upcastPartial<ChatDynamicVariableModel>({ variables: supportsInputRequests ? [] : references })),
+			input: upcastPartial<IChatWidget['input']>({
+				attachmentModel: upcastPartial<IChatWidget['input']['attachmentModel']>({ attachments: [] }),
+				selectedToolsModel: upcastPartial<IChatWidget['input']['selectedToolsModel']>({
+					entriesMap: constObservable(supportsInputRequests ? ToolAndToolSetEnablementMap.fromEntries([]) : inboxTools),
+				}),
+			}),
 			onDidFocus: Event.None,
 			onDidShow: Event.None,
 			onDidHide: Event.None,
@@ -46,13 +66,19 @@ suite('ChatWidgetService', () => {
 		store.add(service.register(inbox));
 		const inboxOnly = service.getWidgetBySessionResource(resource);
 		const registration = store.add(service.register(fullSession));
-		const withFullSession = service.getWidgetBySessionResource(resource);
+		const withFullSession = service.getWidgetBySessionResource(resource, { preferInputRequests: true });
+		const submittingWidget = service.getWidgetBySessionResource(resource);
+		const dynamicVariables = variablesService.getDynamicVariables(resource);
+		const selectedTools = variablesService.getSelectedToolAndToolSets(resource);
 		registration.dispose();
 		assert.deepStrictEqual({
 			inboxOnly: inboxOnly === inbox,
 			withFullSession: withFullSession === fullSession,
-			afterClosingSession: service.getWidgetBySessionResource(resource) === inbox,
+			submittingWidget: submittingWidget === inbox,
+			dynamicVariables,
+			selectedTools: selectedTools === inboxTools,
+			afterClosingSession: service.getWidgetBySessionResource(resource, { preferInputRequests: true }) === inbox,
 			unrelatedSession: service.getWidgetBySessionResource(URI.parse('test:/other')),
-		}, { inboxOnly: true, withFullSession: true, afterClosingSession: true, unrelatedSession: undefined });
+		}, { inboxOnly: true, withFullSession: true, submittingWidget: true, dynamicVariables: references, selectedTools: true, afterClosingSession: true, unrelatedSession: undefined });
 	});
 });
