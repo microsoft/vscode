@@ -164,6 +164,10 @@ class TestExtensionGalleryManifestService implements IExtensionGalleryManifestSe
 	async getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest> {
 		return this.extensionGalleryManifest;
 	}
+
+	async refreshAccessToken(): Promise<boolean> {
+		return false;
+	}
 }
 
 suite('Extension Gallery Service', () => {
