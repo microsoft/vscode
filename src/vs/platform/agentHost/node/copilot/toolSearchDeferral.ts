@@ -10,12 +10,10 @@ import type { IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.j
 export { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 
 /**
- * Non-deferred client tools, mirroring the Copilot extension allowlist entries
- * that are actually forwarded to Agent Host.
+ * Non-deferred client tools. Every entry is sent to the model on every request;
+ * see the eager-slot criteria in `src/vs/platform/agentHost/AGENTS.md` section 9.
  */
-export const NON_DEFERRED_CLIENT_TOOL_NAMES: ReadonlySet<string> = new Set<string>([
-	'runTests',
-]);
+export const NON_DEFERRED_CLIENT_TOOL_NAMES: ReadonlySet<string> = new Set<string>([]);
 
 export interface IHostToolSearchResult {
 	readonly toolNames: readonly string[];

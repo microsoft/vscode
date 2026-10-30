@@ -111,7 +111,7 @@ suite('toolSearchDeferral', () => {
 		test('non-deferred client allowlist is the reviewed baseline', () => {
 			// Each name here is a client tool definition sent to the model on every
 			// request. See AGENTS.md §9 before adding one.
-			assert.deepStrictEqual([...NON_DEFERRED_CLIENT_TOOL_NAMES].sort(), ['runTests']);
+			assert.deepStrictEqual([...NON_DEFERRED_CLIENT_TOOL_NAMES].sort(), []);
 			assert.strictEqual(NON_DEFERRED_CLIENT_TOOL_NAMES.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME), false);
 		});
 	});
