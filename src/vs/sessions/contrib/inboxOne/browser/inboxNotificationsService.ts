@@ -651,7 +651,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				const ownedPullRequests = getInboxPullRequestRefs(session, reader);
 				const merged = source.some(item => item.kind === InboxNotificationKind.PullRequestMerged
 					&& item.pullRequestStates?.length === ownedPullRequests.length);
-				const terminal = session.isArchived.read(reader) || merged;
+				const terminal = session.isArchived.read(reader) || (merged && status !== SessionStatus.NeedsInput);
 				const needsAttention = notifications.some(item => item.kind !== InboxNotificationKind.PassingCI && item.kind !== InboxNotificationKind.Completed);
 				const tab = terminal ? InboxTab.Done : saved?.hold ? InboxTab.OnHold : saved?.done === occurrence ? InboxTab.Done
 					: needsAttention ? InboxTab.ReadyForYou : status === SessionStatus.InProgress ? InboxTab.Working
@@ -1740,9 +1740,6 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 					headSha,
 				));
 				ciStatus = ciModelRef.object.overallStatus.read(reader);
-				if (ciStatus === GitHubCIOverallStatus.Success && !ciModelRef.object.checks.read(reader).length) {
-					ciStatus = undefined;
-				}
 				ciTimestamp = latestCITimestamp(ciModelRef.object.checks.read(reader), sessionUpdatedAt);
 			}
 

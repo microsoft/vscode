@@ -3248,11 +3248,48 @@ suite('SessionsManagementService', () => {
 			await view.openNewSession({ preserveCustomView });
 			const first = customViewService.activeCustomView.get()?.id;
 			await view.openNewSession({ preserveCustomView });
-			assert.deepStrictEqual({ first, repeated: customViewService.activeCustomView.get()?.id, active: view.activeSession.get(), focused: sessionsPartService.focusedSessions }, {
+			assert.deepStrictEqual({ first, repeated: customViewService.activeCustomView.get()?.id, active: view.activeSession.get()?.sessionId, focused: sessionsPartService.focusedSessions }, {
 				first: preserveCustomView ? 'test.customView' : undefined,
 				repeated: preserveCustomView ? 'test.customView' : undefined,
-				active: undefined,
+				active: preserveCustomView ? 'active' : undefined,
 				focused: preserveCustomView ? [] : [undefined],
+			});
+		});
+	}
+
+	for (const trusted of [false, true]) {
+		test(`custom-view draft preparation preserves the grid and honors workspace trust (${trusted})`, async () => {
+			const folderUri = URI.file('/workspace');
+			const workspace: ISessionWorkspace = {
+				uri: folderUri, label: 'workspace', icon: Codicon.folder,
+				folders: [{ root: folderUri, workingDirectory: folderUri, name: 'workspace', description: undefined }],
+				requiresWorkspaceTrust: true, isVirtualWorkspace: false,
+			};
+			const active = stubSession({ sessionId: 'active', providerId: 'test' });
+			const draft = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled), workspace: constObservable(workspace) });
+			let creates = 0;
+			let trustRequests = 0;
+			const provider = new class extends TestSessionsProvider {
+				override resolveWorkspace(): ISessionWorkspace { return workspace; }
+				override createNewSession(): ISession { creates++; return draft; }
+			}(active);
+			const trust = new class extends mock<IWorkspaceTrustRequestService>() {
+				override async requestResourcesTrust(): Promise<boolean> { trustRequests++; return trusted; }
+			};
+			const { view, service, customViewService, sessionsPartService } = createSessionsManagementService(active, disposables, provider, undefined, trust);
+			await view.openSession(active.resource);
+			showTestCustomView(customViewService, disposables);
+			const navigation = view.navigationRequest.get();
+			sessionsPartService.focusedSessions.length = 0;
+			const result = await view.openNewSession({ folderUri, preserveCustomView: true });
+			assert.deepStrictEqual({
+				trustRequests, creates, trustDeclined: result.trustDeclined, draft: service.newSession.get()?.sessionId,
+				active: view.activeSession.get()?.sessionId, visible: view.visibleSessions.get().map(session => session?.sessionId),
+				navigationPreserved: view.navigationRequest.get() === navigation,
+				customView: customViewService.activeCustomView.get()?.id, focused: sessionsPartService.focusedSessions,
+			}, {
+				trustRequests: 1, creates: trusted ? 1 : 0, trustDeclined: !trusted, draft: trusted ? 'draft' : undefined,
+				active: 'active', visible: ['active'], navigationPreserved: true, customView: 'test.customView', focused: [],
 			});
 		});
 	}
@@ -4069,7 +4106,7 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	test('restoreVisibleSessions waits for session to appear via onDidChangeSessions', async () => {
+	test('restoreVisibleSessions still waits for the session while a custom-view composer prepares', async () => {
 		const targetSession = stubSession({ sessionId: 'target', providerId: 'test' });
 		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
 
@@ -4111,6 +4148,7 @@ suite('SessionsManagementService', () => {
 		// (mimicking an agent host provider whose cache has not loaded yet).
 		const restorePromise = view.restoreVisibleSessions();
 		await Promise.resolve();
+		await view.openNewSession({ preserveCustomView: true });
 		assert.deepStrictEqual({
 			visible: view.visibleSessions.get().filter((s): s is NonNullable<typeof s> => !!s).map(s => s.sessionId),
 			restoreComplete: view.initialRestoreComplete.get(),

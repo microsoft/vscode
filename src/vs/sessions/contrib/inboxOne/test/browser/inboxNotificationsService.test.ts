@@ -2158,17 +2158,19 @@ suite('InboxNotificationsService', () => {
 		});
 		const fixture = createFixture([session]);
 		fixture.gitHubService.setPullRequest('owner', 'repo', 44, openPullRequest(44, 'sha44'));
-		fixture.gitHubService.setCIStatus('owner', 'repo', 44, 'sha44', GitHubCIOverallStatus.Success, []);
+		fixture.gitHubService.setCIStatus('owner', 'repo', 44, 'sha44', GitHubCIOverallStatus.Neutral, []);
 		const noChecks = fixture.service.sessionRows.get()[0].tab;
+		fixture.gitHubService.setCIStatus('owner', 'repo', 44, 'sha44', GitHubCIOverallStatus.Success, []);
+		const statusContextsOnly = fixture.service.sessionRows.get()[0].tab;
 		fixture.gitHubService.setCIStatus('owner', 'repo', 44, 'sha44', GitHubCIOverallStatus.Success, passingChecks);
 		const ready = fixture.service.sessionRows.get()[0];
 		fixture.service.publishExternalNotification({ id: 'review', title: 'Review request', description: 'Check the changes', sessionResource: session.resource });
 		const rows = fixture.service.sessionRows.get();
 		assert.deepStrictEqual({
-			noChecks, ready: ready.tab, canMerge: ready.notifications.some(item => item.actions.some(action => action.kind === InboxNotificationActionKind.AgentMergeMergePullRequest)),
+			noChecks, statusContextsOnly, ready: ready.tab, canMerge: ready.notifications.some(item => item.actions.some(action => action.kind === InboxNotificationActionKind.AgentMergeMergePullRequest)),
 			combined: rows.map(row => ({ tab: row.tab, count: row.notifications.length }))
 		}, {
-			noChecks: InboxTab.ReadyForYou, ready: InboxTab.ReadyToMerge, canMerge: false,
+			noChecks: InboxTab.ReadyForYou, statusContextsOnly: InboxTab.ReadyToMerge, ready: InboxTab.ReadyToMerge, canMerge: false,
 			combined: [{ tab: InboxTab.ReadyForYou, count: 2 }],
 		});
 	});
@@ -2207,6 +2209,39 @@ suite('InboxNotificationsService', () => {
 			unknownSibling: InboxTab.ReadyForYou, allPassing: InboxTab.ReadyToMerge, partialMerge: InboxTab.ReadyForYou, allMerged: InboxTab.Done,
 		});
 	});
+
+	for (const kind of ['questionCarousel', 'confirmation'] as const) {
+		test(`new ${kind} after all PRs merge returns the session to Ready for you`, () => {
+			const session = createSession({
+				id: `merged-${kind}`, status: SessionStatus.Completed, updatedAt: 100,
+				pullRequest: { owner: 'owner', repo: 'repo', number: 44 },
+			});
+			const chat = session.mainChat.get();
+			const chatService = new TestChatService();
+			const fixture = createFixture([session], undefined, undefined, chatService);
+			fixture.gitHubService.setPullRequest('owner', 'repo', 44, { ...openPullRequest(44, 'sha44'), state: GitHubPullRequestState.Merged });
+			const merged = fixture.service.sessionRows.get()[0].tab;
+			transaction(tx => {
+				(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.NeedsInput, tx);
+				(chat.status as ISettableObservable<SessionStatus>).set(SessionStatus.NeedsInput, tx);
+			});
+			if (kind === 'questionCarousel') {
+				chatService.setPendingQuestionCarousel(chat.resource, {
+					requestId: 'follow-up', resolveId: 'question', allowSkip: true, message: 'A new question after merging',
+					questions: [{ id: 'q1', type: 'text', title: 'What next?', required: true }],
+				});
+			} else {
+				chatService.setPendingConfirmation(chat.resource, {
+					requestId: 'follow-up', title: 'Approve follow-up', message: 'Continue?', data: {}, buttons: ['Approve', 'Cancel'],
+				});
+			}
+			const row = fixture.service.sessionRows.get()[0];
+			assert.deepStrictEqual({
+				merged, tab: row.tab, pending: row.notifications.find(item => item.needsInputPart)?.needsInputPart?.kind,
+				hasMerge: row.notifications.some(item => item.kind === InboxNotificationKind.PullRequestMerged),
+			}, { merged: InboxTab.Done, tab: InboxTab.ReadyForYou, pending: kind, hasMerge: true });
+		});
+	}
 
 	test('drafts stay out of tabs and image badges follow recorded evidence without fetching images', () => {
 		const session = createSession({ id: 'visual-row', status: SessionStatus.Completed, updatedAt: 100 });

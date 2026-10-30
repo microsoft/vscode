@@ -38,6 +38,7 @@ import { IActiveSession, ICreateNewSessionOptions, ISendRequestOptions, ISession
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { VisibleSession } from '../../../services/sessions/browser/visibleSessions.js';
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { getNoWorkspaceDescription, getQuickChatProviderLabel, getRemoteQuickChatSelectedLabel } from './noWorkspaceChoice.js';
 import { shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
@@ -267,7 +268,10 @@ export class NewChatWidget extends Disposable {
 		this._restoreSessionOptionsExpanded();
 
 		// TODO: @sandy081 The session/chat should be passed down. There should not be sessionsService.activeSession read in the widget.
-		this._session = derivedObservableWithCache<IActiveSession | undefined>(this, (reader, prev) => {
+		this._session = this._preserveCustomView ? derived(this, reader => {
+			const draft = this.sessionsManagementService.newSession.read(reader);
+			return draft ? reader.store.add(new VisibleSession(draft, draft.mainChat.read(reader))) : undefined;
+		}) : derivedObservableWithCache<IActiveSession | undefined>(this, (reader, prev) => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
 			if (activeSession && activeSession.isCreated.read(reader)) {
 				return prev;
@@ -1226,7 +1230,7 @@ export class NewChatWidget extends Disposable {
 				&& !await this._workspacePicker.whenWorkspaceRestored(cancellation.token)) {
 				return;
 			}
-			if (cancellation.token.isCancellationRequested || this.sessionsService.activeSession.get()
+			if (cancellation.token.isCancellationRequested || (this._preserveCustomView ? this._session.get() : this.sessionsService.activeSession.get())
 				|| this._newSessionCreation.value || this._workspacePicker.selectedFolderUri) {
 				return;
 			}
@@ -1237,7 +1241,7 @@ export class NewChatWidget extends Disposable {
 					this.selectNoWorkspace(target);
 				} else {
 					// An automatic fallback must not persist a user choice or supersede a window-open workspace.
-					this._createdSessionId = this.sessionsService.openQuickChat(target, true)?.sessionId;
+					this._createdSessionId = (this._preserveCustomView ? this._openQuickChat(target, true) : this.sessionsService.openQuickChat(target, true))?.sessionId;
 				}
 			}
 		} catch (error) {
@@ -1476,7 +1480,7 @@ export class NewChatWidget extends Disposable {
 		this._workspacePicker.selectNoWorkspace(selectionOptions?.userSelection !== false);
 		const environment = this._environment.get();
 		const session = environment?.kind === 'cloud' || environment?.kind === 'container'
-			? this.sessionsService.openQuickChat(options ?? this._workspaceOptOutTarget.get(), this._preserveCustomView ? true : selectionOptions?.preserveNavigation, this._preserveCustomView || undefined)
+			? this._createQuickChat(options ?? this._workspaceOptOutTarget.get(), selectionOptions?.preserveNavigation)
 			: this._openQuickChat(options, selectionOptions?.preserveNavigation);
 		if (session && environment && (environment.kind === 'container' || !environment.providerIds.includes(session.providerId))) {
 			this._reconcileWorkspaceEnvironment({ providerId: session.providerId });
@@ -1493,7 +1497,20 @@ export class NewChatWidget extends Disposable {
 				return undefined;
 			}
 		}
-		return this.sessionsService.openQuickChat(options, this._preserveCustomView ? true : preserveNavigation, this._preserveCustomView || undefined);
+		return this._createQuickChat(options, preserveNavigation);
+	}
+
+	private _createQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession | undefined {
+		if (this._preserveCustomView) {
+			try {
+				this.sessionsManagementService.createQuickChat(options);
+				return this._session.get();
+			} catch (error) {
+				this.logService.error('Failed to prepare quick chat:', error);
+				return undefined;
+			}
+		}
+		return this.sessionsService.openQuickChat(options, preserveNavigation);
 	}
 
 	private _getWorkspaceOptOutTarget(environment: ISessionCreationEnvironment | undefined, session: ISession | undefined): ICreateNewSessionOptions | undefined {
@@ -2019,7 +2036,7 @@ export class NewChatWidget extends Disposable {
 				if (this._backgroundSend) {
 					if (!this._store.isDisposed && !this._pendingWorkspaceCreation
 						&& this.sessionsManagementService.newSession.get()?.sessionId === session.sessionId
-						&& this.sessionsService.activeSession.get()?.sessionId === session.sessionId
+						&& (this._preserveCustomView || this.sessionsService.activeSession.get()?.sessionId === session.sessionId)
 						&& (isQuickChat || isEqual(workspace, this._workspacePicker.selectedFolderUri))) {
 						this._comparisonSelection.reset();
 						// Creating the replacement releases the old draft without an empty-composer handoff.
@@ -2317,12 +2334,20 @@ export class NewChatWidget extends Disposable {
 			this._newSessionCreation.clear();
 			if (workspaceOptOutTarget) {
 				if (!this.selectNoWorkspace(workspaceOptOutTarget, { userSelection: false, preserveNavigation: true })) {
-					this.sessionsService.unsetNewSession();
+					if (this._preserveCustomView) {
+						this.sessionsManagementService.discardNewSession();
+					} else {
+						this.sessionsService.unsetNewSession();
+					}
 					this.notificationService.error(localize('newSession.workspaceOptOutFailed', "Unable to start a chat without a workspace. Choose a workspace to continue."));
 				}
 				return;
 			}
-			this.sessionsService.unsetNewSession();
+			if (this._preserveCustomView) {
+				this.sessionsManagementService.discardNewSession();
+			} else {
+				this.sessionsService.unsetNewSession();
+			}
 			if (!this._workspaceOptOutEnabled.get()) {
 				void this._restoreNoWorkspaceDraft();
 			}

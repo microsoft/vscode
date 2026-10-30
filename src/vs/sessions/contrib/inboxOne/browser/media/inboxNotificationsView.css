@@ -95,6 +95,13 @@
 .inbox-notifications-new-session .new-chat-widget-container,
 .inbox-notifications-new-session .new-chat-widget-container.revealed {
 	justify-content: flex-start;
+	overflow-y: auto;
+	scrollbar-width: thin;
+	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+}
+
+.inbox-notifications-new-session .new-chat-widget-content {
+	flex: none;
 }
 
 .inbox-notifications-new-session .new-session-welcome-message {
@@ -699,7 +706,7 @@
 	align-items: center;
 	justify-items: end;
 	flex: none;
-	width: 60px;
+	min-width: 60px;
 }
 
 .inbox-notifications-row-trailing > * {

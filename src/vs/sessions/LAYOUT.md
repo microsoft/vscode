@@ -146,7 +146,7 @@ Inbox evidence is scoped to the selected row's exact conversation, independently
 
 Explicit session and chat open actions dismiss the active custom view. Reactive fallback opens driven by session or chat lifecycle changes preserve the custom view while reconciling the hidden Sessions grid. On phone layouts, custom views participate in mobile navigation so platform back navigation dismisses them.
 
-Custom views may handle an unparameterized New Session action through their descriptor and host the shared new-session composer. Such composers prepare drafts with `preserveCustomView`; workspace and agent selection must not dismiss their host. Parameterized New Session actions, including opening to the side or supplying a prompt, retain normal session navigation.
+Custom views may handle an unparameterized New Session action through their descriptor and host the shared new-session composer. Such composers bind to the model's pending draft and prepare it with `preserveCustomView`, retaining workspace trust checks without changing the hidden Sessions grid or navigation. Opening or restoring Inbox does not cancel startup restoration; only an explicit New Session action may cancel it. Workspace and agent selection must not dismiss their host. Parameterized New Session actions, including opening to the side or supplying a prompt, retain normal session navigation.
 
 ## Part lifecycle
 

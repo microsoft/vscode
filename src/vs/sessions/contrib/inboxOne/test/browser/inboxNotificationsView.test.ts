@@ -234,8 +234,11 @@ suite('InboxNotificationsView', () => {
 		const { view, container, instantiationService, newChatViews, newChatOptions } = createView(constObservable([]));
 		const openNewSession = stub().resolves({ session: undefined, trustDeclined: false });
 		instantiationService.stub(ISessionsService, 'openNewSession', openNewSession);
+		container.remove();
 		view.render(container);
+		document.body.appendChild(container);
 		const before = newChatViews.length;
+		const automaticNavigation = openNewSession.callCount;
 		await view.openNewSession();
 		const input = newChatViews[0].input;
 		input.value = 'My new session draft';
@@ -249,15 +252,15 @@ suite('InboxNotificationsView', () => {
 		const composer = container.querySelector<HTMLElement>('.inbox-notifications-new-session')!;
 		const notifications = container.querySelector<HTMLElement>('.inbox-notifications-content')!;
 		const result = {
-			before, hidden, created: newChatViews.length, options: newChatOptions,
+			before, automaticNavigation, hidden, created: newChatViews.length, options: newChatOptions,
 			requests: openNewSession.args, draft: input.value, focused: mainWindow.document.activeElement === input,
 			belowNotifications: composer.parentElement?.previousElementSibling === notifications,
 			inputAtTop: input.getBoundingClientRect().top - composer.getBoundingClientRect().top < 40,
 		};
 		view.dispose();
 		assert.deepStrictEqual({ ...result, disposed: newChatViews[0].disposed }, {
-			before: 0, hidden: false, created: 1, options: [{ preserveCustomView: true, backgroundSend: true, renderChatPet: false }],
-			requests: [[{ preserveCustomView: true, cancelRestore: true }]],
+			before: 1, automaticNavigation: 0, hidden: false, created: 1, options: [{ preserveCustomView: true, backgroundSend: true, renderChatPet: false }],
+			requests: Array.from({ length: 3 }, () => [{ preserveCustomView: true, cancelRestore: true }]),
 			draft: 'My new session draft', focused: true, belowNotifications: true, inputAtTop: true, disposed: true,
 		});
 	});
@@ -308,7 +311,7 @@ suite('InboxNotificationsView', () => {
 			title: 'Finished', description: 'Summary', timestamp: 1, actions: [], sessionResource: URI.parse('test:///session'),
 		};
 		const items = observableValue<readonly IInboxNotificationItem[]>('items', [item]);
-		const { view, container, instantiationService, chatViews } = createView(items);
+		const { view, container, instantiationService, chatViews, newChatViews } = createView(items);
 		instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
 		view.render(container);
 		container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
@@ -321,7 +324,7 @@ suite('InboxNotificationsView', () => {
 		items.set([], undefined);
 		assert.deepStrictEqual({
 			created: chatViews.length, bindings: chatView.bindings,
-			connected: chatView.input.isConnected, focused: document.activeElement === chatView.input,
+			connected: chatView.input.isConnected, focused: document.activeElement === newChatViews[0].input,
 			input: chatView.input.value, hasSplit: !container.querySelector('.inbox-notifications-content')?.classList.contains('no-detail'),
 			summaryPresent: !!container.querySelector('.inbox-notifications-detail-evidence'),
 		}, {
@@ -345,6 +348,7 @@ suite('InboxNotificationsView', () => {
 		view.render(container);
 		const layouts = [360, 500, 900].map(width => {
 			container.style.width = `${width}px`;
+			container.querySelector<HTMLElement>('.inbox-notifications-item-time')!.style.fontSize = '20px';
 			view.layout(width, 400);
 			const header = container.querySelector<HTMLElement>('.inbox-notifications-item')!.getBoundingClientRect();
 			const title = container.querySelector<HTMLElement>('.inbox-notifications-item-title')!.getBoundingClientRect();
@@ -495,6 +499,7 @@ suite('InboxNotificationsView', () => {
 		container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
 		const headerLayouts = [900, 500, 360].map(width => {
 			container.style.width = `${width}px`;
+			container.querySelector<HTMLElement>('.inbox-notifications-item-time')!.style.fontSize = '20px';
 			container.style.height = '600px';
 			view.layout(width, 600);
 			const header = container.querySelector<HTMLElement>('.inbox-notifications-item')!.getBoundingClientRect();
@@ -786,6 +791,43 @@ suite('InboxNotificationsView', () => {
 			assert.deepStrictEqual(dismiss.args, [['item0', items[0]]]);
 		});
 	}
+
+	test('selected conversation and evidence stay stable when another notification leads the row', () => {
+		const main = upcastPartial<IChat>({ resource: URI.parse('test:///main') });
+		const secondary = upcastPartial<IChat>({ resource: URI.parse('test:///secondary') });
+		const chats = observableValue<readonly IChat[]>('chats', [main, secondary]);
+		const session = upcastPartial<ISession>({ sessionId: 'session', mainChat: constObservable(main), chats });
+		const item: IInboxNotificationItem = {
+			id: 'session-row', kind: InboxNotificationKind.NeedsInput, priority: InboxNotificationPriority.Now,
+			title: 'Question', description: 'Answer the question', timestamp: 1, actions: [],
+			sessionResource: URI.parse('test:///session'), chatResource: secondary.resource,
+		};
+		const items = observableValue<readonly IInboxNotificationItem[]>('items', [item]);
+		const secondaryModel = upcastPartial<IChatModel>({ getRequests: () => [] });
+		const { view, container, instantiationService, chatViews } = createView(items, {
+			chatService: { getSession: resource => resource.toString() === secondary.resource.toString() ? secondaryModel : undefined },
+		});
+		instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
+		view.render(container);
+		container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+		chatViews[0].input.value = 'Reply to the secondary chat';
+		items.set([{ ...item, kind: InboxNotificationKind.FailingCI, chatResource: main.resource }], undefined);
+		const reordered = {
+			bindings: chatViews[0].bindings.map(binding => binding.chat.resource),
+			draft: chatViews[0].input.value,
+			evidenceModel: accessView(view).getSessionChatModel(items.get()[0]) === secondaryModel,
+		};
+		chats.set([main], undefined);
+		const unavailable = !!container.querySelector('.inbox-notifications-detail-chat-unavailable');
+		items.set([{ ...item, kind: InboxNotificationKind.ReviewComments, chatResource: main.resource }], undefined);
+		const noFallback = chatViews[0].bindings.every(binding => binding.chat !== main);
+		container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+		container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+		assert.deepStrictEqual({ reordered, unavailable, noFallback, reselected: chatViews[0].bindings.at(-1)?.chat.resource }, {
+			reordered: { bindings: [secondary.resource], draft: 'Reply to the secondary chat', evidenceModel: true },
+			unavailable: true, noFallback: true, reselected: main.resource,
+		});
+	});
 
 	test('waits for the exact secondary chat instead of falling back to main, and observes chat replacements', () => {
 		const main = upcastPartial<IChat>({ resource: URI.parse('test:///main') });

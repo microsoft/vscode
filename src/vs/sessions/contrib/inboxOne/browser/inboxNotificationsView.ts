@@ -405,6 +405,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	private readonly detailChatSubmissionListener = this._register(new MutableDisposable());
 	private readonly detailChatNotifications = new Map<string, IInboxNotificationItem>();
 	private detailChatBinding: { chat: IChat; session: ISession } | undefined;
+	private selectedChatResource: URI | undefined;
 	private renderedDetailItem: IInboxNotificationItem | undefined;
 	private detailExchangeExpanded = false;
 	private readonly detailContentElement = $('div.inbox-notifications-detail-content');
@@ -2528,6 +2529,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 
 		this.endSelectionTelemetry('selectionChanged');
 		this.selectedRowTab = this.getRow(id)?.tab;
+		this.selectedChatResource = undefined;
 		this.detailExchangeExpanded = this.selectedRowTab === InboxTab.Working;
 		this.selectedItemId.set(id, undefined);
 		this.updateSplit(true);
@@ -2583,6 +2585,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		const restoreComposerFocus = !!focused && (this.detailPaneElement.contains(focused) || this.detailChatElement.contains(focused));
 		this.endSelectionTelemetry(trigger);
 		this.selectedRowTab = undefined;
+		this.selectedChatResource = undefined;
 		this.selectedItemId.set(undefined, undefined);
 		for (const rendering of this.cardRenderings.values()) {
 			rendering.card.classList.remove('selected');
@@ -2626,7 +2629,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		}
 		const item = this.getItemById(id);
 		if (item) {
-			return item;
+			return this.selectedChatResource ? { ...item, chatResource: this.selectedChatResource } : item;
 		}
 		return undefined;
 	}
@@ -2654,6 +2657,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		const chat = chatResource
 			? session?.chats.read(reader).find(candidate => isEqual(candidate.resource, chatResource))
 			: session?.mainChat.read(reader);
+		this.selectedChatResource ??= chatResource ?? chat?.resource;
 		if (!session || !chat) {
 			this.detailChatSubmissionListener.clear();
 			this.detailChatNotifications.clear();
@@ -3005,7 +3009,8 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			return undefined;
 		}
 		const session = this.sessionsManagementService.getSession(item.sessionResource);
-		const chatResource = item.chatResource ?? item.needsInputPart?.chatResource ?? session?.mainChat.get().resource;
+		const selectedChatResource = item.id === this.selectedItemId.get() ? this.selectedChatResource : undefined;
+		const chatResource = selectedChatResource ?? item.chatResource ?? item.needsInputPart?.chatResource ?? session?.mainChat.get().resource;
 		return chatResource ? this.chatService.getSession(chatResource) : undefined;
 	}
 
@@ -3080,6 +3085,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 
 	async openNewSession(): Promise<void> {
 		this.clearSelectedItem('newSession');
+		await this.sessionsService.openNewSession({ preserveCustomView: true, cancelRestore: true });
 		await this.ensureNewSessionComposer();
 		if (!this.selectedItemId.get()) {
 			this.newSessionView?.focus();
@@ -3125,23 +3131,17 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	}
 
 	private async createNewSessionComposer(): Promise<void> {
-		if (!this.newSessionElement.isConnected) {
+		if (this._store.isDisposed) {
 			return;
 		}
 		if (!this.newSessionView) {
-			await this.sessionsService.openNewSession({ preserveCustomView: true, cancelRestore: true });
-			if (this._store.isDisposed) {
-				return;
-			}
-			if (!this.newSessionView) {
-				const scopedContext = this.newSessionDisposables.add(this.contextKeyService.createScoped(this.newSessionElement));
-				const instantiationService = this.newSessionDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContext])));
-				this.newSessionView = this.newSessionDisposables.add(this.chatViewFactory.createNewChatView(false, { preserveCustomView: true, backgroundSend: true, renderChatPet: false }, instantiationService));
-				this.newSessionElement.appendChild(this.newSessionView.element);
-				this.newSessionView.setPrimary(false, true);
-				this.newSessionView.setActive(true);
-				this.newSessionView.setVisible(true);
-			}
+			const scopedContext = this.newSessionDisposables.add(this.contextKeyService.createScoped(this.newSessionElement));
+			const instantiationService = this.newSessionDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContext])));
+			this.newSessionView = this.newSessionDisposables.add(this.chatViewFactory.createNewChatView(false, { preserveCustomView: true, backgroundSend: true, renderChatPet: false }, instantiationService));
+			this.newSessionElement.appendChild(this.newSessionView.element);
+			this.newSessionView.setPrimary(false, true);
+			this.newSessionView.setActive(true);
+			this.newSessionView.setVisible(true);
 		}
 		this.updateComposerMode();
 	}
