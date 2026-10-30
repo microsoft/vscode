@@ -6,18 +6,28 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { ICustomizationMarketplaceService } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
+import { AICustomizationManagementCommands, AICustomizationManagementOpenEditorTarget, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { isCustomizationDiscoveryAvailable } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationMarketplaceConfiguration.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { INewSessionInAgentsWindowOptions } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { getCanvasInstanceLabels, getCanvasReferenceKey, ICanvasContextService, ICanvasReopenTarget, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
-import { getSessionCanvasDefinitionInstanceId, getSessionCanvasDefinitionLabels, ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
+import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
+import { getSessionCanvasDefinitionInstanceId, getSessionCanvasDefinitionLabels, ISessionCanvasRegistryService, WindowCanvasesAvailableContext } from '../common/sessionCanvas.js';
 
 export const OPEN_SESSION_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.openCanvas';
 export const REOPEN_SESSION_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.reopenCanvas';
+export const CREATE_SESSION_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.createCanvas';
+export const DISCOVER_SESSION_CANVASES_COMMAND_ID = 'workbench.action.agentSessions.discoverCanvases';
 
 const canvasAvailableWhen = ContextKeyExpr.and(
 	ChatContextKeys.enabled,
@@ -41,8 +51,9 @@ class CanvasMenuActionRegistration extends Disposable {
 
 	constructor(
 		readonly commandId: string,
-		run: () => Promise<void>,
+		run: (accessor: ServicesAccessor) => Promise<void>,
 		private readonly menu = Menus.SessionsEditorTabsBarAddTabCanvas,
+		private readonly icon: ThemeIcon = Codicon.preview,
 	) {
 		super();
 		this._register(CommandsRegistry.registerCommand(commandId, run));
@@ -67,7 +78,7 @@ class CanvasMenuActionRegistration extends Disposable {
 			command: {
 				id: this.commandId,
 				title: this.title!,
-				icon: Codicon.preview,
+				icon: this.icon,
 			},
 			group: this.group,
 			order: this.order,
@@ -103,9 +114,42 @@ function appendCanvasSubmenu(menu: MenuId, when: ContextKeyExpression | undefine
 		icon: Codicon.preview,
 		group,
 		order: 4,
-		when,
+		when: ContextKeyExpr.and(when, WindowCanvasesAvailableContext.negate()),
 	});
 }
+
+interface IDiscoverCanvasEntry {
+	readonly key: string;
+	readonly commandId: string;
+	readonly title: string;
+	readonly icon: ThemeIcon;
+	readonly run: (accessor: ServicesAccessor) => Promise<void>;
+}
+
+/** Entries that help find or author canvases, offered whenever the active chat supports canvases. */
+const discoverCanvasEntries: readonly IDiscoverCanvasEntry[] = [{
+	key: 'discover:create',
+	commandId: CREATE_SESSION_CANVAS_COMMAND_ID,
+	title: localize('sessionCanvases.createCanvas', "Create a Canvas..."),
+	icon: Codicon.add,
+	run: async accessor => {
+		const options: INewSessionInAgentsWindowOptions = { prompt: '/create-canvas ', prefillPrompt: true };
+		await accessor.get(ICommandService).executeCommand(NEW_SESSION_ACTION_ID, options);
+	},
+}, {
+	key: 'discover:browse',
+	commandId: DISCOVER_SESSION_CANVASES_COMMAND_ID,
+	title: localize('sessionCanvases.discoverCanvases', "Discover More Canvases"),
+	icon: Codicon.search,
+	run: async accessor => {
+		const commandService = accessor.get(ICommandService);
+		// Without a marketplace to browse, the installed canvases are the closest match.
+		const target: AICustomizationManagementOpenEditorTarget = isCustomizationDiscoveryAvailable(accessor.get(IConfigurationService), accessor.get(ICustomizationMarketplaceService))
+			? { showDiscover: true, searchQuery: '@type:canvas' }
+			: AICustomizationManagementSection.Canvases;
+		await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, target);
+	},
+}];
 
 export function registerSessionCanvasActions(canvasService: ICanvasService, registryService: ISessionCanvasRegistryService, contextService: ICanvasContextService): IDisposable {
 	const store = new DisposableStore();
@@ -158,6 +202,18 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 				registrations.set(key, registration);
 			}
 			registration.update(targetLabels[index], '2_open', index, inActivityBar);
+		}
+		if (registryService.supportsCanvases.read(reader)) {
+			for (let index = 0; index < discoverCanvasEntries.length; index++) {
+				const entry = discoverCanvasEntries[index];
+				activeKeys.add(entry.key);
+				let registration = registrations.get(entry.key);
+				if (!registration) {
+					registration = new CanvasMenuActionRegistration(entry.commandId, entry.run, Menus.SessionsEditorTabsBarAddTabCanvas, entry.icon);
+					registrations.set(entry.key, registration);
+				}
+				registration.update(entry.title, '3_discover', index, inActivityBar);
+			}
 		}
 		for (const key of [...registrations.keys()]) {
 			if (!activeKeys.has(key)) {

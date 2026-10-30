@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { getActiveDocument } from '../../../../../../base/browser/dom.js';
-import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isMacintosh, OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
@@ -44,8 +44,9 @@ import { AGENT_SESSION_MARK_READ_ACTION_ID, AGENT_SESSION_MARK_UNREAD_ACTION_ID 
 
 suite('AgentSessionsActions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-	const actionRegistration = registerAction2(RenameAgentSessionAction);
+	let actionRegistration: IDisposable;
 
+	suiteSetup(() => actionRegistration = registerAction2(RenameAgentSessionAction));
 	suiteTeardown(() => actionRegistration.dispose());
 
 	test('scopes read and unread shortcuts to the editor Sessions list on every platform', () => {

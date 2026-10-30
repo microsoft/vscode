@@ -184,6 +184,25 @@ flakySuite('TextSearch-integration', function () {
 		return doSearchTest(config, 414);
 	});
 
+	test('Text: exclude exception results only include paths that the exception matches', () => {
+		// ripgrep matches `**.js` at any depth, VS Code only at the top level
+		return doSearchTest({
+			type: QueryType.Text,
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'e' },
+			excludePattern: { 'examples': true, '!**.js': true }
+		}, 391);
+	});
+
+	test('Text: exclude exception results skip folders of the query that are inside the folder', () => {
+		return doSearchTest({
+			type: QueryType.Text,
+			folderQueries: [TEST_ROOT_FOLDER, { folder: URI.file(EXAMPLES_FIXTURES) }],
+			contentPattern: { pattern: 'e' },
+			excludePattern: { 'examples': true, '!**/small.js': true }
+		}, 785);
+	});
+
 	test('Text: exclude exception results that are filtered out do not use up the result limit', () => {
 		const config: ITextQuery = {
 			type: QueryType.Text,
@@ -217,6 +236,26 @@ flakySuite('TextSearch-integration', function () {
 			}, 3);
 
 			assert.deepStrictEqual(results.map(result => path.relative(root, result.path!).replace(/\\/g, '/')).sort(), ['a.txt', 'build/keep.txt', 'node_modules/@types/index.d.ts']);
+		} finally {
+			await fs.promises.rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('Text: exclude exception with a parent folder segment does not search outside the folder', async () => {
+		const root = getRandomTestPath(tmpdir(), 'vsctests', 'textsearch-exclude-exception-parent');
+		try {
+			await fs.promises.mkdir(path.join(root, 'folder'), { recursive: true });
+			await fs.promises.writeFile(path.join(root, 'folder', 'a.txt'), 'needle');
+			await fs.promises.writeFile(path.join(root, 'secret.txt'), 'needle');
+
+			const results = await doSearchTest({
+				type: QueryType.Text,
+				folderQueries: [{ folder: URI.file(path.join(root, 'folder')) }],
+				contentPattern: { pattern: 'needle' },
+				excludePattern: { '!../secret.txt': true }
+			}, 1);
+
+			assert.deepStrictEqual(results.map(result => path.relative(root, result.path!).replace(/\\/g, '/')), ['folder/a.txt']);
 		} finally {
 			await fs.promises.rm(root, { recursive: true, force: true });
 		}

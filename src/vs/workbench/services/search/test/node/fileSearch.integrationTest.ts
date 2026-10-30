@@ -11,7 +11,7 @@ import * as path from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { flakySuite, getRandomTestPath } from '../../../../../base/test/node/testUtils.js';
-import { IFileQuery, IFolderQuery, ISerializedFileMatch, ISerializedSearchProgressItem, isProgressMessage, QueryType } from '../../common/search.js';
+import { IFileQuery, IFileSearchStats, IFolderQuery, ISearchEngineStats, ISerializedFileMatch, ISerializedSearchProgressItem, isProgressMessage, QueryType } from '../../common/search.js';
 import { SearchService } from '../../node/rawSearchService.js';
 
 const TEST_FIXTURES = path.normalize(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath);
@@ -136,6 +136,17 @@ flakySuite('FileSearch-integration', function () {
 		assert.strictEqual(paths.length, 9);
 	});
 
+	test('File - exclude exception run is reported in the stats', async () => {
+		const complete = await new SearchService().doFileSearch({
+			type: QueryType.File,
+			folderQueries: ROOT_FOLDER_QUERY,
+			excludePattern: { 'examples': true, '!examples/subfolder/anotherfolder': true }
+		}, numThreads, () => { });
+		const stats = (complete.stats as IFileSearchStats).detailStats as ISearchEngineStats;
+
+		assert.deepStrictEqual({ runs: stats.excludeExceptionRuns, hasTime: stats.excludeExceptionTime! > 0 }, { runs: 1, hasTime: true });
+	});
+
 	test('File - exclude exception re-includes a gitignored file', async () => {
 		const root = getRandomTestPath(tmpdir(), 'vsctests', 'filesearch-exclude-exceptions');
 		try {
@@ -214,6 +225,26 @@ flakySuite('FileSearch-integration', function () {
 		}, TEST_FIXTURES);
 
 		assert.deepStrictEqual(paths, ['examples/small.js']);
+	});
+
+	test('File - exclude exception with a parent folder segment does not search outside the folder', async () => {
+		const root = getRandomTestPath(tmpdir(), 'vsctests', 'filesearch-exclude-exception-parent');
+		try {
+			await fs.promises.mkdir(path.join(root, 'folder'), { recursive: true });
+			await fs.promises.writeFile(path.join(root, 'folder', 'a.txt'), '');
+			await fs.promises.writeFile(path.join(root, 'secret.txt'), '');
+
+			const folder = path.join(root, 'folder');
+			const paths = await getRelativePaths({
+				type: QueryType.File,
+				folderQueries: [{ folder: URI.file(folder) }],
+				excludePattern: { '*.txt': true, '!../secret.txt': true }
+			}, folder);
+
+			assert.deepStrictEqual(paths, []);
+		} finally {
+			await fs.promises.rm(root, { recursive: true, force: true });
+		}
 	});
 
 	(isWindows ? test.skip : test)('File - exclude exception does not follow symbolic links when they are ignored', async () => {

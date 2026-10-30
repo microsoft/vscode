@@ -18,6 +18,12 @@ export interface TextSearchProviderFolderOptionsRipgrep extends TextSearchProvid
 	 * Only set for providers that declare {@link IExcludeExceptionsTextSearchProvider}.
 	 */
 	excludeExceptions?: string[];
+
+	/**
+	 * The other folders of the query that are inside this folder, relative to it. They are searched
+	 * on their own, so the search for exclude exceptions skips them. Set with {@link excludeExceptions}.
+	 */
+	nestedFolders?: string[];
 }
 
 /**

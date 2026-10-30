@@ -189,6 +189,7 @@
 		"statusBarItem.activeBackground": "#4B4C4D",
 		"statusBarItem.hoverBackground": "#323233",
 		"statusBarItem.focusBorder": "#3994BCB3",
+		"statusBarItem.errorHoverBackground": "#9F250C",
 		"statusBarItem.prominentBackground": "#3994BC",
 		"statusBarItem.prominentForeground": "#FFFFFF",
 		"statusBarItem.prominentHoverBackground": "#3994BC",

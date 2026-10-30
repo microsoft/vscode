@@ -9,7 +9,9 @@ import { StringDecoder } from 'string_decoder';
 import { coalesce, mapArrayOrNot, asArray } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { groupBy } from '../../../../base/common/collections.js';
-import { getFoldersSkippedByExcludeExceptions, splitGlobAware } from '../../../../base/common/glob.js';
+import { isEqualOrParent } from '../../../../base/common/extpath.js';
+import { getFoldersSkippedByExcludeExceptions, parseExcludeExpression, splitGlobAware } from '../../../../base/common/glob.js';
+import { relativePath } from '../../../../base/common/resources.js';
 import { createRegExp, escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -69,9 +71,17 @@ export class RipgrepTextSearchEngine {
 			return complete;
 		}
 
+		// ripgrep globs can match more than VS Code globs, for example `**.js` matches at any depth, so results are checked
+		// against the exceptions. Folders of the query that are inside this folder are searched on their own and skipped.
+		const ignoreCase = !!options.folderOptions.ignoreGlobCase;
+		const { isExcepted } = parseExcludeExpression(Object.fromEntries(excludeExceptions.map(exception => [`!${exception}`, true])), { ignoreCase });
+		const nestedFolders = options.folderOptions.nestedFolders ?? [];
+		const isReincluded = (path: string) => isExcepted(path) && !nestedFolders.some(folder => isEqualOrParent(path, folder, ignoreCase, true));
+
 		// Results are filtered after ripgrep reports them, so the search manager limits the accepted results instead
 		const exceptionComplete = await this.searchWithRipgrep({ ...query }, { ...options, maxResults: Number.MAX_SAFE_INTEGER }, new Progress<TextSearchResult2>(result => {
-			if (!reportedPaths.has(result.uri.path)) {
+			const path = relativePath(options.folderOptions.folder, result.uri);
+			if (!reportedPaths.has(result.uri.path) && path !== undefined && isReincluded(path)) {
 				progress.report(result);
 			}
 		}), token, excludeExceptions);
@@ -632,16 +642,35 @@ function pushIncludeAndExcludeGlobs(args: string[], options: RipgrepTextSearchOp
 
 /**
  * Returns the ripgrep globs of a run that lists only the paths that `!`-prefixed exclude exceptions re-include,
- * because ripgrep does not descend into excluded folders. The run ignores everything except the exceptions and
- * the folders leading to them, and skips the folders of {@link getFoldersSkippedByExcludeExceptions}.
+ * because ripgrep does not descend into excluded folders. The run skips the folders of {@link getFoldersSkippedByExcludeExceptions}.
  */
 export function getExcludeExceptionGlobs(excludeExceptions: readonly string[]): string[] {
-	return [
-		'!*',
-		...excludeExceptions.flatMap(exception => spreadGlobComponents(`${exception}/**`)).map(anchorGlob),
-		// Later globs take precedence
-		...getFoldersSkippedByExcludeExceptions(excludeExceptions).map(folder => `!**/${folder}`),
-	];
+	const exceptions = excludeExceptions.flatMap(performBraceExpansionForRipgrep);
+	const globs = new Set<string>();
+
+	// Unless an exception can match at any depth, which needs the whole folder anyway,
+	// only walk the folders that lead to the exceptions
+	if (!exceptions.some(exception => exception.startsWith('**'))) {
+		globs.add('!*');
+		for (const exception of exceptions) {
+			const segments = splitGlobAware(exception, '/');
+			for (let i = 1; i < segments.length; i++) {
+				globs.add(`${anchorGlob(segments.slice(0, i).join('/'))}/`); // a trailing slash only matches folders
+			}
+		}
+	}
+
+	for (const exception of exceptions) {
+		globs.add(anchorGlob(exception));
+		globs.add(anchorGlob(`${exception}/**`));
+	}
+
+	// Later globs take precedence
+	for (const folder of getFoldersSkippedByExcludeExceptions(excludeExceptions)) {
+		globs.add(`!**/${folder}`);
+	}
+
+	return [...globs];
 }
 
 /**

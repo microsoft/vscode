@@ -11,7 +11,6 @@ import { IIntentService, IntentService } from '../../src/extension/intents/node/
 import { ILinkifyService, LinkifyService } from '../../src/extension/linkify/common/linkifyService';
 import { ChatMLFetcherImpl } from '../../src/extension/prompt/node/chatMLFetcher';
 import { createExtensionUnitTestingServices, ISimulationModelConfig } from '../../src/extension/test/node/services';
-import { AIEvaluationService, IAIEvaluationService } from '../../src/extension/testing/node/aiEvaluationService';
 import { IChatMLFetcher } from '../../src/platform/chat/common/chatMLFetcher';
 import { ChatFetchResponseType, ChatResponses } from '../../src/platform/chat/common/commonTypes';
 import { IChunkingEndpointClient } from '../../src/platform/chunking/common/chunkingEndpointClient';
@@ -68,16 +67,11 @@ const dotSimulationPath = path.join(__dirname, `../${SIMULATION_FOLDER_NAME}`);
 export enum CacheScope {
 	Embeddings = 'embeddings',
 	TSC = 'tsc',
-	Roslyn = 'roslyn',
-	ESLint = 'eslint',
-	Pylint = 'pylint',
-	Ruff = 'ruff',
 	Pyright = 'pyright',
 	Python = 'python',
 	Notebook = 'notebook',
 	DocSearch = 'docs-search',
 	CodeSearch = 'code-search',
-	CPP = 'cpp',
 	Chunks = 'chunks-endpoint',
 }
 
@@ -140,7 +134,6 @@ export interface SimulationServicesOptions {
 	createNesFetchCache?: (info: CurrentTestRunInfo) => ICompletionsCache;
 	resourcesCacheMode: CacheMode;
 	disabledTools: Set<string>;
-	swebenchPrompt: boolean;
 	summarizeHistory: boolean;
 	useExperimentalCodeSearchService: boolean;
 	configs: Record<string, unknown> | undefined;
@@ -161,11 +154,6 @@ export interface CurrentTestRunInfo {
 	 * For each test run, we capture fetch requests made.
 	 */
 	fetchRequestCollector: FetchRequestCollector;
-
-	/**
-	 * Whether we're working in a real workspace and extension host.
-	 */
-	isInRealExtensionHost: boolean;
 }
 
 /**
@@ -179,10 +167,6 @@ export async function createSimulationAccessor(
 	currentTestRunInfo: CurrentTestRunInfo
 ): Promise<TestingServiceCollection> {
 	const testingServiceCollection = createExtensionUnitTestingServices(undefined, currentTestRunInfo, modelConfig);
-	if (currentTestRunInfo.isInRealExtensionHost) {
-		const { addExtensionHostSimulationServices } = await import('./extHostContext/simulationExtHostContext');
-		await addExtensionHostSimulationServices(testingServiceCollection);
-	}
 
 	testingServiceCollection.define(ITestInformation, new SyncDescriptor(TestInformation, [currentTestRunInfo.test]));
 	try {
@@ -217,8 +201,6 @@ export async function createSimulationAccessor(
 	testingServiceCollection.define(ICachingResourceFetcher, new SyncDescriptor(CachingResourceFetcher, [currentTestRunInfo, opts.resourcesCacheMode]));
 	testingServiceCollection.define(IVSCodeExtensionContext, new SyncDescriptor(MockExtensionContext, [globalStoragePath, constructGlobalStateMemento(globalStatePath)]));
 	testingServiceCollection.define(IIntentService, new SyncDescriptor(IntentService));
-
-	testingServiceCollection.define(IAIEvaluationService, new SyncDescriptor(AIEvaluationService));
 
 	const docsSearchClient = new SyncDescriptor(ThrottlingCodeOrDocsSearchClient, [new SyncDescriptor(DocsSearchClient)]);
 	testingServiceCollection.define(ITokenizerProvider, new SyncDescriptor(TokenizerProvider, [false]));

@@ -47,6 +47,13 @@ export class TextSearchManager {
 		return this.queryProviderPair.query;
 	}
 
+	/**
+	 * The limit that the provider is given, and that is applied to the results it reports.
+	 */
+	private get maxResults(): number {
+		return this.query.maxResults ?? DEFAULT_MAX_SEARCH_RESULTS;
+	}
+
 	search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken, onKeywordResult?: (keyword: AISearchKeyword) => void): Promise<ISearchCompleteStats> {
 		const folderQueries = this.query.folderQueries || [];
 		const tokenSource = new CancellationTokenSource(token);
@@ -66,12 +73,12 @@ export class TextSearchManager {
 
 				if (!this.isLimitHit) {
 					const resultSize = this.resultSize(result);
-					if (result instanceof TextSearchMatch2 && typeof this.query.maxResults === 'number' && this.resultCount + resultSize > this.query.maxResults) {
+					if (result instanceof TextSearchMatch2 && this.resultCount + resultSize > this.maxResults) {
 						this.isLimitHit = true;
 						isCanceled = true;
 						tokenSource.cancel();
 
-						result = this.trimResultToSize(result, this.query.maxResults - this.resultCount);
+						result = this.trimResultToSize(result, this.maxResults - this.resultCount);
 					}
 
 					const newResultSize = this.resultSize(result);
@@ -177,7 +184,7 @@ export class TextSearchManager {
 		const searchOptions: TextSearchProviderOptions = {
 			folderOptions,
 			maxFileSize: this.query.maxFileSize,
-			maxResults: this.query.maxResults ?? DEFAULT_MAX_SEARCH_RESULTS,
+			maxResults: this.maxResults,
 			previewOptions: this.query.previewOptions ?? DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS,
 			surroundingContext: this.query.surroundingContext ?? 0,
 		};
@@ -230,6 +237,7 @@ export class TextSearchManager {
 			const excludeExceptions = resolveExcludeExceptionsForProvider(this.query.excludePattern, folderExcludes);
 			if (excludeExceptions.length) {
 				options.excludeExceptions = excludeExceptions;
+				options.nestedFolders = this.query.folderQueries.map(other => resources.relativePath(fq.folder, other.folder)).filter((path): path is string => !!path);
 			}
 		}
 

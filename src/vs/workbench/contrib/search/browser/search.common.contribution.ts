@@ -30,7 +30,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			patternProperties: {
 				[EXCLUDE_EXCEPTION_KEY_PATTERN]: {
 					type: 'boolean',
-					description: nls.localize('exclude.exception', "An exception: files and folders that match the glob pattern after the `!`, and everything inside them, are searched even if another pattern excludes them. Set to true or false to enable or disable the exception."),
+					description: nls.localize('exclude.exception', "An exception: files and folders that match the glob pattern after the `!`, and everything inside them, are searched even if another pattern excludes them. Version control folders such as `.git` stay excluded unless the pattern names them. Set to true or false to enable or disable the exception."),
 				}
 			},
 			additionalProperties: {

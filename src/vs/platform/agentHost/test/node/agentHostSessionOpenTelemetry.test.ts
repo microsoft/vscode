@@ -51,17 +51,19 @@ suite('AgentHostSessionOpenTelemetry', () => {
 			findRetainedChatOwner: () => undefined,
 		});
 		instantiationService.stub(IAgentHostChatOwnershipService, createLiveChatOwnership(chat => chatOwners.get(chat), session => buildDefaultChatUri(session)));
+		const getProviderForSession = (session: URI | string) => {
+			const provider = associations.get(session.toString()) ?? AgentSession.provider(session);
+			if (!provider || !providers.includes(provider)) {
+				return undefined;
+			}
+			const providerId = provider;
+			return new class extends mock<IAgent>() {
+				override readonly id = providerId;
+			};
+		};
 		instantiationService.stub(IAgentHostProviderService, {
-			getProviderForSession: session => {
-				const provider = associations.get(session.toString()) ?? AgentSession.provider(session);
-				if (!provider || !providers.includes(provider)) {
-					return undefined;
-				}
-				const providerId = provider;
-				return new class extends mock<IAgent>() {
-					override readonly id = providerId;
-				};
-			},
+			getProviderForSession,
+			getProviderForChat: getProviderForSession,
 		});
 		return disposables.add(instantiationService.createInstance(AgentHostSessionOpenTelemetry));
 	};

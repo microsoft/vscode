@@ -972,6 +972,12 @@ class StandaloneWorkspaceTrustManagementService implements IWorkspaceTrustManage
 	async setWorkspaceTrust(trusted: boolean): Promise<void> {
 		// noop
 	}
+	isWorkspaceTrustSourceResolved(): boolean {
+		return true;
+	}
+	async resolveWorkspaceTrust(): Promise<void> {
+		// noop
+	}
 	getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
 		throw new Error('Method not supported.');
 	}

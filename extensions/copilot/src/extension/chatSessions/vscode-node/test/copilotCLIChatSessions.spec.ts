@@ -68,7 +68,7 @@ class TestSessionService extends mock<ICopilotCLISessionService>() {
 	override onDidDeleteSession = Event.None;
 	override onDidChangeSession = Event.None;
 	override onDidCreateSession = Event.None;
-	override getSessionWorkingDirectory = vi.fn(() => undefined);
+	override getSessionWorkingDirectory = vi.fn(async () => undefined);
 	override getSessionItem = vi.fn(async () => undefined);
 	override getAllSessions = vi.fn(async () => [] as ICopilotCLISessionItem[]);
 	override createNewSessionId = vi.fn(() => 'new-session');

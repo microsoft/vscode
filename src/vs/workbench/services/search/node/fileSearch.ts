@@ -230,8 +230,9 @@ export class FileWalker {
 
 		this.excludeExceptionRuns++;
 		const exceptionRunSW = StopWatch.create(false);
-		cb(await traverse({ seenPaths, excludeExceptions }));
-		this.excludeExceptionTime += exceptionRunSW.elapsed();
+		const exceptionRunErr = await traverse({ seenPaths, excludeExceptions });
+		this.excludeExceptionTime += exceptionRunSW.elapsed(); // before the callback, which can complete the search and read the stats
+		cb(exceptionRunErr);
 	}
 
 	private async cmdTraversal(folderQuery: IFolderQuery, numThreads: number | undefined, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgressMessage) => void, cb: (err?: Error) => void, traversal: ITraversalOptions = {}): Promise<void> {

@@ -12,7 +12,7 @@ import { NEW_SESSION_VIEW_V2_TOUR_ID, NEW_SESSION_VIEW_V2_VARIATIONS } from '../
 import { AGENTS_WINDOW_INVITATION_TOUR_ID } from '../../browser/tours/agentsWindowInvitationTour.js';
 import { NEW_SESSION_VIEW_V3_TOUR_ID, NEW_SESSION_VIEW_V3_VARIATIONS } from '../../browser/tours/newSessionViewV3Tour.js';
 import { SESSION_ARCHIVE_TOUR_ID } from '../../browser/tours/sessionArchiveTour.js';
-import { FIRST_TASK_PARALLEL_TOUR_ID, FIRST_TASK_PARALLEL_UPGRADE_TOUR_ID, FIRST_TASK_REVIEW_TOUR_ID, FIRST_TASK_TOUR_ID } from '../../browser/tours/firstTaskTour.js';
+import { PARALLEL_TASKS_TOUR_ID } from '../../browser/tours/parallelTasksTour.js';
 
 suite('OnboardingTourDescriptors', () => {
 
@@ -28,15 +28,12 @@ suite('OnboardingTourDescriptors', () => {
 			AGENTS_WINDOW_INVITATION_TOUR_ID,
 			NEW_SESSION_VIEW_V3_TOUR_ID,
 			SESSION_ARCHIVE_TOUR_ID,
-			FIRST_TASK_TOUR_ID,
-			FIRST_TASK_PARALLEL_TOUR_ID,
-			FIRST_TASK_REVIEW_TOUR_ID,
-			FIRST_TASK_PARALLEL_UPGRADE_TOUR_ID,
+			PARALLEL_TASKS_TOUR_ID,
 		].filter(id => !descriptors.has(id)), []);
 		assert.deepStrictEqual(NEW_SESSION_VIEW_V2_VARIATIONS, ['default', 'workspaceAndModel', 'mentalModelAndModels']);
 		assert.deepStrictEqual(descriptors.get(NEW_SESSION_VIEW_V2_TOUR_ID)?.developerModeVariations, ['default', 'workspaceAndModel', 'mentalModelAndModels']);
 		assert.deepStrictEqual(NEW_SESSION_VIEW_V3_VARIATIONS, ['prompt', 'githubPrompt', 'options']);
 		assert.deepStrictEqual(descriptors.get(NEW_SESSION_VIEW_V3_TOUR_ID)?.developerModeVariations, ['prompt', 'githubPrompt', 'options']);
-		assert.deepStrictEqual(descriptors.get(FIRST_TASK_REVIEW_TOUR_ID)?.developerModeVariations, ['free', 'paid']);
+		assert.deepStrictEqual([...descriptors.keys()].filter(id => id.startsWith('sessions.onboarding.firstTask')), []);
 	});
 });

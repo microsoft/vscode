@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
@@ -19,7 +18,7 @@ suite('ResourceGlobMatcher', () => {
 	let contextService: IWorkspaceContextService;
 	let configurationService: TestConfigurationService;
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
 		contextService = new TestContextService();
@@ -29,10 +28,6 @@ suite('ResourceGlobMatcher', () => {
 				'**/*.txt': false
 			}
 		});
-	});
-
-	teardown(() => {
-		disposables.clear();
 	});
 
 	test('Basics', async () => {
@@ -94,5 +89,16 @@ suite('ResourceGlobMatcher', () => {
 		});
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	test('Exclude exceptions also apply when an absolute pattern matches', async () => {
+		await configurationService.setUserConfiguration(SETTING, {
+			'C:/testWorkspace/src/**': true,
+			'/testWorkspace/src/**': true,
+			'!src/keep.txt': true
+		});
+		const excludeMatcher = disposables.add(new ExcludeResourceGlobMatcher(() => configurationService.getValue(SETTING), e => e.affectsConfiguration(SETTING), contextService, configurationService));
+		const folder = contextService.getWorkspace().folders[0].uri;
+
+		assert.deepStrictEqual([excludeMatcher.matches(URI.joinPath(folder, 'src', 'keep.txt')), excludeMatcher.matches(URI.joinPath(folder, 'src', 'drop.txt'))], [false, true]);
+	});
+
 });
