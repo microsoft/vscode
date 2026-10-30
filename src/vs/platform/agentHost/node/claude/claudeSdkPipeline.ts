@@ -27,7 +27,7 @@ import type { SessionClientToolsModel } from './clientTools/claudeSessionClientT
  * Use resume mode only for an existing conversation, not a fresh chat rebuilt before its first send.
  */
 export interface IRematerializer {
-	(reason: 'restart' | 'recover'): Promise<{ readonly warm: WarmQuery; readonly abortController: AbortController }>;
+	rematerialize(reason: 'restart' | 'recover'): Promise<{ readonly warm: WarmQuery; readonly abortController: AbortController }>;
 }
 
 /**
@@ -322,7 +322,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		return this._rebindQuery('restart');
 	}
 
-	/** Attach the rematerializer hook for abort / crash recovery. Optional — tests that exercise only the dispose path skip this. */
+	/** Attach the session's rebuild command for restart / crash recovery. */
 	attachRematerializer(rematerializer: IRematerializer): void {
 		this._rematerializer = rematerializer;
 	}
@@ -588,7 +588,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		// aborted old controller.
 		const placeholder = new AbortController();
 		this._bindAbortController(placeholder);
-		const built = await this._rematerializer(reason);
+		const built = await this._rematerializer.rematerialize(reason);
 		// Dispose may have run while we were awaiting the rematerializer.
 		// The dispose chain has already torn down the OLD warm/controller;
 		// the freshly-built pair would otherwise leak its subprocess. Mirror
