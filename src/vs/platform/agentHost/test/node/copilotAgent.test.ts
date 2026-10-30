@@ -78,7 +78,7 @@ import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { ISessionDataService } from '../../common/sessionDataService.js';
+import { ISessionDataService, type StoredAssistantResponsePart } from '../../common/sessionDataService.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ToolResultContentType, TurnState, customizationId, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ProtectedResourceMetadata, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -22616,7 +22616,10 @@ suite('CopilotAgent', () => {
 					id: 'imported-turn-1',
 					state: TurnState.Complete,
 					message: { text: 'Remember IMPORT_ALPHA.', origin: { kind: MessageKind.User } },
-					responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: 'ready' }],
+					responseParts: [
+						{ kind: ResponsePartKind.Reasoning, id: 'imported-reasoning', content: 'Considering the request', startedAt: '1970-01-01T00:00:01.000Z', duration: 45_000 },
+						{ kind: ResponsePartKind.Markdown, id: 'response', content: 'ready' },
+					],
 					usage: {},
 				};
 
@@ -22625,6 +22628,16 @@ suite('CopilotAgent', () => {
 					workingDirectories: [workingDirectory],
 					importConversation: { turns: [turn] },
 				});
+				const events: SessionEvent[] = (await fs.readFile(join(getCopilotHomePath(userHome.fsPath, {}), 'session-state', 'import-exact-chat', 'events.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+				const database = sessionDataService.openDatabase(session);
+				let importedReasoning: readonly StoredAssistantResponsePart[] | undefined;
+				try {
+					const parts = await database.object.getAssistantResponseParts();
+					const reasoningEvent = events.find(event => event.type === 'assistant.message' && event.data.reasoningText);
+					importedReasoning = reasoningEvent && parts.get(reasoningEvent.id);
+				} finally {
+					database.dispose();
+				}
 
 				// The imported session's default chat is bound directly by
 				// `createChat` itself (via `_importConversation` →
@@ -22635,11 +22648,13 @@ suite('CopilotAgent', () => {
 					resultSession: result.session.toString(),
 					boundSdkId: chatBackings(agent).get(chat.toString())?.sdkSessionId,
 					live: hasLiveChat(agent, chat),
+					importedReasoning,
 				}, {
 					resumeCalls: ['import-exact-chat'],
 					resultSession: session.toString(),
 					boundSdkId: 'import-exact-chat',
 					live: true,
+					importedReasoning: [turn.responseParts[0]],
 				});
 
 				await agent.chats.sendMessage(chat, 'follow-up', [workingDirectory], undefined, 'turn-2', undefined, exactChatContext(result.session, chat, result.session));

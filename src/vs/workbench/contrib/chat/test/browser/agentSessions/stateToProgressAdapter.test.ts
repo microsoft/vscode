@@ -1063,6 +1063,24 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(thinking.id, 'r-1');
 		});
 
+		test('restores producer reasoning timing without inventing timing for older hosts', () => {
+			const history = turnsToHistory(URI.parse('external:/opaque/session'), [createTurn({
+				responseParts: [
+					{ kind: ResponsePartKind.Reasoning, id: 'timed', content: 'Measured', startedAt: '1970-01-01T00:00:01.000Z', duration: 45_000 },
+					{ kind: ResponsePartKind.Reasoning, id: 'zero', content: 'Immediate', duration: 0 },
+					{ kind: ResponsePartKind.Reasoning, id: 'unknown', content: 'Older host' },
+					{ kind: ResponsePartKind.Reasoning, id: 'invalid', content: 'Invalid metadata', startedAt: 'invalid', duration: -1 },
+				],
+			})], 'participant');
+
+			assert.deepStrictEqual(history[1].type === 'response' ? history[1].parts : undefined, [
+				{ kind: 'thinking', id: 'timed', value: 'Measured', reasoningTimingSource: 'provider', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 },
+				{ kind: 'thinking', id: 'zero', value: 'Immediate', reasoningTimingSource: 'provider', reasoningDurationMs: 0 },
+				{ kind: 'thinking', id: 'unknown', value: 'Older host', reasoningTimingSource: 'provider' },
+				{ kind: 'thinking', id: 'invalid', value: 'Invalid metadata', reasoningTimingSource: 'provider' },
+			]);
+		});
+
 		test('generic completed tool call in history includes input/output details', () => {
 			const turn = createTurn({
 				responseParts: [{
@@ -4261,7 +4279,7 @@ suite('stateToProgressAdapter', () => {
 			]), undefined);
 
 			assert.deepStrictEqual(result, [
-				{ kind: 'thinking', id: 'reasoning', value: 'Assessing final output steps' },
+				{ kind: 'thinking', id: 'reasoning', value: 'Assessing final output steps', reasoningTimingSource: 'provider' },
 				{ kind: 'thinking', value: '' },
 			]);
 		});
@@ -4510,6 +4528,18 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].kind, 'thinking');
 			assert.strictEqual((result[0] as IChatThinkingPart).id, 'r-1');
+		});
+
+		test('preserves completed and unfinished reasoning timing on reconnect', () => {
+			const result = activeTurnToProgress(URI.parse('external:/opaque/session'), createActiveTurnState([
+				{ kind: ResponsePartKind.Reasoning, id: 'completed', content: 'Already thought', startedAt: '1970-01-01T00:00:01.000Z', duration: 45_000 },
+				{ kind: ResponsePartKind.Reasoning, id: 'active', content: 'Still thinking', startedAt: '1970-01-01T00:01:00.000Z' },
+			]), 'remote-host');
+
+			assert.deepStrictEqual(result, [
+				{ kind: 'thinking', id: 'completed', value: 'Already thought', reasoningTimingSource: 'provider', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 },
+				{ kind: 'thinking', id: 'active', value: 'Still thinking', reasoningTimingSource: 'provider', reasoningStartedAt: 60_000 },
+			]);
 		});
 
 		test('reasoning comes before streamed text when ordered that way', () => {
