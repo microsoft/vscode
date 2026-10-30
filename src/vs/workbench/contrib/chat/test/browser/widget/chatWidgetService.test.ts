@@ -63,6 +63,14 @@ suite('ChatWidgetService', () => {
 		});
 		const inbox = createWidget(false);
 		const fullSession = createWidget(true);
+		const firstRegular = store.add(service.register(fullSession));
+		const secondRegular = store.add(service.register(createWidget(true)));
+		const ordinaryRouting = {
+			default: service.getWidgetBySessionResource(resource) === fullSession,
+			inputRequests: service.getWidgetBySessionResource(resource, { preferInputRequests: true }) === fullSession,
+		};
+		firstRegular.dispose();
+		secondRegular.dispose();
 		store.add(service.register(inbox));
 		const inboxOnly = service.getWidgetBySessionResource(resource);
 		const registration = store.add(service.register(fullSession));
@@ -72,6 +80,7 @@ suite('ChatWidgetService', () => {
 		const selectedTools = variablesService.getSelectedToolAndToolSets(resource);
 		registration.dispose();
 		assert.deepStrictEqual({
+			ordinaryRouting,
 			inboxOnly: inboxOnly === inbox,
 			withFullSession: withFullSession === fullSession,
 			submittingWidget: submittingWidget === inbox,
@@ -79,6 +88,6 @@ suite('ChatWidgetService', () => {
 			selectedTools: selectedTools === inboxTools,
 			afterClosingSession: service.getWidgetBySessionResource(resource, { preferInputRequests: true }) === inbox,
 			unrelatedSession: service.getWidgetBySessionResource(URI.parse('test:/other')),
-		}, { inboxOnly: true, withFullSession: true, submittingWidget: true, dynamicVariables: references, selectedTools: true, afterClosingSession: true, unrelatedSession: undefined });
+		}, { ordinaryRouting: { default: true, inputRequests: true }, inboxOnly: true, withFullSession: true, submittingWidget: true, dynamicVariables: references, selectedTools: true, afterClosingSession: true, unrelatedSession: undefined });
 	});
 });

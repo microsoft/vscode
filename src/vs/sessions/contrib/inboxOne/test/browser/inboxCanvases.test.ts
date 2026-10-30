@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -26,7 +27,11 @@ suite('Inbox extension canvases', () => {
 		const instantiation = store.add(new TestInstantiationService());
 		const enabled = observableValue('enabled', false);
 		const canvases = observableValue<readonly ICanvas[]>('canvases', []);
-		const chat = upcastPartial<IChat>({ resource: URI.parse('test:/selected-child'), canvases });
+		let observations = 0;
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('test:/selected-child'), canvases,
+			observeCanvases: () => { observations++; return toDisposable(() => observations--); },
+		});
 		const session = upcastPartial<ISession>({ resource: URI.parse('test:/selected'), providerId: 'provider', capabilities: constObservable({ supportsCanvases: true, supportsMultipleChats: true }) });
 		const definition: ICanvasDefinition = { canvasId: 'ui-review', extensionId: 'plugin:review', extensionSource: 'plugin', displayName: 'UI review', description: 'Inspect the application', requiresInput: false };
 		let listings = 0;
@@ -53,9 +58,10 @@ suite('Inbox extension canvases', () => {
 		instantiation.stub(INotificationService, {});
 		const widget = store.add(instantiation.createInstance(InboxCanvases, session, chat, document.createElement('div'), () => { }));
 		await timeout(0);
-		const disabled = { listings, hosts: hosts.length, hidden: widget.element.hidden };
+		const disabled = { listings, hosts: hosts.length, hidden: widget.element.hidden, observations };
 		enabled.set(true, undefined);
 		await timeout(0);
+		const enabledObservations = observations;
 		const buttons = () => [...widget.element.querySelectorAll<HTMLElement>('.monaco-button')];
 		const inputDisabled = buttons().find(button => button.textContent === 'Needs input')?.getAttribute('aria-disabled');
 		buttons().find(button => button.textContent === 'UI review')!.click();
@@ -73,10 +79,10 @@ suite('Inbox extension canvases', () => {
 		buttons().find(button => button.textContent === 'Review updated')!.click();
 		enabled.set(false, undefined);
 		assert.deepStrictEqual({
-			disabled, inputDisabled, opened, retained, hidden, hiddenWithTab, visibleWithTab,
+			disabled, enabledObservations, disabledObservations: observations, inputDisabled, opened, retained, hidden, hiddenWithTab, visibleWithTab,
 			disposed: hosts.map(host => host.disposed), canvasStillRegistered: canvases.get().length,
 		}, {
-			disabled: { listings: 0, hosts: 0, hidden: true }, inputDisabled: 'true',
+			disabled: { listings: 0, hosts: 0, hidden: true, observations: 0 }, enabledObservations: 1, disabledObservations: 0, inputDisabled: 'true',
 			opened: [{ owner: session, selected: chat, definition, instanceId: getCanvasDefinitionInstanceId(definition) }],
 			retained: 1, hidden: true, hiddenWithTab: true, visibleWithTab: true, disposed: [true, true], canvasStillRegistered: 1,
 		});

@@ -376,7 +376,7 @@ interface ISelectNoWorkspaceHarness {
 	readonly _pendingPreferredUpgrade: MutableDisposable<IDisposable>;
 	readonly _newSessionCreation: MutableDisposable<IDisposable>;
 	readonly _workspacePicker: { selectNoWorkspace(userSelection?: boolean): void };
-	readonly sessionsService: { openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): { readonly sessionId: string } };
+	readonly sessionsService: { openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean, preserveFocus?: boolean): { readonly sessionId: string } };
 	readonly logService: { trace(message: string): void };
 	_openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): { readonly sessionId: string } | undefined;
 }
@@ -2804,7 +2804,7 @@ suite('NewChatWidget', () => {
 	test('a custom-view composer preserves its host when preparing workspace and quick-chat drafts', async () => {
 		const folder = URI.file('/project');
 		const requests: IOpenNewSessionOptions[] = [];
-		const quickChatNavigation: (boolean | undefined)[] = [];
+		const quickChatNavigation: { preserveNavigation: boolean | undefined; preserveFocus: boolean | undefined }[] = [];
 		const harness: ICreateSessionNowHarness = {
 			_preserveCustomView: true,
 			_environment: constObservable(undefined),
@@ -2824,15 +2824,15 @@ suite('NewChatWidget', () => {
 			_preserveCustomView: true,
 			_environment: constObservable(undefined),
 			sessionsService: {
-				openQuickChat: (_options, preserveNavigation) => {
-					quickChatNavigation.push(preserveNavigation);
+				openQuickChat: (_options, preserveNavigation, preserveFocus) => {
+					quickChatNavigation.push({ preserveNavigation, preserveFocus });
 					return { sessionId: 'quick' };
 				},
 			},
 		}));
 		assert.deepStrictEqual({ requests, quickChatNavigation }, {
 			requests: [{ folderUri: folder, preserveNavigation: true, preserveCustomView: true, providerId: 'local' }],
-			quickChatNavigation: [true],
+			quickChatNavigation: [{ preserveNavigation: true, preserveFocus: true }],
 		});
 	});
 

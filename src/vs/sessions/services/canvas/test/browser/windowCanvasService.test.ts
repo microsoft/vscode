@@ -158,10 +158,14 @@ suite('WindowCanvasService', () => {
 		}, { recreatedInput: true, sameContent: true, draft: 'unsent draft', preserveFocus: true, inactive: true });
 	});
 
-	for (const focusMoved of [false, true]) {
-		test(`working-set replacement restores a focused canvas input unless the user moved focus (${focusMoved})`, async () => {
+	for (const { focusMoved, retainFocusOnRestore } of [
+		{ focusMoved: false, retainFocusOnRestore: false },
+		{ focusMoved: false, retainFocusOnRestore: true },
+		{ focusMoved: true, retainFocusOnRestore: true },
+	]) {
+		test(`working-set replacement restores focus only for opted-in canvases without overriding user focus (${retainFocusOnRestore}, ${focusMoved})`, async () => {
 			const h = createHarness();
-			store.add(h.service.registerCanvas(descriptor));
+			store.add(h.service.registerCanvas({ ...descriptor, retainFocusOnRestore }));
 			store.add(h.didOpen.event(input => document.body.appendChild(h.service.getPresentation(input).element)));
 			await h.service.openCanvas(descriptor.id);
 			const presentation = h.service.getPresentation(h.opened[0].input);
@@ -182,8 +186,8 @@ suite('WindowCanvasService', () => {
 			h.workingSetState.set({ owner: undefined, restoring: false, applying: false }, undefined);
 			await nextOpen;
 			await timeout(0);
-			assert.deepStrictEqual({ focused: document.activeElement === (focusMoved ? otherInput : content.input), focusCalls: content.focusCalls, errors: h.errors }, {
-				focused: true, focusCalls: focusMoved ? 0 : 1, errors: [],
+			assert.deepStrictEqual({ focused: document.activeElement === (focusMoved ? otherInput : retainFocusOnRestore ? content.input : document.body), focusCalls: content.focusCalls, errors: h.errors }, {
+				focused: true, focusCalls: retainFocusOnRestore && !focusMoved ? 1 : 0, errors: [],
 			});
 		});
 	}

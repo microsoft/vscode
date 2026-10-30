@@ -3205,8 +3205,12 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	for (const preserveNavigation of [false, true]) {
-		test(`openQuickChat preserves pending navigation only for an automatic fallback (${preserveNavigation})`, () => {
+	for (const { preserveNavigation, preserveFocus } of [
+		{ preserveNavigation: false, preserveFocus: undefined },
+		{ preserveNavigation: true, preserveFocus: undefined },
+		{ preserveNavigation: true, preserveFocus: true },
+	]) {
+		test(`openQuickChat preserves navigation and focus independently (${preserveNavigation}, ${preserveFocus})`, () => {
 			const quickChat = stubSession({
 				sessionId: 'quick-chat',
 				providerId: 'test',
@@ -3220,7 +3224,7 @@ suite('SessionsManagementService', () => {
 			const navigation = view.navigationRequest.get();
 			sessionsPartService.focusedSessions.length = 0;
 
-			view.openQuickChat(undefined, preserveNavigation);
+			view.openQuickChat(undefined, preserveNavigation, preserveFocus);
 
 			assert.deepStrictEqual({
 				activeSession: view.activeSession.get()?.sessionId,
@@ -3229,7 +3233,7 @@ suite('SessionsManagementService', () => {
 			}, {
 				activeSession: 'quick-chat',
 				preservedNavigation: preserveNavigation,
-				focused: preserveNavigation ? [] : ['quick-chat'],
+				focused: preserveFocus ? [] : ['quick-chat'],
 			});
 		});
 	}

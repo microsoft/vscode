@@ -39,6 +39,11 @@ export class InboxCanvases extends Disposable {
 		@INotificationService notificationService: INotificationService,
 	) {
 		super();
+		this._register(autorun(reader => {
+			if (hostService.enabled.read(reader) && session.capabilities.read(reader).supportsCanvases === true && chat.observeCanvases) {
+				reader.store.add(chat.observeCanvases());
+			}
+		}));
 		if (!hostService.supported) {
 			this.element.appendChild($('p.inbox-evidence-note', undefined, localize('inbox.canvas.desktop', "Interactive extension canvases are available in the desktop application.")));
 			this._register(autorun(reader => {

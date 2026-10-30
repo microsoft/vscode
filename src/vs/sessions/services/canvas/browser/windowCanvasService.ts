@@ -38,6 +38,8 @@ export interface IWindowCanvasDescriptor {
 	readonly title: string;
 	readonly icon: ThemeIcon;
 	readonly ctor: SyncDescriptor<IWindowCanvas>;
+	/** Retain this canvas's focused control across background working-set replacement. Defaults to false. */
+	readonly retainFocusOnRestore?: boolean;
 }
 
 export interface IWindowCanvasPresentation {
@@ -149,7 +151,7 @@ export class WindowCanvasService extends Disposable implements IWindowCanvasServ
 			if (state.restoring) {
 				const activeElement = getActiveElement();
 				if (!focusedCanvas && isHTMLElement(activeElement)) {
-					const entry = [...this.entries.values()].find(entry => entry.presentation?.element.contains(activeElement));
+					const entry = [...this.entries.values()].find(entry => entry.input.descriptor.retainFocusOnRestore && entry.presentation?.element.contains(activeElement));
 					if (entry) {
 						focusedCanvas = { entry, element: activeElement };
 					}

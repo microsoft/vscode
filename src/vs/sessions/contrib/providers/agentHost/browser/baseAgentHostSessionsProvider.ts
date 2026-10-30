@@ -1044,6 +1044,7 @@ interface IChatOutputObs {
 	readonly lastTurnChanges: IObservable<readonly ISessionTurnFileChange[]>;
 	readonly customizations: IObservable<readonly ISessionChatCustomization[]>;
 	readonly canvases: IObservable<readonly ISessionCanvas[] | undefined>;
+	readonly observeCanvases: () => IDisposable;
 	/** Resolves the GitHub info each folder of the chat's workspace reports. */
 	readonly getFolderGitHubInfo: (reader: IReader) => IFolderGitHubInfoResolver;
 	/** Resolves the Git state persisted for the chat's working-directory scope. */
@@ -1193,6 +1194,7 @@ class AdditionalChat extends Disposable {
 			lastTurnChanges: output?.lastTurnChanges,
 			customizations: output?.customizations,
 			canvases: output?.canvases,
+			observeCanvases: output?.observeCanvases,
 			backgroundShells,
 			checkpoints: observableValue(this, undefined),
 			modelId: this._withDetails(this._modelId),
@@ -1826,7 +1828,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				const chatUri = defaultChatUriObs.read(reader);
 				return chatUri ? sessionOutput.getChatCustomizations(chatUri).read(reader) : [];
 			}),
-			canvases: this._createChatCanvasesObservable(),
+			...this._createChatCanvases(),
 			backgroundShells: this._createChatBackgroundShellsObservable(defaultChatUriObs),
 			checkpoints: observableValue(this, undefined),
 			modelId: this.modelId,
@@ -2258,7 +2260,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const output: IChatOutputObs = {
 			lastTurnChanges: this._sessionOutput.getLastTurnChanges(backendUri),
 			customizations: this._sessionOutput.getChatCustomizations(backendUri),
-			canvases: this._createChatCanvasesObservable(backendUri),
+			...this._createChatCanvases(backendUri),
 			getFolderGitHubInfo: reader => this._getFolderGitHubInfoResolver(reader),
 			getScopeGitState: (reader, workingDirectories) => this._getChatScopeGitState(reader, workingDirectories),
 			scratchFolders: this._scratchFolders,
@@ -3190,10 +3192,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		});
 	}
 
-	private _createChatCanvasesObservable(chatUri?: URI): IObservable<readonly ISessionCanvas[] | undefined> {
-		// Inbox observes another conversation's canvases without activating its session.
+	private _createChatCanvases(chatUri?: URI): Required<Pick<IChat, 'canvases' | 'observeCanvases'>> {
+		const externalObservers = observableValue(this, 0);
+		const subscribed = derived(this, reader => this.isActiveSessionObs.read(reader) || externalObservers.read(reader) > 0);
 		const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
-			this._options, constObservable(true), StateComponents.Session, constObservable(this.backendUri),
+			this._options, subscribed, StateComponents.Session, constObservable(this.backendUri),
 		);
 		const chatUriObs = chatUri ? constObservable(chatUri) : derivedOpts<URI | undefined>({ owner: this, equalsFn: isEqual }, reader => {
 			const state = sessionStateObs.read(reader).read(reader);
@@ -3202,7 +3205,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		});
 		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
 			this._options,
-			constObservable(true),
+			subscribed,
 			StateComponents.Chat,
 			chatUriObs,
 		);
@@ -3213,7 +3216,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const canvasStates = mapObservableArrayCached(this, canvases.map(references => references ?? []), canvas => {
 			const resource = URI.parse(canvas.resource);
 			const stateObs = createActiveSessionSubscriptionObs<CanvasState>(
-				this._options, constObservable(true), StateComponents.Canvas, constObservable(resource),
+				this._options, subscribed, StateComponents.Canvas, constObservable(resource),
 			);
 			return derived(reader => {
 				const state = stateObs.read(reader).read(reader);
@@ -3221,12 +3224,18 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 					state && !(state instanceof Error) ? state : undefined);
 			});
 		}, canvas => canvas.resource);
-		return derived(reader => {
-			if (canvases.read(reader) === undefined) {
-				return undefined;
-			}
-			return canvasStates.read(reader).map(canvas => canvas.read(reader));
-		});
+		return {
+			canvases: derived(reader => {
+				if (canvases.read(reader) === undefined) {
+					return undefined;
+				}
+				return canvasStates.read(reader).map(canvas => canvas.read(reader));
+			}),
+			observeCanvases: () => {
+				externalObservers.set(externalObservers.get() + 1, undefined);
+				return toDisposable(() => externalObservers.set(externalObservers.get() - 1, undefined));
+			},
+		};
 	}
 
 }
