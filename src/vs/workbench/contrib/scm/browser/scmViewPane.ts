@@ -120,7 +120,7 @@ function renderDiffStatistics(container: HTMLElement, statistics: ISCMResourceDi
 	}
 
 	if (statistics.deletions > 0) {
-		append(container, $('span.deletions')).textContent = `-${statistics.deletions}`;
+		append(container, $('span.deletions')).textContent = `\u2212${statistics.deletions}`;
 	}
 }
 
@@ -594,7 +594,9 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 			actionRunner: this.actionRunner
 		}, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
 
-		const diffStatistics = append(element, $('.diff-statistics.empty'));
+		// The decoration badge is rendered by the label's ::after pseudo-element, so the
+		// statistics live inside the label to keep the badge aligned at the end of the row.
+		const diffStatistics = append(fileLabel.element, $('.diff-statistics.empty'));
 		const decorationIcon = append(element, $('.decoration-icon'));
 		const actionBarMenuListener = new MutableDisposable<IDisposable>();
 		const disposables = combinedDisposable(actionBar, fileLabel, actionBarMenuListener);
