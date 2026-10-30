@@ -38,7 +38,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ChatSendResult, IChatQuestionAnswerValue, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatSendResult, IChatConfirmation, IChatQuestionAnswerValue, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatViewModel, IChatViewModelChangeEvent } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { ChatListWidget } from '../../../../../workbench/contrib/chat/browser/widget/chatListWidget.js';
@@ -58,7 +58,7 @@ import { IChat, ISession, ISessionArtifact, ISessionCapabilities, ISessionChange
 import { InboxNotificationsView } from '../../browser/inboxNotificationsView.js';
 import { InboxEvidenceWidget } from '../../browser/inboxEvidenceWidget.js';
 import { InboxCanvases } from '../../browser/inboxCanvases.js';
-import { IInboxDetailSummary, IInboxNotificationItem, IInboxNotificationsService, IInboxNotificationToolConfirmationPart, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode } from '../../common/inboxNotificationsService.js';
+import { IInboxDetailSummary, IInboxNotificationConfirmationPart, IInboxNotificationItem, IInboxNotificationQuestionCarouselPart, IInboxNotificationsService, IInboxNotificationToolConfirmationPart, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode } from '../../common/inboxNotificationsService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackChangeEvent, IAgentFeedbackService, ISubmitFeedbackOptions } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -110,6 +110,8 @@ suite('InboxNotificationsView', () => {
 			scrollableElement: DomScrollableElement;
 			detailScrollableElement: DomScrollableElement;
 			submitToolConfirmationPart(item: IInboxNotificationItem, part: IInboxNotificationToolConfirmationPart, buttonIndex: number): Promise<void>;
+			submitConfirmationPart(item: IInboxNotificationItem, part: IInboxNotificationConfirmationPart, buttonLabel: string, buttonIndex: number): Promise<void>;
+			submitQuestionCarouselPart(item: IInboxNotificationItem, part: IInboxNotificationQuestionCarouselPart, answers: Map<string, IChatQuestionAnswerValue> | undefined): Promise<void>;
 			classifyCarouselAnswers(answers: Map<string, IChatQuestionAnswerValue>): { answerKind: string; answerCharCount: number };
 			runMergedSessionCleanupAction(item: IInboxNotificationItem, kind: InboxNotificationActionKind.ArchiveSession | InboxNotificationActionKind.DeleteSession, enableAlways: boolean): Promise<string>;
 			runAction(item: IInboxNotificationItem, action: IInboxNotificationItem['actions'][number], sourceElement?: HTMLElement, enableAlways?: boolean): Promise<void>;
@@ -147,6 +149,7 @@ suite('InboxNotificationsView', () => {
 			requestPreview: item => { options.previewRequests?.push(item.id); },
 			getInteractionTelemetryContext: () => ({ agentSessionId: 'none', providerId: 'none' }),
 			requestDetailSummary: () => { },
+			dismissNotification: () => { },
 		});
 		instantiationService.stub(IChatService, { getSession: () => undefined, onDidCreateModel: Event.None, ...options.chatService });
 		const navigationRequest = observableValue<ISessionNavigationRequest | undefined>('navigation', undefined);
@@ -159,7 +162,7 @@ suite('InboxNotificationsView', () => {
 				sessionsVisible = !hidden;
 			},
 		});
-		instantiationService.stub(ISessionsManagementService, { getSession: () => undefined });
+		instantiationService.stub(ISessionsManagementService, { getSession: () => undefined, setSessionReadState: async () => { } });
 		instantiationService.stubInstance(InboxEvidenceWidget, { element: document.createElement('div'), getAccessibleContent: () => '', dispose: () => { } });
 		instantiationService.stubInstance(InboxCanvases, { element: document.createElement('div'), layout: () => { }, setVisible: () => { }, createAccessibleProvider: () => undefined, dispose: () => { } });
 		const chatViews: TestChatView[] = [];
@@ -691,39 +694,43 @@ suite('InboxNotificationsView', () => {
 		})));
 	});
 
-	test('an accepted request marks only its originating notification done without navigating or archiving', async () => {
-		const chats = ['first', 'second'].map(id => upcastPartial<IChat>({ resource: URI.parse(`test:///chat/${id}`) }));
-		const sessions = chats.map((chat, index) => upcastPartial<ISession>({
-			sessionId: `session${index}`, resource: URI.parse(`test:///session/${index}`), mainChat: constObservable(chat), chats: constObservable([chat]),
-		}));
-		const items = sessions.map((session, index): IInboxNotificationItem => ({
-			id: `item${index}`, kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
-			title: 'Finished', description: 'Summary', timestamp: 1, actions: [], sessionResource: session.resource,
-		}));
-		const active = observableValue<readonly IInboxNotificationItem[]>('active', items);
-		const { view, container, instantiationService, chatViews } = createView(active);
-		const markRead = stub().callsFake(async () => active.set(items.slice(1), undefined));
-		const dismiss = spy();
-		const openSession = spy();
-		const archiveSession = spy();
-		instantiationService.stub(ISessionsManagementService, 'getSession', (resource: URI) => sessions.find(session => session.resource.toString() === resource.toString()));
-		instantiationService.stub(ISessionsManagementService, 'setSessionReadState', markRead);
-		instantiationService.stub(ISessionsService, 'openSession', openSession);
-		instantiationService.stub(ISessionsManagementService, 'archiveSession', archiveSession);
-		instantiationService.stub(IInboxNotificationsService, 'dismissNotification', dismiss);
-		view.render(container);
-		container.querySelector<HTMLElement>('[data-notification-id="item0"]')!.click();
-		assert.strictEqual(dismiss.callCount, 0);
-		container.querySelector<HTMLElement>('[data-notification-id="item1"]')!.click();
-		chatViews[0].submitted.fire(chats[0].resource);
-		await Promise.resolve();
-		assert.deepStrictEqual({
-			read: markRead.args, dismiss: dismiss.args, opened: openSession.callCount, archived: archiveSession.callCount,
-			inputStillOpen: chatViews[0].input.isConnected, dismissedBeforeRead: dismiss.calledBefore(markRead),
-		}, { read: [[sessions[0], true]], dismiss: [['item0', items[0]]], opened: 0, archived: 0, inputStillOpen: true, dismissedBeforeRead: true });
-		view.dispose();
-		assert.deepStrictEqual(dismiss.args, [['item0', items[0]]]);
-	});
+	for (const selectsAnotherItem of [false, true]) {
+		test(`an accepted request completes its originating item without clearing another selection: ${selectsAnotherItem}`, async () => {
+			const chats = ['first', 'second'].map(id => upcastPartial<IChat>({ resource: URI.parse(`test:///chat/${id}`) }));
+			const sessions = chats.map((chat, index) => upcastPartial<ISession>({
+				sessionId: `session${index}`, resource: URI.parse(`test:///session/${index}`), mainChat: constObservable(chat), chats: constObservable([chat]),
+			}));
+			const items = sessions.map((session, index): IInboxNotificationItem => ({
+				id: `item${index}`, kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+				title: 'Finished', description: 'Summary', timestamp: 1, actions: [], sessionResource: session.resource,
+			}));
+			const active = observableValue<readonly IInboxNotificationItem[]>('active', items);
+			const { view, container, instantiationService, chatViews } = createView(active);
+			const markRead = stub().callsFake(async () => active.set(items.slice(1), undefined));
+			const dismiss = spy();
+			const openSession = spy();
+			const archiveSession = spy();
+			instantiationService.stub(ISessionsManagementService, 'getSession', (resource: URI) => sessions.find(session => session.resource.toString() === resource.toString()));
+			instantiationService.stub(ISessionsManagementService, 'setSessionReadState', markRead);
+			instantiationService.stub(ISessionsService, 'openSession', openSession);
+			instantiationService.stub(ISessionsManagementService, 'archiveSession', archiveSession);
+			instantiationService.stub(IInboxNotificationsService, 'dismissNotification', dismiss);
+			view.render(container);
+			container.querySelector<HTMLElement>('[data-notification-id="item0"]')!.click();
+			assert.strictEqual(dismiss.callCount, 0);
+			if (selectsAnotherItem) {
+				container.querySelector<HTMLElement>('[data-notification-id="item1"]')!.click();
+			}
+			chatViews[0].submitted.fire(chats[0].resource);
+			await Promise.resolve();
+			assert.deepStrictEqual({
+				read: markRead.args, dismiss: dismiss.args, opened: openSession.callCount, archived: archiveSession.callCount,
+				inputStillOpen: chatViews[0].input.isConnected, dismissedBeforeRead: dismiss.calledBefore(markRead),
+			}, { read: [[sessions[0], true]], dismiss: [['item0', items[0]]], opened: 0, archived: 0, inputStillOpen: selectsAnotherItem, dismissedBeforeRead: true });
+			view.dispose();
+			assert.deepStrictEqual(dismiss.args, [['item0', items[0]]]);
+		});
+	}
 
 	test('waits for the exact secondary chat instead of falling back to main, and observes chat replacements', () => {
 		const main = upcastPartial<IChat>({ resource: URI.parse('test:///main') });
@@ -966,6 +973,134 @@ suite('InboxNotificationsView', () => {
 			completed: dismissed.get().map(item => item.id),
 		}, { before: true, interpretation: null, accessible: undefined, completed: ['item'] });
 	});
+
+	for (const kind of [
+		InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone, InboxNotificationActionKind.Dismiss,
+		InboxNotificationActionKind.AgentMergeFixCI, InboxNotificationActionKind.AgentMergeAddressReviews, InboxNotificationActionKind.AgentMergeMergePullRequest,
+		InboxNotificationActionKind.ArchiveSession, InboxNotificationActionKind.DeleteSession, InboxNotificationActionKind.Command,
+	]) {
+		test(`successful ${kind} marks the item done and clears its evidence and reply`, async () => {
+			const chat = upcastPartial<IChat>({ resource: URI.parse('test:///chat') });
+			const session = upcastPartial<ISession>({ sessionId: 'session', providerId: 'provider', resource: URI.parse('test:///session'), mainChat: constObservable(chat), chats: constObservable([chat]) });
+			const action = { id: kind, kind, label: kind, commandId: 'test.command' };
+			const item: IInboxNotificationItem = {
+				id: 'item', kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+				title: 'Finished', description: 'Summary', timestamp: 1, actions: [action], sessionResource: session.resource,
+			};
+			const { view, container, instantiationService, chatViews } = createView(constObservable([item]));
+			instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
+			instantiationService.stub(ISessionsService, 'openSession', async () => { });
+			instantiationService.stub(ICommandService, 'executeCommand', async () => undefined);
+			stub(accessView(view), 'runInboxPullRequestAction').resolves('success');
+			stub(accessView(view), 'runMergedSessionCleanupAction').resolves('success');
+			const dismiss = spy();
+			const markRead = spy(async () => { });
+			instantiationService.stub(IInboxNotificationsService, 'dismissNotification', dismiss);
+			instantiationService.stub(ISessionsManagementService, 'setSessionReadState', markRead);
+			view.render(container);
+			container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+			await accessView(view).runAction(item, action);
+			assert.deepStrictEqual({
+				dismissed: dismiss.args, read: markRead.args, replyDisposed: chatViews[0].disposed,
+				evidence: view.getDetailAccessibleContent(), selected: !!container.querySelector('.inbox-notifications-item.selected'),
+			}, { dismissed: [[item.id, item]], read: [[session, true]], replyDisposed: true, evidence: undefined, selected: false });
+		});
+	}
+
+	for (const result of ['failure', 'skipped'] as const) {
+		test(`unsuccessful actions keep the item and selected evidence pending: ${result}`, async () => {
+			const action = { id: 'fix', kind: InboxNotificationActionKind.AgentMergeFixCI, label: 'Fix CI' };
+			const item: IInboxNotificationItem = {
+				id: 'item', kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+				title: 'Finished', description: 'Summary', timestamp: 1, actions: [action],
+			};
+			const { view, container, instantiationService } = createView(constObservable([item]));
+			stub(accessView(view), 'runInboxPullRequestAction').resolves(result);
+			instantiationService.stub(INotificationService, 'error', () => { });
+			const dismiss = spy();
+			instantiationService.stub(IInboxNotificationsService, 'dismissNotification', dismiss);
+			view.render(container);
+			container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+			const before = view.getDetailAccessibleContent();
+			await accessView(view).runAction(item, action);
+			assert.deepStrictEqual({ dismissed: dismiss.callCount, evidence: view.getDetailAccessibleContent() }, { dismissed: 0, evidence: before });
+		});
+	}
+
+	test('a completed background action does not clear a newer selection', async () => {
+		const action = { id: 'run', kind: InboxNotificationActionKind.Command, label: 'Run', commandId: 'test.command' };
+		const items: IInboxNotificationItem[] = ['first', 'second'].map(id => ({
+			id, kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+			title: id, description: id, timestamp: 1, actions: [action],
+		}));
+		const { view, container, instantiationService } = createView(constObservable(items));
+		const completion = new DeferredPromise<void>();
+		instantiationService.stub(ICommandService, 'executeCommand', () => completion.p);
+		const dismiss = spy();
+		instantiationService.stub(IInboxNotificationsService, 'dismissNotification', dismiss);
+		view.render(container);
+		container.querySelector<HTMLElement>('[data-notification-id="first"]')!.click();
+		const running = accessView(view).runAction(items[0], action);
+		container.querySelector<HTMLElement>('[data-notification-id="second"]')!.click();
+		const selected = view.getDetailAccessibleContent();
+		await completion.complete();
+		await running;
+		assert.deepStrictEqual({ dismissed: dismiss.args, evidence: view.getDetailAccessibleContent() }, { dismissed: [['first', items[0]]], evidence: selected });
+	});
+
+	for (const kind of ['questionCarousel', 'confirmation', 'toolConfirmation'] as const) {
+		for (const succeeds of [true, false]) {
+			test(`inline ${kind} completes only on success and clears stale evidence: ${succeeds}`, async () => {
+				const chatResource = URI.parse('test:///chat');
+				const item: IInboxNotificationItem = {
+					id: 'item', kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+					title: 'Pending input', description: 'Summary', timestamp: 1, actions: [],
+				};
+				const carousel = new ChatQuestionCarouselData([], true, 'resolve');
+				const confirmation = upcastPartial<IChatConfirmation>({ kind: 'confirmation', data: {}, isUsed: false });
+				const tool = upcastPartial<IChatToolInvocation>({
+					kind: 'toolInvocation', toolCallId: 'tool',
+					state: constObservable(upcastPartial<IChatToolInvocation.State>({ type: IChatToolInvocation.StateKind.WaitingForConfirmation })),
+				});
+				const confirm = stub(IChatToolInvocation, 'confirmWith').returns(succeeds);
+				disposables.add(toDisposable(() => confirm.restore()));
+				const model = upcastPartial<IChatModel>({
+					getRequests: () => [upcastPartial<IChatRequestModel>({
+						response: upcastPartial<IChatResponseModel>({
+							requestId: 'request', response: upcastPartial<IChatResponseModel['response']>({ value: [carousel, confirmation, tool] }),
+						}),
+					})],
+				});
+				const summaries = observableValue<ReadonlyMap<string, IInboxDetailSummary>>('summaries', new Map([[item.id, { status: 'Old interpretation', decisions: [], evidence: [] }]]));
+				const { view, container, instantiationService } = createView(constObservable([item]), {
+					detailSummaries: summaries, chatService: {
+						getSession: () => kind === 'questionCarousel' && !succeeds ? undefined : model,
+						sendRequest: async () => succeeds ? upcastPartial<ChatSendResult>({ kind: 'sent' }) : { kind: 'rejected', reason: 'Failed dispatch' },
+						notifyQuestionCarouselAnswer: () => { },
+					},
+				});
+				const dismiss = spy();
+				instantiationService.stub(IInboxNotificationsService, 'dismissNotification', dismiss);
+				instantiationService.stub(INotificationService, 'error', () => { });
+				view.render(container);
+				container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+				if (kind === 'questionCarousel') {
+					await accessView(view).submitQuestionCarouselPart(item, { kind, chatResource, requestId: 'request', resolveId: 'resolve', questions: [], allowSkip: true }, new Map());
+				} else if (kind === 'confirmation') {
+					await accessView(view).submitConfirmationPart(item, { kind, chatResource, requestId: 'request', data: confirmation.data, title: 'Continue?', message: '' }, 'Yes', 0);
+				} else {
+					await accessView(view).submitToolConfirmationPart(item, {
+						kind, chatResource, requestId: 'request', toolCallId: 'tool', confirmationKind: 'execution', title: 'Run?', message: '',
+						buttons: [{ label: 'Allow', kind: 'approve', useUserActionReason: true }],
+					}, 0);
+				}
+				summaries.set(new Map([[item.id, { status: 'Late interpretation', decisions: [], evidence: [] }]]), undefined);
+				assert.deepStrictEqual({
+					dismissed: dismiss.args, evidence: view.getDetailAccessibleContent()?.includes('Late interpretation'),
+				}, { dismissed: succeeds ? [[item.id, item]] : [], evidence: succeeds ? undefined : true });
+			});
+		}
+	}
 
 	test('captures click correlation before handlers and does not select action targets', () => {
 		const telemetry: { event: string; data: { actionId?: string; interaction?: string } }[] = [];
@@ -1348,6 +1483,8 @@ suite('InboxNotificationsView', () => {
 				instantiationService.stub(INotificationService, 'notify', () => upcastPartial<ReturnType<INotificationService['notify']>>({}));
 				const notifications = spy();
 				instantiationService.stub(INotificationService, 'error', notifications);
+				const dismiss = spy();
+				instantiationService.stub(IInboxNotificationsService, 'dismissNotification', dismiss);
 				view.render(container);
 				const button = container.querySelector<HTMLElement>('.inbox-notifications-item-footer-actions .monaco-button')!;
 				button.style.cssText = 'position: fixed; left: 120px; top: 80px; width: 48px; height: 24px; box-sizing: border-box;';
@@ -1381,10 +1518,12 @@ suite('InboxNotificationsView', () => {
 						buttonConnected: button.isConnected,
 						errors: errors.map(error => error.message),
 						notifications: notifications.callCount,
+						dismissed: dismiss.args,
 					}, {
 						before: null, bounds: celebrated ? ['120px', '80px', '48px', '24px'] : null,
 						particles: celebrated ? 24 : 0, buttonConnected: outcome === 'cancelled',
 						errors: outcome === 'failed' ? ['Cleanup failed'] : [], notifications: outcome === 'failed' ? 1 : 0,
+						dismissed: outcome === 'cancelled' || outcome === 'failed' ? [] : [[item.id, item]],
 					});
 				} finally {
 					setUnexpectedErrorHandler(previousHandler);

@@ -1706,14 +1706,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	}
 
 	private async completeNeedsInputNotification(item: IInboxNotificationItem): Promise<void> {
-		this.inboxNotificationsService.dismissNotification(item.id, item);
-		if (item.sessionResource) {
-			const session = this.sessionsManagementService.getSession(item.sessionResource);
-			if (session) {
-				await this.sessionsManagementService.setSessionReadState(session, true);
-			}
-		}
-
+		await this.markDone(item, undefined);
 	}
 
 	private onListFocusIn(event: FocusEvent): void {
@@ -1883,6 +1876,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		};
 
 		try {
+			let result: InboxInteractionResult;
 			switch (action.kind) {
 				case InboxNotificationActionKind.OpenSession: {
 					if (!item.sessionResource) {
@@ -1890,50 +1884,44 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 						return;
 					}
 					await this.sessionsService.openSession(item.sessionResource, { source: 'inbox' });
-					logResult('success');
-					return;
+					result = 'success';
+					break;
 				}
 				case InboxNotificationActionKind.AgentMergeFixCI:
 				case InboxNotificationActionKind.AgentMergeAddressReviews:
 				case InboxNotificationActionKind.AgentMergeMergePullRequest: {
-					const result = await this.runInboxPullRequestAction(item, action.kind);
-					logResult(result);
+					result = await this.runInboxPullRequestAction(item, action.kind);
 					if (result === 'failure') {
 						this.notificationService.error(localize('inboxNotifications.action.submitFailed', "Unable to run \"{0}\". Open the session and try again.", action.label));
 					}
-					return;
+					break;
 				}
 				case InboxNotificationActionKind.ArchiveSession:
 				case InboxNotificationActionKind.DeleteSession: {
 					const animationTarget = sourceElement ? captureAnimationTarget(sourceElement) : undefined;
-					const result = await this.runMergedSessionCleanupAction(item, action.kind, enableAlways);
+					result = await this.runMergedSessionCleanupAction(item, action.kind, enableAlways);
 					if (result === 'success') {
 						this.maybeTriggerConfetti(animationTarget);
 					}
-					logResult(result);
-					return;
+					break;
 				}
-				case InboxNotificationActionKind.MarkDone: {
-					if (this.selectedItemId.get() === item.id) {
-						this.clearSelectedItem('markDone');
-					}
-					await this.markDone(item, sourceElement);
-					logResult('success');
-					return;
-				}
+				case InboxNotificationActionKind.MarkDone:
 				case InboxNotificationActionKind.Dismiss:
-					this.inboxNotificationsService.dismissNotification(item.id);
-					logResult('success');
-					return;
+					result = 'success';
+					break;
 				case InboxNotificationActionKind.Command:
 					if (action.commandId) {
 						await this.commandService.executeCommand(action.commandId, ...(action.commandArgs ?? []));
-						logResult('success');
+						result = 'success';
 					} else {
-						logResult('skipped');
+						result = 'skipped';
 					}
-					return;
+					break;
 			}
+			if (result === 'success') {
+				await this.markDone(item, action.kind === InboxNotificationActionKind.MarkDone ? sourceElement : undefined);
+			}
+			logResult(result);
 		} catch (error) {
 			logResult('failure');
 			onUnexpectedError(error);
@@ -2376,6 +2364,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	}
 
 	private async markDone(item: IInboxNotificationItem, sourceElement: HTMLElement | undefined): Promise<void> {
+		if (this.selectedItemId.get() === item.id) {
+			this.clearSelectedItem('markDone');
+		}
 		this.maybeTriggerConfetti(sourceElement);
 		this.inboxNotificationsService.dismissNotification(item.id, item);
 
