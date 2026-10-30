@@ -33,7 +33,7 @@ import { IChatModelReference, IChatService } from '../../../common/chatService/c
 import { IChatSessionsService, isAgentHostTarget, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatEditorTitleMaxLength, SessionTypeSelectionReason, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, isLocalAgentHostSessionTypeDisabledByPolicy, isNewChatSessionTypeUsable, managedPolicyRequiresAgentHostMessage } from '../../../common/constants.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
-import { IChatModel } from '../../../common/model/chatModel.js';
+import { getPortableChatDraft, IChatModel, IPortableChatDraft, restorePortableChatDraft } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri, getChatSessionType, getNewChatSessionResource, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { adoptLegacyCopilotCliResource, isLegacyMigrationEnabledAtStartup, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../agentSessions/agentHost/agentHostLegacyMigration.js';
@@ -295,9 +295,24 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		const chatSessionType = searchParams.get('chatSessionType');
 		const inputType = chatSessionType ?? this.resource.authority;
 
+		let replacedDraft: IPortableChatDraft | undefined;
 		if (this._sessionResource && !this.options.target && isUntitledChatSession(this._sessionResource) && isLocalAgentHostSessionTypeDisabledByPolicy(getChatSessionType(this._sessionResource), this.configurationService)) {
-			// An empty draft of a harness that policy disables can only show the read-only banner, so open the default new chat instead.
-			this._sessionResource = undefined;
+			// A draft of a harness that policy disables can only show the read-only banner, so open the default new chat
+			// instead with the draft's unsent content. Untitled drafts load locally, without asking their provider.
+			let disabledDraft: IChatModelReference | undefined;
+			try {
+				disabledDraft = await acquireSession(this._sessionResource, 'ChatEditorInput#resolveDisabledDraft');
+			} catch (error) {
+				if (isCancellationError(error) || token.isCancellationRequested) {
+					return null;
+				}
+				this.logService.warn(`[ChatEditorInput] Failed to read the draft of ${this._sessionResource.toString()}`, error);
+			}
+			if (!disabledDraft?.object.hasRequests) {
+				replacedDraft = getPortableChatDraft(disabledDraft?.object.inputModel.state.get());
+				this._sessionResource = undefined;
+			}
+			disabledDraft?.dispose();
 		}
 
 		if (this._sessionResource) {
@@ -419,6 +434,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			return null;
 		}
 
+		restorePortableChatDraft(this.model, replacedDraft);
 		this._sessionResource = this.model.sessionResource;
 
 		this._trackModelChanges();

@@ -11,7 +11,7 @@ import { COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, IManagedSettingsService, Nul
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../../../services/policies/common/accountPolicyService.js';
 import { DisposableStore, IReference, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
-import { constObservable } from '../../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock, mockObject, upcastPartial } from '../../../../../../../base/test/common/mock.js';
@@ -42,8 +42,9 @@ import { IChatModelReference, IChatService, IChatSessionStartOptions } from '../
 import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../../common/chatOpenDiagnosticsService.js';
 import { IChatSessionsService, localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, SessionTypeSelectionReason } from '../../../../common/constants.js';
+import { IChatRequestVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
-import { IChatModel, IInputModel } from '../../../../common/model/chatModel.js';
+import { IChatModel, IChatModelInputState, IInputModel } from '../../../../common/model/chatModel.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
 import { TestContextService, TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
@@ -740,15 +741,26 @@ suite('ChatEditorInput', () => {
 		}
 	});
 
-	test('restored empty draft of a harness disabled by policy opens the default new chat', async () => {
+	test('restored draft of a harness disabled by policy opens the default new chat with its unsent content', async () => {
 		const draftResource = URI.from({ scheme: SessionType.AgentHostClaude, path: '/untitled-disabled' });
 		const localResource = LocalChatSessionUri.forSession('disabled-draft-replacement');
+		const inputModel = (initial: Partial<IChatModelInputState> | undefined) => {
+			const state = observableValue<IChatModelInputState | undefined>('state', initial as IChatModelInputState | undefined);
+			return upcastPartial<IInputModel>({ state, setState: update => state.set({ ...state.get(), ...update } as IChatModelInputState, undefined) });
+		};
 		const model = {
 			hasRequests: false,
 			onDidDispose: Event.None,
 			onDidChange: Event.None,
 			sessionResource: localResource,
+			inputModel: inputModel(undefined),
 		} as Partial<IChatModel> as IChatModel;
+		const attachment = { id: 'file', name: 'file.ts', kind: 'file', value: URI.file('/workspace/file.ts') } as IChatRequestVariableEntry;
+		const disabledDraft = upcastPartial<IChatModel>({
+			hasRequests: false,
+			sessionResource: draftResource,
+			inputModel: inputModel({ inputText: 'unsent prompt', attachments: [attachment], selections: [], mode: { id: 'claude-mode', kind: undefined }, contrib: { claude: true } }),
+		});
 
 		const configurationService = new TestConfigurationService();
 		const inspect = configurationService.inspect.bind(configurationService);
@@ -757,11 +769,12 @@ suite('ChatEditorInput', () => {
 			return key === AgentHostClaudeAgentEnabledSettingId ? { ...value, policyValue: false as T } : value;
 		};
 		const loadedResources: string[] = [];
+		let draftReleased = false;
 		let startCall: IChatSessionStartOptions | undefined;
 		const chatService = {
 			async acquireOrLoadSession(resource: URI) {
 				loadedResources.push(resource.toString());
-				return undefined;
+				return { object: disabledDraft, dispose: () => { draftReleased = true; } };
 			},
 			startNewLocalSession(_location: ChatAgentLocation, options?: IChatSessionStartOptions) {
 				startCall = options;
@@ -795,14 +808,18 @@ suite('ChatEditorInput', () => {
 				model: resolved?.model,
 				sessionResource: input.sessionResource,
 				loadedResources,
+				draftReleased,
 				debugOwner: startCall?.debugOwner,
 				selectionReason: startCall?.sessionTypeSelectionReason,
+				draft: model.inputModel.state.get(),
 			}, {
 				model,
 				sessionResource: localResource,
-				loadedResources: [],
+				loadedResources: [draftResource.toString()],
+				draftReleased: true,
 				debugOwner: 'ChatEditorInput#resolveUntitled',
 				selectionReason: 'computedDefault',
+				draft: { inputText: 'unsent prompt', attachments: [attachment], selections: [] },
 			});
 		} finally {
 			input.dispose();

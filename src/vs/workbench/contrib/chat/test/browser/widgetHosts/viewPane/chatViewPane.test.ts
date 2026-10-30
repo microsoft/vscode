@@ -24,7 +24,7 @@ import { IChatModelReference } from '../../../../common/chatService/chatService.
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { IChatModel } from '../../../../common/model/chatModel.js';
+import { IChatModel, IInputModel, IPortableChatDraft } from '../../../../common/model/chatModel.js';
 
 suite('ChatViewPane managed permission rules', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -174,33 +174,59 @@ suite('ChatViewPane chat open diagnostics', () => {
 
 suite('ChatViewPane restored chat with a harness disabled by policy', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const unsent = { inputText: 'unsent prompt', attachments: [], selections: [] };
 
-	async function restore(sessionResource: URI, hasRequests: boolean, claudeDisabled: boolean) {
+	function createPane(sessionResource: URI, hasRequests: boolean, policy: { claudeDisabled: boolean }, whileShowing?: () => void) {
 		const configurationService = new TestConfigurationService();
 		const inspect = configurationService.inspect.bind(configurationService);
 		configurationService.inspect = <T>(key: string) => {
 			const value = inspect<T>(key);
-			return claudeDisabled && key === AgentHostClaudeAgentEnabledSettingId ? { ...value, policyValue: false as T } : value;
+			return policy.claudeDisabled && key === AgentHostClaudeAgentEnabledSettingId ? { ...value, policyValue: false as T } : value;
 		};
-		let disposed = false;
-		const pane: { acquireTransferredOrPersistedSession(token: CancellationToken, debugOwner: string): Promise<{ modelRef?: IChatModelReference }> } = Object.assign(Object.create(ChatViewPane.prototype), {
+		const chatSessionsService = new MockChatSessionsService();
+		chatSessionsService.setContributions([{ type: SessionType.AgentHostClaude, name: 'claude', displayName: 'Claude', description: 'Claude' }]);
+		const events = { disposed: false, cleared: [] as (IPortableChatDraft | undefined)[] };
+		const widget: { viewModel?: { model: IChatModel } } = {};
+		const model = upcastPartial<IChatModel>({
+			sessionResource,
+			hasRequests,
+			inputModel: upcastPartial<IInputModel>({ state: constObservable({ ...unsent, mode: { id: 'claude-mode', kind: undefined }, selectedModel: undefined, contrib: { claude: true } }) }),
+		});
+		const pane: {
+			acquireTransferredOrPersistedSession(token: CancellationToken, debugOwner: string): Promise<{ modelRef?: IChatModelReference; draft?: IPortableChatDraft }>;
+			_applyModel(token: CancellationToken): Promise<void>;
+			replaceUnusableEmptyDraft(trigger: 'restored' | 'availabilityChanged'): void;
+		} = Object.assign(Object.create(ChatViewPane.prototype), {
 			viewState: { sessionResource },
+			_widget: widget,
 			managedSettingsService: new NullManagedSettingsService(),
+			// Restoring must not wait on account policy, which can need a network round trip.
+			accountPolicyGateService: { gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: () => new Promise<void>(() => { }) },
 			configurationService,
 			workspaceContextService: new TestContextService(),
 			storageService: store.add(new TestStorageService()),
-			chatSessionsService: new MockChatSessionsService(),
+			chatSessionsService,
 			agentHostEnablementService: { enabled: constObservable(true), managedSandboxEnforced: constObservable(false) },
 			chatService: {
 				transferredSessionResource: undefined,
-				acquireOrLoadSession: async (resource: URI): Promise<IChatModelReference> => ({ object: upcastPartial<IChatModel>({ sessionResource: resource, hasRequests }), dispose: () => { disposed = true; } }),
+				acquireOrLoadSession: async (): Promise<IChatModelReference> => ({ object: model, dispose: () => { events.disposed = true; } }),
 			},
+			showModel: async (_token: CancellationToken, modelRef: IChatModelReference | undefined) => {
+				widget.viewModel = modelRef && { model: modelRef.object };
+				whileShowing?.();
+			},
+			clear: async (draft?: IPortableChatDraft) => { events.cleared.push(draft); },
 		});
-		const { modelRef } = await pane.acquireTransferredOrPersistedSession(CancellationToken.None, 'test');
-		return { restored: !!modelRef, disposed };
+		return { pane, events };
 	}
 
-	test('skips only an empty draft of the disabled harness', async () => {
+	async function restore(sessionResource: URI, hasRequests: boolean, claudeDisabled: boolean) {
+		const { pane, events } = createPane(sessionResource, hasRequests, { claudeDisabled });
+		const { modelRef, draft } = await pane.acquireTransferredOrPersistedSession(CancellationToken.None, 'test');
+		return { restored: !!modelRef, disposed: events.disposed, draft };
+	}
+
+	test('skips only an empty draft of the disabled harness and carries its unsent content', async () => {
 		const draft = URI.from({ scheme: SessionType.AgentHostClaude, path: '/untitled-abc' });
 		const saved = URI.from({ scheme: SessionType.AgentHostClaude, path: '/abc' });
 		assert.deepStrictEqual({
@@ -209,10 +235,35 @@ suite('ChatViewPane restored chat with a harness disabled by policy', () => {
 			savedChat: await restore(saved, false, true),
 			allowedDraft: await restore(draft, false, false),
 		}, {
-			emptyDraft: { restored: false, disposed: true },
-			draftWithRequests: { restored: true, disposed: false },
-			savedChat: { restored: true, disposed: false },
-			allowedDraft: { restored: true, disposed: false },
+			emptyDraft: { restored: false, disposed: true, draft: unsent },
+			draftWithRequests: { restored: true, disposed: false, draft: undefined },
+			savedChat: { restored: true, disposed: false, draft: undefined },
+			allowedDraft: { restored: true, disposed: false, draft: undefined },
+		});
+	});
+
+	test('replaces a restored draft when policy arrives after its model was acquired, without waiting for policy', async () => {
+		const draft = URI.from({ scheme: SessionType.AgentHostClaude, path: '/untitled-abc' });
+
+		// Policy settles while the restored draft is being shown.
+		const showingPolicy = { claudeDisabled: false };
+		const whileShowing = createPane(draft, false, showingPolicy, () => showingPolicy.claudeDisabled = true);
+		await whileShowing.pane._applyModel(CancellationToken.None);
+
+		// Policy arrives after the draft is shown, which withdraws the provider and changes availability.
+		const shownPolicy = { claudeDisabled: false };
+		const afterShown = createPane(draft, false, shownPolicy);
+		await afterShown.pane._applyModel(CancellationToken.None);
+		const beforePolicy = [...afterShown.events.cleared];
+		shownPolicy.claudeDisabled = true;
+		afterShown.pane.replaceUnusableEmptyDraft('availabilityChanged');
+
+		assert.deepStrictEqual({
+			whileShowing: whileShowing.events.cleared,
+			afterShown: { beforePolicy, afterPolicy: afterShown.events.cleared },
+		}, {
+			whileShowing: [unsent],
+			afterShown: { beforePolicy: [], afterPolicy: [unsent] },
 		});
 	});
 });
