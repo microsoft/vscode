@@ -1114,6 +1114,28 @@ suite('ChatConfiguration defaults', () => {
 			});
 		});
 
+		test('New Chat does not fall back to Local when only the Copilot harness is allowed', () => {
+			const sessions = createChatSessionsService(SessionType.AgentHostCopilot);
+			const cases = [
+				{ localDisabledBy: 'managed policy requires the Agent Host', settings: {}, managedSandboxEnforced: false, managedPolicyRequiresAgentHost: true },
+				{ localDisabledBy: 'managed sandbox', settings: {}, managedSandboxEnforced: true, managedPolicyRequiresAgentHost: false },
+				{ localDisabledBy: 'prefer Copilot harness', settings: { [ChatConfiguration.EditorPreferCopilotHarness]: true }, managedSandboxEnforced: false, managedPolicyRequiresAgentHost: false },
+				{ localDisabledBy: 'Local harness hidden', settings: { [ChatConfiguration.EditorLocalAgentEnabled]: false }, managedSandboxEnforced: false, managedPolicyRequiresAgentHost: false },
+			];
+			const types = [SessionType.AgentHostClaude, SessionType.AgentHostCodex];
+			const results = cases.flatMap(({ localDisabledBy, settings, managedSandboxEnforced, managedPolicyRequiresAgentHost }) => types.map(type => {
+				const configuration = createConfiguration([AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId], settings);
+				const storage = disposables.add(new TestStorageService());
+				storeUserSelectedSessionType(storage, type);
+				const resolve = (options?: IDefaultNewChatSessionTypeOptions) => getDefaultNewChatSessionType(configuration, sessions, storage, localWorkspace, true, options, managedSandboxEnforced, managedPolicyRequiresAgentHost);
+				return { localDisabledBy, type, remembered: resolve(), current: resolve({ currentSessionType: type }), explicit: resolve({ explicitOverride: type }) };
+			}));
+
+			assert.deepStrictEqual(results, cases.flatMap(({ localDisabledBy }) => types.map(type => ({
+				localDisabledBy, type, remembered: SessionType.AgentHostCopilot, current: SessionType.AgentHostCopilot, explicit: SessionType.AgentHostCopilot,
+			}))));
+		});
+
 		test('only the local provider that policy disables is excluded', () => {
 			const configuration = createConfiguration([AgentHostCodexAgentEnabledSettingId]);
 			const sessions = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude);
