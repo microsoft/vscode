@@ -691,6 +691,47 @@ suite('Session Artifacts', () => {
 		]);
 	});
 
+	test('uses a URL-only label once while preserving its generic location preview', () => {
+		const website = URI.parse('https://example.com/untitled');
+		const resource = URI.parse('myapp://team/item/42');
+		const artifacts: readonly ISessionArtifact[] = [
+			{ id: 'website', kind: SessionArtifactKind.Website, label: website.toString(true), isArtifact: false, link: website },
+			{ id: 'resource', kind: SessionArtifactKind.Resource, label: resource.toString(true), isArtifact: false, uri: resource },
+		];
+
+		const entries = buildSessionArtifactSections(artifacts, actions, labelService, true, new Set())
+			.flatMap(section => section.entries)
+			.map(entry => ({
+				label: entry.label,
+				ariaLabel: entry.ariaLabel,
+				ariaDescription: entry.ariaDescription,
+				hover: entry.hover?.content instanceof HTMLElement ? entry.hover.content.textContent : undefined,
+			}));
+
+		assert.deepStrictEqual(entries, [
+			{ label: website.toString(true), ariaLabel: `Open ${website.toString(true)}`, ariaDescription: undefined, hover: website.toString(true) },
+			{ label: resource.toString(true), ariaLabel: `Open ${resource.toString(true)}`, ariaDescription: undefined, hover: resource.toString(true) },
+		]);
+	});
+
+	test('keeps raw URL descriptions only for links without GitHub reference semantics', () => {
+		const artifacts: readonly ISessionArtifact[] = [
+			{ id: 'pull-request', kind: SessionArtifactKind.PullRequest, label: 'Pull request', isArtifact: false, isGitHub: true, link: URI.parse('https://github.com/microsoft/vscode/pull/12') },
+			{ id: 'issue', kind: SessionArtifactKind.Issue, label: 'Issue', isArtifact: false, isGitHub: true, link: URI.parse('https://github.com/microsoft/vscode/issues/34') },
+			{ id: 'invalid-issue', kind: SessionArtifactKind.Issue, label: 'Invalid issue', isArtifact: false, isGitHub: true, link: URI.parse('https://github.com/microsoft/vscode/issues/0') },
+		];
+
+		const entries = buildSessionArtifactSections(artifacts, actions, labelService, true, new Set())
+			.flatMap(section => section.entries)
+			.map(entry => ({ id: entry.id, ariaLabel: entry.ariaLabel, ariaDescription: entry.ariaDescription }));
+
+		assert.deepStrictEqual(entries, [
+			{ id: 'pull-request', ariaLabel: 'Open Pull Request #12: Pull request', ariaDescription: undefined },
+			{ id: 'issue', ariaLabel: 'Open Issue #34: Issue', ariaDescription: undefined },
+			{ id: 'invalid-issue', ariaLabel: 'Open Invalid issue', ariaDescription: 'https://github.com/microsoft/vscode/issues/0' },
+		]);
+	});
+
 	test('logs artifact and reference entry opens', () => {
 		const { presentation, telemetryEvents } = createPresentation([
 			{ id: 'file', kind: SessionArtifactKind.File, label: 'Report', isArtifact: true, uri: URI.file('/repo/report.md') },

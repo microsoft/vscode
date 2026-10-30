@@ -1324,7 +1324,9 @@ export class AgentHostSessionInputPills extends Disposable {
 				: gitHubKind
 					? getGitHubResourcePresentation(link, gitHubKind, undefined, label)
 					: undefined;
+			const gitHubHover = gitHubDetails?.hover.read(reader);
 			const displayLabel = gitHubPresentation?.label ?? label;
+			const resourceLocation = getChatPillResourceLocation(link, displayLabel);
 			const entry: IChatPillEntry = {
 				id: artifact.id,
 				label: displayLabel,
@@ -1338,9 +1340,11 @@ export class AgentHostSessionInputPills extends Disposable {
 						run: () => this._clipboardService.writeText(artifact.commitHash ?? commit!.sha),
 					}), chatPillCopyHashHoverLabel)],
 				} : {}),
-				...getChatPillResourceLocation(link, displayLabel),
+				...resourceLocation,
 				...gitHubPresentation,
-				...gitHubDetails?.hover,
+				...gitHubHover,
+				...(gitHubDetails ? { prefetch: gitHubDetails.prefetch } : {}),
+				...(gitHubDetails && !gitHubHover ? { ariaDescription: resourceLocation.ariaDescription } : {}),
 				open: () => this._openExternal(link),
 			};
 			return artifact.type === SessionArtifactType.Commit
