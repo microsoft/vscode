@@ -159,6 +159,12 @@ jobs:
             echo ##vso[task.prependpath]!SIGNTOOL_ROOT!
           displayName: Install SignTool (Windows ARM64)
 
+        # The NuGet access token is only needed to download SignTool. Clear it so
+        # that the sanity tests cannot write it to their logs.
+        - powershell: echo "##vso[task.setvariable variable=VSS_NUGET_ACCESSTOKEN]"
+          displayName: Clear NuGet access token
+          condition: always()
+
       # Node.js comes from the pipeline cache when possible. nodejs.org stalls from the shared
       # agent pools at times, so the bounded download below is only the fallback.
       - task: Cache@2
