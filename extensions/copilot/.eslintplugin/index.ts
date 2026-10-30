@@ -22,8 +22,9 @@ try {
 			})
 	);
 } catch (error) {
-	// Fail fast with contextual error to prevent silent cascading failures in eslint.config.js
-	throw new Error(`Failed to initialize Copilot ESLint plugin rules: ${error instanceof Error ? error.message : error}`);
+	// Fail fast with contextual error and preserve the original stack trace as error cause
+	const errorMessage = error instanceof Error ? error.message : String(error);
+	throw new Error(`Failed to initialize Copilot ESLint plugin rules: ${errorMessage}`, { cause: error });
 }
 
 export { rules };
