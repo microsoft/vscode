@@ -317,24 +317,29 @@ suite('CloudSandboxSessionFeed', () => {
 		});
 	}));
 
-	test('backs off short-lived sockets and resets only after a healthy connection', () => runWithFakedTimers<void>({ useFakeTimers: true, maxTaskCount: 1000 }, async () => {
-		const h = createFeed(store);
+	test('backs off short-lived sockets toward the negotiation ceiling and resets only after a healthy connection', () => runWithFakedTimers<void>({ useFakeTimers: true, maxTaskCount: 1000 }, async () => {
+		const attemptTimes: number[] = [];
+		const options = { connect: async () => { attemptTimes.push(Date.now()); return connection(); }, disconnectAfterMs: 1 as number | undefined };
+		const h = createFeed(store, options);
 		await h.feed.start();
 		const attempts: { beforeMinimum: number; afterMaximum: number }[] = [];
-		for (const maximumDelay of [1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 60_000, 60_000]) {
+		const maximumDelays = [1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000, 256_000, 512_000, 1_024_000, 1_800_000, 1_800_000];
+		for (const [index, maximumDelay] of maximumDelays.entries()) {
+			// Let the final reconnection stay up so a healthy minute can reset the backoff.
+			options.disconnectAfterMs = index === maximumDelays.length - 1 ? undefined : 1;
 			const before = h.requests.length;
-			h.sockets[h.sockets.length - 1].disconnect();
-			await timeout(maximumDelay / 2 - 1);
+			const dropped = attemptTimes[attemptTimes.length - 1] + 1;
+			await timeout(dropped + maximumDelay / 2 - Date.now() - 1);
 			const beforeMinimum = h.requests.length - before;
-			await timeout(maximumDelay / 2 + 2);
+			await timeout(dropped + maximumDelay - Date.now() + 1);
 			attempts.push({ beforeMinimum, afterMaximum: h.requests.length - before });
 		}
 		await timeout(60_001);
 		h.sockets[h.sockets.length - 1].disconnect();
 		await timeout(1_001);
 		assert.deepStrictEqual({ attempts, requests: h.requests.length, connected: h.feed.connected }, {
-			attempts: Array.from({ length: 8 }, () => ({ beforeMinimum: 0, afterMaximum: 1 })),
-			requests: 10,
+			attempts: maximumDelays.map(() => ({ beforeMinimum: 0, afterMaximum: 1 })),
+			requests: maximumDelays.length + 2,
 			connected: true,
 		});
 	}));
@@ -344,7 +349,7 @@ suite('CloudSandboxSessionFeed', () => {
 		await h.feed.start();
 		await timeout(30 * 60_000 - 1);
 		h.feed.dispose();
-		assert.ok(h.requests.length > 20 && h.requests.length <= 65, `Expected bounded ongoing recovery, got ${h.requests.length} negotiations in 30 minutes`);
+		assert.ok(h.requests.length >= 10 && h.requests.length <= 13, `Expected the reconnect delay to keep doubling, got ${h.requests.length} negotiations in 30 minutes`);
 	}));
 
 	test('probes disabled feeds once without opening a socket or retrying', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

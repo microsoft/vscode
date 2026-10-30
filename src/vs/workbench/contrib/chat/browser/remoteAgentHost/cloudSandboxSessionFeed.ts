@@ -15,9 +15,12 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ICloudSandboxTelemetryService, type CloudSandboxSessionFeedOutcome } from './cloudSandboxTelemetry.js';
 
 const LOG_PREFIX = '[CloudSandboxSessionFeed]';
-const reconnectPolicy = { initialDelayMs: 1_000, maxDelayMs: 60_000, jitter: true };
-/** Failed negotiations and handshakes retry far more slowly than dropped sockets: the service is the likely cause, and discovery polling covers the gap. */
-const retryPolicy = { initialDelayMs: 60_000, maxDelayMs: 30 * 60_000, jitter: true };
+/** Shared ceiling so that neither a flapping socket nor a failing service is retried more than a few times an hour. */
+const maxBackoffMs = 30 * 60_000;
+/** Dropped sockets reconnect within seconds, but every further drop before a healthy minute doubles the delay. */
+const reconnectPolicy = { initialDelayMs: 1_000, maxDelayMs: maxBackoffMs, jitter: true };
+/** Failed negotiations and handshakes start far slower: the service is the likely cause, and discovery polling covers the gap. */
+const retryPolicy = { initialDelayMs: 60_000, maxDelayMs: maxBackoffMs, jitter: true };
 const healthyConnectionMs = 60_000;
 
 type SessionFeedSocket = Pick<WebSocket, 'onmessage' | 'onerror' | 'onclose' | 'close'>;
