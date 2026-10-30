@@ -48,7 +48,7 @@ import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import product from '../../../product/common/product.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentHostProxyResolver, IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
-import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService, targetForUnownedMcpServer, type IAgentHostCustomizationEnablementService as ICustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
+import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService, targetForUnownedMcpServer, type ICustomizationEnablementTarget, type IAgentHostCustomizationEnablementService as ICustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import type { IAgentHostClientProxyConnection } from '../../common/agentHostClientProxyChannel.js';
 import type { IByokLmBridgeConnection, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
@@ -3541,6 +3541,20 @@ suite('CopilotAgent', () => {
 				// The prior Global disable saved before discovery must still apply:
 				assert.strictEqual(isCustomizationEnabled(published[0]), false);
 				assert.strictEqual(session.mcpServerOwners()?.get('native'), plugin.toString());
+
+				// Enabling the adopted server at Global scope overrides the unowned disable:
+				const ownedTarget: ICustomizationEnablementTarget = {
+					id: published[0].id,
+					type: CustomizationType.McpServer,
+					name: 'native',
+					source: URI.parse(published[0].uri),
+					owningPluginSource: plugin,
+					defaultEnabled: true,
+				};
+				enablementService.setEnablement(sessionUri.toString(), ownedTarget, CustomizationEnablementKind.Global, true);
+				await enablementService.whenIdle();
+				const reenabled = (await getDefaultChatCustomizations(agent, sessionUri)).filter(item => item.type === CustomizationType.McpServer);
+				assert.strictEqual(isCustomizationEnabled(reenabled[0]), true);
 			} finally {
 				await disposeAgent(agent);
 			}

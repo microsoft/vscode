@@ -266,26 +266,22 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		}
 
 		const persistentKey = this._persistentKey(target);
-		const unownedPersistentKey = this._unownedPersistentKey(target);
 		const decisions: CustomizationEnablement[] = [];
 		const sessionDecision = sessionEnablement.get(this._sessionKey(target));
 		if (sessionDecision !== undefined) {
 			decisions.push({ kind: CustomizationEnablementKind.Session, enabled: sessionDecision });
 		}
 		if (workingDirectory.kind === 'directory') {
-			const workspaceDecision = this._persistent.workingDirectories?.[workingDirectory.uri.toString()]?.[persistentKey]
-				?? (unownedPersistentKey ? this._persistent.workingDirectories?.[workingDirectory.uri.toString()]?.[unownedPersistentKey] : undefined);
+			const workspaceDecision = this._persistent.workingDirectories?.[workingDirectory.uri.toString()]?.[persistentKey];
 			if (workspaceDecision !== undefined) {
 				decisions.push({ kind: CustomizationEnablementKind.Workspace, uri: workingDirectory.uri.toString(), enabled: workspaceDecision });
 			}
 		}
-		const globalDecision = this._persistent.global?.[persistentKey]
-			?? (unownedPersistentKey ? this._persistent.global?.[unownedPersistentKey] : undefined);
+		const globalDecision = this._persistent.global?.[persistentKey];
 		if (globalDecision !== undefined) {
 			decisions.push({ kind: CustomizationEnablementKind.Global, enabled: globalDecision });
 		} else {
-			const clientGlobalDecision = this._clientGlobalEnablement.get(session)?.get(persistentKey)
-				?? (unownedPersistentKey ? this._clientGlobalEnablement.get(session)?.get(unownedPersistentKey) : undefined);
+			const clientGlobalDecision = this._clientGlobalEnablement.get(session)?.get(persistentKey);
 			if (clientGlobalDecision !== undefined) {
 				decisions.push({ kind: CustomizationEnablementKind.Global, enabled: clientGlobalDecision });
 			} else if (target.defaultEnabled !== undefined) {
@@ -574,11 +570,19 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 
 	private _setGlobalEnablement(session: string, target: ICustomizationEnablementTarget, enabled: boolean | undefined, removeRedundantWorkspaceDecisions: boolean): void {
 		const key = this._persistentKey(target);
+		const unownedKey = this._unownedPersistentKey(target);
 		const global = this._persistent.global ?? {};
-		this._setPersistentDecision('global', global, key, enabled, this._clientGlobalEnablement.get(session)?.get(key) ?? target.defaultEnabled ?? DEFAULT_CUSTOMIZATION_ENABLED);
+		const unownedGlobal = unownedKey ? global[unownedKey] : undefined;
+		const inherited = unownedGlobal !== undefined
+			? unownedGlobal
+			: (this._clientGlobalEnablement.get(session)?.get(key)
+				?? (unownedKey ? this._clientGlobalEnablement.get(session)?.get(unownedKey) : undefined)
+				?? target.defaultEnabled
+				?? DEFAULT_CUSTOMIZATION_ENABLED);
+		this._setPersistentDecision('global', global, key, enabled, inherited);
 		this._persistent = { ...this._persistent, global };
 		if (removeRedundantWorkspaceDecisions && global[key] !== undefined) {
-			this._removeRedundantWorkspaceDecisions(key);
+			this._removeRedundantWorkspaceDecisions(key, unownedKey);
 		}
 		this._persist();
 	}
@@ -612,31 +616,23 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	}
 
 	private _workspaceInheritedEnablement(session: string, target: ICustomizationEnablementTarget, workingDirectory: URI): boolean {
-		const persistentKey = this._persistentKey(target);
-		const unownedPersistentKey = this._unownedPersistentKey(target);
-		const workspace = this._persistent.workingDirectories?.[workingDirectory.toString()];
-		const decision = workspace?.[persistentKey]
-			?? (unownedPersistentKey ? workspace?.[unownedPersistentKey] : undefined);
-		return decision ?? this._globalEnablement(session, target);
+		return this._persistent.workingDirectories?.[workingDirectory.toString()]?.[this._persistentKey(target)] ?? this._globalEnablement(session, target);
 	}
 
 	private _globalEnablement(session: string, target: ICustomizationEnablementTarget): boolean {
 		const key = this._persistentKey(target);
-		const unownedKey = this._unownedPersistentKey(target);
-		return this._persistent.global?.[key]
-			?? (unownedKey ? this._persistent.global?.[unownedKey] : undefined)
-			?? this._clientGlobalEnablement.get(session)?.get(key)
-			?? (unownedKey ? this._clientGlobalEnablement.get(session)?.get(unownedKey) : undefined)
-			?? target.defaultEnabled
-			?? DEFAULT_CUSTOMIZATION_ENABLED;
+		return this._persistent.global?.[key] ?? this._clientGlobalEnablement.get(session)?.get(key) ?? target.defaultEnabled ?? DEFAULT_CUSTOMIZATION_ENABLED;
 	}
 
 	private _setWorkspace(session: string, target: ICustomizationEnablementTarget, workingDirectory: URI, enabled: boolean | undefined): void {
 		const key = this._persistentKey(target);
+		const unownedKey = this._unownedPersistentKey(target);
 		const directoryKey = workingDirectory.toString();
 		const workingDirectories = this._persistent.workingDirectories ?? {};
 		const workspace = workingDirectories[directoryKey] ?? {};
-		this._setPersistentDecision('workspace', workspace, key, enabled, this._globalEnablement(session, target), directoryKey);
+		const unownedWorkspace = unownedKey ? workspace[unownedKey] : undefined;
+		const inherited = unownedWorkspace !== undefined ? unownedWorkspace : this._globalEnablement(session, target);
+		this._setPersistentDecision('workspace', workspace, key, enabled, inherited, directoryKey);
 		workingDirectories[directoryKey] = workspace;
 		this._persistent = { ...this._persistent, workingDirectories };
 		this._persist();
@@ -672,13 +668,16 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	}
 
 	/** Prunes matching workspace decisions in every stored directory, preserving only overrides that beat the new global value. */
-	private _removeRedundantWorkspaceDecisions(key: string): void {
+	private _removeRedundantWorkspaceDecisions(key: string, unownedKey?: string): void {
 		const inherited = this._persistent.global?.[key];
 		if (inherited === undefined) {
 			return;
 		}
 		for (const [directory, values] of Object.entries(this._persistent.workingDirectories ?? {})) {
 			if (values[key] === inherited) {
+				if (unownedKey !== undefined && values[unownedKey] !== undefined && values[unownedKey] !== inherited) {
+					continue;
+				}
 				delete values[key];
 				this._removeLru('workspace', key, directory);
 			}
