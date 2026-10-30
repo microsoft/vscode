@@ -6,8 +6,11 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
+import { Event } from '../../../../base/common/event.js';
 import { PolicyName } from '../../../../base/common/policy.js';
+import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { AbstractPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../common/policy.js';
+import { PolicyChannelClient } from '../../common/policyIpc.js';
 
 class TestPolicyService extends AbstractPolicyService {
 	update(name: PolicyName, value: PolicyValue | undefined, source: PolicyValueSource | undefined): boolean {
@@ -51,6 +54,28 @@ suite('AbstractPolicyService', () => {
 		assert.doesNotThrow(() => structuredClone(serialized));
 
 		service.dispose();
+	});
+
+	test('channel client omits non-cloneable value callbacks', async () => {
+		let sentDefinitions: IStringDictionary<PolicyDefinition> | undefined;
+		const channel: IChannel = {
+			call: async <T>(_command: string, definitions?: unknown): Promise<T> => {
+				sentDefinitions = definitions as IStringDictionary<PolicyDefinition>;
+				structuredClone(definitions);
+				return {} as T;
+			},
+			listen: () => Event.None
+		};
+		const client = new PolicyChannelClient({}, channel);
+
+		await client.updatePolicyDefinitions({
+			WithCallback: { type: 'boolean', value: () => false, restrictedValue: false }
+		});
+
+		assert.deepStrictEqual(sentDefinitions, {
+			WithCallback: { type: 'boolean', managedSettings: undefined, restrictedValue: false }
+		});
+		client.dispose();
 	});
 
 	test('tracks value and source changes together', () => {
