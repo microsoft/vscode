@@ -177,7 +177,6 @@ suite('RemoteConnectionsActionViewItem', () => {
 				void sharing.setEnabled(false);
 			}
 		}));
-		const commands = new TestCommandService();
 		const notifications = new TestNotificationService();
 		let menuActions: readonly IActionWidgetDropdownAction[] = [];
 		let menuItems: { label: string | undefined; detail: string | undefined; badge: string | undefined; role: string | undefined }[] = [];
@@ -219,11 +218,13 @@ suite('RemoteConnectionsActionViewItem', () => {
 		instantiation.stub(IActionViewItemService, new NullActionViewItemService());
 		instantiation.stub(ILogService, store.add(new NullLogService()));
 		const commands = new TestCommandService();
-		const executeCommand = stub(commands, 'executeCommand').callsFake(async id => {
+		const executeCommand = stub(commands, 'executeCommand').callsFake(async (id, ...args) => {
 			if (id === RemoteTunnelCommandIds.turnOn) {
 				remoteTunnel.fireStatus({ type: 'connected', info: { tunnelName: 'tunnel', isAttached: false }, serviceInstallFailed: false });
 			} else if (id === RemoteTunnelCommandIds.turnOff) {
 				await remoteTunnel.stopTunnel();
+			} else {
+				commands.commands.push({ id, args });
 			}
 			return undefined;
 		});
@@ -266,11 +267,12 @@ suite('RemoteConnectionsActionViewItem', () => {
 		const { openMenu, commands } = fixture('devTunnel', { quality: 'insider', isChatInput: false });
 		const actions = openMenu();
 		assert.deepStrictEqual(actions.map(action => ({ id: action.id, label: action.label, detail: action.detail })), [
+			{ id: 'remoteConnections.off', label: 'Off', detail: undefined },
 			{ id: 'remoteConnections.devTunnel', label: 'Dev Tunnels', detail: 'Let supported VS Code and browser clients reach agents and folders on this computer. Remote Tunnels can also open the full editor.' },
 			{ id: 'remoteConnections.githubEnvironment', label: 'GitHub Environments', detail: 'Continue agents and use folders on this computer from supported VS Code, browser, GitHub, and Copilot clients.' },
 			{ id: 'workbench.action.sessions.manageRemoteAgentHosts', label: 'Manage Remote Agent Hosts...', detail: 'View this computer and remote connection routes.' },
 		]);
-		await actions[2].run();
+		await actions[3].run();
 		assert.deepStrictEqual(commands.commands, [{ id: 'workbench.action.sessions.manageRemoteAgentHosts', args: [] }]);
 	});
 
