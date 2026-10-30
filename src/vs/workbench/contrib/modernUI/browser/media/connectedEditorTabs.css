@@ -249,6 +249,10 @@
 	inset-block: calc((var(--modern-ui-connected-tab-row-height) - var(--editor-group-tab-height)) / 2);
 }
 
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping):not(.connected-tab-upper-bar) .tabs-container > .tab:not(.active):not(.selected):not(.dirty-border-top):is(:hover, .hovered, :focus-within) > .tab-fill {
+	inset-block: 0 calc(-1 * var(--vscode-strokeThickness));
+}
+
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.selected.multi-selected:not(.active):not(.connected-tab-upper-row) > .tab-fill {
 	inset-block: var(--modern-ui-connected-tab-fill-block-inset) calc(-1 * var(--vscode-strokeThickness));
 	border-radius: var(--modern-ui-connected-tab-cap-radius) var(--modern-ui-connected-tab-cap-radius) 0 0;
@@ -807,7 +811,7 @@
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row):is(.tab-border-top, .dirty-border-top, .multi-selected) > .tab-connected-edge,
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.selected.multi-selected:not(.active):not(.connected-tab-upper-row) > .tab-fill {
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping):not(.connected-tab-upper-bar) .tabs-container > .tab.selected.multi-selected:not(.active):not(.connected-tab-upper-row) > .tab-fill {
 	background-position: 0 var(--vscode-strokeThickness);
 }
 

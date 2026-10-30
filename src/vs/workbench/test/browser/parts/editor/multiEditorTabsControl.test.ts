@@ -2991,9 +2991,12 @@ suite('MultiEditorTabsControl', () => {
 		})));
 	});
 
-	test('single-row Connected inactive fills retain their geometry on hover and focus', async () => {
+	test('single-row Connected selected and modified inactive fills retain their geometry on hover and focus', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		const themeService = instantiationService.get(IThemeService);
+		assert.ok(themeService instanceof TestThemeService);
+		themeService.setTheme(new TestColorTheme({ 'tab.inactiveModifiedBorder': '#22d3ee' }));
 		const dirty = disposables.add(new TestFileEditorInput(URI.file('/path/dirty.ts'), 'testEditorInput'));
 		dirty.setDirty();
 		model.openEditor(dirty, { pinned: true, active: false });
@@ -3008,7 +3011,7 @@ suite('MultiEditorTabsControl', () => {
 				partOptions = { ...partOptions, tabHeight, wrapTabs: false, highlightModifiedTabs: true };
 				control.updateOptions(oldOptions, partOptions);
 				await layoutConnectedGroup(group, 900);
-				for (const tab of container.querySelectorAll<HTMLElement>('.tab:not(.active)')) {
+				for (const tab of container.querySelectorAll<HTMLElement>('.tab:not(.active):is(.multi-selected, .dirty-border-top)')) {
 					const fill = tab.querySelector<HTMLElement>('.tab-fill')!;
 					const bounds = () => {
 						const rect = fill.getBoundingClientRect();
@@ -3029,6 +3032,56 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(results, results.map(result => ({
 			...result, hovered: result.resting, focused: result.resting,
 		})));
+	});
+
+	test('wrapped bottom-row selection accents do not add a second top stroke', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		root.style.setProperty('--vscode-tab-selectedBorderTop', '#0080ff');
+		const themeService = instantiationService.get(IThemeService);
+		assert.ok(themeService instanceof TestThemeService);
+		themeService.setTheme(new TestColorTheme({
+			'tab.selectedBorderTop': '#0080ff',
+			'tab.inactiveModifiedBorder': '#22d3ee',
+		}));
+		const dirty = disposables.add(new TestFileEditorInput(URI.file('/path/wrapped-modified-selected.ts'), 'testEditorInput'));
+		dirty.setDirty();
+		model.openEditor(dirty, { index: model.count, pinned: true, active: false });
+		const active = model.getEditorByIndex(0)!;
+		model.setSelection(active, model.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => editor !== active));
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		control.updateEditorSelections();
+		const actual = [];
+		const expected = [];
+		for (const highlightModifiedTabs of [false, true]) {
+			const oldOptions = partOptions;
+			partOptions = { ...partOptions, wrapTabs: true, highlightModifiedTabs, editorActionsLocation: 'hidden', tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120 };
+			control.updateOptions(oldOptions, partOptions);
+			await layoutConnectedGroup(group, 280);
+			const tab = container.querySelector<HTMLElement>('.tab.dirty')!;
+			const fill = mainWindow.getComputedStyle(tab.querySelector<HTMLElement>('.tab-fill')!);
+			actual.push({
+				highlightModifiedTabs,
+				wrapping: container.querySelector('.tabs-and-actions-container')!.classList.contains('wrapping'),
+				upperRow: tab.classList.contains('connected-tab-upper-row'),
+				selected: tab.getAttribute('aria-selected'),
+				position: fill.backgroundPositionY,
+				image: fill.backgroundImage,
+				borderColor: fill.borderTopColor,
+			});
+			const color = highlightModifiedTabs ? 'rgb(34, 211, 238)' : 'rgb(0, 128, 255)';
+			const thickness = highlightModifiedTabs ? 2 : 1;
+			expected.push({
+				highlightModifiedTabs,
+				wrapping: true,
+				upperRow: false,
+				selected: 'true',
+				position: '0%',
+				image: `linear-gradient(${color} ${thickness}px, rgba(0, 0, 0, 0) ${thickness}px)`,
+				borderColor: color,
+			});
+		}
+		assert.deepStrictEqual(actual, expected);
 	});
 
 	test('wrapped fills retain equal content heights and only the active bottom cap joins the document', async () => {
