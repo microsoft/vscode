@@ -1098,7 +1098,10 @@ export class QuickInputList extends Disposable {
 			const elementsWithoutSeparators = e.elements.filter((e): e is QuickPickItemElement => e instanceof QuickPickItemElement);
 			if (elementsWithoutSeparators.length !== e.elements.length) {
 				if (e.elements.length === 1 && e.elements[0] instanceof QuickPickSeparatorElement) {
-					this._tree.setFocus([e.elements[0].children[0]]);
+					const firstItem = this._getFirstVisibleItem(e.elements[0]);
+					if (firstItem) {
+						this._tree.setFocus([firstItem]);
+					}
 					this._tree.reveal(e.elements[0], 0);
 				}
 				this._tree.setSelection(elementsWithoutSeparators);
@@ -1285,7 +1288,7 @@ export class QuickInputList extends Disposable {
 						return false;
 					}
 					const parent = this._tree.getParentElement(e.element);
-					if (parent === null || (parent as QuickPickSeparatorElement).children[0] !== e.element) {
+					if (parent === null || this._getFirstVisibleItem(parent) !== e.element) {
 						this._tree.reveal(e.element);
 					} else {
 						// Only if we are the first child of a separator do we reveal the separator
@@ -1314,7 +1317,7 @@ export class QuickInputList extends Disposable {
 						return false;
 					}
 					const parent = this._tree.getParentElement(e.element);
-					if (parent === null || (parent as QuickPickSeparatorElement).children[0] !== e.element) {
+					if (parent === null || this._getFirstVisibleItem(parent) !== e.element) {
 						this._tree.reveal(e.element);
 					} else {
 						this._tree.reveal(parent);
@@ -1336,7 +1339,10 @@ export class QuickInputList extends Disposable {
 						foundSeparatorAsItem = true;
 						// If the separator is visible, then we should just reveal its first child so it's not as jarring.
 						if (this._separatorRenderer.isSeparatorVisible(e.element)) {
-							this._tree.reveal(e.element.children[0]);
+							const firstItem = this._getFirstVisibleItem(e.element);
+							if (firstItem) {
+								this._tree.reveal(firstItem);
+							}
 						} else {
 							// If the separator is not visible, then we should
 							// push it up to the top of the list.
@@ -1382,7 +1388,7 @@ export class QuickInputList extends Disposable {
 								} else {
 									this._tree.reveal(e.element, 0);
 								}
-								focusElement = e.element.children[0];
+								focusElement = this._getFirstVisibleItem(e.element);
 							}
 						} else {
 							foundSeparator = true;
@@ -1583,6 +1589,16 @@ export class QuickInputList extends Disposable {
 	//#endregion
 
 	//#region private methods
+
+	private _getFirstVisibleItem(separator: IQuickPickElement): QuickPickItemElement | undefined {
+		const navigator = this._tree.navigate(separator);
+		for (let element = navigator.next(); element; element = navigator.next()) {
+			if (element instanceof QuickPickItemElement) {
+				return element;
+			}
+		}
+		return undefined;
+	}
 
 	private _setElementsToTree(elements: IQuickPickElement[]) {
 		const treeElements = new Array<IObjectTreeElement<IQuickPickElement>>();

@@ -21,7 +21,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { backButton, IQuickInputStyles, QuickPick } from '../../browser/quickInput.js';
-import { IQuickPick, IQuickPickItem, ItemActivation, isKeyModified, NO_KEY_MODS } from '../../common/quickInput.js';
+import { IQuickPick, IQuickPickItem, ItemActivation, isKeyModified, NO_KEY_MODS, QuickPickFocus } from '../../common/quickInput.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IThemeService } from '../../../theme/common/themeService.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
@@ -186,6 +186,37 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 			reattached: fixture.querySelector('.quick-input-html-widget')?.firstElementChild === content,
 		}, { focusedDuringUpdate: true, reattached: true });
 	});
+
+	for (const action of ['click', 'next', 'previous']) {
+		test(`filtered action headers focus the first visible command (${action})`, async () => {
+			controller.layout({ height: 500, width: 600 }, 0);
+			const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+			picker.sortByLabel = false;
+			const visible = { label: 'hit one' };
+			const other = { label: 'hit two' };
+			picker.items = [
+				{ type: 'separator', label: 'Commands', buttons: [{ iconClass: 'codicon-add', tooltip: 'Add' }] },
+				{ label: 'hidden command' }, visible,
+				{ type: 'separator', label: 'Other commands', buttons: [{ iconClass: 'codicon-add', tooltip: 'Add' }] },
+				other,
+			];
+			picker.value = 'hit';
+			picker.show();
+			if (action === 'click') {
+				fixture.querySelector<HTMLElement>('.quick-input-list-separator-as-item')!.click();
+			} else {
+				picker.activeItems = [other];
+				picker.focus(action === 'next' ? QuickPickFocus.NextSeparator : QuickPickFocus.PreviousSeparator);
+			}
+			let accepted: string[] = [];
+			store.add(picker.onDidAccept(() => accepted = picker.activeItems.map(item => item.label)));
+			await controller.accept();
+			assert.deepStrictEqual({
+				active: picker.activeItems.map(item => item.label),
+				accepted,
+			}, { active: ['hit one'], accepted: ['hit one'] });
+		});
+	}
 
 	test('close motion requires modern UI with motion enabled', () => {
 		const clock = sinon.useFakeTimers();
