@@ -138,8 +138,8 @@
 /* Getting-started tip demoted below the input in the experimental composer. */
 .experimental-new-session-composer .new-session-getting-started-tip-below {
 	width: 100%;
-	/* Extra top gap so the tip's hover actions, which float above its top edge, clear the input. */
-	margin-top: var(--vscode-spacing-size160);
+	/* Keep the floating toolbar inside the parent's scrollable area. */
+	padding-top: var(--vscode-spacing-size200);
 }
 
 /* As a standalone card (not attached above the input) the tip takes a full border and
