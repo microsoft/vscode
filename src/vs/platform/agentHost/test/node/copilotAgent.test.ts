@@ -2405,7 +2405,7 @@ suite('CopilotAgent', () => {
 	});
 
 	for (const scenario of [
-		{ name: 'disabled target and unrelated failure', enabled: false, statuses: ['disabled'], succeeds: false, expectedError: /Couldn't apply the Canvas extension change to this chat because the 'other' Canvas extension failed to start. The 'preview' Canvas extension is disabled in settings/ },
+		{ name: 'disabled target and unrelated failure', enabled: false, statuses: ['disabled'], succeeds: false, expectedError: /After disabling 'preview', this chat couldn't finish updating canvas extensions because 'other' failed to start. This chat may not match your Canvas extension settings/ },
 		{ name: 'running target and unrelated failure', enabled: true, statuses: ['running'], succeeds: true },
 		{ name: 'target still running', enabled: false, statuses: ['running'], succeeds: false },
 		{ name: 'target still starting', enabled: true, statuses: ['starting'], succeeds: false },

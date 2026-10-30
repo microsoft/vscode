@@ -612,7 +612,7 @@ suite('CopilotCanvasesWidget', () => {
 				return [preview];
 			},
 			onMutation: () => failCanvasListing = true,
-			mutationError: new Error('Couldn\'t apply the Canvas extension change to this chat because the \'Other\' Canvas extension failed to start. The \'Preview Extension\' Canvas extension is disabled in settings.'),
+			mutationError: new Error('After disabling \'Preview Extension\', this chat couldn\'t finish updating canvas extensions because \'Other\' failed to start. This chat may not match your Canvas extension settings.'),
 		});
 		await timeout(20);
 		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable canvas extension \'Preview Extension\'"]');
@@ -627,7 +627,7 @@ suite('CopilotCanvasesWidget', () => {
 		}, {
 			refreshed: true,
 			checked: 'false',
-			notifications: ['Couldn\'t apply the Canvas extension change to this chat because the \'Other\' Canvas extension failed to start. The \'Preview Extension\' Canvas extension is disabled in settings.'],
+			notifications: ['After disabling \'Preview Extension\', this chat couldn\'t finish updating canvas extensions because \'Other\' failed to start. This chat may not match your Canvas extension settings.'],
 		});
 	});
 

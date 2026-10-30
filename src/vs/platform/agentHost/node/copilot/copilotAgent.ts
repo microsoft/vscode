@@ -3033,13 +3033,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		} catch (error) {
 			if (!enabled && error instanceof CopilotExtensionReconciliationError && error.failedExtensions.length > 0) {
 				const detail = error.failedExtensions.length === 1
-					? localize('copilot.extensionReconcileOtherFailed', "the '{0}' Canvas extension failed to start", error.failedExtensions[0].name)
+					? localize('copilot.extensionReconcileOtherFailed', "'{0}' failed to start", error.failedExtensions[0].name)
 					: localize('copilot.extensionReconcileOthersFailed', "other Canvas extensions failed to start");
 				throw new Error(localize(
 					'copilot.extensionDisableRefreshFailed',
-					"Couldn't apply the Canvas extension change to this chat because {0}. The '{1}' Canvas extension is disabled in settings.",
-					detail,
+					"After disabling '{0}', this chat couldn't finish updating canvas extensions because {1}. This chat may not match your Canvas extension settings.",
 					extension.name,
+					detail,
 				));
 			}
 			throw new Error(enabled
