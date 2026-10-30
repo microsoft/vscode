@@ -91,10 +91,6 @@ There are unit tests which run in Node.JS:
 npm run test:unit
 ```
 
-Snippy request construction is shared by accepted inline completions and next-edit suggestions. Its tokenizer uses pinned Unicode 15 categories so eligibility does not change with the JavaScript runtime. Short insertions include genuine preceding context, tokenized across the join; sources still below the 110-lexeme client minimum are skipped. Insertions above 3,000 lexemes or sources containing unpaired surrogates are skipped with a debug diagnostic, without truncating or rewriting the insertion. The server minimum is index-specific: 110 is a mitigation, not negotiated capability, and skips some checks that a 65-minimum index could accept. Supported deployment settings and that coverage tradeoff require backend confirmation. Remaining next-edit Match and FilesForMatch failures are logged separately.
-
-Run the focused tokenizer and request tests with `npm run test:unit -- src/platform/snippy/test/common/snippyCompute.spec.ts src/extension/completions-core/vscode-node/lib/src/snippy/test/requests.spec.ts`. When changing tokenizer categories, validate against the server tokenizer as well; model/BPE token counts are not equivalent.
-
 There are also integration tests that run within VS Code itself:
 
 ```
