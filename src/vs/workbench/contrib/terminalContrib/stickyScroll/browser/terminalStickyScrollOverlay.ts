@@ -21,6 +21,7 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ICommandDetectionCapability, ITerminalCommand } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ICurrentPartialCommand, isFullTerminalCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
+import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { ITerminalConfigurationService, ITerminalInstance, IXtermColorProvider, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { openContextMenu } from '../../../terminal/browser/terminalContextMenu.js';
@@ -52,7 +53,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private readonly _xtermAddonLoader = new XtermAddonImporter();
 	private _serializeAddon?: SerializeAddonType;
 	private readonly _webglAddon: MutableDisposable<WebglAddonType> = this._register(new MutableDisposable());
+	private readonly _webglContextLossListener = this._register(new MutableDisposable());
 	private _webglAddonCustomGlyphs?: boolean;
+	private _isWebglUnavailable = false;
 	private _ligaturesAddon?: LigaturesAddonType;
 
 	private _element?: HTMLElement;
@@ -98,6 +101,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			}
 			if (!e || e.affectsConfiguration(TerminalStickyScrollSettingId.IgnoredCommands)) {
 				this._ignoredCommands = configurationService.getValue(TerminalStickyScrollSettingId.IgnoredCommands);
+			}
+			if (e?.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
+				this._isWebglUnavailable = false;
 			}
 		}));
 
@@ -519,14 +525,29 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				customGlyphs: this._terminalConfigurationService.config.customGlyphs
 			});
 			this._webglAddonCustomGlyphs = this._terminalConfigurationService.config.customGlyphs;
-			this._stickyScrollOverlay?.loadAddon(this._webglAddon.value);
+			try {
+				this._stickyScrollOverlay?.loadAddon(this._webglAddon.value);
+				this._webglContextLossListener.value = this._webglAddon.value.onContextLoss(() => this._disableWebgl());
+			} catch {
+				this._disableWebgl();
+			}
 		} else if (!this._shouldLoadWebgl() && this._webglAddon.value) {
 			this._webglAddon.clear();
 		}
 	}
 
+	/**
+	 * Falls back to the DOM renderer until the GPU acceleration setting changes, otherwise the next
+	 * options sync would recreate the addon on a lost or unavailable WebGL context.
+	 */
+	private _disableWebgl() {
+		this._isWebglUnavailable = true;
+		this._webglContextLossListener.clear();
+		this._webglAddon.clear();
+	}
+
 	private _shouldLoadWebgl(): boolean {
-		return this._terminalConfigurationService.config.gpuAcceleration === 'auto' || this._terminalConfigurationService.config.gpuAcceleration === 'on';
+		return !this._isWebglUnavailable && (this._terminalConfigurationService.config.gpuAcceleration === 'auto' || this._terminalConfigurationService.config.gpuAcceleration === 'on');
 	}
 
 	private _getTheme(isHovering: boolean): ITheme {

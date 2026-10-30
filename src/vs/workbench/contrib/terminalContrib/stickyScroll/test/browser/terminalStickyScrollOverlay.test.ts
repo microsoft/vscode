@@ -5,7 +5,7 @@
 
 import type { Terminal } from '@xterm/xterm';
 import { deepStrictEqual, ok } from 'assert';
-import { SinonFakeTimersConfig, useFakeTimers } from 'sinon';
+import { SinonFakeTimersConfig, stub, useFakeTimers } from 'sinon';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { $, getWindow } from '../../../../../../base/browser/dom.js';
 import { Orientation, SplitView } from '../../../../../../base/browser/ui/splitview/splitview.js';
@@ -13,16 +13,18 @@ import { Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandDetectionCapability, ITerminalCommand, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
-import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
+import { TerminalLocation, TerminalSettingId } from '../../../../../../platform/terminal/common/terminal.js';
 import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { ITerminalInstance, IXtermTerminal } from '../../../../terminal/browser/terminal.js';
 import { ITerminalContributionContext } from '../../../../terminal/browser/terminalExtensions.js';
-import { XtermAddonImporter } from '../../../../terminal/browser/xterm/xtermAddonImporter.js';
+import { type IXtermAddonNameToCtor, XtermAddonImporter } from '../../../../terminal/browser/xterm/xtermAddonImporter.js';
+import { TestWebglAddon } from '../../../../terminal/test/browser/xterm/xtermTestUtils.js';
 import { TerminalStickyScrollContribution } from '../../browser/terminalStickyScrollContribution.js';
 import '../../../../terminal/browser/media/terminal.css';
 import '../../../../terminal/browser/media/xterm.css';
@@ -42,17 +44,19 @@ suite('TerminalStickyScrollOverlay', () => {
 		promptRowCount = 1,
 		show = true,
 		location = 'panel',
-		fontSize = 14
+		fontSize = 14,
+		gpuAcceleration = 'off'
 	}: {
 		promptRowCount?: number;
 		show?: boolean;
 		location?: 'panel' | 'side' | 'editor' | 'fixed' | 'upper split';
 		fontSize?: number;
+		gpuAcceleration?: 'auto' | 'on' | 'off';
 	} = {}) {
 		const configurationService = new TestConfigurationService({
 			terminal: {
 				integrated: {
-					gpuAcceleration: 'off',
+					gpuAcceleration,
 					stickyScroll: { enabled: true, maxLineCount: 5, ignoredCommands: [] }
 				}
 			}
@@ -171,8 +175,38 @@ suite('TerminalStickyScrollOverlay', () => {
 			contribution.layout();
 		}
 
-		return { raw, contribution, root, pane, element, screen, terminalScreen: raw.screenElement, endMarker, clock, write, layout };
+		return { raw, contribution, configurationService, root, pane, element, screen, terminalScreen: raw.screenElement, endMarker, clock, write, layout };
 	}
+
+	test('falls back to the DOM renderer until gpuAcceleration changes when the WebGL context is lost', async () => {
+		const importAddon = XtermAddonImporter.prototype.importAddon;
+		const importStub = stub(XtermAddonImporter.prototype, 'importAddon').callsFake(function (this: XtermAddonImporter, name) {
+			return name === 'webgl' ? Promise.resolve(TestWebglAddon as unknown as IXtermAddonNameToCtor['webgl']) : importAddon.call(this, name);
+		});
+		store.add(toDisposable(() => importStub.restore()));
+		TestWebglAddon.customGlyphOptions.length = 0;
+		const { raw, configurationService, clock } = await createOverlay(false, { gpuAcceleration: 'on' });
+		const loaded = { created: TestWebglAddon.customGlyphOptions.length, enabled: TestWebglAddon.isEnabled };
+
+		TestWebglAddon.lastInstance?.fireContextLoss();
+		// Resizing syncs the overlay options, which used to recreate the addon on the lost context
+		raw.resize(81, raw.rows);
+		await clock.tickAsync(100);
+		const lost = { created: TestWebglAddon.customGlyphOptions.length, enabled: TestWebglAddon.isEnabled };
+
+		await configurationService.setUserConfiguration('terminal', { integrated: { gpuAcceleration: 'auto', stickyScroll: { enabled: true, maxLineCount: 5, ignoredCommands: [] } } });
+		configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string) { return TerminalSettingId.GpuAcceleration.startsWith(section); }
+		});
+		await clock.tickAsync(100);
+		const changed = { created: TestWebglAddon.customGlyphOptions.length, enabled: TestWebglAddon.isEnabled };
+
+		deepStrictEqual({ loaded, lost, changed }, {
+			loaded: { created: 1, enabled: true },
+			lost: { created: 1, enabled: false },
+			changed: { created: 2, enabled: true }
+		});
+	});
 
 	for (const modernUI of [false, true]) {
 		suite(modernUI ? 'Modern UI' : 'Classic UI', () => {
