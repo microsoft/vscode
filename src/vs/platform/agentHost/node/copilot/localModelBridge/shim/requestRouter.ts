@@ -384,7 +384,7 @@ export function readFallbackModel(value: unknown): ILocalModelFallbackModel | un
 	if (!isObject(value) || typeof value.id !== 'string' || !value.id || isLocalCapiModelId(value.id)) {
 		return undefined;
 	}
-	if (!Array.isArray(value.supported_endpoints) || !value.supported_endpoints.includes('/chat/completions')) {
+	if (value.supported_endpoints !== undefined && (!Array.isArray(value.supported_endpoints) || !value.supported_endpoints.includes('/chat/completions'))) {
 		return undefined;
 	}
 	const capabilities = isObject(value.capabilities) ? value.capabilities : undefined;
