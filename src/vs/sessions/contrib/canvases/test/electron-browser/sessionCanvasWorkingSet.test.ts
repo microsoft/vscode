@@ -39,6 +39,7 @@ import { BaseLayoutController } from '../../../layout/browser/baseSessionLayoutC
 import { createTestHarness, makeSession } from '../../../layout/test/browser/layoutControllerTestUtils.js';
 import { SessionCanvasContextService } from '../../electron-browser/sessionCanvasService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { IPinnedCanvasService } from '../../browser/pinnedCanvases.js';
 import { SessionCanvasSerializer } from '../../electron-browser/sessionCanvasSerializer.js';
 import { IWindowCanvas, IWindowCanvasService, WindowCanvasInput, WindowCanvasService } from '../../../../services/canvas/browser/windowCanvasService.js';
 import { WindowCanvasEditor } from '../../browser/windowCanvasEditor.js';
@@ -96,6 +97,7 @@ suite('Session canvas working sets', () => {
 		harness.instaService.stub(IChatService, upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }));
 		harness.instaService.stub(ICustomViewService, upcastPartial<ICustomViewService>({ activeCustomView: constObservable(undefined) }));
 		store.add(harness.instaService.createInstance(TestCanvasLayoutController));
+		harness.instaService.stub(IPinnedCanvasService, upcastPartial<IPinnedCanvasService>({ entries: constObservable([]), getTrackedCanvas: () => undefined, isPinned: () => false, isShown: () => false }));
 		harness.instaService.stub(ICanvasContextService, store.add(harness.instaService.createInstance(SessionCanvasContextService)));
 		const canvasService = store.add(harness.instaService.createInstance(CanvasService));
 		instantiationService.stub(ICanvasService, canvasService);
