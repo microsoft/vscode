@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { OperatingSystem } from '../../../base/common/platform.js';
 import { upcast } from '../../../base/common/types.js';
-import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { IProductService } from '../../product/common/productService.js';
 
 export interface IUpdate {
 	version: string; // Build commit ID
@@ -116,19 +115,12 @@ export const IUpdateService = createDecorator<IUpdateService>('updateService');
 export const RESTART_WHEN_IDLE_SETTING = 'update.restartWhenIdle';
 
 /**
- * Whether a downloaded update can be applied by restarting while the screen is locked. On Windows,
- * only user setup with background updates installs updates without elevation or installer UI.
+ * Whether a downloaded update can be applied by restarting while the screen is locked. Windows
+ * is not verified yet: restored windows might show on top of the application the user was in.
  * Linux reports no screen locks and does not install updates on restart.
  */
-export function isUnattendedRestartSupported(os: OperatingSystem, productService: IProductService, configurationService: IConfigurationService): boolean {
-	switch (os) {
-		case OperatingSystem.Macintosh:
-			return true;
-		case OperatingSystem.Windows:
-			return productService.target === 'user' && configurationService.getValue<boolean>('update.enableWindowsBackgroundUpdates') === true;
-		default:
-			return false;
-	}
+export function isUnattendedRestartSupported(os: OperatingSystem): boolean {
+	return os === OperatingSystem.Macintosh;
 }
 
 export interface IQuitAndInstallOptions {
@@ -145,6 +137,12 @@ export interface IQuitAndInstallOptions {
 	 * focus on every platform (see `IWindowsMainService.restoreExactlyOnNextStartup`).
 	 */
 	readonly relaunchInBackground?: boolean;
+
+	/**
+	 * Cancels the restart until the shutdown starts, for example when the user returns
+	 * while checking for a newer update.
+	 */
+	readonly token?: CancellationToken;
 }
 
 export interface IUpdateService {

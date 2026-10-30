@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
-import { OperatingSystem } from '../../../../base/common/platform.js';
+import { IProcessEnvironment, OperatingSystem } from '../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -55,6 +55,10 @@ suite('UnattendedRestartScheduler', () => {
 		readonly isMinimized?: boolean;
 		readonly isVisible?: boolean;
 		readonly isFullScreen?: boolean;
+		/** Restored in the background, it enters fullscreen once it gets focus. */
+		readonly isFullScreenPending?: boolean;
+		readonly hasPendingMode?: boolean;
+		readonly launchedFromCli?: boolean;
 		readonly display?: number;
 	}
 
@@ -62,13 +66,14 @@ suite('UnattendedRestartScheduler', () => {
 		return upcastPartial<ICodeWindow>({
 			id: 1,
 			isReady: options.isReady ?? true,
-			config: upcastPartial<INativeWindowConfiguration>({ isSessionsWindow: options.isSessionsWindow, 'disable-extensions': options.disableExtensions }),
+			config: upcastPartial<INativeWindowConfiguration>({ isSessionsWindow: options.isSessionsWindow, 'disable-extensions': options.disableExtensions, userEnv: options.launchedFromCli ? { VSCODE_CLI: '1' } : {} }),
 			profile: upcastPartial<IUserDataProfile>({ isTransient: options.isTemporaryProfile }),
 			remoteAuthority: options.remoteAuthority,
 			isExtensionDevelopmentHost: options.isExtensionDevelopmentHost ?? false,
 			isExtensionTestHost: false,
 			isFullScreen: options.isFullScreen ?? false,
-			serializeWindowState: () => ({ mode: options.isFullScreen ? WindowMode.Fullscreen : WindowMode.Normal, display: options.display ?? 1 }),
+			hasPendingMode: options.hasPendingMode ?? false,
+			serializeWindowState: () => ({ mode: options.isFullScreen || options.isFullScreenPending ? WindowMode.Fullscreen : WindowMode.Normal, display: options.display ?? 1 }),
 			win: upcastPartial<NonNullable<ICodeWindow['win']>>({
 				isMinimized: () => options.isMinimized ?? false,
 				isVisible: () => options.isVisible ?? true,
@@ -108,6 +113,14 @@ suite('UnattendedRestartScheduler', () => {
 		/** An update that a previous unattended restart did not install. */
 		readonly failedUpdate?: unknown;
 		readonly commit?: string;
+		/** The environment of the main process. */
+		readonly env?: IProcessEnvironment;
+		/** Windows only answer once `answerWindows()` is called. */
+		readonly holdWindowAnswers?: boolean;
+		/** How long checking for a newer update takes before shutting down. */
+		readonly newerUpdateCheckDuration?: number;
+		/** Whether the first restart finds a newer update, which postpones it. */
+		readonly newerUpdateOnRestart?: boolean;
 	}
 
 	function createFixture(options: IFixtureOptions = {}) {
@@ -136,12 +149,26 @@ suite('UnattendedRestartScheduler', () => {
 		});
 
 		const readyUpdate = { ...update, version: options.updateVersion ?? update.version };
+		let hasFoundNewerUpdate = false;
 		let state: State = options.updateReady === false ? State.Idle(UpdateType.Archive) : State.Ready(readyUpdate, false, false);
 		const updateService = upcastPartial<IUpdateService>({
 			get state() { return state; },
 			onStateChange: onStateChange.event,
 			quitAndInstall: async (quitAndInstallOptions?: IQuitAndInstallOptions) => {
 				log.push(`quitAndInstall(${quitAndInstallOptions?.relaunchInBackground ? 'background' : 'foreground'}${quitAndInstallOptions?.unattended ? '' : ', explicit'})`);
+				if (options.newerUpdateOnRestart && !hasFoundNewerUpdate) {
+					hasFoundNewerUpdate = true;
+					state = State.Overwriting(readyUpdate, false);
+					onStateChange.fire(state);
+					return;
+				}
+				if (options.newerUpdateCheckDuration) {
+					await timeout(options.newerUpdateCheckDuration);
+				}
+				if (quitAndInstallOptions?.token?.isCancellationRequested) {
+					log.push('cancelled');
+					return;
+				}
 				state = State.Restarting(readyUpdate);
 			},
 		});
@@ -180,13 +207,21 @@ suite('UnattendedRestartScheduler', () => {
 		configurationService.setUserConfiguration('update.enableWindowsBackgroundUpdates', true);
 
 		const windowBlockers = [...(options.windowBlockers ?? [])];
+		const windowAnswers = new DeferredPromise<void>();
+		if (!options.holdWindowAnswers) {
+			windowAnswers.complete();
+		}
 		const logService = store.add(new RecordingLogService());
 		store.add(new UnattendedRestartScheduler(
 			{
-				getWindowReadiness: async () => ({ blockers: windowBlockers.shift() ?? [], details: options.windowDetails, enabled: (options.enabled ?? true) || (options.enabledByExperiment ?? false) }),
+				getWindowReadiness: async () => {
+					await windowAnswers.p;
+					return { blockers: windowBlockers.shift() ?? [], details: options.windowDetails, enabled: (options.enabled ?? true) || (options.enabledByExperiment ?? false) };
+				},
 				host,
 				os: options.os ?? OperatingSystem.Macintosh,
 				argv: [],
+				env: options.env ?? {},
 			},
 			updateService,
 			windowsMainService,
@@ -214,6 +249,7 @@ suite('UnattendedRestartScheduler', () => {
 				isLocked = false;
 				onDidUnlockScreen.fire();
 			},
+			answerWindows: () => windowAnswers.complete(),
 			blurWindow: () => onDidBlurWindow.fire(),
 			suspend: () => onDidSuspend.fire(),
 			resume: () => onDidResume.fire(),
@@ -300,16 +336,17 @@ suite('UnattendedRestartScheduler', () => {
 		});
 	}));
 
-	test('restarts in the background on Windows, with floating windows, and for updates without a commit', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('restarts in the background with floating windows and for updates without a commit, but not on Windows yet', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const windows = createFixture({ os: OperatingSystem.Windows, focusedWhenLocked: false });
 		const macOS = createFixture({ focusedWhenLocked: false, hasAuxiliaryWindow: true, updateVersion: 'unknown' });
 
 		windows.lock();
 		macOS.lock();
 		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 20 * SECOND);
+		windows.unlock();
 
 		assert.deepStrictEqual({ windows: windows.log, macOS: macOS.log }, {
-			windows: ['keepAwake', 'quitAndInstall(background)'],
+			windows: [],
 			macOS: ['keepAwake', 'quitAndInstall(background)'],
 		});
 	}));
@@ -351,6 +388,91 @@ suite('UnattendedRestartScheduler', () => {
 			onBattery: [outcome('blocked', 2, 1, 'system.onBatteryPower')],
 			unplugged: ['keepAwake', 'allowSleep', outcome('blocked', 2, 1, 'system.onBatteryPower')],
 		});
+	}));
+
+	test('checks power and heat once the windows answered', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const unplugged = createFixture({ holdWindowAnswers: true });
+		const heated = createFixture({ holdWindowAnswers: true });
+
+		unplugged.lock();
+		heated.lock();
+		await timeout(10);
+		unplugged.switchToBattery();
+		heated.changeThermalState('serious');
+		unplugged.answerWindows();
+		heated.answerWindows();
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 20 * SECOND);
+		unplugged.unlock();
+		heated.unlock();
+
+		assert.deepStrictEqual({ unplugged: unplugged.log, heated: heated.log }, {
+			unplugged: [outcome('blocked', 2, 1, 'system.onBatteryPower')],
+			heated: [outcome('blocked', 2, 1, 'system.thermalPressure')],
+		});
+	}));
+
+	test('checks again when the screen gets locked again, or the machine resumes, while a check waits for the windows', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const relocked = createFixture({ holdWindowAnswers: true });
+		const resumed = createFixture({ holdWindowAnswers: true });
+
+		relocked.lock();
+		resumed.lock();
+		await timeout(10);
+		relocked.unlock();
+		relocked.lock();
+		resumed.suspend();
+		resumed.resume();
+		await timeout(10);
+		relocked.answerWindows();
+		resumed.answerWindows();
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 20 * SECOND);
+
+		assert.deepStrictEqual({ relocked: relocked.log, resumed: resumed.log }, {
+			relocked: ['keepAwake', 'quitAndInstall(foreground)'],
+			resumed: ['keepAwake', 'quitAndInstall(foreground)'],
+		});
+	}));
+
+	test('does not shut down when the screen gets unlocked while the restart checks for a newer update', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createFixture({ newerUpdateCheckDuration: 2 * SECOND });
+
+		fixture.lock();
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + SECOND);
+		fixture.unlock();
+		await timeout(5 * SECOND);
+
+		assert.deepStrictEqual({ log: fixture.log, exactRestores: fixture.exactRestores, restart: fixture.shutdown() }, {
+			log: ['keepAwake', 'quitAndInstall(foreground)', 'allowSleep', 'cancelled'],
+			exactRestores: [{ inBackground: false }, undefined],
+			restart: undefined,
+		});
+	}));
+
+	test('restarts once a newer update that postponed the restart is ready', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createFixture({ newerUpdateOnRestart: true });
+
+		fixture.lock();
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 20 * SECOND);
+		const whilePostponed = [...fixture.log];
+		fixture.setUpdateReady();
+		await timeout(20 * SECOND);
+
+		assert.deepStrictEqual({ whilePostponed, log: fixture.log, exactRestores: fixture.exactRestores, restart: fixture.shutdown() }, {
+			whilePostponed: ['keepAwake', 'quitAndInstall(foreground)', 'allowSleep'],
+			log: ['keepAwake', 'quitAndInstall(foreground)', 'allowSleep', 'quitAndInstall(foreground)'],
+			exactRestores: [{ inBackground: false }, undefined, { inBackground: false }],
+			restart: pendingRestart(3, 1),
+		});
+	}));
+
+	test('does not restart a VS Code started from a terminal on macOS, whose environment the relaunch would not have', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createFixture({ env: { VSCODE_CLI: '1' } });
+
+		fixture.lock();
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 20 * SECOND);
+		fixture.unlock();
+
+		assert.deepStrictEqual(fixture.log, [outcome('blocked', 2, 1, 'app.launchedFromCli')]);
 	}));
 
 	test('lets the machine sleep as soon as it is under thermal pressure, and does not restart then', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -567,11 +689,16 @@ suite('UnattendedRestartScheduler', () => {
 		];
 		const savedFloatingWindows = [createWindow(), createWindow({ isFullScreen: true })];
 
+		const pendingFullScreenWindows = [createWindow({ isFullScreenPending: true, display: 2 }), createWindow({ isFullScreen: true, display: 2 })];
+
 		assert.deepStrictEqual({
 			noWindows: getWindowBlockers([], [], OperatingSystem.Macintosh, true),
 			inBackground: getWindowBlockers(savedWindows, savedFloatingWindows, OperatingSystem.Macintosh, true),
 			inForeground: getWindowBlockers(savedWindows, savedFloatingWindows, OperatingSystem.Macintosh, false),
 			inForegroundOnWindows: getWindowBlockers(savedWindows, [], OperatingSystem.Windows, false),
+			pendingFullScreenInForeground: getWindowBlockers(pendingFullScreenWindows, [], OperatingSystem.Macintosh, false),
+			pendingFloatingWindowMode: getWindowBlockers([createWindow()], [createWindow({ hasPendingMode: true })], OperatingSystem.Macintosh, true),
+			openedFromTerminal: getWindowBlockers([createWindow({ launchedFromCli: true })], [], OperatingSystem.Macintosh, true),
 			notRestorable: getWindowBlockers([
 				createWindow({ isReady: false }),
 				createWindow({ remoteAuthority: 'ssh-remote+host' }),
@@ -584,6 +711,9 @@ suite('UnattendedRestartScheduler', () => {
 			inBackground: [],
 			inForeground: ['window.fullScreenSameDisplay', 'window.auxiliaryFullScreen'], // macOS restores one native fullscreen window per display at once
 			inForegroundOnWindows: [],
+			pendingFullScreenInForeground: ['window.fullScreenSameDisplay'],
+			pendingFloatingWindowMode: ['window.auxiliaryPendingMode'],
+			openedFromTerminal: ['window.launchedFromCli'],
 			notRestorable: ['window.notReady', 'window.remote', 'window.extensionDevelopment', 'window.temporaryProfile', 'window.launchArguments', 'window.auxiliaryMinimized'],
 		});
 	});

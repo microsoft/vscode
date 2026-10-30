@@ -6,7 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -523,6 +523,28 @@ suite('AbstractUpdateService', () => {
 		} finally {
 			clock.restore();
 		}
+	});
+
+	test('does not shut down when the restart is cancelled while checking for a newer update', async () => {
+		const results: Record<string, StateType> = {};
+		for (const cancelled of [true, false]) {
+			const service = createService('default', { supportsUpdateOverwrite: true });
+			await service.whenInitialized;
+			const latestVersionResult = new DeferredPromise<boolean | undefined>();
+			service.setLatestVersionResult(latestVersionResult.p);
+			service.forceState(State.Ready({ version: 'pending' }, false, false));
+
+			const cts = store.add(new CancellationTokenSource());
+			const restart = service.quitAndInstall({ unattended: true, token: cts.token });
+			if (cancelled) {
+				cts.cancel(); // the user returns while checking
+			}
+			latestVersionResult.complete(true);
+			await restart;
+			results[cancelled ? 'cancelled' : 'notCancelled'] = service.state.type;
+		}
+
+		assert.deepStrictEqual(results, { cancelled: StateType.Ready, notCancelled: StateType.Restarting });
 	});
 
 	test('permanent disablement ignores runtime mode changes', async () => {

@@ -41,6 +41,11 @@ export interface IBaseWindow extends IDisposable {
 	readonly isFullScreen: boolean;
 	toggleFullScreen(): void;
 
+	/**
+	 * Whether a restored maximized or fullscreen mode waits for the window to get focus.
+	 */
+	readonly hasPendingMode: boolean;
+
 	updateWindowControls(options: { height?: number; horizontalInset?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): void;
 
 	matches(webContents: electron.WebContents): boolean;

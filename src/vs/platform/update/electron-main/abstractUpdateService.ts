@@ -548,6 +548,11 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 			}
 		}
 
+		if (options?.token?.isCancellationRequested) {
+			this.logService.info('update#quitAndInstall(): cancelled before shutting down');
+			return;
+		}
+
 		// Remember the Ready state so we can restore it if the quit is vetoed
 		const readyState = this.state;
 

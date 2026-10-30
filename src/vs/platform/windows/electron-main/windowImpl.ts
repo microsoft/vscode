@@ -200,6 +200,10 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	protected pendingMaximize = false;
 	protected pendingFullScreen = false;
 
+	get hasPendingMode(): boolean {
+		return this.pendingMaximize || this.pendingFullScreen;
+	}
+
 	private hasWindowControlOverlay = false;
 
 	protected _win: electron.BrowserWindow | null = null;
