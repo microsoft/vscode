@@ -8596,12 +8596,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 			seededImmediately: [
 				{ path: 'custom-agents', isDirectory: true },
 				{ path: 'custom-hook-dir', isDirectory: true },
-				{ path: 'custom-hooks/hooks.json', isDirectory: false },
+				{ path: 'custom-hooks/hooks.json', isDirectory: true },
 			],
 			forwardedToAgentHost: [
 				{ path: 'custom-agents', isDirectory: true },
 				{ path: 'custom-hook-dir', isDirectory: true },
-				{ path: 'custom-hooks/hooks.json', isDirectory: false },
+				{ path: 'custom-hooks/hooks.json', isDirectory: true },
 			],
 		});
 	});
@@ -8650,7 +8650,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const changedConfigs = agentHost.dispatchedActions.flatMap(({ action }) =>
 			action.type === ActionType.SessionConfigChanged ? [action.config] : []);
 		assert.deepStrictEqual(changedConfigs.at(-1), {
-			[SessionConfigKey.SensitiveEditLocations]: [{ path: 'updated-hooks/hooks.json', isDirectory: false }],
+			[SessionConfigKey.SensitiveEditLocations]: [{ path: 'updated-hooks/hooks.json', isDirectory: true }],
 		});
 	});
 

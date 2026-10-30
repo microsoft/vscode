@@ -17425,7 +17425,7 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			assert.deepStrictEqual(agentHostService.createSessionCalls.at(-1)?.config?.[SessionConfigKey.SensitiveEditLocations], [
-				{ path: 'custom-hooks/hooks.json', isDirectory: false },
+				{ path: 'custom-hooks/hooks.json', isDirectory: true },
 			]);
 		});
 
@@ -17464,7 +17464,7 @@ suite('AgentHostChatContribution', () => {
 
 			const configChanged = agentHostService.dispatchedActions.find(d => d.action.type === ActionType.SessionConfigChanged);
 			assert.deepStrictEqual((configChanged?.action as { config?: Record<string, unknown> } | undefined)?.config?.[SessionConfigKey.SensitiveEditLocations], [
-				{ path: 'custom-hooks/hooks.json', isDirectory: false },
+				{ path: 'custom-hooks/hooks.json', isDirectory: true },
 			]);
 		}));
 
