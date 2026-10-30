@@ -181,10 +181,7 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 		},
 		accessibilityProvider: options.accessibilityProvider && {
 			...options.accessibilityProvider,
-			getSetSize(node, index, listLength) {
-				if (options.accessibilityProvider!.getSetSize) {
-					return options.accessibilityProvider!.getSetSize(node.element, index, listLength);
-				}
+			getSetSize(node) {
 				const model = modelProvider();
 				const ref = model.getNodeLocation(node);
 				const parentRef = model.getParentNodeLocation(ref);
@@ -192,8 +189,8 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 
 				return parentNode.visibleChildrenCount;
 			},
-			getPosInSet(node, index) {
-				return options.accessibilityProvider!.getPosInSet?.(node.element, index) ?? node.visibleChildIndex + 1;
+			getPosInSet(node) {
+				return node.visibleChildIndex + 1;
 			},
 			isChecked: options.accessibilityProvider && options.accessibilityProvider.isChecked ? (node) => {
 				return options.accessibilityProvider!.isChecked!(node.element);

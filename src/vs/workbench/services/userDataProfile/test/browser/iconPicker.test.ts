@@ -6,14 +6,17 @@
 import assert from 'assert';
 import { $, append, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IQuickInputHideEvent, IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickWillAcceptEvent, ItemActivation, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputHideEvent, IQuickInputService, IQuickWidget, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
+import { defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { TerminalIconPicker } from '../../../../contrib/terminal/browser/terminalIconPicker.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IconPicker } from '../../browser/iconPicker.js';
+import { WorkbenchIconSelectBox } from '../../browser/iconSelectBox.js';
 
 suite('Shared IconPicker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -24,19 +27,18 @@ suite('Shared IconPicker', () => {
 		host.style.width = '600px';
 		disposables.add(toDisposable(() => host.remove()));
 		const hidden = disposables.add(new Emitter<IQuickInputHideEvent>());
-		const accepting = disposables.add(new Emitter<IQuickPickWillAcceptEvent>());
-		const accepted = disposables.add(new Emitter<IQuickPickDidAcceptEvent>());
 		let grid: HTMLElement | undefined;
 		let disposed = false;
-		const quickPick = upcastPartial<IQuickPick<IQuickPickItem, { useSeparators: true }>>({
+		const quickWidget = upcastPartial<IQuickWidget>({
 			onDidHide: hidden.event,
-			onWillAccept: accepting.event,
-			onDidAccept: accepted.event,
-			focus() { },
+			buttons: [],
 			show() {
 				if (isHTMLElement(this.widget)) {
 					grid = append(host, this.widget);
 				}
+			},
+			hide() {
+				hidden.fire({ reason: QuickInputHideReason.Gesture });
 			},
 			dispose() {
 				disposed = true;
@@ -44,9 +46,9 @@ suite('Shared IconPicker', () => {
 				hidden.fire({ reason: QuickInputHideReason.Other });
 			},
 		});
-		instantiationService.stub(IQuickInputService, 'createQuickPick', () => quickPick);
+		instantiationService.stub(IQuickInputService, 'createQuickWidget', () => quickWidget);
 		const picker = disposables.add(instantiationService.createInstance(IconPicker));
-		return { picker, host, hidden, accepting, accepted, quickPick, grid: () => grid!, disposed: () => disposed };
+		return { picker, host, hidden, quickWidget, grid: () => grid!, disposed: () => disposed };
 	}
 
 	test('terminal and session consumers share the original icon picker implementation', () => {
@@ -54,31 +56,28 @@ suite('Shared IconPicker', () => {
 	});
 
 	for (const action of ['select', 'reset', 'cancel']) {
-		test(`standard Quick Pick supports ${action} without a bespoke footer`, async () => {
+		test(`QuickWidget supports ${action} entirely inside the icon-select UI`, async () => {
 			const harness = setup();
 			const result = harness.picker.pickIcons();
 			assert.deepStrictEqual({
-				items: harness.quickPick.items,
-				hideInput: harness.quickPick.hideInput,
-				activation: harness.quickPick.itemActivation,
-				neutralSelection: harness.quickPick.useNeutralSelection,
-				embeddedLists: harness.grid().querySelectorAll('.quick-input-list, .monaco-button').length,
+				title: harness.quickWidget.title,
+				buttons: harness.quickWidget.buttons,
+				reset: harness.grid().querySelector('[role="button"]')?.textContent,
+				embeddedLists: harness.grid().querySelectorAll('.quick-input-list').length,
 			}, {
-				items: [{ type: 'separator' }, { label: 'Reset to default' }],
-				hideInput: true,
-				activation: ItemActivation.NONE,
-				neutralSelection: true,
+				title: 'Change icon',
+				buttons: [],
+				reset: 'Reset to default',
 				embeddedLists: 0,
 			});
 			if (action === 'cancel') {
 				harness.hidden.fire({ reason: QuickInputHideReason.Gesture });
 			} else if (action === 'reset') {
-				harness.accepted.fire({ inBackground: false });
+				harness.grid().querySelector<HTMLElement>('[role="button"]')!.click();
 			} else {
 				harness.grid().querySelector<HTMLElement>('.icon-container[title="rocket"]')!.click();
 			}
 			harness.hidden.fire({ reason: QuickInputHideReason.Other });
-			harness.accepted.fire({ inBackground: false });
 			const selected = await result;
 			assert.deepStrictEqual({ selected: selected ? { id: selected.id } : selected, disposed: harness.disposed() }, {
 				selected: action === 'cancel' ? undefined : action === 'reset' ? null : { id: 'rocket' },
@@ -87,13 +86,12 @@ suite('Shared IconPicker', () => {
 		});
 	}
 
-	test('accepting from the icon grid selects an icon rather than resetting', async () => {
+	test('Enter in the icon grid selects an icon rather than resetting', async () => {
 		const harness = setup();
 		const result = harness.picker.pickIcons();
-		let vetoed = false;
-		harness.accepting.fire({ veto: () => vetoed = true });
+		harness.grid().querySelector<HTMLInputElement>('input')!.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 		const selected = await result;
-		assert.deepStrictEqual({ vetoed, selectedIcon: selected?.id !== undefined }, { vetoed: true, selectedIcon: true });
+		assert.strictEqual(selected?.id !== undefined, true);
 	});
 
 	test('accepting an empty icon search neither resets nor throws', async () => {
@@ -102,10 +100,63 @@ suite('Shared IconPicker', () => {
 		const input = harness.grid().querySelector<HTMLInputElement>('input')!;
 		input.value = 'no matching icon';
 		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-		let vetoed = false;
-		harness.accepting.fire({ veto: () => vetoed = true });
+		input.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 		harness.hidden.fire({ reason: QuickInputHideReason.Gesture });
-		assert.deepStrictEqual({ vetoed, selected: await result }, { vetoed: true, selected: undefined });
+		assert.strictEqual(await result, undefined);
+	});
+
+	for (const [key, keyCode] of [['Enter', 13], [' ', 32], ['Escape', 27]] as const) {
+		test(`${key} on the reset button does not select the active icon`, async () => {
+			const harness = setup();
+			const result = harness.picker.pickIcons();
+			const reset = harness.grid().querySelector<HTMLElement>('[role="button"]')!;
+			reset.focus();
+			reset.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
+			assert.strictEqual(await result, key === 'Escape' ? undefined : null);
+		});
+	}
+
+	test('the reset divider is decorative, non-focusable, and unaffected by hover', async () => {
+		const harness = setup();
+		const result = harness.picker.pickIcons();
+		const divider = harness.grid().querySelector('hr')!;
+		const reset = harness.grid().querySelector<HTMLElement>('[role="button"]')!;
+		const before = mainWindow.getComputedStyle(divider).backgroundColor;
+		divider.dispatchEvent(new mainWindow.MouseEvent('mouseover', { bubbles: true }));
+		assert.deepStrictEqual({
+			hidden: divider.getAttribute('aria-hidden'),
+			tabIndex: divider.tabIndex,
+			pointerEvents: mainWindow.getComputedStyle(divider).pointerEvents,
+			unchanged: mainWindow.getComputedStyle(divider).backgroundColor === before,
+			resetLabel: reset.textContent,
+			resetTabIndex: reset.tabIndex,
+		}, { hidden: 'true', tabIndex: -1, pointerEvents: 'none', unchanged: true, resetLabel: 'Reset to default', resetTabIndex: 0 });
+		harness.hidden.fire({ reason: QuickInputHideReason.Gesture });
+		await result;
+	});
+
+	test('other icon-select consumers do not acquire a reset action', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const box = disposables.add(instantiationService.createInstance(WorkbenchIconSelectBox, {
+			icons: [Codicon.rocket],
+			inputBoxStyles: defaultInputBoxStyles,
+		}));
+		assert.strictEqual(box.domNode.querySelector('.icon-select-reset'), null);
+	});
+
+	test('search updates do not repeatedly grow the custom picker', async () => {
+		const harness = setup();
+		const result = harness.picker.pickIcons();
+		const input = harness.grid().querySelector<HTMLInputElement>('input')!;
+		const heights = [harness.grid().clientHeight];
+		for (const value of ['rocket', '', 'no matching icon', '']) {
+			input.value = value;
+			input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+			heights.push(harness.grid().clientHeight);
+		}
+		harness.hidden.fire({ reason: QuickInputHideReason.Gesture });
+		await result;
+		assert.deepStrictEqual(heights, heights.map(() => heights[0]));
 	});
 
 	test('the grid fills the standard picker width on open, shrink, and grow', async () => {

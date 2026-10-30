@@ -269,12 +269,10 @@ suite('Workbench - TerminalInstance', () => {
 				}
 				deepStrictEqual({
 					result: await result,
-					neutralSelection: picker.useNeutralSelection,
 					resetLabel: resetItem.label,
 					color: instance.shellLaunchConfig.color,
 				}, {
 					result: undefined,
-					neutralSelection: true,
 					resetLabel: 'Reset to default',
 					color: reset ? undefined : 'terminal.ansiRed',
 				});

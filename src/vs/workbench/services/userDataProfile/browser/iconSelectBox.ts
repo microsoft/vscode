@@ -4,14 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IIconSelectBoxOptions, IconSelectBox } from '../../../../base/browser/ui/icons/iconSelectBox.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import * as dom from '../../../../base/browser/dom.js';
+import { localize } from '../../../../nls.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { getButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { listHoverBackground, quickInputForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import './iconSelectBox.css';
 
 export const WorkbenchIconSelectBoxFocusContextKey = new RawContextKey<boolean>('iconSelectBoxFocus', false);
 export const WorkbenchIconSelectBoxInputFocusContextKey = new RawContextKey<boolean>('iconSelectBoxInputFocus', false);
 export const WorkbenchIconSelectBoxInputEmptyContextKey = new RawContextKey<boolean>('iconSelectBoxInputEmpty', true);
+
+interface IWorkbenchIconSelectBoxOptions extends IIconSelectBoxOptions {
+	readonly showResetButton?: boolean;
+}
 
 export class WorkbenchIconSelectBox extends IconSelectBox {
 	private static focusedWidget: WorkbenchIconSelectBox | undefined;
@@ -22,12 +32,31 @@ export class WorkbenchIconSelectBox extends IconSelectBox {
 	private readonly contextKeyService: IContextKeyService;
 	private readonly inputFocusContextKey: IContextKey<boolean>;
 	private readonly inputEmptyContextKey: IContextKey<boolean>;
+	private readonly resetButton: Button | undefined;
+	private readonly onDidResetEmitter = this._register(new Emitter<void>());
+	readonly onDidReset = this.onDidResetEmitter.event;
+	private readonly onDidCancelEmitter = this._register(new Emitter<void>());
+	readonly onDidCancel = this.onDidCancelEmitter.event;
 
 	constructor(
-		options: IIconSelectBoxOptions,
+		options: IWorkbenchIconSelectBoxOptions,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(options);
+		if (options.showResetButton) {
+			const footer = dom.append(this.domNode, dom.$('.icon-select-reset'));
+			dom.append(footer, dom.$('hr', { 'aria-hidden': 'true' }));
+			this.resetButton = this._register(new Button(footer, getButtonStyles({
+				buttonBackground: undefined,
+				buttonHoverBackground: listHoverBackground,
+				buttonForeground: quickInputForeground,
+				buttonBorder: undefined,
+			})));
+			this.resetButton.label = localize('resetIcon', "Reset to default");
+			this._register(this.resetButton.onDidClick(() => this.onDidResetEmitter.fire()));
+			this._register(this.resetButton.onDidEscape(() => this.onDidCancelEmitter.fire()));
+			this._register(dom.addDisposableListener(footer, dom.EventType.KEY_DOWN, event => event.stopPropagation()));
+		}
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.domNode));
 		const widgetFocusContextKey = WorkbenchIconSelectBoxFocusContextKey.bindTo(this.contextKeyService);
 		const widgetFocus = this._register(dom.trackFocus(this.domNode));
@@ -59,6 +88,13 @@ export class WorkbenchIconSelectBox extends IconSelectBox {
 	override focus(): void {
 		super.focus();
 		WorkbenchIconSelectBox.focusedWidget = this;
+	}
+
+	override layout(dimension: dom.Dimension): void {
+		super.layout(dimension);
+		if (this.resetButton) {
+			this.domNode.style.height = 'auto';
+		}
 	}
 }
 
