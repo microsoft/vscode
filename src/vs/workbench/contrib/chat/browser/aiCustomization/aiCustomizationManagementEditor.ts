@@ -120,7 +120,7 @@ import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, findMcpServerDetailMigrationEntry, IMcpServerDetailInput, isMcpServerDetailMigratable } from './embeddedMcpServerDetail.js';
-import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
+import { EmbeddedAgentPluginDetail, resolvePluginSkillUri } from './embeddedAgentPluginDetail.js';
 import { EmbeddedConnectorDetail } from './embeddedConnectorDetail.js';
 import { ICopilotConnector, ICopilotConnectorsService } from './copilotConnectorsService.js';
 import { EmbeddedMarketplaceDetail } from './embeddedMarketplaceDetail.js';
@@ -6209,7 +6209,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (!isCurrentPluginContributionNavigation(navigationGeneration, this.contentNavigationGeneration, section, this.selectedSection, this.viewMode === 'list')) {
 				return;
 			}
-			const item = this.itemsModel.getItems(modelSection).get().find(item => isEqual(item.uri, uri));
+			const pluginUri = pluginItem.kind === AgentPluginItemKind.Installed ? pluginItem.plugin.uri : undefined;
+			const items = this.itemsModel.getItems(modelSection).get().filter(item => pluginUri && item.pluginUri && isEqual(item.pluginUri, pluginUri));
+			const resolvedUri = section === AICustomizationManagementSection.Skills
+				? resolvePluginSkillUri(uri, items)
+				: uri;
+			const item = resolvedUri ? items.find(item => isEqual(item.uri, resolvedUri)) : undefined;
 			if (item) {
 				void this.openCustomizationItem(item, { kind: 'pluginDetail', item: pluginItem, origin: pluginOrigin });
 			}
