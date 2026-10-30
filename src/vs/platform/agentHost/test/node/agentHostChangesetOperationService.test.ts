@@ -141,6 +141,7 @@ class TestConfigurationService implements IAgentConfigurationService {
 	getChatSandboxEnabled(): undefined { return undefined; }
 	getChatAttachmentScopes(target: IAgentChatConfigurationTarget): readonly string[] { return [target.session]; }
 	setChatSandboxEnabled(): void { }
+	reportChatSandboxConflict(): void { }
 	rejectChatSandboxChange(): void { }
 
 	constructor(private _workingDirectories: string[] | undefined) { }
@@ -181,6 +182,13 @@ class TestConfigurationService implements IAgentConfigurationService {
 
 	seedChatConfig(): { readonly values: Record<string, unknown>; dispose(): void } {
 		return { values: {}, dispose: () => { } };
+	}
+	completeChatConfigs(): void { }
+	getChatPersistedConfigValues(): undefined {
+		return undefined;
+	}
+	getCompleteChatConfigValues(_session: string, own: Readonly<Record<string, unknown>>): Record<string, unknown> {
+		return { ...own };
 	}
 
 	isWorkingDirectoryPending(): boolean {

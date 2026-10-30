@@ -32,7 +32,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { Delayer } from '../../../../../base/common/async.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
-import { matchesContiguousSubString } from '../../../../../base/common/filters.js';
+import { matchesCustomizationSearchQuery } from '../../common/aiCustomizationSearch.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -906,7 +906,7 @@ export class AICustomizationListWidget extends Disposable {
 				accessibilityProvider: {
 					getAriaLabel: (entry: IListEntry) => {
 						if (entry.type === 'group-header') {
-							return localize('groupAriaLabel', "{0}, {1} items", entry.label, entry.count);
+							return localize('groupAriaLabel2', "{0}, {1} items", entry.label, entry.count);
 						}
 						const label = getCustomizationItemAriaLabel(entry.item);
 						if (!hasReadableCustomizationContent(entry.item.uri)) {
@@ -1457,10 +1457,10 @@ export class AICustomizationListWidget extends Disposable {
 		for (const item of items) {
 			const displayName = item.displayName ?? formatDisplayName(item.name);
 			const secondaryText = getCustomizationSecondaryText(item.description, item.filename, item.promptType);
-			const nameMatches = matchesContiguousSubString(query, displayName);
-			const secondaryTextMatches = matchesContiguousSubString(query, secondaryText);
-			const descriptionMatches = item.description && item.description !== secondaryText ? matchesContiguousSubString(query, item.description) : null;
-			const badgeMatches = item.badge ? matchesContiguousSubString(query, item.badge) : null;
+			const nameMatches = matchesCustomizationSearchQuery(query, displayName);
+			const secondaryTextMatches = matchesCustomizationSearchQuery(query, secondaryText);
+			const descriptionMatches = item.description && item.description !== secondaryText ? matchesCustomizationSearchQuery(query, item.description) : null;
+			const badgeMatches = item.badge ? matchesCustomizationSearchQuery(query, item.badge) : null;
 
 			if (nameMatches || secondaryTextMatches || descriptionMatches || badgeMatches) {
 				matched.push({

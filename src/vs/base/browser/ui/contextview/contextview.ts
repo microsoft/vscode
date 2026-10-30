@@ -98,7 +98,7 @@ export const CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE = '--vscode-context-
 export const CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE = '--vscode-context-view-menu-motion-shadow';
 /** Inherited while an opacity animation isolates descendant menu backdrops. */
 export const CONTEXT_VIEW_MENU_MOTION_BACKDROP_OPACITY_VARIABLE = '--vscode-context-view-menu-motion-backdrop-opacity';
-const CONTEXT_VIEW_MENU_MOTION_CLOSE_START_OPACITY_VARIABLE = '--vscode-context-view-menu-motion-close-start-opacity';
+export const CONTEXT_VIEW_MENU_MOTION_CLOSE_START_OPACITY_VARIABLE = '--vscode-context-view-menu-motion-close-start-opacity';
 export const CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE = '--vscode-context-view-menu-motion-close-start-transform';
 
 export const CONTEXT_VIEW_MENU_MOTION_OPEN_DURATION_MS = 250;

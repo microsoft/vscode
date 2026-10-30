@@ -135,7 +135,7 @@ jobs:
           WSL_INSTALLER_CACHE_DIR: ${{ github.workspace }}\.build\wsl-installer
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
 
@@ -348,6 +348,13 @@ jobs:
         run: .\scripts\test-integration.bat --only-extension-host-tests
         env:
           VSCODE_SKIP_PRELAUNCH: '1'
+
+      # The web and remote tests start the server out of sources, which downloads its Node.js from nodejs.org unless
+      # the runner already has that version.
+      - name: Use the runner's Node.js for the server
+        if: ${{ (env.BROWSER_TESTS == 'true' || env.REMOTE_TESTS == 'true') && (env.INTEGRATION_TESTS == 'true' || env.SMOKE_TESTS == 'true') }}
+        shell: pwsh
+        run: node build/azure-pipelines/common/useRunnerNodeForServer.ts
 
       - name: 🧪 Run integration tests (Browser, Chromium)
         if: ${{ env.BROWSER_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' }}

@@ -24,6 +24,7 @@ import { containsCmdDelayedExpansion } from '../../terminal/common/autoApprove/c
 import { suggestAutoApproveRuleKeys } from '../../terminal/common/autoApprove/suggestAutoApproveRules.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey, type IPermissionsValue, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
 import { AgentPermissionKind, type IAgentToolPendingConfirmationSignal } from '../common/agent.js';
+import { getAttachedLocalPaths } from '../common/attachedLocalPaths.js';
 import { ISessionDataService, isSessionAttachmentPath } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { SessionConfigSchema } from '../common/state/protocol/commands.js';
@@ -332,6 +333,11 @@ export class SessionPermissionManager extends Disposable {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving read of ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
 			}
+			// The user attached this file, or a folder containing it, to the chat: that is consent to read it.
+			if (await this._isReadAutoApproved(URI.file(e.permissionPath), this._getAttachedResources(sessionKey))) {
+				this._logService.trace(`[SessionPermissionManager] Auto-approving read of attached ${e.permissionPath}`);
+				return ToolCallConfirmationReason.NotNeeded;
+			}
 			return undefined;
 		}
 
@@ -458,6 +464,16 @@ export class SessionPermissionManager extends Disposable {
 		return (scopes ?? (owner !== undefined ? [owner] : [])).some(scope => isSessionAttachmentPath(this._sessionDataService, URI.parse(scope), path));
 	}
 
+	/** The local files and folders the user attached to the chat's loaded turns, including the active one. */
+	private _getAttachedResources(sessionOrChat: ProtocolURI): URI[] {
+		if (!isAhpChatChannel(sessionOrChat)) {
+			return [];
+		}
+		const chat = this._stateManager.getChatState(sessionOrChat);
+		const messages = [...chat?.turns ?? [], ...chat?.activeTurn ? [chat.activeTurn] : []].map(turn => turn.message);
+		const attached = new Map(messages.flatMap(message => getAttachedLocalPaths(message.attachments)).map(uri => [uri.toString(), uri]));
+		return [...attached.values()];
+	}
 
 	/**
 	 * Returns whether VS Code's global auto-approve setting (`chat.tools.global.autoApprove`) is enabled.

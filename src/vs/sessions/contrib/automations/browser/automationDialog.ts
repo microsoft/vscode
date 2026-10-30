@@ -61,7 +61,8 @@ import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspaceBrowseAction, SES
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { AutomationInterval, AutomationTarget, IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationToolCatalog, IAutomationCustomizationChoice, IAutomationProviderConfiguration, IAutomationService, IAutomationTool } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { automationScheduleToUTC, DAYS_OF_WEEK } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { automationScheduleToUTC, DAYS_OF_WEEK, getAutomationCronValidationError } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { describeAutomationCron } from '../../../../platform/agentHost/common/automationCron.js';
 import { automationTriggerFamily, AutomationTriggerFamily } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -79,6 +80,7 @@ import { IAutomationSessionConfiguration } from '../../../services/sessions/comm
 import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from '../../chat/browser/mobile/mobileWorkspacePickerSheet.js';
 import { AutomationInputCompletions } from './automationInputCompletions.js';
 import { AutomationTriggerEditor, IAutomationTriggerFormState } from './automationTriggerEditor.js';
+import { AutomationCronInput } from './automationCronInput.js';
 import { NewChatModelPickerService, INewChatModelPickerService } from '../../chat/browser/newChatModelPicker.js';
 import { createNewSessionControlToolbar } from '../../chat/browser/newSessionConfigToolbars.js';
 import { ISessionModelSelection, SessionModelSelection } from '../../chat/browser/sessionModelSelection.js';
@@ -102,6 +104,7 @@ const INTERVALS: { readonly value: AutomationInterval; readonly label: string }[
 	{ value: 'daily', label: localize('automation.interval.daily', "Daily") },
 	{ value: 'weekdays', label: localize('automation.interval.weekdays', "Weekdays") },
 	{ value: 'weekly', label: localize('automation.interval.weekly', "Weekly") },
+	{ value: 'cron', label: localize('automation.interval.cron', "CRON") },
 ];
 
 // Picker popups mount outside the dialog, so allow their focus targets through its focus trap.
@@ -145,7 +148,7 @@ export function registerAutomationDialogKeyboardNavigation(
 	getFocusableElements: () => readonly HTMLElement[],
 	isPopupTarget: (target: HTMLElement) => boolean,
 	acceptPromptSuggestion: () => boolean = () => false,
-	cancelPromptSuggestion: () => boolean = () => false,
+	cancelInputPopup: () => boolean = () => false,
 ): IAutomationDialogKeyboardNavigation {
 	const store = new DisposableStore();
 	let suppressPopupEscapeKeyUp = false;
@@ -171,9 +174,9 @@ export function registerAutomationDialogKeyboardNavigation(
 		const isPopup = target instanceof targetWindow.HTMLElement && isPopupTarget(target);
 		// Keep ownership of the Escape press when the popup closes and key repeat targets the form.
 		if (event.key === 'Escape' && !event.repeat) {
-			const promptSuggestionCancelled = !isPopup && !event.altKey && !event.ctrlKey && !event.metaKey && cancelPromptSuggestion();
-			suppressPopupEscapeKeyUp = isPopup || promptSuggestionCancelled;
-			if (promptSuggestionCancelled) {
+			const inputPopupCancelled = !isPopup && !event.altKey && !event.ctrlKey && !event.metaKey && cancelInputPopup();
+			suppressPopupEscapeKeyUp = isPopup || inputPopupCancelled;
+			if (inputPopupCancelled) {
 				event.preventDefault();
 				event.stopImmediatePropagation();
 				return;
@@ -230,6 +233,8 @@ export interface IFormState extends IAutomationTriggerFormState {
 	name: string;
 	ownership?: 'user' | 'repository';
 	interval: AutomationInterval;
+	cronExpression?: string;
+	cronTimeZone?: string;
 	hour: number;
 	minute: number;
 	day: number;
@@ -250,6 +255,7 @@ export interface IFormState extends IAutomationTriggerFormState {
 
 export interface IValidationState {
 	scheduleError?: string;
+	cronError?: string;
 	nameError: string | undefined;
 	promptError: string | undefined;
 	folderError: string | undefined;
@@ -289,7 +295,7 @@ interface IRenderFormHandle {
 	readonly focusSaveError: () => void;
 	readonly getFocusableElements: () => readonly HTMLElement[];
 	readonly acceptPromptSuggestion: () => boolean;
-	readonly cancelPromptSuggestion: () => boolean;
+	readonly cancelInputPopup: () => boolean;
 }
 
 export type AutomationDialogMessageSource = 'immutableSettings' | 'repositoryWarning' | 'targetValidation' | 'scheduleValidation' | 'toolCatalogError' | 'operationError' | 'saveError';
@@ -1218,14 +1224,35 @@ export function renderForm(
 		formContent, customizations?.service, customizations?.hoverService, logService, customizations?.existingId, triggerFields,
 	));
 
+	const cronGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group.automation-form-cron-group'));
+	const cronTimeZone = state.cronTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+	const cronInput = disposables.add(instantiationService.createInstance(AutomationCronInput, cronGroup, state.cronExpression ?? '', cronTimeZone));
+	const cronDescription = $('.automation-form-schedule-description', { role: 'status', 'aria-atomic': 'true' });
+	scheduleRow.after(cronDescription);
+	const updateCronDescription = () => {
+		const expression = state.cronExpression ?? '';
+		const description = state.interval === 'cron' && expression.trim() && !getAutomationCronValidationError(expression, cronTimeZone)
+			? describeAutomationCron(expression)
+			: '';
+		cronDescription.textContent = description;
+		DOM.setVisibility(!!description, cronDescription);
+	};
+	disposables.add(cronInput.onDidChange(value => {
+		state.cronExpression = value;
+		updateCronDescription();
+		revalidate();
+	}));
 	const applyIntervalVisibility = () => {
 		const showTime = state.interval === 'daily' || state.interval === 'weekdays' || state.interval === 'weekly';
 		const showDay = state.interval === 'weekly';
 		timeGroup.style.display = showTime ? '' : 'none';
 		dayGroup.style.display = showDay ? '' : 'none';
+		cronGroup.style.display = state.interval === 'cron' ? '' : 'none';
+		scheduleRow.classList.toggle('has-cron', state.interval === 'cron');
+		updateCronDescription();
 	};
 	const updateIntervalOptions = (cloud: boolean) => {
-		intervals = INTERVALS.filter(item => !cloud || item.value !== 'weekdays');
+		intervals = INTERVALS.filter(item => !cloud || (item.value !== 'weekdays' && item.value !== 'cron'));
 		if (cloud) {
 			intervals = ['weekly', 'daily', 'hourly'].flatMap(value => INTERVALS.filter(item => item.value === value));
 			const families = triggerEditor.families;
@@ -1247,6 +1274,7 @@ export function renderForm(
 		applyIntervalVisibility();
 	};
 	applyIntervalVisibility();
+	revalidate();
 	disposables.add(intervalSelect.onDidSelect(e => {
 		const value = intervals[e.index].value;
 		if (value === 'issue' || value === 'pullRequest') {
@@ -2224,7 +2252,10 @@ export function renderForm(
 			suggestController.acceptSelectedSuggestion(true, false);
 			return true;
 		},
-		cancelPromptSuggestion: () => {
+		cancelInputPopup: () => {
+			if (cronInput.dismissHover()) {
+				return true;
+			}
 			const suggestController = SuggestController.get(chatInput.inputEditor);
 			if (!chatInput.inputEditor.hasTextFocus() || !suggestController || suggestController.model.state === SuggestState.Idle) {
 				return false;
@@ -2524,10 +2555,16 @@ export function updateSaveButtonState(
 			? localize('automation.form.scheduleRequired', "Choose a supported schedule.")
 			: utcSchedule && state.interval === 'weekdays'
 				? localize('automation.form.cloudWeekdays', "Weekdays is only available for local automations. Choose a supported schedule for Cloud.")
-				: utcSchedule && (state.interval === 'daily' || state.interval === 'weekly') && utcSchedule.scheduleMinute % 15 !== 0
-					? localize('automation.form.cloudScheduleMinute', "Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.")
-					: undefined;
-	const valid = !validation.nameError && !validation.promptError && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !validation.scheduleError;
+				: utcSchedule && state.interval === 'cron'
+					? localize('automation.form.cloudCron', "CRON is only available for local automations. Choose a supported schedule for Cloud.")
+					: utcSchedule && (state.interval === 'daily' || state.interval === 'weekly') && utcSchedule.scheduleMinute % 15 !== 0
+						? localize('automation.form.cloudScheduleMinute', "Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.")
+						: undefined;
+	validation.cronError = state.interval === 'cron'
+		? getAutomationCronValidationError(state.cronExpression ?? '', state.cronTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone)
+		: undefined;
+	const cronComplete = state.interval !== 'cron' || !!state.cronExpression?.trim();
+	const valid = cronComplete && !validation.cronError && !validation.nameError && !validation.promptError && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !validation.scheduleError;
 	if (saveButton) {
 		saveButton.enabled = valid && !state.targetPending;
 	}
@@ -2632,10 +2669,6 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		});
 	}
 
-	protected override _showTabs(): boolean {
-		return false;
-	}
-
 	protected override _buildListOptions(items: readonly IActionListItem<IWorkspacePickerItem>[], pickerWidth: number | undefined): IActionListOptions {
 		const options = super._buildListOptions(items, pickerWidth);
 		return this.cloudMode?.get() ? {
@@ -2666,7 +2699,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 
 	/** In cloud mode the base picker's recent-workspace limit applies to repository candidates only. */
 	protected override _getRecentWorkspaces(): IResolvedFolderWorkspace[] {
-		const recents = super._getRecentWorkspaces();
+		const recents = super._getRecentWorkspaces(this.cloudMode?.get() || this._workspaceFilter.length > 0);
 		if (!this.cloudMode?.get()) {
 			return recents;
 		}

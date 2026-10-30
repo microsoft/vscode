@@ -156,7 +156,7 @@ suite('ChatArtifactPillSource', () => {
 			const action = harness.sections()[0].entries[0].toolbarActions![0];
 			await action.run();
 			assert.deepStrictEqual({ label: action.label, suggested, reads, writes, errors: harness.errors }, {
-				label: 'Download Image',
+				label: 'Download...',
 				suggested: '/saved/generated-image-a1b2c3d4e5f6.jpg',
 				reads: cancelled ? [] : [imageUri.toString()],
 				writes: cancelled ? [] : [target.toString()],

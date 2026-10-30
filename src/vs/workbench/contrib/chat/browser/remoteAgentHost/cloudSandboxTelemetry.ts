@@ -7,7 +7,7 @@ import { IntervalTimer } from '../../../../../base/common/async.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../base/common/map.js';
 import { generateUuid, isUUID } from '../../../../../base/common/uuid.js';
-import { CloudSandboxRequestError, cloudSandboxTaskCreationPaths, type CloudSandboxTaskCreationPath, type ICloudSandboxConnectOptions, type ICloudSandboxCreatedSession, type ICloudSandboxCreateSessionRequest } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxRequestError, cloudSandboxDiscoveryTriggers, cloudSandboxTaskCreationPaths, type CloudSandboxDiscoveryTrigger, type CloudSandboxTaskCreationPath, type ICloudSandboxConnectOptions, type ICloudSandboxCreatedSession, type ICloudSandboxCreateSessionRequest, type ICloudSandboxDiscoveryResult } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { type ConnectionDiagnosticRequestKind, IConnectionDiagnosticEvent, type IConnectionDiagnosticState } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { getConnectionTelemetryError, type ConnectionTelemetryErrorClassification, type IConnectionTelemetryError } from '../../../../../platform/agentHost/common/connectionTelemetry.js';
 import { RemoteAgentHostConnectionObserver } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -92,6 +92,9 @@ export interface ICloudSandboxTelemetryService {
 	 * and readiness polls.
 	 */
 	reportRequest(action: CloudSandboxRequestAction, outcome: CloudSandboxRequestOutcome): void;
+
+	/** Reports one completed discovery attempt, including partial, failed and cancelled scans. */
+	reportDiscovery(data: ICloudSandboxDiscoveryTelemetryData): void;
 
 	/** Report client-observed task/VM provisioning separately from connecting to the returned environment. */
 	reportProvisioningOutcome(outcome: CloudSandboxConnectionOutcome, durationMs: number, taskCreationPath?: CloudSandboxTaskCreationPath): void;
@@ -265,6 +268,24 @@ export class CloudSandboxTelemetryService extends Disposable implements ICloudSa
 			}
 		}
 		counts[outcome]++;
+	}
+
+	reportDiscovery(data: ICloudSandboxDiscoveryTelemetryData): void {
+		const modes = ['full', 'incremental', 'targeted'] as const;
+		const outcomes = ['complete', 'incremental', 'partial', 'failed', 'cancelled'] as const;
+		this._telemetryService.publicLog2<CloudSandboxDiscoveryEvent, CloudSandboxDiscoveryClassification>('cloudSandboxDiscovery', {
+			trigger: cloudSandboxDiscoveryTriggers.find(trigger => trigger === data.trigger) ?? 'unknown',
+			requestedMode: modes.find(mode => mode === data.requestedMode) ?? 'unknown',
+			mode: modes.find(mode => mode === data.mode) ?? 'unknown',
+			outcome: outcomes.find(outcome => outcome === data.outcome) ?? 'unknown',
+			durationMs: data.durationMs,
+			pageCount: data.pageCount,
+			listRequestCount: data.listRequestCount,
+			taskCount: data.taskCount,
+			sandboxTaskCount: data.sandboxTaskCount,
+			changedSandboxTaskCount: data.changedSandboxTaskCount,
+			checkpointAdvanced: data.checkpointAdvanced,
+		});
 	}
 
 	reportProvisioningOutcome(outcome: CloudSandboxConnectionOutcome, durationMs: number, taskCreationPath: CloudSandboxTaskCreationPath = 'unknown'): void {
@@ -831,6 +852,42 @@ export type CloudSandboxConnectionHealthClassification = CloudSandboxEnvironment
 	receivedFrames: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Inbound relay WebSocket frames, including setup, recovery, control, malformed and chunk frames; not unique protocol messages.' };
 	owner: 'osortega';
 	comment: 'Delta cloud sandbox or user-local relay connection exposure, unexpected losses and receive load, aggregated every five minutes with a final teardown flush.';
+};
+
+export interface ICloudSandboxDiscoveryTelemetryData {
+	trigger: CloudSandboxDiscoveryTrigger | 'unknown';
+	requestedMode: 'full' | 'incremental' | 'targeted';
+	mode: 'full' | 'incremental' | 'targeted';
+	outcome: ICloudSandboxDiscoveryResult['kind'] | 'cancelled';
+	durationMs: number;
+	pageCount: number;
+	listRequestCount: number;
+	taskCount: number;
+	sandboxTaskCount: number;
+	changedSandboxTaskCount: number;
+	checkpointAdvanced: boolean;
+}
+
+type CloudSandboxDiscoveryEvent = Omit<ICloudSandboxDiscoveryTelemetryData, 'requestedMode' | 'mode' | 'outcome'> & {
+	requestedMode: ICloudSandboxDiscoveryTelemetryData['requestedMode'] | 'unknown';
+	mode: ICloudSandboxDiscoveryTelemetryData['mode'] | 'unknown';
+	outcome: ICloudSandboxDiscoveryTelemetryData['outcome'] | 'unknown';
+};
+
+export type CloudSandboxDiscoveryClassification = {
+	owner: 'osortega';
+	comment: 'Measures the cause, cost and outcome of one cloud sandbox discovery attempt without task content or identifiers.';
+	trigger: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason that initiated the discovery attempt.' };
+	requestedMode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Mode requested at the discovery API boundary, before falling back when no incremental checkpoint exists.' };
+	mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Actual full, incremental or targeted API read.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Discovery result, including partial results and cancellation; HTTP success alone is not discovery success.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Elapsed client time for this discovery attempt.' };
+	pageCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Task-list responses parsed with a tasks array, including empty arrays; not a count of unique backend pages.' };
+	listRequestCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Task-list HTTP attempts issued, including retries and subsequently cancelled requests.' };
+	taskCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Unique task IDs returned by list pages or targeted reads, excluding cached tasks revisited locally.' };
+	sandboxTaskCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Unique returned tasks identified as sandbox tasks.' };
+	changedSandboxTaskCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Returned sandbox task summaries absent from or different from the client cache at scan start; not an authoritative server change count.' };
+	checkpointAdvanced: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether this attempt initialized or advanced the committed incremental checkpoint.' };
 };
 
 type CloudSandboxRequestsEvent = {

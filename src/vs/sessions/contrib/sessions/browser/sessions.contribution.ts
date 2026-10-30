@@ -20,7 +20,7 @@ import { AutomationsCustomViewContribution } from './views/automationsView.js';
 import './views/sessionsViewActions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsListStateMigrationContribution } from './views/sessionsList.js';
+import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsListStateMigrationContribution } from './views/sessionsList.js';
 import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.js';
 import { SessionsListToolsContribution } from './sessionsListTools.js';
 import './sessionDetailsAction.js';
@@ -151,6 +151,13 @@ export const sessionsConfiguration = {
 			default: AutomationSessionsListMode.AfterReply,
 			experiment: { mode: 'auto' }
 		},
+		[SESSIONS_LIST_INDENT_ITEMS_SETTING]: {
+			type: 'boolean',
+			tags: ['experimental', 'advanced'],
+			description: localize('sessions.list.indentItems', "Controls whether sessions and other rows in the sessions list are indented below their section header to show the list's hierarchy."),
+			default: false,
+			experiment: { mode: 'auto' }
+		},
 		[SESSIONS_CHAT_TABS_SETTING]: {
 			type: 'string',
 			tags: ['preview'],
@@ -165,7 +172,7 @@ export const sessionsConfiguration = {
 		},
 		[SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: {
 			type: 'boolean',
-			description: localize('sessions.markAsDoneConfetti', "Controls whether a confetti animation is shown when marking a session as done."),
+			description: localize('sessions.markAsDoneConfetti', "Controls whether a confetti animation is shown when marking a session or Inbox notification as done."),
 			default: true,
 			experiment: { mode: 'auto' }
 			// https://github.com/microsoft/vscode/issues/335801

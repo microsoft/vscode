@@ -64,6 +64,10 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		return undefined;
 	}
 
+	override async sessionWorktreeExists(_sessionId: string, _token = CancellationToken.None): Promise<boolean | undefined> {
+		return undefined;
+	}
+
 	protected override _validateBeforeCreate(): void {
 		throw new Error(localize('cloudSandbox.creationUnavailable', "Start new cloud sessions from the Cloud environment."));
 	}

@@ -50,6 +50,7 @@ export namespace ChatContextKeys {
 	export const inputHasSendableContent = new RawContextKey<boolean>('chatInputHasSendableContent', false, { type: 'boolean', description: localize('interactiveInputHasSendableContent', "True when the chat input has text or file attachments that can be sent.") });
 	export const inputHasFocus = new RawContextKey<boolean>('chatInputHasFocus', false, { type: 'boolean', description: localize('interactiveInputHasFocus', "True when the chat input has focus.") });
 	export const inChatInput = new RawContextKey<boolean>('inChatInput', false, { type: 'boolean', description: localize('inInteractiveInput', "True when focus is in the chat input, false otherwise.") });
+	export const inputInlineAttachmentActive = new RawContextKey<boolean>('chatInputInlineAttachmentActive', false, { type: 'boolean', description: localize('chatInputInlineAttachmentActive', "True when the cursor in the chat input is right after an attachment shown inline with the prompt, which Enter opens.") });
 	export const inChatSessionWorkingSet = new RawContextKey<boolean>('inChatSessionWorkingSet', false, { type: 'boolean', description: localize('inChatSessionWorkingSet', "True when focus is in the session working set, false otherwise.") });
 	export const sessionWorkingSetKeepEnabled = new RawContextKey<boolean>('chatSessionWorkingSetKeepEnabled', false, { type: 'boolean', description: localize('chatSessionWorkingSetKeepEnabled', "True when the session working set can keep changes now, false otherwise.") });
 	export const sessionWorkingSetReviewEnabled = new RawContextKey<boolean>('chatSessionWorkingSetReviewEnabled', true, { type: 'boolean', description: localize('chatSessionWorkingSetReviewEnabled', "Whether Keep and Undo are shown in the session working set.") });
@@ -181,6 +182,7 @@ export namespace ChatContextKeys {
 	export const hasCreatedSessionInAgentsWindow = new RawContextKey<boolean>('chatHasCreatedSessionInAgentsWindow', false, { type: 'boolean', description: localize('chatHasCreatedSessionInAgentsWindow', "True when the user has created at least one session in the Agents Window.") });
 	export const agentSessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('agentSessionType', "The type of the current agent session item.") });
 	export const isAgentSessionChild = new RawContextKey<boolean>('agentSessionIsChild', false, { type: 'boolean', description: localize('agentSessionIsChild', "True when the current agent session item is a child chat.") });
+	export const agentSessionChildCanArchive = new RawContextKey<boolean>('agentSessionChildCanArchive', false);
 	/**
 	 * Whether the agent session item has an associated pull request. Tri-state, so gate with
 	 * `chatSessionPullRequest != 'none'` to keep contributions visible when the state is unknown.

@@ -17,7 +17,7 @@ import { Delayer } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
-import { IMatch, matchesContiguousSubString } from '../../../../../base/common/filters.js';
+import { IMatch } from '../../../../../base/common/filters.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
@@ -42,6 +42,7 @@ import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../.
 import { ILanguageModelToolsService, IToolData, IToolSet } from '../../common/tools/languageModelToolsService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { matchesCustomizationSearchQuery } from '../../common/aiCustomizationSearch.js';
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { countEnabledCustomizationTools, getToolSetTriState, IAgentHostToolSetEnablementService, isToolEnabledInSet, IToolEnablementState } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
@@ -843,13 +844,13 @@ export class ToolsListWidget extends Disposable {
 		let visibleTools: IToolViewModel[] = memberTools.map(tool => ({ tool }));
 		let nameMatches: IMatch[] | undefined;
 		if (query) {
-			nameMatches = matchesContiguousSubString(query, ts.description ?? ts.referenceName) ?? undefined;
+			nameMatches = matchesCustomizationSearchQuery(query, ts.description ?? ts.referenceName) ?? undefined;
 			if (nameMatches) {
-				visibleTools = memberTools.map(tool => ({ tool, nameMatches: matchesContiguousSubString(query, tool.displayName ?? tool.id) ?? undefined }));
+				visibleTools = memberTools.map(tool => ({ tool, nameMatches: matchesCustomizationSearchQuery(query, tool.displayName ?? tool.id) ?? undefined }));
 			} else {
 				visibleTools = [];
 				for (const tool of memberTools) {
-					const toolMatches = matchesContiguousSubString(query, tool.displayName ?? tool.id);
+					const toolMatches = matchesCustomizationSearchQuery(query, tool.displayName ?? tool.id);
 					if (toolMatches) {
 						visibleTools.push({ tool, nameMatches: toolMatches });
 					}
@@ -979,11 +980,11 @@ export class ToolsListWidget extends Disposable {
 				continue;
 			}
 			if (servers.length === 1) {
-				entries.push(...this._computeConnectedServerEntries(servers[0], 0, query, !query || !!matchesContiguousSubString(query, plugin.name)));
+				entries.push(...this._computeConnectedServerEntries(servers[0], 0, query, !query || !!matchesCustomizationSearchQuery(query, plugin.name)));
 				continue;
 			}
 			const id = `connected-plugin:${plugin.id}`;
-			const nameMatches = matchesContiguousSubString(query, plugin.name) ?? undefined;
+			const nameMatches = matchesCustomizationSearchQuery(query, plugin.name) ?? undefined;
 			const expanded = this._expanded.get().has(id) || !!query;
 			const serverEntries = expanded ? servers.flatMap(server => this._computeConnectedServerEntries(server, 1, query, !query || !!nameMatches)) : [];
 			if (query && !nameMatches && serverEntries.length === 0) {
@@ -1010,14 +1011,14 @@ export class ToolsListWidget extends Disposable {
 		const id = `connected-server:${server.id}`;
 		const expandable = this._isConnectedServerReady(server);
 		const expanded = expandable && this._expanded.get().has(id);
-		const nameMatches = matchesContiguousSubString(query, server.name) ?? undefined;
+		const nameMatches = matchesCustomizationSearchQuery(query, server.name) ?? undefined;
 		const state = this._connectedTools.get(server.id);
 		const tools = expanded && state?.state === 'loaded' ? state.tools : [];
 		const toolEntries: IToolsConnectedRowEntry[] = [];
 		for (const tool of tools) {
 			const label = tool.title ?? tool.name;
-			const toolMatches = matchesContiguousSubString(query, label) ?? undefined;
-			if (!query || includeAll || nameMatches || toolMatches || matchesContiguousSubString(query, tool.name)) {
+			const toolMatches = matchesCustomizationSearchQuery(query, label) ?? undefined;
+			if (!query || includeAll || nameMatches || toolMatches || matchesCustomizationSearchQuery(query, tool.name)) {
 				toolEntries.push({ type: 'connected', id: `${id}:tool:${tool.name}`, depth: depth + 1, label, description: tool.description, expandable: false, nameMatches: toolMatches });
 			}
 		}

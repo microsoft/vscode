@@ -35,7 +35,7 @@ import { AgentPluginEnablementService } from '../../../common/plugins/agentPlugi
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { IAgentPluginEnablementService } from '../../../common/plugins/agentPluginService.js';
 import { getPluginCacheUri, parseMarketplaceObjectEntry, validatePluginCacheUri } from '../../../common/plugins/marketplaceReference.js';
-import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, extraKnownMarketplacesToConfigDict, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource, readConfiguredMarketplaces } from '../../../common/plugins/pluginMarketplaceService.js';
+import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, extraKnownMarketplacesToConfigDict, getGitHubRepositorySourceUri, getGitHubRepositoryUri, getMarketplacePluginRepositoryUri, getMarketplacePluginSourceUri, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource, readConfiguredMarketplaces } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
 import { StrictKnownMarketplaces } from '../../../common/plugins/strictKnownMarketplaces.js';
 import { TestUserDataProfileService } from '../../../../../test/common/workbenchTestServices.js';
@@ -1084,6 +1084,27 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		await assert.rejects(service.queryMarketplacePlugins({ ...query, cursor: page.nextCursor }, CancellationToken.None), /invalid/);
 	});
 
+	test('query text treats dashes and spaces as equivalent separators', async () => {
+		const service = createService();
+		sinon.stub(service, 'fetchMarketplacePlugins').resolves([makePlugin('handy-commands', 'handy-commands'), makePlugin('other', 'other')]);
+		const results: Record<string, string[]> = {};
+		for (const text of ['handy commands', 'handy-commands', 'HANDY_commands', 'commands handy']) {
+			const page = await service.queryMarketplacePlugins({
+				text,
+				pageSize: 10,
+				marketplaceIds: new Set([marketplaceRef.canonicalId]),
+				marketplaceTypes: new Set([MarketplaceType.Copilot]),
+			}, CancellationToken.None);
+			results[text] = page.items.map(plugin => plugin.name);
+		}
+		assert.deepStrictEqual(results, {
+			'handy commands': ['handy-commands'],
+			'handy-commands': ['handy-commands'],
+			'HANDY_commands': ['handy-commands'],
+			'commands handy': [],
+		});
+	});
+
 	test('filters unsupported marketplace types before paging and totals', async () => {
 		const service = createService();
 		sinon.stub(service, 'fetchMarketplacePlugins').resolves([
@@ -1982,6 +2003,76 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 			});
 		}
 	}
+});
+
+suite('plugin repository provenance', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('normalizes only canonical HTTPS GitHub repositories', () => {
+		assert.deepStrictEqual({
+			shorthand: getGitHubRepositoryUri('octocat/plugin')?.toString(),
+			https: getGitHubRepositoryUri('https://github.com/octocat/plugin.git')?.toString(),
+			scpGitHub: getGitHubRepositoryUri('git@github.com:octocat/plugin.git')?.toString(),
+			scpGitLab: getGitHubRepositoryUri('git@gitlab.com:octocat/plugin.git')?.toString(),
+			malformed: getGitHubRepositoryUri('https ://github.com/octocat/plugin.git')?.toString(),
+			query: getGitHubRepositoryUri('https://github.com/octocat/plugin?ref=main')?.toString(),
+			extraPath: getGitHubRepositoryUri('https://github.com/octocat/plugin/tree/main')?.toString(),
+		}, {
+			shorthand: 'https://github.com/octocat/plugin',
+			https: 'https://github.com/octocat/plugin',
+			scpGitHub: undefined,
+			scpGitLab: undefined,
+			malformed: undefined,
+			query: undefined,
+			extraPath: undefined,
+		});
+	});
+
+	test('uses the marketplace repository only for relative-path sources', () => {
+		const marketplaceReference = parseMarketplaceReference('octocat/marketplace')!;
+		const repositoryFor = (sourceDescriptor: IPluginSourceDescriptor) => getMarketplacePluginRepositoryUri({
+			sourceDescriptor,
+			marketplaceReference,
+		})?.toString();
+
+		assert.deepStrictEqual({
+			relativePath: repositoryFor({ kind: PluginSourceKind.RelativePath, path: 'plugins/example' }),
+			gitHub: repositoryFor({ kind: PluginSourceKind.GitHub, repo: 'octocat/plugin' }),
+			gitUrl: repositoryFor({ kind: PluginSourceKind.GitUrl, url: 'https://github.com/octocat/monorepo.git' }),
+			scpGitUrl: repositoryFor({ kind: PluginSourceKind.GitUrl, url: 'git@github.com:octocat/monorepo.git' }),
+			npm: repositoryFor({ kind: PluginSourceKind.Npm, package: '@octocat/plugin' }),
+			pip: repositoryFor({ kind: PluginSourceKind.Pip, package: 'octocat-plugin' }),
+		}, {
+			relativePath: 'https://github.com/octocat/marketplace',
+			gitHub: 'https://github.com/octocat/plugin',
+			gitUrl: 'https://github.com/octocat/monorepo',
+			scpGitUrl: undefined,
+			npm: undefined,
+			pip: undefined,
+		});
+	});
+
+	test('links to the exact GitHub plugin source when source provenance includes a ref or path', () => {
+		const marketplaceReference = parseMarketplaceReference('octocat/marketplace#release/next')!;
+		const sourceFor = (sourceDescriptor: IPluginSourceDescriptor) => getMarketplacePluginSourceUri({
+			sourceDescriptor,
+			marketplaceReference,
+		})?.toString();
+
+		assert.deepStrictEqual({
+			relativePath: sourceFor({ kind: PluginSourceKind.RelativePath, path: 'plugins/example' }),
+			gitHubSha: sourceFor({ kind: PluginSourceKind.GitHub, repo: 'octocat/plugin', ref: 'main', sha: 'abc123', path: 'plugins/example' }),
+			gitUrlRef: sourceFor({ kind: PluginSourceKind.GitUrl, url: 'https://github.com/octocat/monorepo.git', ref: 'release/next', path: 'plugins/example' }),
+			repositoryOnly: sourceFor({ kind: PluginSourceKind.GitHub, repo: 'octocat/plugin' }),
+			installedSource: getGitHubRepositorySourceUri('octocat/plugin', 'abc123', 'plugins/example')?.toString(),
+		}, {
+			relativePath: 'https://github.com/octocat/marketplace/tree/release/next/plugins/example',
+			gitHubSha: 'https://github.com/octocat/plugin/tree/abc123/plugins/example',
+			gitUrlRef: 'https://github.com/octocat/monorepo/tree/release/next/plugins/example',
+			repositoryOnly: 'https://github.com/octocat/plugin',
+			installedSource: 'https://github.com/octocat/plugin/tree/abc123/plugins/example',
+		});
+	});
 });
 
 suite('parsePluginSource', () => {

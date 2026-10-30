@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { Barrier } from '../../../../base/common/async.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
@@ -46,17 +45,11 @@ suite('NotebookKernel', function () {
 
 	const notebookUri = URI.parse('test:///notebook.file');
 	const kernelData = new Map<number, INotebookKernelDto2>();
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const cellExecuteCreate: { notebook: UriComponents; cell: number }[] = [];
 	const cellExecuteUpdates: ICellExecuteUpdateDto[] = [];
 	const cellExecuteComplete: ICellExecutionCompleteDto[] = [];
-
-	teardown(function () {
-		disposables.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async function () {
 		cellExecuteCreate.length = 0;
