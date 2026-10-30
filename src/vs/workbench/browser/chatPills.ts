@@ -102,7 +102,11 @@ export interface IChatPillEntry {
 	readonly tooltip?: string;
 	/** Rich hover content for the pill when this is the only entry. */
 	readonly pillHover?: IManagedHoverContent;
-	/** Optional structured rendering when this entry is the only item. The entry's owner owns its lifetime. */
+	/**
+	 * Optional structured rendering when this entry is the only item. The entry's owner owns its lifetime. Its view
+	 * item receives {@link IChatInlinePillViewItemOptions}, so it can show the entry's promoted action like the other
+	 * renderings of a lone entry do.
+	 */
 	readonly inlinePill?: IChatPill;
 	/** Starts resolving metadata for this entry without opening it. */
 	readonly prefetch?: () => void;
@@ -112,6 +116,16 @@ export interface IChatPillEntry {
 export interface IChatPillAction extends IAction {
 	/** Concise label used in the hover footer; the full label remains the row-action tooltip. */
 	readonly hoverLabel?: string;
+}
+
+/** View item options of an entry's {@link IChatPillEntry.inlinePill}. */
+export interface IChatInlinePillViewItemOptions extends IActionViewItemOptions {
+	/**
+	 * The entry's {@link IChatPillEntry.promotedAction}, such as Unpin, to show as the pill's trailing button with
+	 * {@link promotedActionIcon}. Present when the pill showing the entry shows its promoted action.
+	 */
+	readonly promotedAction?: IObservable<IChatPillAction | undefined>;
+	readonly promotedActionIcon?: ThemeIcon;
 }
 
 export type ChatReferenceKind = 'pullRequest' | 'issue';
