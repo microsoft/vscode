@@ -835,6 +835,20 @@ suite('PluginMarketplaceService - Agent Plugin direct install probes', () => {
 
 		assert.strictEqual(result, true);
 	});
+
+	for (const source of ['owner/compatible#release/v1', 'https://example.com/compatible.git#release/v1']) {
+		test(`retains the revision in a direct-source manifest from ${source}`, async () => {
+			const fileService = new ProbeFileService();
+			const repoDir = URI.file('/repos/compatible');
+			seedCompatibleManifest(fileService, repoDir);
+			const service = createService(fileService);
+			const result = await service.readSinglePluginManifest(repoDir, parseMarketplaceReference(source)!);
+
+			assert.deepStrictEqual(result?.sourceDescriptor, source.startsWith('https:')
+				? { kind: PluginSourceKind.GitUrl, url: 'https://example.com/compatible.git', ref: 'release/v1' }
+				: { kind: PluginSourceKind.GitHub, repo: 'owner/compatible', ref: 'release/v1' });
+		});
+	}
 });
 
 suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
