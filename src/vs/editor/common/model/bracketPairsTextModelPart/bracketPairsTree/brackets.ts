@@ -107,6 +107,20 @@ function prepareBracketForRegExp(str: string): string {
 	if (/[\w ]+$/.test(str)) {
 		escaped = `${escaped}\\b`;
 	}
+	// `<`/`>` are also used in the shift-assignment operators `<<=`, `>>=` and `>>>=`.
+	// Unlike plain `<<`/`>>` (ambiguous with nested generics, e.g. `Array<Array<T>>`),
+	// these compound-assignment forms are never brackets, so exclude them unambiguously.
+	// Note: this must be expressed with lookahead only, not a preceding-character lookbehind.
+	// Some callers (e.g. FastTokenizer) scan the text as one continuous string rather than
+	// re-slicing per match, so a lookbehind here would see an *adjacent, already-matched*
+	// bracket character (e.g. the legitimate `>>` closing two nested generics) and wrongly
+	// treat it the same as the second `>` of `>>=` - breaking `Array<Array<T>>`-style nesting.
+	// see https://github.com/microsoft/vscode/issues/329789
+	if (str === '<') {
+		escaped = `${escaped}(?!<?=)`;
+	} else if (str === '>') {
+		escaped = `${escaped}(?!>{0,2}=)`;
+	}
 	return escaped;
 }
 
