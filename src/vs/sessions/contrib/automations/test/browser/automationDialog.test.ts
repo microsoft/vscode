@@ -916,11 +916,16 @@ suite('Automation dialog creation', () => {
 			const timeZoneHint = cron?.querySelector<HTMLElement>('#automation-cron-hint');
 			const triggerBounds = trigger.getBoundingClientRect();
 			const cronBounds = cron?.getBoundingClientRect();
+			const fieldBounds = Array.from(cron!.querySelectorAll<HTMLElement>('.automation-cron-segment'), field => field.getBoundingClientRect());
+			const fieldCenters = fieldBounds.map(field => field.left + field.width / 2);
+			const fieldGaps = fieldCenters.slice(1).map((center, index) => center - fieldCenters[index]);
 			results.push({
 				width,
 				visibleGroups: Array.from(row.children).filter(element => DOM.getWindow(row).getComputedStyle(element).display !== 'none').length,
 				triggerUsesOneColumn: Math.abs(triggerBounds.width - weeklyTriggerWidth) < 1,
 				cronSpansTwoColumns: !!cronBounds && Math.abs(cronBounds.width - (2 * triggerBounds.width + cronBounds.left - triggerBounds.right)) < 1,
+				equalFieldWidths: fieldBounds.every(field => Math.abs(field.width - fieldBounds[0].width) < 1),
+				evenlySpacedFields: fieldGaps.every(gap => Math.abs(gap - fieldGaps[0]) < 1),
 				aligned: !!cronBounds && Math.abs(triggerBounds.top - cronBounds.top) < 1,
 				beside: !!cronBounds && cronBounds.left > triggerBounds.right,
 				hintBesideLabel: !!cronLabel && !!timeZoneHint && cronLabel.nextElementSibling === timeZoneHint
@@ -944,7 +949,7 @@ suite('Automation dialog creation', () => {
 			await dialog.result;
 		}
 		assert.deepStrictEqual(results, [640, 360].flatMap(width => [{
-			width, visibleGroups: 2, triggerUsesOneColumn: true, cronSpansTwoColumns: true, aligned: true, beside: true, hintBesideLabel: true, matchingPickerHeight: true, inputsAligned: true, inputTextFits: true, captionsFit: true,
+			width, visibleGroups: 2, triggerUsesOneColumn: true, cronSpansTwoColumns: true, equalFieldWidths: true, evenlySpacedFields: true, aligned: true, beside: true, hintBesideLabel: true, matchingPickerHeight: true, inputsAligned: true, inputTextFits: true, captionsFit: true,
 			controls: ['Trigger', 'Minute', 'Hour', 'Day of month', 'Month', 'Day of week'],
 		}, { width, presetColumnsEqual: true }]));
 	});
