@@ -32,6 +32,7 @@ const TRANSIENT_ERROR_CODES = new Set([
 ]);
 
 const IDEMPOTENT_HTTP_METHODS_REGEX = /^(GET|HEAD|OPTIONS)$/i;
+const ORIGIN_CREDENTIAL_HEADERS = new Set(['authorization', 'cookie', 'cookie2']);
 
 function isTransientError(error: unknown): boolean {
 	if (error instanceof Error) {
@@ -191,14 +192,11 @@ function stripRedirectHeaders(headers: IHeaders | undefined, crossOrigin: boolea
 	}
 	const result: IHeaders = {};
 	for (const name of Object.keys(headers)) {
-		switch (name.toLowerCase()) {
-			case 'authorization':
-			case 'cookie':
-			case 'cookie2':
-				if (crossOrigin) {
-					continue;
-				}
-				break;
+		const normalizedName = name.toLowerCase();
+		if (crossOrigin && ORIGIN_CREDENTIAL_HEADERS.has(normalizedName)) {
+			continue;
+		}
+		switch (normalizedName) {
 			case 'content-type':
 			case 'content-encoding':
 			case 'content-language':
@@ -243,6 +241,10 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 async function nodeRequestAttempt(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 	return Promises.withAsyncBody<IRequestContext>(async (resolve, reject) => {
 		const endpoint = parseUrl(options.url!);
+		const hasOriginCredentials = !!endpoint.auth || options.user !== undefined || options.password !== undefined
+			|| Object.keys(options.headers ?? {}).some(name => ORIGIN_CREDENTIAL_HEADERS.has(name.toLowerCase()));
+		const manualRedirects = !options.isChromiumNetwork || isNumber(options.followRedirects) || hasOriginCredentials;
+		const followRedirects = isNumber(options.followRedirects) ? options.followRedirects : options.isChromiumNetwork ? 20 : 3;
 		const rawRequest = options.getRawRequest
 			? options.getRawRequest(options)
 			: await getNodeRequest(options);
@@ -267,13 +269,14 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 		}
 
 		if (options.isChromiumNetwork) {
-			opts.redirect = 'manual';
+			if (manualRedirects) {
+				opts.redirect = 'manual';
+			}
 			// Electron reparses Node-style paths as URLs, which changes leading double slashes.
 			opts.url = options.url;
 		}
 
 		const followRedirect = (statusCode: number | undefined, location: string | undefined, method = options.type): boolean => {
-			const followRedirects: number = isNumber(options.followRedirects) ? options.followRedirects : 3;
 			const target = statusCode && statusCode >= 300 && statusCode < 400 && followRedirects > 0 && location
 				? resolveRedirectTarget(options.url!, location)
 				: undefined;
@@ -295,7 +298,7 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 		};
 
 		const req = rawRequest(opts, (res: http.IncomingMessage) => {
-			if (followRedirect(res.statusCode, res.headers['location'])) {
+			if (!options.isChromiumNetwork && followRedirect(res.statusCode, res.headers['location'])) {
 				res.resume();
 			} else {
 				let stream: streams.ReadableStreamEvents<Uint8Array> = res;
@@ -315,10 +318,9 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 
 		req.on('error', reject);
 
-		if (options.isChromiumNetwork) {
+		if (options.isChromiumNetwork && manualRedirects) {
 			req.on('redirect', (statusCode: number, method: string, redirectUrl: string, headers: IHeaders) => {
-				// Electron reports redirects separately from responses. Abort synchronously so
-				// Chromium cannot follow with the original credentials or cancel with an error.
+				// Abort synchronously so Chromium cannot follow with the original credentials.
 				req.abort();
 				if (!followRedirect(statusCode, redirectUrl, method)) {
 					resolve({ res: { statusCode, headers }, stream: streams.emptyStream() });

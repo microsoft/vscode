@@ -336,7 +336,7 @@ suite('Request Service', () => {
 
 		async function requestRedirects(locations: readonly string[], options: Partial<NodeRequestOptions> = {}) {
 			const http = await import('http');
-			const captured: http.RequestOptions[] = [];
+			const captured: (http.RequestOptions & { redirect?: 'manual' })[] = [];
 			const received: http.IncomingHttpHeaders[] = [];
 			const server = http.createServer((req, res) => {
 				const location = locations[received.length];
@@ -429,6 +429,31 @@ suite('Request Service', () => {
 			test(`respects a redirect limit of ${followRedirects ?? 'default'}`, async () => {
 				const { captured, context } = await requestRedirects(['/1', '/2', '/3', '/4'], { followRedirects });
 				assert.deepStrictEqual({ requests: captured.length, statusCode: context.res.statusCode }, { requests: (followRedirects ?? 3) + 1, statusCode: 302 });
+			});
+		}
+
+		for (const { name, options, manual } of [
+			{ name: 'no credentials', options: {}, manual: false },
+			{ name: 'proxy credentials only', options: { headers: { 'Proxy-Authorization': 'Basic proxy-token' } }, manual: false },
+			{ name: 'Authorization', options: { headers: { Authorization: 'Bearer fixture-token' } }, manual: true },
+			{ name: 'mixed-case Authorization', options: { headers: { aUtHoRiZaTiOn: 'Bearer fixture-token' } }, manual: true },
+			{ name: 'Cookie', options: { headers: { Cookie: 'session=secret' } }, manual: true },
+			{ name: 'mixed-case Cookie', options: { headers: { cOoKiE: 'session=secret' } }, manual: true },
+			{ name: 'Cookie2', options: { headers: { Cookie2: 'session=secret' } }, manual: true },
+			{ name: 'mixed-case Cookie2', options: { headers: { cOoKiE2: 'session=secret' } }, manual: true },
+			{ name: 'empty basic password', options: { user: 'user', password: '' }, manual: true },
+			{ name: 'URL credentials', options: { url: 'https://user:password@market.example/api/asset' }, manual: true },
+			{ name: 'an explicit zero budget', options: { followRedirects: 0 }, manual: true }
+		]) {
+			test(`selects the Electron redirect mode for ${name}`, async () => {
+				const { captured } = await requestRedirects([], {
+					headers: undefined,
+					user: undefined,
+					password: undefined,
+					isChromiumNetwork: true,
+					...options
+				});
+				assert.deepStrictEqual(captured.map(request => request.redirect), [manual ? 'manual' : undefined]);
 			});
 		}
 
