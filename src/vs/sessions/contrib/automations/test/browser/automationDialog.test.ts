@@ -910,7 +910,7 @@ suite('Automation dialog creation', () => {
 			select.dispatchEvent(new (DOM.getWindow(select).Event)('change'));
 			const cron = row.querySelector<HTMLElement>('.automation-form-cron-group');
 			const cronControl = cron?.querySelector<HTMLElement>('.automation-cron-segments');
-			cronControl!.style.font = '16px Arial, sans-serif';
+			cronControl!.style.fontSize = '16px';
 			cronControl!.style.setProperty('--vscode-fontSize-body2', 'initial');
 			const cronLabel = cron?.querySelector<HTMLElement>('.automation-form-label');
 			const timeZoneHint = cron?.querySelector<HTMLElement>('#automation-cron-hint');
