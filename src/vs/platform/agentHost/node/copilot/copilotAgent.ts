@@ -3078,6 +3078,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			} catch (verificationError) {
 				throw new AggregateError([error, verificationError], getErrorMessage(error));
 			}
+			if (session.isDisposed) {
+				throw error;
+			}
 			const targets = extensions.filter(extension => extension.id === extensionId);
 			const targetSettled = targets.length > 0 && targets.every(extension => extension.status === (enabled ? 'running' : 'disabled'));
 			if (enabled && targetSettled) {

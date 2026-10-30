@@ -2406,14 +2406,14 @@ suite('CopilotAgent', () => {
 
 	for (const scenario of [
 		{ name: 'disabled target and unrelated failure', enabled: false, statuses: ['disabled'], succeeds: false, expectedError: /After disabling 'preview', this chat couldn't finish updating canvas extensions because 'other' failed to start. This chat may not match your Canvas extension settings/ },
-		{ name: 'running target and unrelated failure', enabled: true, statuses: ['running'], succeeds: true },
-		{ name: 'target still running', enabled: false, statuses: ['running'], succeeds: false },
+		{ name: 'running target and unrelated failure', enabled: true, statuses: ['running'], succeeds: true, expectedError: undefined },
+		{ name: 'target still running', enabled: false, statuses: ['running'], succeeds: false, expectedError: undefined },
 		{ name: 'target still starting', enabled: true, statuses: ['starting'], succeeds: false, expectedError: /After enabling 'preview', this chat couldn't finish updating canvas extensions because 'other' failed to start. This chat may not match your Canvas extension settings/ },
-		{ name: 'target failed', enabled: true, statuses: ['failed'], succeeds: false },
-		{ name: 'target absent', enabled: false, statuses: [], succeeds: false },
-		{ name: 'conflicting duplicate target states', enabled: false, statuses: ['disabled', 'running'], succeeds: false },
-		{ name: 'verification unavailable', enabled: false, statuses: ['disabled'], succeeds: false },
-		{ name: 'disposed session', enabled: false, statuses: ['disabled'], succeeds: false },
+		{ name: 'target failed', enabled: true, statuses: ['failed'], succeeds: false, expectedError: undefined },
+		{ name: 'target absent', enabled: false, statuses: [], succeeds: false, expectedError: undefined },
+		{ name: 'conflicting duplicate target states', enabled: false, statuses: ['disabled', 'running'], succeeds: false, expectedError: undefined },
+		{ name: 'verification unavailable', enabled: false, statuses: ['disabled'], succeeds: false, expectedError: undefined },
+		{ name: 'disposed during verification', enabled: true, statuses: ['running'], succeeds: false, expectedError: undefined },
 	] as const) {
 		test(`verifies extension enablement after reconciliation failure: ${scenario.name}`, async () => {
 			const client = new TestCopilotClient([]);
@@ -2426,13 +2426,15 @@ suite('CopilotAgent', () => {
 			const agent = createTestAgent(disposables, { copilotClient: client, logService });
 			const session = AgentSession.uri('copilotcli', 'partial-extension-reconcile');
 			let reconciled = false;
+			let listed = false;
 			setDefaultSessionStub(agent, 'partial-extension-reconcile', {
-				get isDisposed() { return reconciled && scenario.name === 'disposed session'; },
+				get isDisposed() { return listed && scenario.name === 'disposed during verification'; },
 				reconcileExtensions: async () => {
 					reconciled = true;
 					throw new Error('unrelated extension did not become ready');
 				},
 				listExtensions: async () => {
+					listed = true;
 					if (reconciled && scenario.name === 'verification unavailable') {
 						throw new Error('inventory unavailable');
 					}
