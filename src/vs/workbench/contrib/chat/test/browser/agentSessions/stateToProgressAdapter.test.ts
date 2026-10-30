@@ -1074,10 +1074,10 @@ suite('stateToProgressAdapter', () => {
 			})], 'participant');
 
 			assert.deepStrictEqual(history[1].type === 'response' ? history[1].parts : undefined, [
-				{ kind: 'thinking', id: 'timed', value: 'Measured', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 },
-				{ kind: 'thinking', id: 'zero', value: 'Immediate', reasoningDurationMs: 0 },
-				{ kind: 'thinking', id: 'unknown', value: 'Older host' },
-				{ kind: 'thinking', id: 'invalid', value: 'Invalid metadata' },
+				{ kind: 'thinking', id: 'timed', value: 'Measured', reasoningTimingSource: 'provider', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 },
+				{ kind: 'thinking', id: 'zero', value: 'Immediate', reasoningTimingSource: 'provider', reasoningDurationMs: 0 },
+				{ kind: 'thinking', id: 'unknown', value: 'Older host', reasoningTimingSource: 'provider' },
+				{ kind: 'thinking', id: 'invalid', value: 'Invalid metadata', reasoningTimingSource: 'provider' },
 			]);
 		});
 
@@ -4312,7 +4312,7 @@ suite('stateToProgressAdapter', () => {
 			]), undefined);
 
 			assert.deepStrictEqual(result, [
-				{ kind: 'thinking', id: 'reasoning', value: 'Assessing final output steps' },
+				{ kind: 'thinking', id: 'reasoning', value: 'Assessing final output steps', reasoningTimingSource: 'provider' },
 				{ kind: 'thinking', value: '' },
 			]);
 		});
@@ -4570,8 +4570,8 @@ suite('stateToProgressAdapter', () => {
 			]), 'remote-host');
 
 			assert.deepStrictEqual(result, [
-				{ kind: 'thinking', id: 'completed', value: 'Already thought', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 },
-				{ kind: 'thinking', id: 'active', value: 'Still thinking', reasoningStartedAt: 60_000 },
+				{ kind: 'thinking', id: 'completed', value: 'Already thought', reasoningTimingSource: 'provider', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 },
+				{ kind: 'thinking', id: 'active', value: 'Still thinking', reasoningTimingSource: 'provider', reasoningStartedAt: 60_000 },
 			]);
 		});
 

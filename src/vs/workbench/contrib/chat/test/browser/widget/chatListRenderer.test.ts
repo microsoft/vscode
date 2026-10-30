@@ -10312,6 +10312,61 @@ suite('ChatListRenderer', () => {
 		renderer.renderElement(node, 0, template);
 	});
 
+	for (const value of ['Reasoning without a heading', ['First reasoning piece', 'Second reasoning piece']]) {
+		test(`late reasoning timing refreshes a finalized header and ARIA label (${typeof value})`, async () => {
+			const { model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'late-timing', value }, false, true);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The answer') });
+			renderer.renderElement(node, 0, template);
+			await Promise.all(template.renderedParts?.flatMap(part => part instanceof ChatThinkingContentPart ? [part.getPendingCollapseAnimation()] : []) ?? []);
+			const section = template.value.querySelector('.chat-thinking-box');
+			const button = section?.querySelector<HTMLElement>('.chat-used-context-label .monaco-button');
+			const before = { title: button?.textContent, ariaLabel: button?.ariaLabel };
+
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'late-timing', value: '', reasoningDurationMs: 45_000 });
+			renderer.renderElement(node, 0, template);
+			const after = { title: button?.textContent, ariaLabel: button?.ariaLabel };
+			request.response?.complete();
+
+			assert.deepStrictEqual({
+				before,
+				after,
+				preservesSection: template.value.querySelector('.chat-thinking-box') === section,
+			}, {
+				before: { title: 'Finished thinking', ariaLabel: 'Finished thinking' },
+				after: { title: 'Thought for 45s', ariaLabel: 'Thought for 45s' },
+				preservesSection: true,
+			});
+		});
+	}
+
+	test('late reasoning timing refreshes an earlier run inside a finalized conversation group', async () => {
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Conversation });
+		model.acceptResponseProgress(request, { kind: 'thinking', id: 'first', value: 'First run', reasoningTimingSource: 'provider' }, false, true);
+		const tool = new ChatToolInvocation(
+			{ invocationMessage: 'Reading', pastTenseMessage: 'Read' },
+			{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+			'between', undefined, {},
+		);
+		model.acceptResponseProgress(request, tool);
+		await tool.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, { kind: 'thinking', id: 'second', value: 'Second run', reasoningTimingSource: 'provider', reasoningDurationMs: 12_000 });
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The answer') });
+		renderer.renderElement(node, 0, template);
+		const section = template.renderedParts?.find(part => part instanceof ChatThinkingContentPart);
+		assert.ok(section instanceof ChatThinkingContentPart);
+		section.expandContent();
+		const labels = () => Array.from(section.domNode.querySelectorAll('.chat-thinking-run-duration'), element => element.textContent);
+		const before = labels();
+
+		model.acceptResponseProgress(request, { kind: 'thinking', id: 'first', value: '', reasoningTimingSource: 'provider', reasoningDurationMs: 5000 });
+		renderer.renderElement(node, 0, template);
+		const after = labels();
+		request.response?.complete();
+
+		assert.deepStrictEqual({ before, after }, { before: ['Thought for 12s'], after: ['Thought for 5s', 'Thought for 12s'] });
+	});
+
 	for (const progressVerbosity of [ChatProgressVerbosity.Compact, ChatProgressVerbosity.Verbose, ChatProgressVerbosity.Conversation]) {
 		for (const boundary of ['markdown', 'tool'] as const) {
 			test(`reasoning run durations survive reload independently (${progressVerbosity}, ${boundary})`, async () => {

@@ -1058,14 +1058,16 @@ export class Response extends AbstractResponse implements IDisposable {
 		} else if (progress.kind === 'thinking') {
 			const currText = Array.isArray(progress.value) ? progress.value.join('') : (progress.value ?? '');
 			const hasTiming = progress.reasoningStartedAt !== undefined || progress.reasoningDurationMs !== undefined;
+			const hasProviderTiming = progress.reasoningTimingSource === 'provider';
 			const timing = {
+				...(hasProviderTiming ? { reasoningTimingSource: progress.reasoningTimingSource } : {}),
 				...(progress.reasoningStartedAt !== undefined ? { reasoningStartedAt: progress.reasoningStartedAt } : {}),
 				...(progress.reasoningDurationMs !== undefined ? { reasoningDurationMs: progress.reasoningDurationMs } : {}),
 			};
-			if (hasTiming && this._activeReasoning?.part.id === progress.id) {
+			if ((hasTiming || hasProviderTiming) && this._activeReasoning?.part.id === progress.id) {
 				this._activeReasoning = undefined;
 			}
-			if (hasTiming && progress.id !== undefined) {
+			if ((hasTiming || hasProviderTiming) && progress.id !== undefined) {
 				const index = this._responseParts.findLastIndex(part => part.kind === 'thinking' && part.id === progress.id);
 				const part = this._responseParts[index];
 				const crossedBoundary = this._responseParts.slice(index + 1).some(part => !isNestedSubagentResponsePart(part)
@@ -1081,10 +1083,10 @@ export class Response extends AbstractResponse implements IDisposable {
 					return;
 				}
 			}
-			if (!currText && progress.id === undefined && !hasTiming) {
+			if (!currText && progress.id === undefined && !hasTiming && !hasProviderTiming) {
 				const lastOutput = this._responseParts.findLast(part => !isNestedSubagentResponsePart(part)
 					&& (part.kind === 'thinking' || part.kind === 'markdownContent' || part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized'));
-				if (lastOutput?.kind === 'thinking' && (lastOutput.reasoningStartedAt !== undefined || lastOutput.reasoningDurationMs !== undefined)) {
+				if (lastOutput?.kind === 'thinking' && (lastOutput.reasoningTimingSource === 'provider' || lastOutput.reasoningStartedAt !== undefined || lastOutput.reasoningDurationMs !== undefined)) {
 					return;
 				}
 			}
@@ -1105,7 +1107,7 @@ export class Response extends AbstractResponse implements IDisposable {
 			const isEmpty = (s: string) => s.length === 0;
 			if (isEmpty(currText)) {
 				this.finalizeReasoningDuration();
-			} else if (!this._activeReasoning && !restored && !hasTiming) {
+			} else if (!this._activeReasoning && !restored && !hasTiming && !hasProviderTiming && !(lastResponsePart?.kind === 'thinking' && !differentId && lastResponsePart.reasoningTimingSource === 'provider')) {
 				// Replayed history keeps its recorded timing; this clock only measures live reasoning.
 				this._activeReasoning = { part: progress, startedAt: Date.now() };
 			}

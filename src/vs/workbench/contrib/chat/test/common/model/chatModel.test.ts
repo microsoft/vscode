@@ -995,6 +995,39 @@ suite('ChatModel', () => {
 		}
 	});
 
+	test('provider-owned reasoning stays untimed after reconnect while local providers retain measurement', () => {
+		const clock = sinon.useFakeTimers({ now: 900_000 });
+		try {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const request = model.addRequest({ text: 'Question', parts: [] }, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'remote', value: 'Restored', reasoningTimingSource: 'provider' }, false, true);
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'remote', value: ' continuation', reasoningTimingSource: 'provider' });
+			clock.tick(5000);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Remote answer') });
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'local', value: 'Local reasoning' });
+			clock.tick(2000);
+			request.response?.complete();
+			const restored = testDisposables.add(instantiationService.createInstance(ChatModel, { value: model.toJSON(), serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+
+			assert.deepStrictEqual(restored.getRequests()[0].response?.entireResponse.value.filter(part => part.kind === 'thinking'), [
+				{ kind: 'thinking', id: 'remote', value: 'Restored continuation', reasoningTimingSource: 'provider' },
+				{ kind: 'thinking', id: 'local', value: 'Local reasoning', reasoningStartedAt: 905_000, reasoningDurationMs: 2000 },
+			]);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('provider-owned timing accepts a late recorded zero without a client-clock fallback', () => {
+		const response = testDisposables.add(new Response([]));
+		response.updateContent({ kind: 'thinking', id: 'remote', value: 'Reasoning', reasoningTimingSource: 'provider' });
+		response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Answer') });
+		response.updateContent({ kind: 'thinking', id: 'remote', value: '', reasoningTimingSource: 'provider', reasoningDurationMs: 0 });
+		response.finalizeReasoningDuration();
+
+		assert.deepStrictEqual(response.value[0], { kind: 'thinking', id: 'remote', value: 'Reasoning', reasoningTimingSource: 'provider', reasoningDurationMs: 0 });
+	});
+
 	test('applies timing-only reasoning updates without replaying text or measuring a remote clock', () => {
 		const clock = sinon.useFakeTimers({ now: 900_000 });
 		try {

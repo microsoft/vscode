@@ -1699,6 +1699,7 @@ export function reasoningPartToThinking(part: ReasoningResponsePart, value = par
 		kind: 'thinking',
 		id: part.id,
 		value,
+		reasoningTimingSource: 'provider',
 		...(startedAt !== undefined && Number.isFinite(startedAt) ? { reasoningStartedAt: startedAt } : {}),
 		...(typeof part.duration === 'number' && Number.isFinite(part.duration) && part.duration >= 0 ? { reasoningDurationMs: part.duration } : {}),
 	};
