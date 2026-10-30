@@ -57,12 +57,20 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 
 	showContextMenu(delegate: IContextMenuDelegate | IContextMenuMenuDelegate): void {
 		const shownDelegate = delegate;
-		this.shownDelegate = shownDelegate;
 
 		delegate = ContextMenuMenuDelegate.transform(delegate, this.menuService, this.contextKeyService);
+		const getActions = delegate.getActions;
 
 		this.contextMenuHandler.showContextMenu({
 			...delegate,
+			getActions: () => {
+				const actions = getActions();
+				// An empty request shows nothing, so a menu that is already shown keeps its ownership
+				if (actions.length) {
+					this.shownDelegate = shownDelegate;
+				}
+				return actions;
+			},
 			onHide: (didCancel) => {
 				if (this.shownDelegate === shownDelegate) {
 					this.shownDelegate = undefined;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../base/browser/dom.js';
-import { isContextViewFocused } from '../../../../base/browser/ui/contextview/contextview.js';
+import { getFocusedContextView } from '../../../../base/browser/ui/contextview/contextview.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
@@ -1752,12 +1752,9 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		// If the context view is focused, delay rendering settings
-		if (this.contextViewFocused()) {
-			// eslint-disable-next-line no-restricted-syntax
-			const element = this.window.document.querySelector('.context-view');
-			if (element) {
-				this.scheduleRefresh(element as HTMLElement, key);
-			}
+		const focusedContextView = getFocusedContextView(this.rootElement.ownerDocument);
+		if (focusedContextView) {
+			this.scheduleRefresh(focusedContextView, key);
 			return;
 		}
 
@@ -1807,10 +1804,6 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		return;
-	}
-
-	private contextViewFocused(): boolean {
-		return isContextViewFocused(this.rootElement.ownerDocument);
 	}
 
 	private refreshSingleElement(element: SettingsTreeSettingElement): void {

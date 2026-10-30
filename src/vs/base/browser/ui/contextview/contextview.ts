@@ -267,12 +267,20 @@ function getDeepActiveElement(doc: Document): Element | null {
 }
 
 /**
+ * The context view of the document that contains focus, including
+ * context views hosted in a shadow root.
+ */
+export function getFocusedContextView(doc: Document): HTMLElement | undefined {
+	const activeElement = getDeepActiveElement(doc);
+	return DOM.isHTMLElement(activeElement) ? DOM.findParentWithClass(activeElement, 'context-view') ?? undefined : undefined;
+}
+
+/**
  * Whether focus is inside a context view of the document, including
  * context views hosted in a shadow root.
  */
 export function isContextViewFocused(doc: Document): boolean {
-	const activeElement = getDeepActiveElement(doc);
-	return DOM.isHTMLElement(activeElement) && DOM.hasParentWithClass(activeElement, 'context-view');
+	return !!getFocusedContextView(doc);
 }
 
 export class ContextView extends Disposable {

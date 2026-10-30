@@ -183,7 +183,7 @@ suite('ContextMenuHandler', () => {
 	});
 
 	suite('ContextMenuService', () => {
-		test('hides a context menu on request only for the delegate it is shown for', () => {
+		function createService() {
 			const container = mainWindow.document.body.appendChild($('div'));
 			store.add(toDisposable(() => container.remove()));
 			const hideContextViewCalls: unknown[] = [];
@@ -212,7 +212,11 @@ suite('ContextMenuHandler', () => {
 				getActions: () => actions,
 				onHide: () => hidden.push(name),
 			});
+			return { service, hidden, hideContextViewCalls, createDelegate };
+		}
 
+		test('hides a context menu on request only for the delegate it is shown for', () => {
+			const { service, hidden, hideContextViewCalls, createDelegate } = createService();
 			const empty = createDelegate('empty', []);
 			const first = createDelegate('first');
 			const second = createDelegate('second');
@@ -228,6 +232,23 @@ suite('ContextMenuHandler', () => {
 			assert.deepStrictEqual({ beforeHide, hidden, hideContextViewCalls }, {
 				beforeHide: ['first'],
 				hidden: ['first', 'second'],
+				hideContextViewCalls: [true]
+			});
+		});
+
+		test('keeps the ownership of a shown context menu when an empty one is requested', () => {
+			const { service, hidden, hideContextViewCalls, createDelegate } = createService();
+			const first = createDelegate('first');
+			const empty = createDelegate('empty', []);
+			service.showContextMenu(first);
+			service.showContextMenu(empty);
+			service.hideContextMenu(empty);
+			const beforeHide = [...hidden];
+			service.hideContextMenu(first);
+
+			assert.deepStrictEqual({ beforeHide, hidden, hideContextViewCalls }, {
+				beforeHide: [],
+				hidden: ['first'],
 				hideContextViewCalls: [true]
 			});
 		});

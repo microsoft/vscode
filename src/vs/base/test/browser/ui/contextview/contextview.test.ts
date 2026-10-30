@@ -6,7 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { $, getDomNodePagePosition, getWindow } from '../../../../browser/dom.js';
-import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLASS, CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS, ContextView, ContextViewDOMPosition, contextViewMenuCloseAnimation, IContextViewRenderContext, IDelegate, isContextViewFocused } from '../../../../browser/ui/contextview/contextview.js';
+import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLASS, CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS, ContextView, ContextViewDOMPosition, contextViewMenuCloseAnimation, getFocusedContextView, IContextViewRenderContext, IDelegate, isContextViewFocused } from '../../../../browser/ui/contextview/contextview.js';
 import { mainWindow } from '../../../../browser/window.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../common/errors.js';
 import { DeferredPromise, timeout } from '../../../../common/async.js';
@@ -696,13 +696,20 @@ suite('ContextView', () => {
 			const { delegate, item } = createDelegate({ focus: () => item().focus() });
 			input.focus();
 			contextView.show(delegate);
-			const shown = { focused: isContextViewFocused(mainWindow.document), activeIsHost: mainWindow.document.activeElement?.classList.contains('shadow-root-host') };
+			const focusedView = getFocusedContextView(mainWindow.document);
+			const shown = {
+				focused: isContextViewFocused(mainWindow.document),
+				activeIsHost: mainWindow.document.activeElement?.classList.contains('shadow-root-host'),
+				focusedViewContainsItem: !!focusedView?.contains(item()),
+				focusedViewInShadowRoot: !!focusedView && focusedView.getRootNode() !== mainWindow.document,
+				foundByDocumentQuery: !!mainWindow.document.querySelector('.context-view'),
+			};
 
 			contextView.hide();
 
-			assert.deepStrictEqual({ shown, hidden: isContextViewFocused(mainWindow.document) }, {
-				shown: { focused: true, activeIsHost: true },
-				hidden: false
+			assert.deepStrictEqual({ shown, hidden: { focused: isContextViewFocused(mainWindow.document), focusedView: getFocusedContextView(mainWindow.document) } }, {
+				shown: { focused: true, activeIsHost: true, focusedViewContainsItem: true, focusedViewInShadowRoot: true, foundByDocumentQuery: false },
+				hidden: { focused: false, focusedView: undefined }
 			});
 		});
 
