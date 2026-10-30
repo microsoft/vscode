@@ -50,6 +50,8 @@ import { fromNowByDay } from '../../../../base/common/date.js';
 import { ChatSendResult, IChatConfirmation, IChatQuestionAnswerValue, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatContentPartRenderContext } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
 import { ChatCustomConfirmationWidget, SimpleChatConfirmationWidget } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatConfirmationWidget.js';
+import { buildCustomOptionButtons } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/toolInvocationParts/abstractToolConfirmationSubPart.js';
+import { ChatTerminalToolExplanation } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolExplanation.js';
 import { getChatMarkdownRenderOptions } from '../../../../workbench/contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
 import { ChatQuestionCarouselPart } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -1412,6 +1414,10 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		const normalize = (text: string) => text.trim().replace(/\s+/g, ' ');
 		const visibleText = [item.title];
 		if (item.needsInputPart?.kind === 'questionCarousel') {
+			const message = item.needsInputPart.message;
+			if (message) {
+				visibleText.push(typeof message === 'string' ? message : renderAsPlaintext(message));
+			}
 			for (const question of item.needsInputPart.questions) {
 				visibleText.push(question.title);
 				for (const message of [question.message, question.detailedMessage]) {
@@ -1457,10 +1463,13 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		}
 
 		if (part.kind === 'toolConfirmation') {
-			const titleText = typeof part.title === 'string' ? part.title : part.title.value;
-			const messageText = typeof part.message === 'string' ? part.message : part.message.value;
+			const titleText = typeof part.title === 'string' ? part.title : renderAsPlaintext(part.title);
+			const messageText = typeof part.message === 'string' ? part.message : renderAsPlaintext(part.message);
+			const hasDistinctMessage = part.commandLine
+				? !titleText.includes(messageText.replace(/\s+/g, ' ').trim()) && messageText.trim() !== part.commandLine.trim()
+				: messageText.trim() !== titleText.trim();
 			const message = store.add(this.markdownRendererService.render(
-				messageText.trim() === titleText.trim() ? new MarkdownString()
+				!hasDistinctMessage ? new MarkdownString()
 					: typeof part.message === 'string' ? new MarkdownString(part.message) : part.message,
 				getChatMarkdownRenderOptions(),
 			));
@@ -1472,7 +1481,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			}
 			if (part.commandLine) {
 				message.element.appendChild(store.add(this.markdownRendererService.render(
-					new MarkdownString().appendCodeblock('', part.commandLine),
+					new MarkdownString().appendCodeblock(part.commandLanguage ?? 'shellscript', part.commandLine),
 					getChatMarkdownRenderOptions(),
 				)).element);
 			}
@@ -1492,24 +1501,41 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			if (!part.buttons.length) {
 				message.element.appendChild($('p', undefined, localize('inboxNotifications.toolConfirmation.openSession', "Open the session to review the full request and respond.")));
 			}
+			const buttons = buildCustomOptionButtons(
+				part.buttons.map((button, buttonIndex) => ({
+					id: String(buttonIndex),
+					label: button.label,
+					kind: button.kind === 'deny' ? ConfirmationOptionKind.Deny : ConfirmationOptionKind.Approve,
+					group: button.group,
+				})),
+				option => async () => {
+					this.logInboxInteraction('submitToolConfirmation', 'inlineToolConfirmation', item);
+					await this.submitToolConfirmationPart(item, part, Number(option.id));
+				},
+			);
+			const commandLine = part.commandLine;
+			if (commandLine && part.buttons.length) {
+				const explanation = store.add(this.instantiationService.createInstance(
+					ChatTerminalToolExplanation, part.chatResource, part.requestId, () => commandLine,
+				)).button;
+				if (explanation) {
+					buttons.push(explanation);
+				}
+			}
 			const toolConfirmationWidget = store.add(this.instantiationService.createInstance(
-				ChatCustomConfirmationWidget<{ buttonIndex: number }>,
+				ChatCustomConfirmationWidget<() => Promise<void>>,
 				this.createChatContentPartRenderContext(),
 				{
 					title: part.title,
+					icon: part.commandLine ? Codicon.terminal : undefined,
 					message: message.element,
-					buttons: part.buttons.map((button, buttonIndex) => ({
-						label: button.label,
-						data: { buttonIndex },
-						isSecondary: button.kind === 'deny',
-					})),
+					buttons,
 				},
 			));
 			const host = container.appendChild($('.inbox-notifications-chat-part-host'));
 			host.appendChild(toolConfirmationWidget.domNode);
 			store.add(toolConfirmationWidget.onDidClick(({ button }) => {
-				this.logInboxInteraction('submitToolConfirmation', 'inlineToolConfirmation', item);
-				void this.submitToolConfirmationPart(item, part, button.data.buttonIndex);
+				void button.data();
 			}));
 			return;
 		}
@@ -3137,11 +3163,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		if (!this.newSessionView) {
 			const scopedContext = this.newSessionDisposables.add(this.contextKeyService.createScoped(this.newSessionElement));
 			const instantiationService = this.newSessionDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContext])));
-			this.newSessionView = this.newSessionDisposables.add(this.chatViewFactory.createNewChatView(false, { preserveCustomView: true, backgroundSend: true, renderChatPet: false }, instantiationService));
+			this.newSessionView = this.newSessionDisposables.add(this.chatViewFactory.createNewChatView(false, { hostVisible: this.visible, preserveCustomView: true, backgroundSend: true, renderChatPet: false }, instantiationService));
 			this.newSessionElement.appendChild(this.newSessionView.element);
 			this.newSessionView.setPrimary(false, true);
-			this.newSessionView.setActive(true);
-			this.newSessionView.setVisible(true);
 		}
 		this.updateComposerMode();
 	}

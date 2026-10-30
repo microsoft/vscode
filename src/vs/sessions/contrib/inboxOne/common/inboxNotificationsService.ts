@@ -100,6 +100,7 @@ export interface IInboxNotificationQuestionCarouselPart {
 export interface IInboxNotificationToolConfirmationButton {
 	readonly label: string;
 	readonly id?: string;
+	readonly group?: number;
 	readonly kind: 'approve' | 'deny';
 	readonly useUserActionReason?: boolean;
 }
@@ -113,6 +114,7 @@ export interface IInboxNotificationToolConfirmationPart {
 	readonly title: string | IMarkdownString;
 	readonly message: string | IMarkdownString;
 	readonly commandLine?: string;
+	readonly commandLanguage?: string;
 	readonly toolInput?: string;
 	readonly disclaimer?: string | IMarkdownString;
 	readonly originMessage?: string | IMarkdownString;
@@ -142,6 +144,7 @@ export function getInboxToolConfirmationDetails(invocation: IChatToolInvocation)
 	}
 	return {
 		commandLine,
+		commandLanguage: terminal?.language,
 		toolInput,
 		disclaimer: state.confirmationMessages?.disclaimer,
 		originMessage: invocation.originMessage,

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -1430,6 +1431,33 @@ suite('InboxNotificationsService', () => {
 		}, { distinct: true, stage: 'result', buttons: [], dismissed: [execution.id] });
 	});
 
+	test('preserves provider approval groups including zero for the shared dropdown', () => {
+		const session = createSession({ id: 'approval-groups', status: SessionStatus.NeedsInput, updatedAt: 100 });
+		const chatService = new TestChatService();
+		const fixture = createFixture([session], undefined, undefined, chatService);
+		chatService.setPendingParts(session.mainChat.get().resource, {
+			requestId: 'request', startedWaitingAt: 1,
+			parts: [upcastPartial<IChatToolInvocation>({
+				kind: 'toolInvocation', toolCallId: 'tool',
+				state: observableValue('tool', upcastPartial<IChatToolInvocation.State>({
+					type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+					confirmationMessages: {
+						title: 'Run?',
+						customOptions: [
+							{ id: 'once', label: 'Allow Once', kind: ConfirmationOptionKind.Approve, group: 0 },
+							{ id: 'session', label: 'Allow in Session', kind: ConfirmationOptionKind.Approve, group: 1 },
+						],
+					},
+				})),
+			})],
+		});
+		const part = fixture.service.notifications.get()[0].needsInputPart;
+		assert.ok(part?.kind === 'toolConfirmation');
+		assert.deepStrictEqual(part.buttons.map(button => ({ id: button.id, group: button.group })), [
+			{ id: 'once', group: 0 }, { id: 'session', group: 1 },
+		]);
+	});
+
 	test('terminal approvals retain the actual command, origin and disclaimer while complex tools require the session', () => {
 		const session = createSession({ id: 'approval-details', status: SessionStatus.NeedsInput, updatedAt: 100 });
 		const chatService = new TestChatService();
@@ -1456,11 +1484,12 @@ suite('InboxNotificationsService', () => {
 			});
 			const part = fixture.service.notifications.get()[0].needsInputPart;
 			assert.ok(part?.kind === 'toolConfirmation');
-			return { kind: toolSpecificData.kind, command: part.commandLine, input: part.toolInput, disclaimer: part.disclaimer, origin: part.originMessage, buttons: part.buttons.length };
+			return { kind: toolSpecificData.kind, command: part.commandLine, language: part.commandLanguage, input: part.toolInput, disclaimer: part.disclaimer, origin: part.originMessage, buttons: part.buttons.length };
 		});
 		assert.deepStrictEqual(results, data.map((toolSpecificData, index) => ({
 			kind: toolSpecificData.kind,
 			command: toolSpecificData.kind === 'terminal' ? 'npm test -- --run regression' : undefined,
+			language: toolSpecificData.kind === 'terminal' ? 'sh' : undefined,
 			input: index === 1 ? '{\n "input": "echo test"\n}' : undefined,
 			disclaimer: 'Runs outside the sandbox', origin: 'Shell tool', buttons: index < 2 ? 2 : 0,
 		})));

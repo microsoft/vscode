@@ -2116,6 +2116,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				title,
 				message,
 				commandLine: details.commandLine,
+				commandLanguage: details.commandLanguage,
 				toolInput: details.toolInput,
 				disclaimer: details.disclaimer,
 				originMessage: details.originMessage,
@@ -2137,6 +2138,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			return customOptions.map(option => ({
 				label: option.label,
 				id: option.id,
+				...(option.group !== undefined ? { group: option.group } : {}),
 				kind: option.kind === ConfirmationOptionKind.Deny ? 'deny' : 'approve',
 				useUserActionReason: true,
 			}));

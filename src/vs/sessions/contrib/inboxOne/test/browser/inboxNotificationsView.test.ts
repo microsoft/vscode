@@ -15,7 +15,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
-import { IObservable, constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { IObservable, autorun, constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -40,6 +40,8 @@ import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } 
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ChatSendResult, IChatConfirmation, IChatQuestionAnswerValue, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatSideChatService } from '../../../../../workbench/contrib/chat/common/chatSideChatService.js';
+import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatViewModel, IChatViewModelChangeEvent } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { ChatListWidget } from '../../../../../workbench/contrib/chat/browser/widget/chatListWidget.js';
 import { ChatQuestionCarouselData } from '../../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
@@ -75,6 +77,8 @@ suite('InboxNotificationsView', () => {
 		readonly kind = 'chat';
 		readonly bindings: { chat: IChat; historyKey?: string; session?: ISession }[] = [];
 		disposed = false;
+		visible = false;
+		active = false;
 		readonly input = document.createElement('textarea');
 		readonly layouts: { width: number; height: number }[] = [];
 		readonly submitted = this._register(new Emitter<URI>());
@@ -97,6 +101,8 @@ suite('InboxNotificationsView', () => {
 
 		override toJSON(): object { return {}; }
 		override focus(): void { this.input.focus(); }
+		override setVisible(visible: boolean): void { this.visible = visible; }
+		override setActive(active: boolean): void { this.active = active; }
 
 		override dispose(): void {
 			this.disposed = true;
@@ -158,6 +164,7 @@ suite('InboxNotificationsView', () => {
 			dismissNotification: () => { },
 		});
 		instantiationService.stub(IChatService, { getSession: () => undefined, onDidCreateModel: Event.None, ...options.chatService });
+		instantiationService.stub(IChatSideChatService, { canAskInSideChat: () => false });
 		const navigationRequest = observableValue<ISessionNavigationRequest | undefined>('navigation', undefined);
 		instantiationService.stub(ISessionsService, { navigationRequest, openNewSession: async () => ({ session: undefined, trustDeclined: false }) });
 		let sessionsVisible = true;
@@ -252,16 +259,31 @@ suite('InboxNotificationsView', () => {
 		const composer = container.querySelector<HTMLElement>('.inbox-notifications-new-session')!;
 		const notifications = container.querySelector<HTMLElement>('.inbox-notifications-content')!;
 		const result = {
-			before, automaticNavigation, hidden, created: newChatViews.length, options: newChatOptions,
+			before, automaticNavigation, hidden, created: newChatViews.length,
+			options: newChatOptions.map(({ hostVisible, ...options }) => ({ ...options, hostVisible: hostVisible?.get() })),
 			requests: openNewSession.args, draft: input.value, focused: mainWindow.document.activeElement === input,
 			belowNotifications: composer.parentElement?.previousElementSibling === notifications,
 			inputAtTop: input.getBoundingClientRect().top - composer.getBoundingClientRect().top < 40,
 		};
 		view.dispose();
 		assert.deepStrictEqual({ ...result, disposed: newChatViews[0].disposed }, {
-			before: 1, automaticNavigation: 0, hidden: false, created: 1, options: [{ preserveCustomView: true, backgroundSend: true, renderChatPet: false }],
+			before: 1, automaticNavigation: 0, hidden: false, created: 1, options: [{ preserveCustomView: true, backgroundSend: true, renderChatPet: false, hostVisible: true }],
 			requests: Array.from({ length: 3 }, () => [{ preserveCustomView: true, cancelRestore: true }]),
 			draft: 'My new session draft', focused: true, belowNotifications: true, inputAtTop: true, disposed: true,
+		});
+	});
+
+	test('an Inbox composer created while hidden stays inactive and follows host visibility', () => {
+		const { view, container, newChatViews, newChatOptions } = createView(constObservable([]));
+		view.setVisible(false);
+		view.render(container);
+		const hostVisibility: (boolean | undefined)[] = [];
+		disposables.add(autorun(reader => hostVisibility.push(newChatOptions[0].hostVisible?.read(reader))));
+		const hidden = { visible: newChatViews[0].visible, active: newChatViews[0].active };
+		view.setVisible(true);
+		view.setVisible(false);
+		assert.deepStrictEqual({ hidden, hostVisibility }, {
+			hidden: { visible: false, active: false }, hostVisibility: [false, true, false],
 		});
 	});
 
@@ -1550,6 +1572,105 @@ suite('InboxNotificationsView', () => {
 			{ type: ToolConfirmKind.Skipped, source: 'user' },
 		]);
 		assert.strictEqual(notifyError.callCount, 2);
+	});
+
+	test('question cards retain native chrome and keep the prompt inside the card', () => {
+		const message = 'What kind of weather do you enjoy most?';
+		const carousel = new ChatQuestionCarouselData([
+			{ id: 'weather', type: 'text', title: 'Your favorite weather', detailedMessage: 'For example, sunny and warm, cool and breezy, or snowy.' },
+		], true, 'weather', undefined, false, message);
+		const item: IInboxNotificationItem = {
+			id: 'weather', kind: InboxNotificationKind.NeedsInput, priority: InboxNotificationPriority.Now,
+			title: 'Choose your favorite weather', description: message, timestamp: 1, actions: [],
+			needsInputPart: { ...carousel, chatResource: URI.parse('test:///chat'), requestId: 'request' },
+		};
+		const { view, container, instantiationService } = createView(constObservable([item]));
+		const chatInstantiationService = workbenchInstantiationService(undefined, disposables);
+		const widget = disposables.add(chatInstantiationService.createInstance(ChatQuestionCarouselPart, carousel, undefined, { onSubmit: () => { }, shouldAutoFocus: false }));
+		instantiationService.stubInstance(ChatQuestionCarouselPart, widget);
+		container.style.setProperty('--vscode-cornerRadius-large', '8px');
+		container.style.setProperty('--vscode-strokeThickness', '1px');
+		container.style.setProperty('--vscode-chat-requestBorder', 'red');
+		container.style.setProperty('--vscode-spacing-size80', '8px');
+		container.style.setProperty('--vscode-spacing-size160', '16px');
+		view.render(container);
+		container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+		const host = container.querySelector<HTMLElement>('.inbox-notifications-chat-part-host')!;
+		const cardStyle = mainWindow.getComputedStyle(widget.domNode);
+		const headerStyle = mainWindow.getComputedStyle(widget.domNode.querySelector('.chat-card-header')!);
+		assert.deepStrictEqual({
+			messageCount: container.textContent?.split(message).length,
+			promptInCard: widget.domNode.textContent?.includes(message),
+			radius: cardStyle.borderRadius,
+			border: cardStyle.borderTopStyle,
+			headerPadding: headerStyle.paddingLeft,
+			headerBorder: headerStyle.borderBottomStyle,
+			fits: widget.domNode.getBoundingClientRect().right <= host.getBoundingClientRect().right + 1,
+		}, { messageCount: 2, promptInCard: true, radius: '8px', border: 'solid', headerPadding: '16px', headerBorder: 'solid', fits: true });
+	});
+
+	test('tool cards group approval scopes in the native dropdown and keep Explain non-approving', async () => {
+		const part: IInboxNotificationToolConfirmationPart = {
+			kind: 'toolConfirmation', chatResource: URI.parse('test:///secondary-chat'), requestId: 'request', toolCallId: 'tool',
+			confirmationKind: 'execution', title: 'Run in terminal: Print numbers 1 through 30', message: 'Print numbers 1 through 30',
+			commandLine: 'seq 1 30', commandLanguage: 'sh',
+			buttons: [
+				{ id: 'once', label: 'Allow Once', kind: 'approve', useUserActionReason: true },
+				{ id: 'skip', label: 'Skip', kind: 'deny', useUserActionReason: true },
+				{ id: 'session', label: 'Allow in Session', kind: 'approve', group: 0, useUserActionReason: true },
+				{ id: 'always', label: 'Always Allow', kind: 'approve', group: 1, useUserActionReason: true },
+			],
+		};
+		const item: IInboxNotificationItem = { id: 'tool', kind: InboxNotificationKind.NeedsInput, priority: InboxNotificationPriority.Now, title: 'Task', description: '', timestamp: 1, actions: [], needsInputPart: part };
+		const { view, container, instantiationService } = createView(constObservable([item]));
+		const submit = stub(accessView(view), 'submitToolConfirmationPart').resolves();
+		disposables.add(toDisposable(() => submit.restore()));
+		const explain = spy(async () => { });
+		instantiationService.stub(IChatSideChatService, { canAskInSideChat: () => true, askInSideChat: explain });
+		let menuActions: readonly IAction[] = [];
+		instantiationService.stub(IContextMenuService, {
+			showContextMenu: delegate => {
+				assert.ok(delegate.getActions);
+				menuActions = delegate.getActions();
+			},
+		});
+		instantiationService.stub(IMarkdownRendererService, 'render', (markdown: IMarkdownString) => {
+			const element = mainWindow.document.createElement('span');
+			element.textContent = markdown.value;
+			return { element, dispose: () => { } };
+		});
+		container.style.setProperty('--vscode-cornerRadius-medium', '6px');
+		container.style.setProperty('--vscode-chat-requestBorder', 'red');
+		view.render(container);
+		container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+		const host = container.querySelector<HTMLElement>('.inbox-notifications-chat-part-host')!;
+		const buttons = [...host.querySelectorAll<HTMLElement>('.monaco-button')];
+		const explainButton = buttons.find(button => button.textContent === 'Explain')!;
+		explainButton.click();
+		await timeout(0);
+		const submissionsAfterExplain = submit.callCount;
+		host.querySelector<HTMLElement>('.monaco-dropdown-button')!.click();
+		await menuActions.find(action => action.label === 'Allow in Session')!.run();
+		await timeout(0);
+		const cardStyle = mainWindow.getComputedStyle(host.querySelector('.chat-confirmation-widget2')!);
+		assert.deepStrictEqual({
+			labels: buttons.map(button => button.textContent).filter(Boolean),
+			menu: menuActions.map(action => action.label),
+			submissionsAfterExplain,
+			submittedIndex: submit.firstCall.args[2],
+			submittedId: part.buttons[submit.firstCall.args[2]].id,
+			explanation: explain.firstCall.args,
+			titleCount: host.textContent?.split(part.message as string).length,
+			codeLanguage: host.textContent?.includes('```sh\nseq 1 30'),
+			radius: cardStyle.borderRadius,
+			border: cardStyle.borderTopStyle,
+		}, {
+			labels: ['Allow Once', 'Skip', 'Explain'],
+			menu: ['', 'Allow in Session', '', 'Always Allow'],
+			submissionsAfterExplain: 0, submittedIndex: 2, submittedId: 'session',
+			explanation: [part.chatResource, 'Explain what this terminal command will do.', { text: part.commandLine }, { sourceTurnId: part.requestId }],
+			titleCount: 2, codeLanguage: true, radius: '6px', border: 'solid',
+		});
 	});
 
 	test('tool cards show command and disclaimer and omit post-approval buttons', () => {

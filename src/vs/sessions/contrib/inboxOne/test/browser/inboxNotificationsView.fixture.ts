@@ -10,9 +10,13 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatService, IChatToolInvocationSerialized } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatSideChatService } from '../../../../../workbench/contrib/chat/common/chatSideChatService.js';
+import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { IChatImageCarouselService } from '../../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
@@ -81,6 +85,9 @@ export default defineThemedFixtureGroup({ path: 'sessions/inbox/' }, {
 	Narrow: defineComponentFixture({ render: ctx => renderInbox(ctx, 420) }),
 	LongTitle: defineComponentFixture({ render: ctx => renderInbox(ctx, 360, 'longTitle') }),
 	Confirmation: defineComponentFixture({ render: ctx => renderInbox(ctx, 1100, 'confirmation') }),
+	ToolConfirmation: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: ctx => renderInbox(ctx, 1100, 'toolConfirmation') }),
+	ToolConfirmationNarrow: defineComponentFixture({ render: ctx => renderInbox(ctx, 420, 'toolConfirmation') }),
+	TextQuestion: defineComponentFixture({ render: ctx => renderInbox(ctx, 1100, 'textQuestion') }),
 	Empty: defineComponentFixture({ render: ctx => renderInbox(ctx, 1100, 'empty') }),
 	Evidence: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], deferPaint: true, virtualTime: { enabled: false }, render: ctx => renderInbox(ctx, 1300, 'evidence') }),
 	EvidenceNarrow: defineComponentFixture({ deferPaint: true, virtualTime: { enabled: false }, render: ctx => renderInbox(ctx, 880, 'evidence') }),
@@ -89,7 +96,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/inbox/' }, {
 	MergedPullRequestsExpanded: defineComponentFixture({ render: ctx => renderInbox(ctx, 560, 'mergedExpanded') }),
 });
 
-async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 'longTitle' | 'confirmation' | 'empty' | 'evidence' | 'merged' | 'mergedExpanded' | 'collapsed' | 'hovered' | 'short' | InboxTab): Promise<void> {
+async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 'longTitle' | 'confirmation' | 'toolConfirmation' | 'textQuestion' | 'empty' | 'evidence' | 'merged' | 'mergedExpanded' | 'collapsed' | 'hovered' | 'short' | InboxTab): Promise<void> {
 	const merged = state === 'merged' || state === 'mergedExpanded';
 	const chat = upcastPartial<IChat>({
 		resource: URI.parse('fixture:///search'),
@@ -161,6 +168,32 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 				},
 			};
 		}
+		if (state === 'toolConfirmation') {
+			return {
+				...item, title: 'Review the terminal command', description: '',
+				needsInputPart: {
+					kind: 'toolConfirmation', chatResource: URI.parse('fixture:///search'), requestId: 'request', toolCallId: 'tool',
+					confirmationKind: 'execution', title: 'Run in terminal: Print numbers 1 through 30', message: 'Print numbers 1 through 30',
+					commandLine: 'seq 1 30', commandLanguage: 'sh',
+					buttons: [
+						{ id: 'once', label: 'Allow Once', kind: 'approve', useUserActionReason: true, group: 0 },
+						{ id: 'session', label: 'Allow Command in This Session', kind: 'approve', useUserActionReason: true, group: 1 },
+						{ id: 'always', label: 'Always Allow Exact Command', kind: 'approve', useUserActionReason: true, group: 2 },
+						{ id: 'skip', label: 'Skip', kind: 'deny', useUserActionReason: true },
+					],
+				},
+			};
+		}
+		if (state === 'textQuestion') {
+			const message = 'What kind of weather do you enjoy most?';
+			return {
+				...item, title: 'Choose your favorite weather', description: message,
+				needsInputPart: {
+					kind: 'questionCarousel', chatResource: URI.parse('fixture:///search'), requestId: 'request', allowSkip: true, message,
+					questions: [{ id: 'weather', type: 'text', title: 'Your favorite weather', detailedMessage: 'For example, sunny and warm, cool and breezy, or snowy.' }],
+				},
+			};
+		}
 		return item;
 	}));
 	const summaries = new Map<string, IInboxDetailSummary>([
@@ -174,7 +207,8 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 	const rows = observableValue<readonly IInboxSessionRow[]>('fixture.rows', [
 		...notifications.get().map((item, index) => ({
 			...item, tab: InboxTab.ReadyForYou, sessionTitle: item.title, occurrence: item.id, notifications: [item],
-			title: ['Choose how search results should open', 'Address two review comments', 'Review the keyboard navigation changes'][index] ?? item.title,
+			title: index === 0 && (state === 'toolConfirmation' || state === 'textQuestion') ? item.title
+				: ['Choose how search results should open', 'Address two review comments', 'Review the keyboard navigation changes'][index] ?? item.title,
 			hasImages: index === 0,
 		})),
 		...(state === 'empty' || merged ? [] : ([InboxTab.Working, InboxTab.ReadyToMerge, InboxTab.OnHold, InboxTab.Done] as const).map((tab): IInboxSessionRow => ({
@@ -214,6 +248,10 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 				override readonly onDidCreateModel = Event.None;
 				override getSession() { return state === 'evidence' ? model : undefined; }
 			}());
+			reg.definePartialInstance(IChatSideChatService, {
+				canAskInSideChat: () => true,
+				askInSideChat: async () => { },
+			});
 			reg.defineInstance(IAccessibleViewService, new class extends mock<IAccessibleViewService>() { }());
 			reg.defineInstance(IEditorService, new class extends mock<IEditorService>() { }());
 			reg.define(IInboxCanvasHostService, UnsupportedInboxCanvasHostService);
@@ -271,6 +309,9 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 			reg.defineInstance(ITerminalChatService, new class extends mock<ITerminalChatService>() { }());
 		},
 	});
+	const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+	await configurationService.setUserConfiguration('editor', { fontFamily: 'monospace' });
+	instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 
 	ctx.container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 	ctx.container.style.width = `${width}px`;
@@ -292,6 +333,9 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 	}
 	if (state === 'mergedExpanded') {
 		ctx.container.querySelector<HTMLElement>('.inbox-notifications-item-pr-toggle')!.click();
+	}
+	if (state === 'toolConfirmation') {
+		await waitForFixtureCondition(() => ctx.container.querySelector('.monaco-tokenized-source')?.textContent === 'seq 1 30', 'Expected the complete terminal command');
 	}
 	if (state === 'evidence') {
 		await waitForFixtureCondition(() => !!ctx.container.querySelector('.inbox-notifications-detail-evidence:not([hidden])'), 'Expected agent interpretation in the detail pane');

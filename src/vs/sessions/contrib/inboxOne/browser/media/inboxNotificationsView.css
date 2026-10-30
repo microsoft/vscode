@@ -1001,7 +1001,6 @@
 
 .inbox-notifications-chat-part-host {
 	padding-top: var(--vscode-spacing-size80);
-	border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-widget-border, var(--vscode-editorGroup-border)));
 }
 
 .inbox-notifications-chat-part-host.interactive-session {
@@ -1012,8 +1011,7 @@
 	margin: 0;
 }
 
-.inbox-notifications-chat-part-host .chat-confirmation-widget-container,
-.inbox-notifications-chat-part-host .chat-question-carousel-container {
+.inbox-notifications-chat-part-host .chat-confirmation-widget-container {
 	width: 100%;
 }
 
@@ -1030,108 +1028,6 @@
  */
 .inbox-notifications-chat-part-host.interactive-session .interactive-input-part {
 	margin-inline: 0;
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container {
-	margin: 0;
-	border-color: transparent;
-	border-radius: 0;
-	background: transparent;
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-card-header {
-	padding: var(--vscode-spacing-size80) 0;
-	border-bottom: none;
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-carousel-message,
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-description {
-	padding: 0 0 var(--vscode-spacing-size60);
-	font-size: var(--vscode-fontSize-label1);
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-input-container {
-	padding: 0;
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-input-container::after {
-	height: var(--vscode-spacing-size40);
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-list {
-	gap: var(--vscode-spacing-size40);
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-input-container .chat-question-list .chat-question-list-item {
-	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
-	border-radius: var(--vscode-cornerRadius-small);
-	padding: var(--vscode-spacing-size80);
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-list-item:is(:hover, .hovered):not(.selected) {
-	background-color: var(--vscode-list-hoverBackground);
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-list-item.selected {
-	border-color: var(--vscode-list-inactiveFocusOutline, var(--vscode-focusBorder));
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-list:focus-visible .chat-question-list-item.selected,
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-list-item:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-input-container .chat-question-list .chat-question-list-item .chat-question-list-label {
-	font-size: var(--vscode-fontSize-label1);
-	font-weight: var(--vscode-fontWeight-regular);
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-input-container .chat-question-list .chat-question-list-item .chat-question-list-label-title {
-	font-weight: var(--vscode-fontWeight-regular);
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-footer-row {
-	padding: var(--vscode-spacing-size40) 0 0;
-	border-top: none;
-}
-
-.inbox-notifications-chat-part-host .chat-confirmation-widget,
-.inbox-notifications-chat-part-host .chat-confirmation-widget2 {
-	border-color: transparent;
-	border-radius: 0;
-	background: transparent;
-}
-
-.inbox-notifications-chat-part-host .chat-confirmation-widget .chat-confirmation-widget-message-container {
-	width: 100%;
-	border: none;
-	border-radius: 0;
-	font-size: var(--vscode-fontSize-label1);
-}
-
-.inbox-notifications-chat-part-host .chat-confirmation-widget-container .chat-confirmation-widget .chat-confirmation-widget-title {
-	padding: 0;
-	color: var(--vscode-foreground);
-	font-weight: var(--vscode-fontWeight-semiBold);
-}
-
-.inbox-notifications-chat-part-host .chat-confirmation-widget .chat-buttons-container,
-.inbox-notifications-chat-part-host .chat-confirmation-widget .chat-confirmation-widget-message {
-	padding: 0;
-}
-
-.inbox-notifications-chat-part-host .chat-confirmation-widget .chat-buttons {
-	flex-wrap: wrap;
-}
-
-.inbox-notifications-chat-part-host .chat-confirmation-widget .chat-buttons .monaco-button {
-	width: auto;
 }
 
 .hc-black .inbox-notifications-item.selected,
