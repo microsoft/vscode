@@ -292,6 +292,9 @@ class MockSessionStore implements ISessionsManagementService {
 	listCanvases(_session: ISession, _chat: IChat): Promise<readonly ISessionCanvasDefinition[]> { throw new Error('not implemented'); }
 	openCanvas(_session: ISession, _chat: IChat, _canvas: ISessionCanvasDefinition, _instanceId: string): Promise<void> { throw new Error('not implemented'); }
 	closeCanvas(_session: ISession, _chat: IChat, _canvas: ISessionCanvas): Promise<void> { throw new Error('not implemented'); }
+	readonly onDidCloseCanvas = Event.None;
+	observeCanvas(): undefined { return undefined; }
+	observeChatCanvases(): undefined { return undefined; }
 }
 
 suite('SessionsNavigation', () => {
