@@ -2451,12 +2451,15 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 	// TODO@BenV: Move automation-specific code into an AutomationSectionRenderer subclass.
 	readonly automationStatus = derived(this, reader => {
 		const automationSessions = this.automationSessions.read(reader);
+		const personalAutomationIds = new Set(this.automationService.automations.read(reader)
+			.filter(automation => automation.ownership !== 'repository')
+			.map(automation => automation.id));
 		// A run whose session the Sessions list shows reports its status on that row instead,
 		// unless the row cannot: a cloud run can still be active while its session reports it finished.
 		const runs = this.automationService.runs.read(reader).map(run => {
 			const sessionResource = run.sessionResource;
 			const session = sessionResource && automationSessions.find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, sessionResource));
-			return { status: run.status, session };
+			return { automationId: run.automationId, status: run.status, session };
 		}).filter(({ status, session }) => {
 			if (!session || !this.isSessionListed(session, reader)) {
 				return true;
@@ -2470,7 +2473,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			return SessionStatus.NeedsInput;
 		}
 
-		if (runs.some(({ status }) => status === 'pending' || status === 'running')) {
+		if (runs.some(({ automationId, status }) => personalAutomationIds.has(automationId) && (status === 'pending' || status === 'running'))) {
 			return SessionStatus.InProgress;
 		}
 		const hasUnreadRun = runs.some(({ status, session }) => (status === 'completed' || status === 'failed')

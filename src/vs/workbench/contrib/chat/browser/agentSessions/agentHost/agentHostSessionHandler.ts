@@ -82,6 +82,8 @@ import { ChangesetStatus, ChatOriginKind, getSessionChatResource, getErrorRespon
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { parsePermissionGrantOptionId, PermissionGrantScope } from '../../../../../../platform/agentHost/common/permissionRules.js';
+import { mirrorAgentHostGrants } from './agentHostPermissionMirror.js';
 import { SAVE_SANDBOX_PATH } from '../../../../../../platform/agentHost/common/sandboxPathGrant.js';
 import { saveSandboxPathGrant } from './agentHostSandboxPathGrant.js';
 import { INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
@@ -1027,6 +1029,8 @@ export interface IAgentHostSessionHandlerConfig {
 	/** Sanitized connection authority for constructing vscode-agent-host:// URIs. */
 	readonly connectionAuthority: string;
 	readonly supportsCanvasPresentation?: boolean;
+	/** Mirrors host-scoped URL and terminal grants to user settings only for the local agent host. */
+	readonly mirrorsPermissionGrants?: boolean;
 	/**
 	 * Whether a managed plugin preparation failure offers a Retry link. Only the
 	 * local Agent Host management connection can retry, so other hosts show the
@@ -3973,6 +3977,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					_meta: responseMeta,
 					...(selectedOption ? { selectedOptionId: selectedOption.id } : {}),
 				});
+
+			// The host records its own grant; the local host's grants are also mirrored into VS Code's approval settings.
+			const permissionGrant = approved && selectedOption && this._config.mirrorsPermissionGrants ? parsePermissionGrantOptionId(selectedOption.id) : undefined;
+			if (permissionGrant?.scope === PermissionGrantScope.Host) {
+				mirrorAgentHostGrants(this._configurationService, permissionGrant.rules).catch(error => {
+					this._logService.error('[AgentHost] Failed to mirror permission grant into settings', error);
+				});
+			}
 		}).catch(err => {
 			this._logService.warn(`[AgentHost] Tool confirmation failed for toolCallId=${toolCallId}`, err);
 		});

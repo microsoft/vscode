@@ -9,7 +9,7 @@ import { Separator } from '../../../../../../../base/common/actions.js';
 import { asArray } from '../../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../../../base/common/errorMessage.js';
-import { ErrorNoTelemetry, onUnexpectedError } from '../../../../../../../base/common/errors.js';
+import { ErrorNoTelemetry } from '../../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { createCommandUri, escapeMarkdownSyntaxTokens, MarkdownString, type IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
@@ -17,7 +17,7 @@ import Severity from '../../../../../../../base/common/severity.js';
 import { isObject } from '../../../../../../../base/common/types.js';
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
 import { localize } from '../../../../../../../nls.js';
-import { ConfirmationOption, ConfirmationOptionKind } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOption } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
@@ -31,9 +31,7 @@ import { ITerminalChatService } from '../../../../../terminal/browser/terminal.j
 import { TerminalContribCommandId, TerminalContribSettingId } from '../../../../../terminal/terminalContribExports.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../../common/chat.js';
-import { SessionType } from '../../../../common/chatSessionsService.js';
 import { IChatSideChatService } from '../../../../common/chatSideChatService.js';
-import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { isResponseVM } from '../../../../common/model/chatViewModel.js';
 import { IChatToolInvocation, ToolConfirmKind, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
@@ -133,12 +131,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 
 		const hasCustomOptions = !!state.confirmationMessages.customOptions?.length;
 		const autoApproveEnabled = this.configurationService.getValue(TerminalContribSettingId.EnableAutoApprove) === true
-			&& (!hasCustomOptions || terminalData.autoApproveRuleResolvable === true);
-		// Custom actions typically come pre-computed from the run in terminal tool, but they can
-		// also be generated asynchronously for confirmations that arrive without them (eg. agent
-		// host sessions), so track them in a mutable local shared by the builder below and the
-		// button click handler.
-		let customActions = terminalCustomActions;
+			&& !hasCustomOptions;
 		const buildMoreActions = (): (IChatConfirmationButton<TerminalNewAutoApproveButtonData> | Separator)[] | undefined => {
 			if (!autoApproveEnabled) {
 				return undefined;
@@ -153,16 +146,16 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 					}
 				});
 				moreActions.push(new Separator());
-				if (customActions) {
-					for (const action of customActions) {
+				if (terminalCustomActions) {
+					for (const action of terminalCustomActions) {
 						if (!(action instanceof Separator)) {
 							action.disabled = true;
 						}
 					}
 				}
 			}
-			if (customActions) {
-				moreActions.push(...customActions);
+			if (terminalCustomActions) {
+				moreActions.push(...terminalCustomActions);
 			}
 			return moreActions.length === 0 ? undefined : moreActions;
 		};
@@ -243,22 +236,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			},
 		));
 		this.primaryAction = () => confirmWidget.runPrimaryAction();
-
-		// Agent Host Copilot confirmations need client-generated persistent rule actions.
-		if (autoApproveEnabled && !customActions && terminalData.autoApproveRuleResolvable && getChatSessionType(this.context.element.sessionResource) === SessionType.AgentHostCopilot) {
-			const commandForAnalysis = terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
-			const analysisLanguage = terminalData.language === 'powershell' ? 'powershell' : 'shellscript';
-			this.terminalChatService.getAutoApproveActions(commandForAnalysis, analysisLanguage).then(actions => {
-				if (this._store.isDisposed || !actions?.length) {
-					return;
-				}
-				if (toolInvocation.state.get().type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
-					return;
-				}
-				customActions = actions;
-				confirmWidget.updateButtons(this._createButtons(buildMoreActions()));
-			}, onUnexpectedError);
-		}
 
 		// Build the unsandboxed-execution reason and disclaimer markdown. When
 		// the risk badge is shown, surface them via its details hover (with
@@ -383,8 +360,8 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 							// If this would not have been auto approved, enable the options and
 							// do not complete
 							else {
-								if (customActions) {
-									for (const action of customActions) {
+								if (terminalCustomActions) {
+									for (const action of terminalCustomActions) {
 										if (!(action instanceof Separator)) {
 											action.disabled = false;
 										}
@@ -558,12 +535,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		const state = this.toolInvocation.state.get();
 		const customOptions = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.confirmationMessages?.customOptions : undefined;
 		if (customOptions?.length) {
-			const buttons = buildCustomOptionButtons<TerminalConfirmationButtonData>(customOptions, option => ({ type: 'custom', option }));
-			if (moreActions?.length && customOptions.some(option => option.kind !== ConfirmationOptionKind.Deny)) {
-				const primary = buttons[0];
-				primary.moreActions = [...(primary.moreActions ?? []), new Separator(), ...moreActions];
-			}
-			return buttons;
+			return buildCustomOptionButtons<TerminalConfirmationButtonData>(customOptions, option => ({ type: 'custom', option }));
 		}
 
 		const getLabelAndTooltip = (label: string, actionId: string, tooltipDetail: string = label): { label: string; tooltip: string } => {

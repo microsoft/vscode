@@ -37,6 +37,8 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TERMINAL_AUTO_APPROVE_SETTING_ID, URL_AUTO_APPROVE_SETTING_ID } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { permissionGrantOptionId, PermissionGrantScope } from '../../../../../../platform/agentHost/common/permissionRules.js';
 import { SAVE_SANDBOX_PATH } from '../../../../../../platform/agentHost/common/sandboxPathGrant.js';
 import { readAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
 import { withMcpServerConnectorNameMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
@@ -1324,7 +1326,7 @@ function createSessionListController(disposables: DisposableStore, instantiation
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, description, 'local', useSessionTitleForDefaultChat));
 }
 
-function createContribution(disposables: DisposableStore, opts?: { backendSessionScheme?: string; authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void>; requiresWorkspaceTrust?: boolean; retainConsumedSteeringMessages?: boolean; supportsComputerUseSetup?: boolean; computerUseSetupService?: IComputerUseSetupService; useSessionTitleForDefaultChat?: boolean }) {
+function createContribution(disposables: DisposableStore, opts?: { backendSessionScheme?: string; authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void>; requiresWorkspaceTrust?: boolean; retainConsumedSteeringMessages?: boolean; supportsComputerUseSetup?: boolean; computerUseSetupService?: IComputerUseSetupService; useSessionTitleForDefaultChat?: boolean; mirrorsPermissionGrants?: boolean }) {
 	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService, accessibilitySignalCalls, editingSessionProviders, textFileRetention } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride, opts?.workspaceFolders);
 
 	if (opts?.hideAutoExplainability || opts?.pendingTreatment) {
@@ -1364,6 +1366,7 @@ function createContribution(disposables: DisposableStore, opts?: { backendSessio
 		requiresWorkspaceTrust: opts?.requiresWorkspaceTrust,
 		retainConsumedSteeringMessages: opts?.retainConsumedSteeringMessages,
 		useSessionTitleForDefaultChat: opts?.useSessionTitleForDefaultChat,
+		mirrorsPermissionGrants: opts?.mirrorsPermissionGrants,
 		supportsCanvasPresentation: opts?.provider === 'copilotcli',
 		supportsComputerUseSetup: opts?.supportsComputerUseSetup,
 		isNewSession: sessionResource => listController.isNewSession(sessionResource),
@@ -11620,6 +11623,74 @@ suite('AgentHostChatContribution', () => {
 				} finally {
 					update.restore();
 					notify.restore();
+				}
+			}));
+		}
+
+		for (const scenario of [
+			{ name: 'mirrors local host grants', mirrorsPermissionGrants: true, scope: PermissionGrantScope.Host, failSave: false },
+			{ name: 'does not mirror grants without local opt-in', mirrorsPermissionGrants: undefined, scope: PermissionGrantScope.Host, failSave: false },
+			{ name: 'does not mirror session grants', mirrorsPermissionGrants: true, scope: PermissionGrantScope.Session, failSave: false },
+			{ name: 'still confirms when mirroring fails', mirrorsPermissionGrants: true, scope: PermissionGrantScope.Host, failSave: true },
+		].flatMap(scenario => ['URL', 'terminal'].map(kind => ({ ...scenario, kind })))) {
+			test(`${scenario.kind} approval ${scenario.name}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables, { mirrorsPermissionGrants: scenario.mirrorsPermissionGrants });
+				const config = instantiationService.invokeFunction(accessor => accessor.get(IConfigurationService));
+				const log = instantiationService.invokeFunction(accessor => accessor.get(ILogService));
+				const gate = new DeferredPromise<void>();
+				const update = sinon.stub(config, 'updateValue').callsFake(async () => {
+					await gate.p;
+					if (scenario.failSave) {
+						throw new Error('settings are read-only');
+					}
+				});
+				const error = sinon.stub(log, 'error');
+				try {
+					const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+					const isUrl = scenario.kind === 'URL';
+					const optionId = permissionGrantOptionId(scenario.scope, [isUrl ? 'WebFetch(github.com)' : 'Shell(git *)']);
+					fire({
+						type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-permission-grant',
+						toolName: isUrl ? 'web_fetch' : 'bash', displayName: isUrl ? 'Fetch URL' : 'Bash',
+						_meta: isUrl ? undefined : { toolKind: 'terminal', language: 'shellscript' },
+					} as ChatAction);
+					fire({
+						type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-permission-grant',
+						toolInput: isUrl ? 'https://github.com' : 'git status',
+						invocationMessage: isUrl ? 'Fetch https://github.com' : 'Run git status', confirmationTitle: isUrl ? 'Fetch URL?' : 'Run Command?',
+						options: [{ id: optionId, label: isUrl ? 'Always Allow Fetching github.com' : 'Always Allow git', kind: ConfirmationOptionKind.Approve }],
+					} as ChatAction);
+					await timeout(10);
+					const invocation = collected.flat().find(p => p.kind === 'toolInvocation');
+					assert.ok(invocation?.kind === 'toolInvocation');
+					const confirmations = () => agentHostService.dispatchedActions.filter(a => a.action.type === 'chat/toolCallConfirmed');
+					IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction, selectedButton: optionId });
+					await timeout(10);
+					const confirmationsBeforeSave = confirmations().length;
+					gate.complete();
+					await timeout(10);
+					const mirrors = scenario.mirrorsPermissionGrants && scenario.scope === PermissionGrantScope.Host;
+					assert.deepStrictEqual({
+						writes: update.args,
+						confirmationsBeforeSave,
+						confirmations: confirmations().map(item => ({
+							approved: (item.action as IToolCallConfirmedAction).approved,
+							selectedOptionId: (item.action as IToolCallConfirmedAction).selectedOptionId,
+						})),
+						errors: error.callCount,
+					}, {
+						writes: !mirrors ? [] : isUrl
+							? [[URL_AUTO_APPROVE_SETTING_ID, { 'https://github.com': { approveRequest: true, approveResponse: false } }, ConfigurationTarget.USER]]
+							: [[TERMINAL_AUTO_APPROVE_SETTING_ID, { git: true }, ConfigurationTarget.USER]],
+						confirmationsBeforeSave: 1,
+						confirmations: [{ approved: true, selectedOptionId: optionId }],
+						errors: scenario.failSave ? 1 : 0,
+					});
+					fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+					await turnPromise;
+				} finally {
+					update.restore();
+					error.restore();
 				}
 			}));
 		}

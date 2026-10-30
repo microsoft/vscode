@@ -48,7 +48,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, fixedChatOwnerRef } from '../../common/agent.js';
+import { AgentPermissionKind, AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, fixedChatOwnerRef } from '../../common/agent.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGitHubMcpServerEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
@@ -7099,7 +7099,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 				toolInput: '{}',
 				confirmationTitle: 'Read file?',
 			},
-			permissionKind: 'read',
+			permissionKind: AgentPermissionKind.Read,
 		});
 		session.dispose();
 
@@ -7267,7 +7267,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 				invocationMessage: 'Change this chat\'s workspace to a new worktree of /workspace/app? Other chats keep their workspaces.',
 				toolInput: undefined,
 				confirmationTitle: 'Change Workspace to app?',
-				permissionKind: 'mcp',
+				permissionKind: AgentPermissionKind.Mcp,
 			},
 		});
 	});
@@ -7350,9 +7350,45 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 				confirmationTitle: 'Read file?',
 				_meta: { toolKind: 'read' },
 			},
-			permissionKind: 'read',
+			permissionKind: AgentPermissionKind.Read,
 			permissionPath: '/tmp/foo.txt',
 		});
+	});
+
+	test('WebFetch permission signals carry a URL, not a filesystem path', async () => {
+		const { ctx, canUseTool } = await materialize();
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(signal => signals.push(signal)));
+		const input = { url: 'https://api.example.com/path', prompt: 'Summarize' };
+		const pending = canUseTool('WebFetch', input, makeOptions('tu_webfetch'));
+		await tick();
+		const signal = signals.find(signal => signal.kind === 'pending_confirmation');
+		ctx.agent.respondToPermissionRequest('tu_webfetch', true);
+		assert.deepStrictEqual({
+			result: await pending,
+			kind: signal?.kind === 'pending_confirmation' ? signal.permissionKind : undefined,
+			url: signal?.kind === 'pending_confirmation' ? signal.permissionUrl : undefined,
+			path: signal?.kind === 'pending_confirmation' ? signal.permissionPath : undefined,
+		}, { result: { behavior: 'allow', updatedInput: input }, kind: AgentPermissionKind.Url, url: input.url, path: undefined });
+	});
+
+	test('Bash permission signals carry the shell language and command', async () => {
+		const { ctx, canUseTool } = await materialize();
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(signal => signals.push(signal)));
+		const input = { command: 'my-command --flag && other --test' };
+		const pending = canUseTool('Bash', input, makeOptions('tu_bash'));
+		await tick();
+		const signal = signals.find(signal => signal.kind === 'pending_confirmation');
+		ctx.agent.respondToPermissionRequest('tu_bash', true);
+		assert.deepStrictEqual({
+			result: await pending,
+			kind: signal?.kind === 'pending_confirmation' ? signal.permissionKind : undefined,
+			shellLanguage: signal?.kind === 'pending_confirmation' ? signal.shellLanguage : undefined,
+			shellCommand: signal?.kind === 'pending_confirmation' ? signal.shellCommand : undefined,
+			url: signal?.kind === 'pending_confirmation' ? signal.permissionUrl : undefined,
+			path: signal?.kind === 'pending_confirmation' ? signal.permissionPath : undefined,
+		}, { result: { behavior: 'allow', updatedInput: input }, kind: AgentPermissionKind.Shell, shellLanguage: 'bash', shellCommand: input.command, url: undefined, path: undefined });
 	});
 
 	test('Test 8 — synchronous auto-respond inside pending_confirmation listener resolves canUseTool', async () => {
@@ -7669,7 +7705,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 						{ id: 'deny', label: 'Deny', kind: 'deny' },
 					],
 				},
-				permissionKind: 'custom-tool',
+				permissionKind: AgentPermissionKind.CustomTool,
 			},
 			result: { behavior: 'allow', updatedInput: { plan: '1. Read foo\n2. Edit foo' } },
 			recordedModes: [],

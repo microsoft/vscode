@@ -17,6 +17,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { agentHostUri } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
+import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, type AgentHostUriMapper, fromAgentHostUri, normalizeRemoteAgentHostAddress, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
@@ -39,6 +40,7 @@ import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/
 import { IAgentHostMcpAppToolsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IRemoteAgentHostAuthenticationService } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostAuthentication.js';
+import { createCloudSandboxSessionPreparation } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxLegacySessionPreparation.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -1266,6 +1268,33 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			return undefined;
 		}
 		return this._buildWorkspaceFromUri(repositoryUri);
+	}
+
+	async cloneRepository(repository: URI, token: CancellationToken): Promise<ISessionWorkspace> {
+		const connection = this.connection;
+		if (!connection) {
+			throw new Error(localize('cloneRepository.disconnected', "Connect to {0} before cloning a repository.", this.label));
+		}
+		if (!(connection instanceof AgentHostProtocolClient)) {
+			throw new Error(localize('cloneRepository.unsupported', "Repository cloning is not supported by {0}.", this.label));
+		}
+		const store = this._connectionListeners.add(new DisposableStore());
+		try {
+			store.add(Event.once(connection.onDidClose)(() => store.dispose()));
+			const prepare = createCloudSandboxSessionPreparation(
+				connection.rootState,
+				(method, params) => connection.traceRepositoryPreparation('repository.clone', () => connection.sendHostExtensionRequest(method, params)),
+				store,
+				operation => connection.traceRepositoryPreparation('repository.prepare', operation),
+			);
+			const directory = await prepare(repository, token);
+			if (!directory) {
+				throw new Error(localize('cloneRepository.unsupported', "Repository cloning is not supported by {0}.", this.label));
+			}
+			return this._buildWorkspaceFromUri(toAgentHostUri(directory, this._connectionAuthority));
+		} finally {
+			this._connectionListeners.delete(store);
+		}
 	}
 
 	canonicalizeWorkspaceUri(workspaceUri: URI): URI {
