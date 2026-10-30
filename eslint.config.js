@@ -3002,7 +3002,6 @@ export default defineConfig(
 			'extensions/copilot/src/platform/telemetry/node/spyingTelemetryService.ts',
 			'extensions/copilot/src/platform/terminal/common/terminalService.ts',
 			'extensions/copilot/src/platform/terminal/vscode/terminalServiceImpl.ts',
-			'extensions/copilot/src/platform/test/common/endpointTestFixtures.ts',
 			'extensions/copilot/src/platform/test/common/testExtensionsService.ts',
 			'extensions/copilot/src/platform/test/node/extensionContext.ts',
 			'extensions/copilot/src/platform/test/node/fetcher.ts',

@@ -10,13 +10,11 @@ import { ExtHostNotebookDocumentData } from '../../../util/common/test/shims/not
 import { ExtHostNotebookEditor } from '../../../util/common/test/shims/notebookEditor';
 import { createTextDocumentData, IExtHostDocumentData, setDocText } from '../../../util/common/test/shims/textDocument';
 import { ExtHostTextEditor } from '../../../util/common/test/shims/textEditor';
-import { isUri } from '../../../util/common/types';
 import { Emitter } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { ResourceMap } from '../../../util/vs/base/common/map';
 import { Schemas } from '../../../util/vs/base/common/network';
 import * as path from '../../../util/vs/base/common/path';
-import { isString } from '../../../util/vs/base/common/types';
 import { URI } from '../../../util/vs/base/common/uri';
 import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/descriptors';
 import { Range, Selection, Uri } from '../../../vscodeTypes';
@@ -55,14 +53,6 @@ export interface IQualifiedFile {
 	readonly uri: Uri;
 	readonly fileContents: string;
 	readonly languageId?: string;
-}
-
-export function isQualifiedFile(file: any): file is IQualifiedFile {
-	return file && file.kind === 'qualifiedFile' && isUri(file.uri) && isString(file.fileContents) && (file.languageId === undefined || isString(file.languageId));
-}
-
-export function isRelativeFile(file: any): file is IRelativeFile {
-	return file && file.kind === 'relativeFile' && isString(file.fileName) && isString(file.fileContents) && (file.languageId === undefined || isString(file.languageId));
 }
 
 export type IFile = IRelativeFile | IQualifiedFile;
