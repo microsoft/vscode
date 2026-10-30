@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
 import { CopyAction } from '../../../../../../editor/contrib/clipboard/browser/clipboard.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -23,8 +23,9 @@ import { TerminalLocation } from '../../../../../../platform/terminal/common/ter
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme } from '../../../../../../platform/theme/test/common/testThemeService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
-import { ITerminalProfileResolverService, TerminalCommandId } from '../../../../terminal/common/terminal.js';
+import { ITerminalConfigurationService, ITerminalEditorService, ITerminalEditingService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../../../terminal/browser/terminal.js';
+import '../../../../terminal/browser/terminal.contribution.js';
+import { ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from '../../../../terminal/common/terminal.js';
 import { TerminalQuickAccessProvider } from '../../browser/terminalQuickAccess.js';
 
 suite('TerminalQuickAccess', () => {
@@ -111,7 +112,15 @@ suite('TerminalQuickAccess', () => {
 		ok(CopyAction);
 		store.add(CopyAction.addImplementation(109, 'test-native-copy', () => { nativeCopies++; return true; }));
 		instantiationService.stub(ICommandService, {
-			executeCommand: async (id, ...args) => { commands.push({ id, args }); return undefined; }
+			executeCommand: async (id, ...args) => {
+				commands.push({ id, args });
+				if (id === TerminalCommandId.CopyInstanceId) {
+					const command = CommandsRegistry.getCommand(id);
+					ok(command);
+					await instantiationService.invokeFunction(accessor => command.handler(accessor, ...args));
+				}
+				return undefined;
+			}
 		});
 		instantiationService.stub(IEditorService, { findEditors: () => [] });
 		instantiationService.stub(ITerminalGroupService, {
@@ -127,10 +136,15 @@ suite('TerminalQuickAccess', () => {
 		instantiationService.stub(ITerminalService, {
 			get activeInstance() { return activeTerminal; },
 			get foregroundInstances() { return foreground; },
+			getInstanceFromId: id => foreground.find(terminal => terminal.instanceId === id),
 			focusInstance: async terminal => { focused.push(terminal.instanceId); },
 			safeDisposeTerminal: async terminal => { disposed.push(terminal.instanceId); }
 		});
 		instantiationService.stub(ITerminalProfileResolverService, { getDefaultIcon: () => Codicon.terminal });
+		instantiationService.stub(ITerminalConfigurationService, {});
+		instantiationService.stub(ITerminalInstanceService, {});
+		instantiationService.stub(ITerminalEditingService, {});
+		instantiationService.stub(ITerminalProfileService, {});
 		instantiationService.stub(IThemeService, { getColorTheme: () => new TestColorTheme({ 'terminal.ansiRed': '#ff0000' }) });
 		provider = store.add(instantiationService.createInstance(TestTerminalQuickAccessProvider));
 	});

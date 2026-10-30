@@ -23,7 +23,7 @@ import { matchesContiguousSubString } from '../../../../../base/common/filters.j
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { CopyAction } from '../../../../../editor/contrib/clipboard/browser/clipboard.js';
-import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { InstanceContext } from '../../../terminal/browser/terminalContextMenu.js';
 
 interface ITerminalQuickPick extends IPickerQuickAccessItem {
 	readonly terminal: ITerminalInstance;
@@ -71,7 +71,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 				if (!terminal || !this._isAvailable(terminal)) {
 					return false;
 				}
-				return accessor.get(IClipboardService).writeText(String(terminal.instanceId));
+				return this._commandService.executeCommand<void>(TerminalCommandId.CopyInstanceId, new InstanceContext(terminal));
 			}));
 		}
 		disposables.add(toDisposable(() => {

@@ -10,6 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
@@ -20,6 +21,7 @@ import '../../browser/terminal.contribution.js';
 import { ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from '../../common/terminal.js';
 import { WorkspaceFolderCwdPair, shrinkWorkspaceFolderCwdPairs } from '../../browser/terminalActions.js';
 import { getInstanceFromResource } from '../../browser/terminalUri.js';
+import { InstanceContext } from '../../browser/terminalContextMenu.js';
 
 function makeFakeFolder(name: string, uri: URI): IWorkspaceFolder {
 	return {
@@ -145,6 +147,7 @@ suite('terminalActions', () => {
 		let renames: { terminalId: number; name: string }[];
 		let iconChanges: { terminalId: number; icon: TerminalIcon | null | undefined }[];
 		let colorChanges: { terminalId: number; color: string | undefined; skipQuickPick: boolean | undefined }[];
+		let clipboardWrites: string[];
 		let warning: SinonSpy;
 
 		setup(() => {
@@ -152,6 +155,7 @@ suite('terminalActions', () => {
 			renames = [];
 			iconChanges = [];
 			colorChanges = [];
+			clipboardWrites = [];
 			instances = [3, 12, 21, 99].map(id => new class extends mock<ITerminalInstance>() {
 				override readonly instanceId = id;
 				override readonly title = 'Shell';
@@ -188,6 +192,7 @@ suite('terminalActions', () => {
 			instantiationService.stub(ITerminalEditingService, {});
 			instantiationService.stub(ITerminalProfileService, {});
 			instantiationService.stub(ITerminalProfileResolverService, {});
+			instantiationService.stub(IClipboardService, { writeText: async text => { clipboardWrites.push(text); } });
 			const notificationService = new TestNotificationService();
 			warning = spy(notificationService, 'warn');
 			instantiationService.stub(INotificationService, notificationService);
@@ -195,7 +200,7 @@ suite('terminalActions', () => {
 
 		teardown(() => warning.restore());
 
-		async function runCommand(id: TerminalCommandId, args: unknown): Promise<void> {
+		async function runCommand(id: TerminalCommandId, args?: unknown): Promise<void> {
 			const command = CommandsRegistry.getCommand(id);
 			ok(command);
 			await instantiationService.invokeFunction(accessor => command.handler(accessor, args));
@@ -204,6 +209,36 @@ suite('terminalActions', () => {
 		async function rename(args: unknown): Promise<void> {
 			await runCommand(TerminalCommandId.RenameWithArgs, args);
 		}
+
+		test('copies the context terminal ID without activating it', async () => {
+			await runCommand(TerminalCommandId.CopyInstanceId, new InstanceContext(instances[1]));
+			deepStrictEqual({ clipboardWrites, activeId: activeInstance?.instanceId, groupActiveIds: groups.map(group => group.activeInstance?.instanceId) }, {
+				clipboardWrites: ['12'], activeId: 21, groupActiveIds: [12, 21]
+			});
+		});
+
+		test('copies only the first context terminal ID for a multi-selection', async () => {
+			await runCommand(TerminalCommandId.CopyInstanceId, [new InstanceContext(instances[0]), new InstanceContext(instances[1])]);
+			deepStrictEqual(clipboardWrites, ['3']);
+		});
+
+		test('copies the active terminal ID without context', async () => {
+			await runCommand(TerminalCommandId.CopyInstanceId);
+			deepStrictEqual(clipboardWrites, ['21']);
+		});
+
+		test('does not copy the active ID when the context terminal has closed', async () => {
+			const context = new InstanceContext(instances[0]);
+			instances.shift();
+			await runCommand(TerminalCommandId.CopyInstanceId, context);
+			deepStrictEqual(clipboardWrites, []);
+		});
+
+		test('does not copy an ID when there is no active terminal or context', async () => {
+			activeInstance = undefined;
+			await runCommand(TerminalCommandId.CopyInstanceId);
+			deepStrictEqual(clipboardWrites, []);
+		});
 
 		const selections = [
 			{ title: 'preserves the active-terminal default', selector: {}, terminalId: 21 },

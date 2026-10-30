@@ -27,6 +27,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
 import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -841,6 +842,19 @@ export function registerTerminalActions() {
 				// Always show the quickpick on the first iteration
 				color = await terminal.changeColor(color, skipQuickPick);
 				i++;
+			}
+		}
+	});
+
+	registerTerminalAction({
+		id: TerminalCommandId.CopyInstanceId,
+		title: localize2('workbench.action.terminal.copyInstanceId', "Copy Terminal ID"),
+		precondition: sharedWhenClause.terminalAvailable,
+		run: (c, accessor, args) => {
+			const context = parseActionArgs(args)?.[0];
+			const instance = context ? c.service.getInstanceFromId(context.instanceId) : c.service.activeInstance;
+			if (instance && !instance.isDisposed) {
+				return accessor.get(IClipboardService).writeText(String(instance.instanceId));
 			}
 		}
 	});
