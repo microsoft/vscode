@@ -5,12 +5,16 @@
 
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { disposableTimeout } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import type { IObservable } from '../../../base/common/observable.js';
+import { newWriteableStream, ReadableStreamEvents, WriteableStream } from '../../../base/common/stream.js';
 import { URI } from '../../../base/common/uri.js';
-import { createFileSystemProviderError, FileChangeType, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileSystemProviderWithFileRealpathCapability, IFileWriteOptions, IStat, IWatchOptions, toFileSystemProviderErrorCode } from '../../files/common/files.js';
+import { createFileSystemProviderError, FileChangeType, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileReadStreamOptions, IFileSystemProvider, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileRealpathCapability, IFileWriteOptions, IStat, IWatchOptions, toFileSystemProviderErrorCode } from '../../files/common/files.js';
+import { supportsAgentHostResourceReadRanges, type IAgentHostResourceReadRange } from './meta/agentHostResourceReadRangeMeta.js';
 import { fromAgentHostUri, isAgentHostContentRefUri, toAgentHostUri } from './agentHostUri.js';
-import { ContentEncoding, type CreateResourceWatchParams, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
+import { ContentEncoding, type CreateResourceWatchParams, type DirectoryEntry, type InitializeResult, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
 import { AhpErrorCodes } from './state/protocol/errors.js';
 import { ProtocolError } from './state/sessionProtocol.js';
 import { ActionType, type ActionEnvelope } from './state/sessionActions.js';
@@ -25,8 +29,17 @@ import { ROOT_STATE_URI } from './state/sessionState.js';
 export interface IRemoteFilesystemConnection {
 	/** Fires when the same logical connection recovers its transport or expired relay authorization. */
 	readonly onDidReconnect?: Event<void>;
+	/**
+	 * The endpoint's `initialize` result, for optional capabilities such as ranged reads. Optional: connections
+	 * without it only read whole resources.
+	 */
+	readonly initializeResult?: IObservable<InitializeResult | undefined>;
 	resourceList(uri: URI): Promise<ResourceListResult>;
-	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult>;
+	/**
+	 * Reads a resource, or only the bytes in {@link range} (always returned as `base64`). Pass a range only when
+	 * {@link initializeResult} advertises ranged reads (`supportsAgentHostResourceReadRanges`).
+	 */
+	resourceRead(uri: URI, encoding?: ContentEncoding, range?: IAgentHostResourceReadRange): Promise<ResourceReadResult>;
 	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult>;
 	resourceDelete(params: ResourceDeleteParams): Promise<ResourceDeleteResult>;
 	resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult>;
@@ -168,11 +181,12 @@ interface IAuthorityEntry {
  *
  * Individual connections are identified by the URI's authority component.
  */
-export abstract class AHPFileSystemProvider extends Disposable implements IFileSystemProvider, IFileSystemProviderWithFileRealpathCapability {
+export abstract class AHPFileSystemProvider extends Disposable implements IFileSystemProvider, IFileSystemProviderWithFileRealpathCapability, IFileSystemProviderWithFileReadStreamCapability {
 
 	readonly capabilities =
 		FileSystemProviderCapabilities.PathCaseSensitive |
 		FileSystemProviderCapabilities.FileReadWrite |
+		FileSystemProviderCapabilities.FileReadStream |
 		FileSystemProviderCapabilities.FileFolderCopy |
 		FileSystemProviderCapabilities.FileRealpath;
 
@@ -214,6 +228,15 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	 * Tests can override this via the constructor parameter.
 	 */
 	private static readonly _DEFAULT_CONNECTION_GRACE_MS = 5000;
+
+	/**
+	 * Bytes {@link readFileStream} reads before the rest of the file: more than the text file service needs to tell
+	 * that a file is binary (512 bytes, or 4 KiB when guessing the encoding), after which it cancels the read.
+	 */
+	static readonly FIRST_READ_BYTES = 16 * 1024;
+
+	/** Promise continuations the reader gets to react to the first bytes (the text file service needs about five). */
+	private static readonly _READER_DECISION_TURNS = 32;
 
 	constructor(
 		private readonly _connectionGraceMs: number = AHPFileSystemProvider._DEFAULT_CONNECTION_GRACE_MS,
@@ -488,6 +511,73 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	async readdir(resource: URI): Promise<[string, FileType][]> {
 		const entries = await this._listDirectory(resource.authority, resource);
 		return entries.map(e => [e.name, e.type === 'directory' ? FileType.Directory : FileType.File]);
+	}
+
+	/**
+	 * Reads {@link FIRST_READ_BYTES} first and then, unless the reader cancelled (for example after finding the file is
+	 * binary), the rest in one more read, so a reader that only needs the first bytes does not transfer the whole file.
+	 * Hosts that do not advertise ranged reads, and content references, are read whole once.
+	 */
+	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
+		this._readFileIntoStream(resource, opts, stream, token).then(() => stream.end(), error => {
+			stream.error(error);
+			stream.end();
+		});
+		return stream;
+	}
+
+	private async _readFileIntoStream(resource: URI, opts: IFileReadStreamOptions, stream: WriteableStream<Uint8Array>, token: CancellationToken): Promise<void> {
+		if (token.isCancellationRequested) {
+			return;
+		}
+		const decoded = this._decodeUri(resource);
+		const position = opts.position ?? 0;
+		const end = opts.length === undefined ? undefined : position + opts.length;
+		// Content references are produced whole on the host, so reading them in parts would only add work.
+		const allowRange = !this._isContentRef(resource, decoded);
+
+		const firstLength = end === undefined ? AHPFileSystemProvider.FIRST_READ_BYTES : Math.min(AHPFileSystemProvider.FIRST_READ_BYTES, end - position);
+		const first = await this._readBytes(resource.authority, decoded, { position, length: firstLength }, allowRange);
+		if (first.whole) {
+			stream.write(first.bytes.subarray(Math.min(position, first.bytes.byteLength), end));
+			return;
+		}
+		stream.write(first.bytes);
+		if (first.bytes.byteLength < firstLength || (end !== undefined && position + firstLength >= end)) {
+			return;
+		}
+
+		// Binary detection cancels the token from promise continuations of the task that delivers the first bytes: let
+		// those run first. Waiting for a later task instead (a timer) would also wait for unrelated work in the window
+		// and delay text files.
+		for (let i = 0; i < AHPFileSystemProvider._READER_DECISION_TURNS && !token.isCancellationRequested; i++) {
+			await Promise.resolve();
+		}
+		if (token.isCancellationRequested) {
+			return;
+		}
+		const restPosition = position + firstLength;
+		const restRange: IAgentHostResourceReadRange = end === undefined ? { position: restPosition } : { position: restPosition, length: end - restPosition };
+		const rest = await this._readBytes(resource.authority, decoded, restRange, allowRange);
+		if (!token.isCancellationRequested) {
+			// A connection that reconnected to a host without ranged reads returns the whole file.
+			stream.write(rest.whole ? rest.bytes.subarray(Math.min(restPosition, rest.bytes.byteLength), end) : rest.bytes);
+		}
+	}
+
+	/** Reads {@link range} when the connection supports it and {@link allowRange} is set; otherwise the whole resource. */
+	private async _readBytes(authority: string, decoded: URI, range: IAgentHostResourceReadRange, allowRange: boolean): Promise<{ readonly bytes: Uint8Array; readonly whole: boolean }> {
+		try {
+			return await this._readFromConnection(authority, async connection => {
+				const ranged = allowRange && supportsAgentHostResourceReadRanges(connection.initializeResult?.get());
+				const result = await connection.resourceRead(decoded, ContentEncoding.Base64, ranged ? range : undefined);
+				const bytes = result.encoding === ContentEncoding.Base64 ? decodeBase64(result.data).buffer : VSBuffer.fromString(result.data).buffer;
+				return { bytes, whole: !ranged };
+			});
+		} catch (err) {
+			throw this._mapError(err, FileSystemProviderErrorCode.FileNotFound);
+		}
 	}
 
 	async readFile(resource: URI): Promise<Uint8Array> {

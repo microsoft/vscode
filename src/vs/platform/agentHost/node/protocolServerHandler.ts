@@ -35,6 +35,7 @@ import { AgentHostClientType, getAgentHostClientType } from '../common/agentHost
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostChatUris, supportsAgentHostSessionUris } from '../common/meta/agentHostSessionUrisMeta.js';
 import { withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
 import { readChatWorkspaceValue, readCreateChatWorkspaceMeta } from '../common/meta/agentHostCreateChatWorkspaceMeta.js';
+import { readAgentHostResourceReadRange } from '../common/meta/agentHostResourceReadRangeMeta.js';
 import { AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS, AGENT_HOST_CREATE_SESSION_IMPORT_MAX_STAGED_CHARS, readCreateSessionImportMeta, StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, withoutCreateSessionImportMeta } from '../common/meta/agentHostCreateSessionImportMeta.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentModelInfo, type IAgentSessionMetadata, type IMcpNotification } from '../common/agent.js';
@@ -2432,7 +2433,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return this._agentService.resourceList(URI.parse(params.uri));
 		},
 		resourceRead: async (_client, params) => {
-			return this._agentService.resourceRead(URI.parse(params.uri), params.encoding);
+			const range = readAgentHostResourceReadRange(params);
+			if (range === 'invalid') {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid resourceRead range metadata');
+			}
+			return this._agentService.resourceRead(URI.parse(params.uri), params.encoding, range);
 		},
 		resourceCopy: async (_client, params) => {
 			return this._agentService.resourceCopy(params);
