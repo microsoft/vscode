@@ -1202,9 +1202,11 @@ suite('AutomationTools', () => {
 		const rejected = [];
 		for (const fields of [{}, { cronExpression: ' ' }, { cronExpression: '*/2 * * * *', cronTimeZone: 'Invalid/Zone' }]) {
 			const result = await invoke(tool, { name: 'Cron', prompt: 'Review', schedule: { interval: 'cron', ...fields } });
-			rejected.push(!!result.toolResultError);
+			rejected.push({ error: !!result.toolResultError, missingExpression: getText(result).includes('"schedule.cronExpression" is required for cron schedules.') });
 		}
-		assert.deepStrictEqual({ rejected, creates: service.created }, { rejected: [true, true, true], creates: [] });
+		assert.deepStrictEqual({ rejected, creates: service.created }, {
+			rejected: [{ error: true, missingExpression: true }, { error: true, missingExpression: false }, { error: true, missingExpression: false }], creates: [],
+		});
 	});
 
 	test('configureAutomation rejects Cloud cron creation and updates before approval or mutation', async () => {
@@ -1225,8 +1227,8 @@ suite('AutomationTools', () => {
 		const results = [];
 		for (const parameters of inputs) {
 			const result = await invoke(tool, parameters);
-			results.push({ error: !!result.toolResultError, message: getText(result).includes('CRON schedules are not supported by Cloud automations.') });
-			await assert.rejects(tool.prepareToolInvocation({ toolCallId: 'cron-cloud', parameters, chatSessionResource: SESSION_RESOURCE }, CancellationToken.None), /CRON schedules are not supported by Cloud automations\./);
+			results.push({ error: !!result.toolResultError, message: getText(result).includes('Cron schedules are not supported by Cloud automations.') });
+			await assert.rejects(tool.prepareToolInvocation({ toolCallId: 'cron-cloud', parameters, chatSessionResource: SESSION_RESOURCE }, CancellationToken.None), /Cron schedules are not supported by Cloud automations\./);
 		}
 		assert.deepStrictEqual({ results, creates: service.created, updates: service.updated }, {
 			results: [{ error: true, message: true }, { error: true, message: true }, { error: true, message: true }], creates: [], updates: [],

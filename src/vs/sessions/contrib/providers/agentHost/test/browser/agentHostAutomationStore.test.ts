@@ -1545,6 +1545,59 @@ suite('AgentHostAutomationStore', () => {
 		});
 	});
 
+	for (const [expression, preset] of [
+		['1 * * * *', 'hourly'],
+		['1 9 * * *', 'daily'],
+		['1 9 * * 1-5', 'weekdays'],
+		['1 9 * * 1', 'weekly'],
+	] as const) {
+		test(`keeps CRON instead of inferring ${preset} across serialized mutations and reconnect`, async () => {
+			const connection = disposables.add(new class extends TestAutomationConnection {
+				override dispatch(channel: string, action: Parameters<IAgentConnection['dispatch']>[1]): void {
+					super.dispatch(channel, JSON.parse(JSON.stringify(action)));
+				}
+			}());
+			const storage = disposables.add(new InMemoryStorageService());
+			const createStore = () => disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+			const store = createStore();
+			const schedule = {
+				interval: 'cron' as const, cronExpression: expression, cronTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+				scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0,
+			};
+			const created = await store.createAutomation({
+				name: 'CRON review', prompt: 'Review changes.', schedule,
+				target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+			});
+			const create = connection.dispatched[0].action;
+			assert.ok(create.type === ActionType.AutomationCreateRequested);
+			store.dispose();
+			const reopened = createStore();
+			const restored = reopened.getAutomation(created.id)!;
+			const renamed = await reopened.updateAutomation(created.id, { name: 'Renamed' });
+			const rename = connection.dispatched.at(-1)?.action;
+			assert.ok(rename?.type === ActionType.AutomationUpdateRequested);
+			const changedSchedule = { ...schedule, cronExpression: expression.replace(/^1 /, '2 ') };
+			const edited = await reopened.updateAutomation(created.id, { schedule: changedSchedule });
+			const switched = await reopened.updateAutomation(created.id, { schedule: { interval: preset, scheduleHour: 9, scheduleMinute: 1, scheduleDay: 1 } });
+			const switchAction = connection.dispatched.at(-1)?.action;
+			assert.ok(switchAction?.type === ActionType.AutomationUpdateRequested);
+			const switchedBack = await reopened.updateAutomation(created.id, { schedule });
+			assert.deepStrictEqual({
+				schedules: [created, restored, renamed, switchedBack].map(automation => automation.schedule),
+				edited: edited.schedule,
+				switched: switched.schedule.interval,
+				renamedTriggers: rename.changes.triggers,
+				clearedMeta: switchAction.changes._meta,
+			}, {
+				schedules: [schedule, schedule, schedule, schedule],
+				edited: changedSchedule,
+				switched: preset,
+				renamedTriggers: create.definition.triggers,
+				clearedMeta: {},
+			});
+		});
+	}
+
 	test('round trips cron expressions and their time zone through host create and update', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
@@ -1584,7 +1637,7 @@ suite('AgentHostAutomationStore', () => {
 			name: 'Cron', prompt: 'Review',
 			schedule: { interval: 'cron', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
 			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
-		}), /A CRON expression is required\./);
+		}), /A cron expression is required\./);
 		assert.deepStrictEqual(connection.dispatched, []);
 	});
 
