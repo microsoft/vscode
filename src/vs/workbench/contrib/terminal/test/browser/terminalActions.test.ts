@@ -207,17 +207,17 @@ suite('terminalActions', () => {
 
 		const selections = [
 			{ title: 'preserves the active-terminal default', selector: {}, terminalId: 21 },
-			{ title: 'selects a background split by instance ID', selector: { terminalId: 12 }, terminalId: 12 },
-			{ title: 'selects a background split by resource', selector: { resource: 'vscode-terminal:/workspace/12' }, terminalId: 12 },
+			{ title: 'selects a background pane by instance ID', selector: { terminalId: 12 }, terminalId: 12 },
+			{ title: 'selects a background pane by resource', selector: { resource: 'vscode-terminal:/workspace/12' }, terminalId: 12 },
 			{ title: 'ignores the resource title fragment when resolving identity', selector: { resource: 'vscode-terminal:/workspace/12#Previous title' }, terminalId: 12 },
 			{ title: 'resolves a moved terminal by its original resource', selector: { resource: 'vscode-terminal:/previous-workspace/7' }, terminalId: 99 },
 			{ title: 'selects an editor terminal by its current instance ID', selector: { terminalId: 99 }, terminalId: 99 },
-			{ title: 'uses the selected tab active split when split is omitted', selector: { tab: 1 }, terminalId: 12 },
+			{ title: 'uses the selected tab active pane when pane is omitted', selector: { tab: 1 }, terminalId: 12 },
 			{ title: 'uses 1-based tab positions', selector: { tab: 2 }, terminalId: 21 },
-			{ title: 'uses the active tab when only split is provided', selector: { split: 1 }, terminalId: 21 },
-			{ title: 'selects the first split explicitly', selector: { tab: 1, split: 1 }, terminalId: 3 },
-			{ title: 'selects the second split explicitly', selector: { tab: 1, split: 2 }, terminalId: 12 },
-			{ title: 'accepts split 1 in an unsplit tab', selector: { tab: 2, split: 1 }, terminalId: 21 }
+			{ title: 'uses the active tab when only pane is provided', selector: { pane: 1 }, terminalId: 21 },
+			{ title: 'selects the first pane explicitly', selector: { tab: 1, pane: 1 }, terminalId: 3 },
+			{ title: 'selects the second pane explicitly', selector: { tab: 1, pane: 2 }, terminalId: 12 },
+			{ title: 'accepts pane 1 in an unsplit tab', selector: { tab: 2, pane: 1 }, terminalId: 21 }
 		];
 		for (const { title, selector, terminalId } of selections) {
 			test(title, async () => {
@@ -242,9 +242,9 @@ suite('terminalActions', () => {
 			});
 		}
 
-		test('opens the icon and color pickers for a background split', async () => {
-			await runCommand(TerminalCommandId.ChangeIcon, { tab: 1, split: 1 });
-			await runCommand(TerminalCommandId.ChangeColor, { tab: 1, split: 1 });
+		test('opens the icon and color pickers for a background pane', async () => {
+			await runCommand(TerminalCommandId.ChangeIcon, { tab: 1, pane: 1 });
+			await runCommand(TerminalCommandId.ChangeColor, { tab: 1, pane: 1 });
 			deepStrictEqual({ iconChanges, colorChanges, activeId: activeInstance?.instanceId, warnings: warning.callCount }, {
 				iconChanges: [{ terminalId: 3, icon: undefined }],
 				colorChanges: [{ terminalId: 3, color: undefined, skipQuickPick: undefined }],
@@ -282,10 +282,10 @@ suite('terminalActions', () => {
 			});
 		});
 
-		test('selects a background split in the active tab without changing focus', async () => {
+		test('selects a background pane in the active tab without changing focus', async () => {
 			activeGroup = groups[0];
 			activeInstance = instances[1];
-			await rename({ name: 'Background pane', split: 1 });
+			await rename({ name: 'Background pane', pane: 1 });
 			deepStrictEqual({ renames, activeId: activeInstance.instanceId, groupActiveId: activeGroup.activeInstance?.instanceId, warnings: warning.callCount }, {
 				renames: [{ terminalId: 3, name: 'Background pane' }], activeId: 12, groupActiveId: 12, warnings: 0
 			});
@@ -293,7 +293,7 @@ suite('terminalActions', () => {
 
 		test('does not fall back to an active terminal when no panel tab is active', async () => {
 			activeGroup = undefined;
-			await rename({ name: 'Missing panel tab', split: 1 });
+			await rename({ name: 'Missing panel tab', pane: 1 });
 			deepStrictEqual({ renames, warnings: warning.callCount }, { renames: [], warnings: 1 });
 		});
 
@@ -331,9 +331,9 @@ suite('terminalActions', () => {
 			{ resource: 'file:/workspace/12' }, { resource: '/workspace/12' }, { resource: 'vscode-terminal:/%' },
 			{ resource: '' }, { resource: 12 }, { resource: null },
 			{ tab: 0 }, { tab: -1 }, { tab: 1.1 }, { tab: '1' }, { tab: 3 },
-			{ tab: 1, split: 0 }, { tab: 1, split: -1 }, { tab: 1, split: 1.2 }, { tab: 1, split: '2' }, { tab: 1, split: 3 },
-			{ split: 0 }, { split: -1 }, { split: 1.2 }, { split: '2' }, { split: 2 },
-			{ terminalId: 12, split: 1 }, { resource: 'vscode-terminal:/workspace/12', split: 1 },
+			{ tab: 1, pane: 0 }, { tab: 1, pane: -1 }, { tab: 1, pane: 1.2 }, { tab: 1, pane: '2' }, { tab: 1, pane: 3 },
+			{ pane: 0 }, { pane: -1 }, { pane: 1.2 }, { pane: '2' }, { pane: 2 },
+			{ terminalId: 12, pane: 1 }, { resource: 'vscode-terminal:/workspace/12', pane: 1 },
 			{ terminalId: 12, tab: 1 }, { terminalId: 12, resource: 'vscode-terminal:/workspace/12' },
 			{ resource: 'vscode-terminal:/workspace/12', tab: 1 }
 		];

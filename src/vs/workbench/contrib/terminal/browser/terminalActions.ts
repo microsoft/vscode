@@ -87,8 +87,8 @@ const TERMINAL_TARGET_PROPERTIES: IJSONSchemaMap = {
 		type: 'integer',
 		minimum: 1
 	},
-	split: {
-		description: localize('workbench.action.terminal.target.split', "The 1-based position of a split in the selected tab, or the active terminal tab when tab is omitted. When split is omitted, the selected tab's active terminal is used."),
+	pane: {
+		description: localize('workbench.action.terminal.target.pane', "The 1-based position of a pane in the selected tab, or the active terminal tab when tab is omitted. When pane is omitted, the selected tab's active terminal is used."),
 		type: 'integer',
 		minimum: 1
 	}
@@ -1735,11 +1735,11 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]): ID
  * Resolves a terminal selector without changing focus or falling back from an explicit target.
  */
 function getTargetTerminal(c: ITerminalServicesCollection, options: Record<string, unknown>, notificationService: INotificationService): ITerminalInstance | undefined {
-	const { terminalId, resource, tab, split } = options;
+	const { terminalId, resource, tab, pane } = options;
 	const selectorCount = [terminalId, resource, tab].filter(value => value !== undefined).length;
-	const invalidIndex = [terminalId, tab, split].some(value => value !== undefined && (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1));
-	if (selectorCount > 1 || invalidIndex || (resource !== undefined && !isString(resource)) || (split !== undefined && (terminalId !== undefined || resource !== undefined))) {
-		notificationService.warn(localize('workbench.action.terminal.target.invalidSelector', "Invalid terminal selector. Use one of terminalId, resource, or tab. Split can be used with tab or on its own for the active terminal tab. Terminal IDs, tabs, and splits must be positive integers."));
+	const invalidIndex = [terminalId, tab, pane].some(value => value !== undefined && (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1));
+	if (selectorCount > 1 || invalidIndex || (resource !== undefined && !isString(resource)) || (pane !== undefined && (terminalId !== undefined || resource !== undefined))) {
+		notificationService.warn(localize('workbench.action.terminal.target.invalidSelector', "Invalid terminal selector. Use one of terminalId, resource, or tab. Pane can be used with tab or on its own for the active terminal tab. Terminal IDs, tabs, and panes must be positive integers."));
 		return;
 	}
 
@@ -1756,14 +1756,14 @@ function getTargetTerminal(c: ITerminalServicesCollection, options: Record<strin
 		if (uri?.scheme === Schemas.vscodeTerminal) {
 			instance = c.service.getInstanceFromResource(uri);
 		}
-	} else if (typeof tab === 'number' || typeof split === 'number') {
+	} else if (typeof tab === 'number' || typeof pane === 'number') {
 		const group = typeof tab === 'number' ? c.groupService.groups[tab - 1] : c.groupService.activeGroup;
-		instance = typeof split === 'number' ? group?.terminalInstances[split - 1] : group?.activeInstance;
+		instance = typeof pane === 'number' ? group?.terminalInstances[pane - 1] : group?.activeInstance;
 	} else {
 		instance = c.service.activeInstance;
 	}
 	if (!instance) {
-		if (selectorCount > 0 || split !== undefined) {
+		if (selectorCount > 0 || pane !== undefined) {
 			notificationService.warn(localize('workbench.action.terminal.target.notFound', "The selected terminal was not found."));
 		}
 		return;
