@@ -8,9 +8,10 @@ import { timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { FileService } from '../../../../files/common/fileService.js';
 import { createFileSystemProviderError, FileSystemProviderErrorCode } from '../../../../files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { NullTelemetryServiceShape } from '../../../../telemetry/common/telemetryUtils.js';
 import { EditSurvivalReporterFactory } from '../../../node/shared/editSurvivalReporter.js';
@@ -33,8 +34,7 @@ suite('agentHost editSurvivalReporter', () => {
 	let factory: EditSurvivalReporterFactory;
 
 	setup(() => {
-		fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		fileService = createInMemoryFileService(disposables, Schemas.file);
 		telemetry = new RecordingTelemetryService();
 		factory = new EditSurvivalReporterFactory(fileService, new NullLogService(), telemetry);
 	});

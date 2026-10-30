@@ -61,6 +61,8 @@ Sessions management marks Automation configuration drafts with `isAutomationDraf
 
 `IAutomationDescriptor` contains immutable identity, editable name and prompt, schedule, execution target, optional session template, enabled state, and host-projected runtime timestamps.
 
+Agent Host Cron schedules use the existing five-field [AHP grammar](../platform/agentHost/common/state/protocol/channels-automation/state.ts): wildcards, lists, ascending ranges, and positive steps on a wildcard or range only. Validation, execution, and human-readable explanations share the host parser and do not accept syntax outside the protocol contract. The month limits both day alternatives; restricted day-of-month and weekday fields match with inclusive OR. Weekdays use 0-7, with both 0 and 7 representing Sunday. The editor defaults to local time and the host evaluates the saved IANA time zone.
+
 Cloud ownership is separate from the execution target and creator: `user` (Only me) or `repository`, defaulting to `user` for legacy responses. Ownership is accepted only on creation, never in updates. The create API is authoritative for repository ownership support, and providers translate its known unsupported-ownership rejection into product-facing feedback. The repository Automation capability must allow management for cloud mutations; every definition returned by the server is available through the UI and agent tools.
 
 An `AutomationTarget` separates concrete provider identity (`providerId`) from its agent (`sessionTypeId`). Workspace targets also carry the workspace URI and isolation choice. Session type or display name alone cannot determine ownership. Creation requires an explicit, available Automation-capable provider.

@@ -207,7 +207,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	canDelete = true;
 	historyChoice = false;
 	readonly deleteOptions: (IDeleteAutomationOptions | undefined)[] = [];
-	readonly historyStates = new Map<string, 'retained' | 'deleting'>();
+	readonly historyStates = new Map<string, 'retained' | 'deleting' | 'interrupted'>();
 	readonly deleteHistoryCalls: string[] = [];
 	canDeleteHistory = true;
 
@@ -1643,6 +1643,18 @@ suite('AutomationsCardsWidget', () => {
 		const time = new Date(Date.UTC(2000, 0, 1, local.scheduleHour, local.scheduleMinute))
 			.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
 		assert.strictEqual(widget.element.querySelector('.automations-card-schedule')?.textContent, `Daily at ${time}`);
+	});
+
+	test('uses uppercase CRON for saved cards and accessible schedule text', () => {
+		const { widget, automationService } = setup();
+		const item = automation({
+			schedule: { interval: 'cron', cronExpression: '*/15 * * * *', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+		});
+		automationService.setAutomations([item]);
+		assert.deepStrictEqual({
+			label: widget.element.querySelector('.automations-card-schedule')?.textContent,
+			accessible: buildAutomationsAccessibleContent([item], [], 'ready', []).includes('CRON: */15 * * * *'),
+		}, { label: 'CRON: */15 * * * *', accessible: true });
 	});
 
 	test('renders collapsible ownership sections with repository guidance and removes empty groups', () => {
@@ -4776,7 +4788,7 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('retained history exposes confirmed deletion and interrupted deletion exposes retry', async () => {
+	test('retained history exposes deletion, progress, and interrupted retry states', async () => {
 		const { automationService, contextMenuService, dialogService, widget } = setup();
 		automationService.historyStates.set('automation-1', 'retained');
 		automationService.setRuns([run()]);
@@ -4799,9 +4811,18 @@ suite('AutomationsCardsWidget', () => {
 		automationService.canDeleteHistory = false;
 		automationService.setRuns([run()]);
 		await waitForSessionActions();
-		const retryRow = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
-		assert.ok(retryRow);
-		dispatchContextMenu(retryRow);
+		const deletingContent = buildAutomationsAccessibleContent(
+			[], automationService.runs.get(), 'ready', [], [], 'ready', [],
+			() => 'Daily review', () => 'deleting', () => false,
+		);
+
+		automationService.historyStates.set('automation-1', 'interrupted');
+		automationService.canDeleteHistory = true;
+		automationService.setRuns([run()]);
+		await waitForSessionActions();
+		const interruptedRow = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
+		assert.ok(interruptedRow);
+		dispatchContextMenu(interruptedRow);
 		const retryAction = (contextMenuService.delegate?.getActions() ?? []).find(action => action.id === 'sessions.automations.retryDeleteHistory');
 		assert.ok(retryAction);
 		contextMenuService.delegate?.onHide?.(false);
@@ -4809,11 +4830,12 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({
 			confirmation: dialogService.confirmations[0],
 			deleteHistoryCalls: automationService.deleteHistoryCalls,
+			deleting: deletingContent.includes('Deleting run history for Daily review.'),
 			retry: { label: retryAction.label, enabled: retryAction.enabled },
 			accessible: buildAutomationsAccessibleContent(
 				[], automationService.runs.get(), 'ready', [], [], 'ready', [],
-				() => 'Daily review', () => 'deleting', () => false,
-			).includes('Run history deletion for Daily review was interrupted. Retry is currently unavailable.'),
+				() => 'Daily review', () => 'interrupted', () => true,
+			).includes('Run history deletion for Daily review was interrupted. Use the run context menu to retry.'),
 		}, {
 			confirmation: {
 				message: 'Delete run history for "Daily review"?',
@@ -4821,7 +4843,8 @@ suite('AutomationsCardsWidget', () => {
 				primaryButton: 'Delete',
 			},
 			deleteHistoryCalls: ['automation-1'],
-			retry: { label: 'Retry Delete Run History...', enabled: false },
+			deleting: true,
+			retry: { label: 'Retry Delete Run History...', enabled: true },
 			accessible: true,
 		});
 	});
@@ -4845,19 +4868,28 @@ suite('AutomationsCardsWidget', () => {
 		automationService.canDeleteHistory = false;
 		automationService.setRuns([run({ sessionResource: undefined })]);
 		await timeout(0);
+		const deletingButton = widget.element.querySelector<HTMLElement>('.automations-history-owner .monaco-button');
+		const deleting = { label: deletingButton?.textContent, disabled: deletingButton?.classList.contains('disabled') };
+
+		automationService.historyStates.set('automation-1', 'interrupted');
+		automationService.canDeleteHistory = true;
+		automationService.setRuns([run({ sessionResource: undefined })]);
+		await timeout(0);
 		const retry = widget.element.querySelector<HTMLElement>('.automations-history-owner .monaco-button');
 
 		assert.deepStrictEqual({
 			ownerLabel: owner.getAttribute('aria-label'),
 			deleteHistoryCalls: automationService.deleteHistoryCalls,
 			focusAfterDelete,
+			deleting,
 			retry: { label: retry?.textContent, disabled: retry?.classList.contains('disabled') },
 			sessionRows: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
 		}, {
 			ownerLabel: 'Daily review, Run history is retained.',
 			deleteHistoryCalls: ['automation-1'],
 			focusAfterDelete: true,
-			retry: { label: 'Retry Delete Run History', disabled: true },
+			deleting: { label: 'Deleting...', disabled: true },
+			retry: { label: 'Retry Delete Run History', disabled: false },
 			sessionRows: 0,
 		});
 	});

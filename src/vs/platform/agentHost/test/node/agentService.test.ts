@@ -47,6 +47,7 @@ import { getTelemetryMigrationSessionId } from '../../common/agentTelemetryCorre
 import { FileService } from '../../../files/common/fileService.js';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef } from '../../common/agent.js';
 import { AgentHostPrewarmSessionsSettingId, IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -1610,8 +1611,7 @@ suite('AgentService (node dispatcher)', () => {
 	setup(async () => {
 		nullSessionDataService = createSessionDataService();
 
-		fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 
 		// Seed a directory for browseDirectory tests
 		await fileService.createFolder(URI.from({ scheme: Schemas.inMemory, path: '/testDir' }));
@@ -31224,8 +31224,7 @@ suite('AgentService (node dispatcher)', () => {
 		}
 
 		async function createScratchService(capabilities: IAgentCapabilities = { multipleChats: { fork: true, sideChat: true }, multipleWorkingDirectories: { immutablePrimary: true } }, orchestrator?: IAgentHostDatabase, providerId = 'copilot') {
-			const scratchFileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(scratchFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const scratchFileService = createInMemoryFileService(disposables, Schemas.file);
 			disposables.add(scratchFileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
 			const svc = disposables.add(createTestAgentService(new NullLogService(), scratchFileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestrator));
 			const agent = disposables.add(new ScratchChatAgent(providerId, capabilities));
@@ -31299,8 +31298,7 @@ suite('AgentService (node dispatcher)', () => {
 				const list = orchestrator.listScratchFolders.bind(orchestrator);
 				orchestrator.listScratchFolders = async () => { await gate; return list(); };
 			}
-			const files = disposables.add(new FileService(new NullLogService()));
-			disposables.add(files.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const files = createInMemoryFileService(disposables, Schemas.file);
 			const svc = disposables.add(createTestAgentService(new NullLogService(), files, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestrator));
 			return { svc, folder, orchestrator };
 		}
@@ -31754,8 +31752,7 @@ suite('AgentService (node dispatcher)', () => {
 		const repository = URI.file('/workspace/repository');
 
 		async function createFolderService(capabilities: IAgentCapabilities = { multipleChats: { fork: true }, multipleWorkingDirectories: { immutablePrimary: true } }) {
-			const files = disposables.add(new FileService(new NullLogService()));
-			disposables.add(files.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const files = createInMemoryFileService(disposables, Schemas.file);
 			const perSession = createPerSessionDataService();
 			const gitService: IAgentHostGitService = {
 				...createNoopGitService(),
@@ -31919,8 +31916,7 @@ suite('AgentService (node dispatcher)', () => {
 		const worktree = URI.file('/workspace/repository.worktrees/first');
 
 		async function createRebindService(options: { readonly capabilities?: IAgentCapabilities; readonly workspaceless?: boolean; readonly git?: Partial<IAgentHostGitService>; readonly logService?: ILogService } = {}) {
-			const files = disposables.add(new FileService(new NullLogService()));
-			disposables.add(files.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const files = createInMemoryFileService(disposables, Schemas.file);
 			const gitService: IAgentHostGitService = {
 				...createNoopGitService(),
 				getRepositoryRoot: async () => repository,
@@ -37304,8 +37300,7 @@ suite('AgentService (node dispatcher)', () => {
 				const chatsRoot = workspacelessChatsRoot(URI.file('/home'));
 
 				test('a folderless chat of a workspace session never works in another chat\'s scratch folder: pins, sends and launches', async () => {
-					const files = disposables.add(new FileService(new NullLogService()));
-					disposables.add(files.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+					const files = createInMemoryFileService(disposables, Schemas.file);
 					const service = disposables.add(createTestAgentService(new NullLogService(), files, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 					registerTestAgentProvider(service, disposables.add(new MovingAgent('copilot', true)));
 					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
@@ -37354,8 +37349,7 @@ suite('AgentService (node dispatcher)', () => {
 				test('after a restart a scratch chat and a moved-in scratch chat of a workspace session send in their own scratch folder, a folderless chat in the session\'s', async () => {
 					const orchestratorDatabase = new AgentHostDatabase(':memory:');
 					const sessionDataService = createSessionDataService(new TestSessionDatabase());
-					const files = disposables.add(new FileService(new NullLogService()));
-					disposables.add(files.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+					const files = createInMemoryFileService(disposables, Schemas.file);
 					const sessionFolders = new Map<string, URI[]>();
 					const createService = () => {
 						const created = disposables.add(createTestAgentService(new NullLogService(), files, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
@@ -37435,8 +37429,7 @@ suite('AgentService (node dispatcher)', () => {
 				test('a scratch chat of a workspace session with a folderless chat moves, also after a restart: the folderless chat never inherits its scratch folder', async () => {
 					const orchestratorDatabase = new AgentHostDatabase(':memory:');
 					const sessionDataService = createSessionDataService(new TestSessionDatabase());
-					const files = disposables.add(new FileService(new NullLogService()));
-					disposables.add(files.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+					const files = createInMemoryFileService(disposables, Schemas.file);
 					const sessionFolders = new Map<string, URI[]>();
 					const createService = () => {
 						const created = disposables.add(createTestAgentService(new NullLogService(), files, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
@@ -37513,8 +37506,7 @@ suite('AgentService (node dispatcher)', () => {
 				test('a restored session publishes the scratch folders of its chats, also for a chat that was moved in before the restart', async () => {
 					const orchestratorDatabase = new AgentHostDatabase(':memory:');
 					const sessionDataService = createSessionDataService(new TestSessionDatabase());
-					const files = disposables.add(new FileService(new NullLogService()));
-					disposables.add(files.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+					const files = createInMemoryFileService(disposables, Schemas.file);
 					const createService = () => {
 						const created = disposables.add(createTestAgentService(new NullLogService(), files, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
 							undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
@@ -37551,8 +37543,7 @@ suite('AgentService (node dispatcher)', () => {
 				/** `orchestrator`: a database that stores opaque chats by their storage spelling, as the host's does. */
 				async function setupWorkspaceless(orchestrator?: CompatibleAgentHostDatabase) {
 					const db = new TestSessionDatabase();
-					const files = disposables.add(new FileService(new NullLogService()));
-					disposables.add(files.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+					const files = createInMemoryFileService(disposables, Schemas.file);
 					disposables.add(files.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
 					const service = disposables.add(createTestAgentService(new NullLogService(), files, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestrator));
 					const provider = orchestrator ? 'copilotcli' : 'copilot';
