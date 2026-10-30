@@ -8,6 +8,7 @@ import sinon from 'sinon';
 import { $, append, EventType, getWindow, ModifierKeyEmitter } from '../../../../browser/dom.js';
 import { getMenuWidgetCSS, Menu, unthemedMenuStyles } from '../../../../browser/ui/menu/menu.js';
 import { Action, ActionRunner, SubmenuAction, toAction } from '../../../../common/actions.js';
+import { EventType as TouchEventType } from '../../../../browser/touch.js';
 import { toDisposable } from '../../../../common/lifecycle.js';
 import { isLinux, isWindows } from '../../../../common/platform.js';
 import { ResolvedKeybinding } from '../../../../common/keybindings.js';
@@ -202,6 +203,75 @@ suite('Menu', () => {
 			expandedAfterMouseOver: 'false',
 			expandedAfterStationaryMouseMove: 'false',
 			expandedAfterMouseMove: 'true'
+		});
+	});
+
+	suite('touch drag in a submenu (#331838)', () => {
+		async function setup() {
+			const clock = sinon.useFakeTimers();
+			disposables.add(toDisposable(() => clock.restore()));
+			const host = append(document.body, $('div'));
+			host.style.position = 'absolute';
+			host.style.top = `${getWindow(host).innerHeight - 120}px`;
+			disposables.add(toDisposable(() => host.remove()));
+			const child = toAction({ id: 'child', label: 'Child', run: () => { } });
+			const items = [
+				...Array.from({ length: 12 }, (_, i) => toAction({ id: `item${i}`, label: `Item ${i}`, run: () => { } })),
+				new SubmenuAction('submenu', 'Submenu', [child, toAction({ id: 'child2', label: 'Child 2', run: () => { } })])
+			];
+			const menu = disposables.add(new Menu(host, items, {}, unthemedMenuStyles));
+			const scrolls: { scrollTopChanged: boolean; scrollLeftChanged: boolean }[] = [];
+			disposables.add(menu.onScroll(e => scrolls.push({ scrollTopChanged: e.scrollTopChanged, scrollLeftChanged: e.scrollLeftChanged })));
+			const parentElement = host.querySelector<HTMLElement>('.monaco-menu')!;
+			const submenuItem = host.querySelectorAll<HTMLElement>('.action-menu-item')[12];
+			// Clamp the parent to its bottom before opening the submenu so scroll state is deterministic across engines.
+			drag(parentElement, -1000);
+			menu.focus(13);
+			menu.trigger(12);
+			await clock.tickAsync(100);
+			return { host, menu, scrolls, submenuItem, parentElement, clock };
+		}
+
+		function drag(target: HTMLElement, translationY: number) {
+			// Synthetic changes exercise the menu handler directly, not the browser's Gesture routing.
+			const event = new Event(TouchEventType.Change, { bubbles: true, cancelable: true }) as Event & { translationY: number; translationX: number };
+			event.translationX = 0;
+			event.translationY = translationY;
+			target.dispatchEvent(event);
+		}
+
+		function snapshot(host: HTMLElement, submenuItem: HTMLElement, scrolls: unknown[]) {
+			return {
+				expanded: submenuItem.getAttribute('aria-expanded'),
+				parentFocused: host.querySelector('.monaco-menu')!.contains(host.ownerDocument.activeElement) && !host.querySelector('.monaco-submenu')?.contains(host.ownerDocument.activeElement),
+				scrolls
+			};
+		}
+
+		test('touch drag that does not change the parent scroll position keeps the submenu open', async () => {
+			const { host, scrolls, submenuItem, parentElement } = await setup();
+			scrolls.length = 0;
+			// The parent is already scrolled to the bottom, so this drag is clamped and only re-lays out the submenu.
+			drag(parentElement, -30);
+			assert.deepStrictEqual(snapshot(host, submenuItem, scrolls), {
+				expanded: 'true',
+				parentFocused: false,
+				scrolls: [{ scrollTopChanged: false, scrollLeftChanged: false }]
+			});
+		});
+
+		test('touch drag that scrolls the parent dismisses the submenu', async () => {
+			const { host, scrolls, submenuItem, parentElement, clock } = await setup();
+			scrolls.length = 0;
+			drag(parentElement, 30);
+			await clock.tickAsync(500);
+			// The number of scroll events differs between engines, so only record whether the parent scrolled vertically.
+			assert.deepStrictEqual({ ...snapshot(host, submenuItem, []), scrolledVertically: scrolls.length > 0 && scrolls.every(e => e.scrollTopChanged && !e.scrollLeftChanged) }, {
+				expanded: 'false',
+				parentFocused: true,
+				scrolls: [],
+				scrolledVertically: true
+			});
 		});
 	});
 

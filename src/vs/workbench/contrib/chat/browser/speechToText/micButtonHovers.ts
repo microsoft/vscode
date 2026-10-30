@@ -49,7 +49,10 @@ function getDictationDescription(configurationService: IConfigurationService, we
  * Spells out that Voice Mode is a spoken conversation driven by a separate online
  * model, so it doesn't read as another dictation entry point.
  */
-function getVoiceModeDescription(): string {
+function getVoiceModeDescription(isUsingGptLive: boolean): string {
+	if (isUsingGptLive) {
+		return localize('voiceMode.hover.gptLive', "Talk with the agent and hear it reply. Uses OpenAI GPT Live for real-time voice.");
+	}
 	return localize('voiceMode.hover', "Talk with the agent and hear it reply. Uses the online real-time voice model.");
 }
 
@@ -64,6 +67,6 @@ export function getDictationHoverContent(title: string, configurationService: IC
 }
 
 /** Hover for the Voice Mode button, for APIs that take managed hover content. */
-export function getVoiceModeHoverContent(title: string): IManagedHoverContent {
-	return asHoverContent(title, getVoiceModeDescription());
+export function getVoiceModeHoverContent(title: string, isUsingGptLive: boolean): IManagedHoverContent {
+	return asHoverContent(title, getVoiceModeDescription(isUsingGptLive));
 }

@@ -25,7 +25,7 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 // eslint-disable-next-line local/code-import-patterns
 import { TitleBarAccountWidget } from '../../../../../sessions/contrib/accountMenu/browser/account.contribution.js';
-import { ChatPetAchievementIds } from '../../../../contrib/chat/browser/chatPetAchievements.js';
+import { chatPetAchievements, ChatPetAchievementIds } from '../../../../contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
 import { IChatStatusItemService } from '../../../../contrib/chat/browser/chatStatus/chatStatusItemService.js';
 import { ICodexAccountService, ICodexAccountViewInfo } from '../../../../services/agentHost/browser/codexAccountService.js';
@@ -33,7 +33,7 @@ import { ACCOUNTS_AVATAR_SETTING, IAuthenticationService } from '../../../../ser
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { TestTextResourceConfigurationService } from '../../workbenchTestServices.js';
-import { configureChatPetFixtureFileRoot, FixtureChatPetService } from '../chat/chatPetFixtureUtils.js';
+import { configureChatPetFixtureFileRoot, FixtureChatPetService, waitForChatPetAchievementPreviews } from '../chat/chatPetFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../fixtureUtils.js';
 
 type UsageState = 'both' | 'weeklyOnly' | 'fiveHourOnly' | 'unavailable' | 'withoutReset';
@@ -161,6 +161,7 @@ async function renderAccountMenu(context: ComponentFixtureContext, usageState: U
 		return images.length === 2 && images.every(image => image.hasAttribute('src') && image.complete && image.naturalWidth > 0);
 	}, 'Account popover fixture did not load both local avatars');
 	await Promise.all([...container.querySelectorAll<HTMLImageElement>('img')].map(image => image.decode()));
+	await waitForChatPetAchievementPreviews(container, chatPetAchievements.length);
 	if (hoveredLimit) {
 		const rateLimitRows = panel.querySelectorAll<HTMLElement>('.sessions-account-titlebar-panel-provider-metric-row.secondary[tabindex="0"]');
 		const row = rateLimitRows[hoveredLimit === 'fiveHour' ? 0 : 1];

@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { waitForState } from '../../../../../base/common/observable.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { extUri } from '../../../../../base/common/resources.js';
@@ -103,8 +103,8 @@ suite('SessionsRecentWorkspacesService', () => {
 		};
 	}
 
-	function snapshot(service: SessionsRecentWorkspacesService) {
-		return service.getRecentWorkspaces().map(entry => ({
+	function snapshot(service: SessionsRecentWorkspacesService, catalog = false) {
+		return (catalog ? service.getWorkspaceCatalog() : service.getRecentWorkspaces()).map(entry => ({
 			uri: entry.workspace.uri.toString(), source: entry.source, checked: entry.checked,
 		}));
 	}
@@ -145,17 +145,21 @@ suite('SessionsRecentWorkspacesService', () => {
 		const sourceUri = URI.parse('vscode-agent-host://wsl__Ubuntu/home/test/vscode-remote-try-node');
 		const firstContainerUri = URI.parse('vscode-agent-host://devcontainer__first/workspaces/vscode-remote-try-node');
 		const secondContainerUri = URI.parse('vscode-agent-host://devcontainer__second/workspaces/vscode-remote-try-node');
+		const resolutions: { uri: URI; resolveMetadata: boolean | undefined }[] = [];
 		const createProvider = (id: string, workspaceUri: URI, canonicalWorkspaceUri?: URI) => upcastPartial<ISessionsProvider>({
 			id,
 			...(canonicalWorkspaceUri ? { canonicalizeWorkspaceUri: () => canonicalWorkspaceUri } : {}),
-			resolveWorkspace: uri => extUri.isEqual(uri, workspaceUri) ? {
-				uri,
-				label: 'workspace',
-				icon: Codicon.folder,
-				folders: [{ root: uri, workingDirectory: uri, name: 'folder', description: undefined }],
-				requiresWorkspaceTrust: true,
-				isVirtualWorkspace: false,
-			} : undefined,
+			resolveWorkspace: (uri, options) => {
+				resolutions.push({ uri, resolveMetadata: options?.resolveMetadata });
+				return extUri.isEqual(uri, workspaceUri) ? {
+					uri,
+					label: 'workspace',
+					icon: Codicon.folder,
+					folders: [{ root: uri, workingDirectory: uri, name: 'folder', description: undefined }],
+					requiresWorkspaceTrust: true,
+					isVirtualWorkspace: false,
+				} : undefined;
+			},
 		});
 		const sourceProvider = createProvider('agenthost-wsl__Ubuntu', sourceUri);
 		const firstContainerProvider = createProvider('agenthost-devcontainer__first', firstContainerUri, sourceUri);
@@ -183,32 +187,141 @@ suite('SessionsRecentWorkspacesService', () => {
 			providerId: sourceProvider.id,
 			checked: true,
 		}]);
+		assert.ok(resolutions.every(call => call.resolveMetadata === undefined));
+		resolutions.length = 0;
+		assert.deepStrictEqual({
+			catalog: harness.service.getWorkspaceCatalog().map(entry => ({ uri: entry.workspace.uri, providerId: entry.providerId, checked: entry.checked })),
+			resolutions,
+		}, {
+			catalog: [{ uri: sourceUri, providerId: sourceProvider.id, checked: true }],
+			resolutions: Array.from({ length: 7 }, () => ({ uri: sourceUri, resolveMetadata: false })),
+		});
 	});
 
-	test('bounds workspace-file reads and file size while retaining later standalone folders', async () => {
+	test('loads older workspace files while bounding file size and retaining later standalone folders', async () => {
 		const workspaceFiles = Array.from({ length: 15 }, (_, index) => URI.file(`/workspace-${index}.code-workspace`));
+		const folders = workspaceFiles.map((_, index) => URI.file(`/workspace-folder-${index}`));
 		const harness = createHarness([
 			...workspaceFiles.map(uri => recentWorkspace(uri)),
 			{ folderUri: firstFolder },
-		], new Map(workspaceFiles.map(uri => [extUri.getComparisonKey(uri), '{"folders":[]}'])));
+		], new Map(workspaceFiles.map((uri, index) => [extUri.getComparisonKey(uri), JSON.stringify({ folders: [{ uri: folders[index].toString() }] })])));
 		await harness.ready();
 		assert.deepStrictEqual({
 			readCount: harness.reads.length,
 			sizeLimits: [...new Set(harness.reads.map(read => read.sizeLimit))],
-			entries: snapshot(harness.service),
+			entries: snapshot(harness.service, true),
 		}, {
-			readCount: 10, sizeLimits: [1024 * 1024],
-			entries: [{ uri: firstFolder.toString(), source: 'vscode', checked: false }],
+			readCount: 15, sizeLimits: [1024 * 1024],
+			entries: [
+				...folders.map(uri => ({ uri: uri.toString(), source: 'vscodeWorkspace', checked: false })),
+				{ uri: firstFolder.toString(), source: 'vscode', checked: false },
+			],
 		});
 	});
 
-	test('keeps the ten-folder limit and does not read older workspace files unnecessarily', async () => {
+	test('bounds concurrent workspace-file reads while loading the full history', async () => {
+		const pending = new DeferredPromise<string>();
+		const workspaceFiles = Array.from({ length: 15 }, (_, index) => URI.file(`/workspace-${index}.code-workspace`));
+		const harness = createHarness(workspaceFiles.map(uri => recentWorkspace(uri)),
+			new Map(workspaceFiles.map(uri => [extUri.getComparisonKey(uri), pending])));
+		await timeout(0);
+		const initialReads = harness.reads.length;
+		await pending.complete('{"folders":[]}');
+		await harness.ready();
+		assert.deepStrictEqual({ initialReads, totalReads: harness.reads.length }, { initialReads: 4, totalReads: 15 });
+	});
+
+	test('loads standalone folders and workspace-file folders beyond the compact recent list', async () => {
 		const folders = Array.from({ length: 12 }, (_, index) => URI.file(`/folder-${index}`));
-		const harness = createHarness([...folders.map(folderUri => ({ folderUri })), recentWorkspace()]);
+		const harness = createHarness([...folders.map(folderUri => ({ folderUri })), recentWorkspace()],
+			new Map([[extUri.getComparisonKey(workspaceFile), JSON.stringify({ folders: [{ uri: firstFolder.toString() }] })]]));
 		await harness.ready();
 		assert.deepStrictEqual({
-			folders: harness.service.getRecentWorkspaces().map(entry => entry.workspace.uri), reads: harness.reads,
-		}, { folders: folders.slice(0, 10), reads: [] });
+			recents: harness.service.getRecentWorkspaces().map(entry => entry.workspace.uri),
+			folders: harness.service.getWorkspaceCatalog().map(entry => entry.workspace.uri),
+			reads: harness.reads.map(read => read.uri),
+		}, { recents: folders.slice(0, 10), folders: [...folders, firstFolder], reads: [workspaceFile] });
+	});
+
+	test('bounds stored candidates before canonicalization, resolution, dismissal, and own/import deduplication', async () => {
+		const own = Array.from({ length: 12 }, (_, index) => URI.file(`/own-${index}`));
+		const imported = [own[1], ...Array.from({ length: 11 }, (_, index) => URI.file(`/imported-${index}`))];
+		const canonicalized: URI[] = [];
+		const resolved: { uri: URI; resolveMetadata: boolean | undefined }[] = [];
+		const provider = upcastPartial<ISessionsProvider>({
+			id: 'provider',
+			canonicalizeWorkspaceUri: uri => {
+				canonicalized.push(uri);
+				return uri;
+			},
+			resolveWorkspace: (uri, options) => {
+				resolved.push({ uri, resolveMetadata: options?.resolveMetadata });
+				return extUri.isEqual(uri, own[0]) ? undefined : {
+					uri, label: 'workspace', icon: Codicon.folder,
+					folders: [{ root: uri, workingDirectory: uri, name: 'folder', description: undefined }],
+					requiresWorkspaceTrust: true, isVirtualWorkspace: false,
+				};
+			},
+		});
+		const storage = disposables.add(new TestStorageService());
+		storage.store('sessions.recentlyPickedWorkspaces', own.map(uri => ({ uri: uri.toJSON(), providerId: provider.id, checked: false })), StorageScope.PROFILE, StorageTarget.MACHINE);
+		storage.store('sessions.dismissedWorkspaces', [extUri.getComparisonKey(own[2])], StorageScope.PROFILE, StorageTarget.MACHINE);
+		const harness = createHarness(imported.map(folderUri => ({ folderUri })), undefined, storage, undefined, [provider]);
+		await harness.ready();
+		const recents = harness.service.getRecentWorkspaces().map(entry => entry.workspace.uri.toString());
+		assert.deepStrictEqual({
+			recents, canonicalized: canonicalized.map(uri => uri.toString()),
+			resolvedUris: [...new Set(resolved.map(call => extUri.getComparisonKey(call.uri)))].sort(),
+			metadata: [...new Set(resolved.map(call => call.resolveMetadata))],
+		}, {
+			recents: [...own.slice(1, 10).filter(uri => !extUri.isEqual(uri, own[2])), ...imported.slice(1, 10)].map(uri => uri.toString()),
+			canonicalized: own.slice(0, 10).map(uri => uri.toString()),
+			resolvedUris: [...imported.slice(1, 10), ...own.slice(0, 10)].map(uri => extUri.getComparisonKey(uri)).sort(),
+			metadata: [undefined],
+		});
+		canonicalized.length = 0;
+		resolved.length = 0;
+		assert.deepStrictEqual({
+			catalog: harness.service.getWorkspaceCatalog().map(entry => entry.workspace.uri.toString()),
+			canonicalized: canonicalized.map(uri => uri.toString()),
+			metadata: [...new Set(resolved.map(call => call.resolveMetadata))],
+		}, {
+			catalog: [...own.slice(1).filter(uri => !extUri.isEqual(uri, own[2])), ...imported.slice(1)].map(uri => uri.toString()),
+			canonicalized: own.map(uri => uri.toString()),
+			metadata: [false],
+		});
+	});
+
+	test('retains older Agents picks across service recreation', async () => {
+		const harness = createHarness([]);
+		const folders = Array.from({ length: 15 }, (_, index) => URI.file(`/picked-${index}`));
+		for (const folder of folders) {
+			harness.service.addRecentWorkspace(folder, 'provider', true);
+		}
+		const restored = createHarness([], undefined, harness.storage);
+		const expected = folders.toReversed().map((uri, index) => ({ uri, checked: index === 0 }));
+		assert.deepStrictEqual({
+			recents: restored.service.getRecentWorkspaces(false).map(entry => ({ uri: entry.workspace.uri, checked: entry.checked })),
+			catalog: restored.service.getWorkspaceCatalog().map(entry => ({ uri: entry.workspace.uri, checked: entry.checked })),
+		}, { recents: expected.slice(0, 10), catalog: expected });
+	});
+
+	test('collapses worktrees against the full catalog only when requested', async () => {
+		const repository = URI.file('/project');
+		const worktree = URI.file('/project.worktrees/branch');
+		const folders = Array.from({ length: 10 }, (_, index) => URI.file(`/folder-${index}`));
+		const harness = createHarness([...folders, repository].map(folderUri => ({ folderUri })));
+		harness.service.addRecentWorkspace(worktree, 'provider', true);
+		await harness.ready();
+		assert.deepStrictEqual({
+			recents: harness.service.getRecentWorkspaces(true, true).map(entry => entry.workspace.uri),
+			catalog: harness.service.getWorkspaceCatalog().map(entry => entry.workspace.uri),
+			collapsedCatalog: harness.service.getWorkspaceCatalog(true).map(entry => entry.workspace.uri),
+		}, {
+			recents: [worktree, ...folders],
+			catalog: [worktree, ...folders, repository],
+			collapsedCatalog: [repository, ...folders],
+		});
 	});
 
 	test('never interprets a remote workspace file path relative to the local filesystem', async () => {
@@ -267,35 +380,158 @@ suite('SessionsRecentWorkspacesService', () => {
 		assert.deepStrictEqual(snapshot(harness.service), [{ uri: secondFolder.toString(), source: 'vscode', checked: false }]);
 	});
 
-	test('disposal cancels in-flight file reads without publishing stale history', async () => {
+	test('publishes standalone folders immediately, then interleaves workspace folders as each file loads', async () => {
+		const earlier = new DeferredPromise<string>();
+		const later = new DeferredPromise<string>();
+		const laterFile = URI.file('/later.code-workspace');
+		const thirdFolder = URI.file('/third');
+		const harness = createHarness([recentWorkspace(), { folderUri: firstFolder }, recentWorkspace(laterFile), { folderUri: thirdFolder }], new Map([
+			[extUri.getComparisonKey(workspaceFile), earlier],
+			[extUri.getComparisonKey(laterFile), later],
+		]));
+		await timeout(0);
+		const initial = { entries: snapshot(harness.service), state: harness.service.historyLoadState.get() };
+		const published = Event.toPromise(harness.service.onDidChangeRecentWorkspaces);
+		await later.complete(JSON.stringify({ folders: [{ uri: secondFolder.toString() }] }));
+		await published;
+		const partial = { entries: snapshot(harness.service), state: harness.service.historyLoadState.get() };
+		await earlier.complete(JSON.stringify({ folders: [{ uri: firstFolder.toString() }, { uri: secondFolder.toString() }] }));
+		await harness.ready();
+		assert.deepStrictEqual({ initial, partial, final: snapshot(harness.service), state: harness.service.historyLoadState.get() }, {
+			initial: {
+				entries: [
+					{ uri: firstFolder.toString(), source: 'vscode', checked: false },
+					{ uri: thirdFolder.toString(), source: 'vscode', checked: false },
+				],
+				state: 'loading',
+			},
+			partial: {
+				entries: [
+					{ uri: firstFolder.toString(), source: 'vscode', checked: false },
+					{ uri: secondFolder.toString(), source: 'vscodeWorkspace', checked: false },
+					{ uri: thirdFolder.toString(), source: 'vscode', checked: false },
+				],
+				state: 'loading',
+			},
+			final: [
+				{ uri: firstFolder.toString(), source: 'vscodeWorkspace', checked: false },
+				{ uri: secondFolder.toString(), source: 'vscodeWorkspace', checked: false },
+				{ uri: thirdFolder.toString(), source: 'vscode', checked: false },
+			],
+			state: 'loaded',
+		});
+	});
+
+	test('superseding a progressive refresh cancels file reads and ignores their late results', async () => {
 		const pending = new DeferredPromise<string>();
-		const harness = createHarness([recentWorkspace()], new Map([[extUri.getComparisonKey(workspaceFile), pending]]));
+		const harness = createHarness([recentWorkspace(), { folderUri: firstFolder }], new Map([[extUri.getComparisonKey(workspaceFile), pending]]));
+		await timeout(0);
+		const initial = snapshot(harness.service);
+		harness.refresh([{ folderUri: secondFolder }]);
+		await harness.ready();
 		let changed = 0;
 		disposables.add(harness.service.onDidChangeRecentWorkspaces(() => changed++));
+		await pending.complete('{"folders":[{"path":"../stale"}]}');
 		await timeout(0);
+		assert.deepStrictEqual({
+			initial, entries: snapshot(harness.service), changed,
+			cancelled: harness.reads[0].token?.isCancellationRequested, warnings: harness.warnings,
+			state: harness.service.historyLoadState.get(),
+		}, {
+			initial: [{ uri: firstFolder.toString(), source: 'vscode', checked: false }],
+			entries: [{ uri: secondFolder.toString(), source: 'vscode', checked: false }],
+			changed: 0, cancelled: true, warnings: [], state: 'loaded',
+		});
+	});
+
+	test('disposal cancels in-flight file reads without publishing stale history', async () => {
+		const pending = new DeferredPromise<string>();
+		const workspaceFiles = Array.from({ length: 5 }, (_, index) => URI.file(`/workspace-${index}.code-workspace`));
+		const harness = createHarness([...workspaceFiles.map(uri => recentWorkspace(uri)), { folderUri: firstFolder }],
+			new Map(workspaceFiles.map(uri => [extUri.getComparisonKey(uri), pending])));
+		await timeout(0);
+		let changed = 0;
+		disposables.add(harness.service.onDidChangeRecentWorkspaces(() => changed++));
 		harness.service.dispose();
 		await pending.complete('{"folders":[{"path":"../first"}]}');
 		await timeout(0);
 		assert.deepStrictEqual({
-			changed, cancelled: harness.reads[0].token?.isCancellationRequested, entries: snapshot(harness.service),
-		}, { changed: 0, cancelled: true, entries: [] });
+			changed, cancelled: harness.reads.every(read => read.token?.isCancellationRequested),
+			readCount: harness.reads.length, entries: snapshot(harness.service), warnings: harness.warnings,
+		}, {
+			changed: 0, cancelled: true, readCount: 4, warnings: [],
+			entries: [{ uri: firstFolder.toString(), source: 'vscode', checked: false }],
+		});
 	});
 
-	test('times out slow workspace files at five seconds and keeps standalone-folder fallback', async () => {
+	test('times out individual workspace files and releases slots for a healthy fifth file', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const pending = new DeferredPromise<string>();
 			const startedAt = Date.now();
-			const harness = createHarness([recentWorkspace(), { folderUri: firstFolder }],
-				new Map([[extUri.getComparisonKey(workspaceFile), pending]]));
+			const workspaceFiles = Array.from({ length: 5 }, (_, index) => extUri.joinPath(extUri.dirname(workspaceFile), `workspace-${index}.code-workspace`));
+			const files = new Map<string, string | DeferredPromise<string>>(workspaceFiles.map(uri => [extUri.getComparisonKey(uri), pending]));
+			files.set(extUri.getComparisonKey(workspaceFiles[4]), '{"folders":[{"path":"../second"}]}');
+			const harness = createHarness([...workspaceFiles.map(uri => recentWorkspace(uri)), { folderUri: firstFolder }],
+				files);
 			await harness.ready();
 			const elapsed = Date.now() - startedAt;
 			await pending.complete('{"folders":[{"path":"../second"}]}');
 			assert.deepStrictEqual({
 				elapsed, entries: snapshot(harness.service), state: harness.service.historyLoadState.get(),
-				cancelled: harness.reads[0].token?.isCancellationRequested, warningCount: harness.warnings.length,
+				cancelled: harness.reads.slice(0, 4).every(read => read.token?.isCancellationRequested), warnings: harness.warnings,
+				readCount: harness.reads.length,
 			}, {
-				elapsed: 5_000, entries: [{ uri: firstFolder.toString(), source: 'vscode', checked: false }],
-				state: 'error', cancelled: true, warningCount: 1,
+				elapsed: 1_000,
+				entries: [
+					{ uri: secondFolder.toString(), source: 'vscodeWorkspace', checked: false },
+					{ uri: firstFolder.toString(), source: 'vscode', checked: false },
+				],
+				state: 'error', cancelled: true,
+				warnings: Array.from({ length: 4 }, () => '[SessionsRecentWorkspaces] Timed out reading a recent workspace file'),
+				readCount: 5,
+			});
+		});
+	});
+
+	test('retains the overall five-second deadline for a large stalled history', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const pending = new DeferredPromise<string>();
+			const startedAt = Date.now();
+			const workspaceFiles = Array.from({ length: 25 }, (_, index) => URI.file(`/workspace-${index}.code-workspace`));
+			const harness = createHarness([...workspaceFiles.map(uri => recentWorkspace(uri)), { folderUri: firstFolder }],
+				new Map(workspaceFiles.map(uri => [extUri.getComparisonKey(uri), pending])));
+			await harness.ready();
+			const elapsed = Date.now() - startedAt;
+			const atDeadline = snapshot(harness.service);
+			await pending.complete('{"folders":[{"path":"../stale"}]}');
+			await timeout(0);
+			assert.deepStrictEqual({
+				elapsed, atDeadline, entries: snapshot(harness.service),
+				state: harness.service.historyLoadState.get(),
+				cancelled: harness.reads.every(read => read.token?.isCancellationRequested),
+				readCount: harness.reads.length, lastWarning: harness.warnings.at(-1),
+			}, {
+				elapsed: 5_000,
+				atDeadline: [{ uri: firstFolder.toString(), source: 'vscode', checked: false }],
+				entries: [{ uri: firstFolder.toString(), source: 'vscode', checked: false }],
+				state: 'error', cancelled: true, readCount: 20,
+				lastWarning: '[SessionsRecentWorkspaces] Timed out reading recent workspace folders',
+			});
+		});
+	});
+
+	test('retains the overall deadline while recently opened history itself is stalled', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const pending = new DeferredPromise<IRecentlyOpened>();
+			const startedAt = Date.now();
+			const harness = createHarness([], undefined, undefined, () => pending.p);
+			await harness.ready();
+			const elapsed = Date.now() - startedAt;
+			await pending.complete({ workspaces: [{ folderUri: firstFolder }], files: [] });
+			await timeout(0);
+			assert.deepStrictEqual({ elapsed, entries: snapshot(harness.service), state: harness.service.historyLoadState.get(), warnings: harness.warnings }, {
+				elapsed: 5_000, entries: [], state: 'error',
+				warnings: ['[SessionsRecentWorkspaces] Timed out loading workspace history'],
 			});
 		});
 	});

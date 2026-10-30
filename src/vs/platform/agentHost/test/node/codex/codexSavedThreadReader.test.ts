@@ -22,7 +22,7 @@ suite('Codex saved native history requests', () => {
 		id: 'native-thread', ephemeral: false, status: { type: 'notLoaded' },
 		historyMode: 'paginated', path: '/saved/rollout.jsonl', turns: [],
 	});
-	const turn = (id: string): Turn => ({ id, itemsView: 'full', status: 'completed', items: [], error: null, startedAt: null, completedAt: null, durationMs: null });
+	const turn = (id: string): Turn => ({ id, rootTurnId: null, itemsView: 'full', status: 'completed', items: [], error: null, startedAt: null, completedAt: null, durationMs: null });
 
 	function createClient(replies: object[]) {
 		const input = new PassThrough();

@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Docked in the space the host reserves at the right of the chat (`ChatViewSessionActivityBar.RESERVED_WIDTH`); `ChatViewSessionActivityBar` sets `top`. */
+/* Docked in the column the host keeps at the right of the chat, which the chat is laid out to the left of
+ * (`SESSION_ACTIVITY_BAR_COLUMN_WIDTH`); `ChatViewSessionActivityBar` sets `top`. */
 .monaco-workbench .session-activity-bar-host {
 	position: relative;
 }
 
 .monaco-workbench .session-activity-bar.docked {
 	position: absolute;
-	/* Just clears the transcript's 10px overlay scrollbar. */
-	right: var(--vscode-spacing-size120);
-	/* Above the chat transcript's sticky scroll (13), scrollbar (14), prompt timeline rail (15), and
-	 * state indicator (16) where they extend into the reserved space; below the chat's hovers. */
+	/* With an equal gap on either side in its column (`SESSION_ACTIVITY_BAR_COLUMN_WIDTH`). */
+	right: var(--vscode-spacing-size20);
+	/* Above the chat transcript's layers (sticky scroll 13, scrollbar 14, prompt timeline rail 15, state indicator 16);
+	 * below the chat's hovers. */
 	z-index: 17;
 }
 
@@ -35,23 +36,35 @@
 	justify-content: center;
 	width: 100%;
 	height: var(--vscode-spacing-size120);
+	border-radius: var(--vscode-cornerRadius-small);
 	cursor: grab;
-	opacity: 0.5;
 	touch-action: none;
 }
 
-.monaco-workbench.hc-black .session-activity-bar-drag-handle,
-.monaco-workbench.hc-light .session-activity-bar-drag-handle {
+/* The gripper's dots run vertically; turn them to run along the top of the vertical strip. Dimmed on the icon
+ * rather than the handle, so the hover feedback matches the actions'. */
+.monaco-workbench .session-activity-bar-drag-handle-icon {
+	transform: rotate(90deg);
+	opacity: 0.5;
+}
+
+.monaco-workbench.hc-black .session-activity-bar-drag-handle-icon,
+.monaco-workbench.hc-light .session-activity-bar-drag-handle-icon,
+.monaco-workbench .session-activity-bar-drag-handle:hover .session-activity-bar-drag-handle-icon,
+.monaco-workbench .session-activity-bar-drag-handle.dragging .session-activity-bar-drag-handle-icon {
 	opacity: 1;
 }
 
-/* The gripper's dots run vertically; turn them to run along the top of the vertical strip. */
-.monaco-workbench .session-activity-bar-drag-handle-icon {
-	transform: rotate(90deg);
+/* Same hover and active feedback as the strip's actions. */
+.monaco-workbench .session-activity-bar-drag-handle:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .monaco-workbench .session-activity-bar-drag-handle.dragging {
 	cursor: grabbing;
+	background-color: var(--vscode-toolbar-activeBackground);
 }
 
 .monaco-workbench .session-activity-bar.hidden,
@@ -100,4 +113,52 @@
 .monaco-workbench .session-activity-bar .monaco-action-bar.vertical .action-item.active .action-label:not(.disabled),
 .monaco-workbench .session-activity-bar .monaco-action-bar.vertical .action-label.submenu-open:not(.disabled) {
 	background-color: var(--vscode-toolbar-activeBackground);
+}
+
+/* An entry whose editor the side pane shows; like the title bar's toggles, the side panel toggle shows its state through its icon instead. */
+.monaco-workbench .session-activity-bar .monaco-action-bar.vertical .action-label.checked:not(.disabled, .codicon-agent-secondary-sidebar-toggle-open) {
+	background-color: var(--vscode-toolbar-activeBackground);
+}
+
+/* High contrast themes have no active background, so outline the checked entry, leaving focused entries to the focus outline. */
+.monaco-workbench.hc-black .session-activity-bar .monaco-action-bar.vertical .action-label.checked:not(.disabled, .codicon-agent-secondary-sidebar-toggle-open, :focus),
+.monaco-workbench.hc-light .session-activity-bar .monaco-action-bar.vertical .action-label.checked:not(.disabled, .codicon-agent-secondary-sidebar-toggle-open, :focus) {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+/* Like the workbench activity bar's, activity badges overlap the bottom-right corner of the entry's icon, sized for the strip's compact entries. */
+.monaco-workbench .session-activity-bar .monaco-action-bar.vertical .action-item {
+	position: relative;
+}
+
+.monaco-workbench .session-activity-bar .session-activity-bar-badge {
+	display: none;
+	position: absolute;
+	top: var(--vscode-spacing-size120);
+	right: var(--vscode-spacing-size20);
+	box-sizing: border-box;
+	width: var(--vscode-spacing-size80);
+	height: var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-activityBarBadge-background);
+	color: var(--vscode-activityBarBadge-foreground);
+	pointer-events: none;
+}
+
+.monaco-workbench .session-activity-bar .session-activity-bar-badge.visible {
+	display: block;
+}
+
+.monaco-workbench .session-activity-bar .session-activity-bar-badge.count {
+	top: var(--vscode-spacing-size100);
+	right: 0;
+	width: auto;
+	min-width: var(--vscode-spacing-size120);
+	height: var(--vscode-spacing-size120);
+	padding: 0 var(--vscode-spacing-size20);
+	font-size: var(--vscode-fontSize-label3);
+	line-height: calc(var(--vscode-spacing-size120) - 2 * var(--vscode-strokeThickness));
+	text-align: center;
 }

@@ -37,7 +37,9 @@ export interface IInlineEditInputBoxOptions {
  *
  * Errors reported by {@link IEditableData.validationMessage} block accepting the value, other
  * messages are shown as information. Pressing Enter accepts the value, pressing Escape cancels
- * editing and moving focus elsewhere accepts the value if it is valid.
+ * editing and moving focus elsewhere accepts the value if it is valid. Losing window focus
+ * (for example via Alt+Tab or an OS input-source switcher) keeps editing while the input remains
+ * the active element of its document.
  *
  * Once editing finishes the input box is removed and {@link IEditableData.onFinish} is called.
  * Disposing the input box before editing finishes removes it without calling `onFinish`.
@@ -113,8 +115,13 @@ export class InlineEditInputBox extends Disposable {
 				if (DOM.isHTMLElement(ownerDocument.activeElement) && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
 					// Keep editing while a context menu of the input box is open
 					await Event.toPromise(this._contextMenuService.onDidHideContextMenu, this._store);
-				} else if (ownerDocument.hasFocus() && DOM.isActiveElement(inputBox.inputElement)) {
-					return;
+				} else if (ownerDocument.activeElement === inputBox.inputElement) {
+					if (ownerDocument.hasFocus()) {
+						return;
+					}
+					// The window lost focus without moving DOM focus, e.g. a compositor grab. Blur is not dispatched
+					// for focus changes while the window is unfocused, so check again once the window regains focus.
+					await Event.toPromise(Event.fromDOMEventEmitter(DOM.getWindow(inputBox.inputElement), DOM.EventType.FOCUS), this._store);
 				} else {
 					break;
 				}

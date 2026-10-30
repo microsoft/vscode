@@ -8,6 +8,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'fs';
 import type { IncomingMessage, ServerResponse } from 'http';
 import type { AddressInfo } from 'net';
 import { tmpdir } from 'os';
+import { fileURLToPath } from 'url';
 import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -17,6 +18,54 @@ import { aggregateAnthropicSse, anthropicMessageToSse } from './e2e/harness/capi
 suite('CapiReplayProxy', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('rejects debugger discovery probes without recording them or counting them as replay traffic', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-debugger-'));
+		const fixturePath = join(directory, 'capture.yaml');
+		try {
+			for (const mode of ['record', 'replay'] as const) {
+				const proxy = new CapiReplayProxy({ fixturePath, mode });
+				try {
+					const url = await proxy.start();
+					const statuses = [];
+					for (const path of ['/json/version', '/json/list']) {
+						const response = await fetch(`${url}${path}`);
+						statuses.push(response.status);
+						await response.text();
+					}
+					assert.deepStrictEqual(statuses, [404, 404]);
+				} finally {
+					await proxy.stop();
+				}
+			}
+			const fixture = readFileSync(fixturePath, 'utf8');
+			assert.ok(!fixture.includes('/json/'), 'Debugger discovery must not enter recordings');
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	for (const request of [
+		{ method: 'GET', path: '/unexpected-api' },
+		{ method: 'POST', path: '/json/version' },
+		{ method: 'POST', path: '/v1/messages' },
+		{ method: 'POST', path: '/responses' },
+	]) {
+		test(`debugger probe handling preserves strict replay for ${request.method} ${request.path}`, async () => {
+			const proxy = new CapiReplayProxy({ fixturePath: fileURLToPath(new URL('./e2e/captures/empty.yaml', import.meta.url)), mode: 'replay' });
+			try {
+				const url = await proxy.start();
+				const response = await fetch(`${url}${request.path}`, {
+					method: request.method,
+					...(request.method === 'POST' ? { body: '{}' } : {}),
+				});
+				await response.text();
+				assert.throws(() => proxy.assertNoReplayMismatches(), /cache miss/);
+			} finally {
+				await assert.rejects(proxy.stop(), /cache miss/);
+			}
+		});
+	}
 
 	test('serves mutable managed settings locally in record and replay and resets between tests', async () => {
 		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-policy-'));

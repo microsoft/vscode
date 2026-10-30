@@ -4,23 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
-import { IBrowserViewWorkbenchService, IBrowserViewCDPService, IBrowserViewModel, IBrowserViewContextualFilter, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions } from '../common/browserView.js';
+import { IBrowserViewWorkbenchService, IBrowserViewCDPService, IBrowserViewModel, IBrowserViewContextualFilter, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewNetworkProxyProvider, IBrowserViewNetworkResolver, IBrowserViewNetworkStatus } from '../common/browserView.js';
 import type { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { IBrowserViewEditorOpenOptions } from '../../../../platform/browserView/common/browserView.js';
+import { Disposable, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
+import { IBrowserViewEditorOpenOptions, IBrowserViewNetwork } from '../../../../platform/browserView/common/browserView.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
-import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
 import { BrowserEditorInput, IBrowserEditorInputData } from '../common/browserEditorInput.js';
 
 class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 	declare readonly _serviceBrand: undefined;
 
-	willUseRemoteProxy(): boolean {
-		return false;
+	resolveNetwork(): undefined {
+		return undefined;
 	}
 
-	setRemoteProxyInfo(_info: ITunnelProxyInfo | undefined): void { }
+	async acquireNetwork(): Promise<IReference<undefined>> {
+		return { object: undefined, dispose: () => { } };
+	}
+
+	getNetworkStatus(network: IBrowserViewNetwork): IBrowserViewNetworkStatus {
+		return { label: network.authority, connected: false, proxySupported: false };
+	}
+
+	readonly onDidChangeNetworkStatus = Event.None;
+
+	registerNetworkResolver(_resolver: IBrowserViewNetworkResolver): IDisposable {
+		return Disposable.None;
+	}
+
+	registerNetworkProxyProvider(_provider: IBrowserViewNetworkProxyProvider): IDisposable {
+		return Disposable.None;
+	}
 
 	readonly onDidChangeBrowserViews = Event.None;
 	readonly onDidChangeSharingAvailable = Event.None;

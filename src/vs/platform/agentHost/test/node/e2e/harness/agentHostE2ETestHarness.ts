@@ -401,6 +401,8 @@ export interface IAgentHostE2EProviderConfig {
 	readonly planModeStyle?: 'session-state' | 'input-request';
 	/** Whether the provider supports additional peer chats and chat forks. */
 	readonly supportsMultipleChats: boolean;
+	/** Whether peer chats can be created with an explicit initial title. */
+	readonly supportsInitialTitle: boolean;
 	/** Whether model-backed multiple-chat parity scenarios have deterministic fixtures. */
 	readonly supportsMultipleChatsE2E?: boolean;
 	readonly supportsChatFork: boolean;

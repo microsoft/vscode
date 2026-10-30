@@ -30,7 +30,7 @@ import { ChatPermissionLevel } from '../../../common/constants.js';
 suite('Combined mode and permissions picker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(openPermissions = false) {
+	function setup(openPermissions = false, organizationDefault?: ChatPermissionLevel) {
 		const container = dom.append(document.body, dom.$('div'));
 		store.add({ dispose: () => container.remove() });
 		const instantiationService = store.add(new TestInstantiationService());
@@ -57,7 +57,7 @@ suite('Combined mode and permissions picker', () => {
 			].map(({ label, level }) => ({
 				kind: ActionListItemKind.Action,
 				label,
-				...getPermissionLevelBadge(level),
+				...getPermissionLevelBadge(level, false, organizationDefault),
 				detail: `${label} description`,
 				hover: { content: `${label} details` },
 				item: toAction({
@@ -138,7 +138,7 @@ suite('Combined mode and permissions picker', () => {
 		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 	}
 
-	test('renders a compact neutral right-aligned Experimental badge and announces it', () => {
+	test('renders a compact neutral right-aligned New badge and announces it', () => {
 		const { popup } = setup(true);
 		popup.style.setProperty('--vscode-fontSize-label3', '10px');
 		popup.style.setProperty('--vscode-spacing-size160', '16px');
@@ -174,7 +174,7 @@ suite('Combined mode and permissions picker', () => {
 			alignedWithTitle: Math.abs(titleBounds.top + titleBounds.height / 2 - badgeBounds.top - badgeBounds.height / 2) < 0.5,
 			ariaLabel: row.ariaLabel,
 		}, {
-			badge: 'Experimental',
+			badge: 'New',
 			afterTitle: true,
 			titleFlexGrow: '0',
 			fontSize: '10px',
@@ -187,11 +187,33 @@ suite('Combined mode and permissions picker', () => {
 			textCenteredHorizontally: true,
 			textCenteredVertically: true,
 			alignedWithTitle: true,
-			ariaLabel: 'Assisted permissions, Experimental, Assisted permissions description, Assisted permissions details',
+			ariaLabel: 'Assisted permissions, New, Assisted permissions description, Assisted permissions details',
 		});
 	});
 
-	test('the Experimental badge respects focus and high-contrast colors with a neutral fill', () => {
+	test('labels only the organization default permission with a neutral Org default badge and announces it', () => {
+		const { popup } = setup(true, ChatPermissionLevel.Assisted);
+		popup.style.setProperty('--vscode-foreground', '#cccccc');
+		popup.style.setProperty('--vscode-descriptionForeground', '#999999');
+		const row = getRow(popup, 'Assisted permissions');
+		const badge = row.querySelector<HTMLElement>('.action-item-badge.agent-host-org-default-badge')!;
+		const badgeStyle = dom.getWindow(badge).getComputedStyle(badge);
+		assert.deepStrictEqual({
+			badge: badge.textContent,
+			background: badgeStyle.backgroundColor,
+			color: badgeStyle.color,
+			ariaLabel: row.ariaLabel,
+			otherRows: ['Manual permissions', 'Allow all'].map(label => getRow(popup, label).querySelector('.agent-host-org-default-badge')),
+		}, {
+			badge: 'Org default',
+			background: 'color(srgb 0.8 0.8 0.8 / 0.1)',
+			color: 'rgb(153, 153, 153)',
+			ariaLabel: 'Assisted permissions, New, Org default, Assisted permissions description, Assisted permissions details',
+			otherRows: [null, null],
+		});
+	});
+
+	test('the New badge respects focus and high-contrast colors with a neutral fill', () => {
 		const { service, popup } = setup(true);
 		popup.style.setProperty('--vscode-strokeThickness', '1px');
 		popup.style.setProperty('--vscode-foreground', '#cccccc');

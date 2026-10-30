@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 export interface ISessionGridState {
 	readonly version: 1;
 	readonly grid: ISerializedGrid;
-	readonly sessions: readonly { readonly id: string; readonly resource?: string; readonly sticky: boolean }[];
+	readonly sessions: readonly { readonly id: string; readonly resource?: string; readonly chatResource?: string; readonly sticky: boolean }[];
 	readonly active: string;
 }
 
@@ -30,14 +30,18 @@ export function isSessionGridState(value: unknown): value is ISessionGridState {
 	for (const session of value.sessions) {
 		if (!session || typeof session !== 'object' || typeof session.id !== 'string' || !session.id
 			|| typeof session.sticky !== 'boolean' || (session.resource !== undefined && typeof session.resource !== 'string')
-			|| ids.has(session.id) || resources.has(session.resource)) {
+			|| (session.chatResource !== undefined && (typeof session.chatResource !== 'string' || !session.resource))
+			|| ids.has(session.id) || resources.has(JSON.stringify([session.resource, session.chatResource]))) {
 			return false;
 		}
 		ids.add(session.id);
-		resources.add(session.resource);
+		resources.add(JSON.stringify([session.resource, session.chatResource]));
 		if (session.resource !== undefined) {
 			try {
 				URI.parse(session.resource, true);
+				if (session.chatResource !== undefined) {
+					URI.parse(session.chatResource, true);
+				}
 			} catch {
 				return false;
 			}
@@ -101,7 +105,26 @@ export function projectSessionGrid(grid: ISerializedGrid, map: (id: string) => s
 			leaves.set(id, leaf);
 			return leaf;
 		}
-		const data = node.data.map(project).filter(node => node !== undefined);
+		const data = node.data.flatMap(child => {
+			const projected = project(child);
+			if (!projected) {
+				return [];
+			}
+			if (projected.type !== 'branch' || projected.data.length !== 1) {
+				return [projected];
+			}
+			const only = projected.data[0];
+			if (only.type === 'leaf') {
+				only.size = projected.size;
+				return [only];
+			}
+			// Removing two branch levels preserves the parent's split orientation.
+			const totalSize = only.data.reduce((total, child) => total + child.size, 0);
+			for (const child of only.data) {
+				child.size = totalSize > 0 ? child.size * projected.size / totalSize : projected.size / only.data.length;
+			}
+			return only.data;
+		});
 		const branch = { ...node, data };
 		delete branch.visible;
 		return data.length ? branch : undefined;

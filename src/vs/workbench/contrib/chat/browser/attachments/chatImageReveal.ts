@@ -16,11 +16,15 @@ import './chatImageReveal.css';
 
 export interface IChatImageRevealOrigin {
 	readonly container: HTMLElement;
+	/** Side of the loading square that the image grows from, in CSS pixels, when it is known. */
+	readonly size?: number;
+	/** Transfers ownership of the painted loading surface to the reveal. */
+	readonly takeSurface?: () => GlyphSurface | undefined;
 }
 
-const revealProperties = ['frame', 'frame-width', 'image'];
+const revealProperties = ['frame', 'frame-width', 'image', 'pending-size'];
 
-/** Expands the loading glyph band into the generated image as soon as its bytes are ready. */
+/** Expands the loading glyph square into the generated image as soon as its bytes are ready. */
 export class ChatImageReveal extends Disposable {
 	private readonly effects = this._register(new DisposableStore());
 	private readonly surface: GlyphSurface;
@@ -36,6 +40,9 @@ export class ChatImageReveal extends Disposable {
 	) {
 		super();
 		container.classList.add('chat-image-reveal', 'pending', 'chat-image-generation-line');
+		if (origin?.size) {
+			container.style.setProperty('--chat-image-reveal-pending-size', `${origin.size}px`);
+		}
 		origin?.container.classList.add('chat-image-reveal-pending');
 		this.effects.add(toDisposable(() => {
 			container.classList.remove('pending', 'revealing', 'chat-image-generation-line');
@@ -44,7 +51,8 @@ export class ChatImageReveal extends Disposable {
 			}
 			origin?.container.classList.remove('chat-image-reveal-pending', 'chat-image-reveal-running');
 		}));
-		this.surface = this.effects.add(instantiationService.createInstance(GlyphSurface, container));
+		this.surface = this.effects.add(origin?.takeSurface?.() ?? instantiationService.createInstance(GlyphSurface, container));
+		container.appendChild(this.surface.canvas);
 		this.effects.add(accessibilityService.onDidChangeReducedMotion(() => this.finishIfMotionDisabled()));
 		this.effects.add(themeService.onDidColorThemeChange(() => this.finishIfMotionDisabled()));
 	}
@@ -58,7 +66,7 @@ export class ChatImageReveal extends Disposable {
 		this.container.classList.remove('pending');
 		const performance = dom.getWindow(this.container).performance;
 		const { width, height } = this.image.getBoundingClientRect();
-		const timing = this.surface.getRevealTiming(band.width, Date.now() * 2);
+		const timing = this.surface.getRevealTiming(band.width);
 		const deadline = loadedAt + timing.pace.duration;
 		if (!this.motionEnabled || !width || !height || performance.now() >= deadline) {
 			this.effects.clear();

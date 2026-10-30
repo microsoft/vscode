@@ -5,14 +5,17 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY } from '../../../../../platform/chat/common/agentsWindowInvitation.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -20,28 +23,32 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { CustomizationMigrationCategoryId } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
+import { getCustomizationMigrationGroupIgnoreKey, storeIgnoredCustomizationMigrationGroupKeys } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationIgnoredGroups.js';
+import { AICustomizationManagementCommands, IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { ICustomizationMigrationTelemetryService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationTelemetryService.js';
+import { PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { ISessionFolder, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { NewChatMigrationNotice } from '../../browser/newChatMigrationNotice.js';
+import { NEW_SESSION_BANNERS_MIN_CREATED_SESSIONS, NewSessionBannerPriority, NewSessionBanners } from '../../common/newSessionBanners.js';
 
 class TestMigrationService extends mock<ICustomizationMigrationService>() {
-	readonly requests: { resource: URI; token?: CancellationToken }[] = [];
-	result: (resource: URI) => Promise<ICustomizationMigrationHint | undefined> = async () => undefined;
+	readonly requests: { resource: URI; token?: CancellationToken; ignoredGroups: readonly ICustomizationMigrationIgnoredGroup[] }[] = [];
+	result: (resource: URI, ignoredGroups: readonly ICustomizationMigrationIgnoredGroup[]) => Promise<ICustomizationMigrationHint | undefined> = async () => undefined;
 
 	constructor(override readonly onDidChangeCustomizations: Event<void>) {
 		super();
 	}
 
-	override computeMigrationHint(resource: URI, token?: CancellationToken): Promise<ICustomizationMigrationHint | undefined> {
-		this.requests.push({ resource, token });
-		return this.result(resource);
+	override computeMigrationHint(resource: URI, token?: CancellationToken, ignoredGroups: readonly ICustomizationMigrationIgnoredGroup[] = []): Promise<ICustomizationMigrationHint | undefined> {
+		this.requests.push({ resource, token, ignoredGroups });
+		return this.result(resource, ignoredGroups);
 	}
 }
 
@@ -68,6 +75,9 @@ function createSession(name: string, withWorkspace = true, scheme = 'agent-host-
 		override readonly resource = URI.from({ scheme, path: `/${name}` });
 		override readonly workspace = constObservable(withWorkspace ? new class extends mock<ISessionWorkspace>() {
 			override readonly uri = URI.file(`/workspaces/${name}`);
+			override readonly folders = [new class extends mock<ISessionFolder>() {
+				override readonly workingDirectory = URI.file(`/worktrees/${name}`);
+			}()];
 		}() : undefined);
 		override readonly isCreated = constObservable(false);
 		override readonly loading = constObservable(false);
@@ -77,7 +87,7 @@ function createSession(name: string, withWorkspace = true, scheme = 'agent-host-
 suite('NewChatMigrationNotice', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(enabledTypes = [CustomizationMigrationType.PromptFiles, CustomizationMigrationType.UserData]) {
+	function setup(enabledTypes = [CustomizationMigrationType.PromptFiles, CustomizationMigrationType.UserData], createdSessions = NEW_SESSION_BANNERS_MIN_CREATED_SESSIONS) {
 		const instantiation = store.add(new TestInstantiationService());
 		const storage = store.add(new InMemoryStorageService());
 		const changed = store.add(new Emitter<void>());
@@ -109,14 +119,28 @@ suite('NewChatMigrationNotice', () => {
 		instantiation.stub(ICustomizationMigrationTelemetryService, migrationTelemetry);
 		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(IStorageService, storage);
+		instantiation.stub(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
+			override readonly activeProjectRoot = derived(reader => session.read(reader)?.workspace.read(reader)?.folders[0]?.workingDirectory);
+		}());
 		instantiation.stub(IUriIdentityService, { extUri });
 		instantiation.stub(IChatEntitlementService, { sentimentObs: sentiment });
 		instantiation.stub(ICommandService, { executeCommand: async (id: string, ...args: unknown[]) => { commands.push({ id, args }); } });
 		instantiation.stub(ILogService, { error: (...args: unknown[]) => { errors.push(args); } });
 		instantiation.stub(IHoverService, new class extends mock<IHoverService>() { }());
 		instantiation.stub(IOpenerService, new class extends mock<IOpenerService>() { }());
-		const create = () => store.add(instantiation.createInstance(NewChatMigrationNotice, dom.$('div'), session, () => { focusCount++; }));
-		return { create, session, sentiment, configuration, migrations, migrationTelemetry, changed, commands, errors, get focusCount() { return focusCount; } };
+		const setCreatedSessions = (count: number) => storage.store(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, count, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		setCreatedSessions(createdSessions);
+		const banners = store.add(new NewSessionBanners(storage));
+		// Like the input taking focus, moves focus out of the notice.
+		const focusInput = () => {
+			focusCount++;
+			const active = dom.getActiveElement();
+			if (dom.isHTMLElement(active)) {
+				active.blur();
+			}
+		};
+		const create = (container: HTMLElement = dom.$('div')) => store.add(instantiation.createInstance(NewChatMigrationNotice, container, banners, session, focusInput));
+		return { create, banners, setCreatedSessions, session, sentiment, configuration, migrations, migrationTelemetry, storage, changed, commands, errors, get focusCount() { return focusCount; } };
 	}
 
 	function snapshot(notice: NewChatMigrationNotice) {
@@ -163,6 +187,12 @@ suite('NewChatMigrationNotice', () => {
 		notice.element.querySelector<HTMLElement>('.action-label')!.click();
 		await timeout(0);
 		const dismissed = snapshot(notice).visible;
+		env.changed.fire();
+		await timeout(0);
+		const afterCustomizationChange = snapshot(notice).visible;
+		const requestsAfterDismissal = env.migrations.requests.length;
+		const dismissedWorkspaceKey = `chat.customizationMigrationNotice.dismissed.${extUri.getComparisonKey(URI.file('/workspaces/one'))}`;
+		const dismissedProjectKey = `chat.customizationMigrationNotice.dismissed.${extUri.getComparisonKey(URI.file('/worktrees/one'))}`;
 		notice.dispose();
 		const restored = env.create();
 		await timeout(0);
@@ -174,6 +204,10 @@ suite('NewChatMigrationNotice', () => {
 		await timeout(0);
 		assert.deepStrictEqual({
 			dismissed,
+			afterCustomizationChange,
+			requestsAfterDismissal,
+			persistedByWorkspace: env.storage.getBoolean(dismissedWorkspaceKey, StorageScope.PROFILE, false),
+			persistedByProject: env.storage.getBoolean(dismissedProjectKey, StorageScope.PROFILE, false),
 			afterRecreation,
 			otherWorkspace,
 			back: snapshot(restored).visible,
@@ -181,6 +215,10 @@ suite('NewChatMigrationNotice', () => {
 			telemetryActions: env.migrationTelemetry.events.map(event => event.action),
 		}, {
 			dismissed: false,
+			afterCustomizationChange: false,
+			requestsAfterDismissal: 1,
+			persistedByWorkspace: true,
+			persistedByProject: false,
 			afterRecreation: false,
 			otherWorkspace: true,
 			back: false,
@@ -189,12 +227,89 @@ suite('NewChatMigrationNotice', () => {
 		});
 	});
 
+	test('shows instead of the tip below the input once it finds a migration, and makes way for the worktree suggestion', async () => {
+		const env = setup();
+		const tip = store.add(env.banners.register(NewSessionBannerPriority.Tip, constObservable(true)));
+		const worktreeSuggestionWantsToShow = observableValue('worktreeSuggestionWantsToShow', false);
+		store.add(env.banners.register(NewSessionBannerPriority.WorktreeSuggestion, worktreeSuggestionWantsToShow));
+		// Attached, so that focus can move between the notice and the input.
+		const container = mainWindow.document.body.appendChild(dom.$('div'));
+		store.add(toDisposable(() => container.remove()));
+		const notice = env.create(container);
+		const showing = () => ({ notice: snapshot(notice).visible, tip: tip.isShowing.get(), focusCount: env.focusCount });
+		const discovering = showing();
+		await timeout(0);
+		const discovered = showing();
+		notice.element.querySelector<HTMLElement>('a')!.focus();
+		worktreeSuggestionWantsToShow.set(true, undefined);
+		const outranked = showing();
+		worktreeSuggestionWantsToShow.set(false, undefined);
+		const back = showing();
+		notice.element.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			discovering,
+			discovered,
+			outranked,
+			back,
+			dismissed: showing(),
+			telemetryActions: env.migrationTelemetry.events.map(event => event.action),
+		}, {
+			discovering: { notice: false, tip: true, focusCount: 0 },
+			discovered: { notice: true, tip: false, focusCount: 0 },
+			// Focus inside the notice returns to the input as it makes way.
+			outranked: { notice: false, tip: false, focusCount: 1 },
+			back: { notice: true, tip: false, focusCount: 1 },
+			// Dismissing returns focus to the input too.
+			dismissed: { notice: false, tip: true, focusCount: 2 },
+			telemetryActions: ['computed', 'shown', 'shown', 'dismissed'],
+		});
+	});
+
+	test('waits until the user started 3 sessions before showing a migration', async () => {
+		const env = setup(undefined, 2);
+		const notice = env.create();
+		await timeout(0);
+		const twoSessions = snapshot(notice).visible;
+		env.setCreatedSessions(3);
+
+		assert.deepStrictEqual({ twoSessions, thirdSession: snapshot(notice).visible }, { twoSessions: false, thirdSession: true });
+	});
+
 	test('shows remaining profile migrations without a workspace', async () => {
 		const env = setup([CustomizationMigrationType.UserData]);
 		env.session.set(createSession('quick', false), undefined);
 		const notice = env.create();
 		await timeout(0);
 		assert.deepStrictEqual(snapshot(notice), { visible: true, message: '1 agent customization needs an update to keep working.' });
+	});
+
+	test('uses the active project root when applying ignored workspace migrations', async () => {
+		const env = setup([CustomizationMigrationType.PromptFiles]);
+		storeIgnoredCustomizationMigrationGroupKeys(env.storage, new Set([
+			getCustomizationMigrationGroupIgnoreKey(
+				'agent-host-copilotcli',
+				CustomizationMigrationCategoryId.PromptFiles,
+				PromptsStorage.local,
+				URI.file('/worktrees/one'),
+			),
+		]));
+		env.migrations.result = async (_resource, ignoredGroups) => ignoredGroups.length === 0 ? {
+			migrationFlowId: 'hint',
+			message: '1 workspace customization needs an update to keep working.',
+			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
+		} : undefined;
+		const notice = env.create();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			visible: snapshot(notice).visible,
+			ignoredGroups: env.migrations.requests[0]?.ignoredGroups,
+		}, {
+			visible: false,
+			ignoredGroups: [{ type: CustomizationMigrationType.PromptFiles, storage: PromptsStorage.local }],
+		});
 	});
 
 	test('cancels stale results when switching workspace and disposing', async () => {
@@ -240,10 +355,13 @@ suite('NewChatMigrationNotice', () => {
 		const notice = env.create();
 		await timeout(0);
 		const before = snapshot(notice).visible;
-		env.migrations.result = async () => undefined;
+		const pending = new DeferredPromise<ICustomizationMigrationHint | undefined>();
+		env.migrations.result = async () => pending.p;
 		env.changed.fire();
+		const refreshing = snapshot(notice).visible;
+		await pending.complete(undefined);
 		await timeout(0);
-		assert.deepStrictEqual({ before, after: snapshot(notice).visible }, { before: true, after: false });
+		assert.deepStrictEqual({ before, refreshing, after: snapshot(notice).visible }, { before: true, refreshing: true, after: false });
 	});
 
 	test('hides when migrations are disabled', async () => {

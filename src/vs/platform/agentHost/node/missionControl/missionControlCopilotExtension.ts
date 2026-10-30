@@ -31,8 +31,8 @@ export class MissionControlCopilotExtension implements IProtocolServerExtension 
 		for (const method of ['extensions/listProjects', 'extensions/addProject', 'extensions/removeProject', 'extensions/cloneProject']) {
 			requests.set(method, {
 				readOnly: method === 'extensions/listProjects',
-				handle: async (params, checkAuthorization) => {
-					const result = this._projects.handleRequest(method, params, checkAuthorization);
+				handle: async (params, checkAuthorization, source) => {
+					const result = this._projects.handleRequest(method, params, checkAuthorization, source);
 					if (!result) {
 						throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, `Project catalogue does not support ${method}`);
 					}

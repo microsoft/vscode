@@ -84,8 +84,7 @@
  * input is non-functional without an active session anyway and would
  * otherwise compete with the empty state for visual focus. Both
  * `.new-chat-input-container` and `.new-chat-bottom-container` are
- * direct children of `.new-chat-widget-content` (rendered by
- * NewChatInputWidget). */
+ * rendered by SharedChatInputComposer inside `.new-chat-widget-content`. */
 .new-chat-widget-content.no-agent-host .new-chat-input-container,
 .new-chat-widget-content.no-agent-host .new-chat-bottom-container {
 	display: none !important;

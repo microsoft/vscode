@@ -6,10 +6,11 @@
 import { CancellationToken } from '../../base/common/cancellation.js';
 import { Event } from '../../base/common/event.js';
 import { IDisposable } from '../../base/common/lifecycle.js';
+import type { IAgentHostClientCertificatesProvider } from '../../platform/agentHost/common/clientCertificatesProtocol.js';
 import { URI } from '../../base/common/uri.js';
 import { IProtocolTransport } from '../../platform/agentHost/common/state/sessionTransport.js';
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
-import { IDevContainerRepository } from '../../platform/agentHost/common/devContainerSamples.js';
+import { findDevContainerSample, IDevContainerRepository } from '../../platform/agentHost/common/devContainerSamples.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 
@@ -31,6 +32,11 @@ export function areDevContainerSamplesEnabled(configurationService: IConfigurati
 		&& configurationService.getValue<boolean>('chat.disableAIFeatures') !== true;
 }
 
+/** Whether a session in `workspaceUri` that runs on a Dev Container can also use New Worktree isolation. */
+export function isDevContainerWorktreeEnabled(workspaceUri: URI | undefined, configurationService: IConfigurationService): boolean {
+	return !(workspaceUri && findDevContainerSample(workspaceUri)) && configurationService.getValue<boolean>(DevContainerWorktreeEnabledSettingId) === true;
+}
+
 /** Agent Host transport and workspace mapping produced by a Dev Container connector. */
 export interface IDevContainerAgentHostConnection {
 	/**
@@ -47,6 +53,7 @@ export interface IDevContainerAgentHostConnection {
 	readonly repository?: IDevContainerRepository;
 	readonly sandboxSupported?: boolean;
 	readonly defaultDirectory?: string;
+	readonly clientCertificates?: IAgentHostClientCertificatesProvider;
 }
 
 /** Creates a Dev Container and connects to its Agent Host. */
@@ -83,4 +90,9 @@ export interface IDevContainerAgentHostService {
 	getSandboxSupported?(workspaceUri: URI): boolean | undefined;
 	showLog(workspaceUri: URI): Promise<void>;
 	disconnect(workspaceUri: URI): Promise<void>;
+	/** Register a source workspace without starting its container or connecting. */
+	addWorkspace(workspaceUri: URI, name: string): void;
+	/** Forget a location and disconnect its transport without deleting its container. */
+	removeWorkspace(workspaceUri: URI): Promise<void>;
+	getWorkspaces(): readonly { readonly workspaceUri: URI; readonly name: string }[];
 }

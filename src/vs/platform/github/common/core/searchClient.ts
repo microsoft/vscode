@@ -18,6 +18,7 @@ export class SearchClient implements ISearchClient {
 		const { query: queryOptions, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
+				domain: 'search',
 				method: 'GET',
 				path: withQuery('/search/repositories', { ...queryOptions, q: query }),
 				authentication: 'optional',
@@ -42,6 +43,7 @@ export class SearchClient implements ISearchClient {
 		const { query: queryOptions, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
+				domain: 'search',
 				method: 'GET',
 				path: withQuery('/search/issues', { ...queryOptions, q: query }),
 				authentication: 'optional',
@@ -61,6 +63,7 @@ export class SearchClient implements ISearchClient {
 	async pullRequests(query: string, signal: AbortSignal, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<PullRequestSearchItem>> {
 		const { query: queryOptions = {}, ...requestOptions } = options ?? {};
 		return this._client.graphqlPages(
+			'search',
 			searchPullRequestsQuery,
 			{ ...cursorVariables(queryOptions), query: `is:pr ${query}` },
 			signal,
@@ -75,6 +78,7 @@ const parseRepositorySearch = parse.object<SearchPage<RepositorySearchItem>>({
 	incomplete_results: parse.boolean,
 	items: parse.arrayOf(parse.object<RepositorySearchItem>({
 		...repositoryIdentitySchema,
+		owner: parse.nullable(parseAccount),
 		default_branch: parse.string,
 		language: parse.nullable(parse.string),
 		stargazers_count: parse.nonNegativeInteger,

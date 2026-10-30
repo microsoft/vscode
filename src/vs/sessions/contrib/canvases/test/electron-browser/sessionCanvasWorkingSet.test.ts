@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -19,6 +19,7 @@ import { TestNotificationService } from '../../../../../platform/notification/te
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../../workbench/browser/editor.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../../workbench/common/editor.js';
 import { CanvasInput, ICanvasContextService, ICanvasService } from '../../../../../workbench/contrib/canvases/common/canvas.js';
@@ -37,9 +38,22 @@ import { ChatLayoutMode } from '../../../../common/chatLayout.js';
 import { BaseLayoutController } from '../../../layout/browser/baseSessionLayoutController.js';
 import { createTestHarness, makeSession } from '../../../layout/test/browser/layoutControllerTestUtils.js';
 import { SessionCanvasContextService } from '../../electron-browser/sessionCanvasService.js';
+import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { SessionCanvasSerializer } from '../../electron-browser/sessionCanvasSerializer.js';
+import { IWindowCanvas, IWindowCanvasService, WindowCanvasInput, WindowCanvasService } from '../../../../services/canvas/browser/windowCanvasService.js';
+import { WindowCanvasEditor } from '../../browser/windowCanvasEditor.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 
 class TestCanvasLayoutController extends BaseLayoutController { }
+
+class TestWindowCanvas extends Disposable implements IWindowCanvas {
+	draft = '';
+	visible = false;
+	render(): void { }
+	layout(): void { }
+	focus(): void { }
+	setVisible(visible: boolean): void { this.visible = visible; }
+}
 
 suite('Session canvas working sets', () => {
 	const store = new DisposableStore();
@@ -68,6 +82,8 @@ suite('Session canvas working sets', () => {
 		instantiationService.stub(IEditorGroupsService, parts);
 		const editorService = store.add(instantiationService.createInstance(EditorService, undefined));
 		instantiationService.stub(IEditorService, editorService);
+		instantiationService.stub(IAgentWorkbenchLayoutService, 'isEditorMaximized', () => harness.editorMaximized);
+		instantiationService.stub(IAgentWorkbenchLayoutService, 'setEditorMaximized', (maximized: boolean) => harness.layoutService.setEditorMaximized(maximized));
 		harness.instaService.stub(IEditorGroupsService, parts);
 		harness.instaService.stub(IEditorService, editorService);
 		harness.instaService.stub(IChatEntitlementService, upcastPartial<IChatEntitlementService>({
@@ -78,6 +94,7 @@ suite('Session canvas working sets', () => {
 		harness.instaService.stub(INotificationService, new TestNotificationService());
 		harness.instaService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }));
 		harness.instaService.stub(IChatService, upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }));
+		harness.instaService.stub(ICustomViewService, upcastPartial<ICustomViewService>({ activeCustomView: constObservable(undefined) }));
 		store.add(harness.instaService.createInstance(TestCanvasLayoutController));
 		harness.instaService.stub(ICanvasContextService, store.add(harness.instaService.createInstance(SessionCanvasContextService)));
 		const canvasService = store.add(harness.instaService.createInstance(CanvasService));
@@ -114,6 +131,48 @@ suite('Session canvas working sets', () => {
 	}
 
 	for (const mode of ['session-shared', 'chat-shared', 'chat'] as const) {
+		test(`native window canvas retains content across real editor working-set replacement (${mode})`, async () => {
+			const { harness, instantiationService, parts, editorService, sessionA, sessionB, switchTo } = await createHarness(mode);
+			instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined), hideCustomView: () => { } });
+			const nativeCanvases = store.add(instantiationService.createInstance(WindowCanvasService));
+			instantiationService.stub(IWindowCanvasService, nativeCanvases);
+			store.add(nativeCanvases.connectWorkingSets({
+				state: harness.editorWorkingSetService.restoreState,
+				registerEditorToRetain: input => harness.editorWorkingSetService.registerEditorToRetain(input),
+				suppressEditorPartAutoVisibility: () => Disposable.None,
+			}));
+			store.add(Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+				EditorPaneDescriptor.create(WindowCanvasEditor, WindowCanvasInput.EDITOR_ID, 'Canvas'),
+				[new SyncDescriptor(WindowCanvasInput)],
+			));
+			store.add(nativeCanvases.registerCanvas({ id: 'test.inbox', title: 'Inbox', icon: Codicon.inbox, ctor: new SyncDescriptor(TestWindowCanvas) }));
+			await nativeCanvases.openCanvas('test.inbox');
+			const first = editorService.activeEditor;
+			assert.ok(first instanceof WindowCanvasInput);
+			const content = nativeCanvases.getPresentation(first).content;
+			assert.ok(content instanceof TestWindowCanvas);
+			content.draft = 'unsent';
+
+			await switchTo(sessionB);
+			const afterB = editorService.editors.filter(input => input instanceof WindowCanvasInput);
+			await switchTo(sessionA);
+			const afterA = editorService.editors.filter((input): input is WindowCanvasInput => input instanceof WindowCanvasInput);
+			assert.deepStrictEqual({
+				afterB: afterB.length, afterA: afterA.length,
+				sameContent: nativeCanvases.getPresentation(afterA[0]).content === content,
+				draft: content.draft,
+				sessionEditorRestored: editorService.activeEditor?.typeId !== WindowCanvasInput.ID,
+				maximizeCalls: harness.setEditorMaximizedCalls,
+			}, {
+				afterB: 1, afterA: 1, sameContent: true, draft: 'unsent', sessionEditorRestored: true,
+				maximizeCalls: [],
+			});
+
+			await parts.activeGroup.closeEditor(afterA[0]);
+			await switchTo(sessionB);
+			assert.strictEqual(editorService.editors.some(input => input instanceof WindowCanvasInput), false);
+		});
+
 		test(`restores a live canvas and ordinary editor automatically after A-B-A (${mode})`, async () => {
 			const { harness, parts, editorService, canvasService, sessionA, sessionB, originalCanvas, switchTo } = await createHarness(mode);
 			await parts.activeGroup.setSelection(originalCanvas, []);

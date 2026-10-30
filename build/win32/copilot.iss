@@ -1,5 +1,6 @@
-// GitHub Copilot CLI: publishes the native `copilot` shim to {app}\bin\copilot-shim, manages its PATH entry, and optionally
-// installs Copilot CLI through the shim. Design: https://github.com/microsoft/vscode-internalbacklog/issues/9765
+// GitHub Copilot CLI: publishes the native `copilot` shim to {app}\bin\copilot-shim, with the POSIX `copilot` launcher
+// that WSL, Git Bash, and Cygwin use, manages its PATH entry, and optionally installs Copilot CLI through the shim.
+// Design: https://github.com/microsoft/vscode-internalbacklog/issues/9765
 //
 // Included from the [Code] section of code.iss when the build contains bin\copilot-shim\copilot.exe (CopilotShim).
 //
@@ -556,6 +557,8 @@ end;
 
 const
   CopilotShimName = 'copilot.exe';
+  // The POSIX copilot command that WSL, Git Bash, and Cygwin find through the Windows PATH (resources/win32/bin/copilot.sh).
+  CopilotLauncherName = 'copilot';
 
 // Renames Source to Target, or copies it when Copy is set. Retries like inno_updater's util::retry, which absorbs
 // transient locks such as antivirus scans: up to 11 attempts, waiting attempt^2 * 50 ms after each failure.
@@ -685,9 +688,32 @@ begin
   end;
 end;
 
+// Publishes the launcher next to the shim. A shell reads the script only until it runs the shim, so unlike the shim it
+// isn't held open by a running Copilot session and is replaced in place.
+procedure CopilotPublishLauncher(const Dir: String);
+#ifdef CopilotShimLauncher
+var
+  Target: String;
+begin
+  Target := Dir + '\' + CopilotLauncherName;
+  try
+    ExtractTemporaryFile(CopilotLauncherName);
+    if CopilotMoveWithRetry(ExpandConstant('{tmp}\') + CopilotLauncherName, Target, True) then
+      Log('Copilot: published ' + Target);
+  except
+    Log('Copilot: failed to publish the launcher: ' + GetExceptionMessage);
+  end;
+end;
+#else
+begin
+end;
+#endif
+
 function CopilotPublishShim(): Boolean;
 begin
   Result := CopilotExtractShim() and CopilotPublishShimFile(CopilotTempShimPath(), CopilotShimDir());
+  if Result then
+    CopilotPublishLauncher(CopilotShimDir());
 end;
 
 procedure CopilotRemovePublishedShim();
@@ -700,6 +726,7 @@ begin
   if FileExists(Target) and not DeleteFile(Target) then
     CopilotRenameWithRetry(Target, CopilotAvailableOldPath(Dir));
   CopilotDeleteOldShims(Dir);
+  DeleteFile(Dir + '\' + CopilotLauncherName);
 end;
 
 // Install now

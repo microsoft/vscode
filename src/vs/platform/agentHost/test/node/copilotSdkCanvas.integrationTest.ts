@@ -145,8 +145,12 @@ await joinSession({
 			await client.start();
 			session = await client.resumeSession(sessionId, config);
 			observe(session);
-			await waitForOpen(session, reloadedUrl);
+			const restoredUrl = await waitForOpen(session, reloadedUrl);
 			await capture(session, 'cold resume');
+
+			const explicitlyReopened = await session.rpc.canvas.open({ canvasId: 'contract', instanceId });
+			assert.strictEqual(explicitlyReopened.url, restoredUrl);
+			await capture(session, 'explicit reopen after resume');
 
 			assert.deepStrictEqual(observations, [
 				{ phase: 'first open', live: 1, history: 1 },
@@ -154,6 +158,7 @@ await joinSession({
 				{ phase: 'provider reload', live: 1, history: 1 },
 				{ phase: 'close and reopen', live: 2, history: 2 },
 				{ phase: 'cold resume', live: 2, history: 2 },
+				{ phase: 'explicit reopen after resume', live: 2, history: 2 },
 			]);
 		} finally {
 			listeners.dispose();
@@ -190,15 +195,11 @@ await joinSession({
 			await session.disconnect();
 			session = await client.resumeSession(sessionId, config);
 			const resumed = session;
-			const restoredOnResume = resumed.openCanvases.some(canvas => canvas.instanceId === instanceId);
+			// Resume and extension readiness can precede canvas rehydration.
+			const restoredUrl = await waitForOpen(resumed, firstUrl);
 			await retry(async () => {
-				const { extensions } = await resumed.rpc.extensions.list();
-				assert.ok(extensions.length > 0 && extensions.every(extension => extension.status !== 'starting'), 'Extensions must settle');
+				assert.deepStrictEqual(resumed.openCanvases.map(canvas => ({ instanceId: canvas.instanceId, url: canvas.url })), [{ instanceId, url: restoredUrl }]);
 			}, 100, 300);
-			const listedOnceExtensionsSettle = (await resumed.rpc.canvas.listOpen()).openCanvases.some(canvas => canvas.instanceId === instanceId);
-			await waitForOpen(resumed, firstUrl);
-
-			assert.deepStrictEqual({ restoredOnResume, listedOnceExtensionsSettle }, { restoredOnResume: true, listedOnceExtensionsSettle: true });
 		} finally {
 			try {
 				await session?.disconnect();

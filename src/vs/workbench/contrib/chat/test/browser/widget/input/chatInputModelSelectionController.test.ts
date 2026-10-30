@@ -290,7 +290,7 @@ suite('ChatInputModelSelectionController', () => {
 		const intents = new Map<string | undefined, IIntendedModelSelection | undefined>();
 		const state: IRuntimeState = { models: [restored, hydraFusion, fusion], sessionType: 'agent-host-copilotcli', isEmpty: false, intents };
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
-		// The picker shows HydraFusion as Fusion at Balance whenever both are on offer.
+		// The picker shows HydraFusion as Fusion at High whenever both are on offer.
 		const present = () => {
 			if (controller.currentModel.get()?.identifier === hydraFusion.identifier && state.models.includes(fusion)) {
 				controller.applyEquivalentSelection(fusion);
