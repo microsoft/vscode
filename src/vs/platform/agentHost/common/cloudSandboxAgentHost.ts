@@ -376,6 +376,9 @@ export interface ICloudSandboxSessionFeedConnection {
 	readonly group: string;
 	readonly expires_at: string;
 	readonly reconnect_after: string;
+	/** Server-relative milliseconds; omitted together by older servers. */
+	readonly expires_in?: number;
+	readonly reconnect_in?: number;
 	readonly frame_schema_version: 1;
 }
 
