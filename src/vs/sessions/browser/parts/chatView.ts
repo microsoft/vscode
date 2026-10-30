@@ -132,6 +132,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	openModelComparison(): void { }
 
 	/**
+	 * Intrinsic composer content for input-only hosts to measure and observe.
+	 * Includes new-session pickers where present; ownership stays with the view.
+	 */
+	get inputContentElement(): HTMLElement | undefined {
+		return undefined;
+	}
+
+	/**
 	 * Whether the view has a visible transcript turn to retain when a remote
 	 * host disconnects. New and unbound views intentionally report no content.
 	 */
