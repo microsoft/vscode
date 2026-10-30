@@ -26,6 +26,7 @@ import { INotification, INotificationHandle, INotificationService, IPromptChoice
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestTelemetryService } from '../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -850,16 +851,6 @@ class NoVisibleSessionCommandService extends TestCommandService {
 			return false as T;
 		}
 		return super.executeCommand<T>(commandId, ...args);
-	}
-}
-
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { name: string; data: unknown }[] = [];
-
-	override publicLog2(eventName?: string, data?: unknown): void {
-		if (eventName) {
-			this.events.push({ name: eventName, data });
-		}
 	}
 }
 
