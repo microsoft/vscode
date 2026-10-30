@@ -35768,6 +35768,48 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('send_message keeps the custom agent of the chat it writes to', async () => {
+			class ServerToolAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+			}
+
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new ServerToolAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const sourceChat = buildDefaultChatUri(await localService.createSession({ legacyChatUris: true, provider: 'copilot' }));
+			const targetSession = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const targetChat = buildDefaultChatUri(targetSession);
+			const reviewer = { uri: 'file:///agents/reviewer.agent.md' };
+			const waitForPrompt = (prompt: string) => waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.some(call => call.prompt === prompt), `Expected '${prompt}' to start a turn`);
+			const completeTargetTurn = () => agent.fireProgress({
+				kind: 'action', resource: URI.parse(targetChat),
+				action: chatTurnComplete(getStateManager(localService).getActiveTurnId(targetChat)!, 1),
+			});
+			localService.dispatchAction(sourceChat, chatTurnStarted('source-turn', 'delegate this'), 'test-client', 1);
+			localService.dispatchAction(targetChat, {
+				type: ActionType.ChatTurnStarted, turnId: 'user-turn', startedAt: new Date().toISOString(),
+				message: { text: 'review this', origin: { kind: MessageKind.User }, agent: reviewer },
+			}, 'test-client', 2);
+			await waitForPrompt('review this');
+
+			// Queued behind the user's turn, then started directly once the chat is idle.
+			await agent.serverToolHost!.executeTool(sourceChat, SessionServerToolName.SendMessage, { session: targetSession.toString(), message: 'queued while busy' });
+			completeTargetTurn();
+			await waitForPrompt('queued while busy');
+			completeTargetTurn();
+			await agent.serverToolHost!.executeTool(sourceChat, SessionServerToolName.SendMessage, { session: targetSession.toString(), message: 'sent while idle' });
+			await waitForPrompt('sent while idle');
+
+			assert.deepStrictEqual(
+				agent.changeAgentCalls.filter(call => call.session.toString() === targetSession.toString()).map(call => call.agent),
+				[reviewer, reviewer, reviewer],
+			);
+		});
+
 		test('createChat resolves a restored peer fork source before creating the fork', async () => {
 			let materializeCalls = 0;
 			let providerForkTurnId: string | undefined;
