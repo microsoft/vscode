@@ -79,12 +79,6 @@
 	"json.schemas": [
 		{
 			"fileMatch": [
-				"**/*.conversation.json"
-			],
-			"url": "./.vscode/conversation.schema.json"
-		},
-		{
-			"fileMatch": [
 				"**/*.state.json"
 			],
 			"url": "./.vscode/state.schema.json"
@@ -96,9 +90,6 @@
 		"outFiles": [
 			"${workspaceFolder}/dist/**/*.js"
 		]
-	},
-	"files.associations": {
-		"**/*.conversation.json": "jsonc"
 	},
 	"workbench.editorAssociations": {
 		// Use the default diff editor instead of the default custom editor view.
