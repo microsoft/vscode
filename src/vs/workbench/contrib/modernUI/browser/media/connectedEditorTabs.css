@@ -249,8 +249,30 @@
 	inset-block: calc((var(--modern-ui-connected-tab-row-height) - var(--editor-group-tab-height)) / 2);
 }
 
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping):not(.connected-tab-upper-bar) .tabs-container > .tab:not(.active):is(:hover, .hovered, :focus-within) > .tab-fill {
-	inset-block: 0 calc(-1 * var(--vscode-strokeThickness));
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.selected.multi-selected:not(.active):not(.connected-tab-upper-row) > .tab-fill {
+	inset-block: var(--modern-ui-connected-tab-fill-block-inset) calc(-1 * var(--vscode-strokeThickness));
+	border-radius: var(--modern-ui-connected-tab-cap-radius) var(--modern-ui-connected-tab-cap-radius) 0 0;
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.selected.multi-selected:not(.connected-tab-upper-row):where(:not(.dirty-border-top)) {
+	--modern-ui-connected-tab-top-accent: var(--vscode-tab-selectedBorderTop, var(--tab-border-top-color));
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.selected.multi-selected:not(.connected-tab-upper-row):where(:not(.dirty-border-top)) {
+	--modern-ui-connected-tab-top-accent: var(--vscode-contrastActiveBorder);
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.selected.multi-selected:not(.active):not(.connected-tab-upper-row):focus:where(:not(.dirty-border-top)) {
+	--modern-ui-connected-tab-top-accent: var(--vscode-focusBorder);
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.selected.multi-selected:not(.active):not(.connected-tab-upper-row) > .tab-fill {
+	border-color: transparent;
+	border-top-color: var(--modern-ui-connected-tab-top-accent);
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.multi-selected:not(.connected-tab-upper-row) > .tab-connected-edge {
+	border-top-color: var(--modern-ui-connected-tab-top-accent);
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab:hover:not(.selected):not(.active):not(.connected-tab-upper-row) > .tab-border-bottom-container {
@@ -359,10 +381,6 @@
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container {
 	bottom: calc(-1 * var(--vscode-strokeThickness));
-}
-
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.multi-selected:not(.connected-tab-upper-row) {
-	--modern-ui-connected-tab-border: var(--tab-border-top-color, var(--vscode-contrastActiveBorder));
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.multi-selected:not(.connected-tab-upper-row) {
@@ -780,17 +798,22 @@
 	background-origin: border-box;
 }
 
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row).tab-border-top > .tab-connected-edge {
+/* Keep selection accents inside the visible surface when the scroll viewport clips the top stroke. */
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row):is(.tab-border-top, .multi-selected:not(.dirty-border-top)) > .tab-connected-edge,
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.selected.multi-selected:not(.active):not(.connected-tab-upper-row):not(.dirty-border-top) > .tab-fill {
 	background-image: linear-gradient(var(--modern-ui-connected-tab-top-accent) var(--vscode-strokeThickness), transparent var(--vscode-strokeThickness));
-	background-position: 0 var(--vscode-strokeThickness);
 	background-repeat: no-repeat;
 	background-origin: border-box;
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row):is(.tab-border-top, .dirty-border-top, .multi-selected) > .tab-connected-edge,
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.selected.multi-selected:not(.active):not(.connected-tab-upper-row) > .tab-fill {
+	background-position: 0 var(--vscode-strokeThickness);
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row).dirty-border-top > .tab-connected-edge {
 	border-top-color: var(--modern-ui-connected-tab-top-accent);
 	background-image: linear-gradient(var(--modern-ui-connected-tab-top-accent) var(--vscode-spacing-size20), transparent var(--vscode-spacing-size20));
-	background-position: 0 var(--vscode-strokeThickness);
 	background-repeat: no-repeat;
 	background-origin: border-box;
 }

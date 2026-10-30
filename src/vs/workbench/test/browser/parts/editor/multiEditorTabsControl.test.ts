@@ -2488,10 +2488,12 @@ suite('MultiEditorTabsControl', () => {
 		});
 	});
 
-	test('regular-theme Connected active multi-selection leaves the document join open', async () => {
+	test('regular-theme Connected multi-selection shares a top accent without coloring the document frame', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;
 		root.style.setProperty('--vscode-tab-activeBorderTop', '#ffaa00');
+		root.style.setProperty('--vscode-tab-selectedBorderTop', '#0080ff');
+		group.style.setProperty('--modern-ui-editor-tab-custom-border', '#abcdef');
 		const themeService = instantiationService.get(IThemeService);
 		assert.ok(themeService instanceof TestThemeService);
 		themeService.setTheme(new TestColorTheme({ 'tab.activeBorderTop': '#ffaa00', 'tab.selectedBorderTop': '#ffaa00' }));
@@ -2512,19 +2514,258 @@ suite('MultiEditorTabsControl', () => {
 					const tab = container.querySelector<HTMLElement>('.tab.active')!;
 					const fill = tab.querySelector<HTMLElement>('.tab-fill')!;
 					const style = mainWindow.getComputedStyle(fill);
+					const selectedFill = container.querySelector<HTMLElement>('.tab.selected:not(.active) > .tab-fill')!;
+					const selectedStyle = mainWindow.getComputedStyle(selectedFill);
 					results.push({
 						theme, tabHeight, wrapTabs,
 						attachedSelection: tab.classList.contains('multi-selected') && !tab.classList.contains('connected-tab-upper-row'),
 						fillBottom: [style.borderBottomWidth, style.borderBottomColor],
 						capColor: getTabStrokeStyle(tab).borderRightColor,
+						topAccent: getTabStrokeStyle(tab).borderTopColor,
 						capBottom: getTabStrokeStyle(tab).borderBottomWidth,
 						shoulderColor: mainWindow.getComputedStyle(fill, '::after').borderBottomColor,
+						selection: !wrapTabs ? {
+							topAccent: selectedStyle.borderTopColor,
+							topPaint: selectedStyle.backgroundImage,
+							paintOffset: selectedStyle.backgroundPositionY,
+							side: selectedStyle.borderRightColor,
+							sameHeight: selectedFill.getBoundingClientRect().height === fill.getBoundingClientRect().height,
+							sameTop: selectedFill.getBoundingClientRect().top === fill.getBoundingClientRect().top,
+						} : undefined,
 					});
 				}
 			}
 			root.classList.remove(theme);
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, attachedSelection: true, fillBottom: ['0px', 'rgba(0, 0, 0, 0)'], capColor: 'rgb(255, 170, 0)', capBottom: '0px', shoulderColor: 'rgb(255, 170, 0)' })));
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result, attachedSelection: true, fillBottom: ['0px', 'rgba(0, 0, 0, 0)'], capColor: 'rgb(171, 205, 239)', topAccent: 'rgb(0, 128, 255)', capBottom: '0px', shoulderColor: 'rgb(171, 205, 239)',
+			selection: !result.wrapTabs ? { topAccent: 'rgb(0, 128, 255)', topPaint: 'linear-gradient(rgb(0, 128, 255) 1px, rgba(0, 0, 0, 0) 1px)', paintOffset: '1px', side: 'rgba(0, 0, 0, 0)', sameHeight: true, sameTop: true } : undefined,
+		})));
+	});
+
+	test('dirty selected Connected multi-selection paints its accent inside the visible fill', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		const themeService = instantiationService.get(IThemeService);
+		assert.ok(themeService instanceof TestThemeService);
+		themeService.setTheme(new TestColorTheme({ 'tab.inactiveModifiedBorder': '#22d3ee' }));
+		root.style.setProperty('--vscode-contrastActiveBorder', '#ffaa00');
+		const dirty = disposables.add(new TestFileEditorInput(URI.file('/path/modified-selected.ts'), 'testEditorInput'));
+		dirty.setDirty();
+		model.openEditor(dirty, { index: model.count, pinned: true, active: false });
+		const active = model.getEditorByIndex(1)!;
+		model.openEditor(active, { active: true });
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, wrapTabs: false, highlightModifiedTabs: true, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120 };
+		control.updateOptions(oldOptions, partOptions);
+		model.setSelection(active, [model.getEditorByIndex(0)!, dirty]);
+		control.updateEditorSelections();
+		const results = [];
+		for (const theme of ['vs-dark', 'hc-black']) {
+			root.classList.add(theme);
+			await layoutConnectedGroup(group, 600);
+			const fill = container.querySelector<HTMLElement>('.tab.dirty.selected.multi-selected:not(.active):not(.connected-tab-upper-row) > .tab-fill')!;
+			const style = mainWindow.getComputedStyle(fill);
+			results.push({
+				theme,
+				selected: fill.parentElement!.classList.contains('selected'),
+				dirtyAccent: style.backgroundImage.includes(' 2px,'),
+				paintOffset: style.backgroundPositionY,
+			});
+			root.classList.remove(theme);
+		}
+		assert.deepStrictEqual({
+			results,
+		}, {
+			results: results.map(result => ({ ...result, selected: true, dirtyAccent: true, paintOffset: '1px' })),
+		});
+	});
+
+	test('Connected selection accents track the visible surface when modified highlighting changes', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		root.style.setProperty('--vscode-tab-selectedBorderTop', '#0080ff');
+		const themeService = instantiationService.get(IThemeService);
+		assert.ok(themeService instanceof TestThemeService);
+		themeService.setTheme(new TestColorTheme({
+			'tab.selectedBorderTop': '#0080ff',
+			'tab.activeModifiedBorder': '#22d3ee',
+			'tab.inactiveModifiedBorder': '#22d3ee',
+		}));
+		const dirty = disposables.add(new TestFileEditorInput(URI.file('/path/modified-selection.ts'), 'testEditorInput'));
+		dirty.setDirty();
+		model.openEditor(dirty, { index: model.count, pinned: true, active: false });
+		const editors = model.getEditors(EditorsOrder.SEQUENTIAL);
+		control.openEditors(editors);
+		const results = [];
+		const expected = [];
+		for (const tabHeight of ['default', 'compact'] as const) {
+			container.classList.toggle('compact-height', tabHeight === 'compact');
+			for (const active of [editors[1], dirty]) {
+				model.openEditor(active, { active: true });
+				control.openEditors(editors);
+				for (const highlightModifiedTabs of [false, true, false]) {
+					const oldOptions = partOptions;
+					partOptions = { ...partOptions, tabHeight, wrapTabs: false, highlightModifiedTabs, editorActionsLocation: 'hidden', tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120 };
+					control.updateOptions(oldOptions, partOptions);
+					model.setSelection(active, editors.filter(editor => editor !== active));
+					control.updateEditorSelections();
+					await layoutConnectedGroup(group, 600);
+					for (const tab of container.querySelectorAll<HTMLElement>('.tab')) {
+						const surface = tab.querySelector<HTMLElement>(tab.classList.contains('active') ? '.tab-connected-edge' : '.tab-fill')!;
+						const style = mainWindow.getComputedStyle(surface);
+						const modified = tab.classList.contains('dirty') && highlightModifiedTabs;
+						const context = { tabHeight, active: active.getName(), highlightModifiedTabs, name: tab.dataset.resourceName };
+						results.push({
+							...context,
+							paint: style.backgroundImage,
+							offset: Number.parseFloat(style.backgroundPositionY),
+							visibleTop: surface.getBoundingClientRect().top + Number.parseFloat(style.backgroundPositionY) >= tab.getBoundingClientRect().top,
+							ariaSelected: tab.getAttribute('aria-selected'),
+						});
+						const color = modified ? 'rgb(34, 211, 238)' : 'rgb(0, 128, 255)';
+						const thickness = modified ? 2 : 1;
+						expected.push({
+							...context,
+							paint: `linear-gradient(${color} ${thickness}px, rgba(0, 0, 0, 0) ${thickness}px)`,
+							offset: 1,
+							visibleTop: true,
+							ariaSelected: 'true',
+						});
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(results, expected);
+	});
+
+	test('Connected modified selection clears an accent when the next theme has no modified border', async () => {
+		const group = connectedGroup();
+		const themeService = instantiationService.get(IThemeService);
+		assert.ok(themeService instanceof TestThemeService);
+		const dirty = disposables.add(new TestFileEditorInput(URI.file('/path/modified-theme-transition.ts'), 'testEditorInput'));
+		dirty.setDirty();
+		model.openEditor(dirty, { index: model.count, pinned: true, active: false });
+		const editors = model.getEditors(EditorsOrder.SEQUENTIAL);
+		control.openEditors(editors);
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, wrapTabs: false, highlightModifiedTabs: true };
+		control.updateOptions(oldOptions, partOptions);
+		const results = [];
+		for (const active of [editors[1], dirty]) {
+			model.openEditor(active, { active: true });
+			model.setSelection(active, editors.filter(editor => editor !== active));
+			control.openEditors(editors);
+			for (const modifiedBorder of ['#22d3ee', undefined, '#22d3ee']) {
+				themeService.setTheme(new TestColorTheme({
+					'tab.selectedBorderTop': '#0080ff',
+					...(modifiedBorder ? { 'tab.activeModifiedBorder': modifiedBorder, 'tab.inactiveModifiedBorder': modifiedBorder } : {}),
+				}));
+				await layoutConnectedGroup(group, 600);
+				const tab = container.querySelector<HTMLElement>('.tab.dirty')!;
+				results.push({
+					active: active === dirty,
+					modifiedBorder,
+					modifiedAccent: tab.classList.contains('dirty-border-top'),
+					modifiedColor: tab.style.getPropertyValue('--tab-dirty-border-top-color'),
+					selectionAccent: tab.classList.contains('tab-border-top'),
+					selected: tab.getAttribute('aria-selected'),
+				});
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result,
+			modifiedAccent: !!result.modifiedBorder,
+			modifiedColor: result.modifiedBorder ? '#22d3ee' : '',
+			selectionAccent: !result.modifiedBorder,
+			selected: 'true',
+		})));
+	});
+
+	test('HC Connected multi-selection keeps its top outline visible without a theme selection accent', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		root.style.setProperty('--vscode-contrastActiveBorder', '#ffaa00');
+		root.style.setProperty('--vscode-focusBorder', '#00ff00');
+		const dirty = disposables.add(new TestFileEditorInput(URI.file('/path/modified-selection-hc.ts'), 'testEditorInput'));
+		dirty.setDirty();
+		model.openEditor(dirty, { index: model.count, pinned: true, active: false });
+		const editors = model.getEditors(EditorsOrder.SEQUENTIAL);
+		const themeService = instantiationService.get(IThemeService);
+		assert.ok(themeService instanceof TestThemeService);
+		const actual = [];
+		const expected = [];
+		for (const theme of ['hc-black', 'hc-light']) {
+			root.classList.add(theme);
+			themeService.setTheme(new TestColorTheme({
+				'tab.activeModifiedBorder': '#ffffff',
+				'tab.inactiveModifiedBorder': '#ffffff',
+			}, theme === 'hc-black' ? ColorScheme.HIGH_CONTRAST_DARK : ColorScheme.HIGH_CONTRAST_LIGHT));
+			for (const tabHeight of ['default', 'compact'] as const) {
+				container.classList.toggle('compact-height', tabHeight === 'compact');
+				for (const active of [editors[1], dirty]) {
+					model.openEditor(active, { active: true });
+					control.openEditors(editors);
+					for (const highlightModifiedTabs of [false, true]) {
+						const oldOptions = partOptions;
+						partOptions = { ...partOptions, tabHeight, wrapTabs: false, highlightModifiedTabs, editorActionsLocation: 'hidden', tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120 };
+						control.updateOptions(oldOptions, partOptions);
+						model.setSelection(active, editors.filter(editor => editor !== active));
+						control.updateEditorSelections();
+						for (const zoom of [1, 1.25, 1.6, 2]) {
+							root.style.zoom = String(zoom);
+							await layoutConnectedGroup(group, 600);
+							for (const tab of container.querySelectorAll<HTMLElement>('.tab')) {
+								const surface = tab.querySelector<HTMLElement>(tab.classList.contains('active') ? '.tab-connected-edge' : '.tab-fill')!;
+								const style = mainWindow.getComputedStyle(surface);
+								const modified = tab.classList.contains('dirty') && highlightModifiedTabs;
+								const viewportTop = tab.closest<HTMLElement>('.monaco-scrollable-element')!.getBoundingClientRect().top;
+								const paintTop = surface.getBoundingClientRect().top + Number.parseFloat(style.backgroundPositionY) * zoom;
+								const context = { theme, tabHeight, zoom, active: active.getName(), highlightModifiedTabs, name: tab.dataset.resourceName };
+								actual.push({
+									...context,
+									image: style.backgroundImage,
+									position: style.backgroundPositionY,
+									paintWithinViewportEdge: paintTop >= viewportTop - 1 / 64 && paintTop < viewportTop + zoom + 1 / 64,
+									ariaSelected: tab.getAttribute('aria-selected'),
+								});
+								const color = modified ? 'rgb(255, 255, 255)' : 'rgb(255, 170, 0)';
+								const thickness = modified ? 2 : 1;
+								expected.push({
+									...context,
+									image: `linear-gradient(${color} ${thickness}px, rgba(0, 0, 0, 0) ${thickness}px)`,
+									position: '1px',
+									paintWithinViewportEdge: true,
+									ariaSelected: 'true',
+								});
+							}
+							const focused = container.querySelector<HTMLElement>('.tab.selected:not(.active):not(.dirty)')!;
+							const previousTabIndex = focused.tabIndex;
+							focused.tabIndex = 0;
+							focused.focus();
+							const cssFocused = focused.matches(':focus');
+							actual.push({
+								theme, tabHeight, zoom, active: active.getName(), highlightModifiedTabs,
+								name: 'focused',
+								focused: mainWindow.document.activeElement === focused,
+								image: mainWindow.getComputedStyle(focused.querySelector<HTMLElement>('.tab-fill')!).backgroundImage,
+							});
+							expected.push({
+								theme, tabHeight, zoom, active: active.getName(), highlightModifiedTabs,
+								name: 'focused',
+								focused: true,
+								image: cssFocused ? 'linear-gradient(rgb(0, 255, 0) 1px, rgba(0, 0, 0, 0) 1px)' : 'linear-gradient(rgb(255, 170, 0) 1px, rgba(0, 0, 0, 0) 1px)',
+							});
+							focused.blur();
+							focused.tabIndex = previousTabIndex;
+						}
+					}
+				}
+			}
+			root.classList.remove(theme);
+		}
+		assert.deepStrictEqual(actual, expected);
 	});
 
 	test('HC connected selection keeps its outline independent of modified highlighting', async () => {
@@ -2580,6 +2821,7 @@ suite('MultiEditorTabsControl', () => {
 									const painted = accent.visible && accent.color !== 'rgba(0, 0, 0, 0)';
 									const selected = multiSelected && index !== 2;
 									const modified = index >= 2 && highlightModifiedTabs;
+									const selectionAccent = selected && !modified && !tab.classList.contains('connected-tab-upper-row');
 									const context = { theme, tabHeight, wrapTabs, highlightModifiedTabs, activeIndex, multiSelected, index };
 									measurements.push({
 										...context,
@@ -2594,9 +2836,9 @@ suite('MultiEditorTabsControl', () => {
 									});
 									expected.push({
 										...context,
-										color: modified ? 'rgb(255, 255, 255)' : undefined,
-										thickness: modified ? 2 : undefined,
-										topOffset: modified ? 0 : undefined,
+										color: modified ? 'rgb(255, 255, 255)' : selectionAccent ? 'rgb(255, 170, 0)' : undefined,
+										thickness: modified ? 2 : selectionAccent ? 1 : undefined,
+										topOffset: modified || selectionAccent ? 0 : undefined,
 										clippedToFill: true,
 										selectedStroke: selected ? 'rgb(255, 170, 0)' : undefined,
 										borders: ['0px', '0px', '0px', '0px'],
@@ -2746,6 +2988,46 @@ suite('MultiEditorTabsControl', () => {
 		}
 		assert.deepStrictEqual(results, results.map(result => ({
 			...result, labelCentered: true, actionCentered: true, fillHeight: result.tabHeight === 'default' ? 24 : 20,
+		})));
+	});
+
+	test('single-row Connected inactive fills retain their geometry on hover and focus', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		const dirty = disposables.add(new TestFileEditorInput(URI.file('/path/dirty.ts'), 'testEditorInput'));
+		dirty.setDirty();
+		model.openEditor(dirty, { pinned: true, active: false });
+		model.setSelection(model.activeEditor!, [model.getEditorByIndex(1)!]);
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		control.updateEditorSelections();
+		const results = [];
+		for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+			root.classList.add(theme);
+			for (const tabHeight of ['default', 'compact'] as const) {
+				const oldOptions = partOptions;
+				partOptions = { ...partOptions, tabHeight, wrapTabs: false, highlightModifiedTabs: true };
+				control.updateOptions(oldOptions, partOptions);
+				await layoutConnectedGroup(group, 900);
+				for (const tab of container.querySelectorAll<HTMLElement>('.tab:not(.active)')) {
+					const fill = tab.querySelector<HTMLElement>('.tab-fill')!;
+					const bounds = () => {
+						const rect = fill.getBoundingClientRect();
+						return [rect.top, rect.bottom, rect.height];
+					};
+					const resting = bounds();
+					tab.classList.add('hovered');
+					const hovered = bounds();
+					tab.classList.remove('hovered');
+					tab.focus();
+					const focused = bounds();
+					tab.blur();
+					results.push({ theme, tabHeight, hovered, focused, resting });
+				}
+			}
+			root.classList.remove(theme);
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result, hovered: result.resting, focused: result.resting,
 		})));
 	});
 
