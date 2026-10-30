@@ -244,6 +244,10 @@ export class BrowserViewFrameInspector extends Disposable {
 		this.frame.postMessage('vscode:browserView:setTheme', theme);
 	}
 
+	setElementPickerPageMouseEventsSuppressed(suppressed: boolean): void {
+		this.frame.postMessage('vscode:browserView:setElementPickerPageMouseEventsSuppressed', suppressed);
+	}
+
 	/**
 	 * Start element inspection on this frame.
 	 * Uses CDP inspect mode if paused, otherwise the preload picker.
