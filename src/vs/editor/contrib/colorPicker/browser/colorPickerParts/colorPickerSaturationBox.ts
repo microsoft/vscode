@@ -5,8 +5,10 @@
 import '../colorPicker.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { GlobalPointerMoveMonitor } from '../../../../../base/browser/globalPointerMoveMonitor.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Color, HSVA } from '../../../../../base/common/color.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ColorPickerModel } from '../colorPickerModel.js';
 
@@ -33,6 +35,14 @@ export class SaturationBox extends Disposable {
 		this._domNode = $('.saturation-wrap');
 		dom.append(container, this._domNode);
 
+		// Make focusable for keyboard navigation
+		this._domNode.tabIndex = 0;
+
+		// ARIA attributes for accessibility
+		this._domNode.setAttribute('role', 'slider');
+		this._domNode.setAttribute('aria-label', 'Color gradient');
+		this._updateAriaValueText(model.color);
+
 		// Create canvas, draw selected color
 		this._canvas = document.createElement('canvas');
 		this._canvas.className = 'saturation-box';
@@ -45,12 +55,54 @@ export class SaturationBox extends Disposable {
 		this.layout();
 
 		this._register(dom.addDisposableListener(this._domNode, dom.EventType.POINTER_DOWN, e => this.onPointerDown(e)));
+		this._register(dom.addDisposableListener(this._domNode, dom.EventType.KEY_DOWN, e => this.onKeyDown(new StandardKeyboardEvent(e))));
 		this._register(this.model.onDidChangeColor(this.onDidChangeColor, this));
 		this.monitor = null;
 	}
 
 	public get domNode() {
 		return this._domNode;
+	}
+
+	private onKeyDown(e: StandardKeyboardEvent): void {
+		const hsva = this.model.color.hsva;
+		let s = hsva.s;
+		let v = hsva.v;
+		const step = e.shiftKey ? 0.1 : 0.01;
+
+		switch (e.keyCode) {
+			case KeyCode.RightArrow:
+				s = Math.min(1, s + step);
+				break;
+			case KeyCode.LeftArrow:
+				s = Math.max(0, s - step);
+				break;
+			case KeyCode.UpArrow:
+				v = Math.min(1, v + step);
+				break;
+			case KeyCode.DownArrow:
+				v = Math.max(0, v - step);
+				break;
+			case KeyCode.Enter:
+			case KeyCode.Space:
+				this._handleEnterOrSpace(e);
+				return;
+			default:
+				return;
+		}
+
+		this._applySaturationValueChange(s, v);
+		e.preventDefault();
+	}
+
+	private _handleEnterOrSpace(e: StandardKeyboardEvent): void {
+		this._onColorFlushed.fire();
+		e.preventDefault();
+	}
+
+	private _applySaturationValueChange(s: number, v: number): void {
+		this.paintSelection(s, v);
+		this._onDidChange.fire({ s, v });
 	}
 
 	private onPointerDown(e: PointerEvent): void {
@@ -123,6 +175,11 @@ export class SaturationBox extends Disposable {
 		this.selection.style.top = `${this.height - v * this.height}px`;
 	}
 
+	private _updateAriaValueText(color: Color): void {
+		const hsva = color.hsva;
+		this._domNode.setAttribute('aria-valuetext', `Saturation ${Math.round(hsva.s * 100)}%, Value ${Math.round(hsva.v * 100)}%`);
+	}
+
 	private onDidChangeColor(color: Color): void {
 		if (this.monitor && this.monitor.isMonitoring()) {
 			return;
@@ -130,5 +187,6 @@ export class SaturationBox extends Disposable {
 		this.paint();
 		const hsva = color.hsva;
 		this.paintSelection(hsva.s, hsva.v);
+		this._updateAriaValueText(color);
 	}
 }
