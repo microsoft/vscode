@@ -43,6 +43,8 @@ import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../
 import { Action, Separator } from '../../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { focusFirstCustomizationTreeItem } from './customizationCardList.js';
+import { getCustomizationGroupAriaLabel } from './customizationGroupHeaderRenderer.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
@@ -540,6 +542,22 @@ export function usesCustomizationTreePresentation(section: AICustomizationManage
 		|| section === AICustomizationManagementSection.Prompts;
 }
 
+export function getCustomizationSearchAriaLabel(section: AICustomizationManagementSection): string {
+	switch (section) {
+		case AICustomizationManagementSection.Agents:
+			return localize('searchAgentsAriaLabel', "Search agents...");
+		case AICustomizationManagementSection.Skills:
+			return localize('searchSkillsAriaLabel', "Search skills...");
+		case AICustomizationManagementSection.Instructions:
+			return localize('searchInstructionsAriaLabel', "Search instructions...");
+		case AICustomizationManagementSection.Hooks:
+			return localize('searchHooksAriaLabel', "Search hooks...");
+		case AICustomizationManagementSection.Prompts:
+		default:
+			return localize('searchPromptsAriaLabel', "Search prompts...");
+	}
+}
+
 export function getAlwaysVisibleCustomizationGroupKeys(section: AICustomizationManagementSection, isFiltering: boolean): readonly string[] {
 	return usesCustomizationTreePresentation(section) && !isFiltering
 		? [PromptsStorage.local, PromptsStorage.user]
@@ -832,8 +850,10 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Search container
 		this.searchContainer = DOM.append(this.searchAndButtonContainer, $('.list-search-container'));
+		const searchLabel = getCustomizationSearchAriaLabel(this.currentSection);
 		this.searchInput = this._register(new InputBox(this.searchContainer, this.contextViewService, {
-			placeholder: localize('searchPlaceholder', "Type to search..."),
+			placeholder: searchLabel,
+			ariaLabel: searchLabel,
 			inputBoxStyles: defaultInputBoxStyles,
 		}));
 
@@ -906,7 +926,7 @@ export class AICustomizationListWidget extends Disposable {
 				accessibilityProvider: {
 					getAriaLabel: (entry: IListEntry) => {
 						if (entry.type === 'group-header') {
-							return localize('groupAriaLabel2', "{0}, {1} items", entry.label, entry.count);
+							return getCustomizationGroupAriaLabel(entry.label, entry.count, entry.description);
 						}
 						const label = getCustomizationItemAriaLabel(entry.item);
 						if (!hasReadableCustomizationContent(entry.item.uri)) {
@@ -950,12 +970,7 @@ export class AICustomizationListWidget extends Disposable {
 		// so the focus indicator is visible instead of requiring the user to
 		// press an arrow key first.
 		this._register(this.list.onDidFocus(() => {
-			if (this.list.getFocus().length === 0 && this.displayEntries.length > 0) {
-				const firstItem = this.displayEntries.find(entry => entry.type !== 'group-header');
-				if (firstItem) {
-					this.list.setFocus([firstItem]);
-				}
-			}
+			focusFirstCustomizationTreeItem<IListEntry>(this.list, this.displayEntries, entry => entry.type !== 'group-header');
 		}));
 
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e)));
@@ -1134,6 +1149,9 @@ export class AICustomizationListWidget extends Disposable {
 		this.sectionTitleDescriptionText.textContent = description;
 		this.sectionLink.textContent = learnMoreLabel;
 		this.sectionLink.href = docsUrl;
+		const searchLabel = getCustomizationSearchAriaLabel(this.currentSection);
+		this.searchInput.setPlaceHolder(searchLabel);
+		this.searchInput.setAriaLabel(searchLabel);
 		this.updateHeaderActions();
 	}
 

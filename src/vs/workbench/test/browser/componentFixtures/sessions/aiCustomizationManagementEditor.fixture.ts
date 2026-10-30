@@ -2180,7 +2180,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			'Copilot customization rows did not finish rendering.',
 		);
 	}
-	assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabled ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must describe the active surface.');
+	assert(!ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title, 'Home button must not duplicate its managed hover with a native tooltip.');
 	if (options.selectedSection === AICustomizationManagementSection.McpServers && options.marketplaceVisibilityEnabled === false) {
 		editor.revealLastItem();
 		await timeout(50);
@@ -2304,7 +2304,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(Boolean(discover) === discoverEnabledAfterToggle, 'Switching Marketplace visibility must replace the home surface.');
 		assert(Boolean(home?.querySelector('.welcome-prompts-content-container')) === !discoverEnabledAfterToggle, 'Overview must be visible only when Marketplace is hidden.');
 		assert(ctx.container.querySelector('.sidebar-home-button')?.textContent?.includes(discoverEnabledAfterToggle ? 'Browse' : 'Overview') === true, 'Home navigation must match the selected surface.');
-		assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabledAfterToggle ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must update when Marketplace visibility changes.');
+		assert(!ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title, 'Home button must not add a native tooltip when Marketplace visibility changes.');
 		const expectedQueryCount = queryCountBeforeToggle + (discoverEnabledAfterToggle ? 1 : 0);
 		assert(customizationMarketplacePrimaryQueryCount === expectedQueryCount, `Toggling Marketplace visibility must issue a primary query only when enabling Discover. Expected ${expectedQueryCount} queries, got ${customizationMarketplacePrimaryQueryCount}.`);
 		assert(!home?.textContent?.includes('Could not load available customizations.'), 'Changing Marketplace visibility must not show a catalog error.');

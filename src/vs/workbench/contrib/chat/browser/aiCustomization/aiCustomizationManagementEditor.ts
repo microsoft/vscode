@@ -891,6 +891,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.ensureSectionsListReflectsActiveSection();
 
 		this.editorDisposables.add(this.sectionsList.onDidChangeSelection(e => this.onDidChangeSidebarSelection(e)));
+		this.registerSidebarKeyboardNavigation();
 
 		// React to harness changes — rebuild visible sections and refresh counts.
 		// Also track availableHarnesses to handle agent registration/unregistration.
@@ -1007,6 +1008,30 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateHomeButtonStyle();
 	}
 
+	private registerSidebarKeyboardNavigation(): void {
+		const homeButton = this.homeButton;
+		if (!homeButton) {
+			return;
+		}
+		this.editorDisposables.add(DOM.addDisposableListener(homeButton, DOM.EventType.KEY_DOWN, event => {
+			if (event.key !== 'ArrowDown' || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || this.sectionsList.length === 0) {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			this.sectionsList.setFocus([0]);
+			this.sectionsList.domFocus();
+		}));
+		this.editorDisposables.add(DOM.addDisposableListener(this.sectionsList.getHTMLElement(), DOM.EventType.KEY_DOWN, event => {
+			if (event.key !== 'ArrowUp' || event.target !== this.sectionsList.getHTMLElement() || this.sectionsList.getFocus()[0] !== 0) {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			homeButton.focus();
+		}));
+	}
+
 	private updateHomeButtonStyle(): void {
 		if (!this.homeButtonLabel || !this.homeButton) {
 			return;
@@ -1027,12 +1052,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			: localize('overviewButtonLabel', "Overview");
 		this.homeButton.setAttribute('aria-label', label);
 		this.homeButtonLabel.textContent = label;
-		this.homeButton.title = this.getHomeButtonTooltip();
+		this.homeButton.removeAttribute('title');
 	}
 
 	private getHomeButtonTooltip(): string {
 		return this.welcomePage?.isDiscover
-			? localize('discoverButtonTooltip', "Back to Customizations")
+			? localize('discoverButtonTooltip', "Browse available customizations")
 			: localize('homeButtonTooltip', "Back to overview");
 	}
 
