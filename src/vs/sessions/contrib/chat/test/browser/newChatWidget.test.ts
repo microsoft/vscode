@@ -23,8 +23,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChat, ISession, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ICreateNewSessionOptions, ISendRequestSentEvent, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISendRequestOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IActiveSession, ICreateNewSessionOptions, ISendRequestOptions, ISendRequestSentEvent, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionsManagementService } from '../../../../services/sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService, SessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -265,6 +265,7 @@ interface ISessionOptionsPersistenceHarness {
 }
 
 interface ISendHarness {
+	readonly _backgroundSend?: boolean;
 	readonly notificationService: { error(message: string | Error): void };
 	readonly _pendingBackgroundSends: { set(key: object, value: IDisposable): void; deleteAndDispose(key: object): void };
 	readonly recentWorkspacesService: { restoreDismissedWorkspace(folderUri: URI): void };
@@ -3710,7 +3711,7 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('restores only the captured workspace after its background send succeeds', async () => {
+	test('Inbox sends in the background without an explicit background gesture and reseeds its workspace', async () => {
 		const onDidSendRequest = disposables.add(new Emitter<ISendRequestSentEvent>());
 		const pendingSends = disposables.add(new DisposableMap<object, IDisposable>());
 		const folderUri = URI.file('/dismissed');
@@ -3719,6 +3720,7 @@ suite('NewChatWidget', () => {
 		let sentOptions: ISendRequestOptions | undefined;
 		const picker = { selectedFolderUri: folderUri, clearAttachedContext: () => { }, showPicker: () => { } };
 		const harness: ISendHarness = {
+			_backgroundSend: true,
 			notificationService: { error: () => assert.fail('Unexpected error') },
 			_pendingBackgroundSends: pendingSends,
 			recentWorkspacesService: { restoreDismissedWorkspace: uri => restored.push(uri) },
@@ -3737,14 +3739,14 @@ suite('NewChatWidget', () => {
 			_getWorkspaceRoots: () => [folderUri],
 			_createNewSession: async () => { picker.selectedFolderUri = URI.file('/different-workspace'); },
 		};
-		await send.call(harness, 'hello', undefined, true);
+		await send.call(harness, 'hello');
 		const beforeSuccess = [...restored];
 		onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: { query: 'unrelated' } }));
 		const afterUnrelatedSend = [...restored];
 		assert.ok(sentOptions);
 		onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: sentOptions }));
-		assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size }, {
-			beforeSuccess: [], afterUnrelatedSend: [], restored: [folderUri], pending: 0,
+		assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size, background: sentOptions.background }, {
+			beforeSuccess: [], afterUnrelatedSend: [], restored: [folderUri], pending: 0, background: true,
 		});
 	});
 

@@ -20,6 +20,7 @@ import { ITerminalChatService } from '../../../../../workbench/contrib/terminal/
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { fixtureResourceUri, readFixtureBinaryResource } from '../../../../../workbench/test/browser/componentFixtures/fixtureResourceLoader.js';
 import { AbstractChatView } from '../../../../browser/parts/chatView.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { IChat, ISession, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -181,7 +182,12 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 					}
 				}());
 			}
-			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() { }());
+			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
+				override readonly navigationRequest = constObservable(undefined);
+			}());
+			reg.defineInstance(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+				override isVisible(): boolean { return false; }
+			}());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override getSession() { return state === 'evidence' ? session : undefined; }
 			}());

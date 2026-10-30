@@ -455,7 +455,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	private readonly _detailSummaries: ISettableObservable<ReadonlyMap<string, IInboxDetailSummary>>;
 	readonly detailSummaries: IObservable<ReadonlyMap<string, IInboxDetailSummary>>;
 	private readonly _detailSummaryCache = new LRUCache<string, IInboxDetailSummary>(DETAIL_CACHE_SIZE);
-	private readonly _detailSummaryInFlight = new Set<string>();
+	private readonly _detailSummaryInFlight = new Map<string, CancellationTokenSource>();
 	/** Per-item lifecycle state while present, so departures can be logged after the item is gone. */
 	private readonly _lifecycleState = new Map<string, IInboxLifecycleInfo>();
 	/** Item ids ever seen in the inbox, to distinguish a first entry from a reentry. */
@@ -1014,7 +1014,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	}
 
 	requestDetailSummary(item: IInboxNotificationItem): void {
-		if (!this._enabled.get() || this._store.isDisposed || !item.sessionResource || (item.kind !== InboxNotificationKind.Completed && !item.needsInputPart)) {
+		if (!this._enabled.get() || this._store.isDisposed || this._dismissedIds.get().has(item.id) || !item.sessionResource || (item.kind !== InboxNotificationKind.Completed && !item.needsInputPart)) {
 			return;
 		}
 		const key = item.id;
@@ -1038,8 +1038,8 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 	private async generateDetailSummary(key: string, item: IInboxNotificationItem): Promise<void> {
 		const endLoading = this.beginLoadingOperation();
-		this._detailSummaryInFlight.add(key);
 		const cts = new CancellationTokenSource();
+		this._detailSummaryInFlight.set(key, cts);
 		this._previewCancellationSources.add(cts);
 		const modelReferences = new DisposableStore();
 		const startTime = Date.now();
@@ -1313,6 +1313,10 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			next.delete(next.values().next().value!);
 		}
 		this._dismissedIds.set(next, undefined);
+		this._detailSummaryInFlight.get(id)?.cancel();
+		if (this._detailSummaryCache.delete(id)) {
+			this._detailSummaries.set(new Map(this._detailSummaryCache), undefined);
+		}
 		this.pruneDismissedSnapshots(next);
 		const snapshot = this._allItems.get().find(item => item.id === id) ?? (itemSnapshot?.id === id ? itemSnapshot : undefined);
 		if (snapshot) {

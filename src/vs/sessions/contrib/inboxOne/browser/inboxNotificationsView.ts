@@ -18,7 +18,7 @@ import { disposableTimeout, raceTimeout, RunOnceScheduler } from '../../../../ba
 import { clamp } from '../../../../base/common/numbers.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, IReader, observableFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, IReader, observableFromEvent, observableValue, runOnChange, waitForState } from '../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -34,6 +34,8 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -371,6 +373,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	private container: HTMLElement | undefined;
 	private focusContext: IContextKey<boolean> | undefined;
 	private visibleSince = Date.now();
+	private readonly sessionsPaneVisibility = this._register(new MutableDisposable());
 
 	private readonly scrollableContentElement = $('div.inbox-notifications-list-scrollable');
 	private readonly listContainer = observableValue<HTMLElement | undefined>('inboxNotificationsListContainer', undefined);
@@ -481,8 +484,10 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
 	) {
 		super();
+		this._register(runOnChange(this.sessionsService.navigationRequest, () => this.sessionsPaneVisibility.clear()));
 		this._register(toDisposable(() => {
 			for (const rendering of this.cardRenderings.values()) {
 				rendering.store.dispose();
@@ -562,6 +567,13 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	}
 
 	setVisible(visible: boolean): void {
+		if (!this._store.isDisposed) {
+			if (visible) {
+				this.hideSessionsPane();
+			} else {
+				this.sessionsPaneVisibility.clear();
+			}
+		}
 		if (this.visible.get() === visible || this._store.isDisposed) {
 			return;
 		}
@@ -591,11 +603,19 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	}
 
 	focus(): void {
+		this.hideSessionsPane();
 		if (!this.focusSelectedCard()) {
 			this.renderedCards[0]?.focus();
 			if (!this.renderedCards.length) {
 				this.container?.focus();
 			}
+		}
+	}
+
+	private hideSessionsPane(): void {
+		if (!this.sessionsPaneVisibility.value && this.layoutService.isVisible(Parts.SESSIONS_PART)) {
+			this.sessionsPaneVisibility.value = toDisposable(() => this.layoutService.setPartHidden(false, Parts.SESSIONS_PART));
+			this.layoutService.setPartHidden(true, Parts.SESSIONS_PART);
 		}
 	}
 
@@ -673,6 +693,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		const focusContext = this.focusContext = InboxCanvasFocusContext.bindTo(this.contextKeyService);
 		const focusTracker = this._register(trackFocus(container));
 		this._register(focusTracker.onDidFocus(() => {
+			this.hideSessionsPane();
 			focusContext.set(true);
 			this.viewFocusedAtMs = Date.now();
 			this.logViewState('focus');
@@ -1857,6 +1878,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 					return;
 				}
 				case InboxNotificationActionKind.MarkDone: {
+					if (this.selectedItemId.get() === item.id) {
+						this.clearSelectedItem('markDone');
+					}
 					await this.markDone(item, sourceElement);
 					logResult('success');
 					return;
@@ -2325,7 +2349,6 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 				await this.sessionsManagementService.setSessionReadState(session, true);
 			}
 		}
-
 	}
 
 	private maybeTriggerConfetti(sourceElement: HTMLElement | undefined): void {
@@ -2947,7 +2970,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			if (!this.newSessionView) {
 				const scopedContext = this.newSessionDisposables.add(this.contextKeyService.createScoped(this.newSessionElement));
 				const instantiationService = this.newSessionDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContext])));
-				this.newSessionView = this.newSessionDisposables.add(this.chatViewFactory.createNewChatView(false, { preserveCustomView: true, renderChatPet: false }, instantiationService));
+				this.newSessionView = this.newSessionDisposables.add(this.chatViewFactory.createNewChatView(false, { preserveCustomView: true, backgroundSend: true, renderChatPet: false }, instantiationService));
 				this.newSessionElement.appendChild(this.newSessionView.element);
 				this.newSessionView.setPrimary(false, true);
 				this.newSessionView.setActive(true);

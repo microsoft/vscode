@@ -34,6 +34,8 @@ export interface IChatViewOptions {
 	readonly hostVisible?: IObservable<boolean>;
 	/** Keep the custom view hosting this composer visible while preparing its draft. */
 	readonly preserveCustomView?: boolean;
+	/** Send new-session requests without navigating away from the hosting view. */
+	readonly backgroundSend?: boolean;
 	readonly renderChatPet?: boolean;
 	/** Host only the composer, without transcript content, input interactions, or transcript view-state persistence. */
 	readonly inputOnly?: boolean;

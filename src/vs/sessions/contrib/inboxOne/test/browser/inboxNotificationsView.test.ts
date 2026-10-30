@@ -7,11 +7,12 @@ import assert from 'assert';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { match, spy, stub } from 'sinon';
 import { timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IObservable, constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -42,7 +43,9 @@ import { ChatQuestionCarouselPart } from '../../../../../workbench/contrib/chat/
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionNavigationRequest, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
 import { AbstractChatView, IChatViewOptions } from '../../../../browser/parts/chatView.js';
@@ -139,7 +142,16 @@ suite('InboxNotificationsView', () => {
 			requestDetailSummary: () => { },
 		});
 		instantiationService.stub(IChatService, { getSession: () => undefined, onDidCreateModel: Event.None, ...options.chatService });
-		instantiationService.stub(ISessionsService, {});
+		const navigationRequest = observableValue<ISessionNavigationRequest | undefined>('navigation', undefined);
+		instantiationService.stub(ISessionsService, { navigationRequest });
+		let sessionsVisible = true;
+		instantiationService.stub(IAgentWorkbenchLayoutService, {
+			isVisible: part => part === Parts.SESSIONS_PART && sessionsVisible,
+			setPartHidden: (hidden, part) => {
+				assert.strictEqual(part, Parts.SESSIONS_PART);
+				sessionsVisible = !hidden;
+			},
+		});
 		instantiationService.stub(ISessionsManagementService, { getSession: () => undefined });
 		instantiationService.stubInstance(InboxEvidenceWidget, { element: document.createElement('div'), getAccessibleContent: () => '', dispose: () => { } });
 		instantiationService.stubInstance(InboxCanvases, { element: document.createElement('div'), layout: () => { }, setVisible: () => { }, createAccessibleProvider: () => undefined, dispose: () => { } });
@@ -183,7 +195,7 @@ suite('InboxNotificationsView', () => {
 		const configurationService = new TestConfigurationService();
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IAccessibilityService, {});
+		instantiationService.stub(IAccessibilityService, { isMotionReduced: () => true });
 		instantiationService.stub(IOpenerService, {});
 		const storageService = disposables.add(new InMemoryStorageService());
 		if (options.completedVisible) {
@@ -199,7 +211,7 @@ suite('InboxNotificationsView', () => {
 		container.style.cssText = 'width: 900px; height: 400px';
 		document.body.appendChild(container);
 		disposables.add({ dispose: () => container.remove() });
-		return { view, container, instantiationService, chatViews, chatOptions, newChatViews, newChatOptions, hovers };
+		return { view, container, instantiationService, chatViews, chatOptions, newChatViews, newChatOptions, hovers, navigationRequest, sessionsVisible: () => sessionsVisible };
 	}
 
 	test('New Session toggles a pet-free composer above the notifications and preserves its draft', async () => {
@@ -228,9 +240,27 @@ suite('InboxNotificationsView', () => {
 		};
 		view.dispose();
 		assert.deepStrictEqual({ ...result, disposed: newChatViews[0].disposed }, {
-			before: 0, hidden: true, created: 1, options: [{ preserveCustomView: true, renderChatPet: false }],
+			before: 0, hidden: true, created: 1, options: [{ preserveCustomView: true, backgroundSend: true, renderChatPet: false }],
 			requests: [[{ preserveCustomView: true, cancelRestore: true }]],
 			draft: 'My new session draft', focused: true, aboveNotifications: true, inputAtTop: true, disposed: true,
+		});
+	});
+
+	test('Inbox hides the Sessions pane until explicit navigation, tab hiding, or disposal', () => {
+		const { view, container, navigationRequest, sessionsVisible } = createView(constObservable([]));
+		view.render(container);
+		view.setVisible(true);
+		const opened = sessionsVisible();
+		navigationRequest.set({ token: CancellationToken.None }, undefined);
+		const navigated = sessionsVisible();
+		view.focus();
+		const refocused = sessionsVisible();
+		view.setVisible(false);
+		const hidden = sessionsVisible();
+		view.setVisible(true);
+		view.dispose();
+		assert.deepStrictEqual({ opened, navigated, refocused, hidden, disposed: sessionsVisible() }, {
+			opened: false, navigated: true, refocused: false, hidden: true, disposed: true,
 		});
 	});
 
@@ -814,6 +844,38 @@ suite('InboxNotificationsView', () => {
 			label: button.getAttribute('aria-label'),
 			nativeTitle: button.getAttribute('title'),
 		}, { label: 'Mark Notification as Done for Finished', nativeTitle: null });
+	});
+
+	test('Done clears the selected interpretation even when the notification moves to Completed', async () => {
+		const item: IInboxNotificationItem = {
+			id: 'item', kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+			title: 'Finished', description: 'Finished', timestamp: 1,
+			actions: [{ id: 'done', label: 'Done', kind: InboxNotificationActionKind.MarkDone }],
+		};
+		const active = observableValue<readonly IInboxNotificationItem[]>('active', [item]);
+		const dismissed = observableValue<readonly IInboxNotificationItem[]>('dismissed', []);
+		const summaries = observableValue<ReadonlyMap<string, IInboxDetailSummary>>('summaries', new Map([
+			[item.id, { status: 'Old interpretation', decisions: [], evidence: [] }],
+		]));
+		const { view, container, instantiationService } = createView(active, { dismissed, detailSummaries: summaries });
+		instantiationService.stub(IInboxNotificationsService, 'dismissNotification', () => {
+			transaction(tx => {
+				active.set([], tx);
+				dismissed.set([item], tx);
+			});
+		});
+		view.render(container);
+		container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+		const before = view.getDetailAccessibleContent()?.includes('Old interpretation');
+		container.querySelector<HTMLElement>('.inbox-notifications-item-action-done')!.click();
+		await Promise.resolve();
+		summaries.set(new Map([[item.id, { status: 'Late interpretation', decisions: [], evidence: [] }]]), undefined);
+		assert.deepStrictEqual({
+			before,
+			interpretation: container.querySelector('.inbox-notifications-detail-evidence'),
+			accessible: view.getDetailAccessibleContent(),
+			completed: dismissed.get().map(item => item.id),
+		}, { before: true, interpretation: null, accessible: undefined, completed: ['item'] });
 	});
 
 	test('captures click correlation before handlers and does not select action targets', () => {

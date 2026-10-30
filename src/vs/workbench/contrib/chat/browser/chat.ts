@@ -546,6 +546,8 @@ export interface IChatWidget {
 	readonly viewModel: IChatViewModel | undefined;
 	readonly inputEditor: ICodeEditor;
 	readonly supportsFileReferences: boolean;
+	/** Whether this widget can host question and confirmation controls. Defaults to true. */
+	readonly supportsInputRequests?: boolean;
 	/** Whether the input part is rendered above the transcript instead of below it (quick chat, composer-style widgets). */
 	readonly rendersInputOnTop: boolean;
 	readonly attachmentCapabilities: IChatAgentAttachmentCapabilities;

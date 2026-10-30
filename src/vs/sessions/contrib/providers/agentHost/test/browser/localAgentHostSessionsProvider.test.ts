@@ -1316,7 +1316,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(provider.sessionTypes, []);
 	});
 
-	test('projects advertised canvas channels through hydration, source updates, errors and removal', () => {
+	test('projects observed canvas channels for an inactive session through hydration, source updates, errors and removal', () => {
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} }]);
 		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
@@ -1332,7 +1332,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 		const chatState: ChatState = { ...summary, turns: [], canvases: [{ resource }] };
 		agentHost.setChatState(chat, chatState);
-		activeSession.set(upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat }), undefined);
 		let canvasPublicationCount = 0;
 		disposables.add(autorun(reader => {
 			session.mainChat.read(reader).canvases?.read(reader);
@@ -1357,11 +1356,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.setChatState(chat, { ...chatState, canvases: [] });
 
 		assert.deepStrictEqual({
+			activeSession: activeSession.get(),
 			supportsCanvases: session.capabilities.get().supportsCanvases,
 			pending, registryRepublishCount, ready, updated, unavailable, unsupported, removed: read(),
 			subscribes: agentHost.sessionSubscribeCounts.get(resource),
 			unsubscribes: agentHost.sessionUnsubscribeCounts.get(resource),
 		}, {
+			activeSession: undefined,
 			supportsCanvases: true,
 			pending: [{ resource, instanceId: undefined, source: undefined }],
 			registryRepublishCount: 1,

@@ -396,6 +396,43 @@ suite('InboxNotificationsService', () => {
 		assert.deepStrictEqual({ loads, releases, id: fixture.service.notifications.get()[0].id }, { loads: 1, releases: 1, id: item.id });
 	});
 
+	for (const pending of [false, true]) {
+		test(`Done clears interpretation state and rejects late results: pending=${pending}`, async () => {
+			const session = createSession({ id: 'done-summary', status: SessionStatus.Completed, updatedAt: 200 });
+			const chatService = new TestChatService();
+			chatService.setCompletedResponse(session.mainChat.get().resource, { requestId: 'result', markdown: 'Finished work' });
+			const started = new DeferredPromise<void>();
+			const result = new DeferredPromise<string>();
+			let requests = 0;
+			const fixture = createFixture([session], undefined, undefined, chatService, undefined, true, [], true, {
+				utilityRequest: async () => {
+					requests++;
+					started.complete();
+					return result.p;
+				},
+			});
+			const item = fixture.service.notifications.get()[0];
+			fixture.service.requestDetailSummary(item);
+			await started.p;
+			const finish = async () => {
+				await result.complete('{"status":"Generated interpretation","decisions":[],"evidence":[]}');
+				await waitForState(fixture.service.isLoading, loading => !loading);
+			};
+			if (!pending) {
+				await finish();
+			}
+			fixture.service.dismissNotification(item.id, item);
+			if (pending) {
+				await finish();
+			}
+			fixture.service.requestDetailSummary(item);
+			assert.deepStrictEqual({
+				requests, summaries: [...fixture.service.detailSummaries.get().keys()],
+				active: fixture.service.notifications.get().map(item => item.id),
+			}, { requests: 1, summaries: [], active: [] });
+		});
+	}
+
 	test('keeps the transcript tail for detail without requesting content classification at any telemetry level', async () => {
 		for (const telemetryLevel of [TelemetryLevel.NONE, TelemetryLevel.ERROR, TelemetryLevel.USAGE]) {
 			const session = createSession({ id: `tail-${telemetryLevel}`, status: SessionStatus.Completed, updatedAt: 200 });

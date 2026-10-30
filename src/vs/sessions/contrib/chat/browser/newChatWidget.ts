@@ -147,6 +147,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _newChatInput: SharedChatInputComposer;
 	private readonly _preserveCustomView: boolean;
+	private readonly _backgroundSend: boolean;
 	private readonly _pickedEnvironment = observableValue<ISessionCreationEnvironment | undefined>(this, undefined);
 	private readonly _environmentWorkspaces = new Map<string, URI>();
 	private readonly _environmentWorkspaceChanged = observableSignal(this);
@@ -253,6 +254,7 @@ export class NewChatWidget extends Disposable {
 	) {
 		super();
 		this._preserveCustomView = options.preserveCustomView === true;
+		this._backgroundSend = options.backgroundSend === true;
 		this._welcomePhraseIndex = NewChatWidget._takeNextWelcomePhraseIndex(storageService);
 		this._usage = new AgentsWindowUsage(storageService);
 		this._register(this._pendingPreferredUpgrade);
@@ -2008,7 +2010,7 @@ export class NewChatWidget extends Disposable {
 				branch,
 			});
 			try {
-				if (this.configurationService.getValue<boolean>(COMPARE_AGENTS_OPEN_IN_GRID_SETTING)) {
+				if (!this._backgroundSend && this.configurationService.getValue<boolean>(COMPARE_AGENTS_OPEN_IN_GRID_SETTING)) {
 					// An empty composer would create a new draft and cancel the grid navigation.
 					await this.commandService.executeCommand(OPEN_SESSION_COMPARISON_COMMAND_ID, comparison.id);
 				}
@@ -2028,6 +2030,7 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction): Promise<boolean> {
+		background = this._backgroundSend || background;
 		const session = this._session.get();
 		if (!session) {
 			this._workspacePicker.showPicker();

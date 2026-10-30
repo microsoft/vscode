@@ -1672,7 +1672,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 						throw error;
 					}
 				}
-				this._activateOrInsert(session, options?.toSide, intent);
+				this._activateOrInsert(session, options?.toSide, intent, options?.preserveCustomView);
 				if (intent === 'explicit' && !options?.preserveNavigation) {
 					this._navigation.recordOpened({ kind: 'newSession' });
 				}
@@ -1718,7 +1718,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const targetSession = options?.toSide && newSession?.sessionId === activeSession?.sessionId
 			? undefined
 			: newSession;
-		this._activateOrInsert(targetSession, options?.toSide, intent);
+		this._activateOrInsert(targetSession, options?.toSide, intent, options?.preserveCustomView);
 		if (intent === 'explicit' && !options?.preserveNavigation) {
 			this._navigation.recordOpened({ kind: 'newSession' });
 		}
@@ -1726,7 +1726,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	/** Open or move beside the active session when requested, keeping a single empty slot. */
-	private _activateOrInsert(session: ISession | undefined, toSide: boolean | undefined, intent: SessionNavigationIntent): void {
+	private _activateOrInsert(session: ISession | undefined, toSide: boolean | undefined, intent: SessionNavigationIntent, preserveFocus?: boolean): void {
 		const activeSession = this._visibility.activeSession.get();
 		const activeSessionId = activeSession?.sessionId;
 		const sessionId = session?.sessionId;
@@ -1751,7 +1751,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				return;
 			}
 		}
-		this._activate(session, undefined, intent);
+		this._activate(session, preserveFocus, intent);
 	}
 
 	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation = false): IActiveSession | undefined {
@@ -1763,7 +1763,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._startOpenSession();
 		try {
 			const session = this.sessionsManagementService.createQuickChat(options);
-			return this._activate(session, undefined, intent);
+			return this._activate(session, intent === 'automatic', intent);
 		} catch (e) {
 			// No provider supports quick chats: leave whatever was visible as-is
 			// rather than activating an unrelated workspace-bound draft.

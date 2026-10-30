@@ -3216,17 +3216,20 @@ suite('SessionsManagementService', () => {
 				override readonly supportsQuickChats = true;
 				override createQuickChat(): ISession { return quickChat; }
 			}(quickChat);
-			const { view } = createSessionsManagementService(quickChat, disposables, provider);
+			const { view, sessionsPartService } = createSessionsManagementService(quickChat, disposables, provider);
 			const navigation = view.navigationRequest.get();
+			sessionsPartService.focusedSessions.length = 0;
 
 			view.openQuickChat(undefined, preserveNavigation);
 
 			assert.deepStrictEqual({
 				activeSession: view.activeSession.get()?.sessionId,
 				preservedNavigation: view.navigationRequest.get() === navigation,
+				focused: sessionsPartService.focusedSessions,
 			}, {
 				activeSession: 'quick-chat',
 				preservedNavigation: preserveNavigation,
+				focused: preserveNavigation ? [] : ['quick-chat'],
 			});
 		});
 	}
@@ -3234,16 +3237,18 @@ suite('SessionsManagementService', () => {
 	for (const preserveCustomView of [false, true]) {
 		test(`new-session draft preparation preserves the custom view only when requested (${preserveCustomView})`, async () => {
 			const session = stubSession({ sessionId: 'active', providerId: 'test' });
-			const { view, customViewService } = createSessionsManagementService(session, disposables);
+			const { view, customViewService, sessionsPartService } = createSessionsManagementService(session, disposables);
 			await view.openSession(session.resource);
+			sessionsPartService.focusedSessions.length = 0;
 			showTestCustomView(customViewService, disposables);
 			await view.openNewSession({ preserveCustomView });
 			const first = customViewService.activeCustomView.get()?.id;
 			await view.openNewSession({ preserveCustomView });
-			assert.deepStrictEqual({ first, repeated: customViewService.activeCustomView.get()?.id, active: view.activeSession.get() }, {
+			assert.deepStrictEqual({ first, repeated: customViewService.activeCustomView.get()?.id, active: view.activeSession.get(), focused: sessionsPartService.focusedSessions }, {
 				first: preserveCustomView ? 'test.customView' : undefined,
 				repeated: preserveCustomView ? 'test.customView' : undefined,
 				active: undefined,
+				focused: preserveCustomView ? [] : [undefined],
 			});
 		});
 	}

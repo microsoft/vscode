@@ -1826,7 +1826,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				const chatUri = defaultChatUriObs.read(reader);
 				return chatUri ? sessionOutput.getChatCustomizations(chatUri).read(reader) : [];
 			}),
-			canvases: this._createChatCanvasesObservable(defaultChatUriObs),
+			canvases: this._createChatCanvasesObservable(),
 			backgroundShells: this._createChatBackgroundShellsObservable(defaultChatUriObs),
 			checkpoints: observableValue(this, undefined),
 			modelId: this.modelId,
@@ -3190,11 +3190,19 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		});
 	}
 
-	private _createChatCanvasesObservable(chatUriOrObservable: URI | IObservable<URI | undefined>): IObservable<readonly ISessionCanvas[] | undefined> {
-		const chatUriObs = URI.isUri(chatUriOrObservable) ? constObservable(chatUriOrObservable) : chatUriOrObservable;
+	private _createChatCanvasesObservable(chatUri?: URI): IObservable<readonly ISessionCanvas[] | undefined> {
+		// Inbox observes another conversation's canvases without activating its session.
+		const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
+			this._options, constObservable(true), StateComponents.Session, constObservable(this.backendUri),
+		);
+		const chatUriObs = chatUri ? constObservable(chatUri) : derivedOpts<URI | undefined>({ owner: this, equalsFn: isEqual }, reader => {
+			const state = sessionStateObs.read(reader).read(reader);
+			const resource = state && !(state instanceof Error) ? state.defaultChat : undefined;
+			return resource ? URI.parse(resource) : undefined;
+		});
 		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
 			this._options,
-			this.isActiveSessionObs,
+			constObservable(true),
 			StateComponents.Chat,
 			chatUriObs,
 		);
@@ -3205,7 +3213,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const canvasStates = mapObservableArrayCached(this, canvases.map(references => references ?? []), canvas => {
 			const resource = URI.parse(canvas.resource);
 			const stateObs = createActiveSessionSubscriptionObs<CanvasState>(
-				this._options, this.isActiveSessionObs, StateComponents.Canvas, constObservable(resource),
+				this._options, constObservable(true), StateComponents.Canvas, constObservable(resource),
 			);
 			return derived(reader => {
 				const state = stateObs.read(reader).read(reader);
