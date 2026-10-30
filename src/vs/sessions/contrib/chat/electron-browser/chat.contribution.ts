@@ -50,6 +50,7 @@ import '../../../../workbench/contrib/chat/browser/aiCustomization/copilotCanvas
 import './chatBackgroundTool.contribution.js';
 import { ScreenshotWindowToolContribution } from '../browser/screenshotWindowTool.js';
 import { ISession } from '../../../services/sessions/common/session.js';
+import { INewSessionFirstLaunchService } from '../browser/newSessionFirstLaunch.js';
 
 /** Revokes editor request ownership when the next request is submitted here. */
 export class AgentsWindowRequestActivity extends Disposable implements IWorkbenchContribution {
@@ -105,11 +106,13 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProductService private readonly productService: IProductService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INewSessionFirstLaunchService private readonly firstLaunchService: INewSessionFirstLaunchService,
 	) {
 		super();
 		this._workspaceHandoff = this._register(instantiationService.createInstance(AgentsWindowWorkspaceHandoff));
 		this._invitationOnboarding = this._register(instantiationService.createInstance(AgentsWindowInvitationOnboarding));
 		const handleSelectAgentsFolder = (_: unknown, ...args: unknown[]) => {
+			this.firstLaunchService.cancel();
 			this._workspaceHandoff.cancel();
 			const cancellation = new CancellationTokenSource();
 			this._openIntent.value = toDisposable(() => cancellation.dispose(true));
@@ -134,6 +137,8 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 				workspaceArgumentIsDefault,
 			});
 
+			const userNavigationVersion = this.newSessionComposerService.userNavigationVersion.get();
+			const draftInputVersion = this.newSessionComposerService.draftInputVersion.get();
 			const handoff = () => this._handleOpenIntentAndCaptureInitialState(workspaceUri, sessionResource, workspaceArgumentIsDefault, cancellation.token, telemetry, draft, noWorkspace, showNewSession);
 			const opening = onboardingSessionResource && (!sessionResource || isEqual(onboardingSessionResource, sessionResource))
 				? this._invitationOnboarding.runWithHandoff(handoff, async () => {
@@ -141,7 +146,15 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 					return available ? this.getSessionForResource(onboardingSessionResource) : undefined;
 				}, cancellation.token, sessionResource !== undefined)
 				: handoff();
-			opening.catch(err => this.logService.error('[AgentsHandoff] handleOpenIntent failed', err));
+			const editorHasSessions = typeof args[6] === 'boolean' ? args[6] : undefined;
+			opening.then(() => {
+				if (this.newSessionComposerService.userNavigationVersion.get() !== userNavigationVersion
+					|| this.newSessionComposerService.draftInputVersion.get() !== draftInputVersion) {
+					return;
+				}
+				return this.firstLaunchService.start(source, !!sessionResource || !!draft || !!onboardingSessionResource, cancellation.token, editorHasSessions);
+			})
+				.catch(err => this.logService.error('[AgentsHandoff] handleOpenIntent failed', err));
 		};
 		ipcRenderer.on('vscode:selectAgentsFolder', handleSelectAgentsFolder);
 		this._register({ dispose: () => ipcRenderer.removeListener('vscode:selectAgentsFolder', handleSelectAgentsFolder) });

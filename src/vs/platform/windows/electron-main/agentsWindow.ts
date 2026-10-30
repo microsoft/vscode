@@ -24,7 +24,8 @@ export function sendAgentsWindowOpenIntent(window: ICodeWindow, isExistingWindow
 		URI.revive(options.folderUri)?.toJSON(),
 		options.reveal === 'new' ? 'new' : URI.revive(options.reveal)?.toJSON(),
 		source, options.folderUriIsDefault ?? false, draft,
-		URI.revive(options.onboardingSessionResource)?.toJSON());
+		URI.revive(options.onboardingSessionResource)?.toJSON(),
+		options.editorHasSessions);
 }
 
 export async function resolveAgentsWindowFolder(openConfig: IOpenConfiguration, folderUri: URI | undefined, sessionResource: URI | undefined, source: AgentsWindowOpenSource | undefined, extractPaths: (cli: NativeParsedArgs) => Promise<readonly { readonly workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier }[]>): Promise<URI | undefined> {

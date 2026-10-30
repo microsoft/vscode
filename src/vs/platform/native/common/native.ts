@@ -103,6 +103,8 @@ export interface IOpenAgentsWindowOptions {
 	/** Session to spotlight after a contextual invitation, even when it is not opened. */
 	readonly onboardingSessionResource?: UriComponents;
 	readonly source?: AgentsWindowOpenSource;
+	/** Non-archived chats in the invoking Editor, including chats not supported by Agents. */
+	readonly editorHasSessions?: boolean;
 	/** Copy a draft only when explicitly revealing the new-session composer. */
 	readonly draft?: IAgentsWindowDraft;
 }

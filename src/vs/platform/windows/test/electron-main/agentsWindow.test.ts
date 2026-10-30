@@ -37,7 +37,7 @@ suite('Agents window reveal intent', () => {
 				});
 				assert.deepStrictEqual(harness.messages, initiallyOpen && reveal === undefined ? [] : [{
 					channel: 'vscode:selectAgentsFolder',
-					args: [folder.toJSON(), reveal === 'new' ? 'new' : reveal?.toJSON(), AgentsWindowOpenSource.TitleBar, false, undefined, undefined],
+					args: [folder.toJSON(), reveal === 'new' ? 'new' : reveal?.toJSON(), AgentsWindowOpenSource.TitleBar, false, undefined, undefined, undefined],
 				}]);
 			});
 		}
@@ -50,7 +50,7 @@ suite('Agents window reveal intent', () => {
 		sendAgentsWindowOpenIntent(harness.window, true, config, { folderUri: folder });
 		assert.deepStrictEqual(harness.messages, [{
 			channel: 'vscode:selectAgentsFolder',
-			args: [undefined, session.toJSON(), AgentsWindowOpenSource.Unknown, false, undefined, undefined],
+			args: [undefined, session.toJSON(), AgentsWindowOpenSource.Unknown, false, undefined, undefined, undefined],
 		}]);
 	});
 
@@ -60,7 +60,7 @@ suite('Agents window reveal intent', () => {
 			sendAgentsWindowOpenIntent(harness.window, true, { context, cli }, { folderUri: folder });
 			assert.deepStrictEqual(harness.messages, [{
 				channel: 'vscode:selectAgentsFolder',
-				args: [folder.toJSON(), undefined, AgentsWindowOpenSource.Unknown, false, undefined, undefined],
+				args: [folder.toJSON(), undefined, AgentsWindowOpenSource.Unknown, false, undefined, undefined, undefined],
 			}]);
 		});
 	}
@@ -77,7 +77,7 @@ suite('Agents window reveal intent', () => {
 			});
 			assert.deepStrictEqual(harness.messages, [{
 				channel: 'vscode:selectAgentsFolder',
-				args: [folder.toJSON(), reveal === 'new' ? 'new' : reveal?.toJSON(), AgentsWindowOpenSource.TitleBar, false, reveal === 'new' ? draft : undefined, undefined],
+				args: [folder.toJSON(), reveal === 'new' ? 'new' : reveal?.toJSON(), AgentsWindowOpenSource.TitleBar, false, reveal === 'new' ? draft : undefined, undefined, undefined],
 			}]);
 		});
 	}
@@ -88,7 +88,18 @@ suite('Agents window reveal intent', () => {
 		sendAgentsWindowOpenIntent(harness.window, true, { context: OpenContext.LINK, cli }, { draft, source: AgentsWindowOpenSource.Link });
 		assert.deepStrictEqual(harness.messages, [{
 			channel: 'vscode:selectAgentsFolder',
-			args: [undefined, undefined, AgentsWindowOpenSource.Link, false, draft, undefined],
+			args: [undefined, undefined, AgentsWindowOpenSource.Link, false, draft, undefined, undefined],
+		}]);
+	});
+
+	test('forwards Editor eligibility without claiming that a Local chat is resumable', () => {
+		const harness = createHarness();
+		sendAgentsWindowOpenIntent(harness.window, false, { context: OpenContext.API, cli }, {
+			folderUri: folder, source: AgentsWindowOpenSource.TitleBar, editorHasSessions: true,
+		});
+		assert.deepStrictEqual(harness.messages, [{
+			channel: 'vscode:selectAgentsFolder',
+			args: [folder.toJSON(), undefined, AgentsWindowOpenSource.TitleBar, false, undefined, undefined, true],
 		}]);
 	});
 });

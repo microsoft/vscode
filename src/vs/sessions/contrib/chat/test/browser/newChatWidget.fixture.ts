@@ -103,6 +103,7 @@ import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SE
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 import { NEW_SESSION_BANNERS_MIN_CREATED_SESSIONS } from '../../common/newSessionBanners.js';
 import { INewSessionComposerService, INewSessionPromptOption, NewSessionComposerService, NewSessionPromptOptionsState } from '../../browser/newSessionComposerService.js';
+import { INewSessionFirstLaunchService } from '../../browser/newSessionFirstLaunch.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY } from '../../../../../platform/chat/common/agentsWindowInvitation.js';
@@ -185,6 +186,7 @@ const fixtureConnectorRecommendations: NonNullable<IProductService['connectorRec
 );
 
 interface INewChatWidgetFixtureOptions {
+	readonly firstLaunchSessionCount?: number;
 	readonly width?: number;
 	readonly height?: number;
 	readonly commentCount?: number;
@@ -423,6 +425,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		ignoreMigrations = false,
 		collapsedSessionOptionsShowIcons = false,
 		welcomePhrases = false,
+		firstLaunchSessionCount,
 		petEnabled = false,
 		petHorizontalPosition,
 		petLandingTarget,
@@ -610,6 +613,12 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly comparisons = constObservable([]);
 			}());
 			reg.defineInstance(ISessionsService, sessionsService);
+			reg.defineInstance(IViewsService, new class extends mock<IViewsService>() { }());
+			reg.defineInstance(INewSessionFirstLaunchService, new class extends mock<INewSessionFirstLaunchService>() {
+				override readonly sessionCount = constObservable(firstLaunchSessionCount ?? 0);
+				override readonly visible = constObservable(firstLaunchSessionCount !== undefined);
+				override markPresented(): void { }
+			}());
 			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 				override readonly onDidChangeProviders = Event.None;
 				override getProviders() { return activeSession ? [provider] : []; }
@@ -1412,6 +1421,17 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
+	FirstLaunch: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderNewChatWidget(context, { width: 850, height: 768, withWorkspace: true, firstLaunchSessionCount: 4, welcomePhrases: true }),
+	}),
+	FirstLaunchNarrow: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderNewChatWidget(context, { width: 420, height: 600, withWorkspace: true, firstLaunchSessionCount: 1 }),
+	}),
+	FirstLaunchLocalChats: defineComponentFixture({
+		render: context => renderNewChatWidget(context, { width: 850, height: 768, withWorkspace: true, firstLaunchSessionCount: 0, welcomePhrases: true }),
+	}),
 	Migrations: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],

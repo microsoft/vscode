@@ -64,6 +64,7 @@ import { AgentsWindowUsage } from '../../common/agentsWindowUsage.js';
 import { AgentsWindowGraphicDesign } from '../../browser/agentSessions/agentsWindowGraphic.js';
 import { AgentsWindowHoverCard } from '../../browser/agentSessions/agentsWindowHoverCard.js';
 import { IAgentHostEditorActivityService } from './agentHostEditorActivity.js';
+import { IAgentSessionsService } from '../../browser/agentSessions/agentSessionsService.js';
 
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE = localize2('openWorkspaceInAgentsWindow', "Open in Agents");
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_CHAT_TITLE_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.chatTitle';
@@ -74,6 +75,16 @@ function ensureAgentModeEnabled(configurationService: IConfigurationService): vo
 	if (configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) === false) {
 		throw new Error(localize('agentsWindow.agentModeDisabled', "The Agents window is unavailable because agent mode is disabled."));
 	}
+}
+
+async function editorHasSessions(accessor: ServicesAccessor): Promise<boolean> {
+	const model = accessor.get(IAgentSessionsService).model;
+	if (model.sessions.some(session => !session.isArchived())) {
+		return true;
+	}
+	const logService = accessor.get(ILogService);
+	await model.resolve(SessionType.Local, error => logService.warn('[AgentsFirstLaunch] Failed to refresh Editor chats', error));
+	return model.sessions.some(session => !session.isArchived());
 }
 
 function getInvokingWorkspaceFolder(accessor: ServicesAccessor): URI | undefined {
@@ -178,6 +189,7 @@ export class OpenWorkspaceInAgentsWindowAction extends Action2 {
 			folderUri: getInvokingWorkspaceFolder(accessor) ?? accessor.get(IWorkspaceContextService).getWorkspace().folders[0]?.uri,
 			reveal: options?.reveal,
 			source: options?.source ?? AgentsWindowOpenSource.CommandPalette,
+			...(options?.reveal === undefined ? { editorHasSessions: await editorHasSessions(accessor) } : undefined),
 			...draftOptions,
 		});
 	}
@@ -298,6 +310,7 @@ export class OpenAgentsWindowAction extends Action2 {
 			...(folderUri ? { folderUri, folderUriIsDefault: !draftOptions.draft } : undefined),
 			...draftOptions,
 			source: args?.source ?? AgentsWindowOpenSource.CommandPalette,
+			...(!args?.folderUri && !args?.reveal ? { editorHasSessions: await editorHasSessions(accessor) } : undefined),
 		});
 	}
 }
