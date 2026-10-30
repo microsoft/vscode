@@ -5497,7 +5497,7 @@ suite('CopilotAgent', () => {
 
 			// The wait itself is covered with a virtual clock in compactionTurnCorrelation.test.ts;
 			// here an unrecorded attempt reports an expired wait without real time passing.
-			const owners = new Map<string, string | null>([['attempt-in-turn', 'turn-1'], ['attempt-between-turns', null]]);
+			const owners = new Map<string, string | null>([['attempt-in-turn', 'turn-1'], ['attempt-between-turns', null], ['attempt-from-earlier-turn', 'turn-0']]);
 			const compactionTurnCorrelation: Pick<CompactionTurnCorrelation, 'resolve'> = {
 				resolve: async (attemptId): Promise<ICompactionTurnCorrelationResult> => {
 					const owner = owners.get(attemptId);
@@ -5530,13 +5530,16 @@ suite('CopilotAgent', () => {
 			await forward(compaction('active-session', 'session_compaction_complete', 'unrecorded-attempt'));
 			await forward(compaction('active-session', 'session_compaction_complete'));
 			await forward(compaction('unknown-session', 'session_compaction_complete', 'attempt-in-turn'));
-			// A compaction summarization call never completes a turn's model call, so its response
-			// row takes the active turn instead of waiting on a mapping that cannot arrive.
-			await forward({
+			// A summarization call never completes a turn's model call, so its response row takes the
+			// owner of its compaction attempt, even after a later turn became active.
+			const compactionResponse = (kind: string, attemptId?: string): GitHubTelemetryNotification => ({
 				sessionId: 'active-session',
 				restricted: false,
-				event: { kind: 'response.success', properties: { modelCallId: 'compaction-call', initiatorType: 'agent', requestKind: 'conversation-compaction' }, metrics: {} },
+				event: { kind, properties: { modelCallId: 'compaction-call', initiatorType: 'agent', requestKind: 'conversation-compaction', ...(attemptId ? { compaction_attempt_id: attemptId } : {}) }, metrics: {} },
 			});
+			await forward(compactionResponse('response.success', 'attempt-from-earlier-turn'));
+			await forward(compactionResponse('response.error', 'attempt-between-turns'));
+			await forward(compactionResponse('response.success'));
 			await timeout(0);
 
 			assert.deepStrictEqual({
@@ -5559,7 +5562,9 @@ suite('CopilotAgent', () => {
 					{ eventName: 'copilotSdk/session_compaction_complete', turnId: undefined, outcome: 'waitExpired', waited: true, copilotSku: 'sku-a' },
 					{ eventName: 'copilotSdk/session_compaction_complete', turnId: undefined, outcome: 'missingAttemptId', waited: false, copilotSku: 'sku-a' },
 					{ eventName: 'copilotSdk/session_compaction_complete', turnId: undefined, outcome: 'sessionNotFound', waited: false, copilotSku: undefined },
-					{ eventName: 'copilotSdk/response.success', turnId: 'turn-1', outcome: 'activeTurnFallback', waited: false, copilotSku: 'sku-a' },
+					{ eventName: 'copilotSdk/response.success', turnId: 'turn-0', outcome: 'mappingAvailable', waited: false, copilotSku: 'sku-a' },
+					{ eventName: 'copilotSdk/response.error', turnId: undefined, outcome: 'noOwningTurn', waited: false, copilotSku: 'sku-a' },
+					{ eventName: 'copilotSdk/response.success', turnId: undefined, outcome: 'missingAttemptId', waited: false, copilotSku: 'sku-a' },
 				],
 			});
 		} finally {

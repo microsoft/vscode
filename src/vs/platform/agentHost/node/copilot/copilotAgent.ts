@@ -3659,9 +3659,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 			forward(undefined, 'sessionNotFound');
 			return;
 		}
-		// Compaction summarization calls never complete a turn's model call, so no exact mapping
-		// will ever arrive for them; the compaction runs within whatever turn is active.
-		if (modelCallId !== undefined && event.properties.requestKind !== COMPACTION_REQUEST_KIND) {
+		// A summarization call never completes a turn's model call; it belongs to the turn that started its compaction attempt.
+		if (event.properties.requestKind === COMPACTION_REQUEST_KIND) {
+			const attemptId = event.properties.compaction_attempt_id;
+			if (typeof attemptId !== 'string' || !attemptId) {
+				forward(undefined, 'missingAttemptId');
+				return;
+			}
+			const result = await session.compactionTurnCorrelation.resolve(attemptId);
+			forward(result.turnId, result.outcome, result.waitMs);
+			return;
+		}
+		if (modelCallId !== undefined) {
 			const correlatedTurnId = session.modelCallTurnCorrelation.take(modelCallId);
 			if (correlatedTurnId) {
 				forward(correlatedTurnId, 'mappingAvailable');

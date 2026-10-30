@@ -7,11 +7,11 @@ import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
 import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import type { IAgentTelemetryContext } from '../../common/agent.js';
 import { toCopilotTelemetryData } from '../shared/copilotSkuTelemetry.js';
-import type { IForwardedCompactionCorrelation } from './compactionTurnCorrelation.js';
+import type { CompactionTurnCorrelationOutcome, IForwardedCompactionCorrelation } from './compactionTurnCorrelation.js';
 import type { ModelCallTurnCorrelationOutcome, ModelCallTurnCorrelationRecordStatus } from './modelCallTurnCorrelation.js';
 
 export interface ICopilotModelCallCorrelationTelemetry {
-	readonly ahCorrelationOutcome: ModelCallTurnCorrelationOutcome | 'sessionNotFound' | 'activeTurnFallback' | 'noActiveTurn';
+	readonly ahCorrelationOutcome: ModelCallTurnCorrelationOutcome | CompactionTurnCorrelationOutcome | 'missingAttemptId' | 'sessionNotFound' | 'activeTurnFallback' | 'noActiveTurn';
 	readonly ahCorrelationWaitMs?: number;
 	readonly ahActiveRootTurnIdAtResponse?: string;
 	readonly ahSessionDisposedDuringWait?: boolean;
@@ -63,7 +63,7 @@ type ModelCallTurnCorrelatedClassification = {
 
 /* __GDPR__FRAGMENT__
 	"CopilotModelCallCorrelation": {
-		"ahCorrelationOutcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Host correlation decision: mappingAvailable, mappingWaited, waitExpired, responseAlreadyForwarded, sessionNotFound, activeTurnFallback, or noActiveTurn. A wait expiry does not establish that a completion was produced." },
+		"ahCorrelationOutcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Host correlation decision: mappingAvailable, mappingWaited, waitExpired, responseAlreadyForwarded, sessionNotFound, activeTurnFallback, or noActiveTurn. A conversation-compaction response is correlated through its compaction attempt instead and may also report noOwningTurn (the compaction ran between turns) or missingAttemptId. A wait expiry does not establish that a completion was produced." },
 		"ahCorrelationWaitMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Actual elapsed correlation wait in milliseconds; absent when no wait occurred." },
 		"ahActiveRootTurnIdAtResponse": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Active root turn identifier captured at response callback entry before any wait, only when no authoritative turnId was resolved. A contextual root candidate, not an attribution repair; it may not own this model call." },
 		"ahSessionDisposedDuringWait": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Whether the session was disposed by the end of the correlation wait, encoded as 1 or 0. Present only when a wait occurred and no authoritative turnId was resolved." }
@@ -79,12 +79,13 @@ type ModelCallTurnCorrelatedClassification = {
 		"model": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model selected for the response." },
 		"apiType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "API type used for the response." },
 		"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier for the request." },
-		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Host-remapped turn identifier for the model response, or the active host turn on the fallback path." },
+		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Host-remapped turn identifier for the model response, the turn that owned the compaction attempt for a conversation-compaction call, or the active host turn on the fallback path." },
 		"usageStatus": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Availability of finite nonnegative input, output, and cache-read counters on this event: known, partial, or notReported. Not a guarantee of delivery completeness." },
 		"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub identifier for the request." },
 		"modelCallId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier for the model call." },
 		"reasoningEffort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort used for the response." },
 		"requestKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent Host interaction or call classification; conversation-compaction for conversation-history compaction (summarization) calls." },
+		"compaction_attempt_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Compaction attempt a conversation-compaction call belongs to; joins with copilotSdk/session_compaction_start and copilotSdk/session_compaction_complete." },
 		"transport": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model-call transport, either HTTP or WebSocket." },
 		"reasoningSummary": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Effective reasoning-summary setting." },
 		"toolCounts": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Tool-call counts keyed by telemetry-safe tool name." },
@@ -127,7 +128,7 @@ type ModelCallTurnCorrelatedClassification = {
 		"model": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model selected for the response." },
 		"apiType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "API type used for the response." },
 		"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier for the request." },
-		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Host-remapped turn identifier for the model failure, or the active host turn on the fallback path." },
+		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Host-remapped turn identifier for the model failure, the turn that owned the compaction attempt for a conversation-compaction call, or the active host turn on the fallback path." },
 		"usageStatus": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Availability of finite nonnegative input, output, and cache-read counters on this event: known, partial, or notReported. Missing usage on an error is not zero usage." },
 		"modelCallId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier for the model call." },
 		"promptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reported input tokens, when available on a failed response.", "isMeasurement": true },
@@ -136,6 +137,7 @@ type ModelCallTurnCorrelatedClassification = {
 		"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub identifier for the request." },
 		"reasoningEffort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort used for the response." },
 		"requestKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent Host interaction or call classification; conversation-compaction for conversation-history compaction (summarization) calls." },
+		"compaction_attempt_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Compaction attempt a conversation-compaction call belongs to; joins with copilotSdk/session_compaction_start and copilotSdk/session_compaction_complete." },
 		"copilot_pid": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Process identifier for the Copilot CLI runtime." },
 		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
 		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
@@ -454,7 +456,8 @@ export function isHydraFusionTelemetryKind(kind: string): boolean {
 		"tool_definitions_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Tokens in tool definitions when compaction started.", "isMeasurement": true },
 		"current_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Total context tokens when compaction started.", "isMeasurement": true },
 		"effective_token_limit_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Effective context-window token limit for the session's model.", "isMeasurement": true },
-		"target_prompt_token_limit_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Prompt-token limit the compaction must bring the context under, when a model switch sets one.", "isMeasurement": true }
+		"target_prompt_token_limit_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Prompt-token limit the compaction must bring the context under, when a model switch sets one.", "isMeasurement": true },
+		"execution": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "How the compaction ran: background, turn_blocking, pre_prompt, direct, or other." }
 	}
 */
 
@@ -518,7 +521,40 @@ export function isHydraFusionTelemetryKind(kind: string): boolean {
 		"summarizer_max_output_gap_before_answer_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Longest gap between the summarizer's outputs before its first answer output, in milliseconds.", "isMeasurement": true },
 		"summarizer_max_output_gap_after_answer_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Longest gap between the summarizer's outputs after its first answer output, in milliseconds.", "isMeasurement": true },
 		"summarizer_idle_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time since the summarizer's last stream event when the outcome was decided, in milliseconds.", "isMeasurement": true },
-		"summarizer_since_last_output_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time since the summarizer's last output when the outcome was decided, in milliseconds.", "isMeasurement": true }
+		"summarizer_since_last_output_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time since the summarizer's last output when the outcome was decided, in milliseconds.", "isMeasurement": true },
+		"execution": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "How the compaction ran: background, turn_blocking, pre_prompt, direct, or other." },
+		"last_attempt_failure_reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Bounded failure reason of the last summarizer attempt of a failed compaction." },
+		"provider_error_code": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Provider error code of a failed compaction; allowlisted values in standard telemetry, the raw code only in restricted telemetry." },
+		"transport_error_kind": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Bounded transport error kind of a failed compaction." },
+		"finish_reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Bounded finish reason of the failed summarizer response." },
+		"client_request_id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Request identifier the runtime sent for the summarizer call." },
+		"reasoning_effort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort of the compaction; unknown provider-defined labels are hashed." },
+		"summarizer_reasoning_effort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort the summarizer ran with; unknown provider-defined labels are hashed." },
+		"requested_reasoning_effort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort requested for the summarizer; unknown provider-defined labels are hashed." },
+		"fits_limit": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether an applied compaction left the context within the token limit, encoded as a string boolean." },
+		"no_progress": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether an applied compaction failed to reduce the context, encoded as a string boolean." },
+		"deadline_policy": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Deadline policy applied to the compaction attempt." },
+		"failure_operation": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Bounded step of the compaction attempt that failed." },
+		"summarizer_completed_requests": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of summarizer model calls that completed, including continuations past the output cap.", "isMeasurement": true },
+		"summary_chars": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Character count of the applied summary.", "isMeasurement": true },
+		"summarizer_answer_chars": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Answer characters produced by the latest summarizer attempt.", "isMeasurement": true },
+		"summarizer_reasoning_chars": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning characters produced by the latest summarizer attempt.", "isMeasurement": true },
+		"summarizer_input_tokens_estimate": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Estimated input tokens of the latest summarizer attempt.", "isMeasurement": true },
+		"attempt_duration_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "End-to-end duration of the compaction attempt in milliseconds.", "isMeasurement": true },
+		"blocking_wait_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time a turn was blocked waiting on the compaction in milliseconds.", "isMeasurement": true },
+		"apply_delay_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time a ready compaction outcome waited before being applied in milliseconds.", "isMeasurement": true },
+		"suspended_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time the machine was suspended during the compaction attempt in milliseconds.", "isMeasurement": true },
+		"deadline_limit_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Deadline applied to the compaction attempt in milliseconds.", "isMeasurement": true },
+		"deadline_overshoot_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "How far the compaction attempt ran past its deadline in milliseconds.", "isMeasurement": true },
+		"trigger_threshold": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Context-window fraction that triggered the compaction.", "isMeasurement": true },
+		"summarizer_max_output_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Maximum output tokens allowed for the summarizer.", "isMeasurement": true },
+		"summarizer_failed_request_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of summarizer model calls that failed.", "isMeasurement": true },
+		"summarizer_cancelled_request_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of summarizer model calls that were cancelled.", "isMeasurement": true },
+		"summarizer_failed_input_tokens_estimate": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Estimated input tokens of the summarizer model calls that failed.", "isMeasurement": true },
+		"summarizer_retry_wait_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time spent waiting between summarizer retries in milliseconds.", "isMeasurement": true },
+		"summarizer_last_retry_after_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Last retry-after delay the provider requested in milliseconds.", "isMeasurement": true },
+		"summarizer_shrink_removed_attachments": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Attachments removed when shrinking the summarizer input.", "isMeasurement": true },
+		"summarizer_shrink_stripped_reasoning": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning blocks stripped when shrinking the summarizer input.", "isMeasurement": true }
 	}
 */
 
