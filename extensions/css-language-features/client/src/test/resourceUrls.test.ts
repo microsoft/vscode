@@ -104,6 +104,33 @@ suite('CSS resource URLs', () => {
 		const list = UriList.from('file:///C:/project/assets/image.png');
 		assert.strictEqual(createUriListText(from, list), 'url("../assets/image.png")');
 	});
+
+	for (const { languageId, url, expected } of [
+		{ languageId: 'scss', url: 'https://example.com/icon.svg#{$id}', expected: 'https://example.com/icon.svg\\23 {$id}' },
+		{ languageId: 'scss', url: 'https://example.com/#{name}.svg?size=#{size}', expected: 'https://example.com/\\23 {name}.svg?size=\\23 {size}' },
+		{ languageId: 'less', url: 'https://example.com/icon.svg?theme=@{theme}', expected: 'https://example.com/icon.svg?theme=\\40 {theme}' },
+		{ languageId: 'less', url: 'https://example.com/${path}.svg#@{id}', expected: 'https://example.com/\\24 {path}.svg#\\40 {id}' },
+		{ languageId: 'css', url: 'https://example.com/#{name}/@{theme}/${path}', expected: 'https://example.com/#{name}/@{theme}/${path}' },
+		{ languageId: 'scss', url: 'https://example.com/icon.svg?theme=@{theme}', expected: 'https://example.com/icon.svg?theme=@{theme}' },
+		{ languageId: 'less', url: 'https://example.com/icon.svg#{$id}', expected: 'https://example.com/icon.svg#{$id}' },
+	]) {
+		test(`${languageId}: preserves literal interpolation in ${url}`, () => {
+			assert.strictEqual(createUriListText(directory, UriList.from(url), languageId), `url("${expected}")`);
+		});
+	}
+
+	for (const languageId of ['scss', 'less']) {
+		test(`${languageId}: protects interpolation in relative URL suffixes`, () => {
+			const url = languageId === 'scss' ? 'file:///project/assets/icon.svg#{$id}' : 'file:///project/assets/icon.svg?theme=@{theme}';
+			const expected = languageId === 'scss' ? '../assets/icon.svg\\23 {$id}' : '../assets/icon.svg?theme=\\40 {theme}';
+			assert.strictEqual(createUriListText(directory, UriList.from(url), languageId), `url("${expected}")`);
+		});
+
+		test(`${languageId}: preserves already encoded interpolation`, () => {
+			const url = 'https://example.com/%23%7Bname%7D.svg?theme=%40%7Btheme%7D#%24%7Bid%7D';
+			assert.strictEqual(createUriListText(directory, UriList.from(url), languageId), `url("${url}")`);
+		});
+	}
 });
 
 suite('CSS URL insertion context', () => {
@@ -136,7 +163,7 @@ suite('CSS URL insertion context', () => {
 		{ text: '@import \'|\';', preferPath: true },
 		{ text: '/* | */ a {}', preferPath: true },
 		{ text: '/* url( */ a { background: |; }', preferPath: false },
-		{ text: 'a { background: url(/* ) */ |); }', preferPath: true },
+		{ text: 'a { background: url(/* ) */ |); }', preferPath: false },
 		{ text: 'a { content: "url(\\"text\\")"; background: |; }', preferPath: false },
 		{ text: 'a { background: url(https://example.com/im|age.png); }', preferPath: true },
 	];
@@ -144,7 +171,7 @@ suite('CSS URL insertion context', () => {
 		for (const { text, preferPath } of cases) {
 			test(`${languageId}: ${text}`, () => {
 				const offset = text.indexOf('|');
-				assert.strictEqual(shouldInsertCssUrl(text.replace('|', ''), offset, languageId), !preferPath);
+				assert.strictEqual(shouldInsertCssUrl(text.replace('|', ''), [offset], languageId), !preferPath);
 			});
 		}
 	}
@@ -152,12 +179,83 @@ suite('CSS URL insertion context', () => {
 	for (const languageId of ['scss', 'less']) {
 		test(`${languageId}: ignores URL functions in line comments`, () => {
 			const text = '// url()\n// url(\na { background: ; }';
-			assert.strictEqual(shouldInsertCssUrl(text, text.indexOf(';'), languageId), true);
+			assert.strictEqual(shouldInsertCssUrl(text, [text.indexOf(';')], languageId), true);
 		});
 
 		test(`${languageId}: prefers paths inside a line comment`, () => {
 			const text = '// ';
-			assert.strictEqual(shouldInsertCssUrl(text, text.length, languageId), false);
+			assert.strictEqual(shouldInsertCssUrl(text, [text.length], languageId), false);
 		});
 	}
+
+	for (const languageId of ['css', 'scss', 'less']) {
+		test(`${languageId}: ignores comment markers in unquoted URLs`, () => {
+			const text = 'a { background: url(/images/*/icon.png); mask: ; }';
+			assert.strictEqual(shouldInsertCssUrl(text, [text.lastIndexOf(';')], languageId), true);
+		});
+	}
+});
+
+suite('CSS URL insertion at multiple selections', () => {
+	const cases: readonly { readonly text: string; readonly expected: boolean }[] = [
+		{ text: '|a { background: |; mask: |; }|', expected: true },
+		{ text: '|a { background: url(|); mask: |; }', expected: false },
+		{ text: '|a { background: |; content: "|"; }', expected: false },
+		{ text: '/* | */ a { background: |; }', expected: false },
+		{ text: '|/* url( */| a { background: |; }', expected: true },
+		{ text: '|/*/ a { background: |; }', expected: false },
+		{ text: '|/* *|/ a { background: |; }', expected: false },
+		{ text: '|a { background: url(/images/*/icon.png); mask: |; }', expected: true },
+		{ text: '|a { background: url( /images/*/icon.png); mask: |; }', expected: true },
+		{ text: '|a { background: url("icon.png" /* ) */); mask: |; }', expected: true },
+		{ text: '|a { background: url(image\\)one.png); mask: |; }', expected: true },
+		{ text: '|a { background: url("one\\\r\n).png"); mask: |; }', expected: true },
+		{ text: '|a { background: url("one\\\r|\n).png"); mask: |; }', expected: false },
+		{ text: '|a { background: url(var(--image)); mask: |; }', expected: true },
+	];
+	for (const languageId of ['css', 'scss', 'less']) {
+		for (const { text, expected } of cases) {
+			test(`${languageId}: ${text}`, () => {
+				const parts = text.split('|');
+				let offset = 0;
+				const offsets = parts.slice(0, -1).map(part => offset += part.length);
+				assert.strictEqual(shouldInsertCssUrl(parts.join(''), offsets, languageId), expected);
+			});
+		}
+	}
+
+	for (const languageId of ['scss', 'less']) {
+		for (const newline of ['\n', '\r', '\r\n']) {
+			test(`${languageId}: resumes after a line comment ending in ${JSON.stringify(newline)}`, () => {
+				const text = '// url( /* "' + newline + 'a { background: ; }';
+				assert.strictEqual(shouldInsertCssUrl(text, [0, text.indexOf(';')], languageId), true);
+			});
+		}
+
+		test(`${languageId}: rejects a selection inside a line comment`, () => {
+			const text = '// url(\na { background: ; }';
+			assert.strictEqual(shouldInsertCssUrl(text, [0, 3, text.indexOf(';')], languageId), false);
+		});
+	}
+
+	test('accepts unsorted and duplicate positions without modifying the input', () => {
+		const text = 'a { background: ; mask: ; }';
+		const offsets = Object.freeze([text.lastIndexOf(';'), 0, text.indexOf(';'), text.lastIndexOf(';')]);
+		assert.strictEqual(shouldInsertCssUrl(text, offsets, 'css'), true);
+	});
+
+	test('rejects a blocked position in an unsorted list', () => {
+		const text = 'a { background: url(); mask: ; }';
+		assert.strictEqual(shouldInsertCssUrl(text, [text.lastIndexOf(';'), text.indexOf(')'), 0], 'css'), false);
+	});
+
+	test('does not prefer URL insertion when there are no selections', () => {
+		assert.strictEqual(shouldInsertCssUrl('a {}', [], 'css'), false);
+	});
+
+	test('handles many selections in a stylesheet', () => {
+		const rule = 'a { background: ; }\n';
+		const offsets = Array.from({ length: 1000 }, (_, i) => i * rule.length + rule.indexOf(';'));
+		assert.strictEqual(shouldInsertCssUrl(rule.repeat(offsets.length), offsets.reverse(), 'css'), true);
+	});
 });

@@ -26,7 +26,7 @@ class DropOrPasteResourceProvider implements vscode.DocumentDropEditProvider, vs
 			return;
 		}
 
-		const edit = this.createUriListEdit(document.uri, uriList);
+		const edit = this.createUriListEdit(document, uriList);
 
 		return {
 			kind: this.kind,
@@ -51,7 +51,7 @@ class DropOrPasteResourceProvider implements vscode.DocumentDropEditProvider, vs
 			return;
 		}
 
-		const edit = this.createUriListEdit(document.uri, uriList);
+		const edit = this.createUriListEdit(document, uriList);
 
 		return [{
 			kind: this.kind,
@@ -61,9 +61,9 @@ class DropOrPasteResourceProvider implements vscode.DocumentDropEditProvider, vs
 		}];
 	}
 
-	private createUriListEdit(docUri: vscode.Uri, uriList: UriList): { readonly text: string; readonly label: string } {
+	private createUriListEdit(document: vscode.TextDocument, uriList: UriList): { readonly text: string; readonly label: string } {
 		return {
-			text: createUriListText(getDocumentDir(docUri), uriList),
+			text: createUriListText(getDocumentDir(document.uri), uriList, document.languageId),
 			label: uriList.entries.length > 1
 				? vscode.l10n.t('Insert url() Functions')
 				: vscode.l10n.t('Insert url() Function')
@@ -72,7 +72,7 @@ class DropOrPasteResourceProvider implements vscode.DocumentDropEditProvider, vs
 
 	private pasteAsCssUrlByDefault(document: vscode.TextDocument, positions: readonly vscode.Position[]): boolean {
 		const text = document.getText();
-		return positions.every(position => shouldInsertCssUrl(text, document.offsetAt(position), document.languageId));
+		return shouldInsertCssUrl(text, positions.map(position => document.offsetAt(position)), document.languageId);
 	}
 }
 
