@@ -119,6 +119,7 @@ import { getLocalModelThinkingLevels, type LocalModelThinkingSupport } from './l
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { findRelocatedAgentName, parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { CopilotGitHubTelemetryForwarder, isHydraFusionTelemetryKind, type ICopilotModelCallCorrelationTelemetry } from './copilotGitHubTelemetryForwarder.js';
+import { COMPACTION_REQUEST_KIND, isCompactionTelemetryKind, type IForwardedCompactionCorrelation } from './compactionTurnCorrelation.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
 import { CopilotSessionLauncher, type CopilotChatSurface, getCopilotHydraFusionConfig, getInlineChatFusionAutoTier, AutoTierConfigKey, ContextSizeConfigKey, CopilotAutoTierConfigKey, CopilotReasoningEffortConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotCustomAgents, getCopilotAgentSelection, getCopilotAgentSelectionName, getLocalModelSelectionId, isCopilotReasoningEffort, isCopilotSessionTelemetryEnabled, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotAppliedCustomizations } from './copilotSessionLauncher.js';
@@ -3614,6 +3615,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _forwardGitHubTelemetry(notification: GitHubTelemetryNotification): Promise<void> {
 		if (notification.event.kind === 'response.success' || notification.event.kind === 'response.error') {
 			await this._forwardResponseTelemetry(notification);
+		} else if (isCompactionTelemetryKind(notification.event.kind)) {
+			await this._forwardCompactionTelemetry(notification);
 		} else {
 			const modelCallId = this._modelCallIdForTelemetry(notification);
 			const session = notification.sessionId ? this._findSessionBySdkId(notification.sessionId) : undefined;
@@ -3622,6 +3625,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const fusionTurnId = typeof fusionId === 'string' && fusionId ? session?.getFusionTurnId(fusionId) : undefined;
 			this._gitHubTelemetryForwarder.forward(notification, fusionTurnId, undefined, modelCallId ? session?.modelCallTurnCorrelation.getTelemetryContext(modelCallId) : undefined);
 		}
+	}
+
+	private async _forwardCompactionTelemetry(notification: GitHubTelemetryNotification): Promise<void> {
+		const session = notification.sessionId ? this._findSessionBySdkId(notification.sessionId) : undefined;
+		const attemptId = notification.event.properties.compaction_attempt_id;
+		const modelCallId = this._modelCallIdForTelemetry(notification);
+		const telemetryContext = modelCallId ? session?.modelCallTurnCorrelation.getTelemetryContext(modelCallId) : undefined;
+		const correlation: IForwardedCompactionCorrelation = !session
+			? { turnId: undefined, outcome: 'sessionNotFound' }
+			: typeof attemptId !== 'string' || !attemptId
+				? { turnId: undefined, outcome: 'missingAttemptId' }
+				: await session.compactionTurnCorrelation.resolve(attemptId);
+		this._gitHubTelemetryForwarder.forwardCompaction(notification, correlation, telemetryContext);
 	}
 
 	private _modelCallIdForTelemetry(notification: GitHubTelemetryNotification): string | undefined {
@@ -3644,6 +3660,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 		if (!session) {
 			forward(undefined, 'sessionNotFound');
+			return;
+		}
+		// A summarization call never completes a turn's model call; it belongs to the turn that started its compaction attempt.
+		if (event.properties.requestKind === COMPACTION_REQUEST_KIND) {
+			const attemptId = event.properties.compaction_attempt_id;
+			if (typeof attemptId !== 'string' || !attemptId) {
+				forward(undefined, 'missingAttemptId');
+				return;
+			}
+			const result = await session.compactionTurnCorrelation.resolve(attemptId);
+			forward(result.turnId, result.outcome, result.waitMs);
 			return;
 		}
 		if (modelCallId !== undefined) {
