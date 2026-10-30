@@ -8,6 +8,7 @@ import { IContextViewProvider } from '../../../../../base/browser/ui/contextview
 import { AbstractFindController, AbstractTree, IFindFilter, IFindWidgetStyles } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../base/common/map.js';
 import { nextCharLength } from '../../../../../base/common/strings.js';
 import { localize } from '../../../../../nls.js';
@@ -15,16 +16,17 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 
 /**
  * Text of a session that a search matches besides its title and the titles of its chats:
- * - `location`: a workspace, folder, or repository name
- * - `group`: the name of a custom group or comparison the session is in
+ * - `folder`: the label of its workspace or the name of one of its folders
+ * - `repository`: the GitHub repository of its first folder, as `owner/name`
+ * - `group`: the name of a custom group or comparison whose header the session's row is under
  * - `branch`: a Git branch the session works on
  * - `pullRequest`: a pull request's number and title
  * - `host`: the remote host the session runs on
  */
-export type SessionSearchFieldKind = 'location' | 'group' | 'branch' | 'pullRequest' | 'host';
+export type SessionSearchFieldKind = 'folder' | 'repository' | 'group' | 'branch' | 'pullRequest' | 'host';
 
-/** The fields whose text a session's row does not show: a section header or the row's location badge shows the others. */
-export type SessionSearchHintKind = Extract<SessionSearchFieldKind, 'branch' | 'pullRequest' | 'host'>;
+/** The fields a search hint can name: group headers always show the names of the groups a row is in. */
+export type SessionSearchHintKind = Exclude<SessionSearchFieldKind, 'group'>;
 
 export interface ISessionSearchField {
 	readonly kind: SessionSearchFieldKind;
@@ -37,23 +39,32 @@ export interface ISessionSearchDocument {
 	readonly title: string;
 	/** The titles of the chats the session's row lists. */
 	readonly chatTitles: readonly string[];
-	/** The rest of its text. A word in several fields is attributed to the first of them. */
+	/** The rest of its text. A hint names the first field that contains a word. */
 	readonly fields: readonly ISessionSearchField[];
 }
 
-/** A field that the session's row does not show, in which the session matched a word that its title lacks. */
+/** A field the session matched a word in, which neither its title, chat titles, row, nor section headers show. */
 export interface ISessionSearchHint {
 	readonly kind: SessionSearchHintKind;
 	readonly text: string;
 	readonly matches: readonly IMatch[];
 }
 
+/** A word of the query that only a session's fields contain, and those fields. */
+export interface ISessionSearchFieldWord {
+	readonly word: string;
+	readonly fields: readonly ISessionSearchField[];
+}
+
 export interface ISessionSearchMatch {
+	/** The words of the query. */
+	readonly words: readonly string[];
 	/** The occurrences of the query's words in the title. */
 	readonly titleMatches: readonly IMatch[];
 	/** Whether a word is missing from the title, so that the session matched through its other text. */
 	readonly matchesBeyondTitle: boolean;
-	readonly hint: ISessionSearchHint | undefined;
+	/** The words that neither the title nor a chat title contains. */
+	readonly fieldWords: readonly ISessionSearchFieldWord[];
 }
 
 const COMBINING_DIACRITICAL_MARKS = /[\u0300-\u036f]/g;
@@ -151,7 +162,7 @@ export function findSearchWords(words: readonly string[], text: string): IMatch[
 }
 
 function isHintField(kind: SessionSearchFieldKind): kind is SessionSearchHintKind {
-	return kind === 'branch' || kind === 'pullRequest' || kind === 'host';
+	return kind !== 'group';
 }
 
 /** Matches a session against a query with words, or returns `undefined` when its text lacks one of them. */
@@ -159,7 +170,7 @@ export function matchSessionSearch(query: SessionsListSearchQuery, document: ISe
 	const title = foldSearchText(document.title);
 	let chatTitles: readonly string[] | undefined;
 	let fields: readonly string[] | undefined;
-	let hint: { readonly kind: SessionSearchHintKind; readonly text: string } | undefined;
+	const fieldWords: ISessionSearchFieldWord[] = [];
 	let matchesBeyondTitle = false;
 	for (const word of query.words) {
 		if (title.includes(word)) {
@@ -171,20 +182,38 @@ export function matchSessionSearch(query: SessionsListSearchQuery, document: ISe
 			continue;
 		}
 		fields ??= document.fields.map(field => foldSearchText(field.text));
-		const index = fields.findIndex(field => field.includes(word));
-		if (index === -1) {
+		const matchingFields = document.fields.filter((_field, index) => fields![index].includes(word));
+		if (matchingFields.length === 0) {
 			return undefined;
 		}
-		const field = document.fields[index];
-		if (!hint && isHintField(field.kind)) {
-			hint = { kind: field.kind, text: field.text };
-		}
+		fieldWords.push({ word, fields: matchingFields });
 	}
 	return {
+		words: query.words,
 		titleMatches: findSearchWords(query.words, document.title),
 		matchesBeyondTitle,
-		hint: hint && { ...hint, matches: findSearchWords(query.words, hint.text) },
+		fieldWords,
 	};
+}
+
+/**
+ * Explains why a session matched when a word of the query is in neither its title, its chat titles, nor `shownTexts`,
+ * the other texts that its row and the section headers above it show: names the first field that contains such a word.
+ */
+export function getSessionSearchHint(match: ISessionSearchMatch, shownTexts: readonly string[]): ISessionSearchHint | undefined {
+	let shown: readonly string[] | undefined;
+	for (const { word, fields } of match.fieldWords) {
+		shown ??= shownTexts.map(text => foldSearchText(text));
+		if (shown.some(text => text.includes(word))) {
+			continue;
+		}
+		for (const field of fields) {
+			if (isHintField(field.kind)) {
+				return { kind: field.kind, text: field.text, matches: findSearchWords(match.words, field.text) };
+			}
+		}
+	}
+	return undefined;
 }
 
 /**
@@ -202,11 +231,21 @@ export function toSearchFilterData(matches: readonly IMatch[]): FuzzyScore {
 	return score;
 }
 
+/** What a search of the Sessions list shows. */
+export interface ISessionsListSearchResults {
+	/** How many sessions and chats it shows. */
+	readonly count: number;
+	/** How many of them matched a word outside their title. */
+	readonly beyondTitleCount: number;
+}
+
 export interface ISessionsListFindControllerDelegate {
 	/** Whether the pattern has words to search for. */
 	isSearching(): boolean;
-	/** How many sessions and chats the search shows as results. */
-	getResultCount(): number;
+	/** Called after the tree filtered its rows by a changed pattern. */
+	didFilter(): void;
+	/** What the search shows. */
+	getResults(): ISessionsListSearchResults;
 }
 
 export interface ISessionsListFindControllerOptions {
@@ -220,9 +259,9 @@ export interface ISessionsListFindControllerOptions {
  */
 export class SessionsListFindController<T> extends AbstractFindController<T, FuzzyScore> {
 
-	private readonly _onDidSearch = new Emitter<number>();
-	/** Fires the result count after the pattern changes; `0` when it has no words. */
-	readonly onDidSearch: Event<number> = this._onDidSearch.event;
+	private readonly _onDidSearch = new Emitter<ISessionsListSearchResults | undefined>();
+	/** Fires what the search shows after its pattern changes; `undefined` when the pattern has no words. */
+	readonly onDidSearch: Event<ISessionsListSearchResults | undefined> = this._onDidSearch.event;
 
 	constructor(
 		tree: AbstractTree<T, FuzzyScore, unknown>,
@@ -243,6 +282,7 @@ export class SessionsListFindController<T> extends AbstractFindController<T, Fuz
 
 	protected applyPattern(): void {
 		this.tree.refilter();
+		this.delegate.didFilter();
 		const searching = this.delegate.isSearching();
 		if (searching) {
 			this.tree.focusNext(0, true, undefined, node => node.filterData !== undefined);
@@ -254,20 +294,20 @@ export class SessionsListFindController<T> extends AbstractFindController<T, Fuz
 		this._onDidSearch.fire(this.renderResults(searching));
 	}
 
-	private renderResults(announce: boolean): number {
+	private renderResults(announce: boolean): ISessionsListSearchResults | undefined {
 		if (!this.delegate.isSearching()) {
 			this.renderMessage(false);
-			return 0;
+			return undefined;
 		}
-		const count = this.delegate.getResultCount();
+		const results = this.delegate.getResults();
 		// The input announces its "no sessions found" message itself.
-		this.renderMessage(count === 0, localize('sessionsList.noResults', "No sessions found"));
-		if (announce && count > 0) {
-			status(count === 1
+		this.renderMessage(results.count === 0, localize('sessionsList.noResults', "No sessions found"));
+		if (announce && results.count > 0) {
+			status(results.count === 1
 				? localize('sessionsList.oneResult', "1 session found")
-				: localize('sessionsList.results', "{0} sessions found", count));
+				: localize('sessionsList.results', "{0} sessions found", results.count));
 		}
-		return count;
+		return results;
 	}
 }
 
@@ -282,17 +322,17 @@ type SessionsListSearchEvent = {
 
 type SessionsListSearchClassification = {
 	owner: 'alexdima';
-	comment: 'Tracks searches of the Agents window Sessions list, from the first word typed until the query is cleared or the search is closed, to measure whether they find sessions. The query text is not collected.';
+	comment: 'Tracks searches of the Agents window Sessions list, from the first word typed until the query is cleared, the search is closed, or the list is disposed, to measure whether they find sessions. The query text is not collected.';
 	wordCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of distinct words in the last query of the search.' };
 	resultCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of sessions and chats the last query showed.' };
 	beyondTitleResultCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of those results that matched a word outside their title, such as in a chat title, folder, branch, or pull request.' };
 	queryChangeCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of times the query changed during the search.' };
 	openCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of sessions or chats opened from the list during the search.' };
-	durationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Time in milliseconds from the first word of the search until it was cleared or closed.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Time in milliseconds from the first word of the search until it ended.' };
 };
 
-/** Logs one event per search of the Sessions list, from its first word until its query is cleared or it is closed. */
-export class SessionsListSearchTelemetry {
+/** Logs one event per search of the Sessions list, from its first word until its query is cleared, it is closed, or the list is disposed. */
+export class SessionsListSearchTelemetry implements IDisposable {
 
 	private search: { readonly startTime: number; queryChangeCount: number; openCount: number; wordCount: number; resultCount: number; beyondTitleResultCount: number } | undefined;
 
@@ -318,6 +358,11 @@ export class SessionsListSearchTelemetry {
 		if (this.search) {
 			this.search.openCount++;
 		}
+	}
+
+	/** Ends a search that is still open, such as when the window reloads. */
+	dispose(): void {
+		this.end();
 	}
 
 	private end(): void {

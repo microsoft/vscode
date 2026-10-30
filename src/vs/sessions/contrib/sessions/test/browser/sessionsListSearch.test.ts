@@ -8,20 +8,24 @@ import { createMatches } from '../../../../../base/common/filters.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { findSearchWords, ISessionSearchDocument, ISessionSearchField, matchSessionSearch, SessionsListSearchQuery, SessionsListSearchTelemetry, toSearchFilterData } from '../../browser/views/sessionsListSearch.js';
+import { findSearchWords, getSessionSearchHint, ISessionSearchDocument, ISessionSearchField, matchSessionSearch, SessionsListSearchQuery, SessionsListSearchTelemetry, toSearchFilterData } from '../../browser/views/sessionsListSearch.js';
 
 suite('Sessions - SessionsListSearch', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	/** How a session matches, as the matched text of its title and hint, or `undefined` when it does not match. */
-	function match(pattern: string, title: string, fields: readonly ISessionSearchField[] = [], chatTitles: readonly string[] = []) {
+	/**
+	 * How a session matches, as the matched text of its title, and the hint that explains it when its row and section
+	 * headers show `shownTexts`; or `undefined` when it does not match.
+	 */
+	function match(pattern: string, title: string, fields: readonly ISessionSearchField[] = [], chatTitles: readonly string[] = [], shownTexts: readonly string[] = []) {
 		const document: ISessionSearchDocument = { title, chatTitles, fields };
 		const result = matchSessionSearch(new SessionsListSearchQuery(pattern), document);
+		const hint = result && getSessionSearchHint(result, shownTexts);
 		return result && {
 			title: result.titleMatches.map(range => title.slice(range.start, range.end)),
 			beyondTitle: result.matchesBeyondTitle,
-			hint: result.hint && { kind: result.hint.kind, text: result.hint.text, matches: result.hint.matches.map(range => result.hint!.text.slice(range.start, range.end)) },
+			hint: hint && { kind: hint.kind, text: hint.text, matches: hint.matches.map(range => hint.text.slice(range.start, range.end)) },
 		};
 	}
 
@@ -43,9 +47,10 @@ suite('Sessions - SessionsListSearch', () => {
 		});
 	});
 
-	test('matches words in chat titles and fields, naming only fields the row does not show', () => {
+	test('names the first field of a word that neither the title, the chat titles, nor what the row shows contains', () => {
 		const fields: ISessionSearchField[] = [
-			{ kind: 'location', text: 'vscode' },
+			{ kind: 'folder', text: 'vscode' },
+			{ kind: 'repository', text: 'microsoft/vscode' },
 			{ kind: 'group', text: 'Perf work' },
 			{ kind: 'branch', text: 'alex/vscode-flake' },
 			{ kind: 'pullRequest', text: '#4242 Fix the flake' },
@@ -53,19 +58,25 @@ suite('Sessions - SessionsListSearch', () => {
 		];
 		assert.deepStrictEqual({
 			chatTitle: match('hello review', 'hello world', fields, ['Review it']),
-			// A word that the row shows elsewhere is attributed to that field first.
-			location: match('vscode', 'hello world', fields),
+			folderShown: match('vscode', 'hello world', fields, [], ['vscode']),
+			folderHidden: match('vscode', 'hello world', fields),
+			owner: match('microsoft', 'hello world', fields, [], ['vscode']),
+			// Group headers above a row always show the names of its groups.
 			group: match('perf', 'hello world', fields),
-			branch: match('flake hello', 'hello world', fields),
-			pullRequest: match('4242', 'hello world', fields),
-			host: match('devbox', 'hello world', fields),
+			branch: match('flake hello', 'hello world', fields, [], ['vscode']),
+			pullRequest: match('4242', 'hello world', fields, [], ['vscode']),
+			hostShown: match('devbox', 'hello world', fields, [], ['devbox']),
+			hostHidden: match('devbox', 'hello world', fields, [], ['vscode']),
 		}, {
 			chatTitle: { title: ['hello'], beyondTitle: true, hint: undefined },
-			location: { title: [], beyondTitle: true, hint: undefined },
+			folderShown: { title: [], beyondTitle: true, hint: undefined },
+			folderHidden: { title: [], beyondTitle: true, hint: { kind: 'folder', text: 'vscode', matches: ['vscode'] } },
+			owner: { title: [], beyondTitle: true, hint: { kind: 'repository', text: 'microsoft/vscode', matches: ['microsoft'] } },
 			group: { title: [], beyondTitle: true, hint: undefined },
 			branch: { title: ['hello'], beyondTitle: true, hint: { kind: 'branch', text: 'alex/vscode-flake', matches: ['flake'] } },
 			pullRequest: { title: [], beyondTitle: true, hint: { kind: 'pullRequest', text: '#4242 Fix the flake', matches: ['4242'] } },
-			host: { title: [], beyondTitle: true, hint: { kind: 'host', text: 'devbox', matches: ['devbox'] } },
+			hostShown: { title: [], beyondTitle: true, hint: undefined },
+			hostHidden: { title: [], beyondTitle: true, hint: { kind: 'host', text: 'devbox', matches: ['devbox'] } },
 		});
 	});
 
@@ -122,6 +133,23 @@ suite('Sessions - SessionsListSearch', () => {
 		assert.deepStrictEqual(events, [{
 			name: 'agents/sessionsListSearch',
 			data: { wordCount: 2, resultCount: 2, beyondTitleResultCount: 2, queryChangeCount: 2, openCount: 1, durationMs: 2000 },
+		}]);
+	});
+
+	test('logs a search that is still open when it is disposed, as when the window reloads', () => {
+		const events: { readonly name: string; readonly data: unknown }[] = [];
+		let now = 1000;
+		const telemetry = new SessionsListSearchTelemetry(upcastPartial<ITelemetryService>({ publicLog2: (name, data) => { events.push({ name, data }); } }), () => now);
+
+		telemetry.queryChanged(1, 3, 1);
+		telemetry.resultOpened();
+		now = 1500;
+		telemetry.dispose();
+		telemetry.dispose();
+
+		assert.deepStrictEqual(events, [{
+			name: 'agents/sessionsListSearch',
+			data: { wordCount: 1, resultCount: 3, beyondTitleResultCount: 1, queryChangeCount: 1, openCount: 1, durationMs: 500 },
 		}]);
 	});
 });

@@ -5915,6 +5915,8 @@ suite('Sessions - SessionsList', () => {
 
 		interface ISearchSessionOptions {
 			readonly branch?: string;
+			/** Whether the folder is a checkout of `microsoft/vscode`, as it is when it has `pullRequests`. */
+			readonly gitHub?: boolean;
 			/** Pull requests of a repository of `microsoft`. */
 			readonly pullRequests?: readonly { readonly repo: string; readonly number: number; readonly title: string }[];
 			/** Nested chats. */
@@ -5938,11 +5940,11 @@ suite('Sessions - SessionsList', () => {
 					workTreeUri: undefined,
 					branchName: options.branch,
 					baseBranchName: 'main',
-					gitHubInfo: constObservable(options.pullRequests && {
+					gitHubInfo: constObservable(options.gitHub || options.pullRequests ? {
 						owner: 'microsoft',
 						repo: 'vscode',
-						pullRequests: options.pullRequests.map(({ repo, number, title }) => ({ owner: 'microsoft', repo, number, uri: URI.parse(`https://github.com/microsoft/${repo}/pull/${number}`), title })),
-					}),
+						pullRequests: options.pullRequests?.map(({ repo, number, title }) => ({ owner: 'microsoft', repo, number, uri: URI.parse(`https://github.com/microsoft/${repo}/pull/${number}`), title })),
+					} : undefined),
 				},
 			};
 			const main = createChat(`${title} main`);
@@ -6095,6 +6097,60 @@ suite('Sessions - SessionsList', () => {
 				during: ['Pinned', '  Pinned «telemetry»', 'Archived', '  Archived «telemetry»'],
 				after: ['Pinned (collapsed)', 'Recent', '  Recent work', 'Archived (collapsed)'],
 				persisted: undefined,
+			});
+		});
+
+		test('names a folder or repository that neither the row nor its section headers show', async () => {
+			const sessions = () => [
+				createSession('Update README', { gitHub: true }),
+				createSession('Refactor transport', { test: { status: SessionStatus.InProgress, workspaceLabel: 'copilot-sdk' } }),
+			];
+			const date = renderSearch(sessions());
+			const compact = renderSearch(sessions(), {}, SessionsGrouping.Date, true);
+			const workspace = renderSearch(sessions(), {}, SessionsGrouping.Workspace);
+			try {
+				assert.deepStrictEqual({
+					// The row shows the folder, not the repository's owner.
+					owner: date.search('microsoft'),
+					// Active rows hide their folder.
+					activeFolder: date.search('copilot'),
+					// Compact rows show their folder only on hover.
+					compactFolder: compact.search('copilot'),
+					// The section header shows the folder.
+					folderInItsSection: workspace.search('copilot'),
+				}, {
+					owner: ['Recent', '  Update README [«microsoft»/vscode]'],
+					activeFolder: ['Recent', '  Refactor transport [«copilot»-sdk]'],
+					compactFolder: ['Recent', '  Refactor transport {«copilot»-sdk}'],
+					folderInItsSection: ['copilot-sdk', '  Refactor transport'],
+				});
+			} finally {
+				await Promise.all([date.closeSearch(), compact.closeSearch(), workspace.closeSearch()]);
+			}
+		});
+
+		test('shows the status of the whole session on a row whose chats a search hides', async () => {
+			// The session is in progress while its main chat is done; collapsed, its row shows that it is in progress.
+			const session = createSession('Investigate crash', { chats: ['Unrelated child'], test: { status: SessionStatus.InProgress } });
+			const { search, closeSearch } = renderSearch([session, createSession('Other work')], instantiationService => {
+				instantiationService.get(IStorageService).store('sessionsListControl.sessionCollapseState', JSON.stringify([session.resource.toString()]), StorageScope.PROFILE, StorageTarget.USER);
+			});
+			const readRow = () => {
+				const row = [...mainWindow.document.querySelectorAll<HTMLElement>('.monaco-list-row')].find(candidate => candidate.querySelector('.session-item .session-title')?.textContent === 'Investigate crash');
+				return { status: row?.querySelector('.session-details-row .session-description')?.textContent, state: /State: ([^,]+)/.exec(row?.getAttribute('aria-label') ?? '')?.[1] };
+			};
+			const before = readRow();
+			let during: { rows: string[]; row: ReturnType<typeof readRow> };
+			try {
+				during = { rows: search('crash'), row: readRow() };
+			} finally {
+				await closeSearch();
+			}
+
+			assert.deepStrictEqual({ before, during, after: readRow() }, {
+				before: { status: 'Working...', state: 'In Progress' },
+				during: { rows: ['Recent', '  Investigate «crash»'], row: { status: 'Working...', state: 'In Progress' } },
+				after: { status: 'Working...', state: 'In Progress' },
 			});
 		});
 
