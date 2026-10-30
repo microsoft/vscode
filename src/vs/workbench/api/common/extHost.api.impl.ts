@@ -27,7 +27,6 @@ import { DebugConfigurationProviderTriggerKind } from '../../contrib/debug/commo
 import { PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { ExtensionDescriptionRegistry } from '../../services/extensions/common/extensionDescriptionRegistry.js';
 import { UIKind } from '../../services/extensions/common/extensionHostProtocol.js';
-import { isAuthenticationDefaultScopesRequest } from '../../services/authentication/common/authentication.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ProxyIdentifier } from '../../services/extensions/common/proxyIdentifier.js';
 import { AISearchKeyword, ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchContext2, TextSearchMatch2 } from '../../services/search/common/searchExtTypes.js';
@@ -339,8 +338,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		})();
 
 		const authentication: typeof vscode.authentication = {
-			getSession(providerId: string, scopesOrChallenge: readonly string[] | vscode.AuthenticationWwwAuthenticateRequest | vscode.AuthenticationDefaultScopesRequest, options?: vscode.AuthenticationGetSessionOptions) {
-				if (isAuthenticationDefaultScopesRequest(scopesOrChallenge)) {
+			getSession(providerId: string, scopesOrChallenge: readonly string[] | vscode.AuthenticationWwwAuthenticateRequest | undefined, options?: vscode.AuthenticationGetSessionOptions) {
+				if (scopesOrChallenge === undefined) {
 					checkProposedApiEnabled(extension, 'authDefaultScopes');
 				}
 				if (

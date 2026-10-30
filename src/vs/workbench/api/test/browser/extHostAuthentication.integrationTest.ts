@@ -640,15 +640,15 @@ suite('ExtHostAuthentication', () => {
 			registerProvider('github', provider);
 
 			// Without a session, a passive request asks the user to sign in.
-			const passive = await extHostAuthentication.getSession(extensionDescription, 'github', { defaultScopes: true }, {});
+			const passive = await extHostAuthentication.getSession(extensionDescription, 'github', undefined, {});
 			const pending = getRequests('github', '2_signInRequests');
-			const created = await extHostAuthentication.getSession(extensionDescription, 'github', { defaultScopes: true }, { createIfNone: true });
+			const created = await extHostAuthentication.getSession(extensionDescription, 'github', undefined, { createIfNone: true });
 			// The new session satisfies the pending request.
 			await mainInstantiationService.get(IAuthenticationExtensionsService).updateNewSessionRequests('github', [created]);
-			const silent = await extHostAuthentication.getSession(extensionDescription, 'github', { defaultScopes: true }, { silent: true });
+			const silent = await extHostAuthentication.getSession(extensionDescription, 'github', undefined, { silent: true });
 			let rejected: string | undefined;
 			try {
-				await extHostAuthentication.getSession(extensionDescription, 'test', { defaultScopes: true }, { silent: true });
+				await extHostAuthentication.getSession(extensionDescription, 'test', undefined, { silent: true });
 			} catch (error) {
 				rejected = error instanceof Error ? error.message : String(error);
 			}
@@ -674,7 +674,7 @@ suite('ExtHostAuthentication', () => {
 			const provider = disposables.add(new ContextAuthProvider());
 			registerProvider('github', provider);
 
-			await extHostAuthentication.getSession(extensionDescription, 'github', { defaultScopes: true }, {});
+			await extHostAuthentication.getSession(extensionDescription, 'github', undefined, {});
 			await extHostAuthentication.getSession(extensionDescription, 'github', defaultScopes, {});
 
 			assert.strictEqual(getRequests('github', '2_signInRequests').length, 2);

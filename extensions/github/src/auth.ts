@@ -29,7 +29,7 @@ function getAgent(url: string | undefined = process.env.HTTPS_PROXY): Agent {
 }
 
 export async function getSession(): Promise<AuthenticationSession> {
-	return await authentication.getSession('github', { defaultScopes: true }, { createIfNone: true });
+	return await authentication.getSession('github', undefined, { createIfNone: true });
 }
 
 let _octokit: Promise<Octokit> | undefined;
@@ -78,7 +78,7 @@ export class OctokitService {
 	public async getOctokitGraphql(): Promise<graphql> {
 		if (!this._octokitGraphql) {
 			try {
-				const session = await authentication.getSession('github', { defaultScopes: true }, { silent: true });
+				const session = await authentication.getSession('github', undefined, { silent: true });
 
 				if (!session) {
 					throw new AuthenticationError('No GitHub authentication session available.');
