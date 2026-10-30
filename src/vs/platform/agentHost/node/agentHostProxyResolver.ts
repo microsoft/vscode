@@ -56,6 +56,18 @@ function createUrlRedactingProxyLog(logService: ILogService): ProxyLog {
 }
 
 /**
+ * A client reached over the protocol that shares this agent host's network, such as the Windows client of an agent
+ * host in WSL or a local container. Like a remote extension host with `useHostProxy`, the agent host may resolve
+ * proxies through it and fall back to its Kerberos tickets.
+ */
+export interface IAgentHostSharedNetworkClient {
+	/** The client's raw proxy resolution for `url`, such as `PROXY proxy:8080; DIRECT`. */
+	resolveProxy(url: string): Promise<string | undefined>;
+	/** A `Negotiate` `Proxy-Authorization` value for `proxyUrl` from the client's Kerberos tickets. */
+	lookupKerberosAuthorization(proxyUrl: string): Promise<string | undefined>;
+}
+
+/**
  * Node-side registry of renderer {@link IAgentHostClientProxyConnection}s keyed
  * by client id. Populated by the agent host's connection lifecycle (one entry
  * per connected renderer) and consumed by {@link CopilotAgent} to resolve the
@@ -63,11 +75,14 @@ function createUrlRedactingProxyLog(logService: ILogService): ProxyLog {
  *
  * Proxy configuration is a property of the machine, not of a particular window,
  * so any connected renderer can serve the lookup; the resolver calls the first
- * available connection and falls through to the next on failure.
+ * available connection and falls through to the next on failure. Clients that
+ * share the network of a remote agent host serve the same lookups over the
+ * protocol (see {@link IAgentHostSharedNetworkClient}).
  */
 export interface IAgentHostProxyResolver {
 	readonly _serviceBrand: undefined;
 
+	/** Fires when the first renderer connection or the first client sharing this agent host's network registers. */
 	readonly onDidRegisterConnection: Event<void>;
 	readonly onDidChangeConfiguration: Event<void>;
 	readonly clientCertificates: readonly string[];
@@ -80,6 +95,15 @@ export interface IAgentHostProxyResolver {
 
 	/** Register a renderer connection. Disposing the result removes it. */
 	register(clientId: string, connection: IAgentHostClientProxyConnection): IDisposable;
+
+	/** Register a client that shares this agent host's network. Disposing the result removes it. */
+	registerSharedNetworkClient(clientId: string, client: IAgentHostSharedNetworkClient): IDisposable;
+
+	/**
+	 * A `Negotiate` `Proxy-Authorization` value for `proxyUrl` from a client that shares this agent host's network, for
+	 * callers that already tried this machine's Kerberos tickets. `undefined` when no such client supplies one.
+	 */
+	lookupClientKerberosAuthorization(proxyUrl: string): Promise<string | undefined>;
 
 	getConfigurationValue<T>(key: AgentHostProxyConfigurationKey): T | undefined;
 
@@ -110,6 +134,7 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 	private readonly _configurationListener = this._register(new MutableDisposable());
 
 	private readonly _connections = new Map<string, IAgentHostClientProxyConnection>();
+	private readonly _sharedNetworkClients = new Map<string, IAgentHostSharedNetworkClient>();
 	private readonly _certificatesByClient = new Map<string, readonly string[]>();
 	private readonly _certificateProviders = this._register(new DisposableMap<string, IClientCertificateProvider>());
 	private _certificateProviderGeneration = 0;
@@ -245,6 +270,33 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 		});
 	}
 
+	registerSharedNetworkClient(clientId: string, client: IAgentHostSharedNetworkClient): IDisposable {
+		const hadClients = this._sharedNetworkClients.size > 0;
+		this._sharedNetworkClients.set(clientId, client);
+		if (!hadClients) {
+			this._onDidRegisterConnection.fire();
+		}
+		return toDisposable(() => {
+			if (this._sharedNetworkClients.get(clientId) === client) {
+				this._sharedNetworkClients.delete(clientId);
+			}
+		});
+	}
+
+	async lookupClientKerberosAuthorization(proxyUrl: string): Promise<string | undefined> {
+		for (const client of this._sharedNetworkClients.values()) {
+			try {
+				const authorization = await client.lookupKerberosAuthorization(proxyUrl);
+				if (authorization) {
+					return authorization;
+				}
+			} catch {
+				// This client could not serve the lookup; try the next one.
+			}
+		}
+		return undefined;
+	}
+
 	resolveProxy(url: string): Promise<string | undefined> {
 		return this._getProxyResolver().resolver.resolveProxyURL(url);
 	}
@@ -302,11 +354,11 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 					}
 				},
 				proxyResolveTelemetry: () => { },
-				// Only the local agent host wires the reverse proxy channel
-				// and we want to look up the client's proxy settings only
-				// when the agent host is local (i.e., on the same machine as
-				// the client).
-				isUseHostProxyEnabled: () => this._connections.size > 0,
+				// Look up the client's proxy settings only when the agent host
+				// shares the client's network: the local agent host wires the
+				// reverse proxy channel, and an agent host in WSL or a local
+				// container has a client advertising `vscode.clientProxy`.
+				isUseHostProxyEnabled: () => this._connections.size > 0 || this._sharedNetworkClients.size > 0,
 				getNetworkInterfaceCheckInterval: () => 300 * 1000,
 				env: process.env,
 			};
@@ -316,11 +368,11 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 	}
 
 	private async _hostResolveProxy(url: string): Promise<string | undefined> {
-		for (const connection of this._connections.values()) {
+		for (const connection of [...this._connections.values(), ...this._sharedNetworkClients.values()]) {
 			try {
 				return await connection.resolveProxy(url);
 			} catch {
-				// This renderer could not serve the lookup; try the next one.
+				// This client could not serve the lookup; try the next one.
 			}
 		}
 		return undefined;
@@ -345,13 +397,14 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 				// This renderer could not serve the lookup; try the next one.
 			}
 		}
+		// Like a remote extension host, use this machine's tickets before falling back to a client sharing its network.
 		try {
 			const spn = this.getConfigurationValue<string>(AgentHostProxyConfigKey.ProxyKerberosServicePrincipal);
 			return `Negotiate ${await this._lookupKerberosAuthorization(url, spn)}`;
 		} catch (error) {
 			this._logService.debug('AgentHostProxyResolver#lookupKerberosAuthorization Kerberos authentication failed', error);
-			return undefined;
 		}
+		return this.lookupClientKerberosAuthorization(url);
 	}
 
 	protected _lookupKerberosAuthorization(url: string, spn: string | undefined): Promise<string> {

@@ -43,6 +43,8 @@ suite('LocalModelSetupService', () => {
 			onDidRegisterConnection: Event.None,
 			onDidChangeConfiguration: Event.None,
 			register: () => toDisposable(() => { }),
+			registerSharedNetworkClient: () => toDisposable(() => { }),
+			lookupClientKerberosAuthorization: async () => undefined,
 			getConfigurationValue: () => undefined,
 			resolveProxy: async () => undefined,
 			fetch: () => Promise.reject(new Error('not used')),

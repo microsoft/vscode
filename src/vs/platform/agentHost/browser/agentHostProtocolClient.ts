@@ -11,7 +11,6 @@ import { DeferredPromise, disposableTimeout, IntervalTimer, raceCancellationErro
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { AgentHostKerberosAuthCapabilityMetaKey } from '../common/meta/agentHostKerberosAuthMeta.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, IReference, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ArtifactIntegrationRequest, ArtifactIntegrationResponse, ArtifactIntegrationUpdate, IArtifactIntegrationTransport, isArtifactIntegrationRequest, isArtifactIntegrationResponse, isArtifactIntegrationUpdate } from '../../artifactIntegrations/common/artifactIntegrationProtocol.js';
 import { ArtifactIntegrationsSettingId, type ArtifactIntegrationDescriptor } from '../../artifactIntegrations/common/artifactIntegration.js';
@@ -33,6 +32,8 @@ import { AgentHostChannelScheduler, readChannelFlowControl } from '../common/age
 import { AgentHostTcpBudget, AgentHostTcpConnection, agentHostTcpReceiveLimits, type IAgentHostTcpConnection } from '../common/agentHostTcpConnection.js';
 import { LoadClientCertificatesExtensionMethod, type IAgentHostClientCertificatesProvider } from '../common/clientCertificatesProtocol.js';
 import { AgentHostClientCertificatesCapabilityMetaKey } from '../common/meta/agentHostClientCertificatesMeta.js';
+import { LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, type IAgentHostClientProxyProvider } from '../common/clientProxyProtocol.js';
+import { AgentHostClientProxyCapabilityMetaKey } from '../common/meta/agentHostClientProxyMeta.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
@@ -43,7 +44,7 @@ import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, I
 import { readAgentHostAuthenticationEncryption, type IAgentHostAuthenticationEncryption } from '../common/meta/agentHostAuthenticationEncryption.js';
 import { sealAgentHostCredential } from './agentHostCredentialSealing.js';
 import { supportsAgentHostDebugLogsCancellation } from '../common/meta/agentHostDebugLogsMeta.js';
-import { AcknowledgeAutomationDeletionExtensionMethod, CancelWorktreeDiskUsageExtensionMethod, MeasureWorktreeDiskUsageExtensionMethod, AgentHostSessionMoveUnsupportedError, MoveAgentHostSessionExtensionMethod, supportsAgentHostSessionMove, CompleteSavedChatContinuationExtensionMethod, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ListAgentExtensionsExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetChatWorkspaceExtensionMethod, StopBackgroundWorkExtensionMethod, DeleteAutomationExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostCreateChatWorkspace, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, kerberosAuthRequestValidator, LookupKerberosAuthExtensionMethod, type IAgentHostKerberosAuthRequest, ReadSavedChatExtensionMethod, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../common/agentHostExtensionProtocol.js';
+import { AcknowledgeAutomationDeletionExtensionMethod, CancelWorktreeDiskUsageExtensionMethod, MeasureWorktreeDiskUsageExtensionMethod, AgentHostSessionMoveUnsupportedError, MoveAgentHostSessionExtensionMethod, supportsAgentHostSessionMove, CompleteSavedChatContinuationExtensionMethod, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ListAgentExtensionsExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetChatWorkspaceExtensionMethod, StopBackgroundWorkExtensionMethod, DeleteAutomationExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostCreateChatWorkspace, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, ReadSavedChatExtensionMethod, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../common/agentHostExtensionProtocol.js';
 import { supportsAgentHostAutomationHistory } from '../common/meta/agentHostAutomationsMeta.js';
 import { supportsAgentHostCopilotExtensions } from '../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../common/meta/agentHostSavedChatMeta.js';
@@ -253,8 +254,6 @@ type ClientState =
 export interface IAgentHostProtocolClientOptions {
 	/** Maps client and host resource identities for non-local connections. */
 	readonly resourceUris?: IAgentHostResourceUriMapper;
-	/** Windows credential lookup, supplied only by the Windows-to-WSL connection factory. */
-	readonly kerberosAuth?: (request: IAgentHostKerberosAuthRequest) => Promise<string | undefined>;
 	/** Seals relay credentials only after independently authenticating the requested recipient key. */
 	readonly sealAuthenticationToken?: (request: IMissionControlCredentialSealingRequest) => Promise<string>;
 	/** Estimator used to suppress watchdog closes while the local event loop is saturated. Defaults to the shared instance. */
@@ -278,6 +277,8 @@ export interface IAgentHostProtocolClientOptions {
 	readonly resolveAdvertisedAuthentication?: (agents: readonly AgentInfo[]) => Promise<readonly AuthenticateParams[]>;
 	/** Serves client trust roots on demand only for remotes sharing the client's network. */
 	readonly clientCertificates?: IAgentHostClientCertificatesProvider;
+	/** Serves proxy resolution and proxy Kerberos tickets only for remotes sharing the client's network. */
+	readonly clientProxy?: IAgentHostClientProxyProvider;
 	/** Releases resources owned by the logical protocol client after its final disposal. */
 	readonly onDispose?: () => void;
 }
@@ -292,8 +293,15 @@ export class InitialAuthenticationError extends Error {
 
 class AuthenticationEncryptionError extends Error { }
 
-/** Limits forwarded Windows credentials to HTTP service principals until an allow list is available. */
-const kerberosServicePrincipalPattern = /^HTTP\/\S+$/i;
+/** Kerberos is only offered for HTTP proxies. */
+function isHttpUrl(value: string): boolean {
+	try {
+		const { protocol, hostname } = new URL(value);
+		return (protocol === 'http:' || protocol === 'https:') && !!hostname;
+	} catch {
+		return false;
+	}
+}
 
 const mcpAuthenticationRequestValidator = vObj({
 	serverName: vString(),
@@ -336,7 +344,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _tcpBudget = new AgentHostTcpBudget();
 	private readonly _channelScheduler = this._register(new MutableDisposable<AgentHostChannelScheduler>());
 	private _mcpAuthenticationHandler: ((request: IAgentHostMcpAuthenticationRequest) => Promise<boolean>) | undefined;
-	private readonly _kerberosAuth: IAgentHostProtocolClientOptions['kerberosAuth'];
 	private _authenticationTokenSealer: ((request: IMissionControlCredentialSealingRequest) => Promise<string>) | undefined;
 	private readonly _trustedAuthenticationTokenSealer: IAgentHostProtocolClientOptions['sealAuthenticationToken'];
 
@@ -551,6 +558,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _resolveInitialAuthentication: (() => Promise<AuthenticateParams | undefined>) | undefined;
 	private readonly _resolveAdvertisedAuthentication: IAgentHostProtocolClientOptions['resolveAdvertisedAuthentication'];
 	private readonly _clientCertificates: IAgentHostProtocolClientOptions['clientCertificates'];
+	private readonly _clientProxy: IAgentHostProtocolClientOptions['clientProxy'];
 	private readonly _onDispose: (() => void) | undefined;
 	private _didDispose = false;
 
@@ -625,7 +633,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._register(options.onDidResume(() => this._resumeReconnectDeadline()));
 		}
 		this._clientInfo = options?.clientInfo;
-		this._kerberosAuth = options?.kerberosAuth;
 		this._reconnectPolicy = options?.reconnectPolicy ?? DEFAULT_RECONNECT_POLICY;
 		this._prepareReconnect = options?.prepareReconnect;
 		this._prepareAuthentication = options?.prepareAuthentication;
@@ -633,6 +640,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._trustedAuthenticationTokenSealer = options?.sealAuthenticationToken;
 		this._resolveAdvertisedAuthentication = options?.resolveAdvertisedAuthentication;
 		this._clientCertificates = options?.clientCertificates;
+		this._clientProxy = options?.clientProxy;
 		this._onDispose = options?.onDispose;
 
 		if (typeof transportOrFactory === 'function') {
@@ -1519,7 +1527,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		const sendIdentity = telemetryLevel >= TelemetryLevel.USAGE;
 		return {
 			...(this._clientCertificates?.isEnabled() ? { [AgentHostClientCertificatesCapabilityMetaKey]: true } : {}),
-			...(this._kerberosAuth ? { [AgentHostKerberosAuthCapabilityMetaKey]: true } : {}),
+			...(this._clientProxy?.isEnabled() ? { [AgentHostClientProxyCapabilityMetaKey]: true } : {}),
 			...toAgentHostClientMeta(
 				this._transport.clientConnectionKind,
 				telemetryLevel,
@@ -3231,19 +3239,29 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 						sendResult({ certificates: [...certificates] } satisfies IAgentHostExtensionServerCommandMap[typeof LoadClientCertificatesExtensionMethod]['result']);
 						return;
 					}
-					case LookupKerberosAuthExtensionMethod: {
-						if (!this._kerberosAuth) {
-							throw new Error('This client does not provide Kerberos credentials');
+					case ResolveClientProxyExtensionMethod: {
+						if (!this._clientProxy?.isEnabled()) {
+							throw new Error('This client does not resolve proxies for this agent host');
 						}
-						const request = kerberosAuthRequestValidator.validateOrThrow(params);
-						if (!kerberosServicePrincipalPattern.test(request.spn)) {
-							throw new Error('Unsupported Kerberos service principal');
+						const { url } = resolveClientProxyParamsValidator.validateOrThrow(params);
+						sendResult({ proxy: await this._clientProxy.resolveProxy(url) } satisfies IAgentHostExtensionServerCommandMap[typeof ResolveClientProxyExtensionMethod]['result']);
+						return;
+					}
+					case LookupClientProxyKerberosAuthorizationExtensionMethod: {
+						if (!this._clientProxy?.isEnabled()) {
+							throw new Error('This client does not provide Kerberos credentials for this agent host');
 						}
+						const { proxyUrl } = lookupClientProxyKerberosAuthorizationParamsValidator.validateOrThrow(params);
+						if (!isHttpUrl(proxyUrl)) {
+							throw new Error('Unsupported proxy URL');
+						}
+						let authorization: string | undefined;
 						try {
-							sendResult({ kerberosToken: await this._kerberosAuth(request) });
+							authorization = await this._clientProxy.lookupKerberosAuthorization(proxyUrl);
 						} catch {
 							throw new Error('Kerberos credential lookup failed');
 						}
+						sendResult({ authorization } satisfies IAgentHostExtensionServerCommandMap[typeof LookupClientProxyKerberosAuthorizationExtensionMethod]['result']);
 						return;
 					}
 					case ClientArtifactIntegrationExtensionMethod: {

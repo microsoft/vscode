@@ -49,7 +49,6 @@ import { extract, validateZip, zip, type IFile } from '../../../base/node/zip.js
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
-import { lookupKerberosToken } from '../../request/node/requestService.js';
 import { randomPath } from '../../../base/common/extpath.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { GPUCompositingState } from './gpuCompositingState.js';
@@ -1262,15 +1261,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async lookupKerberosAuthorization(_windowId: number | undefined, url: string): Promise<string | undefined> {
 		return this.requestService.lookupKerberosAuthorization(url);
-	}
-
-	async lookupKerberosToken(_windowId: number | undefined, spn: string): Promise<string | undefined> {
-		try {
-			return await lookupKerberosToken(spn);
-		} catch (error) {
-			this.logService.debug(`NativeHostMainService#lookupKerberosToken Kerberos lookup failed for ${spn}`, error);
-			return undefined;
-		}
 	}
 
 	async loadCertificates(_windowId: number | undefined): Promise<string[]> {

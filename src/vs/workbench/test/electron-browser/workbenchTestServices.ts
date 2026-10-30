@@ -196,7 +196,6 @@ export class TestNativeHostService implements INativeHostService {
 	}
 	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> { return undefined; }
 	async lookupKerberosAuthorization(url: string): Promise<string | undefined> { return undefined; }
-	async lookupKerberosToken(spn: string): Promise<string | undefined> { return undefined; }
 	async loadCertificates(): Promise<string[]> { return []; }
 	async isPortFree() { return Promise.resolve(true); }
 	async findFreePort(startPort: number, giveUpAfter: number, timeout: number, stride?: number): Promise<number> { return -1; }

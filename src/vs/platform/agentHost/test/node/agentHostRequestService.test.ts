@@ -45,6 +45,14 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 		return Disposable.None;
 	}
 
+	registerSharedNetworkClient(): IDisposable {
+		return Disposable.None;
+	}
+
+	async lookupClientKerberosAuthorization(): Promise<string | undefined> {
+		return undefined;
+	}
+
 	getConfigurationValue<T>(_key: string): T | undefined {
 		return undefined;
 	}
@@ -66,9 +74,13 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 
 class TestAgentHostProxyResolver extends AgentHostProxyResolver {
 	kerberosLookup: { url: string; spn: string | undefined } | undefined;
+	nativeKerberosFails = false;
 
 	protected override async _lookupKerberosAuthorization(url: string, spn: string | undefined): Promise<string> {
 		this.kerberosLookup = { url, spn };
+		if (this.nativeKerberosFails) {
+			throw new Error('No Kerberos ticket');
+		}
 		return 'token';
 	}
 }
@@ -403,6 +415,59 @@ suite('AgentHostProxyResolver', () => {
 				url: 'http://proxy.example:8080',
 				spn: 'HTTP/proxy.example',
 			},
+		});
+	});
+
+	test('resolves proxies through a client sharing the network only while it is registered', async () => {
+		const resolver = disposables.add(new AgentHostProxyResolver(createAgentConfigurationService(disposables), new NullLogService()));
+		let registrations = 0;
+		disposables.add(resolver.onDidRegisterConnection(() => registrations++));
+		const resolved: string[] = [];
+		const client = disposables.add(resolver.registerSharedNetworkClient('wsl', {
+			resolveProxy: async url => {
+				resolved.push(url);
+				return 'PROXY proxy.example:8080';
+			},
+			lookupKerberosAuthorization: async () => undefined,
+		}));
+		const shared = await resolver.resolveProxy('https://shared.example/path');
+		client.dispose();
+		const afterDisconnect = await resolver.resolveProxy('https://disconnected.example/path');
+
+		assert.deepStrictEqual({ shared, afterDisconnect, resolved, registrations }, {
+			shared: 'http://proxy.example:8080',
+			afterDisconnect: undefined,
+			resolved: ['https://shared.example/path'],
+			registrations: 1,
+		});
+	});
+
+	test('uses this machine\'s Kerberos tickets before those of clients sharing the network', async () => {
+		const resolver = disposables.add(new TestAgentHostProxyResolver(createAgentConfigurationService(disposables), new NullLogService()));
+		const lookups: string[] = [];
+		disposables.add(resolver.registerSharedNetworkClient('failing', {
+			resolveProxy: async () => undefined,
+			lookupKerberosAuthorization: async () => { throw new Error('disconnected'); },
+		}));
+		disposables.add(resolver.registerSharedNetworkClient('wsl', {
+			resolveProxy: async () => undefined,
+			lookupKerberosAuthorization: async proxyUrl => {
+				lookups.push(proxyUrl);
+				return 'Negotiate client-token';
+			},
+		}));
+		const lookup = (url: string) => (resolver as unknown as {
+			_hostLookupKerberosAuthorization(url: string): Promise<string | undefined>;
+		})._hostLookupKerberosAuthorization(url);
+
+		const native = await lookup('http://proxy.example:8080');
+		resolver.nativeKerberosFails = true;
+		const fallback = await lookup('http://proxy.example:8080');
+
+		assert.deepStrictEqual({ native, fallback, lookups }, {
+			native: 'Negotiate token',
+			fallback: 'Negotiate client-token',
+			lookups: ['http://proxy.example:8080'],
 		});
 	});
 });

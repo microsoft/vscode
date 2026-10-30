@@ -5,6 +5,7 @@
 
 import { ValidatorBase, vArray, vBoolean, vEnum, vObj, vOptionalProp, vString, type ValidationError, type ValidatorType } from '../../../base/common/validation.js';
 import { LoadClientCertificatesExtensionMethod, loadClientCertificatesResultValidator } from './clientCertificatesProtocol.js';
+import { LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, resolveClientProxyResultValidator } from './clientProxyProtocol.js';
 import type { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import type { IDevContainerAgentHostConnectResult } from './devContainerAgentHost.js';
 import type { AgentExtensionMode, AgentExtensionSource, AgentExtensionStatus } from './agent.js';
@@ -402,19 +403,13 @@ export interface IAgentHostMcpAuthenticationRequest {
 	readonly auth: McpAuthRequirement;
 }
 
-/** Host → client: requests a fresh Kerberos token for a service principal; sent only to clients advertising `vscode.kerberosAuth`. */
-export const LookupKerberosAuthExtensionMethod = 'vscode/lookupKerberosAuthorization';
-
-/** A Kerberos service principal in the platform-independent `service/host[@REALM]` form. */
-export interface IAgentHostKerberosAuthRequest {
-	readonly spn: string;
-}
-
-export const kerberosAuthRequestValidator = vObj({ spn: vString() });
-export const kerberosAuthResultValidator = vObj({ kerberosToken: vOptionalProp(vString()) });
-
 export interface IAgentHostExtensionServerCommandMap {
 	[LoadClientCertificatesExtensionMethod]: { params: Record<string, never>; result: ValidatorType<typeof loadClientCertificatesResultValidator> };
+	[ResolveClientProxyExtensionMethod]: { params: ValidatorType<typeof resolveClientProxyParamsValidator>; result: ValidatorType<typeof resolveClientProxyResultValidator> };
+	[LookupClientProxyKerberosAuthorizationExtensionMethod]: {
+		params: ValidatorType<typeof lookupClientProxyKerberosAuthorizationParamsValidator>;
+		result: ValidatorType<typeof lookupClientProxyKerberosAuthorizationResultValidator>;
+	};
 	[RequestAgentHostWorkspaceTrustExtensionMethod]: {
 		params: IAgentHostWorkspaceTrustRequest;
 		result: { trusted: boolean };
@@ -426,9 +421,5 @@ export interface IAgentHostExtensionServerCommandMap {
 	[RequestAgentHostMcpAuthenticationExtensionMethod]: {
 		params: IAgentHostMcpAuthenticationRequest;
 		result: { authenticated: boolean };
-	};
-	[LookupKerberosAuthExtensionMethod]: {
-		params: IAgentHostKerberosAuthRequest;
-		result: { kerberosToken?: string };
 	};
 }

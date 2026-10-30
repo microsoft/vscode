@@ -10,6 +10,8 @@ import { rootCertificates } from 'tls';
 import { AgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { LoadClientCertificatesExtensionMethod } from '../../common/clientCertificatesProtocol.js';
+import { LookupClientProxyKerberosAuthorizationExtensionMethod, ResolveClientProxyExtensionMethod } from '../../common/clientProxyProtocol.js';
+import { AgentHostClientProxyCapabilityMetaKey } from '../../common/meta/agentHostClientProxyMeta.js';
 import sinon from 'sinon';
 import { generateKeyPairSync, sign, type JsonWebKey } from 'crypto';
 import { EventEmitter } from 'events';
@@ -18,7 +20,6 @@ import { lstat, mkdir, mkdtemp, opendir, readFile, readdir, rm, symlink, writeFi
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { AgentHostWorktreeDiskUsageService } from '../../node/worktreeDiskUsage.js';
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
-import { AgentHostKerberosAuthCapabilityMetaKey } from '../../common/meta/agentHostKerberosAuthMeta.js';
 import { dirname, join, parse } from '../../../../base/common/path.js';
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
@@ -52,7 +53,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, LookupKerberosAuthExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { supportsAgentHostCopilotExtensions } from '../../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
@@ -743,7 +744,7 @@ suite('ProtocolServerHandler', () => {
 		});
 	}
 
-	test('does not pull client certificates over the relay data plane', async () => {
+	test('does not pull client certificates or proxy lookups over the relay data plane', async () => {
 		const relayServer = disposables.add(new MockProtocolServer());
 		disposables.add(new ProtocolServerHandler(
 			agentService, stateManager, relayServer, { allowExtensionMethods: false, relayRoots: ['/workspace'] },
@@ -754,13 +755,15 @@ suite('ProtocolServerHandler', () => {
 		const transport = disposables.add(new MockProtocolTransport());
 		relayServer.simulateConnection(transport);
 		const initialized = waitForResponse(transport, 1);
-		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'relay-certificates', _meta: { 'vscode.clientCertificates': true } }));
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'relay-certificates', _meta: { 'vscode.clientCertificates': true, [AgentHostClientProxyCapabilityMetaKey]: true } }));
 		await initialized;
 		await proxyResolver.loadClientCertificates();
 		assert.deepStrictEqual({
 			request: findRequest(transport.sent, LoadClientCertificatesExtensionMethod),
 			certificates: proxyResolver.clientCertificates,
-		}, { request: undefined, certificates: [] });
+			kerberos: await proxyResolver.lookupClientKerberosAuthorization('http://proxy.example:8080'),
+			kerberosRequest: findRequest(transport.sent, LookupClientProxyKerberosAuthorizationExtensionMethod),
+		}, { request: undefined, certificates: [], kerberos: undefined, kerberosRequest: undefined });
 	});
 
 	test('handshake returns initialize response', () => {
@@ -965,25 +968,35 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('requests Kerberos credentials only from advertising clients and stops after disconnect', async () => {
+	test('serves proxy lookups through clients advertising the client proxy and stops after disconnect', async () => {
 		const unadvertised = connectClient('other-host-client');
-		const malformed = connectClient('malformed-capability', undefined, undefined, { [AgentHostKerberosAuthCapabilityMetaKey]: 'true' });
-		const windows = connectClient('windows', undefined, undefined, { [AgentHostKerberosAuthCapabilityMetaKey]: true });
-		const params = { spn: 'HTTP/custom' };
-		const result = clientConnections.lookupKerberosAuthorization(params);
-		const reverseRequest = findRequest(windows.sent, LookupKerberosAuthExtensionMethod);
-		assert.ok(reverseRequest);
-		windows.simulateMessage({ jsonrpc: '2.0', id: reverseRequest.id, result: { kerberosToken: 'ticket' } });
-		const token = await result;
-		windows.simulateClose();
-		assert.deepStrictEqual({
-			token, params: reverseRequest.params,
-			unadvertised: findRequest(unadvertised.sent, LookupKerberosAuthExtensionMethod),
-			malformed: findRequest(malformed.sent, LookupKerberosAuthExtensionMethod),
-		}, { token: 'ticket', params, unadvertised: undefined, malformed: undefined });
-		assert.strictEqual(await clientConnections.lookupKerberosAuthorization(params), undefined);
-	});
+		const malformed = connectClient('malformed-capability', undefined, undefined, { [AgentHostClientProxyCapabilityMetaKey]: 'true' });
+		const wsl = connectClient('wsl', undefined, undefined, { [AgentHostClientProxyCapabilityMetaKey]: true });
+		const respond = async <T>(method: string, start: () => Promise<T>, result: { readonly proxy: string } | { readonly authorization: string }) => {
+			const sent = Event.toPromise(Event.filter(wsl.onDidSend, message => !!findRequest([message], method)));
+			const pending = start();
+			const reverseRequest = findRequest([await sent], method);
+			assert.ok(reverseRequest);
+			wsl.simulateMessage({ jsonrpc: '2.0', id: reverseRequest.id, result });
+			return { params: reverseRequest.params, result: await pending };
+		};
 
+		const proxy = await respond(ResolveClientProxyExtensionMethod, () => proxyResolver.resolveProxy('https://example.com/path'), { proxy: 'PROXY proxy.example:8080' });
+		const kerberos = await respond(LookupClientProxyKerberosAuthorizationExtensionMethod, () => proxyResolver.lookupClientKerberosAuthorization('http://proxy.example:8080'), { authorization: 'Negotiate ticket' });
+		wsl.simulateClose();
+		assert.deepStrictEqual({
+			proxy, kerberos,
+			afterDisconnect: await proxyResolver.lookupClientKerberosAuthorization('http://proxy.example:8080'),
+			unadvertised: [ResolveClientProxyExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod].map(method => findRequest(unadvertised.sent, method)),
+			malformed: [ResolveClientProxyExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod].map(method => findRequest(malformed.sent, method)),
+		}, {
+			proxy: { params: { url: 'https://example.com/path' }, result: 'http://proxy.example:8080' },
+			kerberos: { params: { proxyUrl: 'http://proxy.example:8080' }, result: 'Negotiate ticket' },
+			afterDisconnect: undefined,
+			unadvertised: [undefined, undefined],
+			malformed: [undefined, undefined],
+		});
+	});
 	test('returns false for MCP authentication without connected clients', async () => {
 		const params: IAgentHostMcpAuthenticationRequest = {
 			serverName: 'example',

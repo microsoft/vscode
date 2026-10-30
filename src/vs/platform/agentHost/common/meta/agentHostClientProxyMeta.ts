@@ -3,4 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { AgentHostKerberosAuthCapabilityMetaKey, supportsAgentHostKerberosAuth } from './vscode/agentHostKerberosAuthMeta.js';
+export { AgentHostClientProxyCapabilityMetaKey, supportsAgentHostClientProxy } from './vscode/agentHostClientProxyMeta.js';

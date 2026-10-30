@@ -200,6 +200,8 @@ export function createTestAgentHostProxyResolver(fetchFn: typeof globalThis.fetc
 		onDidRegisterConnection: Event.None,
 		onDidChangeConfiguration: Event.None,
 		register: () => Disposable.None,
+		registerSharedNetworkClient: () => Disposable.None,
+		lookupClientKerberosAuthorization: async () => undefined,
 		getConfigurationValue: () => undefined,
 		resolveProxy: async () => undefined,
 		fetch: fetchFn,

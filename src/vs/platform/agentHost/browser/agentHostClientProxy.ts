@@ -7,48 +7,63 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { IDefaultAccountService } from '../../defaultAccount/common/defaultAccount.js';
 import { GITHUB_DOT_COM_COPILOT_API_BASE_URI } from '../../github/common/githubEndpoints.js';
 import { ILogService } from '../../log/common/log.js';
-import { INativeHostService } from '../../native/common/native.js';
 import { IRequestService } from '../../request/common/request.js';
-import type { IAgentHostKerberosAuthRequest } from '../common/agentHostExtensionProtocol.js';
+import type { IAgentHostClientProxyProvider } from '../common/clientProxyProtocol.js';
 import { AgentHostProxyConfigKey } from '../common/agentHostSchema.js';
 import { AgentHostSystemProxyEnabledSettingId } from '../common/agentService.js';
 
 /**
- * Supplies native Kerberos tokens to an agent host, but only for the proxy that GitHub Copilot
- * traffic uses. That proxy is resolved the way the agent host resolves it: the `http.proxy`
- * setting, else the system proxy for the account's Copilot API endpoint.
+ * Serves an agent host that shares this client's network, such as one in WSL or a local container, the way a remote
+ * extension host with `useHostProxy` uses the local proxy configuration: proxies resolve through this client unless
+ * `http.useLocalProxyConfiguration` is off, and the agent host can fall back to this client's Kerberos tickets.
  */
-export class CopilotProxyKerberosAuth {
+export class AgentHostClientProxy implements IAgentHostClientProxyProvider {
+
+	/** Hosts of the proxies this client resolved for the agent host. */
+	private readonly _resolvedProxyHosts = new Set<string>();
 
 	constructor(
+		private readonly _isEnabled: () => boolean,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IRequestService private readonly _requestService: IRequestService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
-		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
-	/** Returns a base64 initial SPNEGO token for `spn`, or `undefined` unless it names the Copilot proxy. */
-	async lookup({ spn }: IAgentHostKerberosAuthRequest): Promise<string | undefined> {
-		if (!await this._isCopilotProxyServicePrincipal(spn)) {
-			this._logService.info(`[CopilotProxyKerberosAuth] Declined Kerberos lookup for ${spn}: not the GitHub Copilot proxy`);
-			return undefined;
-		}
-		return this._nativeHostService.lookupKerberosToken(spn);
+	isEnabled(): boolean {
+		return this._isEnabled();
 	}
 
-	private async _isCopilotProxyServicePrincipal(spn: string): Promise<boolean> {
-		const proxyHosts = await this._resolveCopilotProxyHosts();
-		if (!proxyHosts.length) {
-			return false;
+	async resolveProxy(url: string): Promise<string | undefined> {
+		if (this._configurationService.getValue<boolean>('http.useLocalProxyConfiguration') === false) {
+			return undefined;
 		}
-		const host = getHttpServicePrincipalHost(spn);
-		if (host && proxyHosts.includes(host)) {
+		const proxy = await this._requestService.resolveProxy(url);
+		for (const host of getResolvedProxyHosts(proxy)) {
+			this._resolvedProxyHosts.add(host);
+		}
+		return proxy;
+	}
+
+	async lookupKerberosAuthorization(proxyUrl: string): Promise<string | undefined> {
+		if (!await this._isAgentHostProxy(proxyUrl)) {
+			this._logService.info(`[AgentHostClientProxy] Declined Kerberos lookup for ${getUrlHost(proxyUrl) ?? 'an invalid URL'}: not a proxy this client points the agent host at`);
+			return undefined;
+		}
+		return this._requestService.lookupKerberosAuthorization(proxyUrl);
+	}
+
+	/**
+	 * Tickets are only issued for proxies this client points the agent host at: its `http.proxy` setting, the proxies
+	 * it resolved for the agent host, or the system proxy for GitHub Copilot, which also covers a proxy an earlier window
+	 * resolved. A configured `http.proxyKerberosServicePrincipal` limits tickets to that principal instead.
+	 */
+	private async _isAgentHostProxy(proxyUrl: string): Promise<boolean> {
+		if (this._configurationService.getValue<string>(AgentHostProxyConfigKey.ProxyKerberosServicePrincipal)?.trim()) {
 			return true;
 		}
-		// The agent host forwards this setting as the runtime's proxy principal override.
-		const configuredSpn = this._configurationService.getValue<string>(AgentHostProxyConfigKey.ProxyKerberosServicePrincipal)?.trim();
-		return !!configuredSpn && normalizeServicePrincipal(configuredSpn) === normalizeServicePrincipal(spn);
+		const host = getUrlHost(proxyUrl);
+		return !!host && (this._resolvedProxyHosts.has(host) || (await this._resolveCopilotProxyHosts()).includes(host));
 	}
 
 	private async _resolveCopilotProxyHosts(): Promise<string[]> {
@@ -65,20 +80,16 @@ export class CopilotProxyKerberosAuth {
 		try {
 			return getResolvedProxyHosts(await this._requestService.resolveProxy(apiUrl));
 		} catch (error) {
-			this._logService.debug('[CopilotProxyKerberosAuth] Failed to resolve the GitHub Copilot proxy', error);
+			this._logService.debug('[AgentHostClientProxy] Failed to resolve the GitHub Copilot proxy', error);
 			return [];
 		}
 	}
 }
 
-function normalizeHost(host: string): string {
-	return host.replace(/^\[(.*)\]$/, '$1').toLowerCase();
-}
-
 function getUrlHost(url: string): string | undefined {
 	try {
 		const { hostname } = new URL(url);
-		return hostname ? normalizeHost(hostname) : undefined;
+		return hostname ? hostname.replace(/^\[(.*)\]$/, '$1').toLowerCase() : undefined;
 	} catch {
 		return undefined;
 	}
@@ -91,15 +102,4 @@ function getResolvedProxyHosts(resolvedProxy: string | undefined): string[] {
 		const host = address && getUrlHost(`http://${address}`);
 		return host ? [host] : [];
 	});
-}
-
-/** The host of an `HTTP/host[@REALM]` principal. */
-function getHttpServicePrincipalHost(spn: string): string | undefined {
-	const host = /^HTTP\/(?<host>[^@\s]+)(?:@[^@\s]+)?$/i.exec(spn)?.groups?.host;
-	return host ? normalizeHost(host) : undefined;
-}
-
-/** Converts GSSAPI's `service@host` to the `service/host[@REALM]` form, for case-insensitive comparison. */
-function normalizeServicePrincipal(spn: string): string {
-	return (spn.includes('/') ? spn : spn.replace('@', '/')).toLowerCase();
 }
