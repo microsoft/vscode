@@ -47,32 +47,21 @@ import { IJSONOutputPrinter, NoopJSONOutputPrinter } from '../jsonOutputPrinter'
 import { SIMULATION_FOLDER_NAME } from '../simulation/shared/sharedTypes';
 import { ITestInformation, TestInformation } from '../simulation/testInformation';
 import { CachedTestInfo, CachingChatMLFetcher, IChatMLCache } from './cachingChatMLFetcher';
-import { CachingChunkingEndpointClient, ChunkingEndpointClientSQLiteCache } from './cachingChunksEndpointClient';
-import { CachingCodeOrDocSearchClient, CodeOrDocSearchSQLiteCache } from './cachingCodeSearchClient';
 import { CachingCompletionsFetchService } from './cachingCompletionsFetchService';
-import { CachingEmbeddingsComputer } from './cachingEmbeddingsFetcher';
 import { CachingResourceFetcher } from './cachingResourceFetcher';
 import { ICompletionsCache } from './completionsCache';
-import { EmbeddingsSQLiteCache } from './embeddingsCache';
-import { TestingCacheSalts } from './salts';
 import { ISimulationEndpointHealth, SimulationEndpointHealthImpl } from './simulationEndpointHealth';
 import { SimulationCodeSearchChunkSearchService } from './simuliationWorkspaceChunkSearch';
 import { FetchRequestCollector, SpyingChatMLFetcher } from './spyingChatMLFetcher';
 import { SimulationTest } from './stest';
 import { ChatModelThrottlingTaskLaunchers, ThrottlingLimits as SimulationThrottlingLimits, ThrottlingChatMLFetcher } from './throttlingChatMLFetcher';
-import { ThrottlingCodeOrDocsSearchClient } from './throttlingCodeOrDocsSearchClient';
 
 const dotSimulationPath = path.join(__dirname, `../${SIMULATION_FOLDER_NAME}`);
 
 export enum CacheScope {
-	Embeddings = 'embeddings',
 	TSC = 'tsc',
 	Pyright = 'pyright',
 	Python = 'python',
-	Notebook = 'notebook',
-	DocSearch = 'docs-search',
-	CodeSearch = 'code-search',
-	Chunks = 'chunks-endpoint',
 }
 
 export const ICachingResourceFetcher = createServiceIdentifier<ICachingResourceFetcher>('ICachingResourceFetcher');
@@ -159,7 +148,6 @@ export interface CurrentTestRunInfo {
 /**
  * Creates an accessor suitable for running tests.
  * The `IChatMLFetcher` will use caching and the chat endpoint is configurable via the `chatModel` parameter.
- * The `IEmbeddingsComputer` will use caching and the embeddings endpoint is configurable via the `embeddingsModel` parameter.
  */
 export async function createSimulationAccessor(
 	modelConfig: ISimulationModelConfig,
@@ -202,7 +190,6 @@ export async function createSimulationAccessor(
 	testingServiceCollection.define(IVSCodeExtensionContext, new SyncDescriptor(MockExtensionContext, [globalStoragePath, constructGlobalStateMemento(globalStatePath)]));
 	testingServiceCollection.define(IIntentService, new SyncDescriptor(IntentService));
 
-	const docsSearchClient = new SyncDescriptor(ThrottlingCodeOrDocsSearchClient, [new SyncDescriptor(DocsSearchClient)]);
 	testingServiceCollection.define(ITokenizerProvider, new SyncDescriptor(TokenizerProvider, [false]));
 
 	const cacheTestInfo = new CachedTestInfo(currentTestRunInfo.test, currentTestRunInfo.testRunNumber);
@@ -244,23 +231,13 @@ export async function createSimulationAccessor(
 		);
 	}
 
-	if (opts.languageModelCacheMode === CacheMode.Disable) {
-		testingServiceCollection.define(IEmbeddingsComputer, new SyncDescriptor(RemoteEmbeddingsComputer));
-		testingServiceCollection.define(IDocsSearchClient, docsSearchClient);
-		testingServiceCollection.define(IChunkingEndpointClient, new SyncDescriptor(ChunkingEndpointClientImpl));
-		testingServiceCollection.define(ICombinedEmbeddingIndex, new SyncDescriptor(VSCodeCombinedIndexImpl, [/*useRemoteCache*/ true]));
-		testingServiceCollection.define(IApiEmbeddingsIndex, new SyncDescriptor(ApiEmbeddingsIndex, [/*useRemoteCache*/ true]));
-	} else {
-		const embeddingCache = new EmbeddingsSQLiteCache(TestingCacheSalts.embeddingsCacheSalt, currentTestRunInfo);
-		testingServiceCollection.define(IEmbeddingsComputer, new SyncDescriptor(CachingEmbeddingsComputer, [embeddingCache]));
+	testingServiceCollection.define(IEmbeddingsComputer, new SyncDescriptor(RemoteEmbeddingsComputer));
+	testingServiceCollection.define(IDocsSearchClient, new SyncDescriptor(DocsSearchClient));
+	testingServiceCollection.define(IChunkingEndpointClient, new SyncDescriptor(ChunkingEndpointClientImpl));
 
-		const codeOrDocSearchCache = new CodeOrDocSearchSQLiteCache(TestingCacheSalts.codeSearchCacheSalt, currentTestRunInfo);
-		const chunksEndpointCache = new ChunkingEndpointClientSQLiteCache(TestingCacheSalts.chunksEndpointCacheSalt, currentTestRunInfo);
-		testingServiceCollection.define(IDocsSearchClient, new SyncDescriptor(CachingCodeOrDocSearchClient, [docsSearchClient, codeOrDocSearchCache]));
-		testingServiceCollection.define(ICombinedEmbeddingIndex, new SyncDescriptor(VSCodeCombinedIndexImpl, [/*useRemoteCache*/ false]));
-		testingServiceCollection.define(IApiEmbeddingsIndex, new SyncDescriptor(ApiEmbeddingsIndex, [/*useRemoteCache*/ false]));
-		testingServiceCollection.define(IChunkingEndpointClient, new SyncDescriptor(CachingChunkingEndpointClient, [chunksEndpointCache]));
-	}
+	const useRemoteEmbeddingsIndexCache = opts.languageModelCacheMode === CacheMode.Disable;
+	testingServiceCollection.define(ICombinedEmbeddingIndex, new SyncDescriptor(VSCodeCombinedIndexImpl, [useRemoteEmbeddingsIndexCache]));
+	testingServiceCollection.define(IApiEmbeddingsIndex, new SyncDescriptor(ApiEmbeddingsIndex, [useRemoteEmbeddingsIndexCache]));
 
 	testingServiceCollection.define(INaiveChunkingService, new SyncDescriptor(NaiveChunkingService));
 	testingServiceCollection.define(ILinkifyService, new SyncDescriptor(LinkifyService));
