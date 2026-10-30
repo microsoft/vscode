@@ -5,6 +5,7 @@
 
 import { localize } from '../../../../../nls.js';
 import { getActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { getAutomationAfterDate } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -44,6 +45,9 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
 			localize('automationsCustomView.help.disabled', "Disabled automations are grouped above templates in the Disabled automations section, which starts collapsed. Press Enter or Space on its heading to expand or collapse it. The expansion state is remembered on this machine. Run history and the Accessible View still include disabled automations."),
 			localize('automationsCustomView.help.authority', "Automations run on their selected provider, not in this window. Creation and changes require an available provider that supports automations. Run now requests execution from that provider; a disconnected or unsupported provider never falls back to local execution. To use another provider, duplicate the automation. The original history stays with its provider, and an enabled original keeps scheduling until you disable it."),
+			localize('automationsCustomView.help.conditions', "Ask an agent in chat to set an automation's end date and time. Manual runs remain available after the end date. Use Remove end date in a card's More menu to clear the end date. Removing the end date does not enable a disabled automation."),
+			localize('automationsCustomView.help.expired', "Enabling an expired automation opens a confirmation. Choose Remove expiration and enable to clear its end date and enable scheduling together, or cancel to leave it unchanged."),
+			localize('automationsCustomView.help.cardLimits', "Enabled automation cards show the end date in the metadata row below the prompt, between the schedule and the workspace. Disabled cards hide it but retain their saved end date."),
 			...(builtInTemplatesVisible ? [
 				hasSavedAutomations
 					? localize('automationsCustomView.help.builtInTemplatesCollapsed', "The Built-in Templates section is collapsed by default because saved automations exist. Press Enter or Space on its disclosure control to expand it.")
@@ -152,6 +156,10 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 				const triggers = automationTriggerSummary(automation.cloudTrigger?.triggers ?? {});
 				lines.push(triggers ? localize('automationsAccessibleView.triggers', "Triggers: {0}", triggers)
 					: localize('automationsAccessibleView.schedule', "Schedule: {0}", formatSchedule(automation.schedule)));
+				const date = getAutomationAfterDate(automation.disableConditions);
+				if (date !== undefined) {
+					lines.push(localize('automationsAccessibleView.finalDate', "Final date: {0}", date));
+				}
 				lines.push(localize('automationsAccessibleView.prompt', "Prompt: {0}", automation.prompt));
 				if (automation.targetDisplay) {
 					lines.push(automation.targetDisplay.label);

@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable, type IReference } from '../../../../../base/common/lifecycle.js';
-import { stableStringify } from '../../../../../base/common/objects.js';
+import { equals, stableStringify } from '../../../../../base/common/objects.js';
 import { derived, type IObservable, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -19,11 +19,12 @@ import { localize } from '../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostAutomationHistoryState, supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryDeletionState, supportsAgentHostAutomationHistoryReceipts } from '../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
+import { getAutomationDisableConditionsError, isAutomationAfterDateExpired } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
 import { isCustomizationEnabled } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { omitAutomationSessionTemplateConfigValues, pickAutomationDefinitionOwnedConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { type IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationDefinition, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AutomationDisableConditionKind, AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationDefinition, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, isAhpAutomationCatalogChannel, StateComponents, type ClientPluginCustomization } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -235,6 +236,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			mode: options.mode,
 			permissionLevel: options.permissionLevel,
 			enabled: options.enabled ?? true,
+			...(options.disableConditions !== undefined ? { disableConditions: options.disableConditions } : {}),
 			createdAt: now.toISOString(),
 			updatedAt: now.toISOString(),
 		};
@@ -556,6 +558,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		}
 		const modelId = this._projectModelId(state.definition.session.model?.id, state.definition.session.provider);
 		const newestRun = state.runs[0];
+		const disableConditions = state.definition.disableConditions;
 		const schedule = projectSchedule(state.definition.triggers);
 		return {
 			id: this._resourceId(state.resource),
@@ -566,6 +569,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			target,
 			sessionTemplate: projectAutomationSessionTemplate(state.definition, modelId),
 			enabled: state.definition.enabled,
+			...(disableConditions !== undefined ? { disableConditions } : {}),
 			createdAt: state.createdAt,
 			updatedAt: state.modifiedAt,
 			lastRunAt: newestRun?.lifecycle.createdAt,
@@ -697,6 +701,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				await this._captureCustomizations(definition, scope, current.definition, customizationIds);
 			}
 			const expected = this._requireProjectedAutomation({ ...current, definition });
+			const enabledChanged = definition.enabled !== current.definition.enabled;
+			const conditionsChanged = !equals(definition.disableConditions ?? [], current.definition.disableConditions ?? []);
 			const state = await this._dispatchAndWait(
 				{
 					type: ActionType.AutomationUpdateRequested,
@@ -705,7 +711,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 						title: definition.title,
 						message: definition.message,
 						session: definition.session,
-						enabled: definition.enabled,
+						...(enabledChanged ? { enabled: definition.enabled } : {}),
+						...(conditionsChanged ? { disableConditions: definition.disableConditions ?? [] } : {}),
 						triggers: definition.triggers,
 						_meta: definition._meta,
 					},
@@ -716,11 +723,16 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 						return false;
 					}
 					const projected = this._projectAutomation(state);
-					if (projected === undefined
-						|| serializeAutomationEditableState(projected) !== serializeAutomationEditableState(expected)) {
+					if (!projected) {
 						return false;
 					}
-					return true;
+					const disabledByCondition = !projected.enabled && (isAutomationAfterDateExpired(projected.disableConditions)
+						|| state?.definition.disableConditions?.some(condition => condition.kind === AutomationDisableConditionKind.AfterRuns && (state.runCount ?? 0) >= condition.max));
+					return serializeAutomationEditableState(projected) === serializeAutomationEditableState({
+						...expected,
+						enabled: enabledChanged && !disabledByCondition ? expected.enabled : projected.enabled,
+						disableConditions: conditionsChanged ? expected.disableConditions : projected.disableConditions,
+					});
 				},
 				mutationGuard,
 				!!scope,
@@ -788,6 +800,19 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		if (descriptor.target.providerId !== this._providerId) {
 			throw new AutomationUnavailableError(localize('agentHostAutomation.wrongHost', "The automation target must belong to this Agent Host."));
 		}
+		const preservedConditions = existing?.disableConditions?.filter(condition => condition.kind !== AutomationDisableConditionKind.AfterDate) ?? [];
+		const requestedPreservedConditions = descriptor.disableConditions?.filter(condition => condition.kind !== AutomationDisableConditionKind.AfterDate) ?? [];
+		if (requestedPreservedConditions.length && !equals(requestedPreservedConditions, preservedConditions)) {
+			throw new Error(localize('agentHostAutomation.readOnlyConditions', "Only end-date conditions can be configured. Other host conditions must remain unchanged."));
+		}
+		const endDateConditions = descriptor.disableConditions?.filter(condition => condition.kind === AutomationDisableConditionKind.AfterDate);
+		const conditionsError = getAutomationDisableConditionsError(endDateConditions);
+		if (conditionsError) {
+			throw new Error(conditionsError);
+		}
+		const disableConditions = equals(descriptor.disableConditions, existing?.disableConditions)
+			? existing?.disableConditions
+			: [...preservedConditions, ...endDateConditions ?? []];
 		const sessionTemplate = descriptor.sessionTemplate;
 		assertAutomationSessionTemplate(sessionTemplate);
 		const modelId = sessionTemplate ? sessionTemplate.modelId : descriptor.modelId;
@@ -836,6 +861,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				...(existingSession?.customizations !== undefined && this._connection.initializeResult.get()?.automations?.customizations ? { customizations: existingSession.customizations } : {}),
 			},
 			enabled: descriptor.enabled,
+			...(disableConditions !== undefined ? { disableConditions: [...disableConditions] } : {}),
 			triggers: existing && existingSchedule && stableStringify(existingSchedule) === stableStringify(descriptor.schedule)
 				? existing.triggers
 				: scheduleTrigger(descriptor.schedule),
@@ -904,6 +930,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			mode,
 			permissionLevel,
 			enabled,
+			disableConditions: patch.disableConditions !== undefined ? patch.disableConditions : current.disableConditions,
 			updatedAt: now.toISOString(),
 		};
 	}
@@ -940,7 +967,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		if (current instanceof Error) {
 			return Promise.reject(current);
 		}
-		if (current && predicate(current)) {
+		if (!action && current && predicate(current)) {
 			return Promise.resolve(current);
 		}
 		return new Promise<AutomationState>((resolve, reject) => {
@@ -974,7 +1001,16 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 					finish(catalog);
 				}
 			};
-			store.add(this._catalog.onDidChange(check));
+			if (action?.type === ActionType.AutomationCreateRequested || action?.type === ActionType.AutomationUpdateRequested) {
+				store.add(this._catalog.onDidApplyAction(envelope => {
+					if (!envelope.rejectionReason && envelope.action.type === ActionType.AutomationSet
+						&& envelope.action.automation.resource === action.resource) {
+						check();
+					}
+				}));
+			} else {
+				store.add(this._catalog.onDidChange(check));
+			}
 			store.add(onDidChange(check));
 			if (this._catalog.onDidError) {
 				store.add(this._catalog.onDidError(error => finish(error)));
@@ -993,7 +1029,9 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			if (timeoutMs !== null) {
 				store.add(disposableTimeout(() => finish(new Error(`Timed out waiting for authoritative Automation state after ${timeoutMs}ms.`)), timeoutMs));
 			}
-			check();
+			if (!action) {
+				check();
+			}
 		});
 	}
 

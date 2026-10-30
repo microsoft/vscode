@@ -99,7 +99,9 @@ When an MCP server in a run session reports that it requires authentication, the
 
 ### Blueprints and templates
 
-`IAutomationBlueprint` is a versioned portable name, prompt, and schedule. It excludes runtime identity, target provider, workspace, session configuration, enabled state, timestamps, and history.
+`IAutomationBlueprint` is a versioned portable name, prompt, schedule, and optional `disableConditions`. It excludes runtime identity, target provider, workspace, session configuration, enabled state, timestamps, and history.
+
+Version 2 adds `disableConditions`. Version 1 remains readable with its original strict schema; exports without conditions omit the field and use version 1, while exports containing conditions use version 2.
 
 Standalone `.automation.md` files and plugins use the same blueprint format. Plugin discovery exposes inert templates and follows effective plugin enablement; discovery, installation, and updates never mutate saved Automations.
 
@@ -169,9 +171,21 @@ Run Now submits a manual request to this authority and observes dispatch and com
 
 Disabling scheduled execution on a definition preserves manual Run Now. Disabling the Automations feature removes new-run authority without deleting definitions or automatically terminating sessions already running. On restart or re-enablement, the host applies its existing recovery and misfire rules without requiring an Agents Window.
 
+### Automatic disable conditions
+
+The local host accepts `disableConditions` as an optional array with at most one `afterDate` condition (`date`, an ISO 8601 timestamp). The existing AHP update action replaces the entire array; omission preserves it, and `[]` clears it without re-enabling scheduling. No separate capability, clear flag, or disable-reason state is used. The local host does not implement run-count scheduling.
+
+Remote host definitions may contain standard AHP run-count conditions. The client preserves these in its catalogue and keeps supported operations available, but does not author or change them. Client end-date edits retain other host conditions when constructing the full AHP replacement array; exports reject conditions the portable end-date schema cannot represent instead of silently dropping them.
+
+The host evaluates the final date against admission time, including catch-up runs, and wakes at the cutoff independently of provider readiness or an active run. Expiry processing respects the host's wake/reconnect gate: when scheduled work resumes, overdue dates disable scheduling before any catch-up admission. At or after the cutoff it disables scheduling without cancelling an admitted run. Conditions stay in the definition; clients warn before enabling an expired date.
+
+Cloud automations have no end-date support; the cloud provider rejects non-empty `disableConditions` on create and update instead of dropping them.
+
 ## Persistence and retained history
 
 Canonical definitions, schedule cursors, manual request IDs, and run state live in Agent Host storage. Before session creation, the host journals the allocated backend URI and resolved provider. It durably links the session before sending the initial prompt. Interrupted creation is recovered or cleaned up using that recorded identity; recovery never resends the prompt and retries failed cleanup when providers return.
+
+Restoration removes obsolete run-count conditions and their usage counters, retaining end dates and history. Previously capped automations are disabled rather than silently becoming unlimited; users must explicitly re-enable them.
 
 Automation sessions carry the standard typed `SessionOriginKind.Automation` origin. It is stored as central-only session metadata so an absent older-build mirror cannot erase it, and forwarded through catalog/list/restore, notifications, and provider caches. Sidebar visibility uses this origin, not the currently loaded run-history page. Retained legacy run membership supplies missing origins without replacing other session metadata or deriving provider identity from a URI scheme.
 
