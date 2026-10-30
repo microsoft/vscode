@@ -391,7 +391,8 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> extends D
 			...(this.hoverDelegate ? { hoverDelegate: this.hoverDelegate } : undefined),
 			actionViewItemProvider: createToggleActionViewItemProvider(this.toggleStyles),
 			icon: true,
-			label: false
+			label: false,
+			renderDropdownAsPopover: true
 		});
 		data.toolBar.getElement().classList.add('quick-input-list-entry-action-bar');
 		data.toDisposeTemplate.add(data.toolBar);
@@ -1325,95 +1326,51 @@ export class QuickInputList extends Disposable {
 					return true;
 				});
 				break;
-			case QuickPickFocus.NextSeparator: {
-				let foundSeparatorAsItem = false;
-				const before = this._tree.getFocus()[0];
-				this._tree.focusNext(undefined, true, undefined, (e) => {
-					if (foundSeparatorAsItem) {
-						// This should be the index right after the separator so it
-						// is the item we want to focus.
-						return true;
-					}
-
-					if (e.element instanceof QuickPickSeparatorElement) {
-						foundSeparatorAsItem = true;
-						// If the separator is visible, then we should just reveal its first child so it's not as jarring.
-						if (this._separatorRenderer.isSeparatorVisible(e.element)) {
-							const firstItem = this._getFirstVisibleItem(e.element);
-							if (firstItem) {
-								this._tree.reveal(firstItem);
-							}
-						} else {
-							// If the separator is not visible, then we should
-							// push it up to the top of the list.
-							this._tree.reveal(e.element, 0);
-						}
-					} else if (e.element instanceof QuickPickItemElement) {
-						if (e.element.separator) {
-							if (this._itemRenderer.isItemWithSeparatorVisible(e.element)) {
-								this._tree.reveal(e.element);
-							} else {
-								this._tree.reveal(e.element, 0);
-							}
-							return true;
-						} else if (e.element === this._elementTree[0]) {
-							// We should stop at the first item in the list if it's a regular item.
-							this._tree.reveal(e.element, 0);
-							return true;
-						}
-					}
-					return false;
-				});
-				const after = this._tree.getFocus()[0];
-				if (before === after) {
-					// If we didn't move, then we should just move to the end
-					// of the list.
-					this._tree.scrollTop = this._tree.scrollHeight;
-					this._tree.focusLast(undefined, (e) => e.element instanceof QuickPickItemElement);
-				}
-				break;
-			}
+			case QuickPickFocus.NextSeparator:
 			case QuickPickFocus.PreviousSeparator: {
-				let focusElement: IQuickPickElement | undefined;
-				// If we are already sitting on an inline separator, then we
-				// have already found the _current_ separator and need to
-				// move to the previous one.
-				let foundSeparator = !!this._tree.getFocus()[0]?.separator;
-				this._tree.focusPrevious(undefined, true, undefined, (e) => {
-					if (e.element instanceof QuickPickSeparatorElement) {
-						if (foundSeparator) {
-							if (!focusElement) {
-								if (this._separatorRenderer.isSeparatorVisible(e.element)) {
-									this._tree.reveal(e.element);
-								} else {
-									this._tree.reveal(e.element, 0);
-								}
-								focusElement = this._getFirstVisibleItem(e.element);
-							}
-						} else {
-							foundSeparator = true;
+				const sections: { item: QuickPickItemElement; separator?: QuickPickSeparatorElement }[] = [];
+				const focused = this._tree.getFocus()[0];
+				const navigator = this._tree.navigate();
+				let separator: QuickPickSeparatorElement | undefined;
+				let startsSection = true;
+				let currentSection = -1;
+				for (let element = navigator.first(); element; element = navigator.next()) {
+					if (element instanceof QuickPickSeparatorElement) {
+						separator = element;
+						startsSection = true;
+						if (element === focused) {
+							currentSection = sections.length;
 						}
-					} else if (e.element instanceof QuickPickItemElement) {
-						if (!focusElement) {
-							if (e.element.separator) {
-								if (this._itemRenderer.isItemWithSeparatorVisible(e.element)) {
-									this._tree.reveal(e.element);
-								} else {
-									this._tree.reveal(e.element, 0);
-								}
-
-								focusElement = e.element;
-							} else if (e.element === this._elementTree[0]) {
-								// We should stop at the first item in the list if it's a regular item.
-								this._tree.reveal(e.element, 0);
-								return true;
-							}
+					} else if (element instanceof QuickPickItemElement) {
+						if (startsSection || element.separator) {
+							sections.push({ item: element, separator });
 						}
+						if (element === focused) {
+							currentSection = sections.length - 1;
+						}
+						startsSection = false;
+						separator = undefined;
 					}
-					return false;
-				});
-				if (focusElement) {
-					this._tree.setFocus([focusElement]);
+				}
+				if (!sections.length) {
+					break;
+				}
+				const next = what === QuickPickFocus.NextSeparator;
+				const atSectionStart = focused !== undefined && (focused instanceof QuickPickSeparatorElement || focused === sections[currentSection]?.item);
+				const delta = next ? 1 : atSectionStart ? -1 : 0;
+				const section = sections[(currentSection + delta + sections.length) % sections.length];
+				if (next && section.item === focused) {
+					this._tree.scrollTop = this._tree.scrollHeight;
+					this._tree.focusLast(undefined, element => element.element instanceof QuickPickItemElement);
+				} else {
+					this._tree.setFocus([section.item]);
+					if (section.separator && !this._separatorRenderer.isSeparatorVisible(section.separator)) {
+						this._tree.reveal(section.separator, 0);
+					} else if (section.item.separator && !this._itemRenderer.isItemWithSeparatorVisible(section.item)) {
+						this._tree.reveal(section.item, 0);
+					} else {
+						this._tree.reveal(section.item);
+					}
 				}
 				break;
 			}

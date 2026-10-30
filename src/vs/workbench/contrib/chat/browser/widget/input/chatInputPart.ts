@@ -162,6 +162,7 @@ import { handleTerminalCommandPaste, isTerminalCommandInput, isTerminalCommandPa
 import { ChatDynamicVariableModel } from '../../attachments/chatDynamicVariables.js';
 import { IDynamicVariable } from '../../../common/attachments/chatVariables.js';
 import { ChatInlineAttachments } from './editor/chatInlineAttachments.js';
+import { bindChatInputInlineSuggestions } from './editor/chatInputInlineSuggestions.js';
 import { isInlineAttachmentCandidate } from '../../../common/attachments/chatInlineAttachments.js';
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
 import { getChatPetStackPlatform, IChatPetPlatform } from '../chatPetWidget.js';
@@ -3886,6 +3887,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
 		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, DropIntoEditorController.ID, CopyPasteController.ID, LinkDetector.ID, InlineCompletionsController.ID, PlaceholderTextContribution.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
+		this._register(bindChatInputInlineSuggestions(this._inputEditor, this.configurationService));
 		this.updateInputEditorFontFamily();
 		this._register(addDisposableListener(this._inputEditorElement, dom.EventType.PASTE, e => this.handleTerminalCommandPaste(e), true));
 

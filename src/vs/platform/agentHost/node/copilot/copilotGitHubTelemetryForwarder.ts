@@ -558,6 +558,50 @@ export function isHydraFusionTelemetryKind(kind: string): boolean {
 	}
 */
 
+/* __GDPR__
+	"copilotSdk/prompt_cache_break": {
+		"owner": "bhavyaus",
+		"comment": "Reports a Copilot CLI model call whose cached prompt prefix fell more than 128 tokens short of the previous call on the same model, with the cause and the tools, system-prompt segments or history rewrite responsible. It contains content-free fingerprints only, no prompts, tool definitions or generated content.",
+		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
+		"primary_reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Highest-precedence cause of the cache break: ttl_expired, model_changed, cache_configuration_changed, tools_changed, system_prompt_changed, history_rewritten, or unknown." },
+		"contributing_reasons": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "JSON array of every cause that applied to the cache break, in precedence order." },
+		"frontier_source": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "How the previous request's cached frontier was determined: reported_writes or estimated." },
+		"model": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model of the request whose cached prefix fell short; redacted like other model identifiers." },
+		"api_type": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model API used for the request." },
+		"caching_arm": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Prompt-caching configuration arm used for the request." },
+		"initiator": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "What initiated the model call, such as the user or the agent." },
+		"is_subagent": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the model call came from a subagent, encoded as a string boolean." },
+		"agent_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime subagent identifier, present only for subagent calls." },
+		"model_call_id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier of the model call; joins with modelCallId on copilotSdk/response.success." },
+		"model_from": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model that held the previous cache frontier when the call changed models; redacted like other model identifiers." },
+		"model_to": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model the call switched to when it changed models; redacted like other model identifiers." },
+		"tools_added": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "JSON array of tools added since the previous call; names not marked safe for telemetry are hashed by the runtime." },
+		"tools_removed": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "JSON array of tools removed since the previous call; names not marked safe for telemetry are hashed by the runtime." },
+		"tools_redefined": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "JSON array of tools whose definition changed since the previous call; names not marked safe for telemetry are hashed by the runtime." },
+		"tools_redefined_parts": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "JSON array of changed definition parts as tool:part entries; schema property names appear only for tools marked safe for telemetry." },
+		"tools_reordered": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the tool list kept its members but changed order, encoded as a string boolean." },
+		"mcp_tools_changed": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether any added, removed or redefined tool came from an MCP server, encoded as a string boolean." },
+		"system_segments_changed": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "JSON array of the names of system-prompt segments whose content changed, such as environment_context." },
+		"cache_config_changed_fields": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "JSON array of the names of cache-configuration fields that changed." },
+		"rewrite_source": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "JSON array of what rewrote the conversation history since the previous call: compaction, truncation, or rewind." },
+		"rewrite_shape": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "How the conversation history was rewritten: shrank, grew, or edited_in_place." },
+		"before_request": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "JSON content-free fingerprint of the request that established the previous cache frontier: hashes of tools, system segments and messages, token counts, timings, and cache expiry." },
+		"after_request": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "JSON content-free fingerprint of the request whose cached prefix fell short, in the same shape as before_request." },
+		"tools_added_raw": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "JSON array of raw names of tools added since the previous call; restricted telemetry only." },
+		"tools_removed_raw": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "JSON array of raw names of tools removed since the previous call; restricted telemetry only." },
+		"tools_redefined_raw": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "JSON array of raw names of tools redefined since the previous call; restricted telemetry only." },
+		"agent_name": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Name of the subagent that made the call; restricted telemetry only." },
+		"survived_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Cached prefix tokens the request read back.", "isMeasurement": true },
+		"frontier_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Cached prefix tokens established by the previous request on the same model.", "isMeasurement": true },
+		"shortfall_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Cached prefix tokens lost since the previous request.", "isMeasurement": true },
+		"retention_ratio": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Fraction of the previous cached frontier that survived.", "isMeasurement": true },
+		"rewrite_message_index": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "First conversation message whose content changed; exact only within the last 21 messages.", "isMeasurement": true },
+		"mcp_tool_change_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of added, removed or redefined tools that came from MCP servers.", "isMeasurement": true },
+		"prompt_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Prompt tokens of the request whose cached prefix fell short.", "isMeasurement": true },
+		"tool_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Tool-definition tokens of the request whose cached prefix fell short.", "isMeasurement": true }
+	}
+*/
+
 /**
  * Re-emits GitHub-shaped telemetry events forwarded by the Copilot CLI runtime
  * (via the SDK's `onGitHubTelemetry` connection-global callback) through VS

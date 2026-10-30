@@ -81,8 +81,8 @@
 	cursor: grab;
 	display: flex;
 	align-items: center;
-	border-top-right-radius: 5px;
-	border-top-left-radius: 5px;
+	border-top-right-radius: inherit;
+	border-top-left-radius: inherit;
 }
 
 .quick-input-widget.no-drag .quick-input-titlebar,
@@ -273,6 +273,8 @@
 	box-sizing: border-box;
 	overflow: hidden;
 	display: flex;
+	align-items: center;
+	height: 100%;
 	padding: 0 6px;
 }
 

@@ -218,6 +218,58 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		});
 	}
 
+	test('labelled separators keep their inline labels and button separators keep their header height', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+		picker.items = [
+			{ type: 'separator', label: 'Inline section' }, { label: 'First item' },
+			{ type: 'separator', label: 'Section with actions', buttons: [{ iconClass: 'codicon-add', tooltip: 'Add' }] }, { label: 'Second item' },
+		];
+		picker.show();
+		const header = fixture.querySelector<HTMLElement>('.quick-input-list-separator-as-item')!;
+		picker.focus(QuickPickFocus.Next);
+		assert.deepStrictEqual({
+			inline: fixture.querySelector('.quick-input-list-entry .quick-input-list-separator')?.textContent,
+			headerHeight: header.getBoundingClientRect().height,
+			dividers: fixture.querySelectorAll('.quick-input-list-separator-empty').length,
+			active: picker.activeItems.map(item => item.label),
+		}, { inline: 'Inline section', headerHeight: 30, dividers: 0, active: ['Second item'] });
+	});
+
+	test('previous section targets visible matches instead of hidden first children', async () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+		picker.items = [{ label: 'apple' }, { type: 'separator' }, { label: 'berry' }, { label: 'apricot' }];
+		picker.sortByLabel = false;
+		picker.value = 'a';
+		picker.show();
+		picker.focus(QuickPickFocus.PreviousSeparator);
+		let accepted: string[] = [];
+		store.add(picker.onDidAccept(() => accepted = picker.activeItems.map(item => item.label)));
+		await controller.accept();
+		assert.deepStrictEqual({
+			active: picker.activeItems.map(item => item.label),
+			accepted,
+			focused: fixture.querySelector('.monaco-list-row.focused .label-name')?.textContent,
+		}, { active: ['apricot'], accepted: ['apricot'], focused: 'apricot' });
+	});
+
+	test('previous section moves to the current section start before the preceding section', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+		picker.items = [
+			{ label: 'A1' }, { label: 'A2' }, { type: 'separator' }, { label: 'B1' }, { label: 'B2' },
+		];
+		picker.show();
+		picker.focus(QuickPickFocus.Last);
+		const active: string[][] = [];
+		for (let index = 0; index < 3; index++) {
+			picker.focus(QuickPickFocus.PreviousSeparator);
+			active.push(picker.activeItems.map(item => item.label));
+		}
+		assert.deepStrictEqual(active, [['B1'], ['A1'], ['B1']]);
+	});
+
 	test('close motion requires modern UI with motion enabled', () => {
 		const clock = sinon.useFakeTimers();
 		const quickpick = store.add(controller.createQuickPick());

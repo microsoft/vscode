@@ -14,3 +14,18 @@
 	position: fixed;
 	color: inherit;
 }
+
+/* Reset the user agent popover styles, ContextView positions the popover itself */
+.context-view[popover],
+.shadow-root-host[popover] {
+	position: fixed;
+	inset: auto;
+	width: auto;
+	height: auto;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	overflow: visible;
+	color: inherit;
+	background: transparent;
+}
