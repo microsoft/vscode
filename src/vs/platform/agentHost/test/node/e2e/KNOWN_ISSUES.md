@@ -682,7 +682,7 @@ A user can create a session, start a peer chat in a selected folder, and leave t
 A user can fork a peer chat that uses one folder of a multi-root session. The fork should keep that source folder, rather than inherit every folder from the session. The new chat instead has no explicit folder selection in host state, so its advertised workspace can disagree with the provider's actual working directory.
 
 - Test: `workspace lifecycle: a fork retains the source chat folder instead of the requested override`.
-- Scope: observed on macOS with Copilot and Codex; gated for all platforms pending a fix. Claude remains outside this scenario under its existing provider-context fork limitation.
+- Scope: observed on macOS with Copilot and Codex; gated for all providers and platforms pending a fix.
 - Expected: the fork retains the source peer's folder, ignores the requested override as specified by `createChat`, and executes relative file operations in that folder.
 - Observed: Codex executes in the source folder but returns no `workingDirectories` in the fork's chat state; Copilot does not create the expected file in the source folder.
 - Gate: `context.runKnownIssueTests` and the existing `supportsChatForkE2E` capability.
@@ -1054,7 +1054,6 @@ A test that checks only its final dispatch can miss an earlier action that was e
 
 | Capability | Gate | Provider(s) skipped | Effect |
 |---|---|---|---|
-| Provider-backed fork parity | `supportsChatForkE2E` | Claude | Fork capability remains advertised; model-backed fork-context assertions skip. |
 | Subagents | `supportsSubagents` | Codex | Subagent routing and reopen scenarios skip. |
 | Streaming file creation | `streamingFileCreateToolName` | Codex | Argument-delta coverage requires a native file-creation tool; shell-backed file behavior is covered separately. |
 | Freeform input | `textInputPrompt` | Codex | Codex `request_user_input` requires non-empty options, so a freeform answer cannot be requested through that tool. |
