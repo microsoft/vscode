@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
-import { IQuickPick, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPick, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider, PicksWithActive, TriggerAction } from '../../../../../platform/quickinput/browser/pickerQuickAccess.js';
 import { matchesFuzzyIconAware, parseLabelWithIcons } from '../../../../../base/common/iconLabels.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
@@ -20,8 +20,10 @@ import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { matchesContiguousSubString } from '../../../../../base/common/filters.js';
-import { combinedDisposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
+import { CopyAction } from '../../../../../editor/contrib/clipboard/browser/clipboard.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 
 interface ITerminalQuickPick extends IPickerQuickAccessItem {
 	readonly terminal: ITerminalInstance;
@@ -53,15 +55,31 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 
 	override provide(picker: IQuickPick<IPickerQuickAccessItem, { useSeparators: true }>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
 		const snapshot = this._snapshot = this._createSnapshot();
-		return combinedDisposable(
-			createColorStyleElement(this._themeService.getColorTheme()),
-			super.provide(picker, token, runOptions),
-			toDisposable(() => {
-				if (this._snapshot === snapshot) {
-					this._snapshot = undefined;
+		const disposables = new DisposableStore();
+		disposables.add(createColorStyleElement(this._themeService.getColorTheme()));
+		disposables.add(super.provide(picker, token, runOptions));
+		if (CopyAction) {
+			disposables.add(CopyAction.addImplementation(110, 'terminal-picker', accessor => {
+				if (accessor.get(IQuickInputService).currentQuickInput !== picker) {
+					return false;
 				}
-			})
-		);
+				const selection = picker.valueSelection;
+				if (picker.inputHasFocus() && selection && selection[0] !== selection[1]) {
+					return false;
+				}
+				const terminal = (picker.activeItems[0] as ITerminalQuickPick | undefined)?.terminal;
+				if (!terminal || !this._isAvailable(terminal)) {
+					return false;
+				}
+				return accessor.get(IClipboardService).writeText(String(terminal.instanceId));
+			}));
+		}
+		disposables.add(toDisposable(() => {
+			if (this._snapshot === snapshot) {
+				this._snapshot = undefined;
+			}
+		}));
+		return disposables;
 	}
 
 	protected _getPicks(filter: string): PicksWithActive<IPickerQuickAccessItem> {

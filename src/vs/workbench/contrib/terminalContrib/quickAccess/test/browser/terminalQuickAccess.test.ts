@@ -10,10 +10,15 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
+import { CopyAction } from '../../../../../../editor/contrib/clipboard/browser/clipboard.js';
+import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IPickerQuickAccessItem, TriggerAction } from '../../../../../../platform/quickinput/browser/pickerQuickAccess.js';
-import { IQuickPick, IQuickPickDidAcceptEvent, IQuickPickSeparator } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickSeparator } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme } from '../../../../../../platform/theme/test/common/testThemeService.js';
@@ -37,6 +42,10 @@ suite('TerminalQuickAccess', () => {
 	let commands: { id: string; args: unknown[] }[];
 	let backgroundPanels: boolean[];
 	let backgroundEditors: number[];
+	let instantiationService: TestInstantiationService;
+	let currentQuickInput: TestQuickPick | undefined;
+	let clipboardWrites: string[];
+	let nativeCopies: number;
 
 	class TestTerminalQuickAccessProvider extends TerminalQuickAccessProvider {
 		getPicks(filter = '') {
@@ -58,6 +67,9 @@ suite('TerminalQuickAccess', () => {
 		override activeItems: readonly IPickerQuickAccessItem[] = [];
 		override selectedItems: readonly IPickerQuickAccessItem[] = [];
 		override readonly keyMods = keyMods;
+		override valueSelection: Readonly<[number, number]> | undefined = [5, 5];
+		inputFocused = true;
+		override inputHasFocus(): boolean { return this.inputFocused; }
 		hidden = false;
 		override hide(): void { this.hidden = true; }
 	}
@@ -69,6 +81,9 @@ suite('TerminalQuickAccess', () => {
 		commands = [];
 		backgroundPanels = [];
 		backgroundEditors = [];
+		currentQuickInput = undefined;
+		clipboardWrites = [];
+		nativeCopies = 0;
 		terminals = [3, 12, 21, 99].map(id => new class extends mock<ITerminalInstance>() {
 			override readonly instanceId = id;
 			override title = id === 99 ? 'Editor shell' : id === 21 ? 'Build' : 'Shell';
@@ -87,7 +102,14 @@ suite('TerminalQuickAccess', () => {
 		editors = [terminals[3]];
 		foreground = [...terminals];
 		activeTerminal = terminals[1];
-		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IQuickInputService, { get currentQuickInput() { return currentQuickInput; } });
+		instantiationService.stub(IClipboardService, { writeText: async text => { clipboardWrites.push(text); } });
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IContextKeyService, {});
+		instantiationService.stub(ICodeEditorService, { getFocusedCodeEditor: () => null });
+		ok(CopyAction);
+		store.add(CopyAction.addImplementation(109, 'test-native-copy', () => { nativeCopies++; return true; }));
 		instantiationService.stub(ICommandService, {
 			executeCommand: async (id, ...args) => { commands.push({ id, args }); return undefined; }
 		});
@@ -116,6 +138,64 @@ suite('TerminalQuickAccess', () => {
 	function terminalPicks(filter = ''): IPickerQuickAccessItem[] {
 		return provider.getPicks(filter).items.filter((item): item is IPickerQuickAccessItem => item.type !== 'separator' && item.description !== undefined);
 	}
+
+	async function copy(): Promise<void> {
+		ok(CopyAction);
+		await CopyAction.runCommand(instantiationService, undefined);
+	}
+
+	test('copies the highlighted pane or editor ID without accepting or focusing it', async () => {
+		const picker = currentQuickInput = new TestQuickPick();
+		store.add(provider.provide(picker, CancellationToken.None));
+		await copy();
+		picker.activeItems = [terminalPicks()[3]];
+		await copy();
+		deepStrictEqual({ clipboardWrites, nativeCopies, focused, hidden: picker.hidden }, {
+			clipboardWrites: ['12', '99'], nativeCopies: 0, focused: [], hidden: false
+		});
+	});
+
+	test('preserves native copying of selected search text', async () => {
+		const picker = currentQuickInput = new TestQuickPick();
+		store.add(provider.provide(picker, CancellationToken.None));
+		picker.valueSelection = [0, 4];
+		await copy();
+		deepStrictEqual({ clipboardWrites, nativeCopies, hidden: picker.hidden }, { clipboardWrites: [], nativeCopies: 1, hidden: false });
+	});
+
+	test('copies the row ID when the list has focus despite a retained input selection', async () => {
+		const picker = currentQuickInput = new TestQuickPick();
+		store.add(provider.provide(picker, CancellationToken.None));
+		picker.valueSelection = [0, 4];
+		picker.inputFocused = false;
+		await copy();
+		deepStrictEqual(clipboardWrites, ['12']);
+	});
+
+	test('does not copy IDs from creation rows, empty selection, or closed terminals', async () => {
+		const picker = currentQuickInput = new TestQuickPick();
+		store.add(provider.provide(picker, CancellationToken.None));
+		const picks = provider.getPicks().items;
+		picker.activeItems = [picks[picks.length - 1] as IPickerQuickAccessItem];
+		await copy();
+		picker.activeItems = [];
+		await copy();
+		picker.activeItems = [terminalPicks()[0]];
+		closed.add(3);
+		await copy();
+		deepStrictEqual({ clipboardWrites, nativeCopies }, { clipboardWrites: [], nativeCopies: 3 });
+	});
+
+	test('leaves other pickers and copying after disposal unchanged', async () => {
+		const picker = currentQuickInput = new TestQuickPick();
+		const session = store.add(provider.provide(picker, CancellationToken.None));
+		currentQuickInput = new TestQuickPick();
+		await copy();
+		currentQuickInput = picker;
+		session.dispose();
+		await copy();
+		deepStrictEqual({ clipboardWrites, nativeCopies }, { clipboardWrites: [], nativeCopies: 2 });
+	});
 
 	test('lists one row per pane with names, icons and location descriptions', () => {
 		deepStrictEqual(terminalPicks().map(item => ({ label: item.label, description: item.description })), [
