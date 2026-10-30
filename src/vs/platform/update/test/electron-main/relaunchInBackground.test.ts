@@ -62,13 +62,13 @@ import { isCommit, keepAwakeWhileUpdating, relaunchInBackground } from '../../el
 			// (`; true` keeps the shell from replacing itself, and its command line, with `sleep`)
 			installer = spawn('/bin/sh', ['-c', 'sleep 30; true', join(root, 'Squirrel.framework', 'Resources', 'ShipIt'), `${bundleIdentifier}.ShipIt`, join(root, 'ShipItState.plist')]);
 
-			const quitting = spawn('/bin/sh', ['-c', 'sleep 0.5']);
+			const quitting = spawn('/bin/sh', ['-c', 'sleep 0.2']);
 			const quit = new Promise(resolve => quitting.once('exit', resolve));
-			const currentRelauncher = relauncher = relaunchInBackground({ pid: quitting.pid!, commit, appRoot, bundleIdentifier, openCommand, installerGoneSeconds: 1 });
+			const currentRelauncher = relauncher = relaunchInBackground({ pid: quitting.pid!, commit, appRoot, bundleIdentifier, openCommand, installerGoneSeconds: 0.1, checkIntervalSeconds: 0.1 });
 			const relaunched = new Promise(resolve => currentRelauncher.once('exit', resolve)); // the script runs `open` with `exec`
 
 			await quit;
-			await timeout(2000);
+			await timeout(1000); // well past the check after which it would launch if it did not wait for the installer
 			const launchedWhileInstalling = currentRelauncher.exitCode !== null || await exists(openArgsPath);
 
 			await install(productJsonPath, installer);
