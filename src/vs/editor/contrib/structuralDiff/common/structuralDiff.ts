@@ -8,13 +8,9 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { CancellationError, isCancellationError, onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
-import { StructuralDiff, StructuralDiffContext, StructuralDiffProvider } from '../../../common/languages.js';
+import { StructuralDiffContext, StructuralDiffProvider, StructuralDiffResult } from '../../../common/languages.js';
 import { ITextModel } from '../../../common/model.js';
 import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
-
-export interface StructuralDiffResult extends StructuralDiff {
-	readonly context: StructuralDiffContext;
-}
 
 /**
  * Computes textual changes and asks providers in selector order for a structural interpretation.

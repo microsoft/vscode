@@ -15,14 +15,14 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { Range } from '../../../../common/core/range.js';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../../../common/diff/documentDiffProvider.js';
 import { linesDiffComputers } from '../../../../common/diff/linesDiffComputers.js';
-import { StructuralDiff, StructuralDiffClassification, StructuralDiffContext, SymbolKind } from '../../../../common/languages.js';
+import { StructuralDiff, StructuralDiffClassification, StructuralDiffContext, StructuralDiffResult, SymbolKind } from '../../../../common/languages.js';
 import { ITextModel } from '../../../../common/model.js';
 import { IEditorWorkerService } from '../../../../common/services/editorWorker.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../common/services/resolverService.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
-import { getStructuralDiff, StructuralDiffResult } from '../../common/structuralDiff.js';
+import { getStructuralDiff } from '../../common/structuralDiff.js';
 import '../../common/structuralDiff.contribution.js';
 
 suite('Structural diff', () => {

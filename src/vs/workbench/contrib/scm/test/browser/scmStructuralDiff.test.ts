@@ -228,7 +228,7 @@ suite('SCM structural diff tree', () => {
 			override set showStructuralDiff(value: boolean) { this.show = value; }
 		};
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IViewsService, 'getActiveViewWithId', () => view);
+		instantiationService.stub(IViewsService, {}, 'getActiveViewWithId', () => view);
 		const command = CommandsRegistry.getCommand('workbench.scm.action.toggleShowStructuralDiff');
 		assert.ok(command);
 		await instantiationService.invokeFunction(command.handler);
@@ -453,6 +453,7 @@ suite('SCM structural diff tree', () => {
 				...child,
 				node: {
 					...child.node,
+					original: { ...child.node.original!, name },
 					modified: { ...child.node.modified!, name },
 					modifiedChanges: classifications.map(classification => ({ textChangeIndex: 0, range: new Range(3, 2, 3, 5), classification })),
 				},

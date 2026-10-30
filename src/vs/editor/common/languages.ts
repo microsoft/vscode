@@ -1833,6 +1833,11 @@ export interface StructuralDiff {
 }
 
 /** @internal */
+export interface StructuralDiffResult extends StructuralDiff {
+	readonly context: StructuralDiffContext;
+}
+
+/** @internal */
 export interface StructuralDiffProvider {
 	provideStructuralDiff(originalModel: model.ITextModel, modifiedModel: model.ITextModel, context: StructuralDiffContext, token: CancellationToken): ProviderResult<StructuralDiff>;
 }

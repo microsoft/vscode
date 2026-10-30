@@ -232,6 +232,20 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The result of executing the `vscode.executeStructuralDiffProvider` command,
+	 * which takes the {@link Uri uris} of the original and the modified document
+	 * and resolves to `undefined` when no provider supplies a result.
+	 */
+	export interface StructuralDiffResult extends StructuralDiff {
+		/**
+		 * The textual changes that were classified. The
+		 * {@link StructuralDiffCoverage.textChangeIndex textChangeIndex} of a coverage
+		 * is an index into {@link StructuralDiffContext.changes}.
+		 */
+		readonly context: StructuralDiffContext;
+	}
+
+	/**
 	 * Provides language-specific structural interpretation of textual changes.
 	 */
 	export interface StructuralDiffProvider {

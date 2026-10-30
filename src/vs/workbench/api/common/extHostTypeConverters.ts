@@ -931,6 +931,45 @@ export namespace StructuralDiff {
 			tags: coverage.tags?.slice(),
 		};
 	}
+
+	export function to(result: languages.StructuralDiffResult): vscode.StructuralDiffResult {
+		return {
+			root: nodeTo(result.root),
+			isIncomplete: result.isIncomplete,
+			context: StructuralDiffContext.to(result.context),
+		};
+	}
+
+	function nodeTo(node: languages.StructuralDiffNode): vscode.StructuralDiffNode {
+		return {
+			id: node.id,
+			original: node.original && entityTo(node.original),
+			modified: node.modified && entityTo(node.modified),
+			originalChanges: node.originalChanges.map(coverageTo),
+			modifiedChanges: node.modifiedChanges.map(coverageTo),
+			children: node.children.map(nodeTo),
+		};
+	}
+
+	function entityTo(entity: languages.StructuralDiffEntity): vscode.StructuralDiffEntity {
+		return {
+			name: entity.name,
+			detail: entity.detail,
+			kind: SymbolKind.to(entity.kind),
+			languageKind: entity.languageKind,
+			range: Range.to(entity.range),
+			selectionRange: entity.selectionRange && Range.to(entity.selectionRange),
+		};
+	}
+
+	function coverageTo(coverage: languages.StructuralDiffCoverage): vscode.StructuralDiffCoverage {
+		return {
+			textChangeIndex: coverage.textChangeIndex,
+			range: Range.to(coverage.range),
+			classification: coverage.classification,
+			tags: coverage.tags?.slice(),
+		};
+	}
 }
 
 export namespace CallHierarchyItem {
