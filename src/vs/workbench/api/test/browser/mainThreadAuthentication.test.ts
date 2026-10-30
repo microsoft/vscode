@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { AuthenticationAccessService } from '../../../services/authentication/browser/authenticationAccessService.js';
@@ -15,7 +16,9 @@ import { TestEnvironmentService } from '../../../test/browser/workbenchTestServi
 import { TestExtensionService, TestProductService, TestStorageService } from '../../../test/common/workbenchTestServices.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { ExtHostAuthenticationShape } from '../../common/extHost.protocol.js';
+import { ExtHostAuthenticationShape, MainThreadAuthenticationShape } from '../../common/extHost.protocol.js';
+import { ExtHostAuthentication } from '../../common/extHostAuthentication.js';
+import { IExtHostRpcService } from '../../common/extHostRpcService.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AuthenticationSession, IAuthenticationExtensionsService } from '../../../services/authentication/common/authentication.js';
@@ -66,7 +69,7 @@ suite('MainThreadAuthentication', () => {
 			authenticationService = disposables.add(new AuthenticationService(new TestExtensionService(), accessService, TestEnvironmentService, new NullLogService()));
 		});
 
-		function createHost(sessionId: string) {
+		function createHost(sessionId: string, proxyOverrides: Partial<Proxied<ExtHostAuthenticationShape>> = {}) {
 			const unregistered: string[] = [];
 			let clientRegistrationWrites = 0;
 			let stopped = false;
@@ -76,7 +79,8 @@ suite('MainThreadAuthentication', () => {
 				$getSessions: async () => {
 					assert.strictEqual(stopped, false, 'must not use the stopped extension host');
 					return [{ id: sessionId, accessToken: 'test-token', scopes: [], account: { id: 'account', label: 'Account' } }];
-				}
+				},
+				...proxyOverrides
 			});
 			const context = upcastPartial<IExtHostContext>({
 				getProxy: <T>() => proxy as unknown as Proxied<T>,
@@ -137,8 +141,57 @@ suite('MainThreadAuthentication', () => {
 			first.stop();
 			assert.strictEqual(authenticationService.isAuthenticationProviderRegistered('first-provider'), false);
 			assert.strictEqual((await authenticationService.getSessions('second-provider'))[0].id, 'second-host');
-			assert.deepStrictEqual(second.unregistered, ['first-provider']);
+			assert.deepStrictEqual(second.unregistered, []);
 		});
+
+		for (const hadRegistration of [false, true]) {
+			test(`does not remove another host provider with a pending registration RPC (${hadRegistration ? 'previous registration' : 'first registration'})`, async () => {
+				const first = createHost('first-host');
+				const registrationSent = new DeferredPromise<void>();
+				const acceptRegistration = new DeferredPromise<void>();
+				const registrationAccepted = new DeferredPromise<void>();
+				const second = createHost('second-host', {
+					$getSessions: (id, scopes) => extHost.$getSessions(id, scopes, {}),
+					$onDidUnregisterAuthenticationProvider: id => extHost.$onDidUnregisterAuthenticationProvider(id)
+				});
+				if (hadRegistration) {
+					await registerDynamicProvider(second);
+				}
+				await registerDynamicProvider(first);
+				const mainThreadProxy = upcastPartial<Proxied<MainThreadAuthenticationShape>>({
+					$registerAuthenticationProvider: async details => {
+						await registrationSent.complete();
+						await acceptRegistration.p;
+						await second.mainThread.$registerAuthenticationProvider(details);
+						await registrationAccepted.complete();
+					},
+					$unregisterAuthenticationProvider: id => second.mainThread.$unregisterAuthenticationProvider(id)
+				});
+				const extHost: ExtHostAuthentication = new ExtHostAuthentication(
+					upcastPartial<IExtHostRpcService>({ getProxy: <T>() => mainThreadProxy as unknown as Proxied<T> }),
+					undefined!, undefined!, undefined!, undefined!, undefined!, new NullLogService()
+				);
+				const registration = extHost.registerAuthenticationProvider('dynamic-provider', 'Dynamic provider', {
+					onDidChangeSessions: Event.None,
+					getSessions: async () => [{ id: 'second-host', accessToken: 'test-token', scopes: [], account: { id: 'account', label: 'Account' } }],
+					createSession: async () => { throw new Error('Not needed in this test'); },
+					removeSession: async () => { }
+				});
+				try {
+					await registrationSent.p;
+					first.stop();
+					await acceptRegistration.complete();
+					await registrationAccepted.p;
+					assert.strictEqual((await authenticationService.getSessions('dynamic-provider'))[0].id, 'second-host');
+					authenticationService.unregisterAuthenticationProvider('dynamic-provider');
+					await assert.rejects(extHost.$getSessions('dynamic-provider', undefined, {}), /Unable to find authentication provider/);
+				} finally {
+					await acceptRegistration.complete();
+					registration.dispose();
+					await assert.rejects(extHost.$getSessions('dynamic-provider', undefined, {}), /Unable to find authentication provider/);
+				}
+			});
+		}
 
 		test('old-host disposal preserves a replacement with the same id', async () => {
 			const first = createHost('first-host');
@@ -149,7 +202,7 @@ suite('MainThreadAuthentication', () => {
 			first.stop();
 			assert.strictEqual(authenticationService.isAuthenticationProviderRegistered('dynamic-provider'), true);
 			assert.strictEqual((await authenticationService.getSessions('dynamic-provider'))[0].id, 'second-host');
-			assert.deepStrictEqual(second.unregistered, ['dynamic-provider']);
+			assert.deepStrictEqual(second.unregistered, []);
 		});
 
 		test('old-host late unregister preserves a replacement with the same id', async () => {
@@ -162,7 +215,7 @@ suite('MainThreadAuthentication', () => {
 			first.stop();
 			assert.strictEqual(authenticationService.isAuthenticationProviderRegistered('dynamic-provider'), true);
 			assert.strictEqual((await authenticationService.getSessions('dynamic-provider'))[0].id, 'second-host');
-			assert.deepStrictEqual(second.unregistered, ['dynamic-provider']);
+			assert.deepStrictEqual(second.unregistered, []);
 		});
 
 		test('explicit unregister and re-register produce exactly one removal each', async () => {
@@ -177,7 +230,18 @@ suite('MainThreadAuthentication', () => {
 			await registerDynamicProvider(owner);
 			owner.stop();
 			assert.deepStrictEqual(events, ['register', 'unregister', 'register', 'unregister']);
-			assert.deepStrictEqual(observer.unregistered, ['dynamic-provider', 'dynamic-provider']);
+			assert.deepStrictEqual(observer.unregistered, []);
+		});
+
+		test('external unregister notifies the owning host but not other hosts', async () => {
+			const owner = createHost('owner');
+			const observer = createHost('observer');
+			await registerDynamicProvider(owner);
+			authenticationService.unregisterAuthenticationProvider('dynamic-provider');
+			assert.deepStrictEqual(owner.unregistered, ['dynamic-provider']);
+			assert.deepStrictEqual(observer.unregistered, []);
+			await owner.mainThread.$unregisterAuthenticationProvider('dynamic-provider');
+			assert.deepStrictEqual(owner.unregistered, ['dynamic-provider']);
 		});
 
 		test('same-host replacement continues forwarding session events', async () => {
