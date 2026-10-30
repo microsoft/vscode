@@ -28,6 +28,8 @@ import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/st
 import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import type { IAgentHostTcpConnection } from '../../../../../../platform/agentHost/common/agentHostTcpConnection.js';
+import { BrowserRemoteProxyEnabledSettingId } from '../../../../../../workbench/contrib/browserView/common/browserView.js';
 import { IRemoteAgentHostService, NullRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
@@ -1137,10 +1139,50 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(provider.sessionTypes[0].label, 'Copilot');
 	});
 
-	test('enables canvas presentation for remote Copilot sessions', () => {
-		const provider = createProvider(disposables, connection, { isWebPlatform: false });
-		fireSessionAdded(connection, 'canvas');
-		assert.strictEqual(provider.getSessions()[0].capabilities.get().supportsCanvases, true);
+	test('offers canvases for Copilot CLI sessions only while the browser proxy is enabled and the host can proxy', async () => {
+		const tcpConnection = disposables.add(new class extends MockAgentConnection {
+			override async openTcpConnection(): Promise<IAgentHostTcpConnection> { throw new Error('unused'); }
+		}());
+		tcpConnection.handshakeState.set({ ...tcpConnection.handshakeState.get(), tcpConnections: {} }, undefined);
+		tcpConnection.setAgents([
+			{ provider: 'copilotcli', displayName: 'Copilot CLI', description: '', models: [] } as AgentInfo,
+			{ provider: 'copilot', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
+		]);
+		const configurationService = new TestConfigurationService();
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const provider = createProvider(disposables, tcpConnection, { configurationService, isWebPlatform: false });
+		fireSessionAdded(tcpConnection, 'canvas-session');
+		fireSessionAdded(tcpConnection, 'other-agent-session', { provider: 'copilot' });
+		const [session, otherAgentSession] = ['canvas-session', 'other-agent-session'].map(id => provider.getSessions().find(s => s.resource.path.endsWith(id))!);
+		// Observed so configuration changes are tracked, as by the canvas service.
+		disposables.add(autorun(reader => {
+			session.capabilities.read(reader);
+			otherAgentSession.capabilities.read(reader);
+		}));
+		const supports = () => session.capabilities.get().supportsCanvases;
+		const set = async (key: string, value: boolean) => {
+			await configurationService.setUserConfiguration(key, value);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER, affectedKeys: new Set([key]),
+				change: { keys: [key], overrides: [] },
+				affectsConfiguration: affected => affected === key,
+			});
+		};
+
+		const proxyDisabled = supports();
+		await set(BrowserRemoteProxyEnabledSettingId, true);
+		const enabled = supports();
+		const otherAgent = otherAgentSession.capabilities.get().supportsCanvases;
+		// The host reconnects as a version that cannot proxy browsers.
+		tcpConnection.handshakeState.set({ ...tcpConnection.handshakeState.get(), tcpConnections: undefined }, undefined);
+		const unsupportedHost = supports();
+		tcpConnection.handshakeState.set({ ...tcpConnection.handshakeState.get(), tcpConnections: {} }, undefined);
+		// Support is unknown while disconnected; canvases are kept so reconnecting keeps their pages.
+		provider.clearConnection();
+
+		assert.deepStrictEqual({ proxyDisabled, enabled, otherAgent, unsupportedHost, disconnected: supports() }, {
+			proxyDisabled: false, enabled: true, otherAgent: false, unsupportedHost: false, disconnected: true,
+		});
 	});
 
 	test('setLabel refreshes provider and workspace labels and notifies picker consumers', () => {
