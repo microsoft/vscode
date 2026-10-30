@@ -6,6 +6,12 @@
 export const ChatAIDisabledSettingId = 'chat.disableAIFeatures';
 
 /**
+ * Gates the entire Copilot account-choice flow; off preserves EMU-only behavior.
+ * The mirrored host value is requested configuration; consumers must capture one shared startup-effective value until VS Code restarts.
+ */
+export const AgentHostCopilotM365EnabledSettingId = 'chat.agentHost.copilot.m365.enabled';
+
+/**
  * Configuration key for the "Continue with Microsoft" sign-in choice. Choosing it exchanges a
  * Microsoft Entra sign-in for a GitHub token that is published as a process-lifetime GitHub
  * authentication session. See {@link ChatMicrosoftAuthenticationMode} for its values.
