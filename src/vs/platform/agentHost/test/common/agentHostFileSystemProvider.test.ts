@@ -5,15 +5,18 @@
 
 import assert from 'assert';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { VSBuffer, encodeBase64 } from '../../../../base/common/buffer.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../../../base/common/event.js';
+import { constObservable, type IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileChangeType, FilePermission, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
+import { FileChangeType, FilePermission, FileSystemProviderErrorCode, FileType, IFileChange, type IFileReadStreamOptions, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
 import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection, type IRemoteWatchHandle } from '../../common/agentHostFileSystemProvider.js';
+import type { IAgentHostResourceReadRange } from '../../common/meta/agentHostResourceReadRangeMeta.js';
 import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, createEditorRemoteAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, isAgentHostContentRefUri, toAgentHostContentUri, toAgentHostUri } from '../../common/agentHostUri.js';
-import { ContentEncoding, ResourceType, type CreateResourceWatchParams, type ResourceCopyParams, type ResourceListResult, type ResourceMkdirParams, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult } from '../../common/state/protocol/commands.js';
+import { ContentEncoding, ResourceType, type CreateResourceWatchParams, type InitializeResult, type ResourceCopyParams, type ResourceListResult, type ResourceMkdirParams, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult } from '../../common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
@@ -1515,5 +1518,161 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		assert.strictEqual(connection.watchCalls.length, 1, 'watch attached after late registration');
 		assert.strictEqual(received.length, 1);
 		assert.strictEqual(received[0][0].resource.toString(), agentHostUri('never-registered', '/path/late.txt').toString());
+	});
+});
+
+suite('AgentHostFileSystemProvider - streamed reads', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const FIRST = AgentHostFileSystemProvider.FIRST_READ_BYTES;
+
+	/** A connection over in-memory content that records every read and honors ranges only when it advertises them. */
+	class ContentConnection implements IRemoteFilesystemConnection {
+		readonly reads: (IAgentHostResourceReadRange | 'whole')[] = [];
+		readonly initializeResult: IObservable<InitializeResult | undefined>;
+
+		constructor(private readonly _content: VSBuffer, advertisesRanges: boolean) {
+			this.initializeResult = constObservable({ protocolVersion: '1.0.0', serverSeq: 0, snapshots: [], ...(advertisesRanges ? { _meta: { 'vscode.resourceReadRanges': true } } : {}) });
+		}
+
+		async resourceRead(_uri: URI, _encoding?: ContentEncoding, range?: IAgentHostResourceReadRange): Promise<ResourceReadResult> {
+			this.reads.push(range ? { ...range } : 'whole');
+			const start = Math.min(range?.position ?? 0, this._content.byteLength);
+			const end = range?.length === undefined ? this._content.byteLength : Math.min(start + range.length, this._content.byteLength);
+			return { data: encodeBase64(this._content.slice(start, end)), encoding: ContentEncoding.Base64 };
+		}
+		async resourceList(): Promise<ResourceListResult> { return { entries: [] }; }
+		async resourceWrite(): Promise<{}> { return {}; }
+		async resourceCopy(): Promise<{}> { return {}; }
+		async resourceDelete(): Promise<{}> { return {}; }
+		async resourceMove(): Promise<{}> { return {}; }
+		async resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> { return { uri: params.uri, type: ResourceType.File }; }
+		async resourceMkdir(): Promise<{}> { return {}; }
+	}
+
+	function content(byteLength: number): VSBuffer {
+		const buffer = VSBuffer.alloc(byteLength);
+		for (let i = 0; i < byteLength; i++) {
+			buffer.buffer[i] = i % 251;
+		}
+		return buffer;
+	}
+
+	function read(provider: AgentHostFileSystemProvider, resource: URI, opts: IFileReadStreamOptions = {}, cancelOnData?: CancellationTokenSource): Promise<VSBuffer> {
+		return new Promise<VSBuffer>((resolve, reject) => {
+			const chunks: VSBuffer[] = [];
+			const stream = provider.readFileStream(resource, opts, cancelOnData?.token ?? CancellationToken.None);
+			stream.on('data', chunk => {
+				chunks.push(VSBuffer.wrap(chunk));
+				cancelOnData?.cancel();
+			});
+			stream.on('error', reject);
+			stream.on('end', () => resolve(VSBuffer.concat(chunks)));
+		});
+	}
+
+	function createProvider(file: VSBuffer, advertisesRanges: boolean) {
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const connection = new ContentConnection(file, advertisesRanges);
+		disposables.add(provider.registerAuthority('host', connection));
+		return { provider, connection };
+	}
+
+	test('reads the first bytes, then the rest of the file in one more read', async () => {
+		const file = content(1024 * 1024);
+		const { provider, connection } = createProvider(file, true);
+
+		const result = await read(provider, agentHostUri('host', '/workspace/big.json'));
+
+		assert.deepStrictEqual({ matches: result.equals(file), reads: connection.reads }, {
+			matches: true,
+			reads: [{ position: 0, length: FIRST }, { position: FIRST }],
+		});
+	});
+
+	test('stops after the first read when the reader cancels, as binary detection does', async () => {
+		const file = content(1024 * 1024);
+		const { provider, connection } = createProvider(file, true);
+		const cts = new CancellationTokenSource();
+
+		const result = await read(provider, agentHostUri('host', '/workspace/firmware.bin'), {}, cts);
+		cts.dispose();
+
+		assert.deepStrictEqual({ bytes: result.byteLength, reads: connection.reads }, { bytes: FIRST, reads: [{ position: 0, length: FIRST }] });
+	});
+
+	test('stops after the first read when the reader cancels a few promise continuations later', async () => {
+		const file = content(1024 * 1024);
+		const { provider, connection } = createProvider(file, true);
+		const cts = new CancellationTokenSource();
+
+		const ended = new Promise<void>(resolve => {
+			const stream = provider.readFileStream(agentHostUri('host', '/workspace/firmware.bin'), {}, cts.token);
+			stream.on('data', async () => {
+				// Like the text file service: detect asynchronously, then cancel from the awaiting caller.
+				for (let i = 0; i < 6; i++) {
+					await Promise.resolve();
+				}
+				cts.cancel();
+			});
+			stream.on('end', () => resolve());
+		});
+		await ended;
+		cts.dispose();
+
+		assert.deepStrictEqual(connection.reads, [{ position: 0, length: FIRST }]);
+	});
+
+	test('reads a file shorter than the first read once', async () => {
+		const file = content(1000);
+		const { provider, connection } = createProvider(file, true);
+
+		const result = await read(provider, agentHostUri('host', '/workspace/small.ts'));
+
+		assert.deepStrictEqual({ matches: result.equals(file), reads: connection.reads }, { matches: true, reads: [{ position: 0, length: FIRST }] });
+	});
+
+	test('honors the requested position and length', async () => {
+		const file = content(1024 * 1024);
+		const { provider, connection } = createProvider(file, true);
+
+		const result = await read(provider, agentHostUri('host', '/workspace/big.json'), { position: 100, length: FIRST + 50 });
+
+		assert.deepStrictEqual({ matches: result.equals(file.slice(100, 100 + FIRST + 50)), reads: connection.reads }, {
+			matches: true,
+			reads: [{ position: 100, length: FIRST }, { position: 100 + FIRST, length: 50 }],
+		});
+	});
+
+	test('reads the whole file once from a host that does not advertise ranged reads', async () => {
+		const file = content(1024 * 1024);
+		const { provider, connection } = createProvider(file, false);
+
+		const whole = await read(provider, agentHostUri('host', '/workspace/big.json'));
+		const part = await read(provider, agentHostUri('host', '/workspace/big.json'), { position: 10, length: 20 });
+
+		assert.deepStrictEqual({ whole: whole.equals(file), part: part.equals(file.slice(10, 30)), reads: connection.reads }, {
+			whole: true,
+			part: true,
+			reads: ['whole', 'whole'],
+		});
+	});
+
+	test('reads content references whole even when the host reads ranges', async () => {
+		const file = content(64 * 1024);
+		const { provider, connection } = createProvider(file, true);
+
+		const result = await read(provider, toAgentHostUri(URI.from({ scheme: 'git-blob', path: '/repo/firmware.bin' }), 'host'));
+
+		assert.deepStrictEqual({ matches: result.equals(file), reads: connection.reads }, { matches: true, reads: ['whole'] });
+	});
+
+	test('reports a missing file as FileNotFound', async () => {
+		const { provider, connection } = createProvider(content(10), true);
+		connection.resourceRead = async () => { throw new ProtocolError(AhpErrorCodes.NotFound, 'Content not found'); };
+
+		const error = await read(provider, agentHostUri('host', '/workspace/missing.txt')).then(() => undefined, (error: Error) => error);
+
+		assert.strictEqual(error && toFileSystemProviderErrorCode(error), FileSystemProviderErrorCode.FileNotFound);
 	});
 });

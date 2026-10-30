@@ -22,6 +22,7 @@ import type { IChatUserInteractionTiming } from '../../../../platform/otel/commo
 import { AgentHostIpcChannels, IAgentCreateChatRequestOptions, IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../platform/agentHost/common/agentService.js';
 import type { AgentChatMoveDestination } from '../../../../platform/agentHost/common/agentHostChatMove.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
+import type { IAgentHostResourceReadRange } from '../../../../platform/agentHost/common/meta/agentHostResourceReadRangeMeta.js';
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
 import { AgentHostClientConnectionKind } from '../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../../../platform/agentHost/browser/agentHostProtocolClient.js';
@@ -419,8 +420,8 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().resourceList(uri);
 	}
 
-	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult> {
-		return this._requireClient().resourceRead(uri, encoding);
+	resourceRead(uri: URI, encoding?: ContentEncoding, range?: IAgentHostResourceReadRange): Promise<ResourceReadResult> {
+		return this._requireClient().resourceRead(uri, encoding, range);
 	}
 
 	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult> {
