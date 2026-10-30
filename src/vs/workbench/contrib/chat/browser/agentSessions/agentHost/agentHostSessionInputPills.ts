@@ -1180,11 +1180,11 @@ export class AgentHostSessionInputPills extends Disposable {
 				}), chatPillCopyUrlHoverLabel)],
 				...getChatPillResourceLocation(resource, resourceLabel),
 				...presentation?.entry,
-				...(stateDescription ? {
-					ariaDescription: checksDescription
+				ariaDescription: stateDescription
+					? checksDescription
 						? localize('agentHostSessionPills.referenceDescriptionWithChecks', "{0}. {1}. {2}", stateDescription, checksDescription, resource.toString(true))
-						: localize('agentHostSessionPills.referenceDescription', "{0}. {1}", stateDescription, resource.toString(true)),
-				} : {}),
+						: localize('agentHostSessionPills.referenceDescription', "{0}. {1}", stateDescription, resource.toString(true))
+					: resource.toString(true),
 				...(liveTitle || title ? { tooltip: `${resourceLabel}\n${resource.toString(true)}` } : {}),
 				open: () => this._openExternal(resource),
 			};
