@@ -64,6 +64,7 @@ export class CanvasEditor extends EditorPane {
 	private root!: HTMLElement;
 	private container!: HTMLElement;
 	private message!: HTMLElement;
+	private frozenFrame!: HTMLElement;
 	private host!: WebContentsViewHost;
 	private model: IBrowserViewModel | undefined;
 	private readonly modelLifetime = this._register(new DisposableStore());
@@ -121,6 +122,9 @@ export class CanvasEditor extends EditorPane {
 
 		this.host = this._register(this.instantiationService.createInstance(WebContentsViewHost, this.window, () => focusWebContentsViewContainer(this.container)));
 		placeholder.append(this.host.screenshotElement, this.host.pauseElement);
+		this.frozenFrame = $('.session-canvas-frozen-frame');
+		this.frozenFrame.setAttribute('aria-hidden', 'true');
+		placeholder.appendChild(this.frozenFrame);
 		this.host.onContainerCreated(this.container);
 
 		this._register(onDidChangeZoomLevel(windowId => {
@@ -261,6 +265,10 @@ export class CanvasEditor extends EditorPane {
 			}
 		}));
 		this.modelLifetime.add(model.onDidChangeLoadingState(event => {
+			// The reconnect status owns the message until the returning source has loaded.
+			if (this.reconnecting) {
+				return;
+			}
 			this.message.textContent = event.error
 				? localize('canvas.pageFailed', "The canvas page failed to load.")
 				: event.loading ? localize('canvas.pageLoading', "Loading canvas page…") : '';
@@ -333,11 +341,14 @@ export class CanvasEditor extends EditorPane {
 		this.reconnecting = reconnecting;
 		this.root.classList.toggle('provider-reconnecting', reconnecting);
 		if (reconnecting) {
+			// Copy the last frame: the host replaces or clears its own screenshot when the retained page navigates or fails.
+			this.frozenFrame.style.backgroundImage = this.host.screenshotElement.style.backgroundImage;
 			this.message.textContent = localize('canvas.reconnecting', "Reconnecting to the canvas provider…");
 			this.reconnectTimeout.value = disposableTimeout(() => {
 				this.message.textContent = localize('canvas.providerUnavailable', "The canvas provider is unavailable.");
 			}, PROVIDER_RECONNECT_TIMEOUT_MS);
 		} else {
+			this.frozenFrame.style.backgroundImage = '';
 			this.reconnectTimeout.clear();
 		}
 		this.layout();

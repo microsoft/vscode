@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/runWithFakedTimers.js';
 import { IAccessibleViewService, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { IBrowserViewBounds } from '../../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewLoadingEvent } from '../../../../../platform/browserView/common/browserView.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
@@ -52,10 +52,12 @@ suite('CanvasEditor', () => {
 		const openerCalled = new DeferredPromise<void>();
 		const warningLogged = new DeferredPromise<string>();
 		const ownerVisible = observableValue('ownerVisible', true);
+		const loadingState = store.add(new Emitter<IBrowserViewLoadingEvent>());
+		const screenshot = $('div');
 		const model = upcastPartial<IBrowserViewModel>({
 			url: 'https://example.test',
 			onDidChangeFocus: Event.None,
-			onDidChangeLoadingState: Event.None,
+			onDidChangeLoadingState: loadingState.event,
 			onDidNavigate: Event.None,
 			onDidRequestOpenExternal: openExternal.event,
 			onWillDispose: Event.None,
@@ -96,7 +98,7 @@ suite('CanvasEditor', () => {
 			instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: harnessOptions.isSessionsWindow }));
 		}
 		instantiationService.stubInstance(WebContentsViewHost, {
-			screenshotElement: $('div'), pauseElement: $('div'),
+			screenshotElement: screenshot, pauseElement: $('div'),
 			onContainerCreated: () => { },
 			setModel: value => {
 				attached.push(value);
@@ -122,6 +124,9 @@ suite('CanvasEditor', () => {
 			get disposed() { return disposed; },
 			get created() { return created; },
 			requested,
+			loadingState,
+			screenshot,
+			frozenFrame: () => parent.querySelector<HTMLElement>('.session-canvas-frozen-frame')?.style.backgroundImage,
 			message: () => parent.querySelector('.session-canvas-message')?.textContent,
 			reconnecting: () => !!parent.querySelector('.session-canvas-editor.provider-reconnecting'),
 			setView: (value: Promise<IBrowserViewModel>) => view = value,
@@ -368,6 +373,30 @@ suite('CanvasEditor', () => {
 		assert.deepStrictEqual({ requested: harness.requested, errors: harness.errors }, {
 			requested: ['https://example.test/', 'https://example.test/next', 'https://example.test/'],
 			errors: [],
+		});
+	});
+
+	test('keeps its own frozen frame and reconnect status while the retained page loads or fails', async () => {
+		const harness = createHarness();
+		await harness.open();
+		await harness.modelAttached.p;
+		await timeout(0);
+		const frame = 'url("data:image/png;base64,AAAA")';
+		harness.screenshot.style.backgroundImage = frame;
+		const canvas = harness.input.canvas.get();
+		assert.ok(canvas);
+		harness.input.setCanvas({ ...canvas, source: undefined });
+		// The host replaces or clears its screenshot when the retained page navigates or fails.
+		harness.screenshot.style.backgroundImage = '';
+		harness.loadingState.fire({ loading: true });
+		harness.loadingState.fire({ loading: false, error: { url: 'https://example.test/', errorCode: -102, errorDescription: 'ERR_CONNECTION_REFUSED' } });
+		const whileReconnecting = { frame: harness.frozenFrame(), message: harness.message() };
+		harness.input.setCanvas({ ...canvas, source: URI.parse('http://127.0.0.1:54321/') });
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileReconnecting, afterReconnect: { frame: harness.frozenFrame(), message: harness.message() } }, {
+			whileReconnecting: { frame, message: 'Reconnecting to the canvas provider…' },
+			afterReconnect: { frame: '', message: '' },
 		});
 	});
 
