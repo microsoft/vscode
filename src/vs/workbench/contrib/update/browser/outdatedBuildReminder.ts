@@ -83,18 +83,19 @@ export class OutdatedBuildReminderContribution extends Disposable implements IWo
 	}
 
 	private async showReminderIfDue(buildDate: number): Promise<void> {
-		const now = Date.now();
-		if (now - buildDate < OUTDATED_BUILD_AGE) {
+		if (Date.now() - buildDate < OUTDATED_BUILD_AGE) {
 			return;
 		}
 
 		// The local cache lags behind other windows, so it can only rule a reminder out without a round trip.
-		if (wasShownRecently(this.storageService.get(LAST_SHOWN_STORAGE_KEY, StorageScope.APPLICATION_SHARED), now)) {
+		if (wasShownRecently(this.storageService.get(LAST_SHOWN_STORAGE_KEY, StorageScope.APPLICATION_SHARED), Date.now())) {
 			return;
 		}
 
 		// Claim the interval atomically, so that only one window shows the reminder.
 		const lastShown = await this.storageService.readApplicationSharedValue(LAST_SHOWN_STORAGE_KEY);
+		// Read the clock after the shared read, so a claim another window made meanwhile does not look like a future timestamp.
+		const now = Date.now();
 		if (this._store.isDisposed || wasShownRecently(lastShown, now)) {
 			return;
 		}

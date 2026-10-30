@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { IAction } from '../../../../../base/common/actions.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -43,11 +43,12 @@ function formatActions(actions: readonly { readonly label: string | HTMLElement;
  * one authoritative map, as they do through the main process.
  */
 class WindowStorageService extends InMemoryStorageService {
-	constructor(private readonly shared: Map<string, string>) {
+	constructor(private readonly shared: Map<string, string>, private readonly readDelay?: Promise<void>) {
 		super();
 	}
 
 	override async readApplicationSharedValue(key: string): Promise<string | undefined> {
+		await this.readDelay;
 		return this.shared.get(key);
 	}
 
@@ -241,6 +242,26 @@ suite('OutdatedBuildReminderContribution', () => {
 		}, {
 			remindersPerWindow: [1, 0],
 			claimed: true,
+		});
+	});
+
+	test('does not overwrite a claim that another window made while its shared read was pending', async () => {
+		const shared = new Map<string, string>();
+		const readDelay = new DeferredPromise<void>();
+		const delayed = await createReminder({ buildAgeDays: 61, hadLastFocus: false, storage: store.add(new WindowStorageService(shared, readDelay.p)) });
+		const other = await createReminder({ buildAgeDays: 61, hadLastFocus: false, storage: store.add(new WindowStorageService(shared)) });
+
+		await delayed.focus(true);
+		// The other window must claim with a later timestamp than the delayed window's check started at.
+		await timeout(5);
+		await other.focus(true);
+		readDelay.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			remindersPerWindow: [delayed.events.length, other.events.length],
+		}, {
+			remindersPerWindow: [0, 1],
 		});
 	});
 
