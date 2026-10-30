@@ -347,19 +347,54 @@ suite('BrowserViewWorkbenchService', () => {
 		});
 	});
 
-	test('does not fall back when an external view requires its resolved network', async () => {
-		const { service, events, creationOptions } = createService();
-		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
-		store.add(service.registerNetworkResolver({
-			resolveNetwork: () => ({ authority: 'host' }),
-			...hostStatuses({ host: false }),
-		}));
+	test('embedded views require their owner\'s network instead of falling back to the local network', async () => {
+		const embed = async (proxySupported: boolean, enableRemoteProxy: boolean) => {
+			const { service, events, creationOptions, configurationService } = createService();
+			events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+			const proxyCalls: string[] = [];
+			registerProxyProvider(service, proxyCalls);
+			store.add(service.registerNetworkResolver({ resolveNetwork: () => ({ authority: 'host' }), ...hostStatuses({ host: proxySupported }) }));
+			await configurationService.setUserConfiguration('workbench.browser.enableRemoteProxy', enableRemoteProxy);
+			const outcome = await service.createExternalBrowserView('http://127.0.0.1:3000/', 'canvas', { type: 'agent', sessionId: 'chat' }).then(model => {
+				model.dispose();
+				return 'created';
+			}, (error: Error) => error.message);
+			return { outcome, sessions: creationOptions.map(options => options.session), proxyCalls };
+		};
 
-		await assert.rejects(
-			service.createExternalBrowserView('http://page/', 'canvas', { type: 'agent', sessionId: 'chat' }, true),
-			/The required remote network is unavailable/,
-		);
-		assert.strictEqual(creationOptions.length, 0);
+		assert.deepStrictEqual({
+			supported: await embed(true, true),
+			proxyDisabled: await embed(true, false),
+			hostUnsupported: await embed(false, true),
+		}, {
+			supported: { outcome: 'created', sessions: [{ scope: BrowserViewStorageScope.Ephemeral, network: { authority: 'host' } }], proxyCalls: ['acquire host', 'release host'] },
+			proxyDisabled: { outcome: 'The required remote network is unavailable.', sessions: [], proxyCalls: [] },
+			hostUnsupported: { outcome: 'The required remote network is unavailable.', sessions: [], proxyCalls: [] },
+		});
+	});
+
+	test('embedded views use the network their owner had when requested, and fail for unknown owners', async () => {
+		const { service, events, creationOptions, publishing } = createService();
+		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+		registerProxyProvider(service, []);
+		let ownerNetwork: IBrowserViewNetwork | null | undefined = { authority: 'host' };
+		store.add(service.registerNetworkResolver({ resolveNetwork: () => ownerNetwork, ...hostStatuses({ host: true }) }));
+
+		// The owner goes away while the window configuration is still being published.
+		const published = new DeferredPromise<void>();
+		publishing.value = published.p;
+		const created = service.createExternalBrowserView('http://127.0.0.1:3000/', 'canvas', { type: 'agent', sessionId: 'chat' });
+		ownerNetwork = null;
+		published.complete();
+		(await created).dispose();
+		publishing.value = undefined;
+		const unknownOwner = await service.createExternalBrowserView('http://127.0.0.1:3000/', 'canvas', { type: 'agent', sessionId: 'gone' })
+			.then(() => 'created', (error: Error) => error.message);
+
+		assert.deepStrictEqual({ sessions: creationOptions.map(options => options.session), unknownOwner }, {
+			sessions: [{ scope: BrowserViewStorageScope.Ephemeral, network: { authority: 'host' } }],
+			unknownOwner: 'The required remote network is unavailable.',
+		});
 	});
 
 	test('applies current restrictions without changing the saved session request', async () => {

@@ -10,7 +10,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, constObservable, derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -21,6 +21,7 @@ import { AgentHostProtocolClient } from '../../../../../platform/agentHost/brows
 import { AGENT_HOST_SCHEME, agentHostAuthority, type AgentHostUriMapper, fromAgentHostUri, normalizeRemoteAgentHostAddress, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostTcpSupport, getAgentHostTcpSupport } from '../../../../../platform/agentHost/common/agentHostTcpSupport.js';
 import { IAgentHostConnectionsService, type IAgentHostSessionSchemeAlias } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { IRemoteAgentHostService, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -36,6 +37,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { BrowserRemoteProxyEnabledSettingId } from '../../../../../workbench/contrib/browserView/common/browserView.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostMcpAppToolsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
@@ -848,10 +850,16 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 	protected _adapterOptions(agentProvider: string) {
 		const typeIcon = this._workspaceTypeIcon;
+		// Canvas pages load through the host's network.
+		const remoteProxyEnabled = observableConfigValue(BrowserRemoteProxyEnabledSettingId, false, this._configurationService);
 		return {
 			readOnly: this._readOnly,
 			allowOfflineDrafts: this._allowOfflineDrafts,
-			supportsCanvasPresentation: (agentProvider: string) => !this.isWebPlatform && agentProvider === 'copilotcli',
+			// Support is unknown while disconnected; only a host known not to proxy browser connections removes canvases,
+			// so a temporary disconnect keeps their pages.
+			supportsCanvasPresentation: (agentProvider: string, connection: IAgentConnection | undefined, reader: IReader) =>
+				!this.isWebPlatform && agentProvider === 'copilotcli' && remoteProxyEnabled.read(reader)
+				&& getAgentHostTcpSupport(connection, reader) !== AgentHostTcpSupport.Unsupported,
 			defaultChangesetKind: this._defaultChangesetKind,
 			useSessionTitleForDefaultChat: agentProvider === 'copilot',
 			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {

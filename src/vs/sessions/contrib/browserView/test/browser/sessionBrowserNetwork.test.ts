@@ -129,6 +129,7 @@ suite('SessionBrowserNetworkContribution', () => {
 			agentOnRemoteHost: resolve({ type: 'agent', sessionId: 'chat:/committed' }),
 			agentOnLocalHost: resolve({ type: 'agent', sessionId: 'chat:/local' }),
 			workspaceless: resolve({ type: 'agent', sessionId: 'chat:/quick' }),
+			unknownChat: resolve({ type: 'agent', sessionId: 'chat:/gone' }),
 		};
 		activeSession.set(upcastPartial<IActiveSession>(local), undefined);
 		const activeLocal = resolve({ type: 'user' });
@@ -139,6 +140,8 @@ suite('SessionBrowserNetworkContribution', () => {
 			agentOnRemoteHost: { network: { authority: 'ssh-host' }, storageAffinity: repo('ssh-host') },
 			agentOnLocalHost: localNetwork,
 			workspaceless: { network: { authority: 'ssh-host' }, storageAffinity: undefined },
+			// Not the local network: views that require their owner's network fail instead.
+			unknownChat: { network: null, storageAffinity: undefined },
 			activeLocal: localNetwork,
 		});
 	});
