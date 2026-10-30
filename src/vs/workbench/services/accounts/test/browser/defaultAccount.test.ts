@@ -1951,14 +1951,13 @@ suite('DefaultAccountProvider sign in scopes', () => {
 		return calls;
 	}
 
-	test('requests the default scopes plus extra scopes and never forwards the scope option to the session', async () => {
+	test('requests the default scopes, lists every scope explicitly when extra scopes are passed, and never forwards the scope option to the session', async () => {
 		assert.deepStrictEqual({
 			none: await signIn(),
 			additive: await signIn({ additionalScopes: ['workflow', 'repo'], provider: 'google' }),
 		}, {
 			none: [{ request: { defaultScopes: true }, options: {} }],
-			// The authentication service resolves the defaults and deduplicates the extra scopes.
-			additive: [{ request: { defaultScopes: true, additionalScopes: ['workflow', 'repo'] }, options: { provider: 'google' } }],
+			additive: [{ request: ['read:user', 'user:email', 'repo', 'workflow'], options: { provider: 'google' } }],
 		});
 	});
 
@@ -1986,7 +1985,7 @@ suite('DefaultAccountProvider sign in scopes', () => {
 			additionalScopes: ['workflow', 'workflow'],
 			provider: 'google',
 		}, { [CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true }), [{
-			request: { defaultScopes: true, additionalScopes: ['workflow', 'workflow'] },
+			request: ['read:user', 'user:email', 'repo', 'workflow'],
 			options: { provider: 'google' },
 		}]);
 	});

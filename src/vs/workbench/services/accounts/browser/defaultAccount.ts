@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { distinct } from '../../../../base/common/arrays.js';
 import { Barrier, RunOnceScheduler, ThrottledDelayer, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IEntitlementsData, IPolicyData } from '../../../../base/common/defaultAccount.js';
@@ -1615,7 +1616,11 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			throw new Error('No default account provider configured');
 		}
 		const { additionalScopes, ...sessionOptions } = options ?? {};
-		const session = await this.authenticationService.createSession(authProvider.id, additionalScopes ? { defaultScopes: true, additionalScopes } : { defaultScopes: true }, sessionOptions);
+		// Extra scopes are requested with an explicit list, because a default scopes request only covers the defaults.
+		const request = additionalScopes?.length
+			? distinct([...this.defaultAccountConfig.authenticationProvider.scopes[0], ...additionalScopes])
+			: { defaultScopes: true } as const;
+		const session = await this.authenticationService.createSession(authProvider.id, request, sessionOptions);
 		for (const preferredExtension of this.defaultAccountConfig.preferredExtensions) {
 			this.authenticationExtensionsService.updateAccountPreference(preferredExtension, authProvider.id, session.account);
 		}

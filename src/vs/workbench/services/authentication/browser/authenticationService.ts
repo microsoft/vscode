@@ -12,7 +12,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { IAuthenticationAccessService } from './authenticationAccessService.js';
-import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationGetSessionsOptions, IAuthenticationProvider, IAuthenticationProviderHostDelegate, IAuthenticationService, IAuthenticationDefaultScopesRequest, IAuthenticationWwwAuthenticateRequest, getAuthenticationSessionIdentity, isAuthenticationDefaultScopesRequest, isAuthenticationWwwAuthenticateRequest, resolveAuthenticationDefaultScopes } from '../common/authentication.js';
+import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationGetSessionsOptions, IAuthenticationProvider, IAuthenticationProviderHostDelegate, IAuthenticationService, IAuthenticationDefaultScopesRequest, IAuthenticationWwwAuthenticateRequest, isAuthenticationDefaultScopesRequest, isAuthenticationWwwAuthenticateRequest, resolveAuthenticationDefaultScopes } from '../common/authentication.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { ActivationKind, IExtensionService } from '../../extensions/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -89,19 +89,6 @@ const authenticationExtPoint = ExtensionsRegistry.registerExtensionPoint<Authent
 		}
 	}
 });
-
-/**
- * Keeps the sessions that have every required scope, ordered from the fewest extra scopes to the most,
- * so that an exact match comes first.
- * @param requiredScopes A list of distinct scopes.
- */
-function filterSessionsWithScopes(sessions: readonly AuthenticationSession[], requiredScopes: readonly string[]): AuthenticationSession[] {
-	return sessions
-		.filter(session => requiredScopes.every(scope => session.scopes.includes(scope)))
-		.map(session => ({ session, extraScopes: new Set(session.scopes).size - requiredScopes.length }))
-		.sort((a, b) => a.extraScopes - b.extraScopes)
-		.map(({ session }) => session);
-}
 
 export class AuthenticationService extends Disposable implements IAuthenticationService {
 	declare readonly _serviceBrand: undefined;
@@ -293,11 +280,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			return [];
 		}
 
-		let requiredScopes: string[] | undefined;
 		if (isAuthenticationDefaultScopesRequest(scopeListOrRequest)) {
-			requiredScopes = resolveAuthenticationDefaultScopes(this._productService, id, scopeListOrRequest);
-			// Ask for every session so that sessions with extra scopes also satisfy the default scopes.
-			scopeListOrRequest = undefined;
+			scopeListOrRequest = resolveAuthenticationDefaultScopes(this._productService, id);
 		}
 
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
@@ -320,21 +304,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 					{ ...options }
 				);
 			}
-			const sessions = await authProvider.getSessions(scopeListOrRequest ? [...scopeListOrRequest] : undefined, { ...options });
-			if (!requiredScopes) {
-				return sessions;
-			}
-			const eligible = filterSessionsWithScopes(sessions, requiredScopes);
-			const eligibleIdentities = new Set(eligible.map(getAuthenticationSessionIdentity));
-			if (eligible.length && sessions.every(session => eligibleIdentities.has(getAuthenticationSessionIdentity(session)))) {
-				return eligible;
-			}
-			// An unscoped lookup can skip sessions that a provider only produces on demand for specific scopes, such as
-			// GitHub sessions restored from a linked Microsoft account that already has a narrower session. Ask for the
-			// resolved scopes whenever an identity has no eligible session, so that it is not passed over for another one.
-			const knownSessionIds = new Set(sessions.map(session => session.id));
-			const scopedSessions = await authProvider.getSessions([...requiredScopes], { ...options });
-			return filterSessionsWithScopes([...sessions, ...scopedSessions.filter(session => !knownSessionIds.has(session.id))], requiredScopes);
+			return await authProvider.getSessions(scopeListOrRequest ? [...scopeListOrRequest] : undefined, { ...options });
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
@@ -346,7 +316,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 
 		if (isAuthenticationDefaultScopesRequest(scopeListOrRequest)) {
-			scopeListOrRequest = resolveAuthenticationDefaultScopes(this._productService, id, scopeListOrRequest);
+			scopeListOrRequest = resolveAuthenticationDefaultScopes(this._productService, id);
 		}
 
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, !!options?.activateImmediate);

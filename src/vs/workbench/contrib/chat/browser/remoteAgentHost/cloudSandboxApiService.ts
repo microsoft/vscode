@@ -58,7 +58,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
 import { asText, IRequestService } from '../../../../../platform/request/common/request.js';
-import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationService, resolveAuthenticationDefaultScopes } from '../../../../services/authentication/common/authentication.js';
 import { getCloudSandboxTaskCreationPath, ICloudSandboxTelemetryService, requestOutcomeForStatus, type CloudSandboxRequestAction } from './cloudSandboxTelemetry.js';
 import { CloudSandboxHistoryCache } from './cloudSandboxHistoryCache.js';
 import { CloudSandboxIdentityTokenProvider, ICloudSandboxIdentityTokenResponse } from './cloudSandboxIdentityTokenProvider.js';
@@ -1513,23 +1513,41 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		return undefined;
 	}
 
-	/** The narrowest GitHub session carrying at least the default scopes of the provider. */
+	/** A GitHub session carrying at least the default scopes of the provider. */
 	private async _resolveGitHubSession(): Promise<AuthenticationSession | undefined> {
 		const providerId = this._authenticationProviderId;
 
-		let sessions: readonly AuthenticationSession[];
+		let scopes: string[];
+		let exact: readonly AuthenticationSession[];
 		try {
-			// Default scopes sessions are ordered from the fewest extra scopes to the most.
-			sessions = await this._authenticationService.getSessions(providerId, { defaultScopes: true }, undefined, true);
+			scopes = resolveAuthenticationDefaultScopes(this._productService, providerId);
+			exact = await this._authenticationService.getSessions(providerId, scopes, undefined, true);
 		} catch (error) {
 			// Throws when the auth provider extension has not registered yet or the provider has no default scopes.
 			this._logService.warn(`${LOG_PREFIX} getSessions('${providerId}') failed: ${toErrorMessage(error)}`);
 			throw new CloudSandboxAuthenticationRequiredError();
 		}
-		if (!sessions.length) {
-			this._logService.warn(`${LOG_PREFIX} No '${providerId}' session with the default scopes`);
+		if (exact.length > 0) {
+			return exact[0];
 		}
-		return sessions[0];
+
+		// Fall back to the narrowest session whose scopes are a superset of what we need.
+		const all = await this._authenticationService.getSessions(providerId, undefined, undefined, true);
+		const required = new Set(scopes);
+		let best: { session: AuthenticationSession; extra: number } | undefined;
+		for (const session of all) {
+			const granted = new Set(session.scopes);
+			if ([...required].every(scope => granted.has(scope))) {
+				const extra = granted.size - required.size;
+				if (!best || extra < best.extra) {
+					best = { session, extra };
+				}
+			}
+		}
+		if (!best) {
+			this._logService.warn(`${LOG_PREFIX} No '${providerId}' session with scopes [${scopes.join(', ')}]`);
+		}
+		return best?.session;
 	}
 }
 

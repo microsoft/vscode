@@ -6,7 +6,7 @@
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import * as nls from '../../../nls.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { AuthenticationSession, AuthenticationSessionsChangeEvent, getDynamicAuthenticationProviderId, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions, isAuthenticationWwwAuthenticateRequest, IAuthenticationConstraint, IAuthenticationWwwAuthenticateRequest, withoutWorkbenchOnlySessionOptions, IAuthenticationDefaultScopesRequest, isAuthenticationDefaultScopesRequest, resolveAuthenticationDefaultScopes, getAuthenticationSessionIdentity } from '../../services/authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, getDynamicAuthenticationProviderId, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions, isAuthenticationWwwAuthenticateRequest, IAuthenticationConstraint, IAuthenticationWwwAuthenticateRequest, withoutWorkbenchOnlySessionOptions, IAuthenticationDefaultScopesRequest, isAuthenticationDefaultScopesRequest, resolveAuthenticationDefaultScopes } from '../../services/authentication/common/authentication.js';
 import { AuthenticationGetSessionOptions, AuthenticationInteractiveOptions, ExtHostAuthenticationShape, ExtHostContext, IRegisterAuthenticationProviderDetails, IRegisterDynamicAuthenticationProviderDetails, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import Severity from '../../../base/common/severity.js';
@@ -537,10 +537,6 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			if (validSessions.length === 1) {
 				return validSessions[0];
 			}
-			// A default scopes request can match several tokens of one identity. They are ordered narrowest first.
-			if (validSessions.length > 1 && isAuthenticationDefaultScopesRequest(scopeListOrRequest) && new Set(validSessions.map(getAuthenticationSessionIdentity)).size === 1) {
-				return validSessions[0];
-			}
 		}
 
 		// passive flows (silent or default)
@@ -556,7 +552,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	async $getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest | IAuthenticationDefaultScopesRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<Dto<AuthenticationSession> | undefined> {
 		const scopes = isAuthenticationDefaultScopesRequest(scopeListOrRequest)
-			? resolveAuthenticationDefaultScopes(this.productService, providerId, scopeListOrRequest)
+			? resolveAuthenticationDefaultScopes(this.productService, providerId)
 			: isAuthenticationWwwAuthenticateRequest(scopeListOrRequest) ? scopeListOrRequest.fallbackScopes : scopeListOrRequest;
 		if (scopes) {
 			this.sendClientIdUsageTelemetry(extensionId, providerId, scopes);

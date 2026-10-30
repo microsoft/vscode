@@ -16,20 +16,13 @@ declare module 'vscode' {
 		 * Ask for the default scopes that the editor defines for the provider.
 		 */
 		readonly defaultScopes: true;
-
-		/**
-		 * Extra scopes that are requested on top of the default scopes.
-		 */
-		readonly additionalScopes?: readonly string[];
 	}
 
 	export namespace authentication {
 		/**
-		 * Get an authentication session that has at least the default scopes that the editor defines for the provider,
-		 * plus any {@link AuthenticationDefaultScopesRequest.additionalScopes additional scopes}. A session with exactly
-		 * these scopes is preferred, but a session with more scopes also satisfies the request. Rejects if the provider
-		 * does not define default scopes, if a provider with providerId is not registered, or if the user does not consent
-		 * to sharing authentication information with the extension.
+		 * Get an authentication session with the default scopes that the editor defines for the provider.
+		 * Rejects if the provider does not define default scopes, if a provider with providerId is not registered, or if
+		 * the user does not consent to sharing authentication information with the extension.
 		 *
 		 * The {@link AuthenticationSession.scopes scopes} of the returned session are the concrete scopes of the session.
 		 *
@@ -41,11 +34,9 @@ declare module 'vscode' {
 		export function getSession(providerId: string, request: AuthenticationDefaultScopesRequest, options: AuthenticationGetSessionOptions & { /** */createIfNone: true | AuthenticationGetSessionPresentationOptions }): Thenable<AuthenticationSession>;
 
 		/**
-		 * Get an authentication session that has at least the default scopes that the editor defines for the provider,
-		 * plus any {@link AuthenticationDefaultScopesRequest.additionalScopes additional scopes}. A session with exactly
-		 * these scopes is preferred, but a session with more scopes also satisfies the request. Rejects if the provider
-		 * does not define default scopes, if a provider with providerId is not registered, or if the user does not consent
-		 * to sharing authentication information with the extension.
+		 * Get an authentication session with the default scopes that the editor defines for the provider.
+		 * Rejects if the provider does not define default scopes, if a provider with providerId is not registered, or if
+		 * the user does not consent to sharing authentication information with the extension.
 		 *
 		 * The {@link AuthenticationSession.scopes scopes} of the returned session are the concrete scopes of the session.
 		 *
@@ -57,11 +48,9 @@ declare module 'vscode' {
 		export function getSession(providerId: string, request: AuthenticationDefaultScopesRequest, options: AuthenticationGetSessionOptions & { /** literal-type defines return type */forceNewSession: true | AuthenticationGetSessionPresentationOptions | AuthenticationForceNewSessionOptions }): Thenable<AuthenticationSession>;
 
 		/**
-		 * Get an authentication session that has at least the default scopes that the editor defines for the provider,
-		 * plus any {@link AuthenticationDefaultScopesRequest.additionalScopes additional scopes}. A session with exactly
-		 * these scopes is preferred, but a session with more scopes also satisfies the request. Rejects if the provider
-		 * does not define default scopes, if a provider with providerId is not registered, or if the user does not consent
-		 * to sharing authentication information with the extension.
+		 * Get an authentication session with the default scopes that the editor defines for the provider.
+		 * Rejects if the provider does not define default scopes, if a provider with providerId is not registered, or if
+		 * the user does not consent to sharing authentication information with the extension.
 		 *
 		 * The {@link AuthenticationSession.scopes scopes} of the returned session are the concrete scopes of the session.
 		 *

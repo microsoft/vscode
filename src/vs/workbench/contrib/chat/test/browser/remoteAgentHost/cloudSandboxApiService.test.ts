@@ -121,7 +121,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	readonly logService?: ILogService;
 	readonly onRequest?: (url: URL, token: CancellationToken, options: IRequestOptions) => IRequestContext | undefined | Promise<IRequestContext | undefined>;
 	readonly discoveryDate?: () => string;
-	readonly authenticationSessions?: (scopeListOrRequest?: Parameters<IAuthenticationService['getSessions']>[1]) => Promise<readonly AuthenticationSession[]>;
+	readonly authenticationSessions?: (scopes?: readonly string[]) => Promise<readonly AuthenticationSession[]>;
 }): ITestSetup {
 	const requestedUrls: string[] = [];
 	const provisioningOutcomes: ProvisioningOutcome[] = [];
@@ -208,15 +208,15 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	}());
 	let selectedSessions: readonly AuthenticationSession[] = [];
 	instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
-		override async getSessions(_providerId: string, scopeListOrRequest?: Parameters<IAuthenticationService['getSessions']>[1]) {
-			selectedSessions = options.authenticationSessions ? await options.authenticationSessions(scopeListOrRequest) : [{ accessToken: 'tok', id: 's', account: { id: 'a', label: 'a' }, scopes: [] }];
+		override async getSessions(_providerId: string, scopes?: readonly string[]) {
+			selectedSessions = options.authenticationSessions ? await options.authenticationSessions(scopes) : [{ accessToken: 'tok', id: 's', account: { id: 'a', label: 'a' }, scopes: [] }];
 			return selectedSessions;
 		}
 		override readonly onDidChangeSessions = authenticationChanges.event;
 		override readonly onDidRegisterAuthenticationProvider = providerRegistered.event;
 		override readonly onDidUnregisterAuthenticationProvider = providerUnregistered.event;
 	}());
-	instantiationService.stub(IProductService, { defaultChatAgent: undefined } as unknown as IProductService);
+	instantiationService.stub(IProductService, { defaultChatAgent: { provider: { default: { id: 'github' }, enterprise: { id: 'github-enterprise' } }, providerScopes: [['read:user', 'user:email', 'repo', 'workflow']] } } as unknown as IProductService);
 	instantiationService.stub(ILogService, options.logService ?? new NullLogService());
 	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
 		override reportRequest(...outcome: RequestOutcome): void {
@@ -2589,20 +2589,15 @@ suite('CloudSandboxApiService discovery account', () => {
 
 	test('uses the same narrowest eligible authentication session as task requests', async () => {
 		const scopes = ['read:user', 'user:email', 'repo', 'workflow'];
-		const requests: Parameters<IAuthenticationService['getSessions']>[1][] = [];
 		const { service } = createService(store, {
 			tasks: [], repositories: new Map(),
-			// The authentication service orders default scopes sessions from the fewest extra scopes to the most.
-			authenticationSessions: async request => {
-				requests.push(request);
-				return [
-					{ id: 'narrow-session', accessToken: 'narrow-token', account: { id: 'narrow', label: 'Narrow' }, scopes },
-					{ id: 'wide-session', accessToken: 'wide-token', account: { id: 'wide', label: 'Wide' }, scopes: [...scopes, 'gist'] },
-				];
-			},
+			authenticationSessions: async requestedScopes => requestedScopes ? [] : [
+				{ id: 'wide-session', accessToken: 'wide-token', account: { id: 'wide', label: 'Wide' }, scopes: [...scopes, 'gist'] },
+				{ id: 'narrow-session', accessToken: 'narrow-token', account: { id: 'narrow', label: 'Narrow' }, scopes },
+			],
 		});
 
-		assert.deepStrictEqual({ accountKey: await service.getAccountKey(), requests }, { accountKey: '["github","narrow"]', requests: [{ defaultScopes: true }] });
+		assert.strictEqual(await service.getAccountKey(), '["github","narrow"]');
 	});
 
 	test('announces sign-out after authentication changes', async () => {
@@ -3833,7 +3828,7 @@ function createServiceForCreate(store: Pick<{ add<T extends { dispose(): void }>
 		override readonly onDidRegisterAuthenticationProvider = Event.None;
 		override readonly onDidUnregisterAuthenticationProvider = Event.None;
 	}());
-	instantiationService.stub(IProductService, { defaultChatAgent: undefined } as unknown as IProductService);
+	instantiationService.stub(IProductService, { defaultChatAgent: { provider: { default: { id: 'github' }, enterprise: { id: 'github-enterprise' } }, providerScopes: [['read:user', 'user:email', 'repo', 'workflow']] } } as unknown as IProductService);
 	instantiationService.stub(ILogService, new class extends NullLogService {
 		override error(message: string | Error): void {
 			errors.push(String(message));

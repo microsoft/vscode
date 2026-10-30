@@ -642,8 +642,8 @@ suite('ExtHostAuthentication', () => {
 			// Without a session, a passive request asks the user to sign in.
 			const passive = await extHostAuthentication.getSession(extensionDescription, 'github', { defaultScopes: true }, {});
 			const pending = getRequests('github', '2_signInRequests');
-			const created = await extHostAuthentication.getSession(extensionDescription, 'github', { defaultScopes: true, additionalScopes: ['gist'] }, { createIfNone: true });
-			// A session with more scopes than the defaults satisfies the pending request.
+			const created = await extHostAuthentication.getSession(extensionDescription, 'github', { defaultScopes: true }, { createIfNone: true });
+			// The new session satisfies the pending request.
 			await mainInstantiationService.get(IAuthenticationExtensionsService).updateNewSessionRequests('github', [created]);
 			const silent = await extHostAuthentication.getSession(extensionDescription, 'github', { defaultScopes: true }, { silent: true });
 			let rejected: string | undefined;
@@ -663,36 +663,11 @@ suite('ExtHostAuthentication', () => {
 			}, {
 				passive: undefined,
 				pending: 1,
-				created: [...defaultScopes, 'gist'],
+				created: defaultScopes,
 				silent: created.id,
 				pendingAfterSignIn: [],
 				rejected: `Authentication provider 'test' does not define default scopes.`
 			});
-		});
-
-		test('silently returns the narrowest default scopes token only when one identity is eligible', async () => {
-			const extensionId = extensionDescription.identifier.value;
-			const account = { id: 'octocat', label: 'Octocat' };
-			const exact: AuthenticationSession = { id: 'exact', accessToken: 'exact-token', account, scopes: defaultScopes };
-			const broader: AuthenticationSession = { id: 'broader', accessToken: 'broader-token', account, scopes: [...defaultScopes, 'gist'] };
-			const otherIdentity: AuthenticationSession = { id: 'other', accessToken: 'other-token', account: { id: 'hubot', label: 'Hubot' }, scopes: defaultScopes };
-			const storedSessions = [broader, exact];
-			registerProvider('github', {
-				onDidChangeSessions: Event.None,
-				getSessions: async scopes => storedSessions.filter(session => !scopes || scopes.every(scope => session.scopes.includes(scope))),
-				createSession: async () => { throw new Error('Unexpected sign-in.'); },
-				removeSession: async () => { }
-			}, true);
-			const accessService = mainInstantiationService.get(IAuthenticationAccessService);
-			for (const session of [exact, otherIdentity]) {
-				accessService.updateAllowedExtensions('github', session.account.label, [{ id: extensionId, name: extensionId, allowed: true }]);
-			}
-
-			const sameIdentity = await extHostAuthentication.getSession(extensionDescription, 'github', { defaultScopes: true }, { silent: true });
-			storedSessions.push(otherIdentity);
-			const differentIdentities = await extHostAuthentication.getSession(extensionDescription, 'github', { defaultScopes: true }, { silent: true });
-
-			assert.deepStrictEqual({ sameIdentity: sameIdentity?.id, differentIdentities }, { sameIdentity: 'exact', differentIdentities: undefined });
 		});
 
 		test('keeps default scopes requests and scope lists apart', async () => {

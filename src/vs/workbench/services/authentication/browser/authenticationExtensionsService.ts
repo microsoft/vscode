@@ -154,13 +154,8 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 
 	private async hasSessionForRequest(providerId: string, request: SessionRequest, addedSessions: readonly AuthenticationSession[]): Promise<boolean> {
 		const { scopeListOrRequest, options } = request;
-		if (isAuthenticationDefaultScopesRequest(scopeListOrRequest)) {
-			// A default scopes request is satisfied by any session that has at least the resolved scopes.
-			const requiredScopes = resolveAuthenticationDefaultScopes(this._productService, providerId, scopeListOrRequest);
-			if (!addedSessions.some(session => requiredScopes.every(scope => session.scopes.includes(scope)))) {
-				return false;
-			}
-		} else if (!isAuthenticationWwwAuthenticateRequest(scopeListOrRequest) && !addedSessions.some(session => scopesMatch(session.scopes, scopeListOrRequest))) {
+		const scopes = isAuthenticationDefaultScopesRequest(scopeListOrRequest) ? resolveAuthenticationDefaultScopes(this._productService, providerId) : scopeListOrRequest;
+		if (!isAuthenticationWwwAuthenticateRequest(scopes) && !addedSessions.some(session => scopesMatch(session.scopes, scopes))) {
 			return false;
 		}
 		const sessions = await this._authenticationService.getSessions(providerId, scopeListOrRequest, { ...options, silent: true });

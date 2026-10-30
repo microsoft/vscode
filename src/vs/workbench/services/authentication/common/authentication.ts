@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { distinct } from '../../../../base/common/arrays.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IAuthenticationChallenge, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
@@ -93,11 +92,6 @@ export interface IAuthenticationDefaultScopesRequest {
 	 * Ask for the default scopes of the provider.
 	 */
 	readonly defaultScopes: true;
-
-	/**
-	 * Extra scopes that are requested on top of the default scopes.
-	 */
-	readonly additionalScopes?: readonly string[];
 }
 
 export function isAuthenticationDefaultScopesRequest(obj: unknown): obj is IAuthenticationDefaultScopesRequest {
@@ -123,25 +117,14 @@ export function getAuthenticationDefaultScopes(productService: Pick<IProductServ
 
 /**
  * Resolves a {@link IAuthenticationDefaultScopesRequest} to the concrete list of scopes that a session must have.
- * @throws if the provider does not define default scopes or the request is malformed.
+ * @throws if the provider does not define default scopes.
  */
-export function resolveAuthenticationDefaultScopes(productService: Pick<IProductService, 'defaultChatAgent'>, providerId: string, request: IAuthenticationDefaultScopesRequest): string[] {
+export function resolveAuthenticationDefaultScopes(productService: Pick<IProductService, 'defaultChatAgent'>, providerId: string): string[] {
 	const defaultScopes = getAuthenticationDefaultScopes(productService, providerId);
 	if (!defaultScopes) {
 		throw new Error(`Authentication provider '${providerId}' does not define default scopes.`);
 	}
-	const additionalScopes: unknown = request.additionalScopes;
-	if (additionalScopes !== undefined && (!Array.isArray(additionalScopes) || !additionalScopes.every(scope => typeof scope === 'string'))) {
-		throw new Error('The additional scopes of a default scopes request must be an array of strings.');
-	}
-	return distinct([...defaultScopes, ...(request.additionalScopes ?? [])]);
-}
-
-/**
- * Identifies the account and issuer of a session, so that tokens with different scopes for one identity compare equal.
- */
-export function getAuthenticationSessionIdentity(session: AuthenticationSession): string {
-	return JSON.stringify([session.account.id, session.authorizationServer?.toString(true)]);
+	return [...defaultScopes];
 }
 
 /**
@@ -284,8 +267,7 @@ export interface IAuthenticationService {
 	/**
 	 * Gets all sessions that satisfy the given scopes from the provider with the given id
 	 * @param id The id of the provider to ask for a session
-	 * @param scopes The scopes for the session. A default scopes request matches every session that has at least
-	 * the resolved scopes, ordered from the fewest extra scopes to the most.
+	 * @param scopes The scopes for the session. A default scopes request is resolved to the default scopes of the provider.
 	 * @param options Additional options for getting sessions
 	 * @param activateImmediate If true, the provider should activate immediately if it is not already
 	 */
@@ -483,8 +465,7 @@ export function withoutWorkbenchOnlySessionOptions<T extends object>(options: T)
 export function getAuthenticationSessionRequestKey(scopeListOrRequest: readonly string[] | IAuthenticationWwwAuthenticateRequest | IAuthenticationDefaultScopesRequest, options: IAuthenticationProviderSessionOptions = {}): string {
 	let request: unknown;
 	if (isAuthenticationDefaultScopesRequest(scopeListOrRequest)) {
-		const additionalScopes = Array.isArray(scopeListOrRequest.additionalScopes) && scopeListOrRequest.additionalScopes.length ? distinct(scopeListOrRequest.additionalScopes).sort() : undefined;
-		request = { defaultScopes: true, additionalScopes };
+		request = { defaultScopes: true };
 	} else if (isAuthenticationWwwAuthenticateRequest(scopeListOrRequest)) {
 		request = { wwwAuthenticate: scopeListOrRequest.wwwAuthenticate, fallbackScopes: scopeListOrRequest.fallbackScopes ? [...scopeListOrRequest.fallbackScopes].sort() : undefined };
 	} else {

@@ -575,70 +575,16 @@ suite('AuthenticationService - default scopes', () => {
 		session('exact', [...defaultScopes].reverse()),
 	];
 
-	test('getSessions resolves the configured defaults and keeps supersets, exact matches first', async () => {
+	test('getSessions asks the provider for the configured default scopes', async () => {
 		const service = createService();
 		const requests = registerProvider(service, 'github', sessions);
 
 		const result = await service.getSessions('github', { defaultScopes: true });
 
 		assert.deepStrictEqual({ sessions: result.map(candidate => candidate.id), requests }, {
-			sessions: ['exact', 'one-extra', 'wide'],
-			requests: [{ operation: 'get', scopes: undefined }]
+			sessions: ['exact'],
+			requests: [{ operation: 'get', scopes: defaultScopes }]
 		});
-	});
-
-	test('getSessions asks for the resolved scopes when the unscoped lookup has no eligible session', async () => {
-		const service = createService();
-		const requests: (string[] | undefined)[] = [];
-		const restored = session('restored', defaultScopes);
-		service.registerAuthenticationProvider('github', createProvider({
-			id: 'github',
-			// Like a GitHub session restored from a linked Microsoft account, which is only minted for requested scopes.
-			getSessions: async (scopes, options) => {
-				requests.push(scopes);
-				assert.strictEqual(options.silent, true);
-				return scopes ? [restored] : [session('minimal', ['user:email'])];
-			},
-		}));
-
-		const result = await service.getSessions('github', { defaultScopes: true }, { silent: true });
-
-		assert.deepStrictEqual({ sessions: result.map(candidate => candidate.id), requests }, {
-			sessions: ['restored'],
-			requests: [undefined, defaultScopes]
-		});
-	});
-
-	test('getSessions asks for the resolved scopes when one identity has no eligible session', async () => {
-		const service = createService();
-		const requests: (string[] | undefined)[] = [];
-		const linkedAccount = { id: 'linked', label: 'Linked' };
-		const broad = session('broad', [...defaultScopes, 'gist']);
-		const restored = { ...session('restored', defaultScopes), account: linkedAccount };
-		service.registerAuthenticationProvider('github', createProvider({
-			id: 'github',
-			// The linked account only has a narrower session until one with the requested scopes is restored for it.
-			getSessions: async scopes => {
-				requests.push(scopes);
-				return scopes ? [restored] : [broad, { ...session('minimal', ['user:email']), account: linkedAccount }];
-			},
-		}));
-
-		const result = await service.getSessions('github', { defaultScopes: true });
-
-		assert.deepStrictEqual({ sessions: result.map(candidate => candidate.id), requests }, {
-			sessions: ['restored', 'broad'],
-			requests: [undefined, defaultScopes]
-		});
-	});
-
-	test('additionalScopes are required on top of the defaults', async () => {
-		const service = createService();
-		registerProvider(service, 'github', sessions);
-
-		const result = await service.getSessions('github', { defaultScopes: true, additionalScopes: ['gist', 'repo'] });
-
-		assert.deepStrictEqual(result.map(candidate => candidate.id), ['one-extra', 'wide']);
 	});
 
 	test('createSession asks the provider for the resolved scopes', async () => {
@@ -646,11 +592,9 @@ suite('AuthenticationService - default scopes', () => {
 		const requests = registerProvider(service, 'github');
 
 		await service.createSession('github', { defaultScopes: true });
-		await service.createSession('github', { defaultScopes: true, additionalScopes: ['gist', 'repo', 'gist'] });
 
 		assert.deepStrictEqual(requests, [
 			{ operation: 'create', scopes: defaultScopes },
-			{ operation: 'create', scopes: [...defaultScopes, 'gist'] },
 		]);
 	});
 
@@ -662,8 +606,8 @@ suite('AuthenticationService - default scopes', () => {
 		await service.createSession('github-enterprise', { defaultScopes: true });
 
 		assert.deepStrictEqual({ existing: existing.map(candidate => candidate.id), requests }, {
-			existing: ['exact', 'one-extra', 'wide'],
-			requests: [{ operation: 'get', scopes: undefined }, { operation: 'create', scopes: defaultScopes }]
+			existing: ['exact'],
+			requests: [{ operation: 'get', scopes: defaultScopes }, { operation: 'create', scopes: defaultScopes }]
 		});
 	});
 
@@ -674,7 +618,6 @@ suite('AuthenticationService - default scopes', () => {
 			await getError(service.getSessions('microsoft', { defaultScopes: true })),
 			await getError(service.createSession('microsoft', { defaultScopes: true })),
 		];
-		const malformedAdditionalScopes = await getError(service.createSession('github', { defaultScopes: true, additionalScopes: 'gist' as unknown as string[] }));
 		// Only one service at a time can handle the authentication extension point.
 		service.dispose();
 
@@ -689,7 +632,6 @@ suite('AuthenticationService - default scopes', () => {
 		assert.deepStrictEqual({
 			otherProvider,
 			emptyConfiguration,
-			malformedAdditionalScopes,
 			requests: [...otherRequests, ...unconfiguredRequests],
 		}, {
 			otherProvider: [
@@ -700,20 +642,15 @@ suite('AuthenticationService - default scopes', () => {
 				`Authentication provider 'github' does not define default scopes.`,
 				`Authentication provider 'github' does not define default scopes.`,
 			],
-			malformedAdditionalScopes: 'The additional scopes of a default scopes request must be an array of strings.',
 			requests: [],
 		});
 	});
 
 	test('request keys distinguish default scopes requests from scope lists', () => {
 		assert.deepStrictEqual({
-			reorderedAdditionalScopes: getAuthenticationSessionRequestKey({ defaultScopes: true, additionalScopes: ['b', 'a'] }) === getAuthenticationSessionRequestKey({ defaultScopes: true, additionalScopes: ['a', 'b', 'a'] }),
-			emptyAdditionalScopes: getAuthenticationSessionRequestKey({ defaultScopes: true, additionalScopes: [] }) === getAuthenticationSessionRequestKey({ defaultScopes: true }),
 			scopeList: getAuthenticationSessionRequestKey({ defaultScopes: true }) === getAuthenticationSessionRequestKey(defaultScopes),
 			emptyScopeList: getAuthenticationSessionRequestKey({ defaultScopes: true }) === getAuthenticationSessionRequestKey([]),
 		}, {
-			reorderedAdditionalScopes: true,
-			emptyAdditionalScopes: true,
 			scopeList: false,
 			emptyScopeList: false,
 		});
