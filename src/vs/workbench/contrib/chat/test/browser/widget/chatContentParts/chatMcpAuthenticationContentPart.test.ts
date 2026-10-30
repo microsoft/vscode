@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import '../../../../../../../base/browser/ui/codicons/codiconStyles.js';
 import { alert, setARIAContainer } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
@@ -28,7 +27,6 @@ import { IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer } 
 import { IChatRendererContent, IChatResponseViewModel, IChatViewModel } from '../../../../common/model/chatViewModel.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
-import '../../../../browser/widget/media/chat.css';
 
 suite('ChatMcpAuthenticationContentPart', () => {
 	type McpServer = ReturnType<IAgentHostCustomizationService['getMcpServers']>[number];
