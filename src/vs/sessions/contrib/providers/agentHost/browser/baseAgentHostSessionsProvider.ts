@@ -3388,6 +3388,7 @@ class NewSession extends Disposable {
 	private readonly _mainChat: ISettableObservable<IChat>;
 	private _selectedModelId: string | undefined;
 	private _selectedAgent: ISessionAgentRef | undefined;
+	private _selectedAgentSource: ISessionAgentRef | undefined;
 
 	observeClientCustomAgents(customAgents: IObservable<readonly AgentCustomization[]>, onDidChange: () => void): void {
 		let previous = customAgents.get();
@@ -3650,15 +3651,18 @@ class NewSession extends Disposable {
 	}
 	/** Untitled skeleton title used until the first request commits the session. */
 	get untitledTitle(): string { return this._kind.untitledTitle; }
-	setSelectedAgent(agent: ISessionAgentRef | undefined): void {
+	setSelectedAgent(agent: ISessionAgentRef | undefined, source: ISessionAgentRef | undefined = agent): void {
 		this._selectedAgent = agent;
+		this._selectedAgentSource = source;
 		this._mode.set(agent ? { id: agent.uri, kind: AGENT_MODE_KIND } : undefined, undefined);
 	}
 
 	getSelectedAgent(): ISessionAgentRef | undefined { return this._selectedAgent; }
+	getSelectedAgentSource(): ISessionAgentRef | undefined { return this._selectedAgentSource ?? this._selectedAgent; }
 	getInitialSessionTemplate(): IAutomationSessionTemplate | undefined { return this._initialSessionTemplate; }
 	clearSelectedAgent(): void {
 		this._selectedAgent = undefined;
+		this._selectedAgentSource = undefined;
 		this._mode.set(undefined, undefined);
 	}
 
@@ -7167,7 +7171,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._assertSessionAvailable(sessionId);
 		const newSession = this._getNewSession(sessionId);
 		if (newSession) {
-			newSession.setSelectedAgent(agent);
+			const published = getEffectiveAgents(this._lastSessionStates.get(sessionId)?.customizations);
+			const sources = agent ? newSession.getClientCustomAgents().filter(source =>
+				isEqual(URI.parse(this._resolvePublishedDraftAgent(newSession, source, published)?.uri ?? source.uri), URI.parse(agent.uri))) : [];
+			const previous = newSession.getSelectedAgent();
+			const source = sources.length === 1 ? sources[0]
+				: agent && previous && isEqual(URI.parse(agent.uri), URI.parse(previous.uri)) ? newSession.getSelectedAgentSource() : agent;
+			newSession.setSelectedAgent(agent, source);
 			this._reconcileNewSessionAgent(newSession);
 			// _sendNewSessionRequest forwards the reconciled selection in modeInstructions.
 			return;
@@ -7221,8 +7231,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	resolveCustomAgent(sessionId: string, uri: string): AgentCustomization | undefined {
 		const published = getEffectiveAgents(this._lastSessionStates.get(sessionId)?.customizations);
 		const newSession = this._newSessions.get(sessionId);
+		const selected = newSession?.getSelectedAgent();
 		return newSession
-			? this._resolvePublishedDraftAgent(newSession, { uri, name: '' }, published)
+			? this._resolvePublishedDraftAgent(newSession,
+				selected && isEqual(URI.parse(selected.uri), URI.parse(uri)) ? newSession.getSelectedAgentSource() ?? { uri, name: '' } : { uri, name: '' }, published)
 			: published.find(agent => isEqual(URI.parse(agent.uri), URI.parse(uri)));
 	}
 
@@ -7232,9 +7244,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 		const published = getEffectiveAgents(this._lastSessionStates.get(newSession.sessionId)?.customizations);
-		const resolved = this._resolvePublishedDraftAgent(newSession, selected, published);
+		const source = newSession.getSelectedAgentSource() ?? selected;
+		const resolved = this._resolvePublishedDraftAgent(newSession, source, published);
 		if (resolved && !isEqual(URI.parse(resolved.uri), URI.parse(selected.uri))) {
-			newSession.setSelectedAgent({ uri: resolved.uri, name: resolved.name });
+			newSession.setSelectedAgent({ uri: resolved.uri, name: resolved.name }, source);
 		}
 	}
 
@@ -8593,11 +8606,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// A picked client file is not a host identity until its containing plugin has finished loading.
 		await waitForState(derived(this, reader => {
 			this._backendSessionsChanged.read(reader);
-			const selectedUri = newSession.session.mode.read(reader)?.id;
-			if (!selectedUri || !newSession.getClientCustomAgents().some(agent => isEqual(URI.parse(agent.uri), URI.parse(selectedUri)))) {
+			newSession.session.mode.read(reader);
+			const selected = newSession.getSelectedAgentSource();
+			if (!selected) {
 				return false;
 			}
-			const source = newSession.getClientAgentSourceUri(URI.parse(selectedUri));
+			const source = newSession.getClientAgentSourceUri(URI.parse(selected.uri));
 			return this.getCustomizations(newSession.sessionId).some(customization =>
 				customization.type === CustomizationType.Plugin
 				&& isCustomizationEnabled(customization)
@@ -8610,7 +8624,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const selectedModelConfiguration = newSession.modelConfiguration.getModelConfigurationForRequest(selectedModelId);
 		const selectedAgent = newSession.getSelectedAgent();
 		if (selectedAgent) {
-			const source = newSession.getClientAgentSourceUri(URI.parse(selectedAgent.uri));
+			const source = newSession.getClientAgentSourceUri(URI.parse((newSession.getSelectedAgentSource() ?? selectedAgent).uri));
 			if (this.getCustomizations(newSession.sessionId).some(customization =>
 				customization.type === CustomizationType.Plugin
 				&& customization.load?.kind === CustomizationLoadStatus.Error

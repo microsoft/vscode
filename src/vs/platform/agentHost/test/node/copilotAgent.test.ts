@@ -20126,6 +20126,81 @@ suite('CopilotAgent', () => {
 
 	suite('createChat activeClient eager-claim', () => {
 
+		for (const parseFailure of [false, true]) {
+			test(`client plugin stays loading after transfer until discovery ${parseFailure ? 'fails' : 'completes'}`, async () => {
+				const fileService = disposables.add(new FileService(new NullLogService()));
+				disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+				const root = URI.file('/cache/discovery-readiness');
+				if (!parseFailure) {
+					await fileService.writeFile(URI.joinPath(root, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"Review"}'));
+					await fileService.writeFile(URI.joinPath(root, 'agents', 'reviewer.agent.md'), VSBuffer.fromString('---\nname: Reviewer\n---\nReview.'));
+				}
+				const transferred = new DeferredPromise<void>();
+				const release = new DeferredPromise<void>();
+				class PluginManager extends TestAgentPluginManager {
+					override async syncCustomizations(_clientId: string, inputs: ClientPluginCustomization[], progress?: (status: PluginCustomization) => void): Promise<ISyncedCustomization[]> {
+						if (inputs.length === 0) {
+							return [];
+						}
+						const customization: PluginCustomization = { ...inputs[0], load: { kind: CustomizationLoadStatus.Loaded } };
+						progress?.(customization);
+						transferred.complete();
+						await release.p;
+						return [{ customization, pluginDir: root }];
+					}
+				}
+				const agent = createTestAgent(disposables, {
+					sessionDataService: disposables.add(new TestSessionDataService()),
+					copilotClient: new TestCopilotClient([]), fileService, pluginManager: new PluginManager(),
+				});
+				if (parseFailure) {
+					const parsing = stub(agent['_plugins'], 'tryParsePlugin').resolves(undefined);
+					disposables.add(toDisposable(() => parsing.restore()));
+				}
+				const updates: { load: CustomizationLoadStatus | undefined; agents: number | undefined }[] = [];
+				disposables.add(agent.onDidChatProgress(progress => {
+					if (progress.kind !== 'action') {
+						return;
+					}
+					const action = progress.action;
+					const items = action.type === ActionType.SessionCustomizationUpdated ? [action.customization]
+						: action.type === ActionType.SessionCustomizationsChanged ? action.customizations : [];
+					for (const item of items) {
+						if (item.type === CustomizationType.Plugin && item.uri === 'client-plugin:/review') {
+							updates.push({ load: item.load?.kind, agents: item.children?.filter(child => child.type === CustomizationType.Agent).length });
+						}
+					}
+				}));
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					const session = AgentSession.uri('copilotcli', `readiness-${parseFailure}`);
+					await provisionSession(agent, {
+						session, workingDirectories: [URI.file('/workspace')],
+					});
+					const activeClient = agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client' });
+					activeClient.customizations = [{
+						type: CustomizationType.Plugin, id: 'review', uri: 'client-plugin:/review', name: 'Review',
+					}];
+					const resolving = getDefaultChatCustomizations(agent, session);
+					await transferred.p;
+					const prematureLoaded = updates.some(update => update.load === CustomizationLoadStatus.Loaded);
+					release.complete();
+					await resolving;
+					assert.deepStrictEqual({
+						prematureLoaded,
+						loadedWithoutDiscovery: updates.some(update => update.load === CustomizationLoadStatus.Loaded && update.agents === undefined),
+						final: updates.at(-1),
+					}, {
+						prematureLoaded: false, loadedWithoutDiscovery: false,
+						final: { load: parseFailure ? CustomizationLoadStatus.Error : CustomizationLoadStatus.Loaded, agents: parseFailure ? undefined : 1 },
+					});
+				} finally {
+					release.complete();
+					await disposeAgent(agent);
+				}
+			});
+		}
+
 		class SpyingPluginManager extends TestAgentPluginManager {
 			public readonly calls: { clientId: string; customizations: ClientPluginCustomization[] }[] = [];
 

@@ -10958,7 +10958,8 @@ class SessionPluginController extends Disposable {
 					return;
 				}
 				publishUpdate({
-					customization: { ...status, clientId },
+					// Transfer completion precedes parsing; only the resolved result is ready for selection.
+					customization: { ...status, clientId, load: status.load?.kind === CustomizationLoadStatus.Loaded ? { kind: CustomizationLoadStatus.Loading } : status.load },
 					input: inputByUri.get(status.uri),
 				});
 			});
