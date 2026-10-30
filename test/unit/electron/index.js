@@ -337,6 +337,8 @@ app.on('ready', async () => {
 			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/base/common/buffer.js`)).href),
 		]);
 		const source = new CancellationTokenSource();
+		/** @type {string[]} */
+		const redirectModes = [];
 		try {
 			if (options.headers) {
 				Object.freeze(options.headers);
@@ -345,6 +347,7 @@ app.on('ready', async () => {
 				...options,
 				isChromiumNetwork: true,
 				getRawRequest: () => (requestOptions, callback) => {
+					redirectModes.push(requestOptions.redirect ?? 'follow');
 					const request = electronNet.request(requestOptions, callback);
 					if (cancelOnRedirect) {
 						request.once('redirect', () => queueMicrotask(() => source.cancel()));
@@ -352,7 +355,7 @@ app.on('ready', async () => {
 					return request;
 				},
 			}, source.token);
-			return { statusCode: context.res.statusCode, body: (await streamToBuffer(context.stream)).toString() };
+			return { statusCode: context.res.statusCode, body: (await streamToBuffer(context.stream)).toString(), redirectModes };
 		} finally {
 			source.dispose();
 		}
