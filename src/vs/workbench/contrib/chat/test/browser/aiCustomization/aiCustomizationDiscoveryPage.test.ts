@@ -960,7 +960,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			});
 			assert.strictEqual(browseStatus.offsetHeight, 0);
 			assert.strictEqual(progress.querySelector('[role="progressbar"]')?.getAttribute('aria-label'), 'Loading customizations');
-			assert.ok(!fixture.page.getAccessibilityContent().includes('Loading customizations'));
+			assert.ok(fixture.page.getAccessibilityContent().includes('Loading customizations.'));
 
 			await fixture.requests[0].result.complete({
 				items: [resource('mail-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })],
@@ -973,6 +973,7 @@ suite('AICustomizationDiscoveryPage', () => {
 				state: { progress: false, placeholder: false, status: ['', ''] },
 				position: pendingPosition,
 			});
+			assert.ok(!fixture.page.getAccessibilityContent().includes('Loading customizations.'));
 		});
 	}
 
@@ -1054,6 +1055,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		list.reveal(24);
 		const placeholder = fixture.container.querySelector<HTMLElement>('.customization-discovery-result-content.loading')!;
 		assert.ok(placeholder.inert);
+		assert.ok(fixture.container.querySelector('.monaco-list-row[aria-label="Loading more customizations"]'));
 		placeholder.querySelector<HTMLButtonElement>('button')!.click();
 		const spinner = placeholder.querySelector<HTMLElement>('.customization-discovery-result-loading')!;
 		assert.deepStrictEqual({
@@ -3275,7 +3277,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			item: undefined,
 			status: '',
 			busy: 'true',
-			accessible: false,
+			accessible: true,
 		});
 
 		await fixture.requests[0].result.complete({ items: [resource('fast-source'), resource('slow-source')] });

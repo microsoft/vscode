@@ -2917,7 +2917,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	private getEntryAriaLabel(entry: DiscoveryListEntry): string {
 		if (entry.kind === 'loading') {
-			return '';
+			return localize('customizationDiscovery.loadingMoreAriaLabel', "Loading more customizations");
 		}
 		if (entry.kind === 'installed') {
 			if (entry.linkedConnectionRole === 'alternative' && !entry.alternativeExpanded) {
@@ -3112,6 +3112,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.selectedSourceId
 				? localize('customizationDiscovery.accessibleSource', "Source: {0}", this.getMarketplaceSourceLabel(this.selectedSourceId))
 				: localize('customizationDiscovery.accessibleAllSources', "Source: All Sources"),
+			this.isCatalogPending() ? localize('customizationDiscovery.accessibleLoading', "Loading customizations.") : undefined,
 			this.errorMessage,
 			this.sourceWarnings.getAccessibilityContent(),
 			...collapsedAlternatives.map(() => getAlternativeDisclosureLabel()),

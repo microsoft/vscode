@@ -409,6 +409,9 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		if (!this.service || this.serviceSignature !== signature) {
 			this.serviceSignature = signature;
 			this.service = new CustomizationMarketplaceService([
+				...pluginProviders,
+				...providerMarketplaceProviders,
+				...platformProviders,
 				createLazyCustomizationMarketplaceProvider('harness.githubFeed', () => ({
 					id: 'harness.githubFeed',
 					query: async (options, token) => {
@@ -423,10 +426,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 					},
 				}), CustomizationMarketplaceSources.AgentFinderPublicFeed.id),
 				createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.CopilotConnectors.id, () => new CopilotConnectorsMarketplaceProvider(this.copilotConnectorsService, this.configurationService)),
-				...pluginProviders,
-				...providerMarketplaceProviders,
-				...platformProviders,
-			]);
+			], ['harness.githubFeed', CustomizationMarketplaceSources.CopilotConnectors.id]);
 		}
 		return this.service;
 	}
