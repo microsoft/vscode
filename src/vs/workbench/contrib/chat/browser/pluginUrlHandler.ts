@@ -240,6 +240,7 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 				run: () => this.clipboardService.writeText(commands),
 			}],
 			cancelButton: true,
+			custom: true,
 		});
 	}
 

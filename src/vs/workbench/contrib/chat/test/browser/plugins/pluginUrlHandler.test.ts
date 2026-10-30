@@ -186,6 +186,7 @@ suite('PluginUrlHandler', () => {
 			},
 		});
 		instantiationService.stub(IDialogService, 'prompt', async (prompt: IPrompt<void>) => {
+			assert.strictEqual(prompt.custom, true);
 			manualPrompts.push({ message: prompt.message, detail: typeof prompt.detail === 'string' ? prompt.detail : prompt.detail?.value });
 			if (options.copyManual) {
 				await prompt.buttons?.[0].run({ checkboxChecked: false });
