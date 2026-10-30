@@ -121,15 +121,23 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	private readonly _domNode: HTMLElement;
 	private readonly _bodyNode: HTMLElement;
 	private readonly _itemElements = new Map<string, HTMLElement>();
-	private readonly _textPreviews = new Map<string, { readonly text: HTMLElement; readonly button: Button; readonly hasDetails: boolean; expanded: boolean }>();
+	private readonly _textPreviews = new Map<string, {
+		readonly text: HTMLElement;
+		readonly button: Button;
+		readonly hasDetails: boolean;
+		expanded: boolean;
+		measurement?: { readonly width: number; readonly height: number; readonly version: number };
+	}>();
 	private readonly _authorLabels = new Map<ISessionEditorComment, { readonly label: HTMLElement; readonly lineInfo: HTMLElement; readonly item: HTMLElement }>();
 	private readonly _activeReplyInputs = new Map<string, IActiveInput>();
 	private readonly _activeEditInputs = new Map<string, IActiveInput>();
 	private readonly _resizeObserver: DisposableResizeObserver;
 	private readonly _hoverDelegate = this._register(createInstantHoverDelegate());
+	private readonly _endLineNumber: number;
 
 	private _position: IOverlayWidgetPosition | null = null;
 	private _composerToFocus: HTMLTextAreaElement | undefined;
+	private _textPreviewVersion = 0;
 	private _isExpanded: boolean = false;
 	private _disposed: boolean = false;
 	private _startLineNumber: number = 1;
@@ -156,6 +164,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	) {
 		super();
 
+		this._endLineNumber = this._commentItems.reduce((endLineNumber, comment) => Math.max(endLineNumber, comment.range.endLineNumber), 1);
 		this._rangeHighlightDecoration = this._editor.createDecorationsCollection();
 
 		// Create DOM structure
@@ -426,8 +435,12 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	}
 
 	private _renderMarkdown(container: HTMLElement, value: string, isAgentAuthored: boolean): void {
+		this._textPreviewVersion++;
 		const options = {
-			asyncRenderCallback: () => this.relayout(),
+			asyncRenderCallback: () => {
+				this._textPreviewVersion++;
+				this.relayout();
+			},
 		};
 		const rendered = this._eventStore.add(this._markdownRendererService.render(new MarkdownString(value), isAgentAuthored ? getChatMarkdownRenderOptions(options) : options));
 		append(container, rendered.element);
@@ -452,14 +465,33 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	}
 
 	private _updateTextPreviews(): void {
+		const scrollTop = this._bodyNode.scrollTop;
 		for (const preview of this._textPreviews.values()) {
 			if (preview.text.classList.contains('editing')) {
 				preview.button.element.hidden = true;
-			} else if (preview.text.clientHeight > 0) {
-				preview.text.classList.add('collapsed');
-				preview.button.element.hidden = !preview.hasDetails && preview.text.scrollHeight <= preview.text.clientHeight + 1;
-				preview.text.classList.toggle('collapsed', !preview.expanded);
+				continue;
 			}
+			const width = preview.text.clientWidth;
+			const height = preview.text.clientHeight;
+			if (height === 0 || (preview.measurement?.width === width && preview.measurement.height === height && preview.measurement.version === this._textPreviewVersion)) {
+				continue;
+			}
+			if (preview.hasDetails) {
+				preview.button.element.hidden = false;
+			} else {
+				if (preview.expanded) {
+					preview.text.classList.add('collapsed');
+				}
+				preview.button.element.hidden = preview.text.scrollHeight <= preview.text.clientHeight + 1;
+				if (preview.expanded) {
+					preview.text.classList.remove('collapsed');
+				}
+			}
+			preview.measurement = { width: preview.text.clientWidth, height: preview.text.clientHeight, version: this._textPreviewVersion };
+		}
+		// Measuring collapsed previews can clamp the live reading position.
+		if (this._bodyNode.scrollTop !== scrollTop) {
+			this._bodyNode.scrollTop = scrollTop;
 		}
 	}
 
@@ -986,7 +1018,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	}
 
 	/**
-	 * Updates the widget position and layout.
+	 * Lays out previews and keeps groups with visible comment ranges inside the editor viewport.
 	 */
 	layout(startLineNumber: number): void {
 		if (this._disposed) {
@@ -1001,6 +1033,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 		this._startLineNumber = startLineNumber;
 
+		const bodyScrollTop = this._bodyNode.scrollTop;
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
 		const { contentLeft, contentWidth, verticalScrollbarWidth, horizontalScrollbarHeight, height } = this._editor.getLayoutInfo();
 		const scrollTop = this._editor.getScrollTop();
@@ -1023,6 +1056,9 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			}
 			this._updateTextPreviews();
 		}
+		if (this._bodyNode.scrollTop !== bodyScrollTop) {
+			this._bodyNode.scrollTop = bodyScrollTop;
+		}
 
 		const renderedWidth = getTotalWidth(this._domNode);
 		if (this._cachedMinContentWidth && this._cachedMinContentWidth.widgetWidth !== renderedWidth) {
@@ -1037,11 +1073,14 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		const scrollHeight = this._editor.getScrollHeight() - horizontalScrollbarHeight;
 		const clampedContentTop = Math.min(Math.max(0, contentRelativeTop), Math.max(0, scrollHeight - widgetHeight));
 		const anchorTop = contentRelativeTop - scrollTop;
+		const groupBottom = this._editor.getBottomForLineNumber(Math.max(startLineNumber, this._endLineNumber)) - scrollTop;
+		const groupVisible = anchorTop < availableHeight && groupBottom > 0;
+		const viewportTop = clampedContentTop - scrollTop;
 
 		this._position = {
 			stackOrdinal: 2,
 			preference: {
-				top: scrollable && anchorTop >= 0 && anchorTop < availableHeight ? 0 : clampedContentTop - scrollTop,
+				top: groupVisible ? Math.max(0, Math.min(viewportTop, availableHeight - widgetHeight)) : viewportTop,
 				left: contentLeft + contentWidth - (2 * verticalScrollbarWidth + widgetWidth)
 			}
 		};

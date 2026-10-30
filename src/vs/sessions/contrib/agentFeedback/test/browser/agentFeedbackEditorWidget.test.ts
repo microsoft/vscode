@@ -404,6 +404,96 @@ suite('AgentFeedbackEditorWidget', () => {
 		});
 	}
 
+	test('keeps a short stack inside the viewport when its anchor is near the bottom', () => {
+		const comments = Array.from({ length: 3 }, (_, index) => ({
+			...comment,
+			id: `agentFeedback:feedback-${index}`,
+			sourceId: `feedback-${index}`,
+			range: { ...comment.range, startLineNumber: 16, endLineNumber: 16 },
+		}));
+		let result: { anchorVisible: boolean; shorterThanViewport: boolean; fitsEditor: boolean; scrollable: boolean } | undefined;
+		withWidget(({ domNode, editor, widget }) => {
+			widget.layout(16);
+			editor.render();
+			const editorBounds = editor.getDomNode()!.getBoundingClientRect();
+			const widgetBounds = domNode.getBoundingClientRect();
+			const layout = editor.getLayoutInfo();
+			const availableHeight = layout.height - layout.horizontalScrollbarHeight;
+			const anchorTop = editor.getTopForLineNumber(16) - editor.getScrollTop();
+			result = {
+				anchorVisible: anchorTop >= 0 && anchorTop < availableHeight,
+				shorterThanViewport: widgetBounds.height < availableHeight,
+				fitsEditor: widgetBounds.top >= editorBounds.top && widgetBounds.bottom <= editorBounds.top + availableHeight + 1,
+				scrollable: domNode.querySelector('.agent-feedback-widget-body')!.classList.contains('scrollable'),
+			};
+		}, comments[0], {
+			renderEditor: true,
+			expanded: false,
+			comments,
+			lines: Array.from({ length: 80 }, (_, index) => `Line ${index + 1}`),
+		});
+		assert.deepStrictEqual(result, { anchorVisible: true, shorterThanViewport: true, fitsEditor: true, scrollable: false });
+	});
+
+	test('preserves the reading position when relayouting or resizing an expanded card', () => {
+		const positions: number[] = [];
+		withWidget(({ domNode, editor, widget }) => {
+			const body = domNode.querySelector<HTMLElement>('.agent-feedback-widget-body')!;
+			body.scrollTop = 100;
+			widget.relayout();
+			positions.push(body.scrollTop);
+			body.scrollTop = 100;
+			editor.getContainerDomNode().style.width = '360px';
+			editor.layout({ width: 360, height: 420 });
+			widget.relayout();
+			positions.push(body.scrollTop);
+		}, {
+			...comment,
+			text: Array.from({ length: 40 }, () => 'A paragraph of review feedback that needs scrolling.').join('\n\n'),
+		}, { renderEditor: true });
+		assert.deepStrictEqual(positions, [100, 100]);
+	});
+
+	test('refreshes preview overflow after width and asynchronous content changes', () => {
+		const text = 'Review feedback '.repeat(7);
+		let renderedText: HTMLElement | undefined;
+		let onAsyncRender: (() => void) | undefined;
+		const markdownRenderer = new class extends mock<IMarkdownRendererService>() {
+			override render(markdown: IMarkdownString, options?: MarkdownRenderOptions): IRenderedMarkdown {
+				const element = $('div.rendered-markdown');
+				element.textContent = markdown.value;
+				renderedText = element;
+				onAsyncRender = options?.asyncRenderCallback;
+				return { element, dispose() { } };
+			}
+		}();
+		const hidden: boolean[] = [];
+		let readingPosition: number | undefined;
+		withWidget(({ domNode, editor, widget }) => {
+			const button = domNode.querySelector<HTMLElement>('.agent-feedback-widget-expand')!;
+			hidden.push(Boolean(button.hidden));
+			for (const width of [240, 760]) {
+				editor.getContainerDomNode().style.width = `${width}px`;
+				editor.layout({ width, height: 420 });
+				widget.relayout();
+				hidden.push(Boolean(button.hidden));
+			}
+			for (const value of ['Review feedback '.repeat(50), text]) {
+				renderedText!.textContent = value;
+				onAsyncRender!();
+				hidden.push(Boolean(button.hidden));
+			}
+			renderedText!.textContent = 'Review feedback '.repeat(200);
+			onAsyncRender!();
+			widget.expand();
+			const body = domNode.querySelector<HTMLElement>('.agent-feedback-widget-body')!;
+			body.scrollTop = 100;
+			onAsyncRender!();
+			readingPosition = body.scrollTop;
+		}, { ...comment, text }, { renderEditor: true, expanded: false, markdownRenderer });
+		assert.deepStrictEqual({ hidden, readingPosition }, { hidden: [true, false, true, false, true], readingPosition: 100 });
+	});
+
 	test('reveals navigated cards within an overflowing stack', () => {
 		const comments = Array.from({ length: 10 }, (_, index) => ({
 			...comment,

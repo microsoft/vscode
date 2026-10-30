@@ -15,6 +15,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IOverlayWidget } from '../../../../../editor/browser/editorBrowser.js';
+import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { ScrollType } from '../../../../../editor/common/editorCommon.js';
 import { withTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -33,6 +35,112 @@ suite('AgentFeedbackEditorWidgetContribution', () => {
 		Object.defineProperty(event, 'keyCode', { get: () => 13 });
 		target.dispatchEvent(event);
 	}
+
+	test('keeps grouped navigation visible without remeasuring previews on editor scroll', () => {
+		const session = URI.parse('test://session/grouped-navigation');
+		const navigation = store.add(new Emitter<URI>());
+		let activeIdx = -1;
+		let feedback: readonly IAgentFeedback[] = [];
+		const services = new ServiceCollection();
+		services.set(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
+			override readonly onDidChangeFeedback = Event.None;
+			override readonly onDidChangeFeedbackVisibility = Event.None;
+			override readonly onDidChangeFeedbackScope = Event.None;
+			override readonly onDidChangeNavigation = navigation.event;
+			override getFeedbackSessionResource(): URI { return session; }
+			override getFeedback(): readonly IAgentFeedback[] { return feedback; }
+			override getVisibleResolvedFeedbackIds(): ReadonlySet<string> { return new Set(); }
+			override isAgentHostSession(): boolean { return true; }
+			override hasLoadedFeedback(): boolean { return true; }
+			override getChatChanges() { return []; }
+			override getNavigationBearing() { return { activeIdx, totalCount: feedback.length }; }
+		});
+		const prState = constObservable<IPRReviewState>({ kind: PRReviewStateKind.None });
+		services.set(ICodeReviewService, new class extends mock<ICodeReviewService>() {
+			override getPRReviewState() { return prState; }
+		});
+		services.set(IContextMenuService, new class extends mock<IContextMenuService>() { }());
+		services.set(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override readonly onDidChangeDefaultAccount = Event.None;
+			override readonly currentDefaultAccount = null;
+		});
+		services.set(IMarkdownRendererService, new SyncDescriptor(MarkdownRendererService));
+		const states: { codeVisible: boolean; stackVisible: boolean; cardVisible: boolean }[] = [];
+		let firstAnchorAboveViewport = false;
+		let offscreenGroupHidden = false;
+		let previewMutations = -1;
+		const lines = Array.from({ length: 80 }, (_, index) => `Line ${index + 1}`);
+		withTestCodeEditor(lines, { serviceCollection: services }, (testEditor, _viewModel, instantiationService) => {
+			const disposables = store.add(new DisposableStore());
+			const container = append(mainWindow.document.body, $('div'));
+			container.style.width = '760px';
+			container.style.height = '420px';
+			const editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, container, {
+				dimension: { width: 760, height: 420 },
+				fontSize: 13,
+				lineHeight: 20,
+				minimap: { enabled: false },
+				scrollBeyondLastLine: false,
+				smoothScrolling: false,
+			}, { contributions: [] }));
+			editor.setModel(testEditor.getModel());
+			editor.render();
+			feedback = Array.from({ length: 10 }, (_, index) => ({
+				id: `feedback-${index}`,
+				text: 'A detailed review comment that must remain readable while navigating between the nearby code ranges. '.repeat(4),
+				sessionResource: session,
+				resourceUri: editor.getModel()!.uri,
+				range: { startLineNumber: 2 + index * 4, startColumn: 1, endLineNumber: 2 + index * 4, endColumn: 1 },
+				kind: AgentFeedbackKind.UserReview,
+				state: AgentFeedbackState.Accepted,
+			}));
+			let contribution: AgentFeedbackEditorWidgetContribution | undefined;
+			try {
+				contribution = disposables.add(instantiationService.createInstance(AgentFeedbackEditorWidgetContribution, editor));
+				const navigate = (index: number) => {
+					activeIdx = index;
+					navigation.fire(session);
+					editor.render();
+					const widget = container.querySelector<HTMLElement>('.agent-feedback-widget')!;
+					const card = widget.querySelector<HTMLElement>('.agent-feedback-widget-item.focused')!;
+					const editorBounds = editor.getDomNode()!.getBoundingClientRect();
+					const widgetBounds = widget.getBoundingClientRect();
+					const cardBounds = card.getBoundingClientRect();
+					const layout = editor.getLayoutInfo();
+					const viewportBottom = editorBounds.top + layout.height - layout.horizontalScrollbarHeight;
+					const code = editor.getScrolledVisiblePosition({ lineNumber: feedback[index].range.startLineNumber, column: 1 });
+					states.push({
+						codeVisible: code !== null && code.top >= 0 && editorBounds.top + code.top < viewportBottom,
+						stackVisible: widgetBounds.top >= editorBounds.top && widgetBounds.bottom <= viewportBottom + 1,
+						cardVisible: cardBounds.top >= editorBounds.top && cardBounds.bottom <= viewportBottom + 1,
+					});
+				};
+				navigate(9);
+				firstAnchorAboveViewport = editor.getTopForLineNumber(feedback[0].range.startLineNumber) < editor.getScrollTop();
+				const observer = new mainWindow.MutationObserver(() => { });
+				const observation = disposables.add(toDisposable(() => observer.disconnect()));
+				for (const text of container.querySelectorAll('.agent-feedback-widget-text')) {
+					observer.observe(text, { attributes: true, attributeFilter: ['class'] });
+				}
+				for (let index = 0; index < 3; index++) {
+					editor.setScrollTop(editor.getScrollTop() + 20, ScrollType.Immediate);
+					editor.render();
+				}
+				previewMutations = observer.takeRecords().length;
+				observation.dispose();
+				navigate(0);
+				editor.setScrollTop(editor.getScrollHeight(), ScrollType.Immediate);
+				editor.render();
+				offscreenGroupHidden = container.querySelector('.agent-feedback-widget')!.getBoundingClientRect().bottom <= editor.getDomNode()!.getBoundingClientRect().top;
+			} finally {
+				contribution?.dispose();
+				disposables.dispose();
+				container.remove();
+			}
+		});
+		const visible = { codeVisible: true, stackVisible: true, cardVisible: true };
+		assert.deepStrictEqual({ states, firstAnchorAboveViewport, offscreenGroupHidden, previewMutations }, { states: [visible, visible], firstAnchorAboveViewport: true, offscreenGroupHidden: true, previewMutations: 0 });
+	});
 
 	for (const readonlyState of [AgentFeedbackState.Submitted, AgentFeedbackState.Resolved]) {
 		for (const composer of ['edit', 'reply']) {
