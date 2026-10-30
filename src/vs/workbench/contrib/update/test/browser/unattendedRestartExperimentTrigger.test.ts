@@ -8,8 +8,6 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { IUpdateService, State, UpdateType } from '../../../../../platform/update/common/update.js';
 import { IPowerService } from '../../../../services/power/common/powerService.js';
@@ -21,7 +19,7 @@ suite('UnattendedRestartExperimentTrigger', () => {
 
 	const ready = State.Ready({ version: 'commit' }, false, false);
 
-	function createTrigger(os: OperatingSystem, restartWhenIdle: boolean) {
+	function createTrigger(os: OperatingSystem) {
 		const onDidLockScreen = disposables.add(new Emitter<void>());
 		const onDidUnlockScreen = disposables.add(new Emitter<void>());
 		const onStateChange = disposables.add(new Emitter<State>());
@@ -33,8 +31,6 @@ suite('UnattendedRestartExperimentTrigger', () => {
 			upcastPartial<IPowerService>({ onDidLockScreen: onDidLockScreen.event, onDidUnlockScreen: onDidUnlockScreen.event }),
 			upcastPartial<IUpdateService>({ get state() { return state; }, onStateChange: onStateChange.event }),
 			telemetryService,
-			upcastPartial<IProductService>({ target: 'user' }),
-			new TestConfigurationService({ update: { restartWhenIdle, enableWindowsBackgroundUpdates: true } }),
 		));
 
 		return {
@@ -48,36 +44,38 @@ suite('UnattendedRestartExperimentTrigger', () => {
 		};
 	}
 
-	for (const restartWhenIdle of [false, true]) {
-		test(`logs when the countdown to the restart starts, in every arm (restartWhenIdle: ${restartWhenIdle})`, () => {
-			const lockedWhenReady = createTrigger(OperatingSystem.Macintosh, restartWhenIdle);
-			lockedWhenReady.setState(ready);
-			lockedWhenReady.lock();
+	// The trigger does not read the setting, whose default experiments change, so it logs in every arm
+	test('logs when the countdown to the restart starts, on macOS only', () => {
+		const lockedWhenReady = createTrigger(OperatingSystem.Macintosh);
+		lockedWhenReady.setState(ready);
+		lockedWhenReady.lock();
 
-			const readyWhenLocked = createTrigger(OperatingSystem.Windows, restartWhenIdle);
-			readyWhenLocked.lock();
-			readyWhenLocked.setState(ready);
+		const readyWhenLocked = createTrigger(OperatingSystem.Macintosh);
+		readyWhenLocked.lock();
+		readyWhenLocked.setState(ready);
 
-			const readyAfterUnlock = createTrigger(OperatingSystem.Macintosh, restartWhenIdle);
-			readyAfterUnlock.lock();
-			readyAfterUnlock.unlock();
-			readyAfterUnlock.setState(ready);
+		const readyAfterUnlock = createTrigger(OperatingSystem.Macintosh);
+		readyAfterUnlock.lock();
+		readyAfterUnlock.unlock();
+		readyAfterUnlock.setState(ready);
 
-			const unsupported = createTrigger(OperatingSystem.Linux, restartWhenIdle);
-			unsupported.setState(ready);
-			unsupported.lock();
-
-			assert.deepStrictEqual({
-				lockedWhenReady: lockedWhenReady.triggers,
-				readyWhenLocked: readyWhenLocked.triggers,
-				readyAfterUnlock: readyAfterUnlock.triggers,
-				unsupported: unsupported.triggers,
-			}, {
-				lockedWhenReady: ['config.update.restartWhenIdle'],
-				readyWhenLocked: ['config.update.restartWhenIdle'],
-				readyAfterUnlock: [],
-				unsupported: [],
-			});
+		const unsupported = [OperatingSystem.Windows, OperatingSystem.Linux].map(os => {
+			const trigger = createTrigger(os);
+			trigger.setState(ready);
+			trigger.lock();
+			return trigger.triggers;
 		});
-	}
+
+		assert.deepStrictEqual({
+			lockedWhenReady: lockedWhenReady.triggers,
+			readyWhenLocked: readyWhenLocked.triggers,
+			readyAfterUnlock: readyAfterUnlock.triggers,
+			unsupported,
+		}, {
+			lockedWhenReady: ['config.update.restartWhenIdle'],
+			readyWhenLocked: ['config.update.restartWhenIdle'],
+			readyAfterUnlock: [],
+			unsupported: [[], []],
+		});
+	});
 });

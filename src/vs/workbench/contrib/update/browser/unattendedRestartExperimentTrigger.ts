@@ -5,9 +5,7 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isUnattendedRestartSupported, IUpdateService, RESTART_WHEN_IDLE_SETTING, StateType } from '../../../../platform/update/common/update.js';
@@ -29,12 +27,10 @@ export class UnattendedRestartExperimentTrigger extends Disposable {
 		@IPowerService powerService: IPowerService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IProductService productService: IProductService,
-		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
-		if (!isUnattendedRestartSupported(os, productService, configurationService)) {
+		if (!isUnattendedRestartSupported(os)) {
 			return;
 		}
 

@@ -6,14 +6,16 @@
 import electron from 'electron';
 import { equals } from '../../../base/common/arrays.js';
 import { raceTimeout, RunOnceScheduler } from '../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { OperatingSystem, OS } from '../../../base/common/platform.js';
+import { IProcessEnvironment, OperatingSystem, OS } from '../../../base/common/platform.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
 import { NativeParsedArgs } from '../../environment/common/argv.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { isLaunchedFromCli } from '../../environment/node/argvHelper.js';
 import { describeUnattendedRestartBlockers, IUnattendedRestartWindowReadiness } from '../../lifecycle/common/unattendedRestart.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
@@ -130,6 +132,7 @@ export interface IUnattendedRestartSchedulerOptions {
 	readonly host?: IUnattendedRestartHost;
 	readonly os?: OperatingSystem;
 	readonly argv?: readonly string[];
+	readonly env?: IProcessEnvironment;
 }
 
 function isUnderThermalPressure(state: ThermalState): boolean {
@@ -185,24 +188,34 @@ export function getWindowBlockers(windows: readonly ICodeWindow[], auxiliaryWind
 		if (window.config && hasSessionArguments(window.config)) {
 			blockers.add('window.launchArguments');
 		}
+		if (os === OperatingSystem.Macintosh && window.config?.userEnv && isLaunchedFromCli(window.config.userEnv)) {
+			blockers.add('window.launchedFromCli'); // opened from a terminal, whose environment the restored window would not get
+		}
 
-		// macOS can only restore one native fullscreen window per display at once
-		if (os === OperatingSystem.Macintosh && !inBackground && window.isFullScreen && !window.win?.isSimpleFullScreen()) {
+		// macOS can only restore one native fullscreen window per display at once. A window restored in the
+		// background enters fullscreen once it gets focus, until then only its saved mode is fullscreen.
+		if (os === OperatingSystem.Macintosh && !inBackground && !window.win?.isSimpleFullScreen()) {
 			const { mode, display } = window.serializeWindowState();
-			if (mode === WindowMode.Fullscreen && displaysWithFullScreenWindow.has(display)) {
-				blockers.add('window.fullScreenSameDisplay');
+			if (mode === WindowMode.Fullscreen) {
+				if (displaysWithFullScreenWindow.has(display)) {
+					blockers.add('window.fullScreenSameDisplay');
+				}
+				displaysWithFullScreenWindow.add(display);
 			}
-			displaysWithFullScreenWindow.add(display);
 		}
 	}
 
-	// Floating windows do not remember being minimized, and restore fullscreen as maximized
+	// Floating windows do not remember being minimized, restore fullscreen as maximized, and save
+	// their mode without the mode they wait to enter once they get focus after a background restore
 	for (const window of auxiliaryWindows) {
 		if (window.win?.isMinimized()) {
 			blockers.add('window.auxiliaryMinimized');
 		}
 		if (!inBackground && window.isFullScreen) {
 			blockers.add('window.auxiliaryFullScreen');
+		}
+		if (window.hasPendingMode) {
+			blockers.add('window.auxiliaryPendingMode');
 		}
 	}
 
@@ -286,11 +299,13 @@ export class UnattendedRestartScheduler extends Disposable {
 	private isDone = false;
 	private isEvaluating = false;
 	private pendingRestart: IPendingUnattendedRestart | undefined;
+	private restartCancellation: CancellationTokenSource | undefined;
 	private failedUpdateVersion: string | undefined;
 
 	private readonly host: IUnattendedRestartHost;
 	private readonly os: OperatingSystem;
 	private readonly argv: readonly string[];
+	private readonly env: IProcessEnvironment;
 
 	constructor(
 		private readonly options: IUnattendedRestartSchedulerOptions,
@@ -311,6 +326,7 @@ export class UnattendedRestartScheduler extends Disposable {
 		this.host = options.host ?? createElectronHost();
 		this.os = options.os ?? OS;
 		this.argv = options.argv ?? process.argv;
+		this.env = options.env ?? process.env;
 
 		this.failedUpdateVersion = this.readFailedUpdateVersion();
 		this.reportCompletedRestart();
@@ -433,6 +449,7 @@ export class UnattendedRestartScheduler extends Disposable {
 
 		this.lockedSince = undefined;
 		this.evaluation.cancel();
+		this.restartCancellation?.cancel(); // the restart might still check for a newer update before shutting down
 		this.allowSleep('the screen got unlocked');
 	}
 
@@ -475,7 +492,7 @@ export class UnattendedRestartScheduler extends Disposable {
 	}
 
 	private isSupported(): boolean {
-		return isUnattendedRestartSupported(this.os, this.productService, this.configurationService);
+		return isUnattendedRestartSupported(this.os);
 	}
 
 	private async evaluate(): Promise<void> {
@@ -502,7 +519,9 @@ export class UnattendedRestartScheduler extends Disposable {
 			const inBackground = !this.activeWhenLocked;
 			const { blockers, details, enabled } = await this.getBlockers(inBackground, isDue);
 			if (this.lockedSince !== lockedSince || !this.hasUpdateState(StateType.Ready)) {
-				return; // unlocked or update changed while checking
+				// Unlocked or update changed while checking. A lock or resume in the meantime skipped its own check.
+				this.scheduleEvaluation(0);
+				return;
 			}
 
 			if (blockers.length > 0) {
@@ -535,7 +554,13 @@ export class UnattendedRestartScheduler extends Disposable {
 			const toVersion = this.updateService.state.type === StateType.Ready ? this.updateService.state.update.version : undefined;
 			this.pendingRestart = { fromCommit: this.productService.commit, toVersion, inBackground, attempts: this.attempts, lockedMinutes: this.getLockedMinutes() };
 			this.windowsMainService.restoreExactlyOnNextStartup({ inBackground });
-			await this.updateService.quitAndInstall({ unattended: true, relaunchInBackground: inBackground });
+			const cancellation = this.restartCancellation = new CancellationTokenSource();
+			try {
+				await this.updateService.quitAndInstall({ unattended: true, relaunchInBackground: inBackground, token: cancellation.token });
+			} finally {
+				this.restartCancellation = undefined;
+				cancellation.dispose();
+			}
 
 			// The shutdown can still be vetoed, which is handled when the update service restores `Ready`
 			if (!this.hasUpdateState(StateType.Restarting)) {
@@ -561,7 +586,30 @@ export class UnattendedRestartScheduler extends Disposable {
 
 	private async getBlockers(inBackground: boolean, isDue: boolean): Promise<{ readonly blockers: string[]; readonly details: ReadonlyMap<string, string>; readonly enabled: boolean }> {
 		const windows = this.windowsMainService.getWindows();
-		const blockers = new Set(getWindowBlockers(windows, this.auxiliaryWindowsMainService.getWindows(), this.os, inBackground));
+
+		// Ask the windows even when something else blocks already, so that the outcome tells everything
+		// that prevented the restart. Windows that are not ready block already and cannot answer yet.
+		const readiness = await Promise.all(windows.filter(window => window.isReady).map(window => this.getWindowReadiness(window)));
+		const blockers = new Set<string>();
+		const details = new Map<string, string>();
+		for (const windowReadiness of readiness) {
+			for (const blocker of windowReadiness.blockers) {
+				blockers.add(blocker);
+			}
+
+			// What exactly blocks, only for the log
+			for (const [blocker, detail] of Object.entries(windowReadiness.details ?? {})) {
+				if (typeof detail === 'string' && windowReadiness.blockers.includes(blocker)) {
+					const known = details.get(blocker);
+					details.set(blocker, known ? `${known}; ${detail.slice(0, MAX_DETAIL_LENGTH)}` : detail.slice(0, MAX_DETAIL_LENGTH));
+				}
+			}
+		}
+
+		// Checked once the windows answered, which can take a while, so that the result is current
+		for (const blocker of getWindowBlockers(windows, this.auxiliaryWindowsMainService.getWindows(), this.os, inBackground)) {
+			blockers.add(blocker);
+		}
 		if (this.dialogMainService.hasOpenDialogs()) {
 			blockers.add('app.dialogOpen');
 		}
@@ -582,23 +630,8 @@ export class UnattendedRestartScheduler extends Disposable {
 		if (hasArgumentsLostOnRelaunch(this.environmentMainService.args, this.argv, this.os)) {
 			blockers.add('app.launchArguments');
 		}
-
-		// Ask the windows even when something else blocks already, so that the outcome tells everything
-		// that prevented the restart. Windows that are not ready block already and cannot answer yet.
-		const readiness = await Promise.all(windows.filter(window => window.isReady).map(window => this.getWindowReadiness(window)));
-		const details = new Map<string, string>();
-		for (const windowReadiness of readiness) {
-			for (const blocker of windowReadiness.blockers) {
-				blockers.add(blocker);
-			}
-
-			// What exactly blocks, only for the log
-			for (const [blocker, detail] of Object.entries(windowReadiness.details ?? {})) {
-				if (typeof detail === 'string' && windowReadiness.blockers.includes(blocker)) {
-					const known = details.get(blocker);
-					details.set(blocker, known ? `${known}; ${detail.slice(0, MAX_DETAIL_LENGTH)}` : detail.slice(0, MAX_DETAIL_LENGTH));
-				}
-			}
+		if (this.os === OperatingSystem.Macintosh && isLaunchedFromCli(this.env)) {
+			blockers.add('app.launchedFromCli'); // the relaunch resolves the environment of the login shell instead
 		}
 
 		// Windows resolve experiments, which can enable the setting by default

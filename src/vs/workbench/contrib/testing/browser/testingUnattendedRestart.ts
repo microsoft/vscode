@@ -8,11 +8,10 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IUnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
 import { ITestResult } from '../common/testResult.js';
 import { ITestResultService } from '../common/testResultService.js';
-import { ITestingContinuousRunService } from '../common/testingContinuousRunService.js';
 
 /**
- * Blocks an unattended restart while tests run, which the restart would end, or while
- * continuous test mode is on, which is not turned back on after a restart.
+ * Blocks an unattended restart while tests run, which the restart would end. Continuous
+ * test mode blocks in `TestingContinuousRunService`, without creating it in every window.
  */
 export class TestingUnattendedRestartParticipant extends Disposable implements IWorkbenchContribution {
 
@@ -21,24 +20,15 @@ export class TestingUnattendedRestartParticipant extends Disposable implements I
 	constructor(
 		@IUnattendedRestartService unattendedRestartService: IUnattendedRestartService,
 		@ITestResultService testResultService: ITestResultService,
-		@ITestingContinuousRunService testingContinuousRunService: ITestingContinuousRunService,
 	) {
 		super();
 
 		this._register(unattendedRestartService.registerParticipant({
-			check: () => getTestingUnattendedRestartBlocker(testResultService.results, testingContinuousRunService.isEnabled())
+			check: () => getTestingUnattendedRestartBlocker(testResultService.results)
 		}));
 	}
 }
 
-export function getTestingUnattendedRestartBlocker(results: readonly Pick<ITestResult, 'completedAt'>[], isContinuousRunEnabled: boolean): string | undefined {
-	if (results.some(result => result.completedAt === undefined)) {
-		return 'testing.runInProgress';
-	}
-
-	if (isContinuousRunEnabled) {
-		return 'testing.continuousRun';
-	}
-
-	return undefined;
+export function getTestingUnattendedRestartBlocker(results: readonly Pick<ITestResult, 'completedAt'>[]): string | undefined {
+	return results.some(result => result.completedAt === undefined) ? 'testing.runInProgress' : undefined;
 }

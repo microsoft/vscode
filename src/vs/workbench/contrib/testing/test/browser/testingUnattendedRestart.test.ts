@@ -11,20 +11,18 @@ suite('getTestingUnattendedRestartBlocker', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('blocks while tests run or continuous test mode is on', () => {
+	test('blocks while tests run', () => {
 		const completed = { completedAt: 1 };
 		const running = { completedAt: undefined };
 
 		assert.deepStrictEqual({
-			noResults: getTestingUnattendedRestartBlocker([], false),
-			completed: getTestingUnattendedRestartBlocker([completed], false),
-			running: getTestingUnattendedRestartBlocker([running, completed], false),
-			continuous: getTestingUnattendedRestartBlocker([completed], true),
+			noResults: getTestingUnattendedRestartBlocker([]),
+			completed: getTestingUnattendedRestartBlocker([completed]),
+			running: getTestingUnattendedRestartBlocker([running, completed]),
 		}, {
 			noResults: undefined,
 			completed: undefined,
 			running: 'testing.runInProgress',
-			continuous: 'testing.continuousRun',
 		});
 	});
 });
