@@ -71,6 +71,8 @@ class TestAutomationConnection {
 	readonly historyDeletionReceipts = new Map<string, readonly string[]>();
 	readonly historyDeletionAcknowledgements: string[] = [];
 	readonly historyDeletionAcknowledged = new DeferredPromise<void>();
+	readonly historyDeleteStarted = new DeferredPromise<void>();
+	historyDeleteBarrier: Promise<void> | undefined;
 	historyDeleteError: Error | undefined;
 	historyDeleteErrorBeforePublication = false;
 	historyDeleteAcknowledgements: readonly string[] | undefined;
@@ -88,6 +90,9 @@ class TestAutomationConnection {
 		assert.ok(entry);
 		const deleted = this.historyDeleteAcknowledgements ?? (deleteHistory ? sessions.map(session => session.toString()) : []);
 		if (deleteHistory && (!this.historyDeleteError || !this.historyDeleteErrorBeforePublication)) {
+			this.setAutomation({ ...entry, _meta: withAgentHostAutomationHistoryState(entry._meta, 'deleting') });
+			this.historyDeleteStarted.complete();
+			await this.historyDeleteBarrier;
 			this._catalog = { entries: this._catalog.entries.filter(entry => entry.resource !== resource) };
 			this._onDidCatalogChange.fire(this._catalog);
 			if (requestId) {
@@ -1135,6 +1140,70 @@ suite('AgentHostAutomationStore', () => {
 			definitions: store.automations.get(), name: store.getAutomationHistoryName(automation.id),
 			requests: connection.historyDeletes.map(request => request.deleteHistory),
 		}, { definitions: [], name: automation.name, requests: [false] });
+	});
+
+	test('distinguishes active and interrupted retained history deletion', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		connection.initializeResult.set({ ...connection.initializeResult.get()!, _meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, false, true) }, undefined);
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const first = await store.createAutomation({ ...createOptions(), target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' } });
+		await store.deleteAutomation(first.id, undefined, { deleteHistory: false });
+		const release = new DeferredPromise<void>();
+		connection.historyDeleteBarrier = release.p;
+		const deletion = store.deleteAutomationHistory(first.id);
+		await connection.historyDeleteStarted.p;
+		const active = { state: store.getAutomationHistoryState(first.id), canDelete: store.canDeleteAutomationHistory(first.id) };
+		release.complete();
+		await deletion;
+
+		const second = await store.createAutomation({ ...createOptions(), target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' } });
+		await store.deleteAutomation(second.id, undefined, { deleteHistory: false });
+		connection.historyDeleteBarrier = undefined;
+		connection.historyDeleteError = new Error('offline');
+		await assert.rejects(store.deleteAutomationHistory(second.id), /offline/);
+
+		assert.deepStrictEqual({
+			active,
+			completed: store.getAutomationHistoryState(first.id),
+			interrupted: { state: store.getAutomationHistoryState(second.id), canDelete: store.canDeleteAutomationHistory(second.id) },
+		}, {
+			active: { state: 'deleting', canDelete: false },
+			completed: undefined,
+			interrupted: { state: 'interrupted', canDelete: true },
+		});
+	});
+
+	test('preserves interrupted deletion retry for older hosts', () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		connection.initializeResult.set({
+			...connection.initializeResult.get()!,
+			_meta: { 'vscode.automationHistory': true },
+		}, undefined);
+		connection.setAutomation({
+			resource: 'ahp-automation:/history',
+			definition: {
+				title: 'History',
+				message: { text: '', origin: { kind: MessageKind.Automation } },
+				session: {},
+				enabled: false,
+				triggers: [],
+			},
+			runs: [],
+			operations: [],
+			createdAt: '2026-01-01T00:00:00Z',
+			modifiedAt: '2026-01-01T00:00:00Z',
+			_meta: withAgentHostAutomationHistoryState(undefined, 'deleting'),
+		});
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), disposables.add(new InMemoryStorageService()), activeClientService));
+
+		assert.deepStrictEqual({
+			state: store.getAutomationHistoryState('local-agent-host:ahp-automation:/history'),
+			canDelete: store.canDeleteAutomationHistory('local-agent-host:ahp-automation:/history'),
+		}, {
+			state: 'interrupted',
+			canDelete: true,
+		});
 	});
 
 	for (const outcome of ['acknowledged', 'unacknowledged', 'failureBeforePublication'] as const) {
