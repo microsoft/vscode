@@ -117,7 +117,9 @@ describe('Edit Notebook Tool', () => {
 		});
 	}
 	async function invokeOneTool(notebook: ExtHostNotebookDocumentData, editTool: EditNotebookTool, editsToPerform: IEditNotebookToolParams, notebookEdits: (NotebookEdit | [Uri, TextEdit])[]) {
-		const options: LanguageModelToolInvocationOptions<IEditNotebookToolParams> = { input: editsToPerform, toolInvocationToken: undefined };
+		// The Copilot Chat tool loop passes the same request id to `resolveInput` and `invoke`.
+		const requestId = 'chat-request';
+		const options: LanguageModelToolInvocationOptions<IEditNotebookToolParams> = { input: editsToPerform, toolInvocationToken: undefined, chatRequestId: requestId };
 		const stream: Partial<ChatResponseStream> = {
 			notebookEdit(target: Uri, edits: NotebookEdit | NotebookEdit[] | true) {
 				if (edits === true) {
@@ -143,7 +145,7 @@ describe('Edit Notebook Tool', () => {
 				}
 			}
 		};
-		await editTool.resolveInput(options.input, { stream } as any);
+		await editTool.resolveInput(options.input, { stream, requestId } as any);
 		return editTool.invoke(options, CancellationToken.None);
 	}
 	async function invokeTool(notebook: ExtHostNotebookDocumentData, editTool: EditNotebookTool, editsToPerform: IEditNotebookToolParams[], notebookEdits: (NotebookEdit | [Uri, TextEdit])[]) {
@@ -877,5 +879,36 @@ describe('Edit Notebook Tool', () => {
 				.rejects.toThrow('None of the edits were applied');
 			expect(notebook.document.cellCount).toBe(cellCount);
 		});
+
+		// The tool instance is shared, so a stream from an earlier Copilot Chat request stays in the
+		// prompt context after that request has finished.
+		for (const [caller, chatRequestId] of [['an agent session', undefined], ['another chat request', 'chat-request-2']] as const) {
+			test(`Ignores a stream left over from an earlier chat request when invoked from ${caller}`, async () => {
+				const notebook = createNotebook();
+				const cellCount = notebook.document.cellCount;
+				const workspaceService = new NotebookApplyEditWorkspaceService(notebook);
+				const [editTool] = initialize(notebook.document, workspaceService);
+				const staleStreamCalls: string[] = [];
+				const staleStream: Partial<ChatResponseStream> = {
+					notebookEdit() {
+						staleStreamCalls.push('notebookEdit');
+						throw new Error('Response stream has been closed');
+					},
+					textEdit() {
+						staleStreamCalls.push('textEdit');
+						throw new Error('Response stream has been closed');
+					},
+				};
+				const input: IEditNotebookToolParams = { filePath: notebook.uri.toString(), editType: 'insert', newCode: 'print(1)', language: 'python', cellId: 'bottom' };
+				await editTool.resolveInput(input, { stream: staleStream, requestId: 'chat-request-1' } as any);
+
+				await editTool.invoke({ input, toolInvocationToken: undefined, chatRequestId }, CancellationToken.None);
+
+				expect(staleStreamCalls).toEqual([]);
+				expect(workspaceService.appliedEdits).toHaveLength(1);
+				expect(notebook.document.cellCount).toBe(cellCount + 1);
+				expect(notebook.document.cellAt(cellCount).document.getText()).toBe('print(1)');
+			});
+		}
 	});
 });

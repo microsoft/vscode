@@ -107,11 +107,16 @@ export class EditNotebookTool implements ICopilotTool<IEditNotebookToolParams> {
 		// Resolve this to notebook.
 		uri = findNotebook(uri, this.workspaceService.notebookDocuments)?.uri || uri;
 
+		// The tool instance is shared, and `promptContext` is whatever the last `resolveInput` call set,
+		// so only use it when it belongs to this invocation (the Copilot Chat tool loop passes the same
+		// request id to `resolveInput` and to `invoke`).
+		const promptContext = this.promptContext?.requestId !== undefined && this.promptContext.requestId === options.chatRequestId ? this.promptContext : undefined;
+
 		// Agent sessions, such as the agent host, invoke this tool through the tools service without
 		// calling `resolveInput`, so there is no chat response stream to send the edits to. In that case
 		// collect the edits and apply them to the notebook document, so they land in the open notebook
 		// (next to any unsaved changes) instead of failing.
-		const stream: NotebookEditStream = this.promptContext?.stream ?? new WorkspaceEditStream();
+		const stream: NotebookEditStream = promptContext?.stream ?? new WorkspaceEditStream();
 
 		let notebook: vscode.NotebookDocument;
 		try {
@@ -122,7 +127,7 @@ export class EditNotebookTool implements ICopilotTool<IEditNotebookToolParams> {
 			} else {
 				// Possible the notebook does not exist and model is trying to create a new notebook.
 				// Edit tool doesn't support creating a new notebook.
-				const editFileToolExists = this.promptContext?.tools?.availableTools?.some(t => t.name === ToolName.EditFile);
+				const editFileToolExists = promptContext?.tools?.availableTools?.some(t => t.name === ToolName.EditFile);
 				const toolToCreateFile = editFileToolExists ? ToolName.EditFile : ToolName.CreateFile;
 				const message = error.message || error.toString();
 				throw new Error(`${message}\nIf trying to create a Notebook, then first use the ${toolToCreateFile} tool to create an empty notebook.`);
@@ -130,7 +135,7 @@ export class EditNotebookTool implements ICopilotTool<IEditNotebookToolParams> {
 		}
 
 		const notebookUri = notebook.uri;
-		const provider = this.alternativeNotebookContent.create(this.alternativeNotebookContent.getFormat(this.promptContext?.request?.model));
+		const provider = this.alternativeNotebookContent.create(this.alternativeNotebookContent.getFormat(promptContext?.request?.model));
 		if (token.isCancellationRequested) {
 			sendEditNotebookToolOutcomeTelemetry(this.telemetryService, this.endpointProvider, options, 'cancelled');
 			return;
@@ -300,7 +305,7 @@ export class EditNotebookTool implements ICopilotTool<IEditNotebookToolParams> {
 					await renderPromptElementJSON(
 						this.instantiationService,
 						EditFileResult,
-						{ document: notebook, changes: cells, languageModel: this.promptContext?.request?.model },
+						{ document: notebook, changes: cells, languageModel: promptContext?.request?.model },
 						// If we are not called with tokenization options, have _some_ fake tokenizer
 						// otherwise we end up returning the entire document
 						options.tokenizationOptions ?? {
@@ -326,7 +331,7 @@ export class EditNotebookTool implements ICopilotTool<IEditNotebookToolParams> {
 				sendEditNotebookCellOperationsTelemetry(this.telemetryService, this.endpointProvider, options, editOperation);
 			}
 			sendEditNotebookToolOutcomeTelemetry(this.telemetryService, this.endpointProvider, options, failureReason ?? 'success', failureData);
-			sendEditNotebookTelemetry(this.telemetryService, this.endpointProvider, 'notebookEdit', notebookUri, this.promptContext?.requestId, options.model ?? this.promptContext?.request?.model);
+			sendEditNotebookTelemetry(this.telemetryService, this.endpointProvider, 'notebookEdit', notebookUri, promptContext?.requestId, options.model ?? promptContext?.request?.model);
 		}
 
 	}
