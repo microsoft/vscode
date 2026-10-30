@@ -1105,8 +1105,8 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		}
 
 		const sourceDescriptor: IPluginSourceDescriptor = reference.kind === MarketplaceReferenceKind.GitHubShorthand
-			? { kind: PluginSourceKind.GitHub, repo: reference.githubRepo! }
-			: { kind: PluginSourceKind.GitUrl, url: reference.cloneUrl };
+			? { kind: PluginSourceKind.GitHub, repo: reference.githubRepo!, ...(reference.ref ? { ref: reference.ref } : {}) }
+			: { kind: PluginSourceKind.GitUrl, url: reference.cloneUrl, ...(reference.ref ? { ref: reference.ref } : {}) };
 		const agentManifest = await readAgentPluginManifest(repoDir, this._fileService);
 		if (agentManifest) {
 			return {

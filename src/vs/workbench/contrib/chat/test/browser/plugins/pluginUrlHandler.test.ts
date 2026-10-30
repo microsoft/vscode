@@ -20,12 +20,11 @@ import { IConfirmation, IDialogService } from '../../../../../../platform/dialog
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IURLService } from '../../../../../../platform/url/common/url.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { IAgentSessionsModel, IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
-import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { PluginUrlHandler } from '../../../browser/pluginUrlHandler.js';
@@ -34,6 +33,7 @@ import { IChatSessionsService, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID, SessionT
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ICustomizationMarketplaceInstallProvider } from '../../../common/customizationMarketplaceInstallService.js';
+import { IInstallPluginFromSourceResult, IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
 
 suite('PluginUrlHandler', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -44,9 +44,7 @@ suite('PluginUrlHandler', () => {
 
 	function createHandler(options: {
 		activeResource?: URI;
-		existingSession?: boolean;
 		existingMarketplaceSource?: string;
-		archivedSession?: boolean;
 		provisional?: URI;
 		confirmations?: boolean[];
 		confirmation?: Promise<boolean>;
@@ -63,12 +61,19 @@ suite('PluginUrlHandler', () => {
 		backendFailed?: boolean;
 		failure?: 'list' | 'add' | 'query' | 'install';
 		cancelled?: boolean;
+		target?: 'vscode' | 'copilot' | 'cancel';
+		remoteAuthority?: string;
+		trusted?: boolean;
+		legacyInstallResult?: IInstallPluginFromSourceResult;
+		userMarketplaces?: readonly string[];
 	} = {}) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const calls: string[] = [];
 		const dialogs: IConfirmation[] = [];
 		const errors: string[] = [];
 		const commands: { id: string; args: unknown[] }[] = [];
+		const picks: (readonly IQuickPickItem[])[] = [];
+		const activeSessionResource = observableValue('activeSession', options.activeResource ?? sessionResource);
 		const confirmations = [...(options.confirmations ?? [true, true])];
 		const fail = (phase: typeof options.failure) => {
 			if (phase === options.failure) {
@@ -132,19 +137,23 @@ suite('PluginUrlHandler', () => {
 			marketplaceInstallProvider: options.installUnavailable ? undefined : installProvider,
 		};
 		instantiationService.stub(ICustomizationHarnessService, {
-			activeSessionResource: observableValue('activeSession', options.activeResource ?? sessionResource),
+			activeSessionResource,
 			getDescriptorForSession: () => harness,
 		});
-		const existing = new class extends mock<IAgentSession>() {
-			override readonly resource = sessionResource;
-			override readonly providerType = SessionType.AgentHostCopilot;
-			override isArchived() { return options.archivedSession ?? false; }
-		}();
-		instantiationService.stub(IAgentSessionsService, {
-			model: new class extends mock<IAgentSessionsModel>() {
-				override readonly sessions = options.existingSession ? [existing] : [];
-				override async resolve() { calls.push('resolve'); }
-			}(),
+		instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() { }());
+		instantiationService.stub(IQuickInputService, 'pick', async (items: readonly IQuickPickItem[]) => {
+			picks.push([...items]);
+			return items.find(item => item.id === (options.target ?? 'copilot'));
+		});
+		instantiationService.stub(IPluginInstallService, {
+			ensureMarketplaceTrusted: async reference => {
+				calls.push(`trust:${reference.rawValue}`);
+				return options.trusted ?? true;
+			},
+			installPluginFromSource: async (source, installOptions) => {
+				calls.push(`legacyInstall:${source}:${installOptions?.plugin}`);
+				return options.legacyInstallResult ?? { success: true };
+			},
 		});
 		instantiationService.stub(IChatSessionsService, {
 			canResolveChatSession: async type => {
@@ -169,9 +178,12 @@ suite('PluginUrlHandler', () => {
 				return { confirmed: options.confirmation ? await options.confirmation : confirmations.shift() ?? false };
 			},
 		});
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.PluginsEnabled]: options.pluginsEnabled ?? true,
-		}));
+			[ChatConfiguration.PluginMarketplaces]: options.userMarketplaces ?? [],
+		});
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IConfigurationService, 'updateValue', (key: string, value: readonly (string | object)[]) => configurationService.setUserConfiguration(key, value));
 		instantiationService.stub(IChatEntitlementService, { sentiment: { hidden: options.hidden, disabledInWorkspace: options.disabledInWorkspace } });
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }());
 		instantiationService.stub(ICommandService, 'executeCommand', async (id: string, ...args: unknown[]) => {
@@ -185,11 +197,11 @@ suite('PluginUrlHandler', () => {
 			assert.strictEqual(id, AICustomizationManagementCommands.OpenEditor);
 			return undefined;
 		});
-		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: options.isSessionsWindow ?? false });
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: options.isSessionsWindow ?? false, remoteAuthority: options.remoteAuthority });
 		instantiationService.stub(IHostService, { focus: async () => { } });
 		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(INotificationService, { error: message => { errors.push(String(message)); } });
-		return { handler: store.add(instantiationService.createInstance(PluginUrlHandler)), calls, dialogs, errors, commands };
+		instantiationService.stub(INotificationService, { error: message => { errors.push(String(message)); }, info: () => { } });
+		return { handler: store.add(instantiationService.createInstance(PluginUrlHandler)), calls, dialogs, errors, commands, picks, configurationService, activeSessionResource };
 	}
 
 	function uri(path = '/add-marketplace', query = 'ref=acme/plugins'): URI {
@@ -345,15 +357,6 @@ suite('PluginUrlHandler', () => {
 		});
 	}
 
-	test('reuses an existing Copilot session rather than the non-Copilot active harness', async () => {
-		const fixture = createHandler({ activeResource: URI.parse(`${SessionType.AgentHostClaude}:/session`), existingSession: true });
-		await fixture.handler.handleURL(uri());
-		assert.deepStrictEqual({ calls: fixture.calls, dialogs: fixture.dialogs.length }, {
-			calls: ['resolve', `add:${sessionResource}:acme/plugins`],
-			dialogs: 1,
-		});
-	});
-
 	test('uses an existing provisional backend identity unchanged', async () => {
 		const fixture = createHandler({ activeResource: draftResource, provisional: backendResource });
 		await fixture.handler.handleURL(uri());
@@ -369,7 +372,7 @@ suite('PluginUrlHandler', () => {
 			firstCommand: fixture.commands[0].id,
 			errors: fixture.errors,
 		}, {
-			calls: ['resolve', `create:${draftResource}:copilotcli:file:///workspace`, `add:${backendResource}:acme/plugins`, `query:${backendResource}:catalog:`, `install:${backendResource}:catalog/my-plugin`],
+			calls: [`create:${draftResource}:copilotcli:file:///workspace`, `add:${backendResource}:acme/plugins`, `query:${backendResource}:catalog:`, `install:${backendResource}:catalog/my-plugin`],
 			dialogs: 2,
 			firstCommand: `workbench.action.chat.openNewSessionEditor.${SessionType.AgentHostCopilot}`,
 			errors: [],
@@ -379,7 +382,7 @@ suite('PluginUrlHandler', () => {
 	test('declining session creation does not add a marketplace', async () => {
 		const fixture = createHandler({ activeResource: draftResource, confirmations: [true, false] });
 		await fixture.handler.handleURL(uri());
-		assert.deepStrictEqual({ calls: fixture.calls, commands: fixture.commands, errors: fixture.errors }, { calls: ['resolve'], commands: [], errors: [] });
+		assert.deepStrictEqual({ calls: fixture.calls, commands: fixture.commands, errors: fixture.errors }, { calls: [], commands: [], errors: [] });
 	});
 
 	test('uses the Agents-window new session command without creating a second backend', async () => {
@@ -391,7 +394,7 @@ suite('PluginUrlHandler', () => {
 			commands: fixture.commands,
 			errors: fixture.errors,
 		}, {
-			calls: ['resolve', `add:${agentsDraftResource}:acme/plugins`, `query:${agentsDraftResource}:catalog:`, `install:${agentsDraftResource}:catalog/my-plugin`],
+			calls: [`add:${agentsDraftResource}:acme/plugins`, `query:${agentsDraftResource}:catalog:`, `install:${agentsDraftResource}:catalog/my-plugin`],
 			dialogs: 2,
 			commands: [{
 				id: NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID,
@@ -407,20 +410,19 @@ suite('PluginUrlHandler', () => {
 	test('declining session creation in the Agents window does not invoke a command', async () => {
 		const fixture = createHandler({ activeResource: draftResource, isSessionsWindow: true, confirmations: [true, false] });
 		await fixture.handler.handleURL(uri());
-		assert.deepStrictEqual({ commands: fixture.commands, calls: fixture.calls, errors: fixture.errors }, { commands: [], calls: ['resolve'], errors: [] });
+		assert.deepStrictEqual({ commands: fixture.commands, calls: fixture.calls, errors: fixture.errors }, { commands: [], calls: [], errors: [] });
 	});
 
-	test('does not reuse archived sessions without asking to create a new one', async () => {
-		const fixture = createHandler({ activeResource: URI.parse('local:/session'), existingSession: true, archivedSession: true, confirmations: [true, false] });
+	test('does not choose an unrelated Copilot session when Claude is active', async () => {
+		const fixture = createHandler({ activeResource: URI.parse(`${SessionType.AgentHostClaude}:/session`), confirmations: [true, false] });
 		await fixture.handler.handleURL(uri());
-		assert.deepStrictEqual({ calls: fixture.calls, dialogs: fixture.dialogs.length, commands: fixture.commands }, { calls: ['resolve'], dialogs: 2, commands: [] });
+		assert.deepStrictEqual({ calls: fixture.calls, dialogs: fixture.dialogs.length, commands: fixture.commands }, { calls: [], dialogs: 2, commands: [] });
 	});
 
 	for (const options of [
 		{ hidden: true },
 		{ disabledInWorkspace: true },
 		{ pluginsEnabled: false },
-		{ activeResource: draftResource, available: false },
 		{ activeResource: draftResource, createFailed: true },
 		{ activeResource: draftResource, isSessionsWindow: true, createFailed: true },
 		{ activeResource: draftResource, backendFailed: true },
@@ -433,6 +435,101 @@ suite('PluginUrlHandler', () => {
 			assert.deepStrictEqual({ mutations: fixture.calls.filter(call => /^(add|install):/.test(call)), errors: fixture.errors.length }, { mutations: [], errors: 1 });
 		});
 	}
+
+	test('always asks for an installation owner before confirmation', async () => {
+		const fixture = createHandler({ target: 'cancel' });
+		await fixture.handler.handleURL(uri());
+		assert.deepStrictEqual({
+			targets: fixture.picks[0].map(item => ({ id: item.id, description: item.description })),
+			calls: fixture.calls,
+			dialogs: fixture.dialogs,
+			commands: fixture.commands,
+		}, {
+			targets: [{ id: 'vscode', description: 'This machine' }, { id: 'copilot', description: 'This machine' }],
+			calls: [],
+			dialogs: [],
+			commands: [],
+		});
+	});
+
+	test('does not offer or mutate a remote-workspace installation', async () => {
+		const fixture = createHandler({ remoteAuthority: 'ssh-remote+host' });
+		await fixture.handler.handleURL(uri());
+		assert.deepStrictEqual({ picks: fixture.picks, dialogs: fixture.dialogs, calls: fixture.calls, errors: fixture.errors.length }, {
+			picks: [], dialogs: [], calls: [], errors: 1,
+		});
+	});
+
+	test('keeps the selected Copilot target when the active session changes during consent', async () => {
+		const confirmation = new DeferredPromise<boolean>();
+		const fixture = createHandler({ confirmation: confirmation.p });
+		const handling = fixture.handler.handleURL(uri());
+		await Promise.resolve();
+		await Promise.resolve();
+		fixture.activeSessionResource.set(URI.parse(`${SessionType.AgentHostCopilot}:/other`), undefined);
+		await confirmation.complete(true);
+		await handling;
+		assert.deepStrictEqual(fixture.calls, [`add:${sessionResource}:acme/plugins`]);
+	});
+
+	test('rechecks plugin availability after consent', async () => {
+		const confirmation = new DeferredPromise<boolean>();
+		const fixture = createHandler({ confirmation: confirmation.p });
+		const handling = fixture.handler.handleURL(uri());
+		await Promise.resolve();
+		await fixture.configurationService.setUserConfiguration(ChatConfiguration.PluginsEnabled, false);
+		await confirmation.complete(true);
+		await handling;
+		assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors.length }, { calls: [], errors: 1 });
+	});
+
+	test('installs an exact pinned plugin in the explicitly chosen VS Code inventory', async () => {
+		const fixture = createHandler({ target: 'vscode' });
+		await fixture.handler.handleURL(uri('/install', 'source=acme%2Fplugins%23feature%2Fbeta&plugin=my-plugin'));
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			errors: fixture.errors,
+			destinationConfirmed: fixture.dialogs[0].message.includes('VS Code on This Machine'),
+		}, {
+			calls: ['legacyInstall:acme/plugins#feature/beta:my-plugin'],
+			errors: [],
+			destinationConfirmed: true,
+		});
+	});
+
+	test('adds a pinned VS Code marketplace without requiring Copilot', async () => {
+		const fixture = createHandler({ target: 'vscode', available: false });
+		await fixture.handler.handleURL(uri('/add-marketplace', 'ref=acme%2Fplugins%23feature%2Fbeta'));
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			marketplaces: fixture.configurationService.getValue(ChatConfiguration.PluginMarketplaces),
+			targets: fixture.picks[0].map(item => item.id),
+			errors: fixture.errors,
+		}, {
+			calls: ['trust:acme/plugins#feature/beta'],
+			marketplaces: ['acme/plugins#feature/beta'],
+			targets: ['vscode'],
+			errors: [],
+		});
+	});
+
+	test('does not write a VS Code marketplace when trust is declined', async () => {
+		const fixture = createHandler({ target: 'vscode', trusted: false });
+		await fixture.handler.handleURL(uri());
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			marketplaces: fixture.configurationService.getValue(ChatConfiguration.PluginMarketplaces),
+			commands: fixture.commands,
+		}, { calls: ['trust:acme/plugins'], marketplaces: [], commands: [] });
+	});
+
+	test('reports VS Code installation failures without trying another harness', async () => {
+		const fixture = createHandler({ target: 'vscode', legacyInstallResult: { success: false, message: 'Installation failed' } });
+		await fixture.handler.handleURL(uri('/install', 'source=acme/plugins&plugin=my-plugin'));
+		assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors.length, commands: fixture.commands }, {
+			calls: ['legacyInstall:acme/plugins:my-plugin'], errors: 1, commands: [],
+		});
+	});
 
 	test('reports a missing exact plugin without installing another plugin', async () => {
 		const fixture = createHandler();
