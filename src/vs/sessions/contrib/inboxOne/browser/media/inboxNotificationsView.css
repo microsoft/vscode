@@ -42,6 +42,12 @@
 	display: none;
 }
 
+.inbox-notifications-new-session .new-chat-widget-container.revealed .new-chat-input-container,
+.inbox-notifications-new-session .new-chat-widget-container.revealed .new-session-workspace-picker-container {
+	/* Working-set restoration reattaches the canvas after a background send. */
+	animation: none;
+}
+
 .inbox-notifications-list-pane {
 	display: flex;
 	flex-direction: column;
@@ -242,10 +248,16 @@
 
 .inbox-notifications-detail-pr-row .monaco-button {
 	width: auto;
-	flex: 0 0 auto;
+	flex: 0 1 auto;
+	min-width: 0;
+	height: auto;
+	white-space: normal;
+	overflow-wrap: anywhere;
+	text-align: start;
 }
 
 .inbox-notifications-detail-pr-status {
+	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label2);
 }
@@ -277,12 +289,27 @@
 	display: none;
 }
 
-.inbox-evidence h3,
+.inbox-evidence-section > h3,
 .inbox-notifications-detail-evidence h3,
-.inbox-evidence-canvases h3 {
+.inbox-evidence-canvases h3,
+.inbox-evidence-disclosure > summary {
 	margin: 0;
 	font-size: var(--vscode-fontSize-heading3);
 	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.inbox-evidence-disclosure > summary {
+	cursor: pointer;
+}
+
+.inbox-evidence-disclosure > summary:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+.inbox-evidence-disclosure-content {
+	margin-block-start: var(--vscode-spacing-size80);
+	min-width: 0;
 }
 
 .inbox-evidence-note {
@@ -658,27 +685,35 @@
 	overflow-wrap: anywhere;
 }
 
-.inbox-notifications-item-header-actions {
+.inbox-notifications-item-actions {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
 	justify-content: flex-end;
+	min-width: 0;
+}
+
+.inbox-notifications-item-header-actions {
 	margin-inline-start: auto;
 	flex: 0 0 auto;
 	min-width: min-content;
 	max-width: 50%;
 }
 
-.inbox-notifications-item-header-actions .monaco-button,
-.inbox-notifications-item-header-actions .monaco-text-button {
+.inbox-notifications-item-footer-actions {
+	margin-block-start: var(--vscode-spacing-size40);
+}
+
+.inbox-notifications-item-actions .monaco-button,
+.inbox-notifications-item-actions .monaco-text-button {
 	width: auto;
 	flex: 0 0 auto;
 	max-width: 100%;
 	box-sizing: border-box;
 }
 
-.inbox-notifications-item-header-actions .monaco-button-dropdown {
+.inbox-notifications-item-actions .monaco-button-dropdown {
 	flex: 0 0 auto;
 }
 
@@ -719,6 +754,55 @@
 	flex-wrap: wrap;
 	align-items: center;
 	gap: var(--vscode-spacing-size100);
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	min-width: 0;
+}
+
+.inbox-notifications-item-pr-states[hidden] {
+	display: none;
+}
+
+.inbox-notifications-item-pr-list {
+	flex-direction: column;
+	align-items: stretch;
+	gap: var(--vscode-spacing-size40);
+}
+
+.inbox-notifications-item-pr-list .inbox-notifications-item-pr-state {
+	width: 100%;
+	max-width: 100%;
+}
+
+.inbox-notifications-item-pr-group {
+	min-width: 0;
+}
+
+.inbox-notifications-item-pr-toggle.monaco-button,
+.inbox-notifications-item-pr-list .inbox-notifications-item-pr-state-link.monaco-button {
+	width: auto;
+	max-width: 100%;
+	justify-content: flex-start;
+	padding: var(--vscode-spacing-size20) 0;
+	border: none;
+	background: transparent;
+}
+
+.inbox-notifications-item-pr-list .inbox-notifications-item-pr-state-link.monaco-button {
+	color: var(--vscode-textLink-foreground);
+}
+
+.inbox-notifications-item-pr-list .inbox-notifications-item-pr-state-link.monaco-button:is(:hover, .hovered) {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.inbox-notifications-item-pr-list .inbox-notifications-item-pr-state-link > span:not(.codicon) {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .inbox-notifications-item-pr-state {
@@ -727,6 +811,7 @@
 	gap: var(--vscode-spacing-size60);
 	color: var(--vscode-foreground);
 	min-height: 20px;
+	min-width: 0;
 }
 
 .inbox-notifications-item-pr-state .codicon {

@@ -172,7 +172,7 @@ export interface IChatWidgetService {
 	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 
-	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined;
+	getWidgetBySessionResource(sessionResource: URI, options?: { readonly preferInputRequests?: boolean }): IChatWidget | undefined;
 
 	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget>;
 
@@ -546,6 +546,8 @@ export interface IChatWidget {
 	readonly viewModel: IChatViewModel | undefined;
 	readonly inputEditor: ICodeEditor;
 	readonly supportsFileReferences: boolean;
+	/** Whether this widget can host question and confirmation controls. Defaults to true. */
+	readonly supportsInputRequests?: boolean;
 	/** Whether the input part is rendered above the transcript instead of below it (quick chat, composer-style widgets). */
 	readonly rendersInputOnTop: boolean;
 	readonly attachmentCapabilities: IChatAgentAttachmentCapabilities;

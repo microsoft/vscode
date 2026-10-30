@@ -30,9 +30,11 @@ class TestCanvas extends Disposable implements IWindowCanvas {
 	draft = '';
 	visible = false;
 	sessionsOpened = 0;
-	render(): void { }
+	readonly input = document.createElement('input');
+	focusCalls = 0;
+	render(container: HTMLElement): void { container.appendChild(this.input); }
 	layout(): void { }
-	focus(): void { }
+	focus(): void { this.focusCalls++; this.input.focus(); }
 	setVisible(visible: boolean): void { this.visible = visible; }
 	async openNewSession(): Promise<void> { this.sessionsOpened++; }
 }
@@ -155,6 +157,40 @@ suite('WindowCanvasService', () => {
 			inactive: h.opened[1].options?.inactive,
 		}, { recreatedInput: true, sameContent: true, draft: 'unsent draft', preserveFocus: true, inactive: true });
 	});
+
+	for (const { focusMoved, retainFocusOnRestore } of [
+		{ focusMoved: false, retainFocusOnRestore: false },
+		{ focusMoved: false, retainFocusOnRestore: true },
+		{ focusMoved: true, retainFocusOnRestore: true },
+	]) {
+		test(`working-set replacement restores focus only for opted-in canvases without overriding user focus (${retainFocusOnRestore}, ${focusMoved})`, async () => {
+			const h = createHarness();
+			store.add(h.service.registerCanvas({ ...descriptor, retainFocusOnRestore }));
+			store.add(h.didOpen.event(input => document.body.appendChild(h.service.getPresentation(input).element)));
+			await h.service.openCanvas(descriptor.id);
+			const presentation = h.service.getPresentation(h.opened[0].input);
+			store.add({ dispose: () => presentation.element.remove() });
+			assert.ok(presentation.content instanceof TestCanvas);
+			const content = presentation.content;
+			const otherInput = document.body.appendChild(document.createElement('input'));
+			store.add({ dispose: () => otherInput.remove() });
+			content.input.focus();
+			assert.strictEqual(document.activeElement, content.input);
+			h.workingSetState.set({ owner: undefined, restoring: true, applying: true }, undefined);
+			presentation.element.remove();
+			h.close(h.opened[0].input);
+			if (focusMoved) {
+				otherInput.focus();
+			}
+			const nextOpen = Event.toPromise(h.didOpen.event);
+			h.workingSetState.set({ owner: undefined, restoring: false, applying: false }, undefined);
+			await nextOpen;
+			await timeout(0);
+			assert.deepStrictEqual({ focused: document.activeElement === (focusMoved ? otherInput : retainFocusOnRestore ? content.input : document.body), focusCalls: content.focusCalls, errors: h.errors }, {
+				focused: true, focusCalls: retainFocusOnRestore && !focusMoved ? 1 : 0, errors: [],
+			});
+		});
+	}
 
 	test('without open canvases working-set changes do not affect editor visibility', () => {
 		const h = createHarness();

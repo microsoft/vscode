@@ -51,6 +51,17 @@ suite('InboxNotificationsService', () => {
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	function createPullRequestMergeChangeset(): ISessionChangeset {
+		return upcastPartial<ISessionChangeset>({
+			id: 'branch',
+			isEnabled: observableValue('merge.enabled', true),
+			operations: observableValue<readonly ISessionChangesetOperation[]>('merge.operations', [{
+				id: 'pr-merge', label: 'Merge Pull Request',
+				scopes: [SessionChangesetOperationScope.Changeset], status: SessionChangesetOperationStatus.Idle,
+			}]),
+		});
+	}
+
 	function createSession(options: {
 		readonly id: string;
 		readonly providerId?: string;
@@ -395,6 +406,43 @@ suite('InboxNotificationsService', () => {
 		await waitForState(fixture.service.isLoading, loading => !loading);
 		assert.deepStrictEqual({ loads, releases, id: fixture.service.notifications.get()[0].id }, { loads: 1, releases: 1, id: item.id });
 	});
+
+	for (const pending of [false, true]) {
+		test(`Done clears interpretation state and rejects late results: pending=${pending}`, async () => {
+			const session = createSession({ id: 'done-summary', status: SessionStatus.Completed, updatedAt: 200 });
+			const chatService = new TestChatService();
+			chatService.setCompletedResponse(session.mainChat.get().resource, { requestId: 'result', markdown: 'Finished work' });
+			const started = new DeferredPromise<void>();
+			const result = new DeferredPromise<string>();
+			let requests = 0;
+			const fixture = createFixture([session], undefined, undefined, chatService, undefined, true, [], true, {
+				utilityRequest: async () => {
+					requests++;
+					started.complete();
+					return result.p;
+				},
+			});
+			const item = fixture.service.notifications.get()[0];
+			fixture.service.requestDetailSummary(item);
+			await started.p;
+			const finish = async () => {
+				await result.complete('{"status":"Generated interpretation","decisions":[],"evidence":[]}');
+				await waitForState(fixture.service.isLoading, loading => !loading);
+			};
+			if (!pending) {
+				await finish();
+			}
+			fixture.service.dismissNotification(item.id, item);
+			if (pending) {
+				await finish();
+			}
+			fixture.service.requestDetailSummary(item);
+			assert.deepStrictEqual({
+				requests, summaries: [...fixture.service.detailSummaries.get().keys()],
+				active: fixture.service.notifications.get().map(item => item.id),
+			}, { requests: 1, summaries: [], active: [] });
+		});
+	}
 
 	test('keeps the transcript tail for detail without requesting content classification at any telemetry level', async () => {
 		for (const telemetryLevel of [TelemetryLevel.NONE, TelemetryLevel.ERROR, TelemetryLevel.USAGE]) {
@@ -881,12 +929,53 @@ suite('InboxNotificationsService', () => {
 		});
 	});
 
+	for (const withTranscript of [false, true]) {
+		test(`generates merged PR interpretation from observed states and grounded sources (transcript=${withTranscript})`, async () => {
+			const session = createSession({
+				id: 'merged-summary', status: SessionStatus.Completed, updatedAt: 100, isRead: true,
+				pullRequest: { owner: 'owner', repo: 'repo', number: 46 },
+			});
+			const gitHubService = new TestGitHubService();
+			const chatService = new TestChatService();
+			chatService.setCompletedResponse(session.mainChat.get().resource, { requestId: 'record-pr', markdown: withTranscript ? 'Registered an existing PR as a test artifact. No remote PRs changed.' : '' });
+			const requests: IChatUtilityModelRequest[] = [];
+			const fixture = createFixture([session], undefined, gitHubService, chatService, undefined, true, [], true, {
+				utilityRequest: async request => {
+					requests.push(request);
+					return '{"status":"The associated PR is merged.","decisions":[],"evidence":[{"text":"The PR is merged.","artifact":"A1"}]}';
+				},
+			});
+			gitHubService.setPullRequest('owner', 'repo', 46, openPullRequest(46, 'sha46', { state: GitHubPullRequestState.Merged }));
+			const item = fixture.service.notifications.get()[0];
+			fixture.service.requestDetailSummary(item);
+			await waitForState(fixture.service.isLoading, loading => !loading);
+			const input = requests[0]?.messages[1].content.filter(part => part.type === 'text').map(part => part.value).join('\n');
+			const prompt = requests[0]?.messages[0].content.filter(part => part.type === 'text').map(part => part.value).join('\n');
+			const summary = fixture.service.detailSummaries.get().get(item.id);
+			assert.deepStrictEqual({
+				kind: item.kind, purposes: requests.map(request => request.purpose),
+				observations: input?.includes(JSON.stringify([{ repository: 'owner/repo', label: '#46', status: 'Merged' }])),
+				transcript: input?.includes('No remote PRs changed.'),
+				ownershipGuidance: prompt?.includes('Never claim the session created or merged a pull request unless the transcript supports it.'),
+				status: summary?.status, sources: summary?.evidence.map(({ artifact }) => ({ kind: artifact.kind, label: artifact.label, uri: artifact.uri?.toString() })),
+			}, {
+				kind: InboxNotificationKind.PullRequestMerged, purposes: ['inboxDetailSummary'], observations: true,
+				transcript: withTranscript, ownershipGuidance: true, status: 'The associated PR is merged.',
+				sources: [{ kind: 'pullRequest', label: 'owner/repo#46', uri: 'https://github.com/owner/repo/pull/46' }],
+			});
+		});
+	}
+
 	test('does not request interpretation while Inbox is disabled', async () => {
 		let requests = 0;
 		const fixture = createFixture([], undefined, undefined, undefined, undefined, true, [], false, {
 			utilityRequest: async () => { requests++; return '{"status":"Unexpected","decisions":[],"evidence":[]}'; },
 		});
 		fixture.service.requestDetailSummary(upcastPartial<IInboxNotificationItem>({ id: 'disabled', kind: InboxNotificationKind.Completed, sessionResource: URI.parse('test:///disabled') }));
+		fixture.service.requestDetailSummary(upcastPartial<IInboxNotificationItem>({
+			id: 'disabled-merged', kind: InboxNotificationKind.PullRequestMerged, sessionResource: URI.parse('test:///disabled'),
+			pullRequestStates: [{ label: '#46', repositoryLabel: 'owner/repo', statusLabel: 'Merged', icon: Codicon.gitMerge }],
+		}));
 		await Promise.resolve();
 		assert.deepStrictEqual({ requests, summaries: fixture.service.detailSummaries.get().size }, { requests: 0, summaries: 0 });
 	});
@@ -1355,6 +1444,7 @@ suite('InboxNotificationsService', () => {
 			status: SessionStatus.Completed,
 			updatedAt: 100,
 			isRead: true,
+			changesets: [createPullRequestMergeChangeset()],
 			pullRequest: { owner: 'owner', repo: 'repo', number: 42 },
 		})], undefined, gitHubService);
 
@@ -1398,7 +1488,7 @@ suite('InboxNotificationsService', () => {
 			kind: InboxNotificationKind.PassingCI,
 			repositoryLabel: 'owner/repo',
 			pullRequestStates: [{ label: '#42', statusLabel: 'Open', iconId: Codicon.gitPullRequest.id }],
-			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
+			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.AgentMergeMergePullRequest, InboxNotificationActionKind.MarkDone],
 		}]);
 	});
 
@@ -1409,6 +1499,7 @@ suite('InboxNotificationsService', () => {
 			status: SessionStatus.Completed,
 			updatedAt: 100,
 			isRead: true,
+			changesets: [createPullRequestMergeChangeset()],
 			pullRequest: { owner: 'owner', repo: 'repo', number: 77 },
 		})], undefined, gitHubService);
 
@@ -1592,6 +1683,7 @@ suite('InboxNotificationsService', () => {
 		const gitHubService = new TestGitHubService();
 		const sessions = ['second', 'first'].map(id => createSession({
 			id, status: SessionStatus.Completed, updatedAt: 100,
+			changesets: [createPullRequestMergeChangeset()],
 			pullRequest: { owner: 'owner', repo: 'repo', number: 77 },
 		}));
 		const fixture = createFixture(sessions, undefined, gitHubService);
@@ -1742,6 +1834,7 @@ suite('InboxNotificationsService', () => {
 			const gitHubService = new TestGitHubService();
 			const fixture = createFixture([createSession({
 				id: `merged-${ciStatus}`, status: SessionStatus.Completed, updatedAt: 100,
+				changesets: [createPullRequestMergeChangeset()],
 				pullRequest: { owner: 'owner', repo: 'repo', number: 46 },
 			})], undefined, gitHubService);
 			gitHubService.setPullRequest('owner', 'repo', 46, openPullRequest(46, 'sha46'));
@@ -1834,10 +1927,7 @@ suite('InboxNotificationsService', () => {
 			detailsUrl: undefined,
 		}]);
 
-		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.actions.map(action => action.kind)), [[
-			InboxNotificationActionKind.OpenSession,
-			InboxNotificationActionKind.MarkDone,
-		]]);
+		assert.deepStrictEqual(fixture.service.notifications.get(), []);
 	});
 
 	test('offers real PR merge only while the main chat advertises an enabled changeset merge operation', () => {
@@ -1853,16 +1943,28 @@ suite('InboxNotificationsService', () => {
 		const fixture = createFixture([session], undefined, gitHubService);
 		gitHubService.setPullRequest('owner', 'repo', 44, openPullRequest(44, 'sha44'));
 		gitHubService.setCIStatus('owner', 'repo', 44, 'sha44', GitHubCIOverallStatus.Success, []);
-		const hasMerge = () => fixture.service.notifications.get()[0].actions.some(action => action.kind === InboxNotificationActionKind.AgentMergeMergePullRequest);
-		assert.strictEqual(hasMerge(), false);
+		const snapshot = () => fixture.service.notifications.get().map(item => ({
+			kind: item.kind, hasMerge: item.actions.some(action => action.kind === InboxNotificationActionKind.AgentMergeMergePullRequest),
+		}));
+		const initial = snapshot();
 		operations.set([operation], undefined);
-		assert.strictEqual(hasMerge(), true);
+		const available = snapshot();
 		assert.deepStrictEqual(getInboxPullRequestMergeOperation(session), { changeset, operation });
 		operations.set([{ ...operation, status: SessionChangesetOperationStatus.Running }], undefined);
-		assert.strictEqual(hasMerge(), false);
+		const running = snapshot();
 		operations.set([operation], undefined);
 		enabled.set(false, undefined);
-		assert.strictEqual(hasMerge(), false);
+		const disabledChangeset = snapshot();
+		enabled.set(true, undefined);
+		operations.set([{ ...operation, status: SessionChangesetOperationStatus.Disabled }], undefined);
+		const disabledOperation = snapshot();
+		operations.set([operation], undefined);
+		const completed = [{ kind: InboxNotificationKind.Completed, hasMerge: false }];
+		const mergeReady = [{ kind: InboxNotificationKind.PassingCI, hasMerge: true }];
+		assert.deepStrictEqual({ initial, available, running, disabledChangeset, disabledOperation, restored: snapshot() }, {
+			initial: completed, available: mergeReady, running: completed,
+			disabledChangeset: completed, disabledOperation: completed, restored: mergeReady,
+		});
 	});
 
 	test('rejects local merges, resource-only merges, disabled operations and ambiguous PR merge targets', () => {
@@ -1912,10 +2014,7 @@ suite('InboxNotificationsService', () => {
 			detailsUrl: undefined,
 		}]);
 
-		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.actions.map(action => action.kind)), [[
-			InboxNotificationActionKind.OpenSession,
-			InboxNotificationActionKind.MarkDone,
-		]]);
+		assert.deepStrictEqual(fixture.service.notifications.get(), []);
 	});
 
 	test('offers CI fixes for cloud sessions without an unrelated Agent Merge provider', () => {
@@ -1976,10 +2075,7 @@ suite('InboxNotificationsService', () => {
 			detailsUrl: undefined,
 		}]);
 
-		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.actions.map(action => action.kind)), [[
-			InboxNotificationActionKind.OpenSession,
-			InboxNotificationActionKind.MarkDone,
-		]]);
+		assert.deepStrictEqual(fixture.service.notifications.get(), []);
 	});
 
 	test('persists dismissed notifications across instances', () => {

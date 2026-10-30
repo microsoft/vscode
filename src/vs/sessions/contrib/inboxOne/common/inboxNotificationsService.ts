@@ -222,9 +222,9 @@ export interface IInboxInteractionTelemetryContext {
 	readonly providerId: string;
 }
 
-/** A concrete, session-produced artifact an evidence claim is grounded in and links to. */
+/** A concrete source an evidence claim is grounded in and links to. */
 export interface IInboxEvidenceArtifact {
-	readonly kind: 'file' | 'session' | 'command';
+	readonly kind: 'file' | 'session' | 'command' | 'pullRequest';
 	readonly label: string;
 	readonly uri?: URI;
 }
@@ -235,7 +235,7 @@ export interface IInboxDetailEvidence {
 	readonly artifact: IInboxEvidenceArtifact;
 }
 
-/** A structured, model-generated evidence pack shown in the detail pane for a completed session. */
+/** A structured, model-generated evidence pack shown in the notification detail pane. */
 export interface IInboxDetailSummary {
 	readonly status: string;
 	readonly decisions: readonly string[];

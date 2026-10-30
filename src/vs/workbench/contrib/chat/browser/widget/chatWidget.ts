@@ -1005,6 +1005,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return !!this.viewOptions.supportsFileReferences;
 	}
 
+	get supportsInputRequests(): boolean {
+		return this.viewOptions.rendererOptions?.renderInputRequests !== false;
+	}
+
 	get rendersInputOnTop(): boolean {
 		return this.viewOptions.renderInputOnTop ?? false;
 	}

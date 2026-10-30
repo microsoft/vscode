@@ -1316,7 +1316,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(provider.sessionTypes, []);
 	});
 
-	test('projects advertised canvas channels through hydration, source updates, errors and removal', () => {
+	test('projects observed canvas channels for an inactive session through hydration, source updates, errors and removal', () => {
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} }]);
 		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
@@ -1332,7 +1332,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 		const chatState: ChatState = { ...summary, turns: [], canvases: [{ resource }] };
 		agentHost.setChatState(chat, chatState);
-		activeSession.set(upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat }), undefined);
 		let canvasPublicationCount = 0;
 		disposables.add(autorun(reader => {
 			session.mainChat.read(reader).canvases?.read(reader);
@@ -1341,6 +1340,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const read = () => session.mainChat.get().canvases?.get()?.map(canvas => ({
 			resource: canvas.resource.toString(), instanceId: canvas.instanceId, source: canvas.source?.toString(),
 		}));
+		const unobserved = { canvases: read(), chatSubscriptions: agentHost.sessionSubscribeCounts.get(chat) ?? 0, canvasSubscriptions: agentHost.sessionSubscribeCounts.get(resource) ?? 0 };
+		const chatModel = session.mainChat.get();
+		assert.ok(chatModel.observeCanvases);
+		const observation = disposables.add(chatModel.observeCanvases());
 		const pending = read();
 		const publicationsBeforeRegistryRepublish = canvasPublicationCount;
 		agentHost.setChatState(chat, { ...chatState, canvases: [{ resource }] });
@@ -1355,13 +1358,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.setCanvasState(resource, { ...canvas, url: 'http:relative' });
 		const unsupported = read();
 		agentHost.setChatState(chat, { ...chatState, canvases: [] });
+		const removed = read();
+		observation.dispose();
 
 		assert.deepStrictEqual({
+			unobserved, afterObservation: read(),
+			activeSession: activeSession.get(),
 			supportsCanvases: session.capabilities.get().supportsCanvases,
-			pending, registryRepublishCount, ready, updated, unavailable, unsupported, removed: read(),
+			pending, registryRepublishCount, ready, updated, unavailable, unsupported, removed,
 			subscribes: agentHost.sessionSubscribeCounts.get(resource),
 			unsubscribes: agentHost.sessionUnsubscribeCounts.get(resource),
 		}, {
+			unobserved: { canvases: undefined, chatSubscriptions: 0, canvasSubscriptions: 0 }, afterObservation: undefined,
+			activeSession: undefined,
 			supportsCanvases: true,
 			pending: [{ resource, instanceId: undefined, source: undefined }],
 			registryRepublishCount: 1,
@@ -1370,6 +1379,54 @@ suite('LocalAgentHostSessionsProvider', () => {
 			unavailable: [{ resource, instanceId: undefined, source: undefined }],
 			unsupported: [{ resource, instanceId: 'preview', source: undefined }],
 			removed: [], subscribes: 1, unsubscribes: 1,
+		});
+		activeSession.set(upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat }), undefined);
+		agentHost.setChatState(chat, chatState);
+		agentHost.setCanvasState(resource, canvas);
+		const active = read();
+		activeSession.set(undefined, undefined);
+		assert.deepStrictEqual({ active, inactive: read() }, {
+			active: [{ resource, instanceId: 'preview', source: canvas.url }], inactive: undefined,
+		});
+	});
+
+	test('inactive peer-chat canvases require a retained observation and release the exact advertised channels', async () => {
+		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const main = URI.parse('conversation://opaque/main');
+		const peer = URI.parse('conversation://opaque/peer');
+		const resource = 'ahp-canvas://another-host/documents/peer';
+		agentHost.addSession(createSession('peer-canvases', { chats: [{ chat: main, kind: 'default' }, { chat: peer, kind: 'peer' }] }));
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+		const mainSummary: ChatSummary = { resource: main.toString(), title: 'Main', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
+		const peerSummary: ChatSummary = { resource: peer.toString(), title: 'Peer', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
+		agentHost.setSessionState('peer-canvases', 'copilotcli', {
+			provider: 'copilotcli', title: 'Peer canvases', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready,
+			activeClients: [], chats: [mainSummary, peerSummary], defaultChat: main.toString(),
+		});
+		agentHost.setChatState(peer.toString(), { ...peerSummary, turns: [], canvases: [{ resource }] });
+		agentHost.setCanvasState(resource, { instanceId: 'peer', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/peer' });
+		const chat = session.chats.get().find(chat => chat !== session.mainChat.get())!;
+		disposables.add(autorun(reader => chat.canvases?.read(reader)));
+		const read = () => chat.canvases?.get()?.map(canvas => canvas.resource.toString());
+		const before = { canvases: read(), subscriptions: agentHost.sessionSubscribeCounts.get(resource) ?? 0 };
+		assert.ok(chat.observeCanvases);
+		const first = disposables.add(chat.observeCanvases());
+		const second = disposables.add(chat.observeCanvases());
+		first.dispose();
+		const retained = read();
+		second.dispose();
+		assert.deepStrictEqual({
+			before, retained, released: read(), activeSession: activeSession.get(),
+			chatSubscriptions: agentHost.sessionSubscribeCounts.get(peer.toString()),
+			chatUnsubscriptions: agentHost.sessionUnsubscribeCounts.get(peer.toString()),
+			canvasSubscriptions: agentHost.sessionSubscribeCounts.get(resource),
+			canvasUnsubscriptions: agentHost.sessionUnsubscribeCounts.get(resource),
+		}, {
+			before: { canvases: undefined, subscriptions: 0 }, retained: [resource], released: undefined, activeSession: undefined,
+			chatSubscriptions: 1, chatUnsubscriptions: 1, canvasSubscriptions: 1, canvasUnsubscriptions: 1,
 		});
 	});
 
