@@ -21,7 +21,6 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ICommandDetectionCapability, ITerminalCommand } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ICurrentPartialCommand, isFullTerminalCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
-import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { ITerminalConfigurationService, ITerminalInstance, IXtermColorProvider, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { openContextMenu } from '../../../terminal/browser/terminalContextMenu.js';
@@ -102,9 +101,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			if (!e || e.affectsConfiguration(TerminalStickyScrollSettingId.IgnoredCommands)) {
 				this._ignoredCommands = configurationService.getValue(TerminalStickyScrollSettingId.IgnoredCommands);
 			}
-			if (e?.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
-				this._isWebglUnavailable = false;
-			}
 		}));
 
 		// React to terminal location changes
@@ -125,6 +121,8 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 			this._register(configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
+					// Retry WebGL after a context loss, like the terminal does on configuration changes
+					this._isWebglUnavailable = false;
 					this._syncOptions();
 				}
 			}));
@@ -517,7 +515,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private async _refreshGpuAcceleration() {
 		if (this._shouldLoadWebgl() && (!this._webglAddon.value || this._webglAddonCustomGlyphs !== this._terminalConfigurationService.config.customGlyphs)) {
 			const WebglAddon = await this._xtermAddonLoader.importAddon('webgl');
-			if (this._store.isDisposed) {
+			if (this._store.isDisposed || !this._shouldLoadWebgl()) {
 				return;
 			}
 			// Dispose of existing addon before creating a new one to avoid leaking WebGL contexts
@@ -532,12 +530,13 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				this._disableWebgl();
 			}
 		} else if (!this._shouldLoadWebgl() && this._webglAddon.value) {
+			this._webglContextLossListener.clear();
 			this._webglAddon.clear();
 		}
 	}
 
 	/**
-	 * Falls back to the DOM renderer until the GPU acceleration setting changes, otherwise the next
+	 * Falls back to the DOM renderer until the terminal configuration changes, otherwise the next
 	 * options sync would recreate the addon on a lost or unavailable WebGL context.
 	 */
 	private _disableWebgl() {
