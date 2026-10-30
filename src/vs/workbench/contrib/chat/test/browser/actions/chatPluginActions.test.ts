@@ -61,6 +61,7 @@ suite('InstallFromSourceAction', () => {
 		]);
 		const localInstalls: string[] = [];
 		const validations: string[] = [];
+		const notifications: Parameters<INotificationService['error']>[0][] = [];
 		instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
 			override createInputBox() { return inputBox; }
 		}());
@@ -68,6 +69,11 @@ suite('InstallFromSourceAction', () => {
 			override readonly activeSessionResource = activeSessionResource;
 			override getDescriptorForSession(sessionResource: URI) {
 				return harnesses.get(sessionResource.scheme);
+			}
+		}());
+		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+			override error(error: Parameters<INotificationService['error']>[0]): void {
+				notifications.push(error);
 			}
 		}());
 		instantiationService.stub(IPluginInstallService, new class extends mock<IPluginInstallService>() {
@@ -86,7 +92,7 @@ suite('InstallFromSourceAction', () => {
 			}
 		}());
 		const result = instantiationService.invokeFunction(accessor => new InstallFromSourceAction().run(accessor, { skipReveal: true }));
-		return { inputBox, acceptEmitter, showEmitter, result, localInstalls, validations, session, activeSessionResource, harnesses };
+		return { inputBox, acceptEmitter, showEmitter, result, localInstalls, validations, notifications, session, activeSessionResource, harnesses };
 	}
 
 	test('uses the harness installer for repository, folder, and marketplace sources without changing VS Code plugin locations', async () => {
@@ -185,16 +191,17 @@ suite('InstallFromSourceAction', () => {
 		});
 	});
 
-	test('shows harness installation errors without falling back to VS Code installation', async () => {
+	test('shows harness installation errors as notifications without falling back to VS Code installation', async () => {
 		const fixture = createFixture({
-			installFromSource: async () => { throw new Error('SDK rejected source'); },
+			installFromSource: async () => { throw new Error('The plugin is invalid'); },
 		});
 		const shown = Event.toPromise(fixture.showEmitter.event);
 		fixture.inputBox.value = 'owner/repo';
 		fixture.acceptEmitter.fire();
 		await shown;
 		const state = {
-			message: fixture.inputBox.validationMessage,
+			validationMessage: fixture.inputBox.validationMessage,
+			notifications: fixture.notifications,
 			busy: fixture.inputBox.busy,
 			enabled: fixture.inputBox.enabled,
 			localInstalls: fixture.localInstalls,
@@ -202,7 +209,8 @@ suite('InstallFromSourceAction', () => {
 		fixture.inputBox.hide();
 
 		assert.deepStrictEqual({ ...state, installed: await fixture.result }, {
-			message: 'Failed to install plugin: SDK rejected source',
+			validationMessage: undefined,
+			notifications: ['Failed to install plugin: The plugin is invalid'],
 			busy: false,
 			enabled: true,
 			localInstalls: [],
