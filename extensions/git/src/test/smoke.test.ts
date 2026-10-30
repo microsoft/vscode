@@ -265,6 +265,36 @@ suite('git smoke test', function () {
 		}
 	});
 
+	test('reflects type changes', async function () {
+		if (process.platform === 'win32') {
+			this.skip(); // symlinks require elevated privileges on Windows
+		}
+
+		const link = file('link');
+		fs.symlinkSync('newfile.txt', link);
+		cp.execSync('git add link', { cwd });
+		cp.execSync('git commit -m "add symlink"', { cwd });
+
+		// Replace the symlink with a regular file
+		fs.unlinkSync(link);
+		fs.writeFileSync(link, 'no longer a symlink', 'utf8');
+		await repository.status();
+
+		assert.strictEqual(repository.state.workingTreeChanges.length, 1);
+		assert.strictEqual(repository.state.workingTreeChanges[0].uri.path, uri('link').path);
+		assert.strictEqual(repository.state.workingTreeChanges[0].status, Status.TYPE_CHANGED);
+
+		await repository.add([link]);
+
+		assert.strictEqual(repository.state.indexChanges.length, 1);
+		assert.strictEqual(repository.state.indexChanges[0].uri.path, uri('link').path);
+		assert.strictEqual(repository.state.indexChanges[0].status, Status.INDEX_TYPE_CHANGED);
+
+		await repository.commit('replace symlink with file');
+		assert.strictEqual(repository.state.workingTreeChanges.length, 0);
+		assert.strictEqual(repository.state.indexChanges.length, 0);
+	});
+
 	// diabled because of https://github.com/microsoft/vscode/issues/327142
 	test.skip('rename/delete conflict', async function () {
 		await commands.executeCommand('workbench.view.scm');
