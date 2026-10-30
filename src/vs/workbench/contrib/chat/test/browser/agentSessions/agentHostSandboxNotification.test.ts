@@ -43,6 +43,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { AgentHostSandboxNotification } from '../../../browser/agentSessions/agentHost/agentHostSandboxNotification.js';
 import { InstallTrustedCAAction, ManageTrustedCAAction, RemoveTrustedCAAction, RotateTrustedCAAction } from '../../../browser/actions/chatDeveloperActions.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { ChatInputNotificationWidget } from '../../../browser/widget/input/chatInputNotificationWidget.js';
@@ -90,6 +91,7 @@ suite('AgentHostSandboxNotification', () => {
 			error: async (message, detail) => { installationErrors.push(`${message}: ${detail}`); },
 			info: async message => { installationInformation.push(message); },
 		});
+		instantiationService.stub(IProgressService, { withProgress: async (_options, task) => task({ report: () => { } }) });
 		instantiationService.stub(IChatWidgetService, {
 			get lastFocusedWidget() { return focusedWidget; },
 			onDidChangeFocusedSession: focusedSessionChanged.event,
@@ -126,6 +128,11 @@ suite('AgentHostSandboxNotification', () => {
 			override readonly connections = [];
 			override resolveSessionResource(sessionResource: URI): IAgentHostSessionResolution | undefined {
 				return sessionResource.toString() === resource.toString() ? resolution : undefined;
+			}
+			override resolveSessionResourceIdentity(sessionResource: URI) {
+				return sessionResource.toString() === resource.toString()
+					? resolution ?? { connectionAuthority: 'custom-host', backendSession: URI.parse('custom-host://opaque/session') }
+					: undefined;
 			}
 		});
 		instantiationService.stub(IAgentHostEnablementService, new class extends mock<IAgentHostEnablementService>() {
@@ -261,6 +268,18 @@ suite('AgentHostSandboxNotification', () => {
 			return instantiationService.invokeFunction(accessor => new InstallTrustedCAAction().run(accessor));
 		}
 
+		async function runChatInstallation(service: NotificationService): Promise<void> {
+			await AgentHostSandboxNotification.tryRunCertificateOperation(resource, service, 'install');
+		}
+
+		function enableHostInstallation(install: NonNullable<IAgentHostService['manageHostSandboxCertificate']>): void {
+			localHost = new class extends mock<IAgentHostService>() {
+				override readonly initializeResult = constObservable(undefined);
+				override manageHostSandboxCertificate = install;
+			};
+			instantiationService.stub(IAgentHostService, localHost);
+		}
+
 		function enableRemoval(remove: (chat: string, scopeId: string) => Promise<void>, supported = true): void {
 			assert.ok(resolution);
 			resolution = {
@@ -276,9 +295,8 @@ suite('AgentHostSandboxNotification', () => {
 			};
 		}
 
-		function runRemovalCommand(service: NotificationService): Promise<void> {
-			instantiationService.stub(IChatInputNotificationService, service);
-			return instantiationService.invokeFunction(accessor => new RemoveTrustedCAAction().run(accessor));
+		async function runRemovalCommand(service: NotificationService): Promise<void> {
+			await AgentHostSandboxNotification.tryRunCertificateOperation(resource, service, 'remove');
 		}
 
 		function enableRotation(rotate: (chat: string, scopeId: string) => Promise<void>, supported = true): void {
@@ -296,9 +314,8 @@ suite('AgentHostSandboxNotification', () => {
 			};
 		}
 
-		function runRotationCommand(service: NotificationService): Promise<void> {
-			instantiationService.stub(IChatInputNotificationService, service);
-			return instantiationService.invokeFunction(accessor => new RotateTrustedCAAction().run(accessor));
+		async function runRotationCommand(service: NotificationService): Promise<void> {
+			await AgentHostSandboxNotification.tryRunCertificateOperation(resource, service, 'rotate');
 		}
 
 		class CertificateQuickInputService extends mock<IQuickInputService>() {
@@ -314,6 +331,183 @@ suite('AgentHostSandboxNotification', () => {
 				return items.find((item): item is T => item.type !== 'separator' && item.label === this.selected);
 			}
 		}
+
+		const hostOperations = [
+			{ operation: 'install', label: 'Install', Action: InstallTrustedCAAction, confirmation: 'Install the sandbox certificate?', success: 'The sandbox certificate is trusted on this computer. Running tools may need to restart.', failure: 'Could not install the sandbox certificate' },
+			{ operation: 'rotate', label: 'Rotate', Action: RotateTrustedCAAction, confirmation: 'Rotate the sandbox certificate?', success: 'The sandbox certificate was rotated and trusted on this computer. Running tools may need to restart.', failure: 'Could not rotate the sandbox certificate' },
+			{ operation: 'remove', label: 'Remove', Action: RemoveTrustedCAAction, confirmation: 'Remove sandbox certificate trust?', success: 'The sandbox certificate was removed from OS trust on this computer. The stored certificate authority was kept.', failure: 'Could not remove sandbox certificate trust' },
+		] as const;
+
+		for (const operation of hostOperations) {
+			for (const target of ['no chat', 'unrelated chat', 'local chat with sandboxing off', 'remote chat', 'disconnected remote', 'hidden remote chat'] as const) {
+				test(`Manage Trusted CA ${operation.operation} targets this computer with ${target}, without a certificate controller`, async () => {
+					const calls: [string, string][] = [];
+					enableHostInstallation(async (provider, selected) => { calls.push([provider, selected]); });
+					await configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, 'off');
+					if (target === 'unrelated chat') {
+						focus(URI.parse('test-session:/unrelated'));
+					} else if (target !== 'no chat') {
+						focus(resource);
+						if (target === 'local chat with sandboxing off') {
+							assert.ok(resolution);
+							resolution = { ...resolution, connectionAuthority: 'local', connection: localHost };
+						} else if (target === 'disconnected remote') {
+							resolution = undefined;
+						} else if (target === 'hidden remote chat') {
+							assert.ok(focusedWidget);
+							focusedWidget = upcastPartial<IChatWidget>({ ...focusedWidget, visible: false });
+						}
+					}
+					const picker = new CertificateQuickInputService();
+					picker.selected = operation.label;
+					instantiationService.stub(IQuickInputService, picker);
+					await instantiationService.invokeFunction(accessor => new ManageTrustedCAAction().run(accessor));
+					assert.deepStrictEqual({
+						calls,
+						confirmation: confirmations.map(value => value.message),
+						sandbox: configurationService.getValue(AgentSandboxSettingId.AgentSandboxEnabled),
+						information: installationInformation,
+						errors: installationErrors,
+						dispatched,
+					}, {
+						calls: [['copilotcli', operation.operation]],
+						confirmation: [operation.confirmation],
+						sandbox: 'off',
+						information: [operation.success],
+						errors: [],
+						dispatched: [],
+					});
+				});
+			}
+
+			test(`${operation.label} never uses the ambient remote host in a remote window`, async () => {
+				enableHostInstallation(async () => { assert.fail('Must not operate on a remote host'); });
+				remoteAuthority = 'ssh-remote+host';
+				await instantiationService.invokeFunction(accessor => new operation.Action().run(accessor));
+				assert.deepStrictEqual({ information: installationInformation, confirmations, errors: installationErrors }, {
+					information: ['Local sandbox certificate management is unavailable in this window. Open a local desktop window of VS Code on the computer whose certificate you want to manage.'],
+					confirmations: [],
+					errors: [],
+				});
+			});
+
+			test(`${operation.label} respects cancellation without a chat`, async () => {
+				enableHostInstallation(async () => { assert.fail('Must not mutate after cancellation'); });
+				confirmation = Promise.resolve({ confirmed: false });
+				await instantiationService.invokeFunction(accessor => new operation.Action().run(accessor));
+				assert.deepStrictEqual({ confirmations: confirmations.length, information: installationInformation, errors: installationErrors }, {
+					confirmations: 1, information: [], errors: [],
+				});
+			});
+
+			test(`${operation.label} reports authorization failures without reporting success`, async () => {
+				enableHostInstallation(async () => { throw new Error('OS authorization denied'); });
+				await instantiationService.invokeFunction(accessor => new operation.Action().run(accessor));
+				assert.deepStrictEqual({ information: installationInformation, errors: installationErrors }, {
+					information: [], errors: [`${operation.failure}: OS authorization denied`],
+				});
+			});
+		}
+
+		test('local installation reports an unavailable management method instead of creating a chat', async () => {
+			await runDeveloperCommand(new NotificationService());
+			assert.deepStrictEqual({ information: installationInformation, confirmations, dispatched }, {
+				information: ['Local sandbox certificate management is unavailable in this window. Open a local desktop window of VS Code on the computer whose certificate you want to manage.'],
+				confirmations: [],
+				dispatched: [],
+			});
+		});
+
+		test('local installation respects cancellation', async () => {
+			enableHostInstallation(async () => { assert.fail('Must not install after cancellation'); });
+			confirmation = Promise.resolve({ confirmed: false });
+			await runDeveloperCommand(new NotificationService());
+			assert.deepStrictEqual({ confirmations: confirmations.length, information: installationInformation, errors: installationErrors }, {
+				confirmations: 1, information: [], errors: [],
+			});
+		});
+
+		test('local installation reports OS authorization failures without reporting success', async () => {
+			enableHostInstallation(async () => { throw new Error('OS authorization denied'); });
+			await runDeveloperCommand(new NotificationService());
+			assert.deepStrictEqual({ information: installationInformation, errors: installationErrors }, {
+				information: [], errors: ['Could not install the sandbox certificate: OS authorization denied'],
+			});
+		});
+
+		for (const timing of ['before', 'during'] as const) {
+			test(`local installation respects AI hiding ${timing} confirmation`, async () => {
+				enableHostInstallation(async () => { assert.fail('Must not install with AI hidden'); });
+				hiddenAI = timing === 'before';
+				const pending = new DeferredPromise<{ confirmed: boolean }>();
+				confirmation = pending.p;
+				const installing = runDeveloperCommand(new NotificationService());
+				hiddenAI = true;
+				await pending.complete({ confirmed: true });
+				await installing;
+				assert.deepStrictEqual({
+					confirmations: confirmations.length,
+					information: installationInformation,
+					errors: installationErrors,
+				}, {
+					confirmations: timing === 'before' ? 0 : 1,
+					information: timing === 'before' ? ['Sandbox certificate management is unavailable while AI features are disabled.'] : [],
+					errors: timing === 'during' ? ['Could not install the sandbox certificate: Sandbox certificate management is unavailable while AI features are disabled.'] : [],
+				});
+			});
+		}
+
+		test('local installation shares a pending confirmation across command invocations', async () => {
+			let calls = 0;
+			enableHostInstallation(async () => { calls++; });
+			const pending = new DeferredPromise<{ confirmed: boolean }>();
+			confirmation = pending.p;
+			const service = new NotificationService();
+			const first = runDeveloperCommand(service);
+			const second = runDeveloperCommand(service);
+			await pending.complete({ confirmed: true });
+			await Promise.all([first, second]);
+			assert.deepStrictEqual({ calls, confirmations: confirmations.length, errors: installationErrors }, {
+				calls: 1, confirmations: 1, errors: [],
+			});
+		});
+
+		test('a different local certificate operation reports the pending operation without changing trust', async () => {
+			const calls: string[] = [];
+			enableHostInstallation(async (_provider, operation) => { calls.push(operation); });
+			const pending = new DeferredPromise<{ confirmed: boolean }>();
+			confirmation = pending.p;
+			const installing = runDeveloperCommand(new NotificationService());
+			await instantiationService.invokeFunction(accessor => new RotateTrustedCAAction().run(accessor));
+			await instantiationService.invokeFunction(accessor => new RemoveTrustedCAAction().run(accessor));
+			await pending.complete({ confirmed: true });
+			await installing;
+			assert.deepStrictEqual({ calls, confirmations: confirmations.length, information: installationInformation }, {
+				calls: ['install'],
+				confirmations: 1,
+				information: [
+					'A sandbox certificate operation is already in progress on this computer. Wait for it to finish, then try again.',
+					'A sandbox certificate operation is already in progress on this computer. Wait for it to finish, then try again.',
+					'The sandbox certificate is trusted on this computer. Running tools may need to restart.',
+				],
+			});
+		});
+
+		test('local certificate commands never read the focused chat or agent host connections', async () => {
+			instantiationService.stub(IChatWidgetService, {
+				get lastFocusedWidget(): IChatWidget | undefined { return assert.fail('Must not read chat focus'); },
+			});
+			instantiationService.stub(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResource(): never { assert.fail('Must not resolve a chat host'); }
+				override resolveSessionResourceIdentity(): never { assert.fail('Must not resolve a chat host'); }
+			});
+			const calls: string[] = [];
+			enableHostInstallation(async (_provider, operation) => { calls.push(operation); });
+			for (const operation of hostOperations) {
+				await instantiationService.invokeFunction(accessor => new operation.Action().run(accessor));
+			}
+			assert.deepStrictEqual(calls, ['install', 'rotate', 'remove']);
+		});
 
 		test('Manage Trusted CA is the only CA Command Palette entry and respects agent-host enablement', () => {
 			const actions = [new ManageTrustedCAAction(), new InstallTrustedCAAction(), new RotateTrustedCAAction(), new RemoveTrustedCAAction()];
@@ -336,7 +530,7 @@ suite('AgentHostSandboxNotification', () => {
 		});
 
 		for (const selected of ['Install', 'Rotate', 'Remove', undefined]) {
-			test(`Manage Trusted CA routes ${selected ?? 'cancellation'} through the existing confirmation flow`, async () => {
+			test(`Manage Trusted CA routes ${selected ?? 'cancellation'} locally despite a change in chat focus`, async () => {
 				store.add(registerAction2(ManageTrustedCAAction));
 				const subscription = store.add(new TestSubscription());
 				subscription.setValue();
@@ -344,14 +538,7 @@ suite('AgentHostSandboxNotification', () => {
 				subscription.setCertificate({ ...certificate, state: selected === 'Install' ? 'notInstalled' : 'installed' }, chat);
 				const service = new NotificationService();
 				const calls: [string, string][] = [];
-				const run = async (chat: string, scopeId: string) => { calls.push([chat, scopeId]); };
-				if (selected === 'Install') {
-					enableInstallation(run);
-				} else if (selected === 'Rotate') {
-					enableRotation(run);
-				} else {
-					enableRemoval(run);
-				}
+				enableHostInstallation(async (provider, operation) => { calls.push([provider, operation]); });
 				const picker = new CertificateQuickInputService();
 				picker.selected = selected;
 				picker.onPick = () => focus(URI.parse('test-session:/other'));
@@ -366,19 +553,21 @@ suite('AgentHostSandboxNotification', () => {
 					confirmations: confirmations.length, errors: installationErrors,
 				}, {
 					title: 'Manage Trusted CA', labels: ['Install', 'Rotate', 'Remove'],
-					calls: selected ? [[chat, 'host-runtime']] : [],
+					calls: selected ? [['copilotcli', selected.toLowerCase()]] : [],
 					confirmations: selected ? 1 : 0, errors: [],
 				});
 			});
 		}
 
 		for (const change of ['disconnect', 'dispose'] as const) {
-			test(`Manage Trusted CA rechecks the target after picker ${change}`, async () => {
+			test(`Manage Trusted CA remains local after remote chat ${change} during the picker`, async () => {
 				const subscription = store.add(new TestSubscription());
 				subscription.setValue();
 				subscription.setCertificate({ ...certificate, state: 'installed' });
 				const service = new NotificationService();
 				enableRotation(async () => { assert.fail('Target no longer available'); });
+				const calls: [string, string][] = [];
+				enableHostInstallation(async (provider, operation) => { calls.push([provider, operation]); });
 				focus(resource);
 				const controller = createNotification(resource, subscription, service);
 				const picker = new CertificateQuickInputService();
@@ -392,14 +581,15 @@ suite('AgentHostSandboxNotification', () => {
 				};
 				instantiationService.stub(IQuickInputService, picker);
 				await instantiationService.invokeFunction(accessor => new ManageTrustedCAAction().run(accessor));
-				assert.deepStrictEqual({ information: installationInformation, confirmations, errors: installationErrors }, {
-					information: ['No agent host detected.'], confirmations: [], errors: [],
+				assert.deepStrictEqual({ calls, information: installationInformation, confirmations: confirmations.map(value => value.message), errors: installationErrors }, {
+					calls: [['copilotcli', 'rotate']],
+					information: ['The sandbox certificate was rotated and trusted on this computer. Running tools may need to restart.'],
+					confirmations: ['Rotate the sandbox certificate?'], errors: [],
 				});
 			});
 		}
 
-		test('Rotate Trusted CA is registered, confirms replacement, and shows progress without an idle missing notice', async () => {
-			store.add(registerAction2(RotateTrustedCAAction));
+		test('chat certificate rotation confirms replacement and shows progress without an idle missing notice', async () => {
 			const subscription = store.add(new TestSubscription());
 			subscription.setValue();
 			subscription.setCertificate({ ...certificate, state: 'installed' });
@@ -415,10 +605,7 @@ suite('AgentHostSandboxNotification', () => {
 			focus(resource);
 			createNotification(resource, subscription, service);
 			const idleNotices = service.notifications.size;
-			instantiationService.stub(IChatInputNotificationService, service);
-			const command = CommandsRegistry.getCommand('workbench.action.chat.rotateTrustedCA');
-			assert.ok(command);
-			await instantiationService.invokeFunction(command.handler);
+			await runRotationCommand(service);
 			const detail = confirmations[0]?.detail;
 			assert.ok(typeof detail === 'string');
 			assert.deepStrictEqual({
@@ -461,7 +648,7 @@ suite('AgentHostSandboxNotification', () => {
 				const controller = createNotification(resource, subscription, service);
 				const rotating = runRotationCommand(service);
 				await runRotationCommand(service);
-				await runDeveloperCommand(service);
+				await runChatInstallation(service);
 				await runRemovalCommand(service);
 				if (outcome === 'stale scope') {
 					subscription.setCertificate({ ...certificate, state: 'installed', scopeId: 'replacement' });
@@ -518,7 +705,6 @@ suite('AgentHostSandboxNotification', () => {
 		});
 
 		test('Remove Trusted CA is registered, confirms the host and retained CA, and shows progress and completion', async () => {
-			store.add(registerAction2(RemoveTrustedCAAction));
 			const subscription = store.add(new TestSubscription());
 			subscription.setValue();
 			subscription.setCertificate({ ...certificate, state: 'installed' });
@@ -532,10 +718,7 @@ suite('AgentHostSandboxNotification', () => {
 			});
 			focus(resource);
 			createNotification(resource, subscription, service);
-			instantiationService.stub(IChatInputNotificationService, service);
-			const command = CommandsRegistry.getCommand('workbench.action.chat.removeTrustedCA');
-			assert.ok(command);
-			await instantiationService.invokeFunction(command.handler);
+			await runRemovalCommand(service);
 			const detail = confirmations[0]?.detail;
 			assert.ok(typeof detail === 'string');
 			assert.deepStrictEqual({
@@ -598,7 +781,7 @@ suite('AgentHostSandboxNotification', () => {
 			createNotification(resource, subscription, service);
 			const removing = runRemovalCommand(service);
 			await started.p;
-			await runDeveloperCommand(service);
+			await runChatInstallation(service);
 			await runRemovalCommand(service);
 			pending.complete();
 			await removing;
@@ -829,13 +1012,14 @@ suite('AgentHostSandboxNotification', () => {
 			});
 		}
 
-		test('Developer command installs for the last-focused chat after dismissing the notice', async () => {
+		test('Developer command installs locally even when a remote chat notification has been dismissed', async () => {
 			store.add(registerAction2(InstallTrustedCAAction));
 			const subscription = store.add(new TestSubscription());
 			subscription.setValue();
 			subscription.setCertificate(certificate);
 			const service = new NotificationService();
 			const calls: [string, string][] = [];
+			enableHostInstallation(async (provider, operation) => { calls.push([provider, operation]); });
 			let progress: boolean | undefined;
 			enableInstallation(async (chat, scopeId) => {
 				calls.push([chat.toString(), scopeId]);
@@ -850,11 +1034,12 @@ suite('AgentHostSandboxNotification', () => {
 			assert.ok(command);
 			await instantiationService.invokeFunction(command.handler);
 			assert.deepStrictEqual({ calls, progress, confirmations: confirmations.length, remaining: service.notifications.size }, {
-				calls: [['conversation://opaque/certificate?revision%3D3#entry', 'host-runtime']], progress: true, confirmations: 1, remaining: 0,
+				calls: [['copilotcli', 'install']], progress: undefined, confirmations: 1, remaining: 0,
 			});
+			assert.deepStrictEqual(installationInformation, ['The sandbox certificate is trusted on this computer. Running tools may need to restart.']);
 		});
 
-		test('Developer command reports an already trusted CA without confirming or mutating', async () => {
+		test('chat installation reports an already trusted CA without confirming or mutating', async () => {
 			const subscription = store.add(new TestSubscription());
 			subscription.setValue();
 			subscription.setCertificate({ ...certificate, state: 'installed' });
@@ -862,7 +1047,7 @@ suite('AgentHostSandboxNotification', () => {
 			enableInstallation(async () => { assert.fail('Already installed'); });
 			focus(resource);
 			createNotification(resource, subscription, service);
-			await runDeveloperCommand(service);
+			await runChatInstallation(service);
 			assert.deepStrictEqual({ confirmations, installationInformation, installationErrors }, {
 				confirmations: [], installationInformation: ['The sandbox certificate is already trusted for this chat.'], installationErrors: [],
 			});
@@ -924,7 +1109,7 @@ suite('AgentHostSandboxNotification', () => {
 				createNotification(resource, subscription, service);
 				const idleNotices = service.notifications.size;
 
-				const installing = runDeveloperCommand(service);
+				const installing = runChatInstallation(service);
 				await started.p;
 				const notice = service.notifications.get(id);
 				const pending = {
@@ -967,7 +1152,7 @@ suite('AgentHostSandboxNotification', () => {
 			assert.strictEqual(calls, 1);
 		});
 
-		test('Developer command shares the pending confirmation with the Install button', async () => {
+		test('chat installation shares the pending confirmation with the Install button', async () => {
 			const subscription = store.add(new TestSubscription());
 			subscription.setValue();
 			subscription.setCertificate(certificate);
@@ -979,15 +1164,15 @@ suite('AgentHostSandboxNotification', () => {
 			focus(resource);
 			createNotification(resource, subscription, service);
 			const installing = instantiationService.invokeFunction(installCommand(service).handler);
-			await runDeveloperCommand(service);
+			await runChatInstallation(service);
 			await pending.complete({ confirmed: true });
 			await installing;
 			assert.deepStrictEqual({ calls, confirmations: confirmations.length }, { calls: 1, confirmations: 1 });
 		});
 
-		for (const Action of [ManageTrustedCAAction, InstallTrustedCAAction, RotateTrustedCAAction, RemoveTrustedCAAction]) {
+		for (const Action of [RotateTrustedCAAction, RemoveTrustedCAAction]) {
 			for (const target of ['no focused chat', 'non-agent-host chat', 'missing connection', 'missing controller', 'disposed controller'] as const) {
-				test(`${new Action().desc.id} reports No agent host detected for ${target}`, async () => {
+				test(`${new Action().desc.id} reports unavailable local management with ${target}`, async () => {
 					const service = new NotificationService();
 					if (target === 'non-agent-host chat') {
 						focus(URI.parse('test-session:/unrelated'));
@@ -1008,14 +1193,14 @@ suite('AgentHostSandboxNotification', () => {
 					instantiationService.stub(IChatInputNotificationService, service);
 					await instantiationService.invokeFunction(accessor => new Action().run(accessor));
 					assert.deepStrictEqual({ information: installationInformation, errors: installationErrors, confirmations, dispatched }, {
-						information: ['No agent host detected.'], errors: [], confirmations: [], dispatched: [],
+						information: ['Local sandbox certificate management is unavailable in this window. Open a local desktop window of VS Code on the computer whose certificate you want to manage.'], errors: [], confirmations: [], dispatched: [],
 					});
 				});
 			}
 		}
 
 		for (const unavailable of ['unsupported host', 'hidden AI', 'sandbox disabled'] as const) {
-			test(`Developer command cannot bypass ${unavailable}`, async () => {
+			test(`chat installation cannot bypass ${unavailable}`, async () => {
 				const subscription = store.add(new TestSubscription());
 				subscription.setValue();
 				subscription.setCertificate(certificate);
@@ -1027,7 +1212,7 @@ suite('AgentHostSandboxNotification', () => {
 				}
 				focus(resource);
 				createNotification(resource, subscription, service);
-				await runDeveloperCommand(service);
+				await runChatInstallation(service);
 				assert.deepStrictEqual({ confirmations: confirmations.length, rejected: installationErrors[0]?.includes('no longer available') }, { confirmations: 0, rejected: true });
 			});
 		}

@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNow } from '../../../../../base/common/date.js';
+import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { isUriComponents, URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -21,14 +22,16 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { AUTOPILOT_DONT_SHOW_AGAIN_KEY, AUTO_APPROVE_DONT_SHOW_AGAIN_KEY } from '../../common/chatPermissionStorageKeys.js';
 import { resetShownWarnings } from '../../common/chatPermissionWarnings.js';
 import { OpenAgentHostStateFileAction } from './openAgentHostStateFileAction.js';
-import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { type AgentSandboxCertificateOperation, COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
-import { AgentHostSandboxNotification } from '../agentSessions/agentHost/agentHostSandboxNotification.js';
-import { IChatInputNotificationService } from '../widget/input/chatInputNotificationService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 
 function uriReplacer(_key: string, value: unknown): unknown {
 	if (URI.isUri(value)) {
@@ -122,36 +125,98 @@ export class ManageTrustedCAAction extends Action2 {
 	}
 }
 
-type CertificateOperation = 'install' | 'rotate' | 'remove';
+const hostCertificateOperations = new WeakMap<IAgentHostService, { operation: AgentSandboxCertificateOperation; promise: Promise<void> }>();
 
-async function runSandboxCertificateCommand(accessor: ServicesAccessor, operation?: CertificateOperation): Promise<void> {
+async function runSandboxCertificateCommand(accessor: ServicesAccessor, operation?: AgentSandboxCertificateOperation): Promise<void> {
 	const dialogService = accessor.get(IDialogService);
-	const connectionsService = accessor.get(IAgentHostConnectionsService);
-	const notificationService = accessor.get(IChatInputNotificationService);
-	const sessionResource = accessor.get(IChatWidgetService).lastFocusedWidget?.viewModel?.sessionResource;
-	if (!sessionResource || !connectionsService.resolveSessionResource(sessionResource)
-		|| !AgentHostSandboxNotification.hasCertificateController(sessionResource, notificationService)) {
-		await dialogService.info(localize('agentHost.sandboxCertificate.noAgentHost', "No agent host detected."));
-		return;
-	}
+	const agentHostService = accessor.get(IAgentHostService);
+	const environmentService = accessor.get(IWorkbenchEnvironmentService);
+	const entitlementService = accessor.get(IChatEntitlementService);
+	const progressService = accessor.get(IProgressService);
 	if (!operation) {
-		const selected = await accessor.get(IQuickInputService).pick<IQuickPickItem & { operation: CertificateOperation }>([
+		const selected = await accessor.get(IQuickInputService).pick<IQuickPickItem & { operation: AgentSandboxCertificateOperation }>([
 			{ label: localize('agentHost.sandboxCertificate.installChoice', "Install"), description: localize('agentHost.sandboxCertificate.installDescription', "Trust the sandbox CA"), operation: 'install' },
 			{ label: localize('agentHost.sandboxCertificate.rotateChoice', "Rotate"), description: localize('agentHost.sandboxCertificate.rotateDescription', "Replace and trust the sandbox CA"), operation: 'rotate' },
 			{ label: localize('agentHost.sandboxCertificate.removeChoice', "Remove"), description: localize('agentHost.sandboxCertificate.removeDescription', "Remove OS trust; keep the certificate"), operation: 'remove' },
 		], {
 			title: localize('agentHost.sandboxCertificate.manageTitle', "Manage Trusted CA"),
-			placeHolder: localize('agentHost.sandboxCertificate.managePlaceholder', "Select an action for this chat's agent host"),
+			placeHolder: localize('agentHost.sandboxCertificate.manageLocalPlaceholder', "Select a certificate action for this computer"),
 		});
 		if (!selected) {
 			return;
 		}
 		operation = selected.operation;
 	}
-	const handled = !!connectionsService.resolveSessionResource(sessionResource)
-		&& await AgentHostSandboxNotification.tryRunCertificateOperation(sessionResource, notificationService, operation);
-	if (!handled) {
-		await dialogService.info(localize('agentHost.sandboxCertificate.noAgentHost', "No agent host detected."));
+	if (entitlementService.sentiment.hidden) {
+		await dialogService.info(localize('agentHost.sandboxCertificate.managementAiDisabled', "Sandbox certificate management is unavailable while AI features are disabled."));
+		return;
+	}
+	if (environmentService.remoteAuthority || !agentHostService.manageHostSandboxCertificate) {
+		await dialogService.info(localize('agentHost.sandboxCertificate.localManagementUnavailable', "Local sandbox certificate management is unavailable in this window. Open a local desktop window of VS Code on the computer whose certificate you want to manage."));
+		return;
+	}
+	const pending = hostCertificateOperations.get(agentHostService);
+	if (pending) {
+		if (pending.operation === operation) {
+			await pending.promise;
+		} else {
+			await dialogService.info(localize('agentHost.sandboxCertificate.operationPending', "A sandbox certificate operation is already in progress on this computer. Wait for it to finish, then try again."));
+		}
+		return;
+	}
+	const selectedOperation = operation;
+	const promise = (async () => {
+		try {
+			const confirmation = await dialogService.confirm({
+				type: 'warning',
+				message: selectedOperation === 'install'
+					? localize('agentHost.sandboxCertificate.confirmLocal', "Install the sandbox certificate?")
+					: selectedOperation === 'rotate'
+						? localize('agentHost.sandboxCertificate.confirmRotateLocal', "Rotate the sandbox certificate?")
+						: localize('agentHost.sandboxCertificate.confirmRemoveLocal', "Remove sandbox certificate trust?"),
+				detail: selectedOperation === 'install'
+					? localize('agentHost.sandboxCertificate.confirmLocalDetail', "Adds the sandbox CA to this host's OS trust store, replacing it if needed. Running tools may need to restart.")
+					: selectedOperation === 'rotate'
+						? localize('agentHost.sandboxCertificate.confirmRotateLocalDetail', "Replaces the shared sandbox CA and private key and trusts the new CA. Running tools may need to restart.")
+						: localize('agentHost.sandboxCertificate.confirmRemoveLocalDetail', "Removes OS trust for the shared sandbox CA but keeps its certificate and private key. Tools relying on OS trust may stop working."),
+				primaryButton: selectedOperation === 'install'
+					? localize('agentHost.sandboxCertificate.confirmInstall', "&&Install")
+					: selectedOperation === 'rotate'
+						? localize('agentHost.sandboxCertificate.confirmRotate', "&&Rotate")
+						: localize('agentHost.sandboxCertificate.confirmRemove', "&&Remove"),
+			});
+			if (!confirmation.confirmed) {
+				return;
+			}
+			if (entitlementService.sentiment.hidden) {
+				throw new Error(localize('agentHost.sandboxCertificate.managementAiDisabled', "Sandbox certificate management is unavailable while AI features are disabled."));
+			}
+			await progressService.withProgress({
+				location: ProgressLocation.Notification,
+				title: selectedOperation === 'install'
+					? localize('agentHost.sandboxCertificate.installingLocal', "Installing the sandbox certificate on this computer")
+					: selectedOperation === 'rotate'
+						? localize('agentHost.sandboxCertificate.rotatingLocal', "Rotating the sandbox certificate on this computer")
+						: localize('agentHost.sandboxCertificate.removingLocal', "Removing sandbox certificate trust on this computer"),
+			}, () => agentHostService.manageHostSandboxCertificate!(COPILOT_CLI_AGENT_PROVIDER_ID, selectedOperation));
+			await dialogService.info(selectedOperation === 'install'
+				? localize('agentHost.sandboxCertificate.installedLocal', "The sandbox certificate is trusted on this computer. Running tools may need to restart.")
+				: selectedOperation === 'rotate'
+					? localize('agentHost.sandboxCertificate.rotatedLocal', "The sandbox certificate was rotated and trusted on this computer. Running tools may need to restart.")
+					: localize('agentHost.sandboxCertificate.removedLocal', "The sandbox certificate was removed from OS trust on this computer. The stored certificate authority was kept."));
+		} catch (error) {
+			await dialogService.error(selectedOperation === 'install'
+				? localize('agentHost.sandboxCertificate.installFailed', "Could not install the sandbox certificate")
+				: selectedOperation === 'rotate'
+					? localize('agentHost.sandboxCertificate.rotateFailed', "Could not rotate the sandbox certificate")
+					: localize('agentHost.sandboxCertificate.removeFailed', "Could not remove sandbox certificate trust"), getErrorMessage(error));
+		}
+	})();
+	hostCertificateOperations.set(agentHostService, { operation: selectedOperation, promise });
+	try {
+		await promise;
+	} finally {
+		hostCertificateOperations.delete(agentHostService);
 	}
 }
 

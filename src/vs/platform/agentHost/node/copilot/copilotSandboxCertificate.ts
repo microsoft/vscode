@@ -59,28 +59,55 @@ export class CopilotSandboxCertificate {
 		return this._mutate(rpc, getConfig, 'install', async config => {
 			const runtime = this._requireRuntime(rpc, scopeId);
 			const status = await this._check(rpc, config, runtime);
-			if (status.state === 'installed' && !status.requiresRotation) {
+			await this._installCertificate(rpc, { sandboxConfig: config }, status);
+		});
+	}
+
+	/** Sets up OS trust from saved runtime settings after consent, independently of chat sandbox enablement. */
+	installForHost(rpc: SandboxCertificateRpc): Promise<void> {
+		return this._mutate(rpc, () => undefined, 'install', async () => {
+			const supported = await this._query(() => rpc.checkInstallationSupport());
+			const status = await this._query(() => rpc.getStatus({}));
+			await this._installCertificate(rpc, {}, { ...status, canInstall: supported && status.canInstall });
+		});
+	}
+
+	/** Replaces and trusts the host CA after consent, without a chat or sandbox enablement change. */
+	rotateForHost(rpc: SandboxCertificateRpc): Promise<void> {
+		return this._mutate(rpc, () => undefined, 'rotate', async () => {
+			const supported = await this._query(() => rpc.checkInstallationSupport());
+			const status = await this._query(() => rpc.getStatus({}));
+			await this._rotateCertificate(rpc, {}, { ...status, canInstall: supported && status.canInstall });
+		});
+	}
+
+	/** Removes host OS trust after consent, retaining the stored CA and private key. */
+	removeForHost(rpc: SandboxCertificateRpc): ReturnType<SandboxCertificateRpc['remove']> {
+		return this._mutate(rpc, () => undefined, 'remove', () => this._removeCertificate(rpc));
+	}
+
+	private async _installCertificate(rpc: SandboxCertificateRpc, params: Parameters<SandboxCertificateRpc['getStatus']>[0], status: Pick<IAgentSandboxCertificateStatus, 'state' | 'detail' | 'canInstall'>): Promise<void> {
+		if (status.state === 'installed' && status.detail === undefined) {
+			return;
+		}
+		if ((status.state !== 'notInstalled' && status.state !== 'installed') || !status.canInstall) {
+			throw new Error(status.detail ?? localize('copilot.sandboxCertificate.installUnavailable', "The sandbox certificate cannot be installed for this configuration."));
+		}
+		if (status.detail !== undefined) {
+			const rotated = await rpc.rotate(params);
+			if (rotated.detail !== undefined || (rotated.state !== 'installed' && (rotated.state !== 'notInstalled' || !rotated.canInstall))) {
+				throw new Error(rotated.detail ?? localize('copilot.sandboxCertificate.replaceFailed', "The agent host could not replace the sandbox certificate."));
+			}
+			if (rotated.state === 'installed') {
 				return;
 			}
-			if ((status.state !== 'notInstalled' && status.state !== 'installed') || !status.canInstall) {
-				throw new Error(status.detail ?? localize('copilot.sandboxCertificate.installUnavailable', "The sandbox certificate cannot be installed for this configuration."));
-			}
-			if (status.requiresRotation) {
-				const rotated = await rpc.rotate({ sandboxConfig: config });
-				if (rotated.detail !== undefined || (rotated.state !== 'installed' && (rotated.state !== 'notInstalled' || !rotated.canInstall))) {
-					throw new Error(rotated.detail ?? localize('copilot.sandboxCertificate.replaceFailed', "The agent host could not replace the sandbox certificate."));
-				}
-				if (rotated.state === 'installed') {
-					return;
-				}
-			} else {
-				await rpc.create({ sandboxConfig: config });
-			}
-			const result = await rpc.trust({ sandboxConfig: config });
-			if (result.state !== 'installed' || result.detail !== undefined) {
-				throw new Error(result.detail ?? localize('copilot.sandboxCertificate.trustUnconfirmed', "The agent host did not confirm that the sandbox certificate is trusted."));
-			}
-		});
+		} else {
+			await rpc.create(params);
+		}
+		const result = await rpc.trust(params);
+		if (result.state !== 'installed' || result.detail !== undefined) {
+			throw new Error(result.detail ?? localize('copilot.sandboxCertificate.trustUnconfirmed', "The agent host did not confirm that the sandbox certificate is trusted."));
+		}
 	}
 
 	/** Explicitly replaces the persistent CA and establishes OS trust. */
@@ -88,33 +115,41 @@ export class CopilotSandboxCertificate {
 		return this._mutate(rpc, getConfig, 'rotate', async config => {
 			const runtime = this._requireRuntime(rpc, scopeId);
 			const status = await this._check(rpc, config, runtime);
-			if ((status.state !== 'notInstalled' && status.state !== 'installed') || !status.canInstall) {
-				throw new Error(status.detail ?? localize('copilot.sandboxCertificate.rotateUnavailable', "The sandbox certificate cannot be rotated for this configuration."));
-			}
-			const rotated = await rpc.rotate({ sandboxConfig: config });
-			if (rotated.detail !== undefined || (rotated.state !== 'installed' && (rotated.state !== 'notInstalled' || !rotated.canInstall))) {
-				throw new Error(rotated.detail ?? localize('copilot.sandboxCertificate.rotateFailed', "The agent host could not rotate the sandbox certificate."));
-			}
-			if (rotated.state === 'installed') {
-				return;
-			}
-			const result = await rpc.trust({ sandboxConfig: config });
-			if (result.state !== 'installed' || result.detail !== undefined) {
-				throw new Error(result.detail ?? localize('copilot.sandboxCertificate.trustUnconfirmed', "The agent host did not confirm that the sandbox certificate is trusted."));
-			}
+			await this._rotateCertificate(rpc, { sandboxConfig: config }, status);
 		});
+	}
+
+	private async _rotateCertificate(rpc: SandboxCertificateRpc, params: Parameters<SandboxCertificateRpc['rotate']>[0], status: Pick<IAgentSandboxCertificateStatus, 'state' | 'detail' | 'canInstall'>): Promise<void> {
+		if ((status.state !== 'notInstalled' && status.state !== 'installed') || !status.canInstall) {
+			throw new Error(status.detail ?? localize('copilot.sandboxCertificate.rotateUnavailable', "The sandbox certificate cannot be rotated for this configuration."));
+		}
+		const rotated = await rpc.rotate(params);
+		if (rotated.detail !== undefined || (rotated.state !== 'installed' && (rotated.state !== 'notInstalled' || !rotated.canInstall))) {
+			throw new Error(rotated.detail ?? localize('copilot.sandboxCertificate.rotateFailed', "The agent host could not rotate the sandbox certificate."));
+		}
+		if (rotated.state === 'installed') {
+			return;
+		}
+		const result = await rpc.trust(params);
+		if (result.state !== 'installed' || result.detail !== undefined) {
+			throw new Error(result.detail ?? localize('copilot.sandboxCertificate.trustUnconfirmed', "The agent host did not confirm that the sandbox certificate is trusted."));
+		}
 	}
 
 	/** Removes OS trust without deleting the stored CA; serialized with installation and followed by cache invalidation. */
 	remove(rpc: SandboxCertificateRpc, scopeId: string, validate: () => void): ReturnType<SandboxCertificateRpc['remove']> {
 		return this._mutate(rpc, () => { validate(); return undefined; }, 'remove', async () => {
 			this._requireRuntime(rpc, scopeId);
-			const status = await rpc.remove();
-			if (status.state !== 'notInstalled') {
-				throw new Error(status.detail ?? localize('copilot.sandboxCertificate.removeUnconfirmed', "The agent host did not confirm that the sandbox certificate was removed from OS trust."));
-			}
-			return status;
+			return this._removeCertificate(rpc);
 		});
+	}
+
+	private async _removeCertificate(rpc: SandboxCertificateRpc): ReturnType<SandboxCertificateRpc['remove']> {
+		const status = await rpc.remove();
+		if (status.state !== 'notInstalled') {
+			throw new Error(status.detail ?? localize('copilot.sandboxCertificate.removeUnconfirmed', "The agent host did not confirm that the sandbox certificate was removed from OS trust."));
+		}
+		return status;
 	}
 
 	private _requireRuntime(rpc: SandboxCertificateRpc, scopeId: string): IRuntimeCertificateChecks {

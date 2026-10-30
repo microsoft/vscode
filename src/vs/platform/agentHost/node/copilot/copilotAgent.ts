@@ -4783,6 +4783,27 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return await this._findChatByUri(chat)?.stopBackgroundWork(id) ?? false;
 	}
 
+	async manageHostSandboxCertificate(operation: Parameters<NonNullable<IAgent['manageHostSandboxCertificate']>>[0]): Promise<void> {
+		const client = await this._ensureClient();
+		try {
+			switch (operation) {
+				case 'install':
+					await this._sandboxCertificate.installForHost(client.rpc.sandbox.proxyCa);
+					break;
+				case 'rotate':
+					await this._sandboxCertificate.rotateForHost(client.rpc.sandbox.proxyCa);
+					break;
+				case 'remove':
+					await this._sandboxCertificate.removeForHost(client.rpc.sandbox.proxyCa);
+					break;
+				default:
+					throw new Error('Unknown sandbox certificate operation');
+			}
+		} finally {
+			await Promise.all(this._allLiveSessions().map(live => live.refreshSandboxCertificate()));
+		}
+	}
+
 	async installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		await this._withSandboxCertificateRefresh(chat, session => session.installSandboxCertificate(scopeId));
 	}

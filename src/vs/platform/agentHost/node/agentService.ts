@@ -2410,6 +2410,14 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
+	async manageHostSandboxCertificate(provider: AgentProvider, operation: Parameters<NonNullable<IAgent['manageHostSandboxCertificate']>>[0]): Promise<void> {
+		const agent = this._providerService.getProvider(provider);
+		if (!agent?.manageHostSandboxCertificate) {
+			throw new Error('Host sandbox certificate management is unavailable for this provider.');
+		}
+		await agent.manageHostSandboxCertificate(operation);
+	}
+
 	async installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		await this._runSandboxCertificateOperation(chat, scopeId, 'installSandboxCertificate');
 	}

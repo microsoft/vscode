@@ -1846,6 +1846,57 @@ suite('CopilotAgent', () => {
 		Object.assign(process.env, savedProxyEnvironment);
 	});
 
+	test('host sandbox certificate management starts the runtime without creating or resuming a chat', async () => {
+		const client = new TestCopilotClient([]);
+		const calls: string[] = [];
+		const params: Parameters<CopilotClient['rpc']['sandbox']['proxyCa']['getStatus']>[0][] = [];
+		const sandbox: CopilotClient['rpc']['sandbox'] = {
+			getHostSupport: async () => { assert.fail('Certificate installation must not enable sandboxing'); },
+			proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() {
+				override checkInstallationSupport = async () => { calls.push('support'); return true; };
+				override getStatus: CopilotClient['rpc']['sandbox']['proxyCa']['getStatus'] = async value => {
+					calls.push('status');
+					params.push(value);
+					return { state: 'notInstalled', canInstall: true };
+				};
+				override create: CopilotClient['rpc']['sandbox']['proxyCa']['create'] = async value => {
+					calls.push('create');
+					params.push(value);
+					return { certificatePath: '/runtime/proxy-ca.pem' };
+				};
+				override trust: CopilotClient['rpc']['sandbox']['proxyCa']['trust'] = async value => {
+					calls.push('trust');
+					params.push(value);
+					return { state: 'installed', canInstall: true };
+				};
+				override rotate: CopilotClient['rpc']['sandbox']['proxyCa']['rotate'] = async value => {
+					calls.push('rotate');
+					params.push(value);
+					return { state: 'installed', canInstall: true };
+				};
+				override remove: CopilotClient['rpc']['sandbox']['proxyCa']['remove'] = async () => {
+					calls.push('remove');
+					return { state: 'notInstalled', canInstall: true };
+				};
+			},
+		};
+		Object.assign(client.rpc, { sandbox });
+		client.createSession = async () => { assert.fail('Must not create a chat'); };
+		client.resumeSession = async () => { assert.fail('Must not resume a chat'); };
+		const agent = disposables.add(createTestAgent(disposables, { copilotClient: client }));
+		try {
+			for (const operation of ['install', 'rotate', 'remove'] as const) {
+				await agent.manageHostSandboxCertificate(operation);
+			}
+			assert.deepStrictEqual({ calls, params }, {
+				calls: ['support', 'status', 'create', 'trust', 'support', 'status', 'rotate', 'remove'],
+				params: [{}, {}, {}, {}, {}],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('rejected managed OTel paths are cleared in the captured Copilot child options', async () => {
 		const rejectedPath = 'synthetic-customer-user-directory/';
 		const pathKeys = ['COPILOT_OTEL_FILE_EXPORTER_PATH', 'copilot_otel_file_exporter_path'] as const;
