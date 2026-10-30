@@ -227,6 +227,9 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 			extraClasses.push(`deprecated`);
 			options.matches = [];
 		}
+		if (element.symbol.tags.indexOf(SymbolTag.Exported) >= 0) {
+			extraClasses.push(`exported`);
+		}
 		template.iconLabel.setLabel(element.symbol.name, element.symbol.detail, options);
 
 		if (this._renderMarker) {
@@ -328,7 +331,12 @@ export class DocumentSymbolFilter implements ITreeFilter<DocumentSymbolItem> {
 		}
 		const configName = DocumentSymbolFilter.kindToConfigName[element.symbol.kind];
 		const configKey = `${this._prefix}.${configName}`;
-		return this._textResourceConfigService.getValue(outline?.uri, configKey);
+
+		const exportedConfigKey = `${this._prefix}.hideLocalSymbols`;
+		const symbolExported = element.symbol.tags?.includes(SymbolTag.Exported);
+		const hideAsLocal = !symbolExported && this._textResourceConfigService.getValue(outline?.uri, exportedConfigKey);
+
+		return !hideAsLocal && this._textResourceConfigService.getValue(outline?.uri, configKey);
 	}
 }
 
