@@ -286,7 +286,8 @@ suite('SessionPermissionManager', () => {
 		let resolvedPath: string | undefined;
 		const scopedPermissions = disposables.add(new SessionPermissionManager(manager, {
 			realpath: async fsPath => {
-				if (fsPath !== target) {
+				// Compare as URIs: `URI.file(...).fsPath` normalizes the Windows drive letter casing.
+				if (URI.file(fsPath).toString() !== URI.file(target).toString()) {
 					return fsPath;
 				}
 				if (resolvedPath === undefined) {

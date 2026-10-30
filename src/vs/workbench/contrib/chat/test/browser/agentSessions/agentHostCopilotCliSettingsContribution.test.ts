@@ -27,6 +27,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { LocalModelEnabledSettingId, LocalModelLlamaServerPathSettingId } from '../../../../../../platform/agentHost/common/localModel.js';
 import { AgentHostCopilotCliSettingsContribution } from '../../../browser/agentSessions/agentHost/agentHostCopilotCliSettingsContribution.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 
 class MockAgentHostService extends mock<IAgentHostService>() {
 	declare readonly _serviceBrand: undefined;
@@ -141,7 +142,7 @@ async function flush(): Promise<void> {
 	await Promise.resolve();
 }
 
-function setup(disposables: DisposableStore, settings: Record<string, unknown>, policyData: IPolicyData | null = null, configurationService = new TestConfigurationService(settings)) {
+function setup(disposables: DisposableStore, settings: Record<string, unknown>, policyData: IPolicyData | null = null, configurationService = new TestConfigurationService(settings), remoteAuthority?: string) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const agentHostService = new MockAgentHostService();
 	const defaultAccountService = new MockDefaultAccountService(policyData);
@@ -154,6 +155,7 @@ function setup(disposables: DisposableStore, settings: Record<string, unknown>, 
 	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) });
 	instantiationService.stub(IDefaultAccountService, defaultAccountService);
 	instantiationService.stub(IContextKeyService, contextKeyService);
+	instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority });
 	disposables.add(instantiationService.createInstance(AgentHostCopilotCliSettingsContribution));
 	return { agentHostService, defaultAccountService, configurationService, contextKeyService };
 }
@@ -165,16 +167,16 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('replaces all host WebFetch allow and Shell allow and ask rules while preserving other rules and deny', async () => {
+	test('replaces host WebFetch and Shell allow and ask rules while preserving other rules and deny', async () => {
 		const results = [];
-		for (const approvals of [{ 'https://new.test': true }, {}]) {
+		for (const approvals of [{ 'https://new.test': true, 'https://ask.test': false }, {}]) {
 			const { agentHostService } = setup(disposables, { [URL_AUTO_APPROVE_SETTING_ID]: approvals });
 			agentHostService.setRootState(makeRootStateWithSchema({
 				[SessionConfigKey.Permissions]: { type: 'object', title: 'Permissions' },
 			}, {
 				[SessionConfigKey.Permissions]: {
 					allow: ['Shell(npm *)', 'WebFetch', 'WebFetch(*)', 'WebFetch(old.test)', 'WebFetch(https://old.test/docs/*)', 'WebFetch(unsupported)', 'Edit(./docs/**)'],
-					ask: ['Shell(rm *)', 'WebFetch(ask.test)', 'Read'],
+					ask: ['Shell(rm *)', 'WebFetch(old-ask.test)', 'Read'],
 					deny: ['WebFetch(blocked.test)', 'Shell(rm *)'],
 				},
 			}));
@@ -182,8 +184,8 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			results.push(agentHostService.dispatchedActions.map(({ action }) => (action as IRootConfigChangedAction).config));
 		}
 		assert.deepStrictEqual(results, [
-			[{ [SessionConfigKey.Permissions]: { allow: ['Edit(./docs/**)', 'WebFetch(new.test)'], ask: ['WebFetch(ask.test)', 'Read'], deny: ['WebFetch(blocked.test)', 'Shell(rm *)'] } }],
-			[{ [SessionConfigKey.Permissions]: { allow: ['Edit(./docs/**)'], ask: ['WebFetch(ask.test)', 'Read'], deny: ['WebFetch(blocked.test)', 'Shell(rm *)'] } }],
+			[{ [SessionConfigKey.Permissions]: { allow: ['Edit(./docs/**)', 'WebFetch(new.test)'], ask: ['Read', 'WebFetch(ask.test)'], deny: ['WebFetch(blocked.test)', 'Shell(rm *)'] } }],
+			[{ [SessionConfigKey.Permissions]: { allow: ['Edit(./docs/**)'], ask: ['Read'], deny: ['WebFetch(blocked.test)', 'Shell(rm *)'] } }],
 		]);
 	});
 
@@ -302,7 +304,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[{
 				[SessionConfigKey.Permissions]: {
 					allow: ['Read', 'Shell(commandLine:/^npm test$/)', 'Shell(git *)'],
-					ask: ['Edit', 'Shell(echo *)', 'Shell(rm *)'],
+					ask: ['Edit', 'Shell(/^echo\\b/)', 'Shell(/^rm\\b/)'],
 					deny: ['Shell(blocked *)'],
 				}
 			}],
@@ -353,6 +355,45 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 				{ [AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey]: true },
 			],
 		});
+	});
+
+	test('does not mirror permissions or terminal default opt-outs in remote windows', async () => {
+		const results = [];
+		for (const remoteAuthority of ['ssh-remote+host', 'dev-container+container']) {
+			const { agentHostService, configurationService } = setup(disposables, {
+				[URL_AUTO_APPROVE_SETTING_ID]: { 'https://client.test': true },
+				[TERMINAL_AUTO_APPROVE_SETTING_ID]: { echo: true },
+				[TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID]: false,
+				[AgentHostCopilotSdkLogLevelSettingId]: 'trace',
+			}, null, undefined, remoteAuthority);
+			agentHostService.setRootState(makeRootStateWithSchema({
+				[SessionConfigKey.Permissions]: { type: 'object', title: 'Permissions' },
+				[AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey]: { type: 'boolean', title: 'Ignore Default Terminal Rules' },
+				[CopilotCliConfigKey.CopilotSdkLogLevel]: fullSchema[CopilotCliConfigKey.CopilotSdkLogLevel],
+			}, {
+				[SessionConfigKey.Permissions]: { allow: ['Shell(remote *)', 'WebFetch(remote.test)'], ask: ['Shell(echo *)'] },
+				[AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey]: true,
+			}));
+			await flush();
+			const initial = agentHostService.dispatchedActions.splice(0).map(({ action }) => (action as IRootConfigChangedAction).config);
+			const settingIds = [URL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID];
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set(settingIds),
+				change: { keys: settingIds, overrides: [] },
+				affectsConfiguration: key => settingIds.includes(key),
+			});
+			await flush();
+			const afterSettingsChange = agentHostService.dispatchedActions.splice(0);
+			agentHostService.fireAgentHostStart();
+			await flush();
+			results.push({ initial, afterSettingsChange, restarted: agentHostService.dispatchedActions.map(({ action }) => (action as IRootConfigChangedAction).config) });
+		}
+		assert.deepStrictEqual(results, ['ssh-remote+host', 'dev-container+container'].map(() => ({
+			initial: [{ [CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace' }],
+			afterSettingsChange: [],
+			restarted: [{ [CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace' }],
+		})));
 	});
 
 	test('forwards the experimentation settings into root config once the schema advertises them', async () => {

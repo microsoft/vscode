@@ -21,6 +21,7 @@ export const enum PermissionGrantScope {
 
 const SESSION_GRANT_OPTION_PREFIX = 'allow-session-rules:';
 const HOST_GRANT_OPTION_PREFIX = 'allow-always-rules:';
+const shellRegexSpecifier = /^\/(?<pattern>.*)\/(?<flags>[dgimsuvy]*)$/;
 
 /** Encodes a grant into a confirmation option id. */
 export function permissionGrantOptionId(scope: PermissionGrantScope, rules: readonly string[]): string {
@@ -53,16 +54,21 @@ export function webFetchRuleToUrlPattern(rule: string): string | undefined {
 	return normalizeWebFetchPattern(parsed.specifier);
 }
 
-/** Converts request approvals into sorted, deduplicated WebFetch rules. */
-export function urlApprovalsToWebFetchRules(approvals: Record<string, boolean | IUrlApprovalSettings>): string[] {
-	const rules = new Set<string>();
+/**
+ * Converts request decisions into sorted, deduplicated WebFetch permissions.
+ * Host ask rules override allows, failing closed where VS Code's first-match ordering would differ.
+ */
+export function urlApprovalsToWebFetchRules(approvals: Record<string, boolean | IUrlApprovalSettings>): { readonly allow: string[]; readonly ask: string[] } {
+	const allow = new Set<string>();
+	const ask = new Set<string>();
 	for (const [pattern, settings] of Object.entries(approvals)) {
-		if (settings !== true && (typeof settings !== 'object' || settings?.approveRequest !== true)) {
+		const approved = typeof settings === 'boolean' ? settings : settings?.approveRequest;
+		if (approved !== true && approved !== false) {
 			continue;
 		}
-		rules.add(pattern === '*' ? 'WebFetch' : webFetchRule(pattern.replace(/^https:\/\//i, '')));
+		(approved ? allow : ask).add(pattern === '*' ? 'WebFetch' : webFetchRule(pattern.replace(/^https:\/\//i, '')));
 	}
-	return [...rules].sort();
+	return { allow: [...allow].sort(), ask: [...ask].sort() };
 }
 
 /** Whether a permission rule targets WebFetch, regardless of its specifier. */
@@ -136,7 +142,7 @@ function matchesShellSpecifier(specifier: string, command: string, language: 'ba
 	if (!specifier) {
 		return false;
 	}
-	const match = /^\/(?<pattern>.*)\/(?<flags>[dgimsuvy]*)$/.exec(specifier);
+	const match = shellRegexSpecifier.exec(specifier);
 	if (match?.groups) {
 		try {
 			const flags = match.groups.flags;
@@ -156,7 +162,10 @@ function matchesShellSpecifier(specifier: string, command: string, language: 'ba
 
 /** Builds a shell-prefix pattern for a scoped grant, including the bare prefix command. */
 export function shellPrefixRule(prefix: string): string {
-	return `Shell(${prefix.trim()} *)`;
+	const command = prefix.trim();
+	return command.startsWith('commandLine:')
+		? `Shell(${new RegExp(`^${escapeRegExpCharacters(command)}(?: .*)?$`, 's')})`
+		: `Shell(${command} *)`;
 }
 
 /** Builds an exact shell grant, refusing empty text, wildcards, or unbalanced literal parentheses. */
@@ -165,7 +174,9 @@ export function shellExactRule(subCommand: string): string | undefined {
 	if (!command || command.includes('*') || !hasBalancedParentheses(command)) {
 		return undefined;
 	}
-	return `Shell(${command})`;
+	return command.startsWith('commandLine:') || shellRegexSpecifier.test(command)
+		? `Shell(${new RegExp(`^${escapeRegExpCharacters(command)}$`)})`
+		: `Shell(${command})`;
 }
 
 /** Builds a WebFetch URL-pattern grant; scheme-less patterns default to HTTPS. */

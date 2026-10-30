@@ -20,16 +20,13 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { type IUrlApprovalSettings } from '../../../../../../platform/url/common/urlApprovalPatterns.js';
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { AgentHostRootConfigForwarder, type IForwardedRootConfigKey } from './agentHostRootConfigForwarder.js';
 
 /**
- * Forwards Copilot-CLI settings into the **local** agent host's root config so
- * `CopilotAgent` and `CopilotSessionLauncher` can read them, and keeps
- * host URL and terminal permissions in sync with VS Code's user approvals. Gated on
- * Agent Host runtime availability. The schema-gate / hydration-retry / loop-guard
- * machinery lives in the shared
- * {@link AgentHostRootConfigForwarder}; this contribution only declares the keys.
+ * Forwards Copilot-CLI settings into root config and mirrors local-window URL and terminal approvals.
+ * The shared {@link AgentHostRootConfigForwarder} handles schema gating, hydration retries, and loop guards.
  */
 export class AgentHostCopilotCliSettingsContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.agentHostCopilotCliSettings';
@@ -42,10 +39,11 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
-		const keys: readonly IForwardedRootConfigKey[] = [
+		const localPermissionKeys: readonly IForwardedRootConfigKey[] = !environmentService.remoteAuthority ? [
 			{
 				key: SessionConfigKey.Permissions,
 				computeValue: () => {
@@ -57,10 +55,11 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 					const permissions = platformRootSchema.validate(SessionConfigKey.Permissions, stored) ? stored : undefined;
 					const approvals = getGlobalConfigurationValue<Record<string, boolean | IUrlApprovalSettings>>(this._configurationService, URL_AUTO_APPROVE_SETTING_ID) ?? {};
 					const userRules = inspectValue<Record<string, boolean | null | { approve: boolean; matchCommandLine?: boolean }>>(this._configurationService, TERMINAL_AUTO_APPROVE_SETTING_ID)?.[0] ?? {};
+					const webFetchPermissions = urlApprovalsToWebFetchRules(approvals);
 					const shellPermissions = terminalRulesToShellPermissions(userRules);
 					return {
-						allow: [...(permissions?.allow ?? []).filter(rule => !isWebFetchRule(rule) && !isShellRule(rule)), ...urlApprovalsToWebFetchRules(approvals), ...shellPermissions.allow],
-						ask: [...(permissions?.ask ?? []).filter(rule => !isShellRule(rule)), ...shellPermissions.ask],
+						allow: [...(permissions?.allow ?? []).filter(rule => !isWebFetchRule(rule) && !isShellRule(rule)), ...webFetchPermissions.allow, ...shellPermissions.allow],
+						ask: [...(permissions?.ask ?? []).filter(rule => !isWebFetchRule(rule) && !isShellRule(rule)), ...webFetchPermissions.ask, ...shellPermissions.ask],
 						deny: permissions?.deny ?? [],
 					};
 				},
@@ -74,6 +73,9 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 				computeValue: () => getGlobalConfigurationValue<boolean>(this._configurationService, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID) === true,
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID),
 			},
+		] : [];
+		const keys: readonly IForwardedRootConfigKey[] = [
+			...localPermissionKeys,
 			{
 				key: CopilotCliConfigKey.CopilotSdkLogLevel,
 				computeValue: () => this._configurationService.getValue<CopilotSdkLogLevelSetting>(AgentHostCopilotSdkLogLevelSettingId) ?? 'info',

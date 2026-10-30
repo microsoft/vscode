@@ -4,18 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
+import { convertAutoApproveEntryToRegex, neverMatchRegex } from '../../terminal/common/autoApprove/autoApproveEntryToRegex.js';
 
 const regexSpecifier = /^\/(?<pattern>.+)\/(?<flags>[dgimsuvy]*)$/;
 
-/** Converts configured terminal rules into sorted, deduplicated Shell allow and ask permissions. */
+/**
+ * Converts terminal rules into sorted, deduplicated Shell permissions, preserving the terminal matcher's opt-outs.
+ * Plain allow rules stay readable and narrower, which can only cause extra prompts.
+ */
 export function terminalRulesToShellPermissions(rules: Record<string, boolean | null | { approve: boolean; matchCommandLine?: boolean }>): { readonly allow: string[]; readonly ask: string[] } {
 	const allow = new Set<string>();
 	const ask = new Set<string>();
 	for (const [key, value] of Object.entries(rules)) {
-		const specifier = regexSpecifier.test(key) ? key : `${key} *`;
+		const regex = convertAutoApproveEntryToRegex(key);
+		if (regex === neverMatchRegex) {
+			continue;
+		}
+		const approved = value === true || (typeof value === 'object' && value?.approve === true);
+		const specifier = regexSpecifier.test(key) ? key : approved ? `${key} *` : `/${regex.source}/${regex.flags}`;
 		const matchCommandLine = typeof value === 'object' && value?.matchCommandLine === true;
 		const rule = `Shell(${matchCommandLine ? 'commandLine:' : ''}${specifier})`;
-		const approved = value === true || (typeof value === 'object' && value?.approve === true);
 		(approved ? allow : ask).add(rule);
 	}
 	return { allow: [...allow].sort(), ask: [...ask].sort() };

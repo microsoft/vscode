@@ -63,25 +63,33 @@ suite('Permission rules', () => {
 		assert.deepStrictEqual(cases.map(([rule]) => [rule, webFetchRuleToUrlPattern(rule)]), cases);
 	});
 
-	test('URL request approvals convert to sorted and deduplicated WebFetch rules', () => {
-		const cases: { approvals: Record<string, boolean | IUrlApprovalSettings>; rules: string[] }[] = [
-			{ approvals: {}, rules: [] },
-			{ approvals: { '*': true }, rules: ['WebFetch'] },
-			{ approvals: { '*': { approveRequest: true, approveResponse: false } }, rules: ['WebFetch'] },
+	test('URL request decisions convert to sorted and deduplicated WebFetch permissions', () => {
+		const cases: { approvals: Record<string, boolean | IUrlApprovalSettings>; allow: string[]; ask: string[] }[] = [
+			{ approvals: {}, allow: [], ask: [] },
+			{ approvals: { '*': true }, allow: ['WebFetch'], ask: [] },
+			{ approvals: { '*': { approveRequest: true, approveResponse: false } }, allow: ['WebFetch'], ask: [] },
 			{
 				approvals: { 'https://peet.io': true, 'HTTPS://peet.io': true, 'peet.io': true, 'http://example.com': { approveRequest: true }, 'https://*.example.com': true },
-				rules: ['WebFetch(*.example.com)', 'WebFetch(http://example.com)', 'WebFetch(peet.io)'],
+				allow: ['WebFetch(*.example.com)', 'WebFetch(http://example.com)', 'WebFetch(peet.io)'], ask: [],
 			},
 			{
 				approvals: { 'https://github.com/microsoft/vscode/wiki/*': { approveRequest: true }, 'https://example.com/': true, 'https://example.com?query': true, 'https://example.com#fragment': true, 'http://localhost:3000': true },
-				rules: ['WebFetch(example.com#fragment)', 'WebFetch(example.com/)', 'WebFetch(example.com?query)', 'WebFetch(github.com/microsoft/vscode/wiki/*)', 'WebFetch(http://localhost:3000)'],
+				allow: ['WebFetch(example.com#fragment)', 'WebFetch(example.com/)', 'WebFetch(example.com?query)', 'WebFetch(github.com/microsoft/vscode/wiki/*)', 'WebFetch(http://localhost:3000)'], ask: [],
 			},
 			{
-				approvals: { '*': false, 'https://denied.test': { approveRequest: false, approveResponse: true }, 'https://response.test': { approveResponse: true }, 'https://unset.test': {} },
-				rules: [],
+				approvals: { '*': false, 'https://denied.test': { approveRequest: false, approveResponse: true }, 'https://response.test': { approveResponse: true }, 'https://response-refused.test': { approveResponse: false }, 'https://unset.test': {} },
+				allow: [], ask: ['WebFetch', 'WebFetch(denied.test)'],
+			},
+			{
+				approvals: { 'https://api.example.com': { approveRequest: false }, 'https://*.example.com': true },
+				allow: ['WebFetch(*.example.com)'], ask: ['WebFetch(api.example.com)'],
+			},
+			{
+				approvals: { 'https://*.example.com': true, 'https://api.example.com': false, 'HTTPS://api.example.com': { approveRequest: false }, 'api.example.com': false, 'http://localhost': false },
+				allow: ['WebFetch(*.example.com)'], ask: ['WebFetch(api.example.com)', 'WebFetch(http://localhost)'],
 			},
 		];
-		assert.deepStrictEqual(cases.map(({ approvals }) => urlApprovalsToWebFetchRules(approvals)), cases.map(({ rules }) => rules));
+		assert.deepStrictEqual(cases.map(({ approvals }) => urlApprovalsToWebFetchRules(approvals)), cases.map(({ allow, ask }) => ({ allow, ask })));
 	});
 
 	test('identifies WebFetch rules independently of their specifier', () => {
@@ -393,6 +401,23 @@ suite('Permission rules', () => {
 			const rule = pathRule(tool, path, recursive);
 			return rule !== undefined && matchesPermissionRule(rule, { kind: tool === 'Read' ? AgentPermissionKind.Read : AgentPermissionKind.Write, toolName: 'file_tool', path: candidate }, context);
 		}), [true, true, true, true, true]);
+	});
+
+	test('shell builders preserve literal text that resembles a specifier', () => {
+		const cases = [
+			{ command: '/usr/bin/su', exact: 'Shell(/^\\/usr\\/bin\\/su$/)', prefix: 'Shell(/usr/bin/su *)' },
+			{ command: '/usr/bin/ls', exact: 'Shell(/usr/bin/ls)', prefix: 'Shell(/usr/bin/ls *)' },
+			{ command: '/^echo$/i', exact: 'Shell(/^\\/\\^echo\\$\\/i$/)', prefix: 'Shell(/^echo$/i *)' },
+			{ command: 'commandLine:echo', exact: 'Shell(/^commandLine:echo$/)', prefix: 'Shell(/^commandLine:echo(?: .*)?$/s)' },
+		];
+		assert.deepStrictEqual(cases.map(({ command }) => ({
+			command,
+			exact: shellExactRule(command),
+			prefix: shellPrefixRule(command),
+			exactMatches: [command, `${command} argument`, '/usr/bin/touch /tmp/x'].map(candidate => matchesShellSubCommand(shellExactRule(command)!, candidate, 'bash')),
+			prefixMatches: [command, `${command} argument`, '/usr/bin/touch /tmp/x'].map(candidate => matchesShellSubCommand(shellPrefixRule(command), candidate, 'bash')),
+			commandLineMatches: matchesShellCommandLine(shellPrefixRule(command), command, 'bash'),
+		})), cases.map(entry => ({ ...entry, exactMatches: [true, false, false], prefixMatches: [true, true, false], commandLineMatches: false })));
 	});
 
 	test('session rule builders preserve exact and prefix semantics', () => {

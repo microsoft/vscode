@@ -1096,7 +1096,6 @@ export const clientOwnedApprovalRootConfigKeys: ReadonlySet<string> = new Set([
 	AgentHostGlobalAutoApproveEnabledConfigKey,
 	AgentHostAutoApprovePolicyRestrictedConfigKey,
 	AgentHostTerminalAutoApproveEnabledConfigKey,
-	AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey,
 	AgentHostEditAutoApprovePatternsConfigKey,
 	AgentHostAutoReplyEnabledConfigKey,
 	AgentHostWorkspaceTrustConfigKey,

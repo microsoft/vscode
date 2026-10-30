@@ -599,7 +599,7 @@ suite('AgentConfigurationService', () => {
 		});
 	}
 
-	test('restores host permission rules but not client-owned approval settings when the host restarts', async () => {
+	test('restores host permission rules and the default-rule opt-out but not client-owned approvals on restart', async () => {
 		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));
 		const resource = URI.file(join(directory, 'agent-host-config.json'));
 		const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -628,11 +628,15 @@ suite('AgentConfigurationService', () => {
 			restoredKeys: [...clientOwnedApprovalRootConfigKeys].filter(key => restored[key] !== undefined).sort(),
 			persistedPermissions: persisted[SessionConfigKey.Permissions],
 			restoredPermissions: restored[SessionConfigKey.Permissions],
+			persistedIgnoreDefaults: persisted[AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey],
+			restoredIgnoreDefaults: restored[AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey],
 		}, {
 			persistedKeys: [...clientOwnedApprovalRootConfigKeys].sort(),
 			restoredKeys: [],
 			persistedPermissions: { allow: ['WebFetch(example.com)'], deny: ['WebFetch(blocked.test)'], ask: ['Shell(rm *)'] },
 			restoredPermissions: { allow: ['WebFetch(example.com)'], deny: ['WebFetch(blocked.test)'], ask: ['Shell(rm *)'] },
+			persistedIgnoreDefaults: true,
+			restoredIgnoreDefaults: true,
 		});
 		fs.rmSync(directory, { recursive: true, force: true });
 	});
