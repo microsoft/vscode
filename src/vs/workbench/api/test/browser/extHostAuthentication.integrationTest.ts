@@ -670,14 +670,14 @@ suite('ExtHostAuthentication', () => {
 			});
 		});
 
-		test('keeps default scopes requests and scope lists apart', async () => {
+		test('a default scopes request and the same scope list share a sign-in request', async () => {
 			const provider = disposables.add(new ContextAuthProvider());
 			registerProvider('github', provider);
 
 			await extHostAuthentication.getSession(extensionDescription, 'github', undefined, {});
 			await extHostAuthentication.getSession(extensionDescription, 'github', defaultScopes, {});
 
-			assert.strictEqual(getRequests('github', '2_signInRequests').length, 2);
+			assert.strictEqual(getRequests('github', '2_signInRequests').length, 1);
 		});
 
 		test('rejects incompatible interaction options before calling the provider', async () => {

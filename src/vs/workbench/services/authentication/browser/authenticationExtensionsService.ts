@@ -19,7 +19,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IActivityService, NumberBadge } from '../../activity/common/activity.js';
 import { IAuthenticationAccessService } from './authenticationAccessService.js';
 import { IAuthenticationUsageService } from './authenticationUsageService.js';
-import { AuthenticationSession, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount, IAuthenticationWwwAuthenticateRequest, isAuthenticationWwwAuthenticateRequest, IAuthenticationProviderSessionOptions, getAuthenticationSessionRequestKey, IAuthenticationDefaultScopesRequest, isAuthenticationDefaultScopesRequest, resolveAuthenticationDefaultScopes } from '../common/authentication.js';
+import { AuthenticationSession, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount, IAuthenticationWwwAuthenticateRequest, isAuthenticationWwwAuthenticateRequest, IAuthenticationProviderSessionOptions, getAuthenticationSessionRequestKey } from '../common/authentication.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
@@ -31,7 +31,7 @@ const SCOPESLIST_SEPARATOR = ' ';
 interface SessionRequest {
 	disposables: IDisposable[];
 	requestingExtensionIds: string[];
-	scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest | IAuthenticationDefaultScopesRequest;
+	scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest;
 	options: IAuthenticationProviderSessionOptions;
 }
 
@@ -43,7 +43,7 @@ interface SessionAccessRequest {
 	disposables: IDisposable[];
 	possibleSessions: AuthenticationSession[];
 	extensionId: string;
-	scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest | IAuthenticationDefaultScopesRequest;
+	scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest;
 	options: IAuthenticationProviderSessionOptions;
 }
 
@@ -154,8 +154,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 
 	private async hasSessionForRequest(providerId: string, request: SessionRequest, addedSessions: readonly AuthenticationSession[]): Promise<boolean> {
 		const { scopeListOrRequest, options } = request;
-		const scopes = isAuthenticationDefaultScopesRequest(scopeListOrRequest) ? resolveAuthenticationDefaultScopes(this._productService, providerId) : scopeListOrRequest;
-		if (!isAuthenticationWwwAuthenticateRequest(scopes) && !addedSessions.some(session => scopesMatch(session.scopes, scopes))) {
+		if (!isAuthenticationWwwAuthenticateRequest(scopeListOrRequest) && !addedSessions.some(session => scopesMatch(session.scopes, scopeListOrRequest))) {
 			return false;
 		}
 		const sessions = await this._authenticationService.getSessions(providerId, scopeListOrRequest, { ...options, silent: true });
@@ -206,7 +205,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		}
 	}
 
-	private accessRequestKey(extensionId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest | IAuthenticationDefaultScopesRequest, options: IAuthenticationProviderSessionOptions): string {
+	private accessRequestKey(extensionId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, options: IAuthenticationProviderSessionOptions): string {
 		return JSON.stringify([extensionId, getAuthenticationSessionRequestKey(scopeListOrRequest, options)]);
 	}
 
@@ -368,7 +367,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 	/**
 	 * This function should be used only when there are sessions to disambiguate.
 	 */
-	async selectSession(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest | IAuthenticationDefaultScopesRequest, availableSessions: readonly AuthenticationSession[], options: IAuthenticationProviderSessionOptions = {}): Promise<AuthenticationSession> {
+	async selectSession(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, availableSessions: readonly AuthenticationSession[], options: IAuthenticationProviderSessionOptions = {}): Promise<AuthenticationSession> {
 		const allAccounts = await this._authenticationService.getAccounts(providerId);
 		if (!allAccounts.length) {
 			throw new Error('No accounts available');
@@ -474,7 +473,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		}
 	}
 
-	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest | IAuthenticationDefaultScopesRequest, possibleSessions: readonly AuthenticationSession[], options: IAuthenticationProviderSessionOptions = {}): void {
+	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[], options: IAuthenticationProviderSessionOptions = {}): void {
 		const providerRequests = this._sessionAccessRequestItems.get(providerId) || {};
 		const requestKey = this.accessRequestKey(extensionId, scopeListOrRequest, options);
 		const hasExistingRequest = providerRequests[requestKey];
@@ -508,7 +507,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		this.updateBadgeCount();
 	}
 
-	async requestNewSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest | IAuthenticationDefaultScopesRequest, extensionId: string, extensionName: string, options: IAuthenticationProviderSessionOptions = {}): Promise<void> {
+	async requestNewSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string, options: IAuthenticationProviderSessionOptions = {}): Promise<void> {
 		if (!this._authenticationService.isAuthenticationProviderRegistered(providerId)) {
 			// Activate has already been called for the authentication provider, but it cannot block on registering itself
 			// since this is sync and returns a disposable. So, wait for registration event to fire that indicates the

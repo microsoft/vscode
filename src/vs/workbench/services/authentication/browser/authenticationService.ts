@@ -12,7 +12,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { IAuthenticationAccessService } from './authenticationAccessService.js';
-import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationGetSessionsOptions, IAuthenticationProvider, IAuthenticationProviderHostDelegate, IAuthenticationService, IAuthenticationDefaultScopesRequest, IAuthenticationWwwAuthenticateRequest, isAuthenticationDefaultScopesRequest, isAuthenticationWwwAuthenticateRequest, resolveAuthenticationDefaultScopes } from '../common/authentication.js';
+import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationGetSessionsOptions, IAuthenticationProvider, IAuthenticationProviderHostDelegate, IAuthenticationService, IAuthenticationWwwAuthenticateRequest, isAuthenticationWwwAuthenticateRequest } from '../common/authentication.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { ActivationKind, IExtensionService } from '../../extensions/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -117,8 +117,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IAuthenticationAccessService authenticationAccessService: IAuthenticationAccessService,
 		@IBrowserWorkbenchEnvironmentService private readonly _environmentService: IBrowserWorkbenchEnvironmentService,
-		@ILogService private readonly _logService: ILogService,
-		@IProductService private readonly _productService: IProductService
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 		this._register(toDisposable(() => this._disposedSource.dispose(true)));
@@ -275,13 +274,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		return accounts;
 	}
 
-	async getSessions(id: string, scopeListOrRequest?: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest | IAuthenticationDefaultScopesRequest, options?: IAuthenticationGetSessionsOptions, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
+	async getSessions(id: string, scopeListOrRequest?: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, options?: IAuthenticationGetSessionsOptions, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
 		if (this._disposedSource.token.isCancellationRequested) {
 			return [];
-		}
-
-		if (isAuthenticationDefaultScopesRequest(scopeListOrRequest)) {
-			scopeListOrRequest = resolveAuthenticationDefaultScopes(this._productService, id);
 		}
 
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
@@ -310,13 +305,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	async createSession(id: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest | IAuthenticationDefaultScopesRequest, options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession> {
+	async createSession(id: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession> {
 		if (this._disposedSource.token.isCancellationRequested) {
 			throw new Error('Authentication service is disposed.');
-		}
-
-		if (isAuthenticationDefaultScopesRequest(scopeListOrRequest)) {
-			scopeListOrRequest = resolveAuthenticationDefaultScopes(this._productService, id);
 		}
 
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, !!options?.activateImmediate);

@@ -941,7 +941,7 @@ suite('Mission Control sharing service', () => {
 			calls: [{ options: expectedOptions, withdrawingAccountId: undefined }],
 			sessionRequests: [
 				['github', undefined, undefined, true],
-				['github', { defaultScopes: true }, { account: session.account }, true],
+				['github', [...session.scopes], { account: session.account }, true],
 			],
 		});
 	}));
@@ -956,7 +956,7 @@ suite('Mission Control sharing service', () => {
 		await sharing.setEnabled(true);
 		assert.deepStrictEqual({ calls, signIn: createSession.args }, {
 			calls: [{ options: expectedOptions, withdrawingAccountId: undefined }],
-			signIn: [['github', { defaultScopes: true }, { account: session.account }]],
+			signIn: [['github', [...session.scopes], { account: session.account }]],
 		});
 	}));
 

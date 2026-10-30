@@ -13,29 +13,22 @@ import { resolveGitHubSessionUri } from '../common/enterprise';
 export const SESSION_LOGIN_MESSAGE = 'You are not signed in to GitHub. Please sign in to use Copilot.';
 
 /**
- * Scopes of `undefined` ask for the default GitHub scopes that VS Code defines, which are the same scopes that other
- * GitHub extensions like GitHub Pull Requests use.
+ * @param defaultScopes The scopes to ask for, or `undefined` for the default GitHub scopes that VS Code defines, which are
+ * the same scopes that other GitHub extensions like GitHub Pull Requests use.
  */
-function getSession(providerId: AuthProviderId, scopes: string[] | undefined, options: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined> {
-	// Each kind of scopes has its own `getSession` overload.
-	return scopes
-		? authentication.getSession(providerId, scopes, options)
-		: authentication.getSession(providerId, undefined, options);
-}
-
-async function getAuthSession(providerId: AuthProviderId, scopes: string[] | undefined, getSilentSession: () => Promise<AuthenticationSession | undefined>, options: AuthenticationGetSessionOptions = {}) {
+async function getAuthSession(providerId: AuthProviderId, defaultScopes: string[] | undefined, getSilentSession: () => Promise<AuthenticationSession | undefined>, options: AuthenticationGetSessionOptions = {}) {
 	const accounts = await authentication.getAccounts(providerId);
 	let session: AuthenticationSession | undefined;
 	if (!accounts.length) {
-		session = await getSession(providerId, scopes, options);
+		session = await authentication.getSession(providerId, defaultScopes, options);
 	} else if (options.forceNewSession) {
-		session = await getSession(providerId, scopes, {
+		session = await authentication.getSession(providerId, defaultScopes, {
 			...options,
 			forceNewSession: mixin({ learnMore: URI.parse('https://aka.ms/copilotRepoScope') }, options.forceNewSession),
 			clearSessionPreference: true
 		});
 	} else {
-		session = await getSilentSession() ?? await getSession(providerId, scopes, options);
+		session = await getSilentSession() ?? await authentication.getSession(providerId, defaultScopes, options);
 	}
 	if (session) {
 		resolveGitHubSessionUri(session, providerId);

@@ -1616,11 +1616,9 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			throw new Error('No default account provider configured');
 		}
 		const { additionalScopes, ...sessionOptions } = options ?? {};
-		// Extra scopes are requested with an explicit list, because a default scopes request only covers the defaults.
-		const request = additionalScopes?.length
-			? distinct([...this.defaultAccountConfig.authenticationProvider.scopes[0], ...additionalScopes])
-			: { defaultScopes: true } as const;
-		const session = await this.authenticationService.createSession(authProvider.id, request, sessionOptions);
+		const defaultAccountScopes = this.defaultAccountConfig.authenticationProvider.scopes[0];
+		const scopes = additionalScopes ? distinct([...defaultAccountScopes, ...additionalScopes]) : defaultAccountScopes;
+		const session = await this.authenticationService.createSession(authProvider.id, scopes, sessionOptions);
 		for (const preferredExtension of this.defaultAccountConfig.preferredExtensions) {
 			this.authenticationExtensionsService.updateAccountPreference(preferredExtension, authProvider.id, session.account);
 		}

@@ -61,8 +61,7 @@ suite('Session tests', function () {
 
 	setup(() => {
 		sandbox = sinon.createSandbox();
-		// Sinon types an overloaded function from its last overload, which only accepts a default scopes request.
-		getSessionStub = sandbox.stub(authentication, 'getSession') as unknown as typeof getSessionStub;
+		getSessionStub = sandbox.stub(authentication, 'getSession');
 		// default to no session
 		getSessionStub.resolves(undefined);
 		getAccountsStub = sandbox.stub(authentication, 'getAccounts');

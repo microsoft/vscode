@@ -84,26 +84,8 @@ export function isAuthenticationWwwAuthenticateRequest(obj: unknown): obj is IAu
 }
 
 /**
- * A request for the default scopes that the product defines for an authentication provider.
- * The scopes are resolved by the {@link IAuthenticationService} before the provider is called.
- */
-export interface IAuthenticationDefaultScopesRequest {
-	/**
-	 * Ask for the default scopes of the provider.
-	 */
-	readonly defaultScopes: true;
-}
-
-export function isAuthenticationDefaultScopesRequest(obj: unknown): obj is IAuthenticationDefaultScopesRequest {
-	return typeof obj === 'object'
-		&& obj !== null
-		&& 'defaultScopes' in obj
-		&& obj.defaultScopes === true;
-}
-
-/**
- * Gets the default scopes that the product defines for an authentication provider.
- * Only the default and enterprise providers of the default chat agent define default scopes.
+ * Gets the default scopes that the product defines for an authentication provider. Only the default and enterprise
+ * providers of the default chat agent define default scopes.
  * @returns The default scopes, or `undefined` if the provider does not define any.
  */
 export function getAuthenticationDefaultScopes(productService: Pick<IProductService, 'defaultChatAgent'>, providerId: string): readonly string[] | undefined {
@@ -113,18 +95,6 @@ export function getAuthenticationDefaultScopes(productService: Pick<IProductServ
 	}
 	const scopes = defaultChatAgent.providerScopes?.[0];
 	return scopes?.length ? scopes : undefined;
-}
-
-/**
- * Resolves a {@link IAuthenticationDefaultScopesRequest} to the concrete list of scopes that a session must have.
- * @throws if the provider does not define default scopes.
- */
-export function resolveAuthenticationDefaultScopes(productService: Pick<IProductService, 'defaultChatAgent'>, providerId: string): string[] {
-	const defaultScopes = getAuthenticationDefaultScopes(productService, providerId);
-	if (!defaultScopes) {
-		throw new Error(`Authentication provider '${providerId}' does not define default scopes.`);
-	}
-	return [...defaultScopes];
 }
 
 /**
@@ -267,11 +237,11 @@ export interface IAuthenticationService {
 	/**
 	 * Gets all sessions that satisfy the given scopes from the provider with the given id
 	 * @param id The id of the provider to ask for a session
-	 * @param scopes The scopes for the session. A default scopes request is resolved to the default scopes of the provider.
+	 * @param scopes The scopes for the session
 	 * @param options Additional options for getting sessions
 	 * @param activateImmediate If true, the provider should activate immediately if it is not already
 	 */
-	getSessions(id: string, scopeListOrRequest?: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest | IAuthenticationDefaultScopesRequest, options?: IAuthenticationGetSessionsOptions, activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
+	getSessions(id: string, scopeListOrRequest?: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, options?: IAuthenticationGetSessionsOptions, activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
 
 	/**
 	 * Creates an AuthenticationSession with the given provider and scopes
@@ -279,7 +249,7 @@ export interface IAuthenticationService {
 	 * @param scopes The scopes to request
 	 * @param options Additional options for creating the session
 	 */
-	createSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest | IAuthenticationDefaultScopesRequest, options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
+	createSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
 
 	/**
 	 * Removes the session with the given id from the provider with the given id
@@ -398,9 +368,9 @@ export interface IAuthenticationExtensionsService {
 	 * @param scopes
 	 */
 	removeSessionPreference(providerId: string, extensionId: string, scopes: string[]): void;
-	selectSession(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest | IAuthenticationDefaultScopesRequest, possibleSessions: readonly AuthenticationSession[], options?: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession>;
-	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest | IAuthenticationDefaultScopesRequest, possibleSessions: readonly AuthenticationSession[], options?: IAuthenticationProviderSessionOptions): void;
-	requestNewSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest | IAuthenticationDefaultScopesRequest, extensionId: string, extensionName: string, options?: IAuthenticationProviderSessionOptions): Promise<void>;
+	selectSession(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[], options?: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession>;
+	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[], options?: IAuthenticationProviderSessionOptions): void;
+	requestNewSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string, options?: IAuthenticationProviderSessionOptions): Promise<void>;
 	updateNewSessionRequests(providerId: string, addedSessions: readonly AuthenticationSession[]): Promise<void>;
 }
 
@@ -462,15 +432,13 @@ export function withoutWorkbenchOnlySessionOptions<T extends object>(options: T)
 }
 
 /** Builds a value-sensitive request key without splitting opaque provider scope strings. */
-export function getAuthenticationSessionRequestKey(scopeListOrRequest: readonly string[] | IAuthenticationWwwAuthenticateRequest | IAuthenticationDefaultScopesRequest, options: IAuthenticationProviderSessionOptions = {}): string {
-	let request: unknown;
-	if (isAuthenticationDefaultScopesRequest(scopeListOrRequest)) {
-		request = { defaultScopes: true };
-	} else if (isAuthenticationWwwAuthenticateRequest(scopeListOrRequest)) {
-		request = { wwwAuthenticate: scopeListOrRequest.wwwAuthenticate, fallbackScopes: scopeListOrRequest.fallbackScopes ? [...scopeListOrRequest.fallbackScopes].sort() : undefined };
-	} else {
-		request = [...scopeListOrRequest].sort();
-	}
+export function getAuthenticationSessionRequestKey(scopeListOrRequest: readonly string[] | IAuthenticationWwwAuthenticateRequest | undefined, options: IAuthenticationProviderSessionOptions = {}): string {
+	// Undefined scopes ask for the default scopes, which must not share a key with an empty scope list.
+	const request = scopeListOrRequest === undefined
+		? null
+		: isAuthenticationWwwAuthenticateRequest(scopeListOrRequest)
+			? { wwwAuthenticate: scopeListOrRequest.wwwAuthenticate, fallbackScopes: scopeListOrRequest.fallbackScopes ? [...scopeListOrRequest.fallbackScopes].sort() : undefined }
+			: [...scopeListOrRequest].sort();
 	const keyOptions = {
 		...options,
 		account: options.account?.id,

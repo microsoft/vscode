@@ -10,7 +10,7 @@ import { MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape 
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { Disposable, ProgressLocation } from './extHostTypes.js';
 import { IExtensionDescription, ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
-import { getAuthenticationSessionRequestKey, IAuthenticationDefaultScopesRequest, IAuthenticationGetSessionsOptions, IAuthenticationProviderSessionOptions, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
+import { getAuthenticationSessionRequestKey, IAuthenticationGetSessionsOptions, IAuthenticationProviderSessionOptions, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -103,9 +103,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationWwwAuthenticateRequest | undefined, options: vscode.AuthenticationGetSessionOptions): Promise<vscode.AuthenticationSession | undefined>;
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationWwwAuthenticateRequest | undefined, options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
 		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
-		// Undefined scopes ask for the default scopes. Core keeps undefined to mean "every session", so it gets an explicit request.
-		const request: readonly string[] | vscode.AuthenticationWwwAuthenticateRequest | IAuthenticationDefaultScopesRequest = scopesOrRequest ?? { defaultScopes: true };
-		const singlerKey = JSON.stringify([extensionId, providerId, getAuthenticationSessionRequestKey(request, {
+		const singlerKey = JSON.stringify([extensionId, providerId, getAuthenticationSessionRequestKey(scopesOrRequest, {
 			...options,
 			account: options.account && { id: options.account.id, label: options.account.label },
 			authorizationServer: URI.revive(options.authorizationServer),
@@ -116,7 +114,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		return await this._getSessionTaskSingler.getOrCreate(singlerKey, async () => {
 			await this._proxy.$ensureProvider(providerId);
 			const extensionName = requestingExtension.displayName || requestingExtension.name;
-			const session = await this._proxy.$getSession(providerId, request, extensionId, extensionName, options);
+			const session = await this._proxy.$getSession(providerId, scopesOrRequest, extensionId, extensionName, options);
 			return session && {
 				...session,
 				account: reviveAccountIcon(session.account),

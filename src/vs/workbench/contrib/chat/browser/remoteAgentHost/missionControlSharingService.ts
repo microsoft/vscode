@@ -291,6 +291,10 @@ export class MissionControlSharingService extends Disposable implements IMission
 		}
 		try {
 			const providerId = this._product.defaultChatAgent?.provider?.default?.id ?? 'github';
+			const scopes = getAuthenticationDefaultScopes(this._product, providerId);
+			if (!scopes) {
+				throw new Error(`Authentication provider '${providerId}' does not define default scopes.`);
+			}
 			const defaultAccount = await this._defaultAccountService.getDefaultAccount();
 			if (generation !== this._generation || this._store.isDisposed) {
 				return;
@@ -308,13 +312,13 @@ export class MissionControlSharingService extends Disposable implements IMission
 				}
 			}
 			const sessionOptions = account ? { account } : undefined;
-			let sessions = await this._authentication.getSessions(providerId, { defaultScopes: true }, sessionOptions, true);
+			let sessions = await this._authentication.getSessions(providerId, [...scopes], sessionOptions, true);
 			if (account) {
 				const accountId = account.id;
 				sessions = sessions.filter(session => session.account.id === accountId);
 			}
 			if (!sessions.length && interactive && generation === this._generation && !this._store.isDisposed) {
-				const session = await this._authentication.createSession(providerId, { defaultScopes: true }, sessionOptions).catch(error => {
+				const session = await this._authentication.createSession(providerId, [...scopes], sessionOptions).catch(error => {
 					if (error === 'Cancelled' || (error instanceof Error && error.message === 'Cancelled')) {
 						throw new CancellationError();
 					}

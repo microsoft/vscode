@@ -58,7 +58,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
 import { asText, IRequestService } from '../../../../../platform/request/common/request.js';
-import { AuthenticationSession, IAuthenticationService, resolveAuthenticationDefaultScopes } from '../../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationService, getAuthenticationDefaultScopes } from '../../../../services/authentication/common/authentication.js';
 import { getCloudSandboxTaskCreationPath, ICloudSandboxTelemetryService, requestOutcomeForStatus, type CloudSandboxRequestAction } from './cloudSandboxTelemetry.js';
 import { CloudSandboxHistoryCache } from './cloudSandboxHistoryCache.js';
 import { CloudSandboxIdentityTokenProvider, ICloudSandboxIdentityTokenResponse } from './cloudSandboxIdentityTokenProvider.js';
@@ -1517,13 +1517,17 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	private async _resolveGitHubSession(): Promise<AuthenticationSession | undefined> {
 		const providerId = this._authenticationProviderId;
 
-		let scopes: string[];
+		const scopes = getAuthenticationDefaultScopes(this._productService, providerId);
+		if (!scopes) {
+			this._logService.warn(`${LOG_PREFIX} Authentication provider '${providerId}' does not define default scopes`);
+			throw new CloudSandboxAuthenticationRequiredError();
+		}
+
 		let exact: readonly AuthenticationSession[];
 		try {
-			scopes = resolveAuthenticationDefaultScopes(this._productService, providerId);
-			exact = await this._authenticationService.getSessions(providerId, scopes, undefined, true);
+			exact = await this._authenticationService.getSessions(providerId, [...scopes], undefined, true);
 		} catch (error) {
-			// Throws when the auth provider extension has not registered yet or the provider has no default scopes.
+			// Throws when the auth provider extension has not registered yet.
 			this._logService.warn(`${LOG_PREFIX} getSessions('${providerId}') failed: ${toErrorMessage(error)}`);
 			throw new CloudSandboxAuthenticationRequiredError();
 		}
