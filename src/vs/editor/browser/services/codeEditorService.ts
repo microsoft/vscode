@@ -46,6 +46,12 @@ export interface ICodeEditorService {
 	registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): IDisposable;
 	listDecorationTypes(): string[];
 	removeDecorationType(key: string): void;
+	/**
+	 * Removes several decoration types at once. Cheaper than calling `removeDecorationType` per
+	 * key, because the CSS rules of all of them are removed in a single pass over the stylesheet.
+	 * Implementations that do not provide it are called once per key instead.
+	 */
+	removeDecorationTypes?(keys: readonly string[]): void;
 	resolveDecorationOptions(typeKey: string, writable: boolean): IModelDecorationOptions;
 	resolveDecorationCSSRules(decorationTypeKey: string): CSSRuleList | null;
 

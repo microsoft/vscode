@@ -83,8 +83,13 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		});
 		this._textEditorsListenersMap = Object.create(null);
 		this._toDispose.dispose();
-		for (const decorationType in this._registeredDecorationTypes) {
-			this._codeEditorService.removeDecorationType(decorationType);
+		const decorationTypes = Object.keys(this._registeredDecorationTypes);
+		if (this._codeEditorService.removeDecorationTypes) {
+			this._codeEditorService.removeDecorationTypes(decorationTypes);
+		} else {
+			for (const decorationType of decorationTypes) {
+				this._codeEditorService.removeDecorationType(decorationType);
+			}
 		}
 		this._registeredDecorationTypes = Object.create(null);
 	}
