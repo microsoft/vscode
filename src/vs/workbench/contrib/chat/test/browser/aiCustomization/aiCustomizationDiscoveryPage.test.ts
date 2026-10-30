@@ -542,6 +542,36 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
+	test('announces the same catalog error again after Retry', async () => {
+		const ariaHost = DOM.append(mainWindow.document.body, DOM.$('div'));
+		store.add(toDisposable(() => ariaHost.remove()));
+		setARIAContainer(ariaHost);
+		const fixture = createPage();
+		fixture.page.setSearchQuery('mail');
+		fixture.page.setVisible(true);
+
+		await fixture.requests[0].result.error(new Error('temporary failure'));
+		await timeout(0);
+		const announcements = [...ariaHost.querySelectorAll('.monaco-status')];
+		const first = announcements.map(element => element.textContent).findIndex(Boolean);
+		const firstAnnouncement = { index: first, message: announcements[first]?.textContent };
+		const retry = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-results .customization-discovery-state .monaco-button');
+		assert.ok(retry);
+		retry.click();
+		await waitForRequestCount(fixture.requests, 2);
+		await fixture.requests[1].result.error(new Error('temporary failure'));
+		await timeout(0);
+		const second = announcements.map(element => element.textContent).findIndex(Boolean);
+
+		assert.deepStrictEqual({
+			first: firstAnnouncement,
+			second: { index: second, message: announcements[second]?.textContent },
+		}, {
+			first: { index: 0, message: 'Could not load available customizations. temporary failure' },
+			second: { index: 1, message: 'Could not load available customizations. temporary failure' },
+		});
+	});
+
 	test('browse features first-party resources ahead of the source order', async () => {
 		const fixture = createPage(['agentFinder']);
 		fixture.page.setVisible(true);

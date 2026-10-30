@@ -1904,6 +1904,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.request.value = request;
 		this.loading = true;
 		this.loadingMore = append;
+		this.lastAnnouncement = undefined;
 		if (browseRequest) {
 			this.lastBrowseTelemetryView = undefined;
 			this.browseLoadStartedAt = Date.now();
