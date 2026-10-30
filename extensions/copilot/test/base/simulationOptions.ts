@@ -106,9 +106,6 @@ export class SimulationOptions {
 	public readonly externalBaseline: string | undefined;
 	public readonly externalScenarios: string | undefined;
 	public readonly output: string | undefined;
-	public readonly inline: boolean;
-	public readonly sidebar: boolean;
-	public readonly applyChatCodeBlocks: boolean;
 	public readonly stageCacheEntries: boolean;
 	public readonly ci: boolean;
 	public readonly gc: boolean;
@@ -135,17 +132,6 @@ export class SimulationOptions {
 	public readonly subcommand: 'nes-datagen' | undefined;
 
 	public readonly disabledTools: Set<string>;
-
-	/** If true, all tests are run in the extension host */
-	public readonly inExtensionHost: boolean;
-	/** Extensions to ensure are available in the extension host */
-	public readonly installExtensions: string[];
-	/** Whether to run headless (defaults to false) */
-	public readonly headless: boolean;
-	/** @internal Only run a single test number */
-	public readonly runNumber: number;
-	/** Explicit workspace URI to use for stest --in-extension-host */
-	public readonly useScenarioWorkspace: boolean;
 
 	/** If true, will try to use code search using our service. */
 	public readonly useExperimentalCodeSearchService: boolean;
@@ -197,9 +183,6 @@ export class SimulationOptions {
 		this.validateExternalBaseline();
 		this.output = this.argv['output'];
 		this.cachePath = this.argv['cache-location'];
-		this.inline = boolean(this.argv['inline'], false);
-		this.sidebar = boolean(this.argv['sidebar'], false);
-		this.applyChatCodeBlocks = boolean(this.argv['apply-chat-code-blocks'], false);
 		this.stageCacheEntries = boolean(this.argv['stage-cache-entries'], false);
 		this.ci = boolean(this.argv['ci'], false);
 		this.gc = boolean(this.argv['gc'], false);
@@ -211,11 +194,6 @@ export class SimulationOptions {
 		this.scenarioTest = argv['scenarioTest'] ?? argv['scenario-test'];
 		this.label = argv['label'] ?? '';
 
-		this.inExtensionHost = boolean(argv['in-extension-host'], false);
-		this.installExtensions = argv['install-extension'] ? argv['install-extension'].split(',') : [];
-		this.headless = boolean(argv['headless'], true);
-		this.runNumber = Number(argv['run-number']) || 0;
-
 		this.nes = SimulationOptions.validateNesArgument(argv['nes']);
 
 		this.nesUrl = argv['nes-url'];
@@ -224,7 +202,6 @@ export class SimulationOptions {
 		SimulationOptions.validateNesUrlOverride(this.nesUrl, this.nesApiKey);
 
 		this.disabledTools = argv['disable-tools'] ? new Set(argv['disable-tools'].split(',')) : new Set();
-		this.useScenarioWorkspace = boolean(argv['scenario-workspace-folder'], false);
 
 		this.useExperimentalCodeSearchService = boolean(argv['use-experimental-code-search-service'], false);
 
@@ -267,16 +244,12 @@ export class SimulationOptions {
 		console.log([
 			`Example usages: `,
 			`  npm run simulate`,
-			`  npm run simulate -- --external-scenarios=<path> --inline --output=<path>`,
-			`  npm run simulate -- --external-scenarios=<path> --sidebar --output=<path>`,
-			`  npm run simulate -- --external-scenarios=<path> --nes --output=<path>`,
+			`  npm run simulate -- --external-scenarios=<path> --nes=external --output=<path>`,
 			`  npm run simulate -- --update-baseline`,
 			``,
 			`  -u, --update-baseline              Updates scores in baseline.json if they change as a result of your changes to prompts sent to the model`,
-			`  --external-scenarios               Path to a directory containing scenarios to run`,
-			`  --inline                           Run inline chat external scenarios`,
-			`  --sidebar                          Run sidebar chat external scenarios`,
-			`  --nes                              Run NES external scenarios`,
+			`  --external-scenarios               Path to a directory containing NES scenarios to run (requires --nes)`,
+			`  --nes                              Kind of NES external scenarios: external (default) or coffe`,
 			`  --output                           Path to a directory where to generate output`,
 			`  --n                                Run each scenario N times`,
 			`  --ci                               Equivalent to --n=${BASELINE_RUN_COUNT} but throws if the baseline is not up-to-date`,
@@ -310,7 +283,6 @@ export class SimulationOptions {
 			`  --disable-tools                    A comma-separated list of tools to disable`,
 			`  --swebench-prompt                  Use the headless swebench prompt for agent mode`,
 			`  --summarize-history                Enable experimental conversation history summarization in agent mode`,
-			`  --scenario-workspace-folder        If true, runs the stest inline in the scenario's workspace folder`,
 			`  --config-file                      Path to a JSON file containing configuration options`,
 			`  --model-config-file                Path to a JSON file containing model configuration options`,
 			``,

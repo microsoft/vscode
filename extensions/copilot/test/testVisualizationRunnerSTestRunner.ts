@@ -35,7 +35,6 @@ export async function run(fullPath: string, testFullName: string) {
 		test,
 		testRunNumber: 0,
 		fetchRequestCollector: new FetchRequestCollector(),
-		isInRealExtensionHost: false,
 	};
 	const simulationServicesOptions: SimulationServicesOptions = {
 		chatModelThrottlingTaskLaunchers: createSimulationChatModelThrottlingTaskLaunchers(false),

@@ -67,16 +67,11 @@ const dotSimulationPath = path.join(__dirname, `../${SIMULATION_FOLDER_NAME}`);
 export enum CacheScope {
 	Embeddings = 'embeddings',
 	TSC = 'tsc',
-	Roslyn = 'roslyn',
-	ESLint = 'eslint',
-	Pylint = 'pylint',
-	Ruff = 'ruff',
 	Pyright = 'pyright',
 	Python = 'python',
 	Notebook = 'notebook',
 	DocSearch = 'docs-search',
 	CodeSearch = 'code-search',
-	CPP = 'cpp',
 	Chunks = 'chunks-endpoint',
 }
 
@@ -160,11 +155,6 @@ export interface CurrentTestRunInfo {
 	 * For each test run, we capture fetch requests made.
 	 */
 	fetchRequestCollector: FetchRequestCollector;
-
-	/**
-	 * Whether we're working in a real workspace and extension host.
-	 */
-	isInRealExtensionHost: boolean;
 }
 
 /**
@@ -178,10 +168,6 @@ export async function createSimulationAccessor(
 	currentTestRunInfo: CurrentTestRunInfo
 ): Promise<TestingServiceCollection> {
 	const testingServiceCollection = createExtensionUnitTestingServices(undefined, currentTestRunInfo, modelConfig);
-	if (currentTestRunInfo.isInRealExtensionHost) {
-		const { addExtensionHostSimulationServices } = await import('./extHostContext/simulationExtHostContext');
-		await addExtensionHostSimulationServices(testingServiceCollection);
-	}
 
 	testingServiceCollection.define(ITestInformation, new SyncDescriptor(TestInformation, [currentTestRunInfo.test]));
 	try {

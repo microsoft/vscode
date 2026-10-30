@@ -141,15 +141,10 @@ const shimVsCodeTypesPlugin: esbuild.Plugin = {
 			return {
 				contents: `
 					let vscode;
-					// See test/simulationExtension/extension.js for where and why this is created.
-					if (typeof COPILOT_SIMULATION_VSCODE !== 'undefined') {
-						vscode = COPILOT_SIMULATION_VSCODE;
-					} else {
-						try {
-							vscode = eval('require(' + JSON.stringify('vscode') + ')');
-						} catch (e) {
-							vscode = require('./src/util/common/test/shims/vscodeTypesShim.ts');
-						}
+					try {
+						vscode = eval('require(' + JSON.stringify('vscode') + ')');
+					} catch (e) {
+						vscode = require('./src/util/common/test/shims/vscodeTypesShim.ts');
 					}
 					module.exports = vscode;
 				`,
