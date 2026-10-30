@@ -71,11 +71,11 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 		if (type === interfaces.CommitType.Current) {
 			// Replace [ Conflict Range ] with [ Current Content ]
 			const content = document.getText(this.current.content);
-			this.replaceRangeWithContent(content, edit);
+			edit.replace(this.range, content);
 		}
 		else if (type === interfaces.CommitType.Incoming) {
 			const content = document.getText(this.incoming.content);
-			this.replaceRangeWithContent(content, edit);
+			edit.replace(this.range, content);
 		}
 		else if (type === interfaces.CommitType.Both) {
 			// Replace [ Conflict Range ] with [ Current Content ] + \n + [ Incoming Content ]
@@ -85,19 +85,5 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 
 			edit.replace(this.range, currentContent.concat(incomingContent));
 		}
-	}
-
-	private replaceRangeWithContent(content: string, edit: { replace(range: vscode.Range, newText: string): void }) {
-		if (this.isNewlineOnly(content)) {
-			edit.replace(this.range, '');
-			return;
-		}
-
-		// Replace [ Conflict Range ] with [ Current Content ]
-		edit.replace(this.range, content);
-	}
-
-	private isNewlineOnly(text: string) {
-		return text === '\n' || text === '\r\n';
 	}
 }
