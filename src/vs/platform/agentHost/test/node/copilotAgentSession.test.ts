@@ -222,7 +222,7 @@ class MockCopilotSession {
 	sandboxConfigUpdateError: Error | undefined;
 	shellInitScriptUpdateSuccess = true;
 	readonly imageGenerationUpdates: boolean[] = [];
-	readonly imageGenerationOptionsUpdates: { enabled?: boolean; watermark?: boolean }[] = [];
+	readonly imageGenerationOptionsUpdates: { enabled?: boolean; watermark?: boolean; model?: string }[] = [];
 	imageGenerationUpdateSuccess = true;
 	imageGenerationUpdateGate: Promise<void> | undefined;
 	onImageGenerationUpdate: (() => void) | undefined;
@@ -1398,6 +1398,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	enableDevelopmentErrorInjection?: boolean;
 	trackModelConfigurationUpdates?: boolean;
 	managedSettings?: CopilotClient['rpc']['managedSettings'];
+	listModels?: CopilotClient['rpc']['models']['list'];
 	modelPolicyModels?: CopilotSessionLaunchPlan['modelPolicyModels'];
 	resume?: boolean;
 	resolvedAgentName?: string;
@@ -1484,7 +1485,17 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 	const launchPlanBase = {
 		client: {
-			rpc: { managedSettings: options?.managedSettings ?? createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: sandboxCertificateRpc, getHostSupport: options?.getSandboxHostSupport ?? (async () => ({ supported: true, capabilities: [] })) } },
+			rpc: {
+				managedSettings: options?.managedSettings ?? createUnmanagedCopilotSettings(),
+				models: { list: options?.listModels ?? (async () => ({
+					models: [],
+					imageModels: ['first-image-model', 'another-image-model'].map(id => ({
+						id, name: id, availability: 'available' as const, isDefault: false, supportedOperations: ['generate' as const],
+					})),
+				})) },
+				account: new class extends mock<CopilotClient['rpc']['account']>() { },
+				sandbox: { proxyCa: sandboxCertificateRpc, getHostSupport: options?.getSandboxHostSupport ?? (async () => ({ supported: true, capabilities: [] })) },
+			},
 			createSession: async () => mockSession as unknown as CopilotSession,
 			resumeSession: async () => mockSession as unknown as CopilotSession,
 		},
@@ -1520,6 +1531,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		launch: async (_plan, runtime) => {
 			const imageGenerationEnabled = rootValues[CopilotCliConfigKey.ImageGeneration] === true;
 			const imageGenerationWatermark = rootValues[CopilotCliConfigKey.ImageGenerationWatermark] === true;
+			const imageGenerationModel = typeof rootValues[CopilotCliConfigKey.ImageGenerationModel] === 'string' ? rootValues[CopilotCliConfigKey.ImageGenerationModel] : undefined;
 			options?.beforeLaunch?.(rootValues);
 			launchedRuntime = runtime;
 			if (options?.captureRuntime) {
@@ -1529,7 +1541,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			if (duringLaunch) {
 				await duringLaunch;
 			}
-			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession, options?.canvasRuntimeEnabled ?? true, options?.launchByokConfig ?? {}, imageGenerationEnabled, imageGenerationWatermark, undefined, logService);
+			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession, options?.canvasRuntimeEnabled ?? true, options?.launchByokConfig ?? {}, imageGenerationEnabled, imageGenerationWatermark, imageGenerationModel, undefined, logService);
 		},
 		resolveByokSessionConfig: async () => options?.resolveByokSessionConfig?.() ?? {},
 	};
@@ -1923,6 +1935,49 @@ suite('CopilotAgentSession', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('image generation preference', () => {
+		for (const imageModels of [undefined, [{
+			id: 'gpt-image-2.5-flare', name: 'Flare', isDefault: true,
+			availability: 'available' as const, supportedOperations: ['generate' as const],
+		}]]) {
+			test(`a live nondefault selection fails closed on a default-only runtime (catalog=${imageModels ? 'default-only' : 'absent'})`, async () => {
+				const rig = await createAgentSession(disposables, {
+					rootValues: { [CopilotCliConfigKey.ImageGeneration]: true },
+					listModels: async () => ({ models: [], imageModels }),
+				});
+				rig.setRootValue(CopilotCliConfigKey.ImageGenerationModel, 'unsupported-image-model');
+				rig.fireRootConfigChange();
+				await assert.rejects(() => rig.session.send('do not submit', undefined, 'unsupported-image-selection'), /does not advertise image model/);
+				assert.deepStrictEqual(rig.mockSession.sendRequests, []);
+				assert.deepStrictEqual(rig.mockSession.imageGenerationOptionsUpdates, []);
+			});
+		}
+
+		for (const resume of [false, true]) {
+			test(`image model changes reach live sessions without changing the chat model (resume=${resume})`, async () => {
+				const rig = await createAgentSession(disposables, {
+					resume,
+					rootValues: {
+						[CopilotCliConfigKey.ImageGeneration]: true,
+						[CopilotCliConfigKey.ImageGenerationModel]: 'first-image-model',
+					},
+				});
+				rig.setRootValue(CopilotCliConfigKey.ImageGenerationModel, 'another-image-model');
+				rig.fireRootConfigChange();
+				await rig.session.send('hello', undefined, 'image-model-change');
+				assert.deepStrictEqual({
+					options: rig.mockSession.imageGenerationOptionsUpdates,
+					modelChanges: rig.mockSession.setModelCalls,
+				}, {
+					options: [{ enabled: true, watermark: false, model: 'another-image-model' }],
+					modelChanges: [],
+				});
+				rig.setRootValue(CopilotCliConfigKey.ImageGenerationModel, '');
+				rig.fireRootConfigChange();
+				await rig.session.send('hello again', undefined, 'image-model-reset');
+				assert.deepStrictEqual(rig.mockSession.imageGenerationOptionsUpdates.at(-1), { enabled: true, watermark: false, model: '' });
+			});
+		}
+
 		for (const resume of [false, true]) {
 			for (const enabled of [false, true]) {
 				test(`watermark changes reach live sessions without changing image consent (resume=${resume}, enabled=${enabled})`, async () => {
@@ -4849,7 +4904,7 @@ suite('CopilotAgentSession', () => {
 
 	suite('CopilotSessionWrapper', () => {
 		function createWrapper(mockSession: MockCopilotSession, logService: ILogService = new NullLogService()): CopilotSessionWrapper {
-			return disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession, true, {}, false, false, undefined, logService));
+			return disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession, true, {}, false, false, undefined, undefined, logService));
 		}
 
 		function lifecycleMessages(entries: CapturingLogService['infos']): string[] {

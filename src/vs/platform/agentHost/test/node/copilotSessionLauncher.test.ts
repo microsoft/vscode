@@ -53,7 +53,7 @@ import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import type { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { CopilotSessionSandbox } from '../../node/copilot/copilotSessionSandbox.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
-import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { assertCopilotImageGenerationModel, composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
 import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
@@ -1815,6 +1815,41 @@ suite('getCopilotAgentSelectionName', () => {
 });
 
 suite('CopilotSessionLauncher shared session config', () => {
+	test('image model validation uses current session credentials and preserves client-owned authentication', async () => {
+		const requests: Parameters<CopilotClient['rpc']['models']['list']>[0][] = [];
+		const client = returningSession(new class extends mock<CopilotSession>() { });
+		client.rpc.models = {
+			...client.rpc.models,
+			list: async params => {
+				requests.push(params);
+				return {
+					models: [],
+					imageModels: [{
+						id: 'another-image-model', name: 'Another Image Model', availability: 'available',
+						isDefault: false, supportedOperations: ['generate'],
+					}],
+				};
+			},
+		};
+		const credentials = new CopilotGitHubCredentials();
+		try {
+			credentials.update('first-token', 7200);
+			const githubCredentials = CopilotGitHubSessionCredentials.fromProvider(credentials);
+			await assertCopilotImageGenerationModel({ client, githubCredentials }, 'another-image-model');
+			credentials.update('renewed-token', 7200);
+			await assertCopilotImageGenerationModel({ client, githubCredentials }, 'another-image-model');
+			await assertCopilotImageGenerationModel({
+				client, githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication('client-owned-token'),
+			}, 'another-image-model');
+			await assertCopilotImageGenerationModel({ client, githubCredentials }, undefined);
+			await assertCopilotImageGenerationModel({ client, githubCredentials }, '');
+			await assertCopilotImageGenerationModel({ client, githubCredentials }, 'gpt-image-2.5-flare');
+			assert.deepStrictEqual(requests, [{ gitHubToken: 'first-token' }, { gitHubToken: 'renewed-token' }, {}]);
+		} finally {
+			credentials.dispose();
+		}
+	});
+
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -2051,6 +2086,9 @@ suite('CopilotSessionLauncher shared session config', () => {
 		const createConfigs: Parameters<CopilotClient['createSession']>[0][] = [];
 		const resumeConfigs: Parameters<CopilotClient['resumeSession']>[1][] = [];
 		const permissionCalls: Parameters<ICopilotSessionRuntime['handlePermissionRequest']>[] = [];
+		let imageModels: NonNullable<Awaited<ReturnType<CopilotClient['rpc']['models']['list']>>['imageModels']> = [{
+			id: 'another-image-model', name: 'Another Image Model', availability: 'available', isDefault: false, supportedOperations: ['generate'],
+		}];
 		const runtime: ICopilotSessionRuntime = {
 			...testRuntime,
 			handlePermissionRequest: async (request, invocation) => {
@@ -2075,14 +2113,14 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeConfigs.push(config);
 				return session;
 			},
-			rpc: { managedSettings: createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			rpc: { managedSettings: createUnmanagedCopilotSettings(), models: { list: async () => ({ models: [], imageModels }) }, account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 		};
 		const managedSettingsPermissions: IAgentHostManagedSettingsPermissions = {
 			disableBypassPermissionsMode: 'disable',
 			ask: ['Shell'],
 		};
 		const logService = new CapturingLogService();
-		const configValues: Record<string, unknown> = { [AgentHostCanvasesEnabledConfigKey]: true, [CopilotCliConfigKey.ImageGeneration]: true, memory: true, localMemory: true };
+		const configValues: Record<string, unknown> = { [AgentHostCanvasesEnabledConfigKey]: true, [CopilotCliConfigKey.ImageGeneration]: true, [CopilotCliConfigKey.ImageGenerationModel]: 'another-image-model', memory: true, localMemory: true };
 		const launcher = createTestLauncher(managedSettingsPermissions, configValues, logService);
 		const pluginDir = URI.file('/tmp/synced-customizations');
 		const syntheticPluginDir = URI.file('/tmp/vscode-synced-customizations');
@@ -2202,8 +2240,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 					return compatible.imageGeneration;
 				}),
 			}, {
-				createImage: [{ enabled: true, watermark: false }, { enabled: true, watermark: false }],
-				resumeImage: [{ enabled: true, watermark: false }],
+				createImage: [{ enabled: true, watermark: false, model: 'another-image-model' }, { enabled: true, watermark: false, model: 'another-image-model' }],
+				resumeImage: [{ enabled: true, watermark: false, model: 'another-image-model' }],
 			});
 
 			assert.deepStrictEqual({
@@ -2296,7 +2334,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			}, {
 				createClientName: 'vscode-agent-host',
 				createInteractiveUser: true,
-				createImageGeneration: { enabled: true, watermark: false },
+				createImageGeneration: { enabled: true, watermark: false, model: 'another-image-model' },
 				createCustomAgents: buildCopilotBuiltinAgents(basePlan.snapshot.tools),
 				createGitHubMcpToolConfig: { disableFormDeferral: true },
 				createPluginDirectories: [pluginDir.fsPath, syntheticPluginDir.fsPath],
@@ -2331,7 +2369,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createLocalMemoryStore: true,
 				resumeClientName: 'vscode-agent-host',
 				resumeInteractiveUser: true,
-				resumeImageGeneration: { enabled: true, watermark: false },
+				resumeImageGeneration: { enabled: true, watermark: false, model: 'another-image-model' },
 				resumeCustomAgents: buildCopilotBuiltinAgents(basePlan.snapshot.tools),
 				resumeGitHubMcpToolConfig: { disableFormDeferral: true },
 				resumePluginDirectories: [pluginDir.fsPath, syntheticPluginDir.fsPath],
@@ -2366,7 +2404,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeLocalMemoryStore: true,
 				ephemeralMemory: { enabled: false },
 				ephemeralInteractiveUser: true,
-				ephemeralImageGeneration: { enabled: true, watermark: false },
+				ephemeralImageGeneration: { enabled: true, watermark: false, model: 'another-image-model' },
 				ephemeralCustomAgents: [],
 				ephemeralAskUserVariant: 'elicitation',
 				ephemeralTgrep: true,
@@ -2424,14 +2462,24 @@ suite('CopilotSessionLauncher shared session config', () => {
 					assert.deepStrictEqual({
 						launch: [createdWithSetting.launchImageGenerationEnabled, resumedWithSetting.launchImageGenerationEnabled],
 						watermark: [createdWithSetting.launchImageGenerationWatermark, resumedWithSetting.launchImageGenerationWatermark],
+						model: [createdWithSetting.launchImageGenerationModel, resumedWithSetting.launchImageGenerationModel],
 						config: [createConfigs.at(-1)?.imageGeneration, resumeConfigs.at(-1)?.imageGeneration],
 					}, {
 						launch: [enabled === true, enabled === true],
 						watermark: [watermark === true, watermark === true],
-						config: [{ enabled: enabled === true, watermark: watermark === true }, { enabled: enabled === true, watermark: watermark === true }],
+						model: ['another-image-model', 'another-image-model'],
+						config: [{ enabled: enabled === true, watermark: watermark === true, model: 'another-image-model' }, { enabled: enabled === true, watermark: watermark === true, model: 'another-image-model' }],
 					});
 				}
 			}
+			configValues[CopilotCliConfigKey.ImageGeneration] = true;
+			imageModels = [{
+				id: 'gpt-image-2.5-flare', name: 'Flare', availability: 'available', isDefault: true, supportedOperations: ['generate'],
+			}];
+			const counts = [createConfigs.length, resumeConfigs.length];
+			await assert.rejects(() => launcher.launch(createPlan, testRuntime), /does not advertise image model/);
+			await assert.rejects(() => launcher.launch(resumePlan, testRuntime), /does not advertise image model/);
+			assert.deepStrictEqual([createConfigs.length, resumeConfigs.length], counts);
 		} finally {
 			sessions.dispose();
 			await launcher.disposeByokProxyHandle();
@@ -2783,7 +2831,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 				interactiveUserOptions.push(config.interactiveUser === true);
 				throw new TestSdkError(message, code);
 			},
-			rpc: { managedSettings: createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			rpc: { managedSettings: createUnmanagedCopilotSettings(), models: new class extends mock<CopilotClient['rpc']['models']>() { }, account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 		};
 		return {
 			launcher: createTestLauncher(undefined, {}, logService, sessionOpenTelemetry),
@@ -4466,7 +4514,7 @@ suite('CopilotSessionLauncher auto tier', () => {
 			},
 		} as unknown as CopilotSession;
 		const client: CopilotSessionLaunchPlan['client'] = {
-			rpc: { managedSettings: createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			rpc: { managedSettings: createUnmanagedCopilotSettings(), models: new class extends mock<CopilotClient['rpc']['models']>() { }, account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 			createSession: async config => {
 				capiCalls.push(config.capi);
 				return session;
@@ -4609,7 +4657,7 @@ suite('CopilotSessionLauncher working directory trust', () => {
 			},
 		} as unknown as CopilotSession;
 		const client: CopilotSessionLaunchPlan['client'] = {
-			rpc: { managedSettings: createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			rpc: { managedSettings: createUnmanagedCopilotSettings(), models: new class extends mock<CopilotClient['rpc']['models']>() { }, account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 			createSession: async config => {
 				record(config);
 				return session;

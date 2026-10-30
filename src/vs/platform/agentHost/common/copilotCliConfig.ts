@@ -36,6 +36,8 @@ export const enum CopilotCliConfigKey {
 	EnableShellInitScript = 'enableShellInitScript',
 	/** Enable runtime image generation and editing. The workbench mirrors it from the selected image model. */
 	ImageGeneration = 'imageGeneration',
+	/** Image model ID selected independently of the conversation model. Empty uses the runtime default. */
+	ImageGenerationModel = 'imageGenerationModel',
 	/** Request a visible AI label on generated and edited images. */
 	ImageGenerationWatermark = 'imageGenerationWatermark',
 	/** Log level passed to the Copilot SDK client. */
@@ -236,6 +238,12 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.imageGenerationEnabled.title', "Image Generation"),
 		description: localize('agentHost.config.imageGenerationEnabled.description', "Enable image generation and editing when the runtime's image model is available to your account. Prompts and selected images are sent to that model, and its charges are in addition to the conversation model. Account access and tool permissions still apply. Disabling this setting prevents future image tool calls."),
+	}),
+	[CopilotCliConfigKey.ImageGenerationModel]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.imageGenerationModel.title', "Image Generation Model"),
+		description: localize('agentHost.config.imageGenerationModel.description', "Image model ID from the runtime's image model catalog. Empty uses the runtime default. Selecting a model does not bypass account access, tool permissions, or image generation enablement."),
+		default: '',
 	}),
 	[CopilotCliConfigKey.ImageGenerationWatermark]: schemaProperty<boolean>({
 		type: 'boolean',
