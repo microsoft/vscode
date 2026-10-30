@@ -5643,6 +5643,103 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #338697: tab in opening counterpart of auto-closing pair', () => {
+		const languageId = 'autoClosingModeTab';
+
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			autoClosingPairs: [
+				{ open: 'begin\t', close: 'end' },
+			],
+		}));
+
+		// When insertSpaces is false, typing tab inserts a literal \t and auto-closes the pair
+		usingCursor({
+			text: [
+				'',
+			],
+			languageId: languageId,
+			modelOpts: {
+				insertSpaces: false
+			}
+		}, (editor, model, viewModel) => {
+			model.setValue('begi');
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.type('n', 'keyboard');
+			editor.runCommand(CoreEditingCommands.Tab, null);
+			assert.strictEqual(model.getLineContent(1), 'begin\tend');
+			assertCursor(viewModel, new Selection(1, 7, 1, 7));
+		});
+
+		// When insertSpaces is true, typing tab inserts spaces to the next tab stop and does not auto-close a pair expecting \t
+		usingCursor({
+			text: [
+				'',
+			],
+			languageId: languageId,
+			modelOpts: {
+				insertSpaces: true,
+				tabSize: 4
+			}
+		}, (editor, model, viewModel) => {
+			model.setValue('begi');
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.type('n', 'keyboard');
+			editor.runCommand(CoreEditingCommands.Tab, null);
+			assert.strictEqual(model.getLineContent(1), 'begin   ');
+			assertCursor(viewModel, new Selection(1, 9, 1, 9));
+		});
+
+		// Multi-cursor: auto-closes consistently when all selections match
+		usingCursor({
+			text: [
+				'begi',
+				'begi'
+			],
+			languageId: languageId,
+			modelOpts: {
+				insertSpaces: false
+			}
+		}, (editor, model, viewModel) => {
+			viewModel.setSelections('test', [
+				new Selection(1, 5, 1, 5),
+				new Selection(2, 5, 2, 5)
+			]);
+			viewModel.type('n', 'keyboard');
+			editor.runCommand(CoreEditingCommands.Tab, null);
+			assert.strictEqual(model.getLineContent(1), 'begin\tend');
+			assert.strictEqual(model.getLineContent(2), 'begin\tend');
+			assertCursor(viewModel, [
+				new Selection(1, 7, 1, 7),
+				new Selection(2, 7, 2, 7)
+			]);
+		});
+
+		// Multi-cursor: mixed selections where only one cursor matches do not auto-close
+		usingCursor({
+			text: [
+				'begin',
+				'other'
+			],
+			languageId: languageId,
+			modelOpts: {
+				insertSpaces: false
+			}
+		}, (editor, model, viewModel) => {
+			viewModel.setSelections('test', [
+				new Selection(1, 6, 1, 6),
+				new Selection(2, 6, 2, 6)
+			]);
+			editor.runCommand(CoreEditingCommands.Tab, null);
+			assert.strictEqual(model.getLineContent(1), 'begin\t');
+			assert.strictEqual(model.getLineContent(2), 'other\t');
+			assertCursor(viewModel, [
+				new Selection(1, 7, 1, 7),
+				new Selection(2, 7, 2, 7)
+			]);
+		});
+	});
+
 	test('issue #55314: Do not auto-close when ending with open', () => {
 		const languageId = 'myElectricMode';
 
