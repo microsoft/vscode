@@ -1289,7 +1289,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('enables canvas presentation only for local Copilot sessions', () => {
+	test('enables canvas presentation only for Copilot sessions', () => {
 		agentHost.setAgents([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} },
 			{ provider: CODEX_AGENT_PROVIDER_ID, displayName: 'Codex', description: '', models: [], capabilities: {} },
@@ -4365,6 +4365,217 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}],
 			fired: 1,
 		});
+	});
+
+	test('draft agents prefer published counterparts without collapsing same-named sources', async () => {
+		const clientAgents: AgentCustomization[] = ['first', 'second', 'plugin'].map(id => ({
+			type: CustomizationType.Agent, id, uri: `client-agent:/${id}/reviewer.agent.md`, name: 'Reviewer',
+		}));
+		const bundled = URI.parse('client-sync:/bundle/agents/first/reviewer.agent.md');
+		const published = clientAgents.map((agent, index): AgentCustomization => ({
+			...agent, id: `host-${index}`, uri: `other-host:/opaque/${index}`,
+			_meta: { 'vscode.sourceUri': index === 0 ? bundled.toString() : agent.uri },
+		}));
+		const provider = createProvider(disposables, agentHost, undefined, {
+			activeClientScope: () => ({
+				customAgents: constObservable(clientAgents), customizations: constObservable([]), tools: constObservable([]),
+				isResolved: constObservable(true), whenResolved: async () => { },
+				getSyncedUri: uri => isEqual(uri, URI.parse(clientAgents[0].uri)) ? bundled : undefined,
+				activeClient: clientId => constObservable({ clientId, tools: [], customizations: [] }), dispose: () => { },
+			}),
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/proj'), provider.sessionTypes[0].id);
+		provider.setAgent(session.sessionId, { uri: clientAgents[0].uri, name: 'Reviewer' });
+		await timeout(0);
+		agentHost.setSessionState(AgentSession.id(session.resource), 'copilotcli', {
+			provider: 'copilotcli', title: '', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready,
+			activeClients: [], chats: [], customizations: [{
+				type: CustomizationType.Plugin, id: 'opaque-plugin', uri: 'other-host:/plugin', name: 'Plugin',
+				load: { kind: CustomizationLoadStatus.Loaded }, children: published,
+			}],
+		});
+		const firstSelection = session.mode.get()?.id;
+		provider.setAgent(session.sessionId, { uri: clientAgents[1].uri, name: 'Reviewer' });
+		assert.deepStrictEqual({
+			agents: provider.getCustomAgents(session.sessionId).map(agent => agent.uri),
+			firstSelection, secondSelection: session.mode.get()?.id,
+		}, {
+			agents: published.map(agent => agent.uri), firstSelection: published[0].uri, secondSelection: published[1].uri,
+		});
+	});
+
+	for (const metadata of ['absent', 'invalid', 'case-distinct', 'ambiguous'] as const) {
+		test(`draft agents do not guess published identities with ${metadata} provenance`, async () => {
+			const client: AgentCustomization = { type: CustomizationType.Agent, id: 'client', uri: 'client-agent:/Reviewer', name: 'Reviewer' };
+			const published: AgentCustomization = {
+				type: CustomizationType.Agent, id: 'host', uri: 'other-host:/opaque', name: 'Reviewer',
+				_meta: metadata === 'absent' ? undefined : { 'vscode.sourceUri': metadata === 'invalid' ? 'not a URI' : metadata === 'case-distinct' ? 'client-agent:/reviewer' : client.uri },
+			};
+			const hosts = metadata === 'ambiguous' ? [published, { ...published, id: 'second', uri: 'other-host:/another' }] : [published];
+			const provider = createProvider(disposables, agentHost, undefined, { activeClientAgents: constObservable([client]) });
+			const session = provider.createNewSession(URI.parse('file:///home/user/proj'), provider.sessionTypes[0].id);
+			await timeout(0);
+			agentHost.setSessionState(AgentSession.id(session.resource), 'copilotcli', {
+				provider: 'copilotcli', title: '', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready,
+				activeClients: [], chats: [], customizations: [{
+					type: CustomizationType.Plugin, id: 'plugin', uri: 'other-host:/plugin', name: 'Plugin', children: hosts,
+				}],
+			});
+			provider.setAgent(session.sessionId, { uri: client.uri, name: client.name });
+			assert.deepStrictEqual({
+				agents: provider.getCustomAgents(session.sessionId).map(agent => agent.uri).sort(),
+				selected: session.mode.get()?.id,
+			}, { agents: [client, ...hosts].map(agent => agent.uri).sort(), selected: client.uri });
+		});
+	}
+
+	for (const clearSelection of [false, true]) {
+		test(`draft agent first send waits for its published identity${clearSelection ? ' without restoring a cleared selection' : ''}`, async () => {
+			const client: AgentCustomization = { type: CustomizationType.Agent, id: 'client', uri: 'client-agent:/reviewer', name: 'Reviewer' };
+			const bundled = URI.parse('client-sync:/bundle/agents/reviewer.agent.md');
+			const host: AgentCustomization = { ...client, id: 'host', uri: 'other-host:/opaque/reviewer', _meta: { 'vscode.sourceUri': bundled.toString() } };
+			const sent: (string | undefined)[] = [];
+			const provider = createProvider(disposables, agentHost, undefined, {
+				openSession: true,
+				activeClientScope: () => ({
+					customAgents: constObservable([client]), customizations: constObservable([]), tools: constObservable([]),
+					isResolved: constObservable(true), whenResolved: async () => { }, getSyncedUri: () => bundled,
+					activeClient: clientId => constObservable({ clientId, tools: [], customizations: [] }), dispose: () => { },
+				}),
+				sendRequest: async (resource, _message, options) => {
+					sent.push(options?.modeInfo?.modeInstructions?.uri?.toString());
+					agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Graduated Agent' }));
+					return { kind: 'sent', data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+				},
+			});
+			const session = provider.createNewSession(URI.parse('file:///home/user/proj'), provider.sessionTypes[0].id);
+			const chat = await provider.createNewChat(session.sessionId);
+			await timeout(0);
+			const publish = (loaded: boolean) => agentHost.setSessionState(AgentSession.id(session.resource), 'copilotcli', {
+				provider: 'copilotcli', title: '', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready,
+				activeClients: [], chats: [], customizations: [{
+					type: CustomizationType.Plugin, id: 'bundle', uri: 'client-sync:/bundle', name: 'Bundle',
+					load: { kind: loaded ? CustomizationLoadStatus.Loaded : CustomizationLoadStatus.Loading },
+					children: loaded ? [host] : [],
+				}],
+			});
+			publish(false);
+			provider.setAgent(session.sessionId, { uri: client.uri, name: client.name });
+			const sending = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+			await timeout(0);
+			const sentWhileLoading = sent.length;
+			if (clearSelection) {
+				provider.setAgent(session.sessionId, undefined);
+			}
+			publish(true);
+			const committed = await sending;
+			assert.deepStrictEqual({
+				sentWhileLoading, sent, selected: committed.mode.get()?.id,
+			}, { sentWhileLoading: 0, sent: [clearSelection ? undefined : host.uri], selected: clearSelection ? undefined : host.uri });
+		});
+	}
+
+	for (const outcome of ['refresh', 'error', 'clear', 'switch'] as const) {
+		test(`draft preserves its logical agent source through a materialized revision ${outcome}`, async () => {
+			const clients: AgentCustomization[] = ['first', 'second'].map(id => ({
+				type: CustomizationType.Agent, id, uri: `client-agent:/plugin/${id}`, name: 'Reviewer',
+			}));
+			const hosts = (revision: string) => clients.map((agent, index): AgentCustomization => ({
+				...agent, id: `${revision}-${index}`, uri: `other-host:/${revision}/${index}`, _meta: { 'vscode.sourceUri': agent.uri },
+			}));
+			const sent: (string | undefined)[] = [];
+			const provider = createProvider(disposables, agentHost, undefined, {
+				activeClientAgents: constObservable(clients), openSession: true,
+				sendRequest: async (resource, _message, options) => {
+					sent.push(options?.modeInfo?.modeInstructions?.uri?.toString());
+					agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Refreshed Agent' }));
+					return { kind: 'sent', data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+				},
+			});
+			const session = provider.createNewSession(URI.parse('file:///home/user/proj'), provider.sessionTypes[0].id);
+			const chat = await provider.createNewChat(session.sessionId);
+			await timeout(0);
+			const publish = (load: CustomizationLoadStatus.Loading | CustomizationLoadStatus.Loaded | CustomizationLoadStatus.Error, children?: AgentCustomization[]) =>
+				agentHost.setSessionState(AgentSession.id(session.resource), 'copilotcli', {
+					provider: 'copilotcli', title: '', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready,
+					activeClients: [], chats: [], customizations: [{
+						type: CustomizationType.Plugin, id: 'plugin', uri: 'client-agent:/plugin', name: 'Plugin',
+						load: load === CustomizationLoadStatus.Error ? { kind: load, message: 'Parsing failed' } : { kind: load },
+						children,
+					}],
+				});
+			publish(CustomizationLoadStatus.Loaded, hosts('old'));
+			// Pick the host row itself: its client source must survive subsequent revisions too.
+			provider.setAgent(session.sessionId, { uri: hosts('old')[0].uri, name: 'Reviewer' });
+			publish(CustomizationLoadStatus.Loading);
+			const sending = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+			const rejected = outcome === 'error' ? assert.rejects(sending, /selected agent could not be loaded/) : undefined;
+			await timeout(0);
+			const sentWhileLoading = sent.length;
+			if (outcome === 'clear') {
+				provider.setAgent(session.sessionId, undefined);
+			} else if (outcome === 'switch') {
+				provider.setAgent(session.sessionId, { uri: clients[1].uri, name: 'Reviewer' });
+			}
+			publish(outcome === 'error' ? CustomizationLoadStatus.Error : CustomizationLoadStatus.Loaded, outcome === 'error' ? undefined : hosts('new'));
+			if (rejected) {
+				await rejected;
+			} else {
+				await sending;
+			}
+			assert.deepStrictEqual({ sentWhileLoading, sent }, {
+				sentWhileLoading: 0,
+				sent: outcome === 'error' ? [] : [outcome === 'clear' ? undefined : hosts('new')[outcome === 'switch' ? 1 : 0].uri],
+			});
+		});
+	}
+
+	test('draft first send remains compatible with a host that omits optional source metadata and children', async () => {
+		const client: AgentCustomization = { type: CustomizationType.Agent, id: 'client', uri: 'client-agent:/plugin/reviewer', name: 'Reviewer' };
+		const sent: (string | undefined)[] = [];
+		const provider = createProvider(disposables, agentHost, undefined, {
+			activeClientAgents: constObservable([client]), openSession: true,
+			sendRequest: async (resource, _message, options) => {
+				sent.push(options?.modeInfo?.modeInstructions?.uri?.toString());
+				agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Portable Host' }));
+				return { kind: 'sent', data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/proj'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		await timeout(0);
+		agentHost.setSessionState(AgentSession.id(session.resource), 'copilotcli', {
+			provider: 'copilotcli', title: '', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready,
+			activeClients: [], chats: [], customizations: [{
+				type: CustomizationType.Plugin, id: 'plugin', uri: 'client-agent:/plugin', name: 'Plugin',
+				load: { kind: CustomizationLoadStatus.Loaded },
+			}],
+		});
+		provider.setAgent(session.sessionId, { uri: client.uri, name: client.name });
+		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		assert.deepStrictEqual(sent, [client.uri]);
+	});
+
+	test('draft agent first send surfaces customization loading failures instead of using the default agent', async () => {
+		const client: AgentCustomization = { type: CustomizationType.Agent, id: 'client', uri: 'client-agent:/plugin/reviewer', name: 'Reviewer' };
+		let sends = 0;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			activeClientAgents: constObservable([client]),
+			sendRequest: async () => { sends++; throw new Error('Must not send'); },
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/proj'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		await timeout(0);
+		agentHost.setSessionState(AgentSession.id(session.resource), 'copilotcli', {
+			provider: 'copilotcli', title: '', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready,
+			activeClients: [], chats: [], customizations: [{
+				type: CustomizationType.Plugin, id: 'plugin', uri: 'client-agent:/plugin', name: 'Plugin',
+				load: { kind: CustomizationLoadStatus.Error, message: 'Discovery failed' },
+			}],
+		});
+		provider.setAgent(session.sessionId, { uri: client.uri, name: client.name });
+		await assert.rejects(provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' }), /selected agent could not be loaded/);
+		assert.strictEqual(sends, 0);
 	});
 
 	test('onDidChangeCustomAgents fires on root state and session state changes', async () => {

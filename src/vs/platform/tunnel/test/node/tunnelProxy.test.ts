@@ -6,6 +6,7 @@
 import assert from 'assert';
 import type { IncomingHttpHeaders, Server } from 'http';
 import type { AddressInfo } from 'net';
+import { Duplex } from 'stream';
 import type { TLSSocket } from 'tls';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -52,6 +53,41 @@ function createMockConnectFn(targetPort: number): ITunnelConnectFn {
 		});
 		return mockTunnelProtocol(socket);
 	};
+}
+
+function createDuplexConnectFn(targetPort: number): ITunnelConnectFn {
+	return async () => {
+		const net = await import('net');
+		const socket = net.createConnection({ host: '127.0.0.1', port: targetPort });
+		await new Promise<void>((resolve, reject) => {
+			socket.once('connect', resolve);
+			socket.once('error', reject);
+		});
+		return { stream: socket, leftover: VSBuffer.alloc(0) };
+	};
+}
+
+class TestTunnelDuplex extends Duplex {
+	readonly writes: Buffer[] = [];
+
+	constructor(private readonly onWrite?: (chunk: Buffer) => void) {
+		super();
+	}
+
+	override _read(): void { }
+
+	override _write(chunk: Buffer, _encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
+		const copy = Buffer.from(chunk);
+		this.writes.push(copy);
+		this.onWrite?.(copy);
+		callback();
+	}
+
+	setKeepAlive(): this { return this; }
+	setNoDelay(): this { return this; }
+	setTimeout(): this { return this; }
+	ref(): this { return this; }
+	unref(): this { return this; }
 }
 
 /**
@@ -234,6 +270,29 @@ async function proxyConnect(
 	});
 }
 
+async function proxyUpgrade(info: ITunnelProxyInfo, targetUrl: string): Promise<number> {
+	const tls = await import('tls');
+	return new Promise((resolve, reject) => {
+		const socket = tls.connect({
+			host: '127.0.0.1',
+			port: info.port,
+			rejectUnauthorized: false,
+		}, () => {
+			const auth = Buffer.from(`${info.credentials.username}:${info.credentials.password}`).toString('base64');
+			socket.write(`GET ${targetUrl} HTTP/1.1\r\nHost: example.test\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\nProxy-Authorization: Basic ${auth}\r\n\r\n`);
+		});
+		let response = '';
+		socket.on('data', chunk => {
+			response += chunk.toString();
+			if (response.includes('\r\n\r\n')) {
+				socket.end();
+				resolve(parseInt(response.split(' ')[1], 10));
+			}
+		});
+		socket.on('error', reject);
+	});
+}
+
 
 suite('TunnelProxy', () => {
 
@@ -248,6 +307,9 @@ suite('TunnelProxy', () => {
 		targetServer = http.createServer((req, res) => {
 			res.writeHead(200, { 'Content-Type': 'text/plain' });
 			res.end(`ECHO ${req.method} ${req.url}`);
+		});
+		targetServer.on('upgrade', (_request, socket) => {
+			socket.write('HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n');
 		});
 		targetServer.listen(0, '127.0.0.1');
 		await new Promise<void>(resolve => targetServer.once('listening', resolve));
@@ -332,6 +394,19 @@ suite('TunnelProxy', () => {
 		assert.strictEqual(res.body, `ECHO GET /some/path`);
 	});
 
+	test('forwards authenticated HTTP GET through a direct Duplex connector', async () => {
+		const proxy = ds.add(new TunnelProxy(createDuplexConnectFn(targetPort), new NullLogService()));
+		const info = await proxy.start();
+		const res = await proxyRequest(info, {
+			path: `http://127.0.0.1:${targetPort}/duplex?secret=redacted`,
+			auth: true,
+		});
+		assert.deepStrictEqual({ statusCode: res.statusCode, body: res.body }, {
+			statusCode: 200,
+			body: 'ECHO GET /duplex?secret=redacted',
+		});
+	});
+
 	test('forwards authenticated HTTP POST to target', async () => {
 		const res = await proxyRequest(proxyInfo, {
 			method: 'POST',
@@ -340,6 +415,107 @@ suite('TunnelProxy', () => {
 		});
 		assert.strictEqual(res.statusCode, 200);
 		assert.strictEqual(res.body, 'ECHO POST /post');
+	});
+
+	test('forwards authenticated HTTP Upgrade requests to target', async () => {
+		assert.strictEqual(await proxyUpgrade(proxyInfo, `http://127.0.0.1:${targetPort}/socket?secret=redacted`), 101);
+	});
+
+	test('closes an unauthenticated Upgrade socket after responding', async () => {
+		const tls = await import('tls');
+		const socket = tls.connect({
+			host: '127.0.0.1',
+			port: proxyInfo.port,
+			rejectUnauthorized: false,
+		});
+		await new Promise<void>((resolve, reject) => {
+			socket.once('secureConnect', resolve);
+			socket.once('error', reject);
+		});
+		const closed = new Promise<void>(resolve => socket.once('close', () => resolve()));
+		socket.write('GET http://example.test/socket HTTP/1.1\r\nHost: example.test\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n');
+		const response = await new Promise<string>((resolve, reject) => {
+			let value = '';
+			socket.on('data', chunk => {
+				value += chunk.toString();
+				if (value.includes('\r\n\r\n')) {
+					resolve(value);
+				}
+			});
+			socket.once('error', reject);
+		});
+		await closed;
+
+		assert.deepStrictEqual({
+			status: response.split('\r\n', 1)[0],
+			destroyed: socket.destroyed,
+		}, {
+			status: 'HTTP/1.1 407 Proxy Authentication Required',
+			destroyed: true,
+		});
+	});
+
+	test('forwards IPv6 Upgrade requests using the bare destination address', async () => {
+		let destinationHost: string | undefined;
+		let responded = false;
+		const remote = new TestTunnelDuplex(() => {
+			if (!responded) {
+				responded = true;
+				remote.push('HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n');
+			}
+		});
+		const proxy = ds.add(new TunnelProxy(async host => {
+			destinationHost = host;
+			return { stream: remote, leftover: VSBuffer.alloc(0) };
+		}, new NullLogService()));
+		const info = await proxy.start();
+
+		assert.deepStrictEqual({
+			status: await proxyUpgrade(info, 'http://[::1]:8080/socket'),
+			destinationHost,
+		}, {
+			status: 101,
+			destinationHost: '::1',
+		});
+	});
+
+	test('destroys a late Upgrade tunnel after the client disconnects', async () => {
+		const tls = await import('tls');
+		const connectorStarted = new DeferredPromise<void>();
+		const pendingTunnel = new DeferredPromise<ITunnelStream>();
+		const delayedProxy = ds.add(new TunnelProxy(async () => {
+			connectorStarted.complete();
+			return pendingTunnel.p;
+		}, new NullLogService()));
+		const info = await delayedProxy.start();
+		const client = tls.connect({
+			host: '127.0.0.1',
+			port: info.port,
+			rejectUnauthorized: false,
+		});
+		await new Promise<void>((resolve, reject) => {
+			client.once('secureConnect', resolve);
+			client.once('error', reject);
+		});
+		const auth = Buffer.from(`${info.credentials.username}:${info.credentials.password}`).toString('base64');
+		client.write(`GET http://example.test/socket HTTP/1.1\r\nHost: example.test\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nProxy-Authorization: Basic ${auth}\r\n\r\n`);
+		await connectorStarted.p;
+		const clientClosed = new Promise<void>(resolve => client.once('close', () => resolve()));
+		client.end();
+		await clientClosed;
+
+		const remote = new TestTunnelDuplex();
+		const remoteClosed = new Promise<void>(resolve => remote.once('close', () => resolve()));
+		pendingTunnel.complete({ stream: remote, leftover: VSBuffer.alloc(0) });
+		await remoteClosed;
+
+		assert.deepStrictEqual({
+			destroyed: remote.destroyed,
+			forwarded: Buffer.concat(remote.writes).toString(),
+		}, {
+			destroyed: true,
+			forwarded: '',
+		});
 	});
 
 	test('strips hop-by-hop headers from forwarded request', async () => {

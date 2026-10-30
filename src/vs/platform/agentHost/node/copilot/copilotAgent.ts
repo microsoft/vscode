@@ -106,7 +106,7 @@ import { CopilotAgentSession, type ICopilotCanvasHandoff, type ICopilotWorkingDi
 import { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
 import { readCopilotSessionMetadataEvents, toCopilotSessionMetadataEvent } from './copilotSessionMetadataEvents.js';
 import { deferCopilotSdkExecution, getDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
-import { readCopilotSessionEvents, restoreStoredShellOutputsForChat } from './copilotSessionHistory.js';
+import { readCopilotSessionEvents, restoreStoredShellOutputs } from './copilotSessionHistory.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { addCopilotSandboxPath, createCopilotCliEnvironment, setLocalModelRequestHandlerEnvironment } from './copilotCliEnvironment.js';
@@ -7663,11 +7663,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 						message: localize('copilotAgent.interruptedTurn', "The agent was interrupted before this request finished."),
 					},
 				});
-				await restoreStoredShellOutputsForChat(result.turns, context.resource, context.ownerSession, context.chat, reference.object);
-				for (const [toolCallId, turns] of result.subagentTurnsByToolCallId) {
-					const child = URI.parse(subagentChatUri(context.ownerRef.getSubagentChatUriFormat(), context.ownerSession.toString(), context.chatKey, toolCallId));
-					await restoreStoredShellOutputsForChat(turns, context.resource, context.ownerSession, child, reference.object);
-				}
+				await restoreStoredShellOutputs([
+					{ turns: result.turns, chat: context.chat },
+					...Array.from(result.subagentTurnsByToolCallId, ([toolCallId, turns]) => ({
+						turns,
+						chat: URI.parse(subagentChatUri(context.ownerRef.getSubagentChatUriFormat(), context.ownerSession.toString(), context.chatKey, toolCallId)),
+					})),
+				], context.resource, context.ownerSession, reference.object);
 				return result;
 			} finally {
 				reference.dispose();
@@ -10966,7 +10968,8 @@ class SessionPluginController extends Disposable {
 					return;
 				}
 				publishUpdate({
-					customization: { ...status, clientId },
+					// Transfer completion precedes parsing; only the resolved result is ready for selection.
+					customization: { ...status, clientId, load: status.load?.kind === CustomizationLoadStatus.Loaded ? { kind: CustomizationLoadStatus.Loading } : status.load },
 					input: inputByUri.get(status.uri),
 				});
 			});

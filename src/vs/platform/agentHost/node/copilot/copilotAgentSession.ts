@@ -96,7 +96,7 @@ import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from '
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { NonPtyShellTerminalStreams, type INonPtyShellToolCompletion } from './copilotNonPtyShellTerminals.js';
-import { readCopilotSessionEvents, restoreStoredShellOutputsForChat } from './copilotSessionHistory.js';
+import { readCopilotSessionEvents, restoreStoredShellOutputs } from './copilotSessionHistory.js';
 import { CopilotSessionSandbox } from './copilotSessionSandbox.js';
 import { reportCopilotRuntimeRestart, type CopilotRuntimeMutation, type CopilotRuntimeRestartEvent } from './copilotRuntimeRestartTelemetry.js';
 import type { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
@@ -6883,10 +6883,11 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _restoreStoredShellOutputs(mapped: IMappedSessionEvents, db: ISessionDatabase): Promise<void> {
-		await restoreStoredShellOutputsForChat(mapped.turns, this._storageUri, this._ownerSessionUri, this._chatChannelUri, db);
-		for (const [parentToolCallId, turns] of mapped.subagentTurnsByToolCallId) {
-			await restoreStoredShellOutputsForChat(turns, this._storageUri, this._ownerSessionUri, URI.parse(this._subagentChatUri(parentToolCallId)), db);
-		}
+		// The parent chat and every subagent chat share one batched lookup.
+		await restoreStoredShellOutputs([
+			{ turns: mapped.turns, chat: this._chatChannelUri },
+			...Array.from(mapped.subagentTurnsByToolCallId, ([parentToolCallId, turns]) => ({ turns, chat: URI.parse(this._subagentChatUri(parentToolCallId)) })),
+		], this._storageUri, this._ownerSessionUri, db);
 	}
 
 	private _seedSubagentDisplayNames(events: readonly SessionEvent[]): void {

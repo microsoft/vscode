@@ -65,6 +65,8 @@ import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../chat/common/
 const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.v5.';
 // Keep stable's legacy-addressed summaries separate across host downgrades.
 const DEV_CONTAINER_ARCHIVE_CONFIRMATION_TIMEOUT_MS = 5000;
+// A restarted host loads the session, including starting its agent, before it can confirm an archive change.
+const DEV_CONTAINER_SESSION_LOAD_TIMEOUT_MS = 30 * 1000;
 const DEV_CONTAINER_IDLE_POLL_INTERVAL_MS = 60 * 1000;
 // TODO@sandy081 Remove this legacy cache-key cleanup after 2026-10-14.
 const CACHED_SESSIONS_STORAGE_PREFIXES_LEGACY = ['remoteAgentHost.cachedSessions.v3.', 'remoteAgentHost.cachedSessions.v2.', 'remoteAgentHost.cachedSessions.'];
@@ -262,6 +264,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private readonly _devContainerLifecycle: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle'];
 	private _devContainerIdleSince: number | undefined;
 	private _devContainerIdleCheckRunning = false;
+	private _devContainerArchiveOperations = 0;
 	private readonly _devContainerIdleScheduler = this._register(new RunOnceScheduler(() => {
 		void this._stopDevContainerIfIdle().catch(error =>
 			this._logService.error(`[${this.id}] Failed to stop idle Dev Container.`, error));
@@ -450,12 +453,13 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		if (this._devContainerLifecycle) {
 			await this._ensureDevContainerConnection();
 			await this._setDevContainerSessionArchived(sessionId, true);
-			if (this.getKnownSessions().some(session => session.sessionId !== sessionId && !session.isArchived.get() && !this._isEmptyDevContainerDraft(session))) {
+			if (this._hasUnarchivedDevContainerSession(sessionId)) {
 				this._scheduleDevContainerStopIfIdle();
 				return;
 			}
 			this._devContainerIdleScheduler.cancel();
-			if (await this._devContainerLifecycle.remove()) {
+			// Stop rather than remove: the container holds the archived session's Agent Host state.
+			if (await this._devContainerLifecycle.stop()) {
 				await this._setDetachedWorktreeArchived(sessionId, true);
 			} else {
 				this._devContainerIdleSince = undefined;
@@ -482,11 +486,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 				await this._ensureDevContainerConnection();
 				await this._setDevContainerSessionArchived(sessionId, false);
 			} catch (error) {
-				const hasOtherUnarchivedSession = this.getKnownSessions().some(session => session.sessionId !== sessionId && !session.isArchived.get() && !this._isEmptyDevContainerDraft(session));
 				// TODO: Reconcile experimental worktree rollback without removing a mount still used by another session.
-				if (!hasOtherUnarchivedSession) {
+				if (!this._hasUnarchivedDevContainerSession(sessionId)) {
 					this._devContainerIdleScheduler.cancel();
-					if (await this._devContainerLifecycle.remove()) {
+					if (await this._devContainerLifecycle.stop()) {
 						await this._setDetachedWorktreeArchived(sessionId, true);
 					}
 				}
@@ -556,13 +559,35 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 				? localize('devContainerAgentHost.archiveDisconnected', "Unable to archive Dev Container session '{0}' while disconnected.", sessionId)
 				: localize('devContainerAgentHost.unarchiveDisconnected', "Unable to unarchive Dev Container session '{0}' while disconnected.", sessionId));
 		}
+		const timeoutError = () => new Error(archived
+			? localize('devContainerAgentHost.archiveTimeout', "Timed out waiting for Dev Container session '{0}' to be archived.", sessionId)
+			: localize('devContainerAgentHost.unarchiveTimeout', "Timed out waiting for Dev Container session '{0}' to be unarchived.", sessionId));
+		const rejectedError = (reason: string) => new Error(archived
+			? localize('devContainerAgentHost.archiveRejected', "Unable to archive Dev Container session '{0}': {1}", sessionId, reason)
+			: localize('devContainerAgentHost.unarchiveRejected', "Unable to unarchive Dev Container session '{0}': {1}", sessionId, reason));
 		const subscription = connection.getSubscription(StateComponents.Session, backendUri, 'RemoteAgentHostSessionsProvider.archive');
+		const snapshot = Event.toPromise(Event.any<unknown>(subscription.object.onDidChange, subscription.object.onDidError ?? Event.None));
 		const confirmationAction = Event.toPromise(Event.filter(connection.onDidAction, envelope =>
 			envelope.channel === backendUri.toString()
 			&& envelope.action.type === ActionType.SessionIsArchivedChanged
 			&& envelope.action.isArchived === archived
 		));
+		// Loading the session on a restarted host can outlast a short idle timeout.
+		this._devContainerArchiveOperations++;
+		this._scheduleDevContainerStopIfIdle();
 		try {
+			// The host only confirms to active subscribers, which a restarted host has after loading the session.
+			if (subscription.object.value === undefined) {
+				let loadTimedOut = false;
+				await raceTimeout(snapshot, DEV_CONTAINER_SESSION_LOAD_TIMEOUT_MS, () => loadTimedOut = true);
+				if (loadTimedOut) {
+					throw timeoutError();
+				}
+			}
+			const state = subscription.object.value;
+			if (state instanceof Error) {
+				throw rejectedError(state.message);
+			}
 			let timedOut = false;
 			const confirmation = raceTimeout(
 				confirmationAction,
@@ -577,19 +602,18 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			const confirmationEnvelope = await confirmation;
 			if (confirmationEnvelope?.rejectionReason) {
 				this._setSessionArchivedLocally(sessionId, !archived);
-				throw new Error(archived
-					? localize('devContainerAgentHost.archiveRejected', "Unable to archive Dev Container session '{0}': {1}", sessionId, confirmationEnvelope.rejectionReason)
-					: localize('devContainerAgentHost.unarchiveRejected', "Unable to unarchive Dev Container session '{0}': {1}", sessionId, confirmationEnvelope.rejectionReason));
+				throw rejectedError(confirmationEnvelope.rejectionReason);
 			}
 			if (timedOut) {
 				this._setSessionArchivedLocally(sessionId, !archived);
-				throw new Error(archived
-					? localize('devContainerAgentHost.archiveTimeout', "Timed out waiting for Dev Container session '{0}' to be archived.", sessionId)
-					: localize('devContainerAgentHost.unarchiveTimeout', "Timed out waiting for Dev Container session '{0}' to be unarchived.", sessionId));
+				throw timeoutError();
 			}
 		} finally {
+			snapshot.cancel();
 			confirmationAction.cancel();
 			subscription.dispose();
+			this._devContainerArchiveOperations--;
+			this._scheduleDevContainerStopIfIdle();
 		}
 	}
 
@@ -616,10 +640,14 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 	private _isDevContainerIdle(): boolean {
 		const sessions = this.getKnownSessions();
-		return !!this.connection && !sessions.some(session => {
+		return !!this.connection && this._devContainerArchiveOperations === 0 && !sessions.some(session => {
 			const status = session.status.get();
 			return (status === SessionStatus.Untitled && !this._isEmptyDevContainerDraft(session)) || isActiveSessionStatus(status);
 		});
+	}
+
+	private _hasUnarchivedDevContainerSession(exceptSessionId?: string): boolean {
+		return this.getKnownSessions().some(session => session.sessionId !== exceptSessionId && !session.isArchived.get() && !this._isEmptyDevContainerDraft(session));
 	}
 
 	private _isEmptyDevContainerDraft(session: ISession): boolean {
@@ -678,10 +706,19 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		}
 		let worktreeError: unknown;
 		let canDeleteDetachedWorktrees = true;
-		if (!deleteError && this._devContainerLifecycle && hadSessions && this.getKnownSessions().every(session => this._isEmptyDevContainerDraft(session))) {
+		if (!deleteError && this._devContainerLifecycle && hadSessions && !this._hasUnarchivedDevContainerSession()) {
 			try {
 				this._devContainerIdleScheduler.cancel();
-				canDeleteDetachedWorktrees = await this._devContainerLifecycle.remove();
+				if (this.getKnownSessions().every(session => this._isEmptyDevContainerDraft(session))) {
+					canDeleteDetachedWorktrees = await this._devContainerLifecycle.remove();
+				} else {
+					// Only archived sessions remain; keep their Agent Host state in the stopped container.
+					canDeleteDetachedWorktrees = await this._devContainerLifecycle.stop();
+					if (!canDeleteDetachedWorktrees) {
+						this._devContainerIdleSince = undefined;
+						this._scheduleDevContainerStopIfIdle();
+					}
+				}
 			} catch (error) {
 				worktreeError = error;
 			}
@@ -812,6 +849,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		return {
 			readOnly: this._readOnly,
 			allowOfflineDrafts: this._allowOfflineDrafts,
+			supportsCanvasPresentation: (agentProvider: string) => !this.isWebPlatform && agentProvider === 'copilotcli',
 			defaultChangesetKind: this._defaultChangesetKind,
 			useSessionTitleForDefaultChat: agentProvider === 'copilot',
 			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {

@@ -452,6 +452,13 @@ export interface ISessionDatabase extends IDisposable {
 	getTerminalOutputSize(toolCallId: string): Promise<number | undefined>;
 
 	/**
+	 * Return the stored terminal output sizes in bytes for the given tool calls
+	 * with a single lookup, without loading their content. Tool calls without
+	 * stored output are absent from the result.
+	 */
+	getTerminalOutputSizes(toolCallIds: readonly string[]): Promise<Map<string, number>>;
+
+	/**
 	 * Read terminal output for a tool invocation.
 	 * Returns `undefined` if no output exists for the given tool call.
 	 */
