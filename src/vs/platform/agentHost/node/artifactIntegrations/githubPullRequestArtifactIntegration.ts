@@ -441,6 +441,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			return {
 				availability,
 				main: { label: `#${resource.target.number}`, icon: this.mainIcon(snapshot), detailsId: 'main', description: core ? `${this.stateLabel(snapshot)}: ${core.title}` : localize('prArtifact.loading', "Loading pull request.") },
+				groupId: gitHubPullRequestArtifactIntegrationId,
 				...(hasCore && core ? { group: getPullRequestGroupPresentation(core, { needsRepair: open && (failedRequired || conflicting), hasComments: threads.length > 0 }) } : {}),
 				sections: [
 					...(checks.length ? [{
