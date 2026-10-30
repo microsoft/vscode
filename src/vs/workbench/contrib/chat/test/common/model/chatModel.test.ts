@@ -995,6 +995,54 @@ suite('ChatModel', () => {
 		}
 	});
 
+	test('applies timing-only reasoning updates without replaying text or measuring a remote clock', () => {
+		const clock = sinon.useFakeTimers({ now: 900_000 });
+		try {
+			const response = testDisposables.add(new Response([]));
+			response.updateContent({ kind: 'thinking', id: 'reasoning', value: 'First', reasoningStartedAt: 1000 });
+			response.updateContent({ kind: 'thinking', id: 'reasoning', value: ' thought', reasoningStartedAt: 1000 });
+			const renderedPart = response.value[0];
+			clock.tick(5000);
+			response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Done') });
+			response.updateContent({ kind: 'thinking', id: 'reasoning', value: '', reasoningDurationMs: 45_000 });
+			response.finalizeReasoningDuration();
+
+			assert.deepStrictEqual({ parts: response.value, keepsRenderedPart: response.value[0] === renderedPart }, {
+				parts: [
+					{ kind: 'thinking', id: 'reasoning', value: 'First thought', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 },
+					{ kind: 'markdownContent', content: new MarkdownString('Done') },
+				],
+				keepsRenderedPart: true,
+			});
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('keeps consecutive reasoning ids and zero durations distinct', () => {
+		const response = testDisposables.add(new Response([]));
+		response.updateContent({ kind: 'thinking', id: 'first', value: 'First', reasoningDurationMs: 45_000 });
+		response.updateContent({ kind: 'thinking', id: 'second', value: 'Second', reasoningDurationMs: 0 });
+		response.finalizeReasoningDuration();
+
+		assert.deepStrictEqual(response.value, [
+			{ kind: 'thinking', id: 'first', value: 'First', reasoningDurationMs: 45_000 },
+			{ kind: 'thinking', id: 'second', value: 'Second', reasoningDurationMs: 0 },
+		]);
+	});
+
+	test('recorded reasoning timing survives chat model serialization and restoration', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'hello', parts: [] }, { variables: [] }, 0);
+		model.acceptResponseProgress(request, { kind: 'thinking', id: 'reasoning', value: 'Working through it', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 });
+		request.response?.complete();
+		const restored = testDisposables.add(instantiationService.createInstance(ChatModel, { value: model.toJSON(), serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+
+		assert.deepStrictEqual(restored.getRequests()[0].response?.entireResponse.value, [
+			{ kind: 'thinking', id: 'reasoning', value: 'Working through it', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 },
+		]);
+	});
+
 	test('leaves tool calls replayed from history untimed', async () => {
 		const clock = sinon.useFakeTimers({ now: 9000 });
 		try {

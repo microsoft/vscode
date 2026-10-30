@@ -1056,6 +1056,23 @@ export class Response extends AbstractResponse implements IDisposable {
 			}
 			this._contentChanged(quiet);
 		} else if (progress.kind === 'thinking') {
+			const hasTiming = progress.reasoningStartedAt !== undefined || progress.reasoningDurationMs !== undefined;
+			const timing = {
+				...(progress.reasoningStartedAt !== undefined ? { reasoningStartedAt: progress.reasoningStartedAt } : {}),
+				...(progress.reasoningDurationMs !== undefined ? { reasoningDurationMs: progress.reasoningDurationMs } : {}),
+			};
+			if (hasTiming && this._activeReasoning?.part.id === progress.id) {
+				this._activeReasoning = undefined;
+			}
+			if (hasTiming && progress.id !== undefined && !progress.value?.length) {
+				const index = this._responseParts.findIndex(part => part.kind === 'thinking' && part.id === progress.id);
+				const part = this._responseParts[index];
+				if (part?.kind === 'thinking') {
+					Object.assign(part, timing);
+					this._contentChanged(quiet);
+					return;
+				}
+			}
 
 			// tries to split thinking chunks if it is an array. only while certain models give us array chunks.
 			// Nested subagent parts render inside their parent card and must not split parent reasoning.
@@ -1067,10 +1084,14 @@ export class Response extends AbstractResponse implements IDisposable {
 				? (Array.isArray(lastResponsePart.value) ? lastResponsePart.value.join('') : (lastResponsePart.value || ''))
 				: '';
 			const currText = Array.isArray(progress.value) ? progress.value.join('') : (progress.value || '');
+			const differentId = lastResponsePart?.kind === 'thinking' && progress.id !== undefined && lastResponsePart.id !== undefined && progress.id !== lastResponsePart.id;
+			if (differentId) {
+				this.finalizeReasoningDuration();
+			}
 			const isEmpty = (s: string) => s.length === 0;
 			if (isEmpty(currText)) {
 				this.finalizeReasoningDuration();
-			} else if (!this._activeReasoning && !restored) {
+			} else if (!this._activeReasoning && !restored && !hasTiming) {
 				// Replayed history keeps its recorded timing; this clock only measures live reasoning.
 				this._activeReasoning = { part: progress, startedAt: Date.now() };
 			}
@@ -1080,16 +1101,18 @@ export class Response extends AbstractResponse implements IDisposable {
 				|| lastResponsePart.kind !== 'thinking'
 				|| isEmpty(currText)
 				|| isEmpty(lastText)
+				|| differentId
 				|| !canMergeMarkdownStrings(new MarkdownString(lastText), new MarkdownString(currText))) {
 				this._responseParts.push(progress);
 			} else {
 				const idx = this._responseParts.indexOf(lastResponsePart);
 				const mergedPart: IChatThinkingPart = {
 					...lastResponsePart,
+					...timing,
 					value: appendMarkdownString(new MarkdownString(lastText), new MarkdownString(currText)).value
 				};
 				this._responseParts[idx] = mergedPart;
-				if (this._activeReasoning?.part === lastResponsePart) {
+				if (this._activeReasoning?.part === lastResponsePart || this._activeReasoning?.part === progress) {
 					this._activeReasoning.part = mergedPart;
 				}
 			}

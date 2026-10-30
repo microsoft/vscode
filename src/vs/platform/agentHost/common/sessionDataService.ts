@@ -98,6 +98,12 @@ export interface IReviewedFileRecord {
 
 // ---- Session database ---------------------------------------------------
 
+/** A producer-measured reasoning interval, keyed by its durable provider response id. */
+export interface IReasoningTiming {
+	readonly startedAt: string;
+	readonly duration: number;
+}
+
 /** A host-persisted turn that is absent from the provider transcript. */
 export interface IPersistedTurnRecord {
 	/** Whether this is host-local or a provider turn that failed before persistence. */
@@ -265,6 +271,12 @@ export interface ISessionDatabase extends IDisposable {
 	 * SDK envelope id — resolve as well as live ones.
 	 */
 	getTurnUsages(): Promise<Map<string, string>>;
+
+	/** Records completed reasoning timing with the owning turn's pruning lifecycle. */
+	setReasoningTiming(turnId: string, responseId: string, timing: IReasoningTiming): Promise<void>;
+
+	/** Reads recorded reasoning timings after all previously submitted writes. */
+	getReasoningTimings(): Promise<Map<string, IReasoningTiming>>;
 
 	/**
 	 * Persists the JSON-serialized delegation metadata for an agent-authored turn.

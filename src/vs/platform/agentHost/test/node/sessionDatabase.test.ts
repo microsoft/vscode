@@ -1018,7 +1018,7 @@ suite('SessionDatabase', () => {
 				tables: await db.getAllTables(),
 				records: await db.getPersistedTurns(),
 			}, {
-				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reasoning_timing', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
 				records: [{ kind: 'local', turnId: 'local-1', chatUri: 'chat', anchorTurnId: undefined, seq: 1, payload: '{"id":"local-1"}' }],
 			});
 		});
@@ -1119,6 +1119,42 @@ suite('SessionDatabase', () => {
 			await db.setTurnEventId('turn-1', 'evt-1');
 
 			assert.strictEqual(await db.getNextTurnEventId('does-not-exist'), undefined);
+		});
+	});
+
+	suite('reasoning timing', () => {
+		test('reads submitted writes and preserves a recorded zero', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const startedAt = '1970-01-01T00:00:01.000Z';
+			const write = db.setReasoningTiming('turn-1', 'response-1', { startedAt, duration: 45_000 });
+			const first = [...await db.getReasoningTimings()];
+			await write;
+			await db.setReasoningTiming('turn-1', 'response-1', { startedAt, duration: 0 });
+
+			assert.deepStrictEqual({ first, updated: [...await db.getReasoningTimings()] }, {
+				first: [['response-1', { startedAt, duration: 45_000 }]],
+				updated: [['response-1', { startedAt, duration: 0 }]],
+			});
+		});
+
+		test('fork remapping preserves timing and pruning removes it', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const timing = { startedAt: '1970-01-01T00:00:01.000Z', duration: 45_000 };
+			await db.setReasoningTiming('old-1', 'response-1', timing);
+			await db.setReasoningTiming('old-2', 'response-2', timing);
+			await db.remapTurnIds(new Map([['old-1', 'new-1']]));
+			const forked = [...await db.getReasoningTimings()];
+			await db.deleteTurn('new-1');
+
+			assert.deepStrictEqual({ forked, pruned: [...await db.getReasoningTimings()] }, {
+				forked: [['response-1', timing]], pruned: [],
+			});
+		});
+
+		test('rejects invalid reasoning timing', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await assert.rejects(db.setReasoningTiming('turn', 'response', { startedAt: 'invalid', duration: 1 }), /Invalid reasoning timing/);
+			await assert.rejects(db.setReasoningTiming('turn', 'response', { startedAt: '1970-01-01T00:00:01.000Z', duration: -1 }), /Invalid reasoning timing/);
 		});
 	});
 
@@ -1997,7 +2033,7 @@ suite('SessionDatabase', () => {
 				title: await db.getMetadata('customTitle'),
 				snapshot: await db.getCatalogSyncSnapshot(),
 			}, {
-				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reasoning_timing', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
 				title: 'After upgrade',
 				snapshot: snapshot(1),
 			});
@@ -2024,7 +2060,7 @@ suite('SessionDatabase', () => {
 				tables: await upgraded.getAllTables(),
 				snapshot: await upgraded.getCatalogSyncSnapshot(),
 			}, {
-				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reasoning_timing', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
 				snapshot: snapshot(1),
 			});
 		});

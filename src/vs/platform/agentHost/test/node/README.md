@@ -12,6 +12,14 @@ Tests that launch a real provider process isolate its home, configuration, logs,
 
 The protocol and E2E folders contain their own running and authoring instructions.
 
+## Reasoning timing
+
+AHP reasoning parts carry optional producer-owned `startedAt` and `duration` fields. Timing-only `chat/reasoning` updates finish a live interval before subsequent response content or the turn's terminal action. Clients retain those values across snapshots and history replay rather than measuring replay or comparing the host's clock with their own.
+
+Copilot measures streamed reasoning with a monotonic clock and stores its total against the durable assistant-message event id in the session database's `reasoning_timing` table. Split fragments contribute only their observed reasoning time; tool execution and gaps between fragments are excluded. Writes follow the owning turn through fork remapping and pruning. Restored provider responses without a complete recorded interval remain untimed; this does not retroactively estimate older sessions or add timing capture to other providers.
+
+`copilotReasoningTiming.test.ts` covers fragment measurement and a real database close/reopen followed by provider history reconstruction. `copilotAgentSession.test.ts`, `sessionDatabase.test.ts`, and the workbench chat adapter/model/thinking-content tests cover producer wiring, storage, reconnects, serialization, and the visible and accessible "Thought for 45s" label.
+
 ## Mission Control session configuration
 
 The Mission Control listener publishes Copilot Host's `approvalMode` vocabulary (`manual`, `assisted`, `allow-all`) in place of VS Code's native `autoApprove` vocabulary (`default`, `assisted`, `autoApprove`). The independent `mode` property advertises `interactive`, `plan`, and `autopilot`. Local clients and persisted configuration keep the native representation; Mission Control requests, snapshots, action echoes, and reconnect replay use the wire representation.

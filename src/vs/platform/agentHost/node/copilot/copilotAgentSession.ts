@@ -57,6 +57,7 @@ import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTele
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
 import { type AgentCanvasDefinitionSnapshot, AgentSession, type IAgentChatOwnerRef, type IAgentExtensionInfo, type IAgentManagedPluginRetryEntry, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentExtensionStatus, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
+import { CopilotReasoningTiming } from './copilotReasoningTiming.js';
 import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration, readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { agentModelConfigurationReportKey, type IAgentModelConfigurationReport } from '../../common/agentModelConfiguration.js';
 import { createCopilotModelConfigurationReport } from './copilotManagedModelConfiguration.js';
@@ -1110,6 +1111,17 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _chatChannelUri: URI;
 	/** Fixed persistence scope for this chat; never re-derived from the mutable routing channel. Config reads/writes go through {@link _configTarget} instead — peer chats share that scope but have distinct storage. */
 	private readonly _storageUri: URI;
+	private readonly _reasoningTiming = this._register(new CopilotReasoningTiming(
+		(action, parentToolCallId) => this._emitProgress({ kind: 'action', resource: this._chatChannelUri, action, parentToolCallId }),
+		(turnId, responseId, timing) => {
+			if (!turnId) {
+				this._logService.trace(`[Copilot:${this.sessionId}] Cannot persist reasoning timing without an owning turn`);
+				return;
+			}
+			void this._withDatabase(db => db.setReasoningTiming(turnId, responseId, timing)).catch(error =>
+				this._logService.error(`[Copilot:${this.sessionId}] Failed to persist reasoning timing`, error));
+		},
+	));
 
 	get chatChannelUri(): URI {
 		return this._chatChannelUri;
@@ -2375,6 +2387,11 @@ export class CopilotAgentSession extends Disposable {
 		if (action.type === ActionType.ChatUsage && !parentToolCallId && this._launchPlan.localModelProvider) {
 			this._lastRootUsage = { turnId: action.turnId, usage: action.usage };
 		}
+		if (action.type === ActionType.ChatDelta || action.type === ActionType.ChatToolCallStart || action.type === ActionType.ChatInputRequested
+			|| (action.type === ActionType.ChatResponsePart && action.part.kind !== ResponsePartKind.Reasoning)
+			|| action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatTurnCancelled || action.type === ActionType.ChatError) {
+			this._reasoningTiming.finish(parentToolCallId);
+		}
 		this._emitProgress({
 			kind: 'action',
 			resource: isChatAction(action) ? this._chatChannelUri : this._ownerSessionUri,
@@ -3359,11 +3376,14 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _clearSubagentResponseParts(parentToolCallId: string): void {
+		this._reasoningTiming.finish(parentToolCallId);
+		this._reasoningTiming.clear(parentToolCallId);
 		this._subagentResponsePartState.markdownPartIds.delete(parentToolCallId);
 		this._subagentResponsePartState.reasoningPartIds.delete(parentToolCallId);
 	}
 
 	private _beginToolCallRound(parentToolCallId: string | undefined): void {
+		this._reasoningTiming.finish(parentToolCallId);
 		const scope = parentToolCallId ?? '';
 		const state = this._getResponsePartState(parentToolCallId);
 		state?.markdownPartIds.delete(scope);
@@ -3391,6 +3411,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _startTurn(turnId: string, senderClientId: string | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), providerInitiated = false): void {
+		this._reasoningTiming.clear(undefined);
 		this._clearActivity();
 		this._setManagedPluginActivity(undefined);
 		this._detectInterruptedTurnOnRestore = false;
@@ -3818,7 +3839,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/** Emits a reasoning delta, similar to {@link _emitMarkdownDelta} but for reasoning parts. */
-	private _emitReasoningDelta(content: string, parentToolCallId?: string): void {
+	private _emitReasoningDelta(content: string, reasoningId: string, parentToolCallId?: string): void {
 		if (this._shouldDropLateRootTurnEvent('assistant.reasoning_delta')) {
 			return;
 		}
@@ -3828,17 +3849,24 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		const reasoningScope = parentToolCallId ?? '';
+		const timingTurnId = parentToolCallId ? this._subagents.getRootTurnId(parentToolCallId) ?? this._turnId : this._turnId;
 		let partId = state.reasoningPartIds.get(reasoningScope);
+		if (partId !== this._reasoningTiming.activePartId(timingTurnId, reasoningId, parentToolCallId)) {
+			partId = undefined;
+		}
 		if (!partId) {
 			partId = generateUuid();
 			state.reasoningPartIds.set(reasoningScope, partId);
+			const startedAt = this._reasoningTiming.start(timingTurnId, reasoningId, partId, parentToolCallId);
+			this._reasoningTiming.append(content, parentToolCallId);
 			this._emitAction({
 				type: ActionType.ChatResponsePart,
 				turnId: this._turnId,
-				part: { kind: ResponsePartKind.Reasoning, id: partId, content },
+				part: { kind: ResponsePartKind.Reasoning, id: partId, content, startedAt },
 			}, parentToolCallId);
 			return;
 		}
+		this._reasoningTiming.append(content, parentToolCallId);
 		this._emitAction({
 			type: ActionType.ChatReasoning,
 			turnId: this._turnId,
@@ -9248,6 +9276,12 @@ export class CopilotAgentSession extends Disposable {
 			if (this._shouldDropLateRootTurnEvent('assistant.message')) {
 				return;
 			}
+			if (isLastMessageChunk) {
+				const recorded = this._reasoningTiming.completeMessage(e.id, e.data.reasoningText, contentParentToolCallId);
+				if (!recorded && e.data.reasoningText) {
+					this._logService.trace(`[Copilot:${this.sessionId}] No complete observed reasoning interval for assistant message ${e.id}`);
+				}
+			}
 			const markdownScope = contentParentToolCallId ?? '';
 			const state = this._getResponsePartState(contentParentToolCallId);
 			const isEmptyFinalAnswer = isLastMessageChunk && e.data.phase === 'final_answer' && !e.data.content && !e.data.toolRequests?.length;
@@ -10832,7 +10866,7 @@ export class CopilotAgentSession extends Disposable {
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.reasoning_delta')) {
 				return;
 			}
-			this._emitReasoningDelta(e.data.deltaContent, this._parentToolCallIdForSubagentEvent(e));
+			this._emitReasoningDelta(e.data.deltaContent, e.data.reasoningId, this._parentToolCallIdForSubagentEvent(e));
 		}));
 
 		// Sync the AHP session config when the SDK's `currentMode` changes
@@ -12336,6 +12370,7 @@ export class CopilotAgentSession extends Disposable {
 
 		store.add(wrapper.onReasoning(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Reasoning: ${e.data.content.length} chars`);
+			this._reasoningTiming.finish(this._parentToolCallIdForSubagentEvent(e), e.data.reasoningId);
 		}));
 
 		store.add(wrapper.onTurnEnd(e => {

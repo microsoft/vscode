@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult, IDiffHunksResult } from '../../common/diffComputeService.js';
-import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionDataService, type ISessionRowsWatermark, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord } from '../../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReasoningTiming, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionDataService, type ISessionRowsWatermark, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord } from '../../common/sessionDataService.js';
 import type { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type ISessionGitHubState, type Message } from '../../common/state/sessionState.js';
@@ -49,6 +49,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _turns = new Set<string>();
 	private readonly _persistedTurns = new Map<string, IPersistedTurnRecord & { seq: number }>();
 	private readonly _turnUsages = new Map<string, string>();
+	private readonly _reasoningTimings = new Map<string, IReasoningTiming>();
 	private readonly _turnDelegations = new Map<string, string>();
 	private readonly _turnWorkspaceTransitions = new Map<string, string>();
 	private readonly _turnEventIds = new Map<string, string>();
@@ -362,6 +363,13 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	async getTurnUsages(): Promise<Map<string, string>> { return new Map(this._turnUsages); }
 
+	async setReasoningTiming(turnId: string, responseId: string, timing: IReasoningTiming): Promise<void> {
+		this._turns.add(turnId);
+		this._reasoningTimings.set(responseId, timing);
+	}
+
+	async getReasoningTimings(): Promise<Map<string, IReasoningTiming>> { return new Map(this._reasoningTimings); }
+
 	async setTurnDelegation(turnId: string, delegation: string): Promise<void> {
 		this._turns.add(turnId);
 		this._turnDelegations.set(turnId, delegation);
@@ -440,6 +448,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 	async deleteAllTurns(): Promise<void> {
 		this.deleteAllTurnsCalls++;
 		this._turns.clear();
+		this._reasoningTimings.clear();
 		this._edits.length = 0;
 		this._turnDelegations.clear();
 		this._turnWorkspaceTransitions.clear();

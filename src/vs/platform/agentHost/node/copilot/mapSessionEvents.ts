@@ -481,6 +481,7 @@ export async function mapSessionEvents(
 	const workingDirectory = options?.workingDirectory;
 	let currentModel = options?.model;
 	let currentAgent = options?.agent;
+	const reasoningTimings = await db?.getReasoningTimings();
 	// First pass: collect tool-arg info and identify edit tool calls so we
 	// can batch-load their stored file edits before the second pass needs
 	// them at `tool.execution_complete` time. We also build the
@@ -936,6 +937,7 @@ export async function mapSessionEvents(
 						kind: ResponsePartKind.Reasoning,
 						id: generateUuid(),
 						content: reasoningText,
+						...reasoningTimings?.get(e.id),
 					});
 				}
 				if (content) {

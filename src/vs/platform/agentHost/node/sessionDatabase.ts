@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import { Sequencer, SequencerByKey } from '../../../base/common/async.js';
 import type { Database, RunResult } from '@vscode/sqlite3';
-import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionRowsWatermark, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord } from '../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReasoningTiming, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionRowsWatermark, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type Message } from '../common/state/sessionState.js';
@@ -259,6 +259,15 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			size         INTEGER,
 			content      BLOB,
 			PRIMARY KEY (tool_call_id, ordinal)
+		)`,
+	},
+	{
+		version: 17,
+		sql: `CREATE TABLE IF NOT EXISTS reasoning_timing (
+			response_id TEXT PRIMARY KEY NOT NULL,
+			turn_id      TEXT NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+			started_at   TEXT NOT NULL,
+			duration     INTEGER NOT NULL CHECK(duration >= 0)
 		)`,
 	},
 ];
@@ -762,6 +771,32 @@ export class SessionDatabase implements ISessionDatabase {
 			}
 			return result;
 		});
+	}
+
+	setReasoningTiming(turnId: string, responseId: string, timing: IReasoningTiming): Promise<void> {
+		return this._mutate(async db => {
+			if (!Number.isFinite(Date.parse(timing.startedAt)) || !Number.isSafeInteger(timing.duration) || timing.duration < 0) {
+				throw new Error('Invalid reasoning timing');
+			}
+			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [turnId]);
+			await dbRun(db, 'INSERT OR REPLACE INTO reasoning_timing (response_id, turn_id, started_at, duration) VALUES (?, ?, ?, ?)',
+				[responseId, turnId, timing.startedAt, timing.duration]);
+		});
+	}
+
+	async getReasoningTimings(): Promise<Map<string, IReasoningTiming>> {
+		await this.whenIdle();
+		const db = await this._ensureDb();
+		const rows = await dbAll(db, 'SELECT response_id, started_at, duration FROM reasoning_timing', []);
+		const result = new Map<string, IReasoningTiming>();
+		for (const row of rows) {
+			if (typeof row.response_id !== 'string' || typeof row.started_at !== 'string' || !Number.isFinite(Date.parse(row.started_at))
+				|| typeof row.duration !== 'number' || !Number.isSafeInteger(row.duration) || row.duration < 0) {
+				throw new Error('Invalid persisted reasoning timing');
+			}
+			result.set(row.response_id, { startedAt: row.started_at, duration: row.duration });
+		}
+		return result;
 	}
 
 	setTurnDelegation(turnId: string, delegation: string): Promise<void> {
@@ -1607,6 +1642,7 @@ export class SessionDatabase implements ISessionDatabase {
 			// or the forked session would restore with no gauge and zero cost.
 			for (const [oldId, newId] of mapping) {
 				await dbRun(db, 'UPDATE turn_usage SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+				await dbRun(db, 'UPDATE reasoning_timing SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE turn_delegation SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE turn_workspace_transition SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 			}

@@ -72,6 +72,14 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 		return result;
 	}
 
+	async setReasoningTiming(...args: Parameters<ISessionDatabase['setReasoningTiming']>): ReturnType<ISessionDatabase['setReasoningTiming']> {
+		return this.raw.setReasoningTiming(...args);
+	}
+
+	async getReasoningTimings(): ReturnType<ISessionDatabase['getReasoningTimings']> {
+		return this.raw.getReasoningTimings();
+	}
+
 	async getTurnDelegations(...[]: Parameters<ISessionDatabase['getTurnDelegations']>): ReturnType<ISessionDatabase['getTurnDelegations']> {
 		const result = await this.raw.getTurnDelegations();
 		return new Map([...result].map(([key, value]) => [key, this.identity.metadata('agentHost.turnDelegation', value, 'runtime')!]));
