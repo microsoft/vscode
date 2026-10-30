@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { authentication, AuthenticationGetSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, AuthenticationWwwAuthenticateRequest, ConfigurationScope, ConfigurationTarget, Uri, workspace, WorkspaceConfiguration } from 'vscode';
+import { authentication, AuthenticationDefaultScopesRequest, AuthenticationGetSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, AuthenticationWwwAuthenticateRequest, ConfigurationScope, ConfigurationTarget, Uri, workspace, WorkspaceConfiguration } from 'vscode';
 import { GITHUB_SCOPE_ALIGNED, GITHUB_SCOPE_READ_USER, GITHUB_SCOPE_USER_EMAIL } from '../../../platform/authentication/common/authentication';
 import { getAlignedSession, getAnyAuthSession } from '../../../platform/authentication/vscode-node/session';
 import { AuthProviderId, Config, ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -23,7 +23,7 @@ suite('Session tests', function () {
 	const accessor = testingServiceCollection.createTestingAccessor();
 
 	let sandbox: sinon.SinonSandbox;
-	let getSessionStub: sinon.SinonStub<[providerId: string, scopeListOrRequest: readonly string[] | AuthenticationWwwAuthenticateRequest, options?: AuthenticationGetSessionOptions | undefined], Thenable<AuthenticationSession | undefined>>;
+	let getSessionStub: sinon.SinonStub<[providerId: string, scopeListOrRequest: readonly string[] | AuthenticationWwwAuthenticateRequest | AuthenticationDefaultScopesRequest, options?: AuthenticationGetSessionOptions | undefined], Thenable<AuthenticationSession | undefined>>;
 	let getAccountsStub: sinon.SinonStub<[providerId: string], Thenable<readonly AuthenticationSessionAccountInformation[]>>;
 	let configurationStub: sinon.SinonStub<[section?: string | undefined, scope?: ConfigurationScope | null | undefined], WorkspaceConfiguration>;
 
@@ -43,8 +43,9 @@ suite('Session tests', function () {
 			sessionsByScope.set(scopeKey, sessionsWithScope);
 		}
 
-		getSessionStub.callsFake((_providerId: string, scopeListOrRequest: readonly string[] | AuthenticationWwwAuthenticateRequest, options?: AuthenticationGetSessionOptions | undefined) => {
-			const scopes = scopeListOrRequest as readonly string[];
+		getSessionStub.callsFake((_providerId: string, scopeListOrRequest: readonly string[] | AuthenticationWwwAuthenticateRequest | AuthenticationDefaultScopesRequest, options?: AuthenticationGetSessionOptions | undefined) => {
+			// VS Code resolves a default scopes request to the aligned scopes.
+			const scopes = 'defaultScopes' in scopeListOrRequest ? GITHUB_SCOPE_ALIGNED : scopeListOrRequest as readonly string[];
 			let sessionsWithScope = sessionsByScope.get(scopes.join(' '));
 			if (sessionsWithScope) {
 				if (options?.account) {
@@ -60,7 +61,8 @@ suite('Session tests', function () {
 
 	setup(() => {
 		sandbox = sinon.createSandbox();
-		getSessionStub = sandbox.stub(authentication, 'getSession');
+		// Sinon types an overloaded function from its last overload, which only accepts a default scopes request.
+		getSessionStub = sandbox.stub(authentication, 'getSession') as unknown as typeof getSessionStub;
 		// default to no session
 		getSessionStub.resolves(undefined);
 		getAccountsStub = sandbox.stub(authentication, 'getAccounts');
@@ -181,7 +183,7 @@ suite('Session tests', function () {
 		});
 
 		test('should return undefined if there are no pre-existing sessions', async () => {
-			const alignedScopeSessionStub = getSessionStub.withArgs('github', GITHUB_SCOPE_ALIGNED, sinon.match.any);
+			const alignedScopeSessionStub = getSessionStub.withArgs('github', { defaultScopes: true }, sinon.match.any);
 			const userEmailSessionStub = getSessionStub.withArgs('github', GITHUB_SCOPE_USER_EMAIL, sinon.match.any);
 			const readUserScopeSessionStub = getSessionStub.withArgs('github', GITHUB_SCOPE_READ_USER, sinon.match.any);
 

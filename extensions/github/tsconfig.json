@@ -16,6 +16,7 @@
 	"include": [
 		"src/**/*",
 		"../../src/vscode-dts/vscode.d.ts",
+		"../../src/vscode-dts/vscode.proposed.authDefaultScopes.d.ts",
 		"../../src/vscode-dts/vscode.proposed.canonicalUriProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmHistoryProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.shareProvider.d.ts"

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import type { AuthenticationGetSessionOptions, AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vscode';
+import type { AuthenticationDefaultScopesRequest, AuthenticationGetSessionOptions, AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vscode';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
@@ -50,10 +50,13 @@ class TestAuthenticationApi {
 	}));
 	selected: AuthenticationSession | undefined = this.sessions[1];
 	permissive = false;
-	readonly calls: { providerId: string; scopes: readonly string[]; options: AuthenticationGetSessionOptions }[] = [];
+	readonly calls: { providerId: string; scopes: readonly string[] | AuthenticationDefaultScopesRequest; options: AuthenticationGetSessionOptions }[] = [];
 
-	async getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions = {}): Promise<AuthenticationSession | undefined> {
-		this.calls.push({ providerId, scopes, options });
+	async getSession(providerId: string, scopesOrRequest: readonly string[] | AuthenticationDefaultScopesRequest, options: AuthenticationGetSessionOptions = {}): Promise<AuthenticationSession | undefined> {
+		this.calls.push({ providerId, scopes: scopesOrRequest, options });
+		// VS Code resolves a default scopes request to the aligned scopes.
+		const isDefaultScopesRequest = !Array.isArray(scopesOrRequest);
+		const scopes = Array.isArray(scopesOrRequest) ? scopesOrRequest : GITHUB_SCOPE_ALIGNED;
 		if (providerId === AuthProviderId.Microsoft) {
 			return undefined;
 		}
@@ -62,10 +65,10 @@ class TestAuthenticationApi {
 			&& (!options.authorizationServer || options.authorizationServer.toString() === session.authorizationServer?.toString()));
 		if (options.createIfNone || options.forceNewSession) {
 			this.selected = accounts.find(session => session.account.id === this.selected?.account.id) ?? (options.account ? accounts[0] : this.sessions[1]);
-			this.permissive ||= scopes === GITHUB_SCOPE_ALIGNED;
+			this.permissive ||= isDefaultScopesRequest;
 			return this.selected && { ...this.selected, scopes };
 		}
-		if (scopes === GITHUB_SCOPE_ALIGNED && !this.permissive) {
+		if (isDefaultScopesRequest && !this.permissive) {
 			return undefined;
 		}
 		const selected = accounts.find(session => session.account.id === this.selected?.account.id) ?? (accounts.length === 1 ? accounts[0] : undefined);
@@ -191,8 +194,23 @@ describe('Copilot session provenance', () => {
 			scopes: vscodeAuthentication.getSession.mock.calls.map(([, scopes]) => scopes),
 			issuer: selected?.authorizationServer?.toString(),
 		}).toEqual({
-			scopes: [GITHUB_SCOPE_ALIGNED, GITHUB_SCOPE_USER_EMAIL, GITHUB_SCOPE_READ_USER],
+			scopes: [{ defaultScopes: true }, GITHUB_SCOPE_USER_EMAIL, GITHUB_SCOPE_READ_USER],
 			issuer: legacy.authorizationServer?.toString(),
+		});
+	});
+
+	test('falls back to minimal scopes when the default scopes cannot be resolved', async () => {
+		const minimal = api.sessions[1];
+		vscodeAuthentication.getSession
+			.mockRejectedValueOnce(new Error(`Authentication provider 'github-enterprise' does not define default scopes.`))
+			.mockResolvedValueOnce(minimal);
+		const selected = await getAnyAuthSession(configuration, { silent: true });
+		expect({
+			scopes: vscodeAuthentication.getSession.mock.calls.map(([, scopes]) => scopes),
+			session: selected?.id,
+		}).toEqual({
+			scopes: [{ defaultScopes: true }, GITHUB_SCOPE_USER_EMAIL],
+			session: minimal.id,
 		});
 	});
 

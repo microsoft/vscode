@@ -28,6 +28,7 @@
     }
   },
   "enabledApiProposals": [
+    "authDefaultScopes",
     "canonicalUriProvider",
     "chatSessionsProvider",
     "contribEditSessions",

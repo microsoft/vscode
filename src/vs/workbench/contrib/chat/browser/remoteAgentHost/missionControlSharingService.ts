@@ -25,7 +25,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IPathService } from '../../../../../platform/path/common/pathService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { AuthenticationSessionAccount, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { AuthenticationSessionAccount, getAuthenticationDefaultScopes, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
 const sharingStorageKey = 'agentHost.missionControl.sharing';
@@ -138,8 +138,9 @@ export class MissionControlSharingService extends Disposable implements IMission
 			for (const session of removed) {
 				this._accountSessionIds.delete(session.id);
 			}
+			const defaultScopes = getAuthenticationDefaultScopes(this._product, providerId);
 			for (const session of e.event.added ?? []) {
-				if (session.account.id === this._accountId && this._getScopes().every(scope => session.scopes.includes(scope))) {
+				if (session.account.id === this._accountId && defaultScopes?.every(scope => session.scopes.includes(scope))) {
 					this._accountSessionIds.add(session.id);
 				}
 			}
@@ -249,10 +250,6 @@ export class MissionControlSharingService extends Disposable implements IMission
 		}
 	}
 
-	private _getScopes(): readonly string[] {
-		return this._product.defaultChatAgent?.providerScopes?.[0] ?? ['read:user', 'user:email', 'repo', 'workflow'];
-	}
-
 	private async _getFileSystemRoots(): Promise<URI[]> {
 		if (!this.isWindowsPlatform) {
 			return [URI.file('/')];
@@ -294,7 +291,6 @@ export class MissionControlSharingService extends Disposable implements IMission
 		}
 		try {
 			const providerId = this._product.defaultChatAgent?.provider?.default?.id ?? 'github';
-			const scopes = this._getScopes();
 			const defaultAccount = await this._defaultAccountService.getDefaultAccount();
 			if (generation !== this._generation || this._store.isDisposed) {
 				return;
@@ -312,13 +308,13 @@ export class MissionControlSharingService extends Disposable implements IMission
 				}
 			}
 			const sessionOptions = account ? { account } : undefined;
-			let sessions = await this._authentication.getSessions(providerId, [...scopes], sessionOptions, true);
+			let sessions = await this._authentication.getSessions(providerId, { defaultScopes: true }, sessionOptions, true);
 			if (account) {
 				const accountId = account.id;
 				sessions = sessions.filter(session => session.account.id === accountId);
 			}
 			if (!sessions.length && interactive && generation === this._generation && !this._store.isDisposed) {
-				const session = await this._authentication.createSession(providerId, [...scopes], sessionOptions).catch(error => {
+				const session = await this._authentication.createSession(providerId, { defaultScopes: true }, sessionOptions).catch(error => {
 					if (error === 'Cancelled' || (error instanceof Error && error.message === 'Cancelled')) {
 						throw new CancellationError();
 					}

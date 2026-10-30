@@ -1937,7 +1937,7 @@ suite('DefaultAccountProvider sign in scopes', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	interface ICreateSessionCall {
-		readonly scopes: readonly string[];
+		readonly request: Parameters<IAuthenticationService['createSession']>[1];
 		readonly options: Record<string, unknown>;
 	}
 
@@ -1950,9 +1950,9 @@ suite('DefaultAccountProvider sign in scopes', () => {
 			isAuthenticationProviderRegistered: () => true,
 			getAccounts: async () => [],
 			getSessions: async () => [],
-			createSession: async (_providerId: string, scopes: readonly string[], sessionOptions: Record<string, unknown>) => {
-				calls.push({ scopes: [...scopes], options: sessionOptions });
-				return { id: 'session', accessToken: 'token', account: { id: 'account', label: 'octocat' }, scopes: [...scopes] };
+			createSession: async (_providerId: string, request: Parameters<IAuthenticationService['createSession']>[1], sessionOptions: Record<string, unknown>) => {
+				calls.push({ request, options: sessionOptions });
+				return { id: 'session', accessToken: 'token', account: { id: 'account', label: 'octocat' }, scopes: ['read:user', 'user:email', 'repo'] };
 			},
 			onDidChangeDeclaredProviders: Event.None,
 			onDidChangeSessions: Event.None,
@@ -1994,14 +1994,14 @@ suite('DefaultAccountProvider sign in scopes', () => {
 		return calls;
 	}
 
-	test('widens the default scopes and never forwards the scope option to the session', async () => {
+	test('requests the default scopes plus extra scopes and never forwards the scope option to the session', async () => {
 		assert.deepStrictEqual({
 			none: await signIn(),
 			additive: await signIn({ additionalScopes: ['workflow', 'repo'], provider: 'google' }),
 		}, {
-			none: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
-			// The broad defaults plus the extra scopes, deduplicated.
-			additive: [{ scopes: ['read:user', 'user:email', 'repo', 'workflow'], options: { provider: 'google' } }],
+			none: [{ request: { defaultScopes: true }, options: {} }],
+			// The authentication service resolves the defaults and deduplicates the extra scopes.
+			additive: [{ request: { defaultScopes: true, additionalScopes: ['workflow', 'repo'] }, options: { provider: 'google' } }],
 		});
 	});
 
@@ -2016,11 +2016,11 @@ suite('DefaultAccountProvider sign in scopes', () => {
 				'github.copilot.advanced.authProvider': 'github-enterprise',
 			}),
 		}, {
-			unset: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
-			disabled: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
-			publicFeedOnly: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
-			enabled: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
-			enterprise: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
+			unset: [{ request: { defaultScopes: true }, options: {} }],
+			disabled: [{ request: { defaultScopes: true }, options: {} }],
+			publicFeedOnly: [{ request: { defaultScopes: true }, options: {} }],
+			enabled: [{ request: { defaultScopes: true }, options: {} }],
+			enterprise: [{ request: { defaultScopes: true }, options: {} }],
 		});
 	});
 
@@ -2029,7 +2029,7 @@ suite('DefaultAccountProvider sign in scopes', () => {
 			additionalScopes: ['workflow', 'workflow'],
 			provider: 'google',
 		}, { [CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true }), [{
-			scopes: ['read:user', 'user:email', 'repo', 'workflow'],
+			request: { defaultScopes: true, additionalScopes: ['workflow', 'workflow'] },
 			options: { provider: 'google' },
 		}]);
 	});

@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { URI } from '../../../../../base/common/uri.js';
 import { AuthenticationAccessService } from '../../browser/authenticationAccessService.js';
 import { AuthenticationService } from '../../browser/authenticationService.js';
-import { AuthenticationProviderInformation, AuthenticationSessionsChangeEvent, IAuthenticationProvider } from '../../common/authentication.js';
+import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent, getAuthenticationSessionRequestKey, IAuthenticationProvider } from '../../common/authentication.js';
 import { TestEnvironmentService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestExtensionService, TestProductService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -40,7 +40,7 @@ suite('AuthenticationService', () => {
 	setup(() => {
 		const storageService = disposables.add(new TestStorageService());
 		const authenticationAccessService = disposables.add(new AuthenticationAccessService(storageService, TestProductService));
-		authenticationService = disposables.add(new AuthenticationService(new TestExtensionService(), authenticationAccessService, TestEnvironmentService, new NullLogService()));
+		authenticationService = disposables.add(new AuthenticationService(new TestExtensionService(), authenticationAccessService, TestEnvironmentService, new NullLogService(), TestProductService));
 	});
 
 	teardown(() => {
@@ -478,7 +478,7 @@ suite('AuthenticationService - tryActivateProvider', () => {
 	setup(() => {
 		const storageService = disposables.add(new TestStorageService());
 		const authenticationAccessService = disposables.add(new AuthenticationAccessService(storageService, TestProductService));
-		authenticationService = disposables.add(new AuthenticationService(new TestExtensionService(), authenticationAccessService, TestEnvironmentService, new NullLogService()));
+		authenticationService = disposables.add(new AuthenticationService(new TestExtensionService(), authenticationAccessService, TestEnvironmentService, new NullLogService(), TestProductService));
 	});
 
 	teardown(() => {
@@ -498,7 +498,7 @@ suite('AuthenticationService - tryActivateProvider', () => {
 				return new Promise<void>(() => { /* never resolves */ });
 			}
 		};
-		authenticationService = disposables.add(new AuthenticationService(hangingExtService, authAccessService, TestEnvironmentService, new NullLogService()));
+		authenticationService = disposables.add(new AuthenticationService(hangingExtService, authAccessService, TestEnvironmentService, new NullLogService(), TestProductService));
 
 		const provider = createProvider({ getSessions: async () => [createSession()] });
 
@@ -521,5 +521,201 @@ suite('AuthenticationService - tryActivateProvider', () => {
 
 		const sessions = await authenticationService.getSessions(provider.id);
 		assert.strictEqual(sessions.length, 1);
+	});
+});
+
+suite('AuthenticationService - default scopes', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	// Configured explicitly because browser test runs use the fallback product, which has no provider scopes.
+	const defaultScopes = ['read:user', 'user:email', 'repo', 'workflow'];
+
+	function createService(providerScopes = [defaultScopes, ['user:email'], ['read:user']]): AuthenticationService {
+		const storageService = disposables.add(new TestStorageService());
+		const authenticationAccessService = disposables.add(new AuthenticationAccessService(storageService, TestProductService));
+		const productService = { ...TestProductService, defaultChatAgent: { ...TestProductService.defaultChatAgent, providerScopes } };
+		return disposables.add(new AuthenticationService(new TestExtensionService(), authenticationAccessService, TestEnvironmentService, new NullLogService(), productService));
+	}
+
+	function session(id: string, scopes: string[]): AuthenticationSession {
+		return { id, accessToken: `token-${id}`, account: { id: 'account', label: 'Account' }, scopes };
+	}
+
+	/** Registers a provider that matches scopes exactly, like the GitHub provider, and records the scopes it is asked for. */
+	function registerProvider(service: AuthenticationService, id: string, sessions: AuthenticationSession[] = []): { operation: 'get' | 'create'; scopes: string[] | undefined }[] {
+		const requests: { operation: 'get' | 'create'; scopes: string[] | undefined }[] = [];
+		service.registerAuthenticationProvider(id, createProvider({
+			id,
+			label: id,
+			getSessions: async scopes => {
+				requests.push({ operation: 'get', scopes });
+				return scopes ? sessions.filter(candidate => [...candidate.scopes].sort().join(' ') === [...scopes].sort().join(' ')) : sessions;
+			},
+			createSession: async scopes => {
+				requests.push({ operation: 'create', scopes });
+				return session('created', scopes);
+			},
+		}));
+		return requests;
+	}
+
+	async function getError(promise: Promise<unknown>): Promise<string | undefined> {
+		try {
+			await promise;
+			return undefined;
+		} catch (error) {
+			return error instanceof Error ? error.message : String(error);
+		}
+	}
+
+	const sessions = [
+		session('wide', [...defaultScopes, 'gist', 'read:org']),
+		session('minimal', ['user:email']),
+		// Scope order does not matter.
+		session('one-extra', ['gist', ...[...defaultScopes].reverse()]),
+		session('exact', [...defaultScopes].reverse()),
+	];
+
+	test('getSessions resolves the configured defaults and keeps supersets, exact matches first', async () => {
+		const service = createService();
+		const requests = registerProvider(service, 'github', sessions);
+
+		const result = await service.getSessions('github', { defaultScopes: true });
+
+		assert.deepStrictEqual({ sessions: result.map(candidate => candidate.id), requests }, {
+			sessions: ['exact', 'one-extra', 'wide'],
+			requests: [{ operation: 'get', scopes: undefined }]
+		});
+	});
+
+	test('getSessions asks for the resolved scopes when the unscoped lookup has no eligible session', async () => {
+		const service = createService();
+		const requests: (string[] | undefined)[] = [];
+		const restored = session('restored', defaultScopes);
+		service.registerAuthenticationProvider('github', createProvider({
+			id: 'github',
+			// Like a GitHub session restored from a linked Microsoft account, which is only minted for requested scopes.
+			getSessions: async (scopes, options) => {
+				requests.push(scopes);
+				assert.strictEqual(options.silent, true);
+				return scopes ? [restored] : [session('minimal', ['user:email'])];
+			},
+		}));
+
+		const result = await service.getSessions('github', { defaultScopes: true }, { silent: true });
+
+		assert.deepStrictEqual({ sessions: result.map(candidate => candidate.id), requests }, {
+			sessions: ['restored'],
+			requests: [undefined, defaultScopes]
+		});
+	});
+
+	test('getSessions asks for the resolved scopes when one identity has no eligible session', async () => {
+		const service = createService();
+		const requests: (string[] | undefined)[] = [];
+		const linkedAccount = { id: 'linked', label: 'Linked' };
+		const broad = session('broad', [...defaultScopes, 'gist']);
+		const restored = { ...session('restored', defaultScopes), account: linkedAccount };
+		service.registerAuthenticationProvider('github', createProvider({
+			id: 'github',
+			// The linked account only has a narrower session until one with the requested scopes is restored for it.
+			getSessions: async scopes => {
+				requests.push(scopes);
+				return scopes ? [restored] : [broad, { ...session('minimal', ['user:email']), account: linkedAccount }];
+			},
+		}));
+
+		const result = await service.getSessions('github', { defaultScopes: true });
+
+		assert.deepStrictEqual({ sessions: result.map(candidate => candidate.id), requests }, {
+			sessions: ['restored', 'broad'],
+			requests: [undefined, defaultScopes]
+		});
+	});
+
+	test('additionalScopes are required on top of the defaults', async () => {
+		const service = createService();
+		registerProvider(service, 'github', sessions);
+
+		const result = await service.getSessions('github', { defaultScopes: true, additionalScopes: ['gist', 'repo'] });
+
+		assert.deepStrictEqual(result.map(candidate => candidate.id), ['one-extra', 'wide']);
+	});
+
+	test('createSession asks the provider for the resolved scopes', async () => {
+		const service = createService();
+		const requests = registerProvider(service, 'github');
+
+		await service.createSession('github', { defaultScopes: true });
+		await service.createSession('github', { defaultScopes: true, additionalScopes: ['gist', 'repo', 'gist'] });
+
+		assert.deepStrictEqual(requests, [
+			{ operation: 'create', scopes: defaultScopes },
+			{ operation: 'create', scopes: [...defaultScopes, 'gist'] },
+		]);
+	});
+
+	test('the enterprise provider uses the same defaults', async () => {
+		const service = createService();
+		const requests = registerProvider(service, 'github-enterprise', sessions);
+
+		const existing = await service.getSessions('github-enterprise', { defaultScopes: true });
+		await service.createSession('github-enterprise', { defaultScopes: true });
+
+		assert.deepStrictEqual({ existing: existing.map(candidate => candidate.id), requests }, {
+			existing: ['exact', 'one-extra', 'wide'],
+			requests: [{ operation: 'get', scopes: undefined }, { operation: 'create', scopes: defaultScopes }]
+		});
+	});
+
+	test('rejects providers without default scopes before asking the provider', async () => {
+		const service = createService();
+		const otherRequests = registerProvider(service, 'microsoft', sessions);
+		const otherProvider = [
+			await getError(service.getSessions('microsoft', { defaultScopes: true })),
+			await getError(service.createSession('microsoft', { defaultScopes: true })),
+		];
+		const malformedAdditionalScopes = await getError(service.createSession('github', { defaultScopes: true, additionalScopes: 'gist' as unknown as string[] }));
+		// Only one service at a time can handle the authentication extension point.
+		service.dispose();
+
+		// The product fallback used when running without a product.json has no provider scopes.
+		const unconfigured = createService([]);
+		const unconfiguredRequests = registerProvider(unconfigured, 'github', sessions);
+		const emptyConfiguration = [
+			await getError(unconfigured.getSessions('github', { defaultScopes: true })),
+			await getError(unconfigured.createSession('github', { defaultScopes: true })),
+		];
+
+		assert.deepStrictEqual({
+			otherProvider,
+			emptyConfiguration,
+			malformedAdditionalScopes,
+			requests: [...otherRequests, ...unconfiguredRequests],
+		}, {
+			otherProvider: [
+				`Authentication provider 'microsoft' does not define default scopes.`,
+				`Authentication provider 'microsoft' does not define default scopes.`,
+			],
+			emptyConfiguration: [
+				`Authentication provider 'github' does not define default scopes.`,
+				`Authentication provider 'github' does not define default scopes.`,
+			],
+			malformedAdditionalScopes: 'The additional scopes of a default scopes request must be an array of strings.',
+			requests: [],
+		});
+	});
+
+	test('request keys distinguish default scopes requests from scope lists', () => {
+		assert.deepStrictEqual({
+			reorderedAdditionalScopes: getAuthenticationSessionRequestKey({ defaultScopes: true, additionalScopes: ['b', 'a'] }) === getAuthenticationSessionRequestKey({ defaultScopes: true, additionalScopes: ['a', 'b', 'a'] }),
+			emptyAdditionalScopes: getAuthenticationSessionRequestKey({ defaultScopes: true, additionalScopes: [] }) === getAuthenticationSessionRequestKey({ defaultScopes: true }),
+			scopeList: getAuthenticationSessionRequestKey({ defaultScopes: true }) === getAuthenticationSessionRequestKey(defaultScopes),
+			emptyScopeList: getAuthenticationSessionRequestKey({ defaultScopes: true }) === getAuthenticationSessionRequestKey([]),
+		}, {
+			reorderedAdditionalScopes: true,
+			emptyAdditionalScopes: true,
+			scopeList: false,
+			emptyScopeList: false,
+		});
 	});
 });
