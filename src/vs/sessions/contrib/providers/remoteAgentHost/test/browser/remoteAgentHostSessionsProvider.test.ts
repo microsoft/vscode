@@ -1068,6 +1068,12 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(provider.sessionTypes[0].label, 'Copilot');
 	});
 
+	test('enables canvas presentation for remote Copilot sessions', () => {
+		const provider = createProvider(disposables, connection, { isWebPlatform: false });
+		fireSessionAdded(connection, 'canvas');
+		assert.strictEqual(provider.getSessions()[0].capabilities.get().supportsCanvases, true);
+	});
+
 	test('setLabel refreshes provider and workspace labels and notifies picker consumers', () => {
 		const provider = createProvider(disposables, connection, { noConnection: true, isWebPlatform: false });
 		provider.seedSessions([createSession('renamed-host', {

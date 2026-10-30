@@ -194,10 +194,10 @@ Changes persist across chats for the active color scheme, leaving the other sche
 		switch (preparedInput.kind) {
 			case 'preset':
 				if (preparedInput.preset === 'none') {
-					await this.backgroundService.clearBackground(theme);
+					await this.backgroundService.clearBackground('agent', theme);
 					message = localize('setChatBackground.result.none', "Removed the chat background");
 				} else {
-					await this.backgroundService.setBackground(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, theme);
+					await this.backgroundService.setBackground(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, 'agent', theme);
 					message = localize('setChatBackground.result.codicons', "Set the chat background to Codicons");
 				}
 				break;
@@ -206,9 +206,9 @@ Changes persist across chats for the active color scheme, leaving the other sche
 				image = prepared.image;
 				imageSize = prepared.size;
 				// From here on the change is applied even if the request is cancelled, so that the result stays accurate.
-				await this.backgroundService.setBackground(image, theme);
+				await this.backgroundService.setBackground(image, 'agent', theme);
 				if (preparedInput.layout) {
-					await this.backgroundService.setBackgroundImageLayout(preparedInput.layout, true, theme);
+					await this.backgroundService.setBackgroundImageLayout(preparedInput.layout, 'agent', true, theme);
 				}
 				message = localize('setChatBackground.result.image', "Set the chat background to {0}", prepared.name);
 				break;
@@ -217,7 +217,7 @@ Changes persist across chats for the active color scheme, leaving the other sche
 				if (replaced?.kind !== 'image') {
 					throw new SetChatBackgroundError('There is no background image to lay out. Pass "image" together with "layout".');
 				}
-				await this.backgroundService.setBackgroundImageLayout(preparedInput.layout, true, theme);
+				await this.backgroundService.setBackgroundImageLayout(preparedInput.layout, 'agent', true, theme);
 				message = localize('setChatBackground.result.layout', "Changed the chat background layout");
 				break;
 		}

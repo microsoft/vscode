@@ -12,17 +12,18 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRequestContext } from '../../../../../../base/parts/request/common/request.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { AgentPluginItemKind, IAgentPluginItem, IMarketplacePluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
-import { getPluginVersion, loadMarketplacePluginContributionEntries, loadPluginReadme, PluginReadmeRenderGuard, waitForInstalledPlugin } from '../../../browser/aiCustomization/embeddedAgentPluginDetail.js';
-import { MarketplaceType, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
+import { getPluginRepository, getPluginSourceUri, getPluginVersion, loadMarketplacePluginContributionEntries, loadPluginReadme, PluginReadmeRenderGuard, waitForInstalledPlugin } from '../../../browser/aiCustomization/embeddedAgentPluginDetail.js';
+import { IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { parseMarketplaceReference } from '../../../common/plugins/marketplaceReference.js';
 import { IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
-import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { createCustomizationMarketplaceInstallationSnapshot, emptyCustomizationMarketplaceInstallationSnapshot } from '../../../common/customizationMarketplaceInstallService.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 
 class StatusRequestService extends mock<IRequestService>() {
 	override readonly onDidCompleteRequest = Event.None;
@@ -108,10 +109,85 @@ suite('embeddedAgentPluginDetail', () => {
 		);
 	});
 
+	test('uses trustworthy GitHub repository provenance', () => {
+		const marketplaceItem = createMarketplaceItem(URI.parse('https://example.test/README.md'));
+		const configuredPlugin = {
+			...marketplaceItem,
+			version: marketplaceItem.version!,
+			sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'octo-org/example' },
+		} satisfies IMarketplacePlugin;
+		const installedUri = URI.file('/plugins/example');
+		const createInstalledItem = (fromMarketplace?: IMarketplacePlugin, uri = installedUri) => ({
+			kind: AgentPluginItemKind.Installed,
+			name: 'example',
+			description: 'Example plugin',
+			plugin: new class extends mock<IAgentPlugin>() {
+				override readonly uri = uri;
+				override readonly label = 'example';
+				override readonly fromMarketplace = fromMarketplace;
+			}(),
+		} satisfies IAgentPluginItem);
+		const installedItem = createInstalledItem(configuredPlugin);
+		const providerItem = createInstalledItem();
+		const catalogInstallations = createCustomizationMarketplaceInstallationSnapshot([{
+			resource: {
+				sourceId: 'github-feed',
+				identifier: 'example',
+				displayName: 'Example',
+				description: 'Example plugin',
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				tags: [],
+				capabilities: [],
+				representativeQueries: [],
+				repository: URI.parse('https://github.com/catalog/example'),
+				installation: { kind: 'plugin', repository: 'catalog/example', ref: 'abc123', path: 'plugins/example' },
+			} satisfies ICustomizationMarketplaceResource,
+			state: { kind: 'installed', target: { kind: 'plugin', uri: installedUri, name: 'example' } },
+		}, {
+			resource: {
+				sourceId: 'github-feed',
+				identifier: 'same-name',
+				displayName: 'Example',
+				description: 'Different plugin with the same name',
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				tags: [],
+				capabilities: [],
+				representativeQueries: [],
+				repository: URI.parse('https://github.com/catalog/wrong-example'),
+			} satisfies ICustomizationMarketplaceResource,
+			state: { kind: 'installed', target: { kind: 'plugin', uri: URI.file('/plugins/different'), name: 'same-name' } },
+		}]);
+		const sameNameItem = {
+			...createInstalledItem(undefined, URI.file('/plugins/unrecorded')),
+			name: 'same-name',
+		} satisfies IAgentPluginItem;
+
+		assert.deepStrictEqual({
+			marketplaceRepository: getPluginRepository(marketplaceItem, emptyCustomizationMarketplaceInstallationSnapshot)?.toString(),
+			configuredPluginRepository: getPluginRepository(installedItem, catalogInstallations)?.toString(),
+			providerCatalogRepository: getPluginRepository(providerItem, catalogInstallations)?.toString(),
+			providerCatalogSource: getPluginSourceUri(providerItem, catalogInstallations)?.toString(),
+			sameNameRepository: getPluginRepository(sameNameItem, catalogInstallations)?.toString(),
+			missingRepository: getPluginRepository(providerItem, emptyCustomizationMarketplaceInstallationSnapshot)?.toString(),
+			nonGitHubRepository: getPluginRepository({
+				...marketplaceItem,
+				sourceDescriptor: { kind: PluginSourceKind.GitUrl, url: 'https://example.com/example.git' },
+				marketplaceReference: parseMarketplaceReference('https://example.com/marketplace.git')!,
+			}, emptyCustomizationMarketplaceInstallationSnapshot)?.toString(),
+		}, {
+			marketplaceRepository: 'https://github.com/owner/repo',
+			configuredPluginRepository: 'https://github.com/octo-org/example',
+			providerCatalogRepository: 'https://github.com/catalog/example',
+			providerCatalogSource: 'https://github.com/catalog/example/tree/abc123/plugins/example',
+			sameNameRepository: undefined,
+			missingRepository: undefined,
+			nonGitHubRepository: undefined,
+		});
+	});
+
 	test('loads contribution details from a marketplace plugin source', async () => {
 		const pluginUri = URI.from({ scheme: Schemas.inMemory, path: '/plugins/example' });
-		const testFileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(testFileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const testFileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		const writeFile = (path: string, content: string) => testFileService.writeFile(
 			URI.from({ scheme: Schemas.inMemory, path }),
 			VSBuffer.fromString(content),

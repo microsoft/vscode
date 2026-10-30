@@ -75,6 +75,7 @@ import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTr
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NestedChatWorkspaceControls } from '../../browser/nestedChatWorkspacePicker.js';
+import { IChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -1601,13 +1602,13 @@ suite('Sessions - Chat View', () => {
 			bindings: [savedDraft], attempts: 0,
 		});
 	});
-	function createSwitchingView(chatService?: Pick<IChatService, 'acquireOrLoadSession'>) {
+	function createSwitchingView(chatService?: Pick<IChatService, 'acquireOrLoadSession'>, options: { inputOnly?: boolean; viewStates?: Map<string, { scroll: number }> } = {}) {
 		const requests: DeferredPromise<IChatModelReference | undefined>[] = [];
 		const completions: Promise<void>[] = [];
 		const models = new Map<string, ChatModel>();
 		const disposedReferences: URI[] = [];
 		const historyKeys: (string | undefined)[] = [];
-		const viewStates = new Map<string, { scroll: number }>();
+		const viewStates = options.viewStates ?? new Map<string, { scroll: number }>();
 		const boundModels: (URI | undefined)[] = [];
 		const widgetState: { input: string; attachments: IChatModelInputState['attachments']; scroll: number; model: IChatModel | undefined } = { input: '', attachments: [], scroll: 0, model: undefined };
 		const openOutcomes: string[] = [];
@@ -1622,6 +1623,7 @@ suite('Sessions - Chat View', () => {
 			_retryUnresolvedChatLoad(addedSessionTypes: readonly string[]): void;
 			dispose(): void;
 		} = Object.assign(Object.create(ChatView.prototype), {
+			_inputOnly: options.inputOnly === true,
 			_store: disposables.add(new DisposableStore()),
 			_transcriptDisposables: disposables.add(new DisposableStore()),
 			chatPillsDebugService: { clear: () => { } },
@@ -1903,6 +1905,30 @@ suite('Sessions - Chat View', () => {
 				historyKeys: ['key-a', 'key-b', 'key-a'],
 			});
 		});
+
+		for (const inputOnly of [undefined, false, true]) {
+			test(`isolates input-only views from full-conversation scroll state on switching and disposal: ${inputOnly}`, async () => {
+				const viewStates = new Map([[resourceA.toString(), { scroll: 120 }], [resourceB.toString(), { scroll: 240 }]]);
+				const { view, createChat, complete, compose, snapshot } = createSwitchingView(undefined, { inputOnly, viewStates });
+				const chatA = createChat(resourceA);
+				view.setChat(chatA);
+				await complete(0, resourceA);
+				const restored = snapshot().scroll;
+				compose('reply draft', 0);
+				view.setChat(createChat(resourceB));
+				await complete(1, resourceB);
+				compose('other draft', 0);
+				view.setChat(chatA);
+				await complete(2, resourceA);
+				const draft = snapshot().input;
+				view.dispose();
+				assert.deepStrictEqual({ restored, draft, saved: [...viewStates.values()] }, {
+					restored: inputOnly ? 0 : 120,
+					draft: 'reply draft',
+					saved: inputOnly ? [{ scroll: 120 }, { scroll: 240 }] : [{ scroll: 0 }, { scroll: 0 }],
+				});
+			});
+		}
 
 		suite('chat open diagnostics', () => {
 			test('still completes when the same chat is set again while it loads and after it is bound', async () => {
@@ -2298,7 +2324,7 @@ suite('Sessions - Chat View', () => {
 		let inputOptions: INewChatComposerInputOptions | undefined;
 		const repositoryControls = { visible: constObservable(true), dispose: () => { } };
 		const petPlatform = dom.$('a.action-label');
-		const input = Object.assign(Object.create(SharedChatInputComposer.prototype), { dispose: () => { } }) as SharedChatInputComposer;
+		const input = Object.assign(Object.create(SharedChatInputComposer.prototype), { dispose: () => { }, getDraft: () => ({ inputText: '', attachments: [] }) }) as SharedChatInputComposer;
 		const instantiationService = new class extends mock<IInstantiationService>() {
 			override createInstance = ((ctor: unknown, options: INewChatComposerInputOptions) => {
 				if (ctor === NestedChatWorkspaceControls) {
@@ -2328,6 +2354,7 @@ suite('Sessions - Chat View', () => {
 			disposables.add(new InMemoryStorageService()),
 			new TestAccessibilityService(),
 			new class extends mock<IFileService>() { }(),
+			new SessionsChatViewStateService(),
 		));
 		const beforeChat = inputOptions?.chat?.get();
 		const view: NewChatView = Object.assign(Object.create(NewChatView.prototype), { _widget: widget });
@@ -2341,6 +2368,106 @@ suite('Sessions - Chat View', () => {
 			repositoryControls: typeof renderRepositoryControls === 'function' ? renderRepositoryControls(dom.$('div'), getDefaultHoverDelegate('element')) : renderRepositoryControls,
 			petPlatform: inputOptions?.getChatPetPlatformElements?.(),
 		}, { beforeChat: undefined, chat: 'chat:/composer', repositoryControls, petPlatform: [petPlatform] });
+	});
+
+	suite('unsent peer chat drafts', () => {
+
+		function createPeerChatWidgets() {
+			const viewStateService = new SessionsChatViewStateService();
+			return (restoredInput = '') => {
+				let draft: IChatDraft | undefined = restoredInput ? { inputText: restoredInput, attachments: [] } : undefined;
+				const input = upcastPartial<SharedChatInputComposer>({
+					dispose: () => { },
+					getDraft: () => draft ?? { inputText: '', attachments: [] },
+					setDraft: value => { draft = value; },
+				});
+				const instantiationService = new class extends mock<IInstantiationService>() {
+					override createInstance = ((ctor: unknown) => ctor === NestedChatWorkspaceControls
+						? { reset: () => { }, dispose: () => { } }
+						: input) as IInstantiationService['createInstance'];
+				}();
+				const sessionsService = new class extends mock<ISessionsService>() {
+					override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+				}();
+				const widget = disposables.add(new NewChatInSessionWidget(
+					{},
+					new TestConfigurationService(),
+					instantiationService,
+					new class extends mock<ILogService>() { }(),
+					new class extends mock<INotificationService>() { }(),
+					new class extends mock<ISessionsProvidersService>() { }(),
+					new class extends mock<ISessionsRecentWorkspacesService>() { }(),
+					new class extends mock<IFileDialogService>() { }(),
+					new class extends mock<ISessionsManagementService>() { }(),
+					sessionsService,
+					disposables.add(new InMemoryStorageService()),
+					new TestAccessibilityService(),
+					new class extends mock<IFileService>() { }(),
+					viewStateService,
+				));
+				return {
+					widget,
+					type: (inputText: string) => { draft = inputText ? { inputText, attachments: [] } : undefined; },
+					input: () => draft?.inputText ?? '',
+				};
+			};
+		}
+
+		const chat = (name: string) => upcastPartial<IChat>({ resource: URI.parse(`chat:/${name}`) });
+
+		test('a peer chat composer replaced by another view shows the unsent prompt when its chat is shown again', () => {
+			const create = createPeerChatWidgets();
+			const newChat = chat('new');
+			const first = create();
+			first.widget.setChat(newChat);
+			first.type('unsent prompt');
+			first.widget.dispose();
+
+			const second = create();
+			second.widget.setChat(newChat);
+
+			assert.strictEqual(second.input(), 'unsent prompt');
+		});
+
+		test('a cleared prompt is not replaced by the composer\'s restored global draft', () => {
+			const create = createPeerChatWidgets();
+			const newChat = chat('new');
+			const first = create();
+			first.widget.setChat(newChat);
+			first.type('sent prompt');
+			first.type('');
+			first.widget.dispose();
+
+			const second = create('stale global draft');
+			second.widget.setChat(newChat);
+
+			assert.strictEqual(second.input(), '');
+		});
+
+		test('a chat that was never shown keeps the input the composer restored', () => {
+			const create = createPeerChatWidgets();
+			const composer = create('restored global draft');
+			composer.widget.setChat(chat('new'));
+
+			assert.strictEqual(composer.input(), 'restored global draft');
+		});
+
+		test('one composer keeps a separate unsent prompt for each chat it shows', () => {
+			const create = createPeerChatWidgets();
+			const a = chat('a');
+			const b = chat('b');
+			const composer = create();
+			composer.widget.setChat(a);
+			composer.type('draft a');
+			composer.widget.setChat(b);
+			const inB = composer.input();
+			composer.type('draft b');
+			composer.widget.setChat(a);
+			const backInA = composer.input();
+			composer.widget.setChat(b);
+
+			assert.deepStrictEqual({ inB, backInA, backInB: composer.input() }, { inB: '', backInA: 'draft a', backInB: 'draft b' });
+		});
 	});
 
 	test('positions peer chat content for centered attachment growth', () => {
@@ -4255,6 +4382,25 @@ suite('Sessions - Chat View', () => {
 			hiddenBeforeDispose: 'none',
 			paddingUpdates: 1,
 			replicaCountAfterDispose: 0,
+		});
+	});
+
+	test('stores unsent drafts independently by chat resource', () => {
+		const service = new SessionsChatViewStateService();
+		const first = URI.parse('test:///first');
+		const second = URI.parse('test:///second');
+
+		service.setDraft(first, { inputText: 'first draft', attachments: [] });
+		service.setDraft(second, { inputText: 'second draft', attachments: [] });
+
+		assert.deepStrictEqual({
+			first: service.getDraft(first),
+			second: service.getDraft(second),
+			unknown: service.getDraft(URI.parse('test:///unknown')),
+		}, {
+			first: { inputText: 'first draft', attachments: [] },
+			second: { inputText: 'second draft', attachments: [] },
+			unknown: undefined,
 		});
 	});
 

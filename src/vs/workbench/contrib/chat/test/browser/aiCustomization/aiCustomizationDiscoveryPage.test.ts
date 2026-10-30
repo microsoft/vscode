@@ -1605,6 +1605,30 @@ suite('AICustomizationDiscoveryPage', () => {
 		}, { cursors: [undefined, cursor], visible: ['mail-plugin'] });
 	});
 
+	test('search treats dashes and spaces as equivalent word separators', async () => {
+		const items = [
+			resource('handy-commands', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin }),
+			resource('io.github.chromedevtools/chrome-devtools-mcp', { displayName: 'Chrome DevTools MCP' }),
+			resource('unrelated', { displayName: 'Unrelated Server' }),
+		];
+		const visible: Record<string, string[]> = {};
+		for (const query of ['handy commands', 'handy-commands', 'chrome-devtools', 'chrome devtools', 'chrome']) {
+			const fixture = createPage();
+			fixture.page.setSearchQuery(query);
+			fixture.page.setVisible(true);
+			await fixture.requests[0].result.complete({ items });
+			await timeout(0);
+			visible[query] = fixture.page.getAccessibilityContent().split('\n').filter(line => /^(handy-commands|Chrome DevTools MCP|Unrelated Server)$/.test(line));
+		}
+		assert.deepStrictEqual(visible, {
+			'handy commands': ['handy-commands'],
+			'handy-commands': ['handy-commands'],
+			'chrome-devtools': ['Chrome DevTools MCP'],
+			'chrome devtools': ['Chrome DevTools MCP'],
+			'chrome': ['Chrome DevTools MCP'],
+		});
+	});
+
 	test('filtered backfill automatically continues after a bounded batch', async () => {
 		const fixture = createPage();
 		fixture.page.setSearchQuery('@type:plugin mail');

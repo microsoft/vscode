@@ -591,6 +591,8 @@ suite('ChatEditorInput', () => {
 				startedReason = options?.sessionTypeSelectionReason;
 				return { object: model, dispose: () => { } };
 			},
+			getSession: () => undefined,
+			getSessionTitle: () => undefined,
 		} as Partial<IChatService> as IChatService;
 
 		const input = new ChatEditorInput(
@@ -869,6 +871,46 @@ suite('ChatEditorInput', () => {
 		instantiationService.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) });
 		return store.add(instantiationService.createInstance(ChatEditorInput, resource, {}));
 	}
+
+	test('serialized title is restored for an unresolved non-local session and not copied', () => {
+		const store = disposables.add(new DisposableStore());
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.set(IManagedSettingsService, new NullManagedSettingsService());
+		instantiationService.set(IAccountPolicyGateService, settledPolicyGate);
+		let liveTitle: string | undefined = 'Live Title';
+		instantiationService.stub(IChatService, { getSession: () => liveTitle ? { title: liveTitle } as Partial<IChatModel> as IChatModel : undefined, getSessionTitle: () => undefined });
+		instantiationService.stub(IDialogService, {});
+		instantiationService.set(IConfigurationService, new TestConfigurationService());
+		instantiationService.set(IChatSessionsService, new MockChatSessionsService());
+		instantiationService.set(IStorageService, store.add(new TestStorageService()));
+		instantiationService.set(ILogService, new NullLogService());
+		instantiationService.set(IWorkspaceContextService, new TestContextService());
+		instantiationService.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) });
+
+		const resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session-1' });
+		const serializer = new ChatEditorInputSerializer();
+		const roundTrip = (input: ChatEditorInput) => store.add(serializer.deserialize(instantiationService, serializer.serialize(input)!) as ChatEditorInput);
+
+		const original = store.add(instantiationService.createInstance(ChatEditorInput, resource, { title: { preferred: 'Opened Title' } }));
+		const serializedOriginal = serializer.serialize(original)!;
+		liveTitle = undefined;
+		const restored = store.add(serializer.deserialize(instantiationService, serializedOriginal) as ChatEditorInput);
+		const restoredAgain = roundTrip(restored);
+		const untitledRestored = roundTrip(store.add(instantiationService.createInstance(ChatEditorInput, resource, {})));
+		const copied = store.add(restored.copy() as ChatEditorInput);
+
+		assert.deepStrictEqual({
+			restored: restored.getName(),
+			restoredAgain: restoredAgain.getName(),
+			untitledRestored: untitledRestored.getName(),
+			copied: copied.getName(),
+		}, {
+			restored: 'Live Title',
+			restoredAgain: 'Live Title',
+			untitledRestored: 'Chat',
+			copied: 'Chat',
+		});
+	});
 
 	test('copy preserves an agent host session type as a new untitled session', () => {
 		const store = disposables.add(new DisposableStore());

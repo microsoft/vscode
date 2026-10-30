@@ -29,12 +29,13 @@ import { CLOSE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, IChat, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
+import { ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 
 function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: ISessionCapabilities = { supportsMultipleChats: false }, mainChatStatus = SessionStatus.Completed) {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
+	const closedSessions: string[] = [];
 
 	instantiationService.stub(IAccessibilityService, new class extends mock<IAccessibilityService>() {
 		override readonly onDidChangeScreenReaderOptimized = Event.None;
@@ -54,7 +55,13 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly onDidChangeSessions = Event.None;
 	}());
-	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+		override closeSession(session: ISession | undefined): void {
+			if (session) {
+				closedSessions.push(session.sessionId);
+			}
+		}
+	}());
 
 	const mainChat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse('test-chat://main');
@@ -96,7 +103,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 	const container = mainWindow.document.createElement('div');
 	container.appendChild(header.element);
 
-	return { store, instantiationService, header, session, activeChat, mainChat, secondChat, statusIconReads };
+	return { store, instantiationService, header, session, activeChat, mainChat, secondChat, statusIconReads, closedSessions };
 }
 
 suite('Sessions - Headers', () => {
@@ -384,6 +391,56 @@ suite('Sessions - Headers', () => {
 			?.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true, cancelable: true }));
 
 		assert.strictEqual(activationCalls, 1);
+	});
+
+	test('middle-clicking a session title closes only the session header', () => {
+		const { store, instantiationService, header, session, activeChat, closedSessions } = createHarness(disposables);
+		const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
+		chatHeader.setChat({ session, chat: activeChat, activate: () => { } });
+		const sessionMiddleClick = new MouseEvent(EventType.AUXCLICK, { bubbles: true, button: 1, cancelable: true });
+		const sessionRightClick = new MouseEvent(EventType.AUXCLICK, { bubbles: true, button: 2, cancelable: true });
+		const chatMiddleClick = new MouseEvent(EventType.AUXCLICK, { bubbles: true, button: 1, cancelable: true });
+
+		const sessionDispatchResult = header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title')!.dispatchEvent(sessionMiddleClick);
+		header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title')!.dispatchEvent(sessionRightClick);
+		const chatDispatchResult = chatHeader.element.querySelector<HTMLElement>('.chat-composite-bar-session-title')!.dispatchEvent(chatMiddleClick);
+
+		assert.deepStrictEqual({
+			closedSessions,
+			sessionMiddleClickDefaultPrevented: sessionMiddleClick.defaultPrevented,
+			sessionDispatchResult,
+			sessionRightClickDefaultPrevented: sessionRightClick.defaultPrevented,
+			chatMiddleClickDefaultPrevented: chatMiddleClick.defaultPrevented,
+			chatDispatchResult,
+		}, {
+			closedSessions: ['session'],
+			sessionMiddleClickDefaultPrevented: true,
+			sessionDispatchResult: false,
+			sessionRightClickDefaultPrevented: false,
+			chatMiddleClickDefaultPrevented: false,
+			chatDispatchResult: true,
+		});
+	});
+
+	test('middle-clicking a session title input preserves the rename and session', () => {
+		const { header, closedSessions } = createHarness(disposables, { supportsMultipleChats: false, supportsRename: true });
+		header.startTitleEditing();
+		const input = header.element.querySelector<HTMLInputElement>('.chat-composite-bar-session-title-input')!;
+		const middleClick = new MouseEvent(EventType.AUXCLICK, { bubbles: true, button: 1, cancelable: true });
+
+		const dispatchResult = input.dispatchEvent(middleClick);
+
+		assert.deepStrictEqual({
+			closedSessions,
+			defaultPrevented: middleClick.defaultPrevented,
+			dispatchResult,
+			renameInputStillVisible: header.element.querySelector('.chat-composite-bar-session-title-input') === input,
+		}, {
+			closedSessions: [],
+			defaultPrevented: false,
+			dispatchResult: true,
+			renameInputStillVisible: true,
+		});
 	});
 
 	test('targets session actions at the session and chat actions at the represented chat', () => {
@@ -836,6 +893,26 @@ suite('Sessions - Headers', () => {
 			hasInputWhenNotRenameable: false,
 			startedWhenUntitled: false,
 			hasInputWhenUntitled: false,
+		});
+	});
+
+	test('inline rename lets clipboard and editing shortcuts reach the workbench keybinding dispatcher', () => {
+		const { header } = createHarness(disposables, { supportsMultipleChats: false, supportsRename: true });
+		const bubbled: string[] = [];
+		header.element.parentElement!.addEventListener(EventType.KEY_DOWN, e => bubbled.push(e.code));
+		header.startTitleEditing();
+		const input = header.element.querySelector<HTMLInputElement>('.chat-composite-bar-session-title-input')!;
+
+		for (const code of ['KeyV', 'KeyC', 'KeyX', 'KeyA', 'KeyZ']) {
+			input.dispatchEvent(new KeyboardEvent(EventType.KEY_DOWN, { code, key: code.slice(-1).toLowerCase(), ctrlKey: true, metaKey: true, bubbles: true }));
+		}
+
+		assert.deepStrictEqual({
+			bubbled,
+			stillEditing: header.element.querySelector('.chat-composite-bar-session-title-input') === input,
+		}, {
+			bubbled: ['KeyV', 'KeyC', 'KeyX', 'KeyA', 'KeyZ'],
+			stillEditing: true,
 		});
 	});
 });

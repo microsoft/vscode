@@ -1595,6 +1595,14 @@ export namespace AgentSession {
 		const parsed = typeof session === 'string' ? URI.parse(session) : session;
 		return parsed.scheme === 'ahp-session' ? undefined : parsed.scheme || undefined;
 	}
+
+	/**
+	 * Whether a session URI has the shape {@link uri} mints: no authority, query or fragment.
+	 * Session storage is keyed by {@link id} alone, so any other shape must not be resolved to it.
+	 */
+	export function isCanonical(session: URI): boolean {
+		return !session.authority && !session.query && !session.fragment;
+	}
 }
 
 // ---- Agent provider interface -----------------------------------------------

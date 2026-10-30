@@ -85,18 +85,18 @@ export function getRemoteSessionCreationEnvironment(provider: ISessionsProvider,
 	};
 }
 
-export function getEnvironmentWorkspaceProvider(environment: ISessionCreationEnvironment, providers: readonly ISessionsProvider[], folderUri: URI): ISessionsProvider | undefined {
-	return resolveEnvironmentWorkspace(environment, providers, folderUri)?.provider;
+export function getEnvironmentWorkspaceProvider(environment: ISessionCreationEnvironment, providers: readonly ISessionsProvider[], folderUri: URI, resolveMetadata = true): ISessionsProvider | undefined {
+	return resolveEnvironmentWorkspace(environment, providers, folderUri, resolveMetadata)?.provider;
 }
 
-export function resolveEnvironmentWorkspace(environment: ISessionCreationEnvironment, providers: readonly ISessionsProvider[], folderUri: URI): { readonly provider: ISessionsProvider; readonly workspace: ISessionWorkspace } | undefined {
+export function resolveEnvironmentWorkspace(environment: ISessionCreationEnvironment, providers: readonly ISessionsProvider[], folderUri: URI, resolveMetadata = true): { readonly provider: ISessionsProvider; readonly workspace: ISessionWorkspace } | undefined {
 	for (const provider of providers) {
 		if (!environment.providerIds.includes(provider.id)
 			|| provider.supportsWorkspaceSelection === false
 			|| isAgentHostProvider(provider) && !isAgentHostEnvironmentAvailable(provider)) {
 			continue;
 		}
-		const workspace = provider.resolveWorkspace(folderUri);
+		const workspace = resolveMetadata ? provider.resolveWorkspace(folderUri) : provider.resolveWorkspace(folderUri, { resolveMetadata: false });
 		if (workspace && (environment.kind !== 'cloud' || provider.getSessionTypes(folderUri).length > 0)) {
 			return { provider, workspace };
 		}
@@ -186,7 +186,7 @@ export class SessionEnvironmentPicker extends Disposable {
 			dom.append(trigger, renderIcon(environment?.icon ?? Codicon.deviceDesktop));
 			const label = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
 			label.textContent = environment?.label ?? localize('environmentPicker.choose', "Environment");
-			const accessibleLabel = localize('environmentPicker.trigger', "Choose Environment, {0}", label.textContent);
+			const accessibleLabel = localize('environmentPicker.trigger', "Environment where the agent runs: {0}", label.textContent);
 			trigger.setAttribute('aria-label', accessibleLabel);
 			if (options?.focusCommand) {
 				registerPickerKeybindingPresentation(

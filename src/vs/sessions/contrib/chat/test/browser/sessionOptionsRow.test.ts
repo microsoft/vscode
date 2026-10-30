@@ -101,7 +101,7 @@ suite('Sessions - SessionOptionsRow', () => {
 		};
 		const workspace = picker(row, 'workspace');
 		const iconOnlyPickerIds = observableValue<ReadonlySet<string>>('iconOnlyPickerIds', new Set());
-		const contextMenus: string[] = [];
+		const contextMenus: (string | undefined)[] = [];
 		const sessionOptionsRow = store.add(new SessionOptionsRow(row, container, {
 			user: 'test',
 			screenReaderOptimized: constObservable(false),
@@ -110,6 +110,7 @@ suite('Sessions - SessionOptionsRow', () => {
 			setExpanded: () => { },
 			iconOnlyPickers: {
 				iconOnlyPickerIds,
+				showOptionsToggle: constObservable(true),
 				getPickerId: element => getSessionPickerId(element),
 				showContextMenu: pickerId => contextMenus.push(pickerId),
 			},
@@ -136,5 +137,50 @@ suite('Sessions - SessionOptionsRow', () => {
 			{ iconOnly: [], contextMenu: ['harness'], handled: true },
 			{ iconOnly: ['workspace', 'environment'], contextMenu: ['harness'], handled: true },
 		]);
+	});
+
+	test('a hidden disclosure keeps the options available and can be restored from the row context menu', () => {
+		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		store.add(toDisposable(() => container.remove()));
+		const row = container.appendChild(mainWindow.document.createElement('div'));
+		const workspace = row.appendChild(mainWindow.document.createElement('a'));
+		workspace.textContent = 'Workspace';
+		workspace.role = 'button';
+		workspace.tabIndex = 0;
+		const showOptionsToggle = observableValue('showOptionsToggle', true);
+		const menus: (string | undefined)[] = [];
+		const sessionOptionsRow = store.add(new SessionOptionsRow(row, container, {
+			user: 'test',
+			screenReaderOptimized: constObservable(false),
+			expanded: constObservable(false),
+			collapsedShowIcons: constObservable(false),
+			setExpanded: () => { },
+			iconOnlyPickers: {
+				iconOnlyPickerIds: constObservable(new Set<string>()),
+				showOptionsToggle,
+				getPickerId: () => undefined,
+				showContextMenu: pickerId => menus.push(pickerId),
+			},
+		}));
+		const snapshot = () => ({
+			toggleHidden: sessionOptionsRow.toggle.element.hidden,
+			optionsHidden: sessionOptionsRow.details.hidden,
+			inert: sessionOptionsRow.details.inert,
+		});
+		const initial = snapshot();
+		const unrelatedMenu = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+		workspace.dispatchEvent(unrelatedMenu);
+		sessionOptionsRow.toggle.focus();
+		showOptionsToggle.set(false, undefined);
+		const hidden = { ...snapshot(), focusedWorkspace: mainWindow.document.activeElement === workspace };
+		row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		showOptionsToggle.set(true, undefined);
+		assert.deepStrictEqual({ initial, hidden, restored: snapshot(), menus, unrelatedMenuHandled: unrelatedMenu.defaultPrevented }, {
+			initial: { toggleHidden: false, optionsHidden: true, inert: true },
+			hidden: { toggleHidden: true, optionsHidden: false, inert: false, focusedWorkspace: true },
+			restored: initial,
+			menus: [undefined],
+			unrelatedMenuHandled: false,
+		});
 	});
 });

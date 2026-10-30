@@ -145,6 +145,7 @@ export class TunnelProxy extends Disposable {
 		// Chromium when configured as a proxy) and CONNECT tunnels for HTTPS.
 		const server = https.createServer({ key, cert }, (req, res) => this._onRequest(req, res));
 		server.on('connect', (req, socket, head) => this._onConnect(req, socket as net.Socket, head));
+		server.on('upgrade', (req, socket, head) => this._onUpgrade(req, socket as net.Socket, head));
 		server.on('error', err => {
 			this._logService.error('[TunnelProxy] Server error:', err);
 		});
@@ -212,7 +213,10 @@ export class TunnelProxy extends Disposable {
 			const host = options.hostname || options.host || '';
 			const port = Number(options.port) || 80;
 			this._createTunnelSocket(host, port)
-				.then(socket => oncreate?.(null, socket))
+				.then(socket => {
+					socket.once('end', () => socket.destroy());
+					oncreate?.(null, socket);
+				})
 				.catch(err => oncreate?.(err, null!));
 		};
 		return agent;
@@ -331,7 +335,7 @@ export class TunnelProxy extends Disposable {
 		// the URL's port or default 80 would produce confusing failures
 		// or wrong content).
 		if (parsed.protocol !== 'http:') {
-			this._logService.warn(`[TunnelProxy] Rejecting non-HTTP forwarded request: ${req.method} ${req.url}`);
+			this._logService.warn(`[TunnelProxy] Rejecting non-HTTP forwarded request: ${req.method}`);
 			res.writeHead(400);
 			res.end();
 			return;
@@ -347,7 +351,7 @@ export class TunnelProxy extends Disposable {
 			return;
 		}
 
-		this._logService.trace(`[TunnelProxy] ${req.method} ${host}:${port}${parsed.pathname}`);
+		this._logService.trace(`[TunnelProxy] ${req.method} ${host}:${port}`);
 
 		try {
 			const http = await import('http');
@@ -402,6 +406,58 @@ export class TunnelProxy extends Disposable {
 			// Reset the client connection so the browser shows its native
 			// "failed to load" page rather than rendering an HTTP error.
 			res.destroy();
+		}
+	}
+
+	private async _onUpgrade(req: http.IncomingMessage, socket: net.Socket, head: Buffer): Promise<void> {
+		this._connectSockets.add(socket);
+		let clientClosed = socket.destroyed;
+		socket.once('close', () => {
+			clientClosed = true;
+			this._connectSockets.delete(socket);
+		});
+		socket.on('error', () => socket.destroy());
+		if (!this._checkAuth(req.headers['proxy-authorization'])) {
+			socket.write('HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm="TunnelProxy"\r\n\r\n', () => socket.destroy());
+			return;
+		}
+		let parsed: URL;
+		try {
+			parsed = new URL(req.url ?? '');
+		} catch {
+			socket.write('HTTP/1.1 400 Bad Request\r\n\r\n', () => socket.destroy());
+			return;
+		}
+		if (parsed.protocol !== 'http:' || !parsed.hostname) {
+			socket.write('HTTP/1.1 400 Bad Request\r\n\r\n', () => socket.destroy());
+			return;
+		}
+		const host = parsed.hostname.replace(/^\[(?<address>.*)\]$/, '$<address>');
+		const port = parseInt(parsed.port, 10) || 80;
+		this._logService.trace(`[TunnelProxy] UPGRADE ${host}:${port}`);
+		try {
+			const remoteSocket = await this._createTunnelSocket(host, port);
+			if (clientClosed || this._store.isDisposed) {
+				remoteSocket.destroy();
+				return;
+			}
+			const headers = { ...req.headers };
+			delete headers['proxy-authorization'];
+			delete headers['proxy-connection'];
+			const requestHeaders = Object.entries(headers)
+				.flatMap(([name, value]) => Array.isArray(value) ? value.map(item => `${name}: ${item}`) : value === undefined ? [] : [`${name}: ${value}`])
+				.join('\r\n');
+			remoteSocket.write(`${req.method ?? 'GET'} ${parsed.pathname}${parsed.search} HTTP/${req.httpVersion}\r\n${requestHeaders}\r\n\r\n`);
+			if (head.byteLength > 0) {
+				remoteSocket.write(head);
+			}
+			this._bridgeSockets(socket, remoteSocket);
+		} catch (error) {
+			if (clientClosed) {
+				return;
+			}
+			this._logService.error(`[TunnelProxy] Failed to upgrade tunnel to ${host}:${port}:`, error);
+			socket.destroy();
 		}
 	}
 
