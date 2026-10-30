@@ -32,7 +32,7 @@ import { getSessionWorkspaceProperties } from '../../../../platform/agentHost/co
 import { deriveGitHubEndpoints } from '../../../../platform/github/common/githubEndpoints.js';
 import { asJson, IRequestService, isSuccess } from '../../../../platform/request/common/request.js';
 import { localize } from '../../../../nls.js';
-import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../services/sessions/common/sessionsManagement.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -148,6 +148,8 @@ export class NewChatWidget extends Disposable {
 	private readonly _newChatInput: SharedChatInputComposer;
 	private readonly _preserveCustomView: boolean;
 	private readonly _backgroundSend: boolean;
+	private readonly _backgroundSendStatus = observableValue<string | undefined>(this, undefined);
+	private _lastBackgroundSendOptions: ISendRequestOptions | undefined;
 	private readonly _pickedEnvironment = observableValue<ISessionCreationEnvironment | undefined>(this, undefined);
 	private readonly _environmentWorkspaces = new Map<string, URI>();
 	private readonly _environmentWorkspaceChanged = observableSignal(this);
@@ -851,6 +853,7 @@ export class NewChatWidget extends Disposable {
 			);
 		}));
 		const belowInputSurfaces = dom.append(chatWidgetContent, dom.$(`.new-session-below-input-surfaces.${chatInputSurfaceStackClass}`));
+		this._renderBackgroundSendStatus(belowInputSurfaces);
 		const updateBelowInputSurfacesHeight = () => {
 			if (chatWidgetContainer.closest('.phone-layout')) {
 				belowInputSurfaces.style.removeProperty('max-height');
@@ -2031,6 +2034,10 @@ export class NewChatWidget extends Disposable {
 
 	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction): Promise<boolean> {
 		background = this._backgroundSend || background;
+		if (this._backgroundSend) {
+			this._backgroundSendStatus.set(undefined, undefined);
+			this._lastBackgroundSendOptions = undefined;
+		}
 		const session = this._session.get();
 		if (!session) {
 			this._workspacePicker.showPicker();
@@ -2047,7 +2054,11 @@ export class NewChatWidget extends Disposable {
 		}
 
 		if (this._comparisonSelection.enabled.get()) {
-			return this._sendComparison(session, request, requestContext);
+			const started = await this._sendComparison(session, request, requestContext);
+			if (this._backgroundSend && started && !this._newChatInput.hasInput) {
+				this._backgroundSendStatus.set(localize('newSession.comparisonStarted', "Comparison started"), undefined);
+			}
+			return started;
 		}
 
 		// Capture the composer's workspace selection before the send: a
@@ -2079,11 +2090,17 @@ export class NewChatWidget extends Disposable {
 		// separately, keyed by the options object it was started with, so one
 		// send's outcome never clears another's comments.
 		if (background) {
+			if (this._backgroundSend) {
+				this._lastBackgroundSendOptions = sendOptions;
+			}
 			this._pendingBackgroundSends.set(sendOptions, Event.once(
 				Event.filter(this.sessionsManagementService.onDidSendRequest, event => event.options === sendOptions)
 			)(() => {
 				clearFeedback();
 				restoreWorkspace();
+				if (this._backgroundSend && this._lastBackgroundSendOptions === sendOptions && !this._newChatInput.hasInput) {
+					this._backgroundSendStatus.set(localize('newSession.messageSent', "Message sent"), undefined);
+				}
 				this._pendingBackgroundSends.deleteAndDispose(sendOptions);
 			}));
 		}
@@ -2184,6 +2201,22 @@ export class NewChatWidget extends Disposable {
 			host.appendChild(banner.domNode);
 			// Docks to the composer below it.
 			setChatInputStackSlot(host, ChatInputStackSlot.Docked);
+		}));
+	}
+
+	private _renderBackgroundSendStatus(container: HTMLElement): void {
+		if (!this._backgroundSend) {
+			return;
+		}
+		const status = dom.append(container, dom.$('.new-session-send-status', { role: 'status' }));
+		this._register(autorun(reader => {
+			status.textContent = this._backgroundSendStatus.read(reader) ?? '';
+		}));
+		this._register(this._newChatInput.onDidChangeInput(() => {
+			if (this._newChatInput.hasInput) {
+				this._backgroundSendStatus.set(undefined, undefined);
+				this._lastBackgroundSendOptions = undefined;
+			}
 		}));
 	}
 

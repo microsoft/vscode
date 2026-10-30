@@ -42,6 +42,12 @@
 	display: none;
 }
 
+.inbox-notifications-new-session .new-chat-widget-container.revealed .new-chat-input-container,
+.inbox-notifications-new-session .new-chat-widget-container.revealed .new-session-workspace-picker-container {
+	/* Working-set restoration reattaches the canvas after a background send. */
+	animation: none;
+}
+
 .inbox-notifications-list-pane {
 	display: flex;
 	flex-direction: column;

@@ -30,6 +30,14 @@
 	justify-content: center;
 }
 
+.new-session-send-status {
+	min-height: 1.4em;
+	margin-top: var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.4;
+}
+
 .new-chat-widget-container.revealed .new-chat-input-container {
 	display: block;
 	margin-top: 0;

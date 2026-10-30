@@ -16,7 +16,7 @@ import { createErrorWithActions, isErrorWithActions } from '../../../../../base/
 import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -266,6 +266,8 @@ interface ISessionOptionsPersistenceHarness {
 
 interface ISendHarness {
 	readonly _backgroundSend?: boolean;
+	readonly _backgroundSendStatus?: ISettableObservable<string | undefined>;
+	readonly _newChatInput?: Pick<SharedChatInputComposer, 'hasInput'>;
 	readonly notificationService: { error(message: string | Error): void };
 	readonly _pendingBackgroundSends: { set(key: object, value: IDisposable): void; deleteAndDispose(key: object): void };
 	readonly recentWorkspacesService: { restoreDismissedWorkspace(folderUri: URI): void };
@@ -3721,6 +3723,8 @@ suite('NewChatWidget', () => {
 		const picker = { selectedFolderUri: folderUri, clearAttachedContext: () => { }, showPicker: () => { } };
 		const harness: ISendHarness = {
 			_backgroundSend: true,
+			_backgroundSendStatus: observableValue<string | undefined>('sendStatus', undefined),
+			_newChatInput: { hasInput: false },
 			notificationService: { error: () => assert.fail('Unexpected error') },
 			_pendingBackgroundSends: pendingSends,
 			recentWorkspacesService: { restoreDismissedWorkspace: uri => restored.push(uri) },
@@ -3740,13 +3744,89 @@ suite('NewChatWidget', () => {
 			_createNewSession: async () => { picker.selectedFolderUri = URI.file('/different-workspace'); },
 		};
 		await send.call(harness, 'hello');
-		const beforeSuccess = [...restored];
+		const beforeSuccess = { restored: [...restored], status: harness._backgroundSendStatus?.get() };
 		onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: { query: 'unrelated' } }));
-		const afterUnrelatedSend = [...restored];
+		const afterUnrelatedSend = { restored: [...restored], status: harness._backgroundSendStatus?.get() };
 		assert.ok(sentOptions);
 		onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: sentOptions }));
-		assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size, background: sentOptions.background }, {
-			beforeSuccess: [], afterUnrelatedSend: [], restored: [folderUri], pending: 0, background: true,
+		assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size, background: sentOptions.background, status: harness._backgroundSendStatus?.get() }, {
+			beforeSuccess: { restored: [], status: undefined }, afterUnrelatedSend: { restored: [], status: undefined },
+			restored: [folderUri], pending: 0, background: true, status: 'Message sent',
+		});
+	});
+
+	for (const outcome of ['failed', 'new draft', 'superseded', 'disposed'] as const) {
+		test(`Inbox does not confirm a background send that is ${outcome}`, async () => {
+			const sent = disposables.add(new Emitter<ISendRequestSentEvent>());
+			const pending = disposables.add(new DisposableMap<object, IDisposable>());
+			const status = observableValue<string | undefined>('status', undefined);
+			const options: ISendRequestOptions[] = [];
+			const errors: (string | Error)[] = [];
+			let hasInput = false;
+			const harness: ISendHarness = {
+				_backgroundSend: true,
+				_backgroundSendStatus: status,
+				_newChatInput: { get hasInput() { return hasInput; } },
+				notificationService: { error: error => errors.push(error) },
+				_pendingBackgroundSends: pending,
+				recentWorkspacesService: { restoreDismissedWorkspace: () => { } },
+				newSessionComposerService: { notifyWillSendRequest: () => { } },
+				_session: constObservable(upcastPartial<ISession>({ sessionId: 'draft' })),
+				_feedbackItems: constObservable([]),
+				_comparisonSelection: { enabled: constObservable(false) },
+				_workspacePicker: { selectedFolderUri: URI.file('/workspace'), clearAttachedContext: () => { }, showPicker: () => { } },
+				_isQuickChatComposer: constObservable(false),
+				agentFeedbackService: { removeFeedback: () => { } },
+				sessionsManagementService: {
+					onDidSendRequest: sent.event,
+					sendNewChatRequest: async (_session, sendOptions) => {
+						options.push(sendOptions);
+						if (outcome === 'failed') {
+							throw new Error('test failure');
+						}
+					},
+				},
+				logService: { error: () => { } },
+				_getWorkspaceRoots: () => [],
+				_createNewSession: async () => { },
+			};
+			const result = await send.call(harness, 'hello');
+			if (outcome === 'new draft') {
+				hasInput = true;
+			} else if (outcome === 'superseded') {
+				await send.call(harness, 'next request');
+			} else if (outcome === 'disposed') {
+				pending.dispose();
+			}
+			sent.fire(upcastPartial<ISendRequestSentEvent>({ options: options[0] }));
+			assert.deepStrictEqual({ result, status: status.get(), errors: errors.length }, {
+				result: outcome !== 'failed', status: undefined, errors: outcome === 'failed' ? 1 : 0,
+			});
+		});
+	}
+
+	test('Inbox send confirmation is a polite status and clears when the next draft is edited', () => {
+		const changed = disposables.add(new Emitter<void>());
+		const status = observableValue<string | undefined>('status', undefined);
+		let hasInput = false;
+		const harness = {
+			_backgroundSend: true,
+			_backgroundSendStatus: status,
+			_lastBackgroundSendOptions: { query: 'sent' } as ISendRequestOptions | undefined,
+			_newChatInput: { onDidChangeInput: changed.event, get hasInput() { return hasInput; } },
+			_register: <T extends IDisposable>(value: T) => disposables.add(value),
+		};
+		const container = $('div');
+		const render = Reflect.get(NewChatWidget.prototype, '_renderBackgroundSendStatus') as (this: typeof harness, container: HTMLElement) => void;
+		render.call(harness, container);
+		const element = container.firstElementChild;
+		status.set('Message sent', undefined);
+		changed.fire();
+		const confirmation = element?.textContent;
+		hasInput = true;
+		changed.fire();
+		assert.deepStrictEqual({ role: element?.getAttribute('role'), confirmation, cleared: element?.textContent, pending: harness._lastBackgroundSendOptions }, {
+			role: 'status', confirmation: 'Message sent', cleared: '', pending: undefined,
 		});
 	});
 
