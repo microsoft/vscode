@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
-import { IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from '../../../../../platform/quickinput/browser/pickerQuickAccess.js';
+import { IQuickPick, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IPickerQuickAccessItem, PickerQuickAccessProvider, PicksWithActive, TriggerAction } from '../../../../../platform/quickinput/browser/pickerQuickAccess.js';
 import { matchesFuzzyIconAware, parseLabelWithIcons } from '../../../../../base/common/iconLabels.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -13,16 +13,31 @@ import { TerminalCommandId } from '../../../terminal/common/terminal.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { killTerminalIcon, renameTerminalIcon } from '../../../terminal/browser/terminalIcons.js';
-import { getColorClass, getIconId, getUriClasses } from '../../../terminal/browser/terminalIcon.js';
+import { createColorStyleElement, getColorClass, getIconId, getUriClasses } from '../../../terminal/browser/terminalIcon.js';
 import { terminalStrings } from '../../../terminal/common/terminalStrings.js';
 import { TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-let terminalPicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { matchesContiguousSubString } from '../../../../../base/common/filters.js';
+import { combinedDisposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
+
+interface ITerminalQuickPick extends IPickerQuickAccessItem {
+	readonly terminal: ITerminalInstance;
+	readonly location: TerminalLocation;
+}
+
+interface ITerminalPickerSnapshot {
+	readonly items: readonly ITerminalQuickPick[];
+	readonly activeTerminal: ITerminalInstance | undefined;
+}
 
 export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
 	static PREFIX = 'term ';
+
+	private _snapshot: ITerminalPickerSnapshot | undefined;
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService,
@@ -36,62 +51,89 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 		super(TerminalQuickAccessProvider.PREFIX, { canAcceptInBackground: true });
 	}
 
-	protected _getPicks(filter: string): Array<IPickerQuickAccessItem | IQuickPickSeparator> {
-		terminalPicks = [];
-		terminalPicks.push({ type: 'separator', label: 'panel' });
-		const terminalGroups = this._terminalGroupService.groups;
-		for (let groupIndex = 0; groupIndex < terminalGroups.length; groupIndex++) {
-			const terminalGroup = terminalGroups[groupIndex];
-			for (let terminalIndex = 0; terminalIndex < terminalGroup.terminalInstances.length; terminalIndex++) {
-				const terminal = terminalGroup.terminalInstances[terminalIndex];
-				const pick = this._createPick(terminal, terminalIndex, filter, { groupIndex, groupSize: terminalGroup.terminalInstances.length });
-				if (pick) {
-					terminalPicks.push(pick);
+	override provide(picker: IQuickPick<IPickerQuickAccessItem, { useSeparators: true }>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
+		const snapshot = this._snapshot = this._createSnapshot();
+		return combinedDisposable(
+			createColorStyleElement(this._themeService.getColorTheme()),
+			super.provide(picker, token, runOptions),
+			toDisposable(() => {
+				if (this._snapshot === snapshot) {
+					this._snapshot = undefined;
+				}
+			})
+		);
+	}
+
+	protected _getPicks(filter: string): PicksWithActive<IPickerQuickAccessItem> {
+		const snapshot = this._snapshot ?? this._createSnapshot();
+		const items: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
+		let active: IPickerQuickAccessItem | undefined;
+		for (const location of [TerminalLocation.Panel, TerminalLocation.Editor]) {
+			let hasSeparator = false;
+			for (const pick of snapshot.items) {
+				if (pick.location !== location) {
+					continue;
+				}
+				const labelHighlights = matchesFuzzyIconAware(filter, parseLabelWithIcons(pick.label), true);
+				const descriptionHighlights = matchesContiguousSubString(filter, pick.description ?? '');
+				if (!labelHighlights && !descriptionHighlights) {
+					continue;
+				}
+				if (!hasSeparator) {
+					items.push({ type: 'separator', label: location === TerminalLocation.Panel ? localize('panelTerminals', "Panel") : localize('editorTerminals', "Editor") });
+					hasSeparator = true;
+				}
+				const item = { ...pick, highlights: { label: labelHighlights ?? undefined, description: descriptionHighlights ?? undefined } };
+				items.push(item);
+				if (pick.terminal === snapshot.activeTerminal) {
+					active = item;
 				}
 			}
 		}
 
-		if (terminalPicks.length > 0) {
-			terminalPicks.push({ type: 'separator', label: 'editor' });
-		}
-
-		const terminalEditors = this._terminalEditorService.instances;
-		for (let editorIndex = 0; editorIndex < terminalEditors.length; editorIndex++) {
-			const term = terminalEditors[editorIndex];
-			term.target = TerminalLocation.Editor;
-			const pick = this._createPick(term, editorIndex, filter);
-			if (pick) {
-				terminalPicks.push(pick);
-			}
-		}
-
-		if (terminalPicks.length > 0) {
-			terminalPicks.push({ type: 'separator' });
+		if (items.length > 0) {
+			items.push({ type: 'separator' });
 		}
 
 		const createTerminalLabel = localize("workbench.action.terminal.newplus", "Create New Terminal");
-		terminalPicks.push({
+		items.push({
 			label: `$(plus) ${createTerminalLabel}`,
 			ariaLabel: createTerminalLabel,
 			accept: () => this._commandService.executeCommand(TerminalCommandId.New)
 		});
 		const createWithProfileLabel = localize("workbench.action.terminal.newWithProfilePlus", "Create New Terminal With Profile...");
-		terminalPicks.push({
+		items.push({
 			label: `$(plus) ${createWithProfileLabel}`,
 			ariaLabel: createWithProfileLabel,
 			accept: () => this._commandService.executeCommand(TerminalCommandId.NewWithProfile)
 		});
-		return terminalPicks;
+		return { items, active };
 	}
 
-	private _createPick(terminal: ITerminalInstance, terminalIndex: number, filter: string, groupInfo?: { groupIndex: number; groupSize: number }): IPickerQuickAccessItem | undefined {
+	private _createSnapshot(): ITerminalPickerSnapshot {
+		const items: ITerminalQuickPick[] = [];
+		const groups = this._terminalGroupService.groups;
+		for (let tabIndex = 0; tabIndex < groups.length; tabIndex++) {
+			const group = groups[tabIndex];
+			for (let paneIndex = 0; paneIndex < group.terminalInstances.length; paneIndex++) {
+				items.push(this._createPick(group.terminalInstances[paneIndex], TerminalLocation.Panel, { tabIndex, paneIndex, paneCount: group.terminalInstances.length }));
+			}
+		}
+		for (const terminal of this._terminalEditorService.instances) {
+			items.push(this._createPick(terminal, TerminalLocation.Editor));
+		}
+		return { items, activeTerminal: this._terminalService.activeInstance };
+	}
+
+	private _createPick(terminal: ITerminalInstance, location: TerminalLocation, position?: { tabIndex: number; paneIndex: number; paneCount: number }): ITerminalQuickPick {
 		const iconId = this._instantiationService.invokeFunction(getIconId, terminal);
-		const index = groupInfo
-			? (groupInfo.groupSize > 1
-				? `${groupInfo.groupIndex + 1}.${terminalIndex + 1}`
-				: `${groupInfo.groupIndex + 1}`)
-			: `${terminalIndex + 1}`;
-		const label = `$(${iconId}) ${index}: ${terminal.title}`;
+		const label = `$(${iconId}) ${terminal.title}`;
+		const coordinates = position
+			? (position.paneCount > 1
+				? localize('terminalPaneCoordinates', "id:{0}, tab:{1}, pane:{2}", terminal.instanceId, position.tabIndex + 1, position.paneIndex + 1)
+				: localize('terminalTabCoordinates', "id:{0}, tab:{1}", terminal.instanceId, position.tabIndex + 1))
+			: localize('terminalEditorCoordinates', "id:{0}, editor", terminal.instanceId);
+		const description = terminal.description ? `${terminal.description} (${coordinates})` : `(${coordinates})`;
 		const iconClasses: string[] = [];
 		const colorClass = getColorClass(terminal);
 		if (colorClass) {
@@ -101,47 +143,56 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 		if (uriClasses) {
 			iconClasses.push(...uriClasses);
 		}
-		const highlights = matchesFuzzyIconAware(filter, parseLabelWithIcons(label), true);
-		if (highlights) {
-			return {
-				label,
-				description: terminal.description,
-				highlights: { label: highlights },
-				buttons: [
-					{
-						iconClass: ThemeIcon.asClassName(renameTerminalIcon),
-						tooltip: localize('renameTerminal', "Rename Terminal")
-					},
-					{
-						iconClass: ThemeIcon.asClassName(killTerminalIcon),
-						tooltip: terminalStrings.kill.value
-					}
-				],
-				iconClasses,
-				trigger: buttonIndex => {
-					switch (buttonIndex) {
-						case 0:
-							this._commandService.executeCommand(TerminalCommandId.Rename, terminal);
-							return TriggerAction.NO_ACTION;
-						case 1:
-							this._terminalService.safeDisposeTerminal(terminal);
-							return TriggerAction.REMOVE_ITEM;
-					}
-
-					return TriggerAction.NO_ACTION;
+		return {
+			terminal,
+			location,
+			label,
+			description,
+			buttons: [
+				{
+					iconClass: ThemeIcon.asClassName(renameTerminalIcon),
+					tooltip: localize('renameTerminal', "Rename Terminal")
 				},
-				accept: (keyMod, event) => {
-					if (terminal.target === TerminalLocation.Editor) {
-						const existingEditors = this._editorService.findEditors(terminal.resource);
-						this._terminalEditorService.openEditor(terminal, { viewColumn: existingEditors?.[0].groupId });
-						this._terminalEditorService.setActiveInstance(terminal);
-					} else {
-						this._terminalGroupService.showPanel(!event.inBackground);
-						this._terminalGroupService.setActiveInstance(terminal);
-					}
+				{
+					iconClass: ThemeIcon.asClassName(killTerminalIcon),
+					tooltip: terminalStrings.kill.value
 				}
-			};
-		}
-		return undefined;
+			],
+			iconClasses,
+			trigger: buttonIndex => {
+				if (!this._isAvailable(terminal)) {
+					return TriggerAction.REMOVE_ITEM;
+				}
+				switch (buttonIndex) {
+					case 0:
+						this._commandService.executeCommand(TerminalCommandId.Rename, terminal);
+						return TriggerAction.NO_ACTION;
+					case 1:
+						this._terminalService.safeDisposeTerminal(terminal);
+						return TriggerAction.REMOVE_ITEM;
+				}
+
+				return TriggerAction.NO_ACTION;
+			},
+			accept: async (keyMod, event) => {
+				if (!this._isAvailable(terminal)) {
+					return;
+				}
+				if (!event.inBackground) {
+					await this._terminalService.focusInstance(terminal);
+				} else if (terminal.target === TerminalLocation.Editor) {
+					const existingEditors = this._editorService.findEditors(terminal.resource);
+					await this._terminalEditorService.openEditor(terminal, { viewColumn: existingEditors[0]?.groupId ?? ACTIVE_GROUP, preserveFocus: true });
+					this._terminalEditorService.setActiveInstance(terminal);
+				} else {
+					this._terminalGroupService.setActiveInstance(terminal);
+					await this._terminalGroupService.showPanel(false);
+				}
+			}
+		};
+	}
+
+	private _isAvailable(terminal: ITerminalInstance): boolean {
+		return !terminal.isDisposed && this._terminalService.foregroundInstances.includes(terminal);
 	}
 }

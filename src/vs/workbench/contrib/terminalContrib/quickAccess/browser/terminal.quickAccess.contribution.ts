@@ -24,7 +24,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 	ctor: TerminalQuickAccessProvider,
 	prefix: TerminalQuickAccessProvider.PREFIX,
 	contextKey: inTerminalsPicker,
-	placeholder: nls.localize('tasksQuickAccessPlaceholder', "Type the name of a terminal to open."),
+	placeholder: nls.localize('tasksQuickAccessPlaceholder', "Type a terminal name, ID, tab, or pane to open."),
 	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Show All Opened Terminals"), commandId: TerminalQuickAccessCommandId.QuickOpenTerm }]
 });
 const quickAccessNavigateNextInTerminalPickerId = 'workbench.action.quickOpenNavigateNextInTerminalPicker';
