@@ -8,7 +8,6 @@ import { homedir } from 'os';
 import type { LanguageModelChat, PreparedToolInvocation } from 'vscode';
 import { ToolName } from '../common/toolNames';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { ICustomInstructionsService } from '../../../platform/customInstructions/common/customInstructionsService';
 import { IDiffService } from '../../../platform/diff/common/diffService';
 import { NotebookDocumentSnapshot } from '../../../platform/editing/common/notebookDocumentSnapshot';
 import { OffsetLineColumnConverter } from '../../../platform/editing/common/offsetLineColumnConverter';
@@ -27,7 +26,7 @@ import { ResourceMap, ResourceSet } from '../../../util/vs/base/common/map';
 import { Schemas } from '../../../util/vs/base/common/network';
 import { isAbsolute } from '../../../util/vs/base/common/path';
 import { isMacintosh, isWindows } from '../../../util/vs/base/common/platform';
-import { extUriBiasedIgnorePathCase, joinPath, normalizePath, removeTrailingPathSeparator } from '../../../util/vs/base/common/resources';
+import { extUriBiasedIgnorePathCase, joinPath, normalizePath, removeTrailingPathSeparator, resolvePath } from '../../../util/vs/base/common/resources';
 import { isFalsyOrWhitespace } from '../../../util/vs/base/common/strings';
 import { isDefined } from '../../../util/vs/base/common/types';
 import { URI } from '../../../util/vs/base/common/uri';
@@ -807,9 +806,9 @@ export const enum ConfirmationCheckResult {
 
 /**
  * Returns a function that returns whether a URI is approved for editing without
- * further user confirmation.
+ * further user confirmation. Configured agent locations are protected across all workspace roots.
  */
-export function makeUriConfirmationChecker(configuration: IConfigurationService, getWorkspaceFolder: (resource: URI) => URI | undefined, customInstructionsService: ICustomInstructionsService) {
+export function makeUriConfirmationChecker(configuration: IConfigurationService, getWorkspaceFolder: (resource: URI) => URI | undefined, workspaceFolders: readonly URI[]) {
 	const patterns = configuration.getNonExtensionConfig<Record<string, boolean>>('chat.tools.edits.autoApprove');
 	const hookFilesLocations = configuration.getNonExtensionConfig<Record<string, boolean>>('chat.hookFilesLocations');
 
@@ -859,13 +858,16 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 		}
 
 		const ignoreCasing = extUriBiasedIgnorePathCase.ignorePathCasing(wf);
+		const roots = new ResourceSet([wf, ...workspaceFolders]);
 		arr = {
 			patterns: [],
 			// Protect configured locations and descendants without inferring file type from extensions.
-			agentLocations: configuredAgentLocations.map(location => {
-				const resource = isAbsolute(location) ? normalizePath(URI.file(location)) : joinPath(wf, location);
+			agentLocations: Array.from(roots).flatMap(root => configuredAgentLocations.map(location => {
+				const resource = !isAbsolute(location) ? joinPath(root, location)
+					: root.scheme === Schemas.file ? normalizePath(URI.file(location))
+						: resolvePath(root, location);
 				return removeTrailingPathSeparator(resource);
-			}),
+			})),
 			ignoreCasing,
 		};
 		for (const obj of [patterns, ALWAYS_CHECKED_EDIT_PATTERNS, hookFilesPatterns, agentFilesPatterns]) {
@@ -967,11 +969,11 @@ export async function createEditConfirmation(accessor: ServicesAccessor, uris: r
 	}
 
 	const workspaceService = accessor.get(IWorkspaceService);
+	const wd = new WorkingDirectory(workingDirectory, workspaceService);
 	if (!getWorkspaceFolder) {
-		const wd = new WorkingDirectory(workingDirectory, workspaceService);
 		getWorkspaceFolder = (resource: URI) => wd.getFolder(resource);
 	}
-	const checker = makeUriConfirmationChecker(accessor.get(IConfigurationService), getWorkspaceFolder, accessor.get(ICustomInstructionsService));
+	const checker = makeUriConfirmationChecker(accessor.get(IConfigurationService), getWorkspaceFolder, wd.getFolders());
 	const needsConfirmation = (await Promise.all(uris
 		.map(async uri => ({ uri, reason: await checker(uri) }))
 	)).filter(r => r.reason !== ConfirmationCheckResult.NoConfirmation && !allowedUris?.has(r.uri));
