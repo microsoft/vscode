@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import '../../../../../../../base/browser/ui/codicons/codiconStyles.js';
 import { alert, setARIAContainer } from '../../../../../../../base/browser/ui/aria/aria.js';
+import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
@@ -26,6 +28,7 @@ import { IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer } 
 import { IChatRendererContent, IChatResponseViewModel, IChatViewModel } from '../../../../common/model/chatViewModel.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
+import '../../../../browser/widget/media/chat.css';
 
 suite('ChatMcpAuthenticationContentPart', () => {
 	type McpServer = ReturnType<IAgentHostCustomizationService['getMcpServers']>[number];
@@ -525,6 +528,31 @@ suite('ChatMcpAuthenticationContentPart', () => {
 				isUsed: true,
 			},
 		});
+	});
+
+	test('spins the authenticating icon, also in a persistent progress response', async () => {
+		const authentication = new DeferredPromise<boolean>();
+		const { part } = createPart(
+			[{ id: 'mcp', name: 'MCP', resource: 'https://example.com/mcp' }],
+			[server('mcp', 'MCP', McpServerStatus.AuthRequired)],
+			() => authentication.p,
+		);
+		const row = document.createElement('div');
+		row.appendChild(part.domNode);
+		document.body.appendChild(row);
+		disposables.add(toDisposable(() => row.remove()));
+		part.domNode.querySelector<HTMLElement>('[role="button"]')?.click();
+		const icon = part.domNode.querySelector('.chat-mcp-servers-icon');
+		assert.ok(icon);
+		const animation = () => mainWindow.getComputedStyle(icon).animationName;
+
+		const standalone = animation();
+		row.classList.add('interactive-item-container', 'chat-persistent-progress');
+		const persistent = animation();
+		authentication.complete(true);
+		await timeout(0);
+
+		assert.deepStrictEqual({ standalone, persistent }, { standalone: 'codicon-spin', persistent: 'codicon-spin' });
 	});
 
 	test('hasSameContent matches only the same kind', () => {
