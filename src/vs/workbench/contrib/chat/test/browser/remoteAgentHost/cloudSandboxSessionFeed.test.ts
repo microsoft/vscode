@@ -319,7 +319,11 @@ suite('CloudSandboxSessionFeed', () => {
 
 	test('backs off short-lived sockets toward the negotiation ceiling and resets only after a healthy connection', () => runWithFakedTimers<void>({ useFakeTimers: true, maxTaskCount: 1000 }, async () => {
 		const attemptTimes: number[] = [];
-		const options = { connect: async () => { attemptTimes.push(Date.now()); return connection(); }, disconnectAfterMs: 1 as number | undefined };
+		const options = {
+			// The final socket stays connected at a jittered time; renew far outside the test so no renewal lands in a measured window.
+			connect: async () => { attemptTimes.push(Date.now()); return { ...connection(), reconnect_after: new Date(Date.now() + 60 * 60_000).toISOString() }; },
+			disconnectAfterMs: 1 as number | undefined,
+		};
 		const h = createFeed(store, options);
 		await h.feed.start();
 		const attempts: { beforeMinimum: number; afterMaximum: number }[] = [];
@@ -329,7 +333,7 @@ suite('CloudSandboxSessionFeed', () => {
 			options.disconnectAfterMs = index === maximumDelays.length - 1 ? undefined : 1;
 			const before = h.requests.length;
 			const dropped = attemptTimes[attemptTimes.length - 1] + 1;
-			await timeout(dropped + maximumDelay / 2 - Date.now() - 1);
+			await timeout(Math.max(0, dropped + maximumDelay / 2 - Date.now() - 1));
 			const beforeMinimum = h.requests.length - before;
 			await timeout(dropped + maximumDelay - Date.now() + 1);
 			attempts.push({ beforeMinimum, afterMaximum: h.requests.length - before });
@@ -371,7 +375,7 @@ suite('CloudSandboxSessionFeed', () => {
 			for (const maximumDelay of [60_000, 120_000, 240_000, 480_000, 960_000, 1_800_000, 1_800_000]) {
 				const before = h.requests.length;
 				const last = attemptTimes[attemptTimes.length - 1];
-				await timeout(last + maximumDelay / 2 - Date.now() - 1);
+				await timeout(Math.max(0, last + maximumDelay / 2 - Date.now() - 1));
 				const beforeMinimum = h.requests.length - before;
 				await timeout(last + maximumDelay - Date.now() + 1);
 				attempts.push({ beforeMinimum, afterMaximum: h.requests.length - before });
