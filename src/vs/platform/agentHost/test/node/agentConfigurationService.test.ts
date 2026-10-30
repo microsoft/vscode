@@ -10,7 +10,7 @@ import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, clientOwnedApprovalRootConfigKeys, createSchema, platformRootSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, clientOwnedApprovalRootConfigKeys, createSchema, platformRootSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, automationRootConfigSchema } from '../../common/automationConfig.js';
 import { AGENT_CUSTOMIZATION_SETTINGS_META_KEY, getAgentCustomizationSettingsEntries } from '../../common/agentCustomizationSettings.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -599,7 +599,7 @@ suite('AgentConfigurationService', () => {
 		});
 	}
 
-	test('does not restore client-owned approval settings when the host restarts', async () => {
+	test('restores host permission rules and the default-rule opt-out but not client-owned approvals on restart', async () => {
 		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));
 		const resource = URI.file(join(directory, 'agent-host-config.json'));
 		const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -607,11 +607,11 @@ suite('AgentConfigurationService', () => {
 		// A permissive snapshot that a user, workspace, or policy could tighten
 		// while the host is stopped.
 		firstService.updateRootConfig({
-			[SessionConfigKey.Permissions]: { allow: ['revoked-rule'], deny: [] },
+			[SessionConfigKey.Permissions]: { allow: ['WebFetch(example.com)'], deny: ['WebFetch(blocked.test)'], ask: ['Shell(rm *)'] },
 			[AgentHostGlobalAutoApproveEnabledConfigKey]: true,
 			[AgentHostAutoApprovePolicyRestrictedConfigKey]: false,
 			[AgentHostTerminalAutoApproveEnabledConfigKey]: true,
-			[AgentHostTerminalAutoApproveRulesConfigKey]: { rm: true },
+			[AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey]: true,
 			[AgentHostEditAutoApprovePatternsConfigKey]: { '**/*': true },
 			[AgentHostAutoReplyEnabledConfigKey]: true,
 			[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(directory).toString()] },
@@ -625,13 +625,18 @@ suite('AgentConfigurationService', () => {
 
 		assert.deepStrictEqual({
 			persistedKeys: [...clientOwnedApprovalRootConfigKeys].filter(key => persisted[key] !== undefined).sort(),
-			// The state manager seeds empty permissions; nothing else survives.
 			restoredKeys: [...clientOwnedApprovalRootConfigKeys].filter(key => restored[key] !== undefined).sort(),
-			permissions: restored[SessionConfigKey.Permissions],
+			persistedPermissions: persisted[SessionConfigKey.Permissions],
+			restoredPermissions: restored[SessionConfigKey.Permissions],
+			persistedIgnoreDefaults: persisted[AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey],
+			restoredIgnoreDefaults: restored[AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey],
 		}, {
 			persistedKeys: [...clientOwnedApprovalRootConfigKeys].sort(),
-			restoredKeys: [SessionConfigKey.Permissions],
-			permissions: { allow: [], deny: [] },
+			restoredKeys: [],
+			persistedPermissions: { allow: ['WebFetch(example.com)'], deny: ['WebFetch(blocked.test)'], ask: ['Shell(rm *)'] },
+			restoredPermissions: { allow: ['WebFetch(example.com)'], deny: ['WebFetch(blocked.test)'], ask: ['Shell(rm *)'] },
+			persistedIgnoreDefaults: true,
+			restoredIgnoreDefaults: true,
 		});
 		fs.rmSync(directory, { recursive: true, force: true });
 	});
