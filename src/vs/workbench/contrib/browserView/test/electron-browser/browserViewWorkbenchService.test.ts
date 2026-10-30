@@ -347,6 +347,21 @@ suite('BrowserViewWorkbenchService', () => {
 		});
 	});
 
+	test('does not fall back when an external view requires its resolved network', async () => {
+		const { service, events, creationOptions } = createService();
+		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+		store.add(service.registerNetworkResolver({
+			resolveNetwork: () => ({ authority: 'host' }),
+			...hostStatuses({ host: false }),
+		}));
+
+		await assert.rejects(
+			service.createExternalBrowserView('http://page/', 'canvas', { type: 'agent', sessionId: 'chat' }, true),
+			/The required remote network is unavailable/,
+		);
+		assert.strictEqual(creationOptions.length, 0);
+	});
+
 	test('applies current restrictions without changing the saved session request', async () => {
 		const requested = { scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'host' } } as const;
 		for (const scenario of [

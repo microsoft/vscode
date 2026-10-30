@@ -1289,7 +1289,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('enables canvas presentation only for local Copilot sessions', () => {
+	test('enables canvas presentation only for Copilot sessions', () => {
 		agentHost.setAgents([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} },
 			{ provider: CODEX_AGENT_PROVIDER_ID, displayName: 'Codex', description: '', models: [], capabilities: {} },
