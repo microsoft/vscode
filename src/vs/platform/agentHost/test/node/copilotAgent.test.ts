@@ -2405,7 +2405,7 @@ suite('CopilotAgent', () => {
 	});
 
 	for (const scenario of [
-		{ name: 'disabled target and unrelated failure', enabled: false, statuses: ['disabled'], succeeds: false },
+		{ name: 'disabled target and unrelated failure', enabled: false, statuses: ['disabled'], succeeds: false, expectedError: /Couldn't apply the Canvas extension change to this chat because the 'other' Canvas extension failed to start. The 'preview' Canvas extension is disabled in settings/ },
 		{ name: 'running target and unrelated failure', enabled: true, statuses: ['running'], succeeds: true },
 		{ name: 'target still running', enabled: false, statuses: ['running'], succeeds: false },
 		{ name: 'target still starting', enabled: true, statuses: ['starting'], succeeds: false },
@@ -2446,7 +2446,7 @@ suite('CopilotAgent', () => {
 				if (scenario.succeeds) {
 					await mutation;
 				} else {
-					await assert.rejects(mutation, /Canvas extension 'preview' was (?:enabled|disabled) in settings/);
+					await assert.rejects(mutation, scenario.expectedError ?? /Canvas extension 'preview' was (?:enabled|disabled) in settings/);
 				}
 				assert.deepStrictEqual({
 					persisted: scenario.enabled ? client.extensionEnableRequests : client.extensionDisableRequests,
