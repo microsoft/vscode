@@ -369,12 +369,16 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		this._discoveryInFlight = this._doDiscoverAndSeed(this._discoveryToken, this._discoveryIncremental, trigger, taskIds).finally(() => {
 			this._discoveryInFlight = undefined;
 			this._discoveryToken = undefined;
-			// The pass may have changed the interval (backoff, idle inventory), so re-arm from its outcome.
-			if (this._discoveryPoll.isScheduled()) {
-				this._discoveryPoll.schedule(this._nextPollDelay());
-			}
+			this._rearmDiscoveryPoll();
 		});
 		return this._discoveryInFlight;
+	}
+
+	/** Reschedules an armed poll from the current interval, which a finished pass or a first sandbox may have changed. */
+	private _rearmDiscoveryPoll(): void {
+		if (this._discoveryPoll.isScheduled()) {
+			this._discoveryPoll.schedule(this._nextPollDelay());
+		}
 	}
 
 	protected _refreshFromFeed(refresh: CloudSandboxSessionFeedRefresh): Promise<void> {
@@ -1313,6 +1317,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	/** Create the sessions provider for an environment if it doesn't exist yet. */
 	protected _ensureProvider(env: ICloudSandboxSessionEnvironment): void {
 		const address = cloudSandboxAddress(env.environmentId);
+		const hadEnvironments = this._environments.size > 0;
 		// `connect()` reaches here with only the fields its caller had, so preserve anything
 		// discovery already resolved — notably the task id that makes history readable offline.
 		const known = (env.sessionId ? this._sessionEnvironments.get(address)?.get(env.sessionId) : undefined) ?? this._environments.get(address);
@@ -1328,6 +1333,9 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		// A stale reconnect must not displace a surviving task's recorded-history route.
 		if (current.taskId || !this._environments.get(address)?.taskId) {
 			this._environments.set(address, current);
+		}
+		if (!hadEnvironments && this._environments.size > 0) {
+			this._rearmDiscoveryPoll();
 		}
 		if (current.sessionId && current.taskId) {
 			let sessions = this._sessionEnvironments.get(address);

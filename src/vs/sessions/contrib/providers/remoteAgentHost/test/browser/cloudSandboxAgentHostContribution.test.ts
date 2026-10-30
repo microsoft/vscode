@@ -2870,6 +2870,28 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		});
 	}));
 
+	for (const path of ['provisioning', 'feed task read'] as const) {
+		test(`resumes the normal interval once the first sandbox arrives through ${path}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const found = discoveredSession();
+			const harness = await createContribution(store, [], {
+				listSessions: async (_token, options) => options?.taskIds
+					? { kind: 'incremental', sessions: [found], removedTaskIds: [] }
+					: options?.incremental ? { kind: 'incremental', sessions: [], removedTaskIds: [] } : { kind: 'complete', sessions: [] },
+			});
+			await timeout(60_000);
+			if (path === 'provisioning') {
+				harness.contribution.ensureProvider(found);
+			} else {
+				await harness.contribution.refreshTasks([found.taskId]);
+			}
+			const afterFirstSandbox = harness.discoveryModes.length;
+			await timeout(4 * 60_000 + 1);
+			assert.deepStrictEqual({ afterFirstSandbox, modes: harness.discoveryModes }, {
+				afterFirstSandbox: path === 'provisioning' ? 1 : 2, modes: path === 'provisioning' ? [false, true] : [false, true, true],
+			});
+		}));
+	}
+
 	test('replaces account-scoped discovery subscriptions on account changes and cancels them on disablement', async () => {
 		const subscriptions: { disposed: boolean }[] = [];
 		const harness = await createContribution(store, [discoveredSession()], {
