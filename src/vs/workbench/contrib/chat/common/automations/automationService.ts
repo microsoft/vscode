@@ -58,9 +58,12 @@ export type AutomationTriggerCatalog =
 /** A checked canonical workspace, or an explanation while checking or unavailable. */
 export interface IAutomationWorkspaceTarget {
 	readonly workspace?: URI;
+	readonly repositoryLabel?: string;
 	readonly disabledReason?: string;
 	readonly pending?: boolean;
-	readonly isPublicRepository?: boolean;
+	readonly isRepository?: boolean;
+	readonly isPrivateRepository?: boolean;
+	readonly allowReadAccessTriggers?: boolean;
 }
 
 /** Catalogue completeness; only `ready` makes an empty snapshot authoritative. */
@@ -87,6 +90,9 @@ export type AutomationMutationGuard = () => void;
 
 /** The selected Automation authority cannot currently accept the operation. */
 export class AutomationUnavailableError extends Error { }
+
+/** Repository ownership is unavailable for the selected Automation target. */
+export class AutomationRepositoryOwnershipUnavailableError extends Error { }
 
 /** The provider may have accepted a mutation; reconcile its outcome before retrying. */
 export class AutomationMutationUncertainError extends Error { }
@@ -249,6 +255,12 @@ export interface IAutomationRefreshOptions {
 	readonly background?: boolean;
 }
 
+export interface IDeleteAutomationOptions {
+	readonly deleteHistory: boolean;
+}
+
+export type AutomationHistoryState = 'retained' | 'deleting';
+
 /**
  * Provider-neutral catalogue and command contract shared by individual providers and the aggregate service.
  * Reads projected state and requests host mutations; it does not grant browser persistence or execution authority.
@@ -282,8 +294,17 @@ export interface IAutomationStore {
 	 * Runtime timestamps may change without conflicting, so reviewed edits preserve scheduler progress.
 	 */
 	updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult>;
-	/** Deletes an automation and its retained run history; missing IDs are ignored. */
-	deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void>;
+	/** Deletes an automation and, by default, its retained history. Explicit history options require provider support; missing IDs are ignored. */
+	deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard, options?: IDeleteAutomationOptions): Promise<void>;
+	/** Whether this provider supports an explicit keep/delete history policy. */
+	supportsDeleteHistoryChoice?(id: string): boolean;
+	/** Includes removed definitions whose run history is retained. */
+	getAutomationHistoryName?(id: string): string | undefined;
+	/** State of a removed definition's retained history. */
+	getAutomationHistoryState?(id: string): AutomationHistoryState | undefined;
+	/** Permanently deletes retained history or retries an interrupted deletion. */
+	deleteAutomationHistory?(id: string): Promise<void>;
+	canDeleteAutomationHistory?(id: string): boolean;
 	/**
 	 * Lists the customizations an automation targeting `target` can sync, including
 	 * those saved in automation `existingId`. Resolves `undefined` when the provider

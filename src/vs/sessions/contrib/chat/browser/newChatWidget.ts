@@ -5,16 +5,14 @@
 
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Action, toAction } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isErrorWithActions, toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedObservableWithCache, disposableObservableValue, IObservable, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedObservableWithCache, disposableObservableValue, IObservable, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -25,7 +23,6 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -38,25 +35,28 @@ import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService, W
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
-import { AGENTIC_SIGN_IN_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../../common/sessionCommands.js';
-import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
+import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
+import { getNoWorkspaceDescription, getQuickChatProviderLabel, getRemoteQuickChatSelectedLabel } from './noWorkspaceChoice.js';
+import { shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
+import { AGENTIC_SIGN_IN_COMMAND_ID, FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { isAgentHostEnvironmentAvailable, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { NewSessionCreationProviderIdContext } from '../../../common/contextkeys.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
 import { IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
+import { getStoredSessionOptionsExpanded, SessionOptionsRow, storeSessionOptionsExpanded } from './sessionOptionsRow.js';
+import { IconOnlySessionPickers } from './iconOnlySessionPickers.js';
 import { IPickedSessionType, IPreferredSessionType } from './sessionTypePicker.js';
-import { getLabeledPickerResponsiveItems, NEW_SESSION_PROMPT_PLACEHOLDER } from './newChatComposerInput.js';
+import { NEW_SESSION_PROMPT_PLACEHOLDER } from './newChatComposerInput.js';
 import { SharedChatInputComposer } from './sharedChatInputComposer.js';
-import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from './sessionEnvironmentPicker.js';
-import { ChatInputPickerResponsiveLayout } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
+import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, getRemoteSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from './sessionEnvironmentPicker.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { WorkspaceSelectionOrigin } from '../../../common/workspaceSelection.js';
-import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
+import { ISessionPickerFocusOptions, ISessionPickerVisibility, noSessionPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { buildNewSessionPrompt } from '../../agentFeedback/browser/agentFeedbackAttachmentEntry.js';
 import { SessionInputBannerWidget } from '../../sessionInputBanners/browser/sessionInputBannerWidget.js';
@@ -64,6 +64,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ChatInputTipPresenter } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputTipPresenter.js';
 import { chatInputStackClass, chatInputStackSlotClass, chatInputSurfaceStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
+import type { IChatPetPlatformOccupation } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
 import { IChatTipService } from '../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -76,7 +77,7 @@ import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/age
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
 import { getNewSessionWelcomePhrases, INewSessionWelcomeMessagesConfiguration } from '../common/welcomePhrases.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { getSessionComparisonWorkspaceError, ISessionComparisonHarness, ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
@@ -86,8 +87,9 @@ import { isAutoModel, isHydraFusionModel } from '../../../../workbench/contrib/c
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { NewChatMigrationNotice } from './newChatMigrationNotice.js';
+import { WorktreeSuggestionController } from '../../worktreeSuggestion/browser/worktreeSuggestionController.js';
 import { NewChatConnectorRecommendations } from './newChatConnectorRecommendations.js';
-import { FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
+import { FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN, FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -99,10 +101,12 @@ import { filterConfigurationToSchema } from '../../../../workbench/contrib/chat/
 
 /** Minimum number of started sessions required before showing tips and promotions. */
 const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
-/** Persists whether the user explicitly chose to expand the new-session options tray. */
-const SESSION_OPTIONS_EXPANDED_STORAGE_KEY = 'agentSessions.newSession.sessionOptionsExpanded2';
+
+export function shouldShowNewSessionChatTip(hasAgentHost: boolean, hasEnoughSessions: boolean, foregroundSessionCount: number | undefined): boolean {
+	return hasAgentHost && hasEnoughSessions && foregroundSessionCount === 1;
+}
+
 const WELCOME_PHRASE_INDEX_STORAGE_KEY = 'agentSessions.newSession.welcomePhraseIndex';
-let sessionOptionsIdPool = 0;
 const githubProfileNames = new Map<string, Promise<string | undefined>>();
 
 function getComparisonSelectedWorkspaceFolder(selectedWorkspace: ISessionWorkspace | undefined, selectedFolderUri: URI | undefined): ISessionWorkspace['folders'][number] | undefined {
@@ -119,30 +123,16 @@ function getComparisonSessionFolder(session: ISession | undefined, selectedFolde
 	return session?.workspace.get()?.folders.find(folder => isEqual(folder.root, selectedFolderUri));
 }
 
-function getComparisonHasGitRemote(session: ISession | undefined, selectedWorkspace: ISessionWorkspace | undefined, selectedFolderUri: URI | undefined): boolean | undefined {
-	const selectedWorkspaceHasGitRemote = getComparisonSelectedWorkspaceFolder(selectedWorkspace, selectedFolderUri)?.gitRepository?.hasGitRemote;
-	if (selectedWorkspaceHasGitRemote !== undefined) {
-		return selectedWorkspaceHasGitRemote;
-	}
-	return getComparisonSessionFolder(session, selectedFolderUri)?.gitRepository?.hasGitRemote;
-}
-
-export function isExperimentalSessionComposerLayoutEnabled(configurationService: IConfigurationService): boolean {
-	return configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)
-		&& configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING);
-}
-
 export function areNewSessionWelcomePhrasesEnabled(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue<boolean>(NEW_SESSION_WELCOME_PHRASES_SETTING);
 }
 
 export function isSessionWorkspaceOptOutEnabled(configurationService: IConfigurationService): boolean {
-	return isExperimentalSessionComposerLayoutEnabled(configurationService)
-		&& configurationService.getValue<boolean>(WORKSPACE_OPT_OUT_SETTING) === true;
+	return configurationService.getValue<boolean>(WORKSPACE_OPT_OUT_SETTING) === true;
 }
 
 export function isSessionEnvironmentPickerEnabled(configurationService: IConfigurationService): boolean {
-	return !isWeb && isExperimentalSessionComposerLayoutEnabled(configurationService)
+	return !isWeb
 		&& configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING) === true;
 }
 
@@ -151,13 +141,16 @@ export class NewChatWidget extends Disposable {
 	private readonly _usage: AgentsWindowUsage;
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _newChatInput: SharedChatInputComposer;
+	private readonly _preserveCustomView: boolean;
 	private readonly _pickedEnvironment = observableValue<ISessionCreationEnvironment | undefined>(this, undefined);
+	private readonly _environmentWorkspaces = new Map<string, URI>();
 	private readonly _environmentWorkspaceChanged = observableSignal(this);
 	private readonly _environment: IObservable<ISessionCreationEnvironment | undefined>;
 	private readonly _environments: IObservable<readonly ISessionCreationEnvironment[]>;
 	private readonly _environmentPicker: SessionEnvironmentPicker;
 	private _changingEnvironment = false;
 	private readonly _chatTipPresenter = this._register(new MutableDisposable<ChatInputTipPresenter>());
+	private _worktreeSuggestion: WorktreeSuggestionController | undefined;
 	private _isChatTipSessionInitialized = false;
 	private _aquariumToggle: IMountedToggleHandle | undefined;
 
@@ -181,21 +174,22 @@ export class NewChatWidget extends Disposable {
 	private _workspaceRepositoryControlsHost: HTMLElement | undefined;
 	private _workspaceSessionOptionsHost: HTMLElement | undefined;
 	private readonly _sessionOptionsExpanded = observableValue(this, true);
+	private readonly _iconOnlyPickers: IconOnlySessionPickers;
 	private _quickChatHeaderPickerHost: HTMLElement | undefined;
+	private _welcomeMessageTitle: HTMLElement | undefined;
+	private _welcomePetPlatform: HTMLElement | undefined;
+	private readonly _onDidChangeChatPetPlatform = this._register(new Emitter<void>());
 
 	private readonly _session: IObservable<IActiveSession | undefined>;
 
 	/** Whether the active draft is a workspace-less quick chat. */
 	private readonly _isQuickChatComposer: IObservable<boolean>;
 	private readonly _isWorkspacePickerQuickChat: IObservable<boolean>;
-	private readonly _workspaceOptOutTarget: IObservable<IPreferredSessionType | undefined>;
+	private readonly _workspaceOptOutTarget: IObservable<ICreateNewSessionOptions | undefined>;
 	private readonly _workspaceOptOutEnabled: IObservable<boolean>;
-	private readonly _useConsolidatedRemoteWorkspaces: IObservable<boolean>;
 	private readonly _compareAgentsEnabled: IObservable<boolean>;
-	private readonly _useExperimentalComposerLayout: IObservable<boolean>;
 	private readonly _screenReaderOptimized: IObservable<boolean>;
 	private readonly _collapsedSessionOptionsShowIcons: IObservable<boolean>;
-	private readonly _environmentPickerBeforeWorkspace: IObservable<boolean>;
 	private readonly _showWelcomePhrases: IObservable<boolean>;
 
 	/** Draft comments shared by every uncreated new-session composer. */
@@ -253,6 +247,7 @@ export class NewChatWidget extends Disposable {
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
+		this._preserveCustomView = options.preserveCustomView === true;
 		this._welcomePhraseIndex = NewChatWidget._takeNextWelcomePhraseIndex(storageService);
 		this._usage = new AgentsWindowUsage(storageService);
 		this._register(this._pendingPreferredUpgrade);
@@ -276,37 +271,21 @@ export class NewChatWidget extends Disposable {
 			const session = this._session.read(reader);
 			return session?.isQuickChat?.read(reader) ?? false;
 		});
-		this._useConsolidatedRemoteWorkspaces = observableFromEvent(
-			this,
-			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)),
-			() => this.configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING),
-		);
 		this._compareAgentsEnabled = observableFromEvent(
 			this,
 			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(COMPARE_AGENTS_ENABLED_SETTING)),
 			() => this.configurationService.getValue<boolean>(COMPARE_AGENTS_ENABLED_SETTING),
 		);
-		this._useExperimentalComposerLayout = observableFromEvent(
-			this,
-			Event.filter(this.configurationService.onDidChangeConfiguration, event =>
-				event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)
-				|| event.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)),
-			() => isExperimentalSessionComposerLayoutEnabled(this.configurationService),
-		);
 		this._workspaceOptOutEnabled = observableFromEvent(
 			this,
 			Event.filter(this.configurationService.onDidChangeConfiguration, event =>
-				event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)
-				|| event.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)
-				|| event.affectsConfiguration(WORKSPACE_OPT_OUT_SETTING)),
+				event.affectsConfiguration(WORKSPACE_OPT_OUT_SETTING)),
 			() => isSessionWorkspaceOptOutEnabled(this.configurationService),
 		);
 		const environmentPickerEnabled = observableFromEvent(
 			this,
 			Event.filter(this.configurationService.onDidChangeConfiguration, event =>
-				event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)
-				|| event.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)
-				|| event.affectsConfiguration(ENVIRONMENT_PICKER_SETTING)),
+				event.affectsConfiguration(ENVIRONMENT_PICKER_SETTING)),
 			() => isSessionEnvironmentPickerEnabled(this.configurationService),
 		);
 		this._screenReaderOptimized = observableFromEvent(
@@ -314,16 +293,12 @@ export class NewChatWidget extends Disposable {
 			this.accessibilityService.onDidChangeScreenReaderOptimized,
 			() => this.accessibilityService.isScreenReaderOptimized(),
 		);
-		this._environmentPickerBeforeWorkspace = observableFromEvent(
-			this,
-			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING)),
-			() => this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING) === true,
-		);
 		this._collapsedSessionOptionsShowIcons = observableFromEvent(
 			this,
 			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING)),
 			() => this.configurationService.getValue<boolean>(COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING),
 		);
+		this._iconOnlyPickers = this._register(this.instantiationService.createInstance(IconOnlySessionPickers, element => this._newChatInput.getRepositoryControlId(element)));
 		this._showWelcomePhrases = observableFromEvent(
 			this,
 			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(NEW_SESSION_WELCOME_PHRASES_SETTING)),
@@ -331,7 +306,7 @@ export class NewChatWidget extends Disposable {
 		);
 		this._isWorkspacePickerQuickChat = derived(this, reader => {
 			const session = this._session.read(reader);
-			return this._useConsolidatedRemoteWorkspaces.read(reader) && !!session?.isQuickChat?.read(reader);
+			return !!session?.isQuickChat?.read(reader);
 		});
 		const providersChanged = observableSignalFromEvent(this, this.sessionsProvidersService.onDidChangeProviders);
 		const sessionTypesChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessionTypes);
@@ -355,7 +330,7 @@ export class NewChatWidget extends Disposable {
 			const sourceProvider = source?.kind !== 'cloud' && source && folderUri && getEnvironmentWorkspaceProvider(source, providers, folderUri);
 			if (source && folderUri && sourceProvider && this._workspacePicker.getDevContainerWorkspaceAvailability(folderUri, sourceProvider.id) === true) {
 				environments.push({ id: `container:${source.id}`, kind: 'container', label: localize('environmentPicker.container', "Dev Container"), icon: Codicon.remote, providerIds: source.providerIds });
-			} else if (picked?.kind === 'container') {
+			} else if (picked?.kind === 'container' && environments.some(environment => environment.providerIds.some(id => picked.providerIds.includes(id)))) {
 				environments.push(picked);
 			}
 			return environments;
@@ -371,34 +346,19 @@ export class NewChatWidget extends Disposable {
 			const containerRequested = provider && isAgentHostProvider(provider) && provider.isDevContainerRequested?.(session.sessionId);
 			this._environmentWorkspaceChanged.read(reader);
 			const providerId = this._workspacePicker?.selectedResolved?.providerId ?? session?.providerId;
+			const selectedProvider = providerId ? this.sessionsProvidersService.getProvider(providerId) : undefined;
 			const selected = picked
 				? environments.find(environment => environment.id === picked.id) ?? picked
-				: getDefaultSessionCreationEnvironment(environments, this._workspacePicker?.selectedFolderUri, providerId, !!containerRequested);
+				: getDefaultSessionCreationEnvironment(environments, this._workspacePicker?.selectedFolderUri, providerId, !!containerRequested, selectedProvider);
 			return selected && previous?.id === selected.id && previous.label === selected.label
 				&& previous.providerIds.length === selected.providerIds.length && previous.providerIds.every((id, index) => id === selected.providerIds[index])
 				? previous : selected;
 		});
 		this._workspaceOptOutTarget = derived(this, reader => {
 			sessionTypesChanged.read(reader);
-			const environment = this._environment.read(reader);
-			const session = this._session.read(reader);
-			if (!session || environment?.kind === 'cloud' || environment?.kind === 'container') {
-				return undefined;
-			}
-			const target = { providerId: session.providerId, sessionTypeId: session.sessionType };
-			return this.sessionsManagementService.isQuickChatTargetAvailable(target) ? target : undefined;
+			return this._getWorkspaceOptOutTarget(this._environment.read(reader), this._session.read(reader));
 		});
-		const recentWorkspacesChanged = observableSignalFromEvent(this, this.recentWorkspacesService.onDidChangeRecentWorkspaces);
-		const availableEnvironments = derived(this, reader => {
-			const environments = this._environments.read(reader);
-			this._environmentWorkspaceChanged.read(reader);
-			recentWorkspacesChanged.read(reader);
-			if (this._environmentPickerBeforeWorkspace.read(reader) || !this._workspacePicker?.selectedFolderUri) {
-				return environments;
-			}
-			return environments.filter(environment => this._workspacePicker.getEnvironmentWorkspace(environment, reader));
-		});
-		this._environmentPicker = this._register(this.instantiationService.createInstance(SessionEnvironmentPicker, availableEnvironments, this._environment, environment => this._selectEnvironment(environment), environment => this._workspacePicker.getEnvironmentActions(environment)));
+		this._environmentPicker = this._register(this.instantiationService.createInstance(SessionEnvironmentPicker, this._environments, this._environment, environment => this._selectEnvironment(environment), environment => this._workspacePicker.getEnvironmentActions(environment)));
 
 		// On web (vscode.dev / insiders.vscode.dev), use {@link WebWorkspacePicker}
 		// which scopes recents to the active host and renders as a bottom
@@ -406,7 +366,8 @@ export class NewChatWidget extends Disposable {
 		// {@link WorkspacePicker} is fine — phones never run there.
 		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {
-			environment: derived(this, reader => this._environmentPickerBeforeWorkspace.read(reader) ? this._environment.read(reader) : undefined),
+			environment: this._environment,
+			environmentPickerEnabled,
 			canRestoreWorkspace: () => !this._isQuickChatComposer.get() || this._newChatInput?.canApplyWorkspaceDefault === true,
 			onUserSelection: () => newSessionComposerService.notifyUserWorkspaceSelection(),
 			whenSelectionAccepted: async () => {
@@ -416,7 +377,6 @@ export class NewChatWidget extends Disposable {
 			getWorkspaceGroupAction: group => {
 				if (group === SESSION_WORKSPACE_GROUP_GITHUB && shouldShowGitHubWorkspaceGroupSignIn(
 					this.defaultAccountService.currentDefaultAccount !== null,
-					isAllowSignedOutWhenUsableEnabled(this.configurationService),
 				)) {
 					return {
 						label: localize('workspacePicker.signInGitHub', "Sign in to GitHub"),
@@ -497,21 +457,7 @@ export class NewChatWidget extends Disposable {
 				if (!environment.providerIds.includes(session.providerId)) {
 					return false;
 				}
-				const provider = this.sessionsProvidersService.getProvider(session.providerId);
-				if (!provider || isAgentHostProvider(provider) && (provider.isVisibleInEnvironmentPicker?.read(reader) === false
-					|| provider.connectionStatus && !RemoteAgentHostConnectionStatus.isConnected(provider.connectionStatus.read(reader)))) {
-					return false;
-				}
-				const folderUri = this._workspacePicker.selectedFolderUri;
-				if (folderUri) {
-					if (!session.workspace.read(reader)?.folders.some(folder => isEqual(folder.root, folderUri))
-						|| !getEnvironmentWorkspaceProvider(environment, this.sessionsProvidersService.getProviders(), folderUri)) {
-						return false;
-					}
-					if (environment.kind === 'container' && this._workspacePicker.getDevContainerWorkspaceAvailability(folderUri, session.providerId) !== true) {
-						return false;
-					}
-				} else if (environment.kind === 'cloud' || environment.kind === 'container' || !session.isQuickChat?.read(reader)) {
+				if (!this._canSendRequestToWorkspace(session, environment, reader)) {
 					return false;
 				}
 			}
@@ -551,6 +497,7 @@ export class NewChatWidget extends Disposable {
 			onDidChangeWorkspaceSelection: Event.any(this._workspacePicker.onDidChangeSelection, Event.fromObservableLight(this._isQuickChatComposer)),
 			canApplyWorkspaceDefault: () => this._canApplyWorkspaceDefault(),
 			sendRequest: async ({ query, attachments, background, userInteraction }) => this._send(query, attachments, background, userInteraction),
+			confirmSend: async query => this._comparisonSelection.enabled.get() || !this._worktreeSuggestion || this._worktreeSuggestion.confirmBeforeSend(query),
 			modelPickerComparison: this._comparisonSelection,
 			sendButtonLabel: derived(this, reader => this._comparisonSelection.enabled.read(reader)
 				? localize('comparisonPicker.runAttempts', "Run {0} Attempts", this._comparisonSelection.attemptModelIds.read(reader).length)
@@ -561,13 +508,20 @@ export class NewChatWidget extends Disposable {
 			canSubmitWithoutSession,
 			hasAdditionalSendContent: hasFeedback,
 			loading,
-			useExperimentalLayout: this._useExperimentalComposerLayout,
 			placeholder: NEW_SESSION_PROMPT_PLACEHOLDER,
+			onboardingTargetId: 'sessions.newSession.input',
 			supportsBackground: true,
 			deferredNotificationsEnabled,
 			petHostPreferred: this.options.petHostPreferred,
-			getChatPetPlatformElements: () => this._workspacePicker.getChatPetPlatformElements(),
-			onDidChangeChatPetPlatform: this._workspacePicker.onDidChangeChatPetPlatform,
+			renderChatPet: this.options.renderChatPet,
+			getChatPetPlatformElements: () => [
+				...(this._welcomeMessageTitle ? [this._welcomeMessageTitle] : []),
+				...this._workspacePicker.getChatPetPlatformElements(),
+			],
+			getChatPetBasePlatformElement: () => this._workspacePickerRow?.classList.contains('new-chat-session-options') ? this._workspacePickerRow : undefined,
+			getChatPetJumpGameElement: () => this._welcomeMessageTitle,
+			onDidChangeChatPetPlatform: Event.any(this._workspacePicker.onDidChangeChatPetPlatform, this._onDidChangeChatPetPlatform.event),
+			setChatPetPlatformOccupation: occupation => this._setChatPetPlatformOccupation(occupation),
 			sessionTypePickerOptions: {
 				providerId: creationProviderId,
 				allowedProviders: derived(this, reader => {
@@ -580,7 +534,7 @@ export class NewChatWidget extends Disposable {
 					id: FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID,
 					label: localize('newSessionHarnessPicker.tooltip', "Choose the harness for the new session"),
 					when: FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN,
-					enabled: this._useConsolidatedRemoteWorkspaces,
+					enabled: constObservable(true),
 				},
 			},
 		});
@@ -646,9 +600,8 @@ export class NewChatWidget extends Disposable {
 		this._register(this._workspacePicker.onDidSelectWorkspace(folderUri => this._handleWorkspaceSelection(folderUri)));
 		this._register(this._workspacePicker.onDidSelectWorkspaceMode(({ folderUri, preferDevContainer }) => {
 			const environment = this._environment.get();
-			const environmentFirst = this._environmentPickerBeforeWorkspace.get();
-			this._preferredDevContainerFolderUri = preferDevContainer || environmentFirst && environment?.kind === 'container' ? folderUri : undefined;
-			if (environmentFirst && preferDevContainer && environment && environment.kind !== 'container') {
+			this._preferredDevContainerFolderUri = preferDevContainer || environment?.kind === 'container' ? folderUri : undefined;
+			if (preferDevContainer && environment && environment.kind !== 'container') {
 				this._pickedEnvironment.set({ ...environment, id: `container:${environment.id}`, kind: 'container', label: localize('environmentPicker.container', "Dev Container"), icon: Codicon.remote }, undefined);
 			}
 		}));
@@ -785,6 +738,8 @@ export class NewChatWidget extends Disposable {
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
 		const welcomeMessage = dom.append(chatWidgetContent, dom.$('.new-session-welcome-message'));
 		const welcomeMessageTitle = dom.append(welcomeMessage, dom.$('h2.new-session-welcome-message-title'));
+		this._welcomeMessageTitle = welcomeMessageTitle;
+		this._welcomePetPlatform = dom.append(welcomeMessage, dom.$('span.new-session-welcome-pet-platform', { 'aria-hidden': 'true' }));
 		const welcomeMessageActions = dom.append(welcomeMessage, dom.$('.new-session-welcome-message-actions'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, welcomeMessageActions, Menus.NewSessionWelcome, {
 			ariaLabel: localize('newSession.welcome.actions', "Welcome message actions"),
@@ -834,6 +789,7 @@ export class NewChatWidget extends Disposable {
 				this._welcomePhraseIndex,
 			);
 			chatWidgetContent.classList.toggle('welcome-phrases-visible', !!phrase);
+			this._onDidChangeChatPetPlatform.fire();
 			this._announceWelcomeMessage(phrase, inputVisible);
 		}));
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => void this._refreshGitHubProfileName()));
@@ -891,12 +847,11 @@ export class NewChatWidget extends Disposable {
 		this._renderFeedbackBanner(chatWidgetContent);
 		this._newChatInput.render(chatWidgetContent, parent);
 		this._register(autorun(reader => {
-			const useExperimentalLayout = this._useExperimentalComposerLayout.read(reader);
 			const isQuickChat = this._isQuickChatComposer.read(reader);
 			const isWorkspacePickerQuickChat = this._isWorkspacePickerQuickChat.read(reader);
-			chatWidgetContent.classList.toggle('experimental-new-session-composer', useExperimentalLayout);
+			chatWidgetContent.classList.add('experimental-new-session-composer');
 			this._newChatInput.placeRepositoryControls(
-				useExperimentalLayout && (!isQuickChat || isWorkspacePickerQuickChat)
+				!isQuickChat || isWorkspacePickerQuickChat
 					? this._workspaceRepositoryControlsHost
 					: undefined
 			);
@@ -923,44 +878,33 @@ export class NewChatWidget extends Disposable {
 			onDidChangeInputValue: this._newChatInput.onDidChangeInput,
 		}, undefined));
 
-		// In the experimental composer the getting-started tip is demoted to a standalone
-		// notice below the input (like the migration notice) so it never sits between the
-		// option pickers and the field. Otherwise it uses the input's canonical notice slot
-		// directly above the input. The tip container is reparented reactively so toggling the
-		// experimental layout (which requires the unified workspace picker) moves the tip without
-		// recreating the presenter.
-		const inputTipSlot = this._newChatInput.gettingStartedTipContainerElement;
-		const chatTipContainer = dom.$(`.new-session-getting-started-tip.chat-getting-started-tip-container.${chatInputStackSlotClass}`);
-		this._register(autorun(reader => {
-			const showBelowInput = this._useExperimentalComposerLayout.read(reader);
-			chatTipContainer.classList.toggle('new-session-getting-started-tip-below', showBelowInput);
-			if (showBelowInput) {
-				belowInputSurfaces.prepend(chatTipContainer);
-			} else {
-				inputTipSlot?.appendChild(chatTipContainer);
-			}
-		}));
+		const chatTipContainer = dom.$(`.new-session-getting-started-tip.new-session-getting-started-tip-below.chat-getting-started-tip-container.${chatInputStackSlotClass}`);
+		belowInputSurfaces.prepend(chatTipContainer);
 		this._register(this.instantiationService.createInstance(NewChatMigrationNotice, belowInputSurfaces, this._session, () => this.focusInput()));
+		this._worktreeSuggestion = this._register(this.instantiationService.createInstance(WorktreeSuggestionController, belowInputSurfaces, {
+			session: this._session,
+			pickerVisibility: this._newChatInput.pickerVisibility,
+			visible: derived(this, reader => (this.options.hostVisible?.read(reader) ?? true) && (this.options.inputVisible?.read(reader) ?? true)),
+			getInputValue: () => this._newChatInput.getInputValue(),
+			onDidChangeInput: this._newChatInput.onDidChangeInput,
+			focusInput: () => this.focusInput(),
+			revealIsolationPicker: () => this._sessionOptionsExpanded.set(true, undefined),
+			openIsolationPicker: () => this.focusWorktreePicker({ focusValue: 'worktree' }),
+		}));
 		this._chatTipPresenter.value = this.instantiationService.createInstance(
 			ChatInputTipPresenter,
 			{
 				container: chatTipContainer,
 				// Reset tip rotation the first time this composer becomes the only
 				// foreground surface, so a returning user gets a fresh tip.
-				onBeforeUpdate: () => {
-					if (this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) !== 0) {
-						this._isChatTipSessionInitialized = false;
-					} else if (!this._isChatTipSessionInitialized) {
-						this._isChatTipSessionInitialized = true;
-						this.chatTipService.resetSession();
-					}
-				},
-				// No tip in the no-agent-host empty state: there is no usable composer.
-				// Tips also stay away until the user has actually started a couple of
-				// sessions, so a first-run composer is not busy.
-				isEligible: () => !chatWidgetContent.classList.contains('no-agent-host')
-					&& this._hasEnoughSessionsForFirstRunNotices()
-					&& this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) === 0,
+				onBeforeUpdate: () => this._prepareChatTipSession(),
+				// The composer owns one foreground chat widget itself. Another foreground
+				// widget raises the count above one and suppresses the tip.
+				isEligible: () => shouldShowNewSessionChatTip(
+					!chatWidgetContent.classList.contains('no-agent-host'),
+					this._hasEnoughSessionsForFirstRunNotices(),
+					this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key),
+				),
 				focusInput: () => this.focusInput(),
 			},
 			this._newChatInput.noticeHost,
@@ -1161,6 +1105,31 @@ export class NewChatWidget extends Disposable {
 		return phrase;
 	}
 
+	private _setChatPetPlatformOccupation(occupation: IChatPetPlatformOccupation | undefined): void {
+		const title = this._welcomeMessageTitle;
+		if (!title) {
+			return;
+		}
+		const bounds = title.getBoundingClientRect();
+		const platform = this._welcomePetPlatform;
+		const occupied = !!occupation
+			&& !!platform
+			&& bounds.width > 0
+			&& bounds.height > 0
+			&& occupation.centerX >= bounds.left
+			&& occupation.centerX <= bounds.right
+			&& Math.abs(occupation.top - bounds.top) < 1;
+		title.classList.toggle('chat-pet-platform-occupied', occupied);
+		if (occupied && platform) {
+			const platformParentBounds = platform.parentElement?.getBoundingClientRect() ?? bounds;
+			platform.style.left = `${occupation.centerX - platformParentBounds.left}px`;
+			platform.style.width = `${occupation.width}px`;
+		} else {
+			platform?.style.removeProperty('left');
+			platform?.style.removeProperty('width');
+		}
+	}
+
 	private _announceWelcomeMessage(phrase: string | undefined, inputVisible: boolean): void {
 		if (
 			!phrase
@@ -1187,6 +1156,15 @@ export class NewChatWidget extends Disposable {
 
 	private _clearChatTip(): void {
 		this._chatTipPresenter.value?.clear();
+	}
+
+	private _prepareChatTipSession(): void {
+		if (this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) !== 1) {
+			this._isChatTipSessionInitialized = false;
+		} else if (!this._isChatTipSessionInitialized) {
+			this._isChatTipSessionInitialized = true;
+			this.chatTipService.resetSession();
+		}
 	}
 
 	private _hasEnoughSessionsForFirstRunNotices(): boolean {
@@ -1216,7 +1194,7 @@ export class NewChatWidget extends Disposable {
 		if (this._environment.get() && this._pickedEnvironment.get() && !this._workspacePicker.isNoWorkspaceSelected()) {
 			return;
 		}
-		if (this._environment.get()?.kind === 'cloud' || this._environment.get()?.kind === 'container') {
+		if (this._environment.get()?.kind === 'container') {
 			return;
 		}
 		const cancellation = new CancellationTokenSource();
@@ -1232,12 +1210,14 @@ export class NewChatWidget extends Disposable {
 				|| this._newSessionCreation.value || this._workspacePicker.selectedFolderUri) {
 				return;
 			}
-			if (this.sessionsManagementService.isQuickChatTargetAvailable()) {
+			const environment = this._environment.get();
+			const target = environment ? this._workspaceOptOutTarget.get() : undefined;
+			if (environment ? !!target : this.sessionsManagementService.isQuickChatTargetAvailable()) {
 				if (this._workspacePicker.isNoWorkspaceSelected()) {
-					this.selectNoWorkspace();
+					this.selectNoWorkspace(target);
 				} else {
 					// An automatic fallback must not persist a user choice or supersede a window-open workspace.
-					this._createdSessionId = this.sessionsService.openQuickChat(undefined, true)?.sessionId;
+					this._createdSessionId = this.sessionsService.openQuickChat(target, true)?.sessionId;
 				}
 			}
 		} catch (error) {
@@ -1419,6 +1399,7 @@ export class NewChatWidget extends Disposable {
 			return await this.sessionsService.openNewSession({
 				folderUri,
 				preserveNavigation: true,
+				...(this._preserveCustomView ? { preserveCustomView: true } : {}),
 				...(environment?.kind === 'container' ? { requireDevContainer: true } : undefined),
 				...(preferredPick
 					? { providerId: preferredPick.providerId, sessionTypeId: preferredPick.sessionTypeId }
@@ -1473,46 +1454,82 @@ export class NewChatWidget extends Disposable {
 		this._pendingPreferredUpgrade.clear();
 		this._newSessionCreation.clear();
 		this._workspacePicker.selectNoWorkspace(selectionOptions?.userSelection !== false);
-		return this._openQuickChat(options, selectionOptions?.preserveNavigation);
+		const environment = this._environment.get();
+		const session = environment?.kind === 'cloud' || environment?.kind === 'container'
+			? this.sessionsService.openQuickChat(options ?? this._workspaceOptOutTarget.get(), this._preserveCustomView ? true : selectionOptions?.preserveNavigation)
+			: this._openQuickChat(options, selectionOptions?.preserveNavigation);
+		if (session && environment && (environment.kind === 'container' || !environment.providerIds.includes(session.providerId))) {
+			this._reconcileWorkspaceEnvironment({ providerId: session.providerId });
+		}
+		return session;
 	}
 
 	private _openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession | undefined {
-		return this.sessionsService.openQuickChat(options, preserveNavigation);
+		const environment = this._environment.get();
+		if (!options && environment) {
+			options = this._workspaceOptOutTarget.get();
+			if (!options) {
+				this.logService.trace(`Waiting for a compatible quick-chat harness in environment '${environment.id}' (providers: ${environment.providerIds.join(', ')}).`);
+				return undefined;
+			}
+		}
+		return this.sessionsService.openQuickChat(options, this._preserveCustomView ? true : preserveNavigation);
+	}
+
+	private _getWorkspaceOptOutTarget(environment: ISessionCreationEnvironment | undefined, session: ISession | undefined): ICreateNewSessionOptions | undefined {
+		if (environment?.kind === 'container') {
+			return undefined;
+		}
+		if (!environment || (session && environment.providerIds.includes(session.providerId))) {
+			const target = session && { providerId: session.providerId, sessionTypeId: session.sessionType };
+			if (target && this.sessionsManagementService.isQuickChatTargetAvailable(target)) {
+				return target;
+			}
+			if (!environment) {
+				return undefined;
+			}
+			const providerTarget = session && { providerId: session.providerId };
+			if (providerTarget && this.sessionsManagementService.isQuickChatTargetAvailable(providerTarget)) {
+				return providerTarget;
+			}
+		}
+		const targets = this.sessionsManagementService.getQuickChatSessionTypes().filter(target => environment.providerIds.includes(target.providerId));
+		const preferred = session && targets.find(target => target.sessionType.id === session.sessionType);
+		return preferred ? { providerId: preferred.providerId, sessionTypeId: preferred.sessionType.id }
+			: targets[0] && { providerId: targets[0].providerId };
 	}
 
 	private _getNoWorkspaceOption(): IWorkspacePickerNoWorkspaceOption | undefined {
 		const isWorkspacePickerQuickChat = this._isWorkspacePickerQuickChat.get();
 		const environment = this._environment.get();
-		if (environment?.kind === 'container' || environment?.kind === 'cloud') {
+		if (environment?.kind === 'container') {
 			return undefined;
 		}
-		if (isWeb
-			|| !this._useConsolidatedRemoteWorkspaces.get()) {
+		if (isWeb) {
 			return undefined;
 		}
 		const quickChatProviders = this.sessionsProvidersService.getProviders()
-			.filter(isAgentHostProvider)
 			.filter(provider => !environment || environment.providerIds.includes(provider.id))
-			.filter(provider => !provider.hostGroup && provider.supportsQuickChats);
-		const providers = quickChatProviders.filter(provider => provider.isVisibleInEnvironmentPicker?.get() !== false);
+			.filter(provider => isAgentHostProvider(provider) ? !provider.hostGroup : !!environment)
+			.filter(provider => provider.supportsQuickChats);
+		const isAvailable = (provider: ISessionsProvider) => provider.supportsQuickChats
+			&& (!isAgentHostProvider(provider) || provider.isVisibleInEnvironmentPicker?.get() !== false);
+		const providers = quickChatProviders.filter(isAvailable);
 		if (!isWorkspacePickerQuickChat
 			&& providers.length === 0
-			&& (quickChatProviders.length > 0 || !this.sessionsManagementService.isQuickChatTargetAvailable())) {
+			&& (environment || quickChatProviders.length > 0 || !this.sessionsManagementService.isQuickChatTargetAvailable())) {
 			return undefined;
 		}
 		const activeProviderId = isWorkspacePickerQuickChat ? this._session.get()?.providerId : undefined;
 		const activeProvider = activeProviderId ? quickChatProviders.find(provider => provider.id === activeProviderId) : undefined;
 		const submenuActions = providers.length > 1
 			? providers.map(provider => {
-				const label = provider.id === LOCAL_AGENT_HOST_PROVIDER_ID
-					? localize('newSessionWorkspacePicker.localQuickChat', "This Computer")
-					: provider.label;
 				const action = toAction({
 					id: `newSessionWorkspacePicker.quickChat.${provider.id}`,
-					label,
+					label: getQuickChatProviderLabel(provider),
 					checked: provider.id === activeProviderId,
 					run: () => {
-						if (provider.isVisibleInEnvironmentPicker?.get() !== false && provider.id !== activeProviderId) {
+						if (isAvailable(provider) && provider.id !== activeProviderId) {
 							this.selectNoWorkspace({ providerId: provider.id });
 						}
 					},
@@ -1521,15 +1538,15 @@ export class NewChatWidget extends Disposable {
 			})
 			: undefined;
 		return {
-			description: localize('newSessionWorkspacePicker.noWorkspaceDescription', "Start without a backing workspace"),
+			description: getNoWorkspaceDescription(),
 			isSelected: isWorkspacePickerQuickChat,
-			selectedLabel: activeProvider && activeProvider.id !== LOCAL_AGENT_HOST_PROVIDER_ID
-				? localize('newSessionWorkspacePicker.remoteQuickChat', "Chat [{0}]", activeProvider.label)
+			selectedLabel: activeProvider && activeProvider.id !== LOCAL_AGENT_HOST_PROVIDER_ID && !environment?.providerIds.includes(activeProvider.id)
+				? getRemoteQuickChatSelectedLabel(activeProvider)
 				: undefined,
 			select: () => {
 				if (!isWorkspacePickerQuickChat) {
 					const provider = providers.length === 1 ? providers[0] : undefined;
-					if (provider?.isVisibleInEnvironmentPicker?.get() !== false) {
+					if (!provider || isAvailable(provider)) {
 						this.selectNoWorkspace(provider ? { providerId: provider.id } : undefined);
 					}
 				}
@@ -1543,8 +1560,7 @@ export class NewChatWidget extends Disposable {
 		const selectionChanged = observableSignalFromEvent(this, this._workspacePicker.onDidChangeSelection);
 		const canOptOut = derived(this, reader => {
 			selectionChanged.read(reader);
-			return this._useExperimentalComposerLayout.read(reader)
-				&& !!this._workspaceOptOutTarget.read(reader)
+			return !!this._workspaceOptOutTarget.read(reader)
 				&& !!this._workspacePicker.selectedFolderUri;
 		});
 		const selectsRepository = isWeb && !!this.agentHostFilterService.selectedHost?.sessionCreationProviderId;
@@ -1555,7 +1571,7 @@ export class NewChatWidget extends Disposable {
 			focusCommand: {
 				id: FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID,
 				when: FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN,
-				enabled: this._useConsolidatedRemoteWorkspaces,
+				enabled: constObservable(true),
 			},
 			icon: selectsRepository ? Codicon.repo : Codicon.project,
 			reflectsWorkspace: true,
@@ -1564,130 +1580,55 @@ export class NewChatWidget extends Disposable {
 		};
 		const row = this._workspacePicker.renderCategoryTriggers(container, [
 			workspaceTrigger,
-		]);
+		], undefined, this._newChatInput.pickerHoverDelegate);
 		store.add(autorun(reader => {
 			if (canOptOut.read(reader)) {
 				logSettingExperimentTrigger(this.telemetryService, WORKSPACE_OPT_OUT_SETTING);
 			}
 		}));
-		const sessionOptions = dom.append(row, dom.$('.new-chat-session-options-details'));
-		sessionOptions.id = `new-chat-session-options-${++sessionOptionsIdPool}`;
+		const sessionOptionsRow = store.add(new SessionOptionsRow(row, container, {
+			user: 'NewChatWidget.sessionOptions',
+			hoverDelegate: this._newChatInput.pickerHoverDelegate,
+			screenReaderOptimized: this._screenReaderOptimized,
+			expanded: this._sessionOptionsExpanded,
+			collapsedShowIcons: this._collapsedSessionOptionsShowIcons,
+			setExpanded: expanded => this._setSessionOptionsExpandedFromUser(expanded),
+			// The icons-vs-hidden setting only changes what a collapsed tray shows, so log the
+			// experiment trigger when the composer actually reaches that collapsed state — before
+			// the setting is read, so both arms count and users who never collapse don't dilute it.
+			onDidCollapse: () => logSettingExperimentTrigger(this.telemetryService, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING),
+			onDidChangeLayout: () => this._onDidChangeChatPetPlatform.fire(),
+			iconOnlyPickers: this._iconOnlyPickers,
+		}));
+		const sessionOptions = sessionOptionsRow.details;
 		const environmentPicker = store.add(new MutableDisposable<ReturnType<SessionEnvironmentPicker['render']>>());
-		const repositoryControlsHost = dom.append(sessionOptions, dom.$('.new-chat-repository-controls-host'));
+		const repositoryControlsHost = sessionOptionsRow.repositoryControlsHost;
 		this._workspacePickerRow = row;
 		this._workspaceRepositoryControlsHost = repositoryControlsHost;
 		this._workspaceSessionOptionsHost = sessionOptions;
 		this._renderSessionTypePicker(sessionOptions, false);
 		this._newChatInput.placeRepositoryControls(repositoryControlsHost);
-		const toggle = store.add(new Button(row, {
-			...defaultButtonStyles,
-			hoverDelegate: getDefaultHoverDelegate('mouse'),
-			buttonBackground: undefined,
-			buttonHoverBackground: undefined,
-			buttonForeground: undefined,
-			buttonBorder: undefined,
-		}));
-		toggle.element.classList.add('new-chat-session-options-toggle');
-		toggle.element.setAttribute('aria-controls', sessionOptions.id);
-		store.add(toggle.onDidClick(() => this._setSessionOptionsExpandedFromUser(!this._sessionOptionsExpanded.get())));
-		store.add(dom.addDisposableListener(row, dom.EventType.KEY_DOWN, event => {
-			if (!this._useExperimentalComposerLayout.get() || event.altKey || event.ctrlKey || event.metaKey || !['Tab', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
-				return;
-			}
-			const controls: HTMLElement[] = [];
-			const walker = row.ownerDocument.createTreeWalker(row, NodeFilter.SHOW_ELEMENT);
-			for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-				if (dom.isHTMLElement(node) && node.role === 'button'
-					&& node.getAttribute('aria-disabled') !== 'true'
-					&& !node.closest('[hidden], [inert], .disabled, .loading, .resolving')
-					&& node.checkVisibility()) {
-					controls.push(node);
-				}
-			}
-			const activeElement = dom.getActiveElement();
-			const index = controls.findIndex(control => control === activeElement);
-			if (index < 0) {
-				return;
-			}
-			const previous = event.key === 'ArrowLeft' || (event.key === 'Tab' && event.shiftKey);
-			const nextIndex = index + (previous ? -1 : 1);
-			if (event.key === 'Tab' && (nextIndex < 0 || nextIndex >= controls.length)) {
-				return;
-			}
-			dom.EventHelper.stop(event, true);
-			controls[(nextIndex + controls.length) % controls.length].focus();
-		}, true));
-		const responsiveLayout = store.add(new ChatInputPickerResponsiveLayout('NewChatWidget.sessionOptions', container, {
-			usePreferredWidth: true,
-			getItems: () => getLabeledPickerResponsiveItems(row).map(item =>
-				item.element && sessionOptions.contains(item.element) ? item : {
-					...item,
-					// Keep primary controls outside the options tray fully labeled.
-					setCompact: () => { },
-				}),
-		}));
 		store.add(autorun(reader => {
 			const environment = this._environment.read(reader);
-			const beforeWorkspace = this._environmentPickerBeforeWorkspace.read(reader);
 			if (environment) {
-				const target = beforeWorkspace ? row : sessionOptions;
-				environmentPicker.value ??= this._environmentPicker.render(target);
-				const element = environmentPicker.value.element;
-				if (element.parentElement !== target) {
-					const activeElement = dom.getActiveElement();
-					const hadFocus = element.contains(activeElement);
-					target.prepend(element);
-					if (hadFocus && dom.isHTMLElement(activeElement)) {
-						if (target === sessionOptions && sessionOptions.inert) {
-							toggle.focus();
-						} else {
-							activeElement.focus();
-						}
-					}
-				}
+				environmentPicker.value ??= this._environmentPicker.render(row, {
+					hoverDelegate: this._newChatInput.pickerHoverDelegate,
+					focusCommand: {
+						id: FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID,
+						when: FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN,
+						enabled: derived(this, reader => this._environment.read(reader) !== undefined),
+					},
+				});
 			} else {
 				environmentPicker.clear();
 			}
-			responsiveLayout.layout();
+			sessionOptionsRow.layout();
 		}));
 		store.add(autorun(reader => {
-			const useExperimentalLayout = this._useExperimentalComposerLayout.read(reader);
-			const screenReaderOptimized = this._screenReaderOptimized.read(reader);
-			// Screen reader users should never have the options collapsed out of the accessibility
-			// tree: keep the tray expanded and drop the disclosure toggle entirely.
-			const disclosureAvailable = useExperimentalLayout && !screenReaderOptimized;
-			const expanded = this._sessionOptionsExpanded.read(reader);
-			// The icons-vs-hidden setting only changes what a collapsed tray shows, so log the
-			// experiment trigger when the composer actually reaches that collapsed state — before
-			// reading the setting, so both arms count and users who never collapse don't dilute it.
-			const collapsed = disclosureAvailable && !expanded;
-			if (collapsed) {
-				logSettingExperimentTrigger(this.telemetryService, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING);
-			}
-			// When collapsed, keep the repository and harness pickers as an always-available icon
-			// rail (labels hidden) unless the user has opted to hide them entirely.
-			const iconRail = collapsed && this._collapsedSessionOptionsShowIcons.read(reader);
-			const showDetails = !disclosureAvailable || expanded || iconRail;
-			row.classList.toggle('new-chat-session-options', useExperimentalLayout);
-			sessionOptions.classList.toggle('legacy-session-options-details', !useExperimentalLayout);
-			sessionOptions.classList.toggle('collapsed-icon-rail', iconRail);
-			toggle.element.hidden = !disclosureAvailable;
-			if (!showDetails && sessionOptions.contains(dom.getActiveElement())) {
-				toggle.focus();
-			}
-			sessionOptions.inert = !showDetails;
-			sessionOptions.hidden = !showDetails;
-			toggle.icon = expanded ? Codicon.chevronLeftCompact : Codicon.chevronRightCompact;
-			toggle.element.setAttribute('aria-expanded', String(expanded));
-			const label = expanded
-				? localize('newSessionOptions.collapse', "Hide Session Options")
-				: localize('newSessionOptions.expand', "Show Session Options");
-			toggle.setAriaLabel(label);
-			toggle.setTitle(label);
-			// Re-measure so labels compact or restore for the new expanded/rail state.
-			responsiveLayout.layout();
+			const isVisible = this._environmentPicker.isVisible.read(reader);
+			this._newChatInput.pickerVisibility.setVisible('environment', isVisible);
 		}));
-		responsiveLayout.layout();
+		sessionOptionsRow.layout();
 		this._newChatInput.pickerVisibility.setVisible('workspace', true);
 		store.add(toDisposable(() => {
 			if (this._workspacePickerRow === row) {
@@ -1706,7 +1647,8 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private async _selectEnvironment(environment: ISessionCreationEnvironment): Promise<void> {
-		if (environment.id === this._environment.get()?.id) {
+		const previousEnvironment = this._environment.get();
+		if (environment.id === previousEnvironment?.id) {
 			return;
 		}
 		this._newChatInput.saveState();
@@ -1716,13 +1658,26 @@ export class NewChatWidget extends Disposable {
 		this.newSessionComposerService.notifyUserWorkspaceSelection();
 		const session = this._session.get();
 		const selectedFolderUri = this._workspacePicker.selectedFolderUri;
-		const workspace = selectedFolderUri && this._workspacePicker.getEnvironmentWorkspace(environment);
+		if (previousEnvironment) {
+			if (selectedFolderUri) {
+				this._environmentWorkspaces.set(previousEnvironment.id, selectedFolderUri);
+			} else {
+				this._environmentWorkspaces.delete(previousEnvironment.id);
+			}
+		}
+		const workspace = this._workspacePicker.getEnvironmentWorkspace(environment, undefined, this._environmentWorkspaces.get(environment.id));
 		const folderUri = workspace?.workspace.folders[0]?.root;
 		this._pickedEnvironment.set(environment, undefined);
 		if (!folderUri || !workspace) {
 			this._changingEnvironment = true;
 			try {
-				this._workspacePicker.clearSelection();
+				if ((environment.kind === 'local' || environment.kind === 'remote' || this._workspaceOptOutTarget.get())
+					&& (session?.isQuickChat?.get() || this._workspaceOptOutEnabled.get())) {
+					this._workspacePicker.selectNoWorkspace(false);
+					await this._onWorkspaceSelected(undefined);
+				} else {
+					this._workspacePicker.clearSelection();
+				}
 			} finally {
 				this._changingEnvironment = false;
 			}
@@ -1796,8 +1751,7 @@ export class NewChatWidget extends Disposable {
 		if (!sessionMatchesSelectedFolder) {
 			return false;
 		}
-		const hasGitRemote = getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace, selectedFolderUri);
-		if (hasGitRemote !== true) {
+		if (this._getComparisonBranch(session) === undefined) {
 			return false;
 		}
 		const sessionConfig = session && providerIsAgentHost && !resolvingConfig ? provider.getSessionConfig(session.sessionId, session.mainChat.get().resource) : undefined;
@@ -1806,18 +1760,17 @@ export class NewChatWidget extends Disposable {
 		return this._compareAgentsEnabled.get()
 			&& selectedFolderUri !== undefined
 			&& !!session
-			&& hasGitRemote
 			&& providerIsAgentHost
 			&& this.sessionsManagementService.getSessionTypesForFolder(selectedFolderUri).some(type =>
 				type.providerId === session.providerId && type.sessionType.id === session.sessionType && type.sessionType.supportsWorktreeConfiguration)
 			&& !resolvingConfig
-			&& supportsWorktreeIsolation
-			&& this._getComparisonBranch(session) !== undefined;
+			&& supportsWorktreeIsolation;
 	}
 
 	private _renderSessionTypePicker(container: HTMLElement, prependBeforeSiblings: boolean): void {
 		this._newChatInput.sessionTypePicker.render(container, {
 			className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
+			hoverDelegate: this._newChatInput.pickerHoverDelegate,
 		});
 		const sessionTypePicker = container.lastElementChild;
 		if (prependBeforeSiblings && sessionTypePicker) {
@@ -1835,9 +1788,29 @@ export class NewChatWidget extends Disposable {
 		this._workspacePicker.showPicker();
 	}
 
+	focusEnvironmentPicker(): void {
+		this._sessionOptionsExpanded.set(true, undefined);
+		this._environmentPicker.showPicker();
+	}
+
 	focusHarnessPicker(): void {
 		this._sessionOptionsExpanded.set(true, undefined);
 		this._newChatInput.sessionTypePicker.showPicker();
+	}
+
+	focusBranchPicker(): void {
+		this._sessionOptionsExpanded.set(true, undefined);
+		this._newChatInput.pickerVisibility.focusPicker('branch');
+	}
+
+	focusWorktreePicker(options?: ISessionPickerFocusOptions): void {
+		this._sessionOptionsExpanded.set(true, undefined);
+		this._newChatInput.pickerVisibility.focusPicker('worktree', options);
+	}
+
+	focusSyncAction(): void {
+		this._sessionOptionsExpanded.set(true, undefined);
+		this._newChatInput.pickerVisibility.focusPicker('sync');
 	}
 
 	openModelComparison(): void {
@@ -1846,10 +1819,10 @@ export class NewChatWidget extends Disposable {
 
 	/** Restores an explicit user choice, or uses the experiment-controlled initial state. */
 	private _restoreSessionOptionsExpanded(): void {
-		const storedExpanded = this.storageService.getBoolean(SESSION_OPTIONS_EXPANDED_STORAGE_KEY, StorageScope.PROFILE);
+		const storedExpanded = getStoredSessionOptionsExpanded(this.storageService);
 		let initialExpanded = storedExpanded ?? true;
 		const hasCreatedSession = this._usage.createdSessionCount > 0;
-		if (storedExpanded === undefined && !hasCreatedSession && isExperimentalSessionComposerLayoutEnabled(this.configurationService)) {
+		if (storedExpanded === undefined && !hasCreatedSession) {
 			logSettingExperimentTrigger(this.telemetryService, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING);
 			initialExpanded = this.configurationService.getValue<boolean>(NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING) ?? true;
 		}
@@ -1858,7 +1831,7 @@ export class NewChatWidget extends Disposable {
 
 	private _setSessionOptionsExpandedFromUser(expanded: boolean): void {
 		this._sessionOptionsExpanded.set(expanded, undefined);
-		this.storageService.store(SESSION_OPTIONS_EXPANDED_STORAGE_KEY, expanded, StorageScope.PROFILE, StorageTarget.USER);
+		storeSessionOptionsExpanded(this.storageService, expanded);
 	}
 
 	private _renderEmptyState(container: HTMLElement): IDisposable {
@@ -1966,7 +1939,7 @@ export class NewChatWidget extends Disposable {
 				throw new Error(localize('comparisonPicker.workspaceRequired', "Select a workspace for the comparison."));
 			}
 			const branch = workspace ? this._getComparisonBranch(session) : undefined;
-			const workspaceError = workspace ? getSessionComparisonWorkspaceError(branch, getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace, workspace)) : undefined;
+			const workspaceError = workspace ? getSessionComparisonWorkspaceError(branch) : undefined;
 			if (workspaceError) {
 				throw new Error(workspaceError);
 			}
@@ -2023,7 +1996,6 @@ export class NewChatWidget extends Disposable {
 				synthesisHarness: synthesisModelId ? resolveHarness(synthesisModelId) : undefined,
 				branch,
 			});
-			this._comparisonSelection.reset();
 			try {
 				if (this.configurationService.getValue<boolean>(COMPARE_AGENTS_OPEN_IN_GRID_SETTING)) {
 					// An empty composer would create a new draft and cancel the grid navigation.
@@ -2033,6 +2005,8 @@ export class NewChatWidget extends Disposable {
 			} catch (error) {
 				this.logService.error('Failed to open session comparison:', error);
 				this.notificationService.error(error);
+			} finally {
+				this._comparisonSelection.reset();
 			}
 			return true;
 		} catch (error) {
@@ -2136,6 +2110,26 @@ export class NewChatWidget extends Disposable {
 		return true;
 	}
 
+	private _canSendRequestToWorkspace(session: ISession, environment: ISessionCreationEnvironment, reader: IReader): boolean {
+		const provider = this.sessionsProvidersService.getProviders().find(provider => provider.id === session.providerId);
+		if (!provider || isAgentHostProvider(provider) && (!isAgentHostEnvironmentAvailable(provider, reader)
+			|| provider.connectionStatus && !RemoteAgentHostConnectionStatus.isConnected(provider.connectionStatus.read(reader)))) {
+			return false;
+		}
+		const folderUri = this._workspacePicker.selectedFolderUri;
+		if (!folderUri) {
+			return environment.kind !== 'container' && !!session.isQuickChat?.read(reader)
+				&& this.sessionsManagementService.isQuickChatTargetAvailable({ providerId: session.providerId, sessionTypeId: session.sessionType });
+		}
+		const workspace = session.workspace.read(reader);
+		const matchesWorkspace = workspace && (environment.kind === 'cloud'
+			? this._workspacePicker.matchesSelectedWorkspace(workspace, reader)
+			: workspace.folders.some(folder => isEqual(folder.root, folderUri)));
+		return !!matchesWorkspace
+			&& !!getEnvironmentWorkspaceProvider(environment, this.sessionsProvidersService.getProviders(), folderUri)
+			&& (environment.kind !== 'container' || this._workspacePicker.getDevContainerWorkspaceAvailability(folderUri, session.providerId) === true);
+	}
+
 	private _getWorkspaceRoots(session: ISession): readonly URI[] {
 		const sessionWorkspace = session.workspace.get();
 		if (sessionWorkspace) {
@@ -2201,16 +2195,6 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private async _handleWorkspaceSelection(folderUri: URI | undefined): Promise<void> {
-		const environment = this._environment.get();
-		if (folderUri && environment && !this._environmentPickerBeforeWorkspace.get()) {
-			const workspace = this._workspacePicker.getEnvironmentWorkspace(environment);
-			const preferDevContainer = this.uriIdentityService.extUri.isEqual(this._preferredDevContainerFolderUri, folderUri);
-			if (!workspace || !this.uriIdentityService.extUri.isEqual(workspace.workspace.folders[0]?.root, folderUri)
-				|| (environment.kind === 'container') !== preferDevContainer) {
-				const selected = getDefaultSessionCreationEnvironment(this._environments.get(), folderUri, this._workspacePicker.selectedResolved?.providerId, preferDevContainer);
-				this._pickedEnvironment.set(selected, undefined);
-			}
-		}
 		if (!this._isCurrentWorkspaceSelection(folderUri)) {
 			await this._onWorkspaceSelected(folderUri);
 		}
@@ -2371,7 +2355,12 @@ export class NewChatWidget extends Disposable {
 		if (!providerId || !this._environment.get()) {
 			return;
 		}
-		const environment = this._environments.get().find(environment => environment.kind !== 'container' && environment.providerIds.includes(providerId));
+		const environments = this._environments.get();
+		let environment = environments.find(environment => environment.kind !== 'container' && environment.providerIds.includes(providerId));
+		if (!environment) {
+			const provider = this.sessionsProvidersService.getProvider(providerId);
+			environment = provider && getRemoteSessionCreationEnvironment(provider);
+		}
 		if (environment) {
 			this._pickedEnvironment.set(options.preferDevContainer
 				? { ...environment, id: `container:${environment.id}`, kind: 'container', label: localize('environmentPicker.container', "Dev Container"), icon: Codicon.remote }

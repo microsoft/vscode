@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
-import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
+import { getContextMenuAutoSelectItem, IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { getAnchorRect } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { Menu } from '../../../../../base/browser/ui/menu/menu.js';
 import { ActionRunner } from '../../../../../base/common/actions.js';
@@ -42,6 +42,7 @@ import { MockKeybindingService } from '../../../../../platform/keybinding/test/c
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { defaultMenuStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -58,6 +59,7 @@ import { IWorkbenchAssignmentService } from '../../../../../workbench/services/a
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ComponentFixtureContext, ComponentFixtureOptions, createEditorServices, defineComponentFixture, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { TestQuickInputService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../common/contextkeys.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
@@ -69,11 +71,12 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
+import { ISessionComparison, ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { buildTestSession, ITestChat, ITestChatSpec, ITestSession, ITestSessionSpec } from '../../../../services/sessions/test/common/testSessionBuilder.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
+import { IInboxNotificationsService, InboxNotificationsSortMode } from '../../../inboxOne/common/inboxNotificationsService.js';
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, type NewSessionButtonStyle } from '../../browser/sessionsActions.js';
 import { SessionChatItem, SessionsGrouping, SessionsList, SessionsListItemReference, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { renderSessionsHeader } from '../../browser/views/sessionsView.js';
@@ -150,8 +153,8 @@ export interface ISessionsListFixtureInteraction {
 	readonly focused?: SessionsListFixtureRow;
 	/** Whether the list owns DOM focus. Defaults to `true` when {@link focused} is set. */
 	readonly listFocused?: boolean;
-	/** The row under the pointer, rendered with the `.hovered` row class. */
-	readonly hovered?: SessionsListFixtureRow;
+	/** The pane or row under the pointer, rendered with the `.hovered` class. */
+	readonly hovered?: SessionsListFixtureRow | 'pane';
 	/** The session, chat, or group row showing its inline rename editor. */
 	readonly renaming?: SessionsListFixtureRow;
 	/** Creates a group from these sessions and shows its name editor, like Create Group. */
@@ -179,12 +182,16 @@ export interface ISessionsListFixtureHeader {
 	readonly customizationsCount?: number;
 	/** Shows the Customizations navigation row's migrations-available indicator. */
 	readonly customizationMigrationsAvailable?: boolean;
+	/** Shows the Customizations navigation row's badge for extensions that can be enabled in the Agents window. */
+	readonly customizationExtensionSuggestionsAvailable?: boolean;
 }
 
 /** Everything a sessions list fixture renders. */
 export interface ISessionsListFixtureState {
 	readonly sessions: readonly ISessionsListFixtureSession[];
 	readonly groups?: readonly ISessionsListFixtureGroup[];
+	/** Comparisons reference fixture-local group ids. */
+	readonly comparisons?: readonly ISessionComparison[];
 	readonly view?: ISessionsListFixtureView;
 	readonly interaction?: ISessionsListFixtureInteraction;
 	/** Renders the Sessions header above the list. */
@@ -324,7 +331,16 @@ export class FixtureContextMenuService extends Disposable implements IContextMen
 			this.onDidHideContextMenuEmitter.fire();
 		}));
 		this.shownMenu.value = store;
-		this.focus({ focus: () => menu.focus(!!delegate.autoSelectFirstItem) });
+		this.focus({
+			focus: () => {
+				const selection = getContextMenuAutoSelectItem(delegate, actions);
+				if (typeof selection === 'number') {
+					menu.focus(selection);
+				} else {
+					menu.focus(selection);
+				}
+			},
+		});
 		this.onDidShowContextMenuEmitter.fire();
 	}
 }
@@ -599,6 +615,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		colorTheme: context.theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
+			reg.defineInstance(IQuickInputService, new TestQuickInputService());
 			reg.defineInstance(IStorageService, disposableStore.add(new InMemoryStorageService()));
 			reg.define(IContextKeyService, ContextKeyService);
 			reg.define(IMenuService, SessionsListFixtureMenuService);
@@ -671,17 +688,18 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() {
 				override readonly extUri = new ExtUri(() => true);
 			}());
-			reg.defineInstance(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
-				override readonly comparisons = constObservable([]);
-				override getComparison() { return undefined; }
-				override getComparisonForSession() { return undefined; }
-			}());
 			reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 				override readonly sentiment: IChatSentiment = {};
 			}());
 			reg.defineInstance(ICustomViewService, new class extends mock<ICustomViewService>() {
 				override readonly activeCustomView = constObservable(undefined);
 				override hideCustomView(): void { }
+			}());
+			reg.defineInstance(IInboxNotificationsService, new class extends mock<IInboxNotificationsService>() {
+				override readonly notifications = constObservable([]);
+				override readonly isLoading = constObservable(false);
+				override readonly sortMode = constObservable(InboxNotificationsSortMode.Priority);
+				override setSortMode(): void { }
 			}());
 		},
 	});
@@ -694,8 +712,8 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}());
 
 	const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
-	// Render terminal-approval labels as real (monospace) code blocks; otherwise the command is blank.
-	await configurationService.setUserConfiguration('editor', { fontFamily: 'monospace' });
+	// Pin the Linux screenshot font instead of depending on Chromium's generic monospace fallback.
+	await configurationService.setUserConfiguration('editor', { fontFamily: 'Liberation Mono, monospace' });
 	for (const [key, value] of Object.entries(state.settings ?? {})) {
 		await configurationService.setUserConfiguration(key, value);
 	}
@@ -714,6 +732,20 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}
 
 	const groupIds = seedListState(instantiationService, state, getSession);
+	const comparisons = (state.comparisons ?? []).map(comparison => {
+		const groupId = groupIds.get(comparison.groupId);
+		if (!groupId) {
+			throw new Error(`Unknown comparison group '${comparison.groupId}'.`);
+		}
+		return { ...comparison, groupId };
+	});
+	instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
+		override readonly comparisons = constObservable(comparisons);
+		override getComparison(id: string) { return comparisons.find(comparison => comparison.id === id); }
+		override getComparisonForSession(resource: URI) {
+			return comparisons.find(comparison => comparison.participants.some(participant => isEqual(participant.sessionResource, resource)));
+		}
+	}());
 	const resolve = (row: SessionsListFixtureRow): SessionsListItemReference => {
 		if (hasKey(row, { group: true })) {
 			const groupId = groupIds.get(row.group);
@@ -744,6 +776,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	container.style.width = `${state.frame?.width ?? width}px`;
 	container.style.height = `${state.frame?.height ?? view.height ?? (view.phone ? 260 : 220)}px`;
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
+	container.classList.add('agent-sessions-viewpane');
 	if (state.frame) {
 		container.style.position = 'relative';
 	}
@@ -754,7 +787,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	let listParent = container;
 	let navigationContainer: HTMLElement | undefined;
 	if (header) {
-		container.classList.add('agent-sessions-viewpane', 'agent-sessions-section');
+		container.classList.add('agent-sessions-section');
 		const content = DOM.append(container, DOM.$('.agent-sessions-content'));
 		navigationContainer = DOM.append(content, DOM.$('.agent-sessions-navigation-container'));
 		const sessionsHeaderContainer = DOM.append(content, DOM.$('.agent-sessions-header-container'));
@@ -777,6 +810,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		showNavigationShortcuts: () => header?.navigationShortcuts ?? false,
 		customizationsCount: constObservable(header?.customizationsCount ?? 0),
 		customizationMigrationsAvailable: constObservable(header?.customizationMigrationsAvailable ?? false),
+		customizationExtensionSuggestionsAvailable: constObservable(header?.customizationExtensionSuggestionsAvailable ?? false),
 		navigationContainer,
 		onSessionOpen: () => { },
 		approvalModel,
@@ -894,7 +928,11 @@ function applyInteraction(context: ComponentFixtureContext, list: TestSessionsLi
 		context.focus(list);
 	}
 	if (interaction.hovered) {
-		simulateHover(list, resolve(interaction.hovered), context.disposableStore);
+		context.container.classList.add('hovered');
+		context.disposableStore.add(toDisposable(() => context.container.classList.remove('hovered')));
+		if (interaction.hovered !== 'pane') {
+			simulateHover(list, resolve(interaction.hovered), context.disposableStore);
+		}
 	}
 	if (interaction.createGroupFrom) {
 		list.createGroupFromSessions(interaction.createGroupFrom.map(id => getSession(id).session));
@@ -981,8 +1019,9 @@ function startRename(list: SessionsList, row: SessionsListFixtureRow, getSession
 
 /**
  * Renders pointer hover on a row: the `.hovered` class stands in for CSS
- * `:hover`, and a `mouseover` drives the list's own hover tracking. Reapplied
- * after list updates, which can recycle row elements.
+ * `:hover`, and a `mouseover` drives JavaScript that reacts to the pointer,
+ * such as the list revealing its scrollbar. Reapplied after list updates,
+ * which can recycle row elements.
  */
 function simulateHover(list: TestSessionsList, item: SessionsListItemReference, store: DisposableStore): void {
 	let hoveredRow: HTMLElement | undefined;

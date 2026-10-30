@@ -50,4 +50,8 @@ export class NullWSLRemoteAgentHostService implements IWSLRemoteAgentHostService
 	getCachedDistros(): readonly IWSLCachedDistro[] {
 		return [];
 	}
+
+	cacheDistro(_distro: IWSLCachedDistro): void {
+		throw new Error('WSL is not available on this platform.');
+	}
 }

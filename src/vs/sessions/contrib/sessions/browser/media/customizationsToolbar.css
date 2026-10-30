@@ -91,6 +91,29 @@
 	display: none;
 }
 
+/* Signals installed extensions that can be enabled in the Agents window. */
+.ai-customization-toolbar .ai-customization-suggestion-badge {
+	flex-shrink: 0;
+	box-sizing: border-box;
+	width: var(--vscode-spacing-size80);
+	height: var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-activityBarBadge-background);
+}
+
+.ai-customization-toolbar .ai-customization-suggestion-badge.hidden {
+	display: none;
+}
+
+/* In a link, the badge takes the place of the counts. */
+.ai-customization-toolbar .customization-link-button .ai-customization-suggestion-badge {
+	position: absolute;
+	right: var(--vscode-spacing-size100);
+	top: 50%;
+	transform: translateY(-50%);
+}
+
 .ai-customization-toolbar .ai-customization-chevron {
 	flex-shrink: 0;
 	display: flex;

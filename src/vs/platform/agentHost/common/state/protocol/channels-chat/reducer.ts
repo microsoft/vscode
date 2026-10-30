@@ -684,6 +684,7 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 						pastTenseMessage: tc.pastTenseMessage,
 						content: tc.content,
 						structuredContent: tc.structuredContent,
+						resultMetadata: tc.resultMetadata,
 						error: tc.error,
 					};
 				}
@@ -959,6 +960,18 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 						: { ...state.config.values, ...action.config },
 				},
 			};
+
+		case ActionType.ChatMoved: {
+			const { provider: _provider, config, ...rest } = state;
+			const next: ChatState = action.provider === undefined ? rest : { ...rest, provider: action.provider };
+			if (config) {
+				const { schema: _schema, ...values } = config;
+				next.config = action.schema === undefined ? values : { ...values, schema: action.schema };
+			} else if (action.schema !== undefined) {
+				next.config = { schema: action.schema, values: {} };
+			}
+			return next;
+		}
 
 		default:
 			softAssertNever(action, log);

@@ -1013,7 +1013,7 @@
     },
     {
       "name": "list_sessions",
-      "description": "List sessions and their compact metadata (status, activity, working directory, project, worktree changes, git/GitHub info, timestamps). Each result includes `session` for identity and tool inputs and `openLink` for clickable Markdown links; do not use `session` as a link target. A session with nested sessions also lists `chats`: its main session (`main: true`) and its nested sessions in order, each with a `title` and an `openLink` that names that chat in `send_message`, `get_session_context` and `rename_chat`. Pass `session` to fetch a single known session by URI. By default archived sessions are omitted. Optionally filter by `status`, `workspace`, `withChanges`, `unread`, `withPullRequest`, `includeArchived`, `createdAfter`, or `createdBefore`.",
+      "description": "List sessions and their compact metadata (status, activity, working directory, project, worktree changes, git/GitHub info, timestamps). Each result includes `session` for identity and tool inputs and `openLink` for clickable Markdown links; do not use `session` as a link target. A session with nested sessions also lists `chats`: its main session (`main: true`) and its nested sessions in order, each with a `title` and an `openLink` that names that chat in `send_message`, `get_session_context`, `rename_chat` and `archive_chat`. Pass `session` to fetch a single known session by URI. By default archived sessions are omitted. Optionally filter by `status`, `workspace`, `withChanges`, `unread`, `withPullRequest`, `includeArchived`, `createdAfter`, or `createdBefore`.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1145,6 +1145,24 @@
       "type": "function"
     },
     {
+      "name": "archive_chat",
+      "description": "Archive a chat, or a whole session, so it no longer appears among active sessions. Use it when the user asks to archive a chat or session or to mark it done. Archiving a nested session archives only that chat. Archiving a session's main session (`main: true` in `chats`, or a session link without a chat id) archives the whole session with all of its nested sessions, and removes its isolated worktree after committing the worktree's changes. Archived chats keep their history and can be unarchived. To remove a session permanently, use `delete_session` instead. Refuses the chat this tool runs in and the main session of its own session.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "chat": {
+            "type": "string",
+            "description": "The chat to archive: an `agent-host-session://` chat link from `list_sessions`, `get_current_session` or `create_session`. A session link without a chat id targets that session's main session, which archives the whole session."
+          }
+        },
+        "required": [
+          "chat"
+        ]
+      },
+      "strict": false,
+      "type": "function"
+    },
+    {
       "name": "send_message",
       "description": "Send, replace, or cancel your message in an existing session or chat. Use `delivery: \"steer\"` only to update an active turn; steering is handed to the provider immediately and cannot be replaced or cancelled. Use `delivery: \"queue\"` for a separate turn. Replace and cancel require the message ID and revision returned by an earlier call and succeed only while that queued message is pending. If it already started, the result reports `processing` or `completed`; decide whether to send a steering correction or a queued follow-up. Delivery is asynchronous — this tool does not wait for or return a reply.",
       "parameters": {
@@ -1254,6 +1272,9 @@
   "reasoning": {
     "effort": "medium",
     "summary": "auto"
+  },
+  "text": {
+    "verbosity": "medium"
   },
   "store": false,
   "stream": true,

@@ -38,6 +38,16 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly chatRequestId?: string;
 	public isAttachedToThinking: boolean = false;
 	public otherClientToolCall?: IChatToolInvocationOtherClientData;
+	private _startedAt: number | undefined = Date.now();
+	private _completedAt: number | undefined;
+
+	public get startedAt(): number | undefined {
+		return this._startedAt;
+	}
+
+	public get completedAt(): number | undefined {
+		return this._completedAt;
+	}
 
 	private _toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionTargetData | IChatGeneratedImageData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
 	private readonly _toolSpecificDataKind = observableValue<string | undefined>(this, undefined);
@@ -112,6 +122,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 
 		if (startOptions.startInCancelled) {
 			// Start directly in cancelled state (e.g., when a hook denies execution)
+			this._completedAt = this.startedAt;
 			this._state = observableValue(this, {
 				type: IChatToolInvocation.StateKind.Cancelled,
 				reason: startOptions.cancelReason?.type ?? ToolConfirmKind.Denied,
@@ -154,6 +165,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	 */
 	private _confirm(reason: ConfirmedReason): void {
 		if (reason.type === ToolConfirmKind.Denied || reason.type === ToolConfirmKind.Skipped) {
+			this._recordCompletion();
 			this._state.set({
 				type: IChatToolInvocation.StateKind.Cancelled,
 				reason: reason.type,
@@ -234,6 +246,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			return;
 		}
 		this._stopExecutionTimer();
+		this._recordCompletion();
 		this._state.set({
 			type: IChatToolInvocation.StateKind.Cancelled,
 			reason: reason.type,
@@ -363,7 +376,23 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		}
 	}
 
+	/**
+	 * Forgets when the invocation appeared and finished, for invocations rebuilt from
+	 * history or a reconnect snapshot whose real start was never observed.
+	 */
+	public forgetTiming(): void {
+		this._startedAt = undefined;
+		this._completedAt = undefined;
+	}
+
+	private _recordCompletion(): void {
+		if (this._startedAt !== undefined) {
+			this._completedAt ??= Date.now();
+		}
+	}
+
 	private _setCompleted(result: IToolResult | undefined, postConfirmed?: ConfirmedReason | undefined) {
+		this._recordCompletion();
 		if (postConfirmed && (postConfirmed.type === ToolConfirmKind.Denied || postConfirmed.type === ToolConfirmKind.Skipped)) {
 			this._state.set({
 				type: IChatToolInvocation.StateKind.Cancelled,
@@ -496,6 +525,8 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			toolId: this.toolId,
 			subAgentInvocationId: this.subAgentInvocationId,
 			...(summary ? { summary } : {}),
+			...(this._startedAt !== undefined ? { startedAt: this._startedAt } : {}),
+			...(this._completedAt !== undefined ? { completedAt: this._completedAt } : {}),
 			generatedTitle: this.generatedTitle,
 		};
 	}

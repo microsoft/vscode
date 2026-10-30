@@ -7,7 +7,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IReader, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -20,8 +20,10 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { IDeletedSessionGroups, ISessionGroup, ISessionGroupPlacement, ISessionGroupsService, SessionGroupTree } from '../../../../services/sessions/browser/sessionGroupsService.js';
-import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { IInboxNotificationsService, InboxNotificationsSortMode } from '../../../inboxOne/common/inboxNotificationsService.js';
+import { IDeletedSessionGroups, ISessionGroup, ISessionGroupAppearance, ISessionGroupPlacement, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupTree } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -249,6 +251,7 @@ export interface IListHarness {
 	readonly createdGroups: Array<{ readonly name: string; readonly sessionIds: readonly string[]; readonly parentId: string | undefined }>;
 	/** Groups nested in another group, or made top-level (`parentId: undefined`), with where they land among the new parent's subgroups, in call order. */
 	readonly movedGroups: Array<{ readonly groupId: string; readonly parentId: string | undefined; readonly placement: ISessionGroupPlacement | undefined }>;
+	readonly movedSections: Array<{ readonly sectionId: string; readonly parentId: string | undefined; readonly placement: ISessionGroupPlacement | undefined }>;
 	/** Pin state changes applied through the sessions list model service. */
 	readonly pinChanges: Array<{ readonly sessionId: string; readonly pinned: boolean }>;
 	/** Manual sort-key changes applied through the sessions list model service. */
@@ -266,9 +269,14 @@ export interface ISortChangeRecord {
 export interface IListHarnessOptions {
 	readonly groups?: readonly ISessionGroup[];
 	readonly memberships?: ReadonlyMap<string, string>;
+	readonly sectionMemberships?: ReadonlyMap<string, string>;
+	readonly sectionAppearances?: ReadonlyMap<string, ISessionGroupAppearance>;
 	readonly pinnedSessionIds?: ReadonlySet<string>;
+	/** Automation sessions shown in the Sessions list. The harness updates the set as the real service does. */
+	readonly shownAutomationSessionIds?: ReadonlySet<string>;
 	/** Apply sort changes and fire change events, as the real service does. */
 	readonly liveListModel?: boolean;
+	readonly liveGroups?: boolean;
 	readonly comparisons?: readonly ISessionComparison[];
 	/** Custom groups the user capped with "Show less" in an earlier window; groups otherwise list every session. */
 	readonly cappedGroupIds?: readonly string[];
@@ -283,9 +291,11 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const commandService = new TestCommandService();
 	const configure = typeof optionsOrConfigure === 'function' ? optionsOrConfigure : undefined;
 	const options: IListHarnessOptions = typeof optionsOrConfigure === 'function' ? {} : optionsOrConfigure;
-	const groups = options.groups ?? [];
+	const groups = [...options.groups ?? []];
 	const memberships = options.memberships ?? new Map();
+	const sectionMemberships = options.sectionMemberships ?? new Map();
 	const pinnedSessionIds = options.pinnedSessionIds ?? new Set();
+	const shownAutomationSessionIds = new Set(options.shownAutomationSessionIds);
 	const comparisons = options.comparisons ?? [];
 	const deletedGroupIds: string[] = [];
 	const cancelledComparisonIds: string[] = [];
@@ -294,10 +304,11 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const removedFromGroups: string[] = [];
 	const createdGroups: IListHarness['createdGroups'] = [];
 	const movedGroups: IListHarness['movedGroups'] = [];
+	const movedSections: IListHarness['movedSections'] = [];
 	const pinChanges: IListHarness['pinChanges'] = [];
 	const sortChanges: ISortChangeRecord[] = [];
 	const sortOverrides = new Map<SessionSortMode, Map<string, number>>();
-	const getNaturalSortKey = (session: ISession, mode: SessionSortMode) => mode === 'created' ? session.createdAt.getTime() : session.updatedAt.get().getTime();
+	const getNaturalSortKey = (session: SessionSortEntry, mode: SessionSortMode) => mode === 'created' ? session.createdAt.getTime() : session.updatedAt.get().getTime();
 	const onDidChangeListModel = store.add(new Emitter<ISessionListModelChangeEvent>());
 	const sectionReorders: IListHarness['sectionReorders'] = [];
 
@@ -321,10 +332,29 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 			}
 		}
 		override migrateLegacyReadState(): void { }
-		override getSortKey(session: ISession, mode: SessionSortMode): number {
+		override isSessionListed(session: ISession, reader?: IReader): boolean {
+			return !session.isAutomation?.read(reader) || shownAutomationSessionIds.has(session.sessionId);
+		}
+		override showAutomationSessions(sessions: readonly ISession[]): void {
+			this.setAutomationSessionsShown(sessions, true);
+		}
+		override hideAutomationSessions(sessions: readonly ISession[]): void {
+			this.setAutomationSessionsShown(sessions, false);
+		}
+		private setAutomationSessionsShown(sessions: readonly ISession[], shown: boolean): void {
+			for (const session of sessions) {
+				if (shown) {
+					shownAutomationSessionIds.add(session.sessionId);
+				} else {
+					shownAutomationSessionIds.delete(session.sessionId);
+				}
+			}
+			onDidChangeListModel.fire({ changes: sessions.map(session => ({ sessionId: session.sessionId, kind: SessionListModelChangeKind.AutomationListing })) });
+		}
+		override getSortKey(session: SessionSortEntry, mode: SessionSortMode): number {
 			return sortOverrides.get(mode)?.get(session.sessionId) ?? getNaturalSortKey(session, mode);
 		}
-		override getNaturalSortKey(session: ISession, mode: SessionSortMode): number {
+		override getNaturalSortKey(session: SessionSortEntry, mode: SessionSortMode): number {
 			return getNaturalSortKey(session, mode);
 		}
 		override applySortChanges(mode: SessionSortMode, set: ReadonlyMap<string, number>, clear: Iterable<string>): void {
@@ -347,12 +377,36 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 			return status === SessionStatus.Error ? Codicon.error : isArchived ? Codicon.passFilled : completedStateIcon ?? Codicon.circleSmallFilled;
 		}
 	});
+	const appearanceChanges = store.add(new Emitter<ISessionGroupsChangeEvent>());
+	const sectionAppearances = new Map(options.sectionAppearances);
 	instantiationService.stub(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
-		override readonly onDidChange = Event.None;
+		override readonly onDidChange = appearanceChanges.event;
+		override getSectionAppearance(sectionId: string) { return sectionAppearances.get(sectionId); }
+		override setSectionIcon(sectionId: string, icon: string | undefined) {
+			this.setSectionAppearance(sectionId, { ...sectionAppearances.get(sectionId), icon });
+		}
+		override setSectionColor(sectionId: string, color: string | undefined) {
+			this.setSectionAppearance(sectionId, { ...sectionAppearances.get(sectionId), color });
+		}
+		private setSectionAppearance(sectionId: string, appearance: ISessionGroupAppearance): void {
+			const previous = sectionAppearances.get(sectionId);
+			if (previous?.icon === appearance.icon && previous?.color === appearance.color) {
+				return;
+			}
+			if (appearance.icon === undefined && appearance.color === undefined) {
+				sectionAppearances.delete(sectionId);
+			} else {
+				sectionAppearances.set(sectionId, appearance);
+			}
+			appearanceChanges.fire({ groupsChanged: false, membershipChanged: new Set() });
+		}
 		override getGroups() { return [...groups]; }
 		override getTree() { return new SessionGroupTree(groups); }
 		override getGroup(groupId: string) { return groups.find(group => group.id === groupId); }
 		override getGroupOfSession(sessionId: string) { return memberships.get(sessionId); }
+		override getGroupOfSection(sectionId: string) { return sectionMemberships.get(sectionId); }
+		override getSectionIdsInGroup(groupId: string) { return [...sectionMemberships].filter(([, parentId]) => parentId === groupId).map(([sectionId]) => sectionId); }
+		override getChildIds(groupId: string) { return [...this.getTree().getSubgroups(groupId).map(group => group.id), ...this.getSectionIdsInGroup(groupId)]; }
 		override getSessionIdsInGroup(groupId: string) {
 			return [...memberships].filter(([, memberGroupId]) => memberGroupId === groupId).map(([sessionId]) => sessionId);
 		}
@@ -366,6 +420,14 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		}
 		override moveGroup(groupId: string, parentId: string | undefined, placement?: ISessionGroupPlacement): void {
 			movedGroups.push({ groupId, parentId, placement });
+			if (options.liveGroups) {
+				const index = groups.findIndex(group => group.id === groupId);
+				groups[index] = { ...groups[index], parentId };
+				appearanceChanges.fire({ groupsChanged: true, membershipChanged: new Set() });
+			}
+		}
+		override moveSection(sectionId: string, parentId: string | undefined, placement?: ISessionGroupPlacement): void {
+			movedSections.push({ sectionId, parentId, placement });
 		}
 		override addToGroup(sessionId: string, groupId: string): void;
 		override addToGroup(sessionIds: Iterable<string>, groupId: string): void;
@@ -406,6 +468,10 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override readonly selectedHostId = undefined;
 		override readonly selectedHost = undefined;
 	});
+	instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+		override readonly activeCustomView = constObservable(undefined);
+		override hideCustomView(): void { }
+	});
 	instantiationService.stub(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() {
 		override readonly onDidRefetchAssignments = Event.None;
 		override async getTreatment<T extends string | number | boolean>(): Promise<T | undefined> { return undefined; }
@@ -414,6 +480,12 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override readonly onDidChangeProviders = Event.None;
 		override getProviders() { return []; }
 		override getProvider() { return undefined; }
+	});
+	instantiationService.stub(IInboxNotificationsService, new class extends mock<IInboxNotificationsService>() {
+		override readonly notifications = constObservable([]);
+		override readonly isLoading = constObservable(false);
+		override readonly sortMode = constObservable(InboxNotificationsSortMode.Priority);
+		override setSortMode(): void { }
 	});
 	instantiationService.stub(ISessionsWindowUsageService, new class extends mock<ISessionsWindowUsageService>() {
 		override readonly hadPriorWindowOpen = true;
@@ -446,5 +518,5 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		return container;
 	};
 
-	return { store, instantiationService, managementService, commandService, deletedGroupIds, cancelledComparisonIds, archivedComparisonIds, addedToGroups, removedFromGroups, createdGroups, movedGroups, pinChanges, sortChanges, sectionReorders, createContainer };
+	return { store, instantiationService, managementService, commandService, deletedGroupIds, cancelledComparisonIds, archivedComparisonIds, addedToGroups, removedFromGroups, createdGroups, movedGroups, movedSections, pinChanges, sortChanges, sectionReorders, createContainer };
 }

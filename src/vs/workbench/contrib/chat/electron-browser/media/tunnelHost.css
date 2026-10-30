@@ -3,14 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-action-bar .remote-connections-action {
-	border-radius: var(--vscode-cornerRadius-small);
-}
-
-.remote-connections-action:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
 .monaco-action-bar .tunnel-host-toggle {
 	display: flex;
 	align-items: center;
@@ -44,6 +36,15 @@
 
 .tunnel-host-toggle.connecting .tunnel-host-icon .codicon {
 	animation: tunnel-host-pulse 1.5s ease-in-out infinite;
+}
+
+.remote-connections-picker .action-list-footer {
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size60) var(--vscode-spacing-size40);
+	overflow-wrap: anywhere;
+}
+
+.remote-connections-picker .actionList .monaco-list-row.action .detail {
+	padding-left: var(--vscode-spacing-size400);
 }
 
 @keyframes tunnel-host-pulse {

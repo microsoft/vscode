@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
-import { DisposableStore, type IReference } from '../../../../../base/common/lifecycle.js';
+import { type IReference } from '../../../../../base/common/lifecycle.js';
 import { autorun, ISettableObservable, observableValue, type IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -28,11 +28,7 @@ import { BlockedSessionReason, BlockedSessions } from '../../browser/blockedSess
 
 suite('BlockedSessions', () => {
 
-	const store = new DisposableStore();
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createService(sessions: TestSession[], gitHubService: TestGitHubService) {
 		const management = new TestSessionsManagementService(sessions as unknown as ISession[]);

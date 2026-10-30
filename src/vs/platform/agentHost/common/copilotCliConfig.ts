@@ -48,8 +48,6 @@ export const enum CopilotCliConfigKey {
 	RubberDuck = 'rubberDuck',
 	/** Enable the provider-native Claude Advisor tool. Off by default. */
 	ClaudeAdvisor = 'claudeAdvisor',
-	/** Enable repository-size-gated tgrep indexed search for Copilot SDK sessions. Off by default. */
-	Tgrep = 'tgrep',
 	/** Offer the runtime's `search_code_subagent` tool to Copilot SDK sessions. Off by default. */
 	SearchSubagent = 'searchSubagent',
 	/** CAPI model override for the runtime's search subagent. Empty uses the runtime default. */
@@ -100,6 +98,8 @@ export const enum CopilotCliConfigKey {
 	LocalModelLlamaServerPath = 'localModelLlamaServerPath',
 	/** Account-dependent part of the on-device gate, computed by the workbench: preview features allowed, signed in, AI features enabled. */
 	LocalModelAccountGate = 'localModelAccountGate',
+	/** Whether Copilot adds its `Co-authored-by` trailer to the commits it creates. On by default. */
+	IncludeCoAuthoredBy = 'includeCoAuthoredBy',
 }
 
 export const CopilotCliVSCodeAssignmentContextKey = 'copilotCliVSCodeAssignmentContext';
@@ -132,8 +132,6 @@ export function normalizeCopilotPolicyHelperConfig(value: unknown): ICopilotPoli
 }
 
 export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.enabled';
-
-export const CopilotTgrepEnabledSettingId = 'chat.copilot.tgrep.enabled';
 
 export const CopilotSearchSubagentEnabledSettingId = 'chat.copilot.searchSubagent.enabled';
 /** Selects the image model offered to Copilot agents, or turns image generation off. */
@@ -180,6 +178,8 @@ export const CopilotSkillCharBudgetSettingId = 'chat.copilot.skillCharBudget';
 export const CopilotAutoModeTierOverrideSettingId = 'github.copilot.chat.autoModeTierOverride';
 
 export const AgentHostCopilotModelCapabilityOverridesSettingId = 'chat.agentHost.copilot.modelCapabilityOverrides';
+
+export const AgentHostCopilotIncludeCoAuthoredBySettingId = 'chat.agentHost.copilot.includeCoAuthoredBy';
 
 export const copilotSdkLogLevelSettingValues = ['info', 'trace'] as const;
 export type CopilotSdkLogLevelSetting = typeof copilotSdkLogLevelSettingValues[number];
@@ -319,12 +319,6 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.claudeAdvisor.title', "Claude Advisor Tool"),
 		description: localize('agentHost.config.claudeAdvisor.description', "When enabled, Copilot SDK sessions using supported Claude models expose the provider-native Advisor tool."),
-		default: false,
-	}),
-	[CopilotCliConfigKey.Tgrep]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.tgrep.title', "Indexed Search (tgrep)"),
-		description: localize('agentHost.config.tgrep.description', "When enabled, Copilot SDK sessions use tgrep indexed search for eligible large repositories. Requires a local Git repository on a non-virtual filesystem."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.SearchSubagent]: schemaProperty<boolean>({
@@ -521,6 +515,12 @@ export const copilotCliConfigSchema = createSchema({
 		title: localize('agentHost.config.localModelAccountGate.title', "On-Device Models Allowed for Account"),
 		description: localize('agentHost.config.localModelAccountGate.description', "Whether the signed-in account allows on-device models. Set by the client."),
 		default: false,
+	}),
+	[CopilotCliConfigKey.IncludeCoAuthoredBy]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.includeCoAuthoredBy.title', "Include Co-authored-by Trailer"),
+		description: localize('agentHost.config.includeCoAuthoredBy.description', "When enabled, Copilot SDK sessions add a `Co-authored-by` trailer to the commits they create. Applied when a session starts or resumes."),
+		default: true,
 	}),
 });
 

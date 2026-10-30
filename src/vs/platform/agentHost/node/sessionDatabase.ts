@@ -10,6 +10,7 @@ import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEd
 import { dirname } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type Message } from '../common/state/sessionState.js';
+import { configureSqliteJournal } from './agentHostSqliteJournal.js';
 
 /**
  * Turn ids kept for older builds on behalf of other chats, read from the persisted metadata inside
@@ -622,6 +623,7 @@ export class SessionDatabase implements ISessionDatabase {
 				await fs.promises.mkdir(dirname(this._path), { recursive: true });
 				const db = await dbOpen(this._path);
 				try {
+					await configureSqliteJournal(db, this._path);
 					await runMigrations(db, this._migrations);
 				} catch (err) {
 					await dbClose(db);

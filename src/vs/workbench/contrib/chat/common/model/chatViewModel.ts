@@ -135,6 +135,7 @@ export interface IChatRequestViewModel {
 	readonly isPendingRequestHandoff?: boolean;
 	readonly isSystemInitiated?: boolean;
 	readonly requestSource?: IChatRequestModel['requestSource'];
+	readonly artifactRequest?: IChatRequestModel['artifactRequest'];
 	readonly systemInitiatedLabel?: string;
 	readonly origin?: IChatRequestModel['origin'];
 }
@@ -169,6 +170,11 @@ export interface IChatWorkingProgress {
 	showDelayedProgressMessage?: boolean;
 	/** Rotates painting-themed phrases while an image tool is running. */
 	imageGeneration?: boolean;
+	/** Separate labels for opening each kind of background activity from the status. */
+	backgroundActivity?: {
+		readonly subagents?: string;
+		readonly backgroundShells?: string;
+	};
 }
 
 
@@ -259,6 +265,10 @@ export interface IChatPendingDividerViewModel {
 }
 
 export interface IChatViewModelOptions {
+	/**
+	 * Only return the latest visible request and its response, excluding queued requests and handoffs.
+	 */
+	latestRequestOnly?: boolean;
 	/**
 	 * Maximum number of items to return from getItems().
 	 * When set, only the last N items are returned (most recent request/response pairs).
@@ -412,6 +422,11 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			}
 			return true;
 		});
+		if (this._options?.latestRequestOnly) {
+			const latestItem = items.at(-1);
+			const requestId = latestItem && (isResponseVM(latestItem) ? latestItem.requestId : latestItem.id);
+			return items.filter(item => (isResponseVM(item) ? item.requestId : item.id) === requestId);
+		}
 		if (this._options?.maxVisibleItems !== undefined && items.length > this._options.maxVisibleItems) {
 			items = items.slice(-this._options.maxVisibleItems);
 		}
@@ -598,6 +613,10 @@ class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get requestSource() {
 		return this._model.requestSource;
+	}
+
+	get artifactRequest() {
+		return this._model.artifactRequest;
 	}
 
 	get systemInitiatedLabel() {

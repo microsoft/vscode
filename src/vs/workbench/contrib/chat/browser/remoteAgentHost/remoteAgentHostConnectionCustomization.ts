@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
@@ -12,6 +13,24 @@ import { type ProtectedResourceMetadata } from '../../../../../platform/agentHos
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAgentHostAuthenticateRequest } from '../agentSessions/agentHost/agentHostAuth.js';
 import { IChatSessionContentProvider } from '../../common/chatSessionsService.js';
+
+export async function authenticateWithConnectionCustomization(
+	connection: IAgentConnection,
+	request: IAgentHostAuthenticateRequest,
+	customization: IRemoteAgentHostConnectionCustomization | undefined,
+	isCurrent: () => boolean,
+	reason?: AuthRequiredReason,
+) {
+	if (!isCurrent()) {
+		throw new CancellationError();
+	}
+	// Revocation must not be transformed into a live credential.
+	const transformed = request.token && customization?.authenticate ? await customization.authenticate(request, reason) : request;
+	if (!isCurrent()) {
+		throw new CancellationError();
+	}
+	return connection.authenticate(transformed);
+}
 
 /** Optional startup preparation for a selected workspace, returning a replacement host directory when needed. */
 export type RemoteAgentHostSessionPreparation = (selection: URI | undefined, token: CancellationToken) => Promise<URI | undefined>;
@@ -24,14 +43,17 @@ export interface IRemoteAgentHostConnectionCustomization {
 	/** Whether this managed connection requires workspace trust. Defaults to true. */
 	readonly requiresWorkspaceTrust?: boolean;
 
+	/** Optional provider-specific input hint supplied by the connection owner. */
+	readonly inputPlaceholder?: (provider: string) => string | undefined;
+
 	/**
 	 * Transform the outgoing `authenticate` request before it is sent. Must fail closed: throw rather
 	 * than forward a value that does not meet the host's contract. An expired challenge requires renewal.
 	 */
 	readonly authenticate?: (request: IAgentHostAuthenticateRequest, reason?: AuthRequiredReason) => Promise<IAgentHostAuthenticateRequest>;
 
-	/** Resolves a fresh connection-owned credential for an expired challenge without requiring a new user sign-in. */
-	readonly renewAuthentication?: (resource: ProtectedResourceMetadata) => Promise<IAgentHostAuthenticateRequest>;
+	/** Resolves a fresh connection-owned credential, or returns undefined for resources using normal provider recovery. */
+	readonly renewAuthentication?: (resource: ProtectedResourceMetadata) => Promise<IAgentHostAuthenticateRequest | undefined>;
 
 	/**
 	 * The backend session URI scheme for an agent provider when it differs from the provider itself.
@@ -55,6 +77,8 @@ export interface IRemoteAgentHostConnectionCustomization {
 
 	/** Whether a title the host reports is a stand-in (e.g. the session id) rather than a title to show; forwarded to the session handler's `isSessionTitlePlaceholder`. */
 	readonly isSessionTitlePlaceholder?: (title: string, sessionResource: URI) => boolean;
+	/** Uses the session title and rename channel for the default chat instead of an independent chat title. */
+	readonly useSessionTitleForDefaultChat?: boolean;
 }
 
 /** Builds a {@link IRemoteAgentHostConnectionCustomization} for a concrete connection address. */

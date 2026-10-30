@@ -76,6 +76,26 @@ suite('aiCustomizationListWidget', () => {
 
 	});
 
+	test('search filter matches dashed and spaced queries with highlights', () => {
+		const items = [
+			{ id: '1', uri: URI.file('/skills/typescript-setup/SKILL.md'), name: 'typescript-setup', filename: 'SKILL.md', description: 'Set up TypeScript', promptType: PromptsType.skill, storage: PromptsStorage.local },
+			{ id: '2', uri: URI.file('/skills/other/SKILL.md'), name: 'other', filename: 'SKILL.md', description: 'Unrelated', promptType: PromptsType.skill, storage: PromptsStorage.local },
+		] as unknown as IAICustomizationListItem[];
+		const filter = (searchQuery: string) => (AICustomizationListWidget.prototype as unknown as {
+			applySearchFilter(this: { searchQuery: string }, items: readonly IAICustomizationListItem[]): IAICustomizationListItem[];
+		}).applySearchFilter.call({ searchQuery }, items).map(item => [item.name, item.nameMatches]);
+
+		assert.deepStrictEqual({
+			spaced: filter('typescript setup'),
+			dashed: filter('typescript-setup'),
+			underscored: filter('TypeScript_Setup'),
+		}, {
+			spaced: [['typescript-setup', [{ start: 0, end: 10 }, { start: 11, end: 16 }]]],
+			dashed: [['typescript-setup', [{ start: 0, end: 16 }]]],
+			underscored: [['typescript-setup', [{ start: 0, end: 16 }]]],
+		});
+	});
+
 	test('splits workspace groups only for multi-root workspaces', () => {
 		const firstUri = URI.file('/workspace/first');
 		const secondUri = URI.file('/workspace/second');
@@ -796,6 +816,25 @@ suite('aiCustomizationListWidget', () => {
 			widget.dispose();
 			const result = await widget.generateDebugReport();
 			assert.strictEqual(result, '');
+		});
+
+		test('shared creation actions preserve generation and user creation without a workspace', () => {
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			const events: { type: PromptsType; target: string }[] = [];
+			disposables.add(widget.onDidRequestCreateManual(({ type, target }) => events.push({ type, target })));
+			const actions = widget.getCreateActions();
+			actions.find(action => action.target === 'user')?.run();
+
+			assert.deepStrictEqual({
+				actions: actions.map(action => ({ label: action.label, enabled: action.enabled, target: action.target })),
+				events,
+			}, {
+				actions: [
+					{ label: 'Generate with AI', enabled: true, target: undefined },
+					{ label: 'New Agent (User)', enabled: true, target: 'user' },
+				],
+				events: [{ type: PromptsType.agent, target: 'user' }],
+			});
 		});
 
 		test('uses the rendered container height for list layout when available', () => {

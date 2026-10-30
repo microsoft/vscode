@@ -7,9 +7,11 @@ import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { disposableTimeout } from '../../../base/common/async.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
+import { Iterable } from '../../../base/common/iterator.js';
 import { autorun, type IReader } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { localize } from '../../../nls.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IFileService } from '../../files/common/files.js';
@@ -40,14 +42,16 @@ import { IAgentHostClientConnectionService } from './agentHostClientConnectionSe
 import { IAgentHostSystemWakeService } from './agentHostSystemWakeService.js';
 import { AuthenticateTargetKind } from '../common/state/sessionProtocol.js';
 import { getMcpServerCustomizations } from './shared/mcpCustomizationController.js';
-import { McpServerStatus, type McpAuthRequirement } from '../common/state/protocol/channels-session/state.js';
+import { McpServerStatus, SessionOriginKind, type AutomationSessionOrigin, type McpAuthRequirement } from '../common/state/protocol/channels-session/state.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
+import { getAgentHostAutomationHistoryState, withAgentHostAutomationHistoryState } from '../common/meta/agentHostAutomationsMeta.js';
+import { readMcpServerConnectorName } from '../common/meta/mcpCustomizationMeta.js';
 
 const STORAGE_KEY = 'automations';
 const SCHEDULE_CURSORS_META_KEY = 'vscode.scheduleCursors';
 const SCHEDULE_RETRY_DELAY_MS = 60_000;
 const RUN_HISTORY_PAGE_SIZE = 50;
-/** Gives the network time to reconnect after a full wake before resuming a turn that sleep broke. */
+/** Gives the network time to reconnect after a full wake before resuming a turn that sleep broke; resumes also wait until scheduled work is ready. */
 const RESUME_AFTER_WAKE_DELAY_MS = 10_000;
 
 interface IStoredManualRunRequest {
@@ -61,18 +65,45 @@ interface IStoredAutomationCatalog {
 	readonly _meta?: Record<string, unknown>;
 }
 
+interface IStoredSessionCreation {
+	readonly run: string;
+	readonly session: string;
+	readonly provider: string;
+}
+
+interface IStoredHistoryDeletion {
+	readonly automation: string;
+	readonly requestId?: string;
+	readonly requestIds?: readonly string[];
+	readonly sessions: readonly { readonly session: string; readonly provider?: string }[];
+	readonly deletedSessions?: readonly string[];
+}
+
+interface IStoredHistoryDeletionReceipt {
+	readonly requestId: string;
+	readonly automation: string;
+	readonly sessions: readonly string[];
+}
+
 interface IStoredAutomations {
 	readonly version?: 1;
 	readonly catalog: IStoredAutomationCatalog;
 	readonly runs?: readonly AutomationRunState[];
 	readonly runProviders?: Readonly<Record<string, string>>;
 	readonly manualRunRequests?: readonly IStoredManualRunRequest[];
+	readonly sessionCreations?: readonly IStoredSessionCreation[];
+	readonly historyDeletions?: readonly IStoredHistoryDeletion[];
+	readonly historyDeletionReceipts?: readonly IStoredHistoryDeletionReceipt[];
 }
 
 /** Host-side session operations for executing an Automation's saved template. */
 export interface IAgentHostAutomationExecution {
 	isSessionTemplateAvailable(template: AutomationSessionTemplate, reader?: IReader): boolean;
-	createSession(template: AutomationSessionTemplate, run: AutomationRunState, activeClient?: SessionActiveClient): Promise<URI>;
+	/** Chooses an unused session identity without reserving resources; callers may discard it without cleanup. */
+	allocateSession(template: AutomationSessionTemplate): Promise<{ readonly session: URI; readonly provider: string }>;
+	createSession(template: AutomationSessionTemplate, run: AutomationRunState, session: URI, activeClient?: SessionActiveClient): Promise<URI>;
+	getRecoverableSessionProvider(session: URI, expectedProvider?: string): Promise<string | undefined>;
+	deleteSession(session: URI, provider: string): Promise<void>;
 	startSession(session: URI, message: Message): Promise<void>;
 	cancelSession(session: URI): Promise<boolean>;
 	/** Resumes a session's latest turn if it failed with a resumable error; returns whether it resumed. */
@@ -89,6 +120,8 @@ export interface IAgentHostAutomationService {
 	handleCreate(action: AutomationCreateRequestedAction, clientId?: string): Promise<void>;
 	handleUpdate(action: AutomationUpdateRequestedAction, clientId?: string): Promise<void>;
 	handleRemove(action: AutomationRemovedAction): Promise<void>;
+	deleteAutomation(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[], requestId?: string): Promise<readonly string[]>;
+	acknowledgeAutomationDeletion(requestId: string): Promise<void>;
 	handleCancel(resource: string, action: AutomationRunCancelRequestedAction): Promise<void>;
 	listTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult>;
 	runAutomation(params: RunAutomationParams): Promise<RunAutomationResult>;
@@ -108,17 +141,25 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	private _runs = new Map<string, AutomationRunState>();
 	private _runProviders = new Map<string, string>();
 	private _manualRunRequests = new Map<string, IStoredManualRunRequest>();
+	private _sessionCreations = new Map<string, IStoredSessionCreation>();
+	private _historyDeletions = new Map<string, IStoredHistoryDeletion>();
+	private _historyDeletionReceipts = new Map<string, IStoredHistoryDeletionReceipt>();
+	private readonly _historyDeletionPromises = new Map<string, Promise<readonly string[]>>();
+	private readonly _runsToRecover = new Set<string>();
+	private readonly _recoveringRuns = new Set<string>();
+	private readonly _recoveringHistoryDeletions = new Set<string>();
 	private _mutationTail: Promise<void> = Promise.resolve();
 	private readonly _executionAvailabilityWatcher = this._register(new MutableDisposable());
 	private readonly _scheduleTimer = this._register(new MutableDisposable());
 	private readonly _resumeAfterWakeTimer = this._register(new MutableDisposable());
 	/** Running runs that were active while the machine was not fully awake. */
 	private readonly _sleptRuns = new Set<string>();
-	/** Runs whose turn failed after the machine slept, waiting to resume that turn once it is fully awake. */
-	private readonly _resumesAfterWake = new Map<string, { readonly session: string; readonly turnId: string; readonly error: ErrorInfo }>();
+	/** Runs whose turn failed after the machine slept, waiting for the next resume delay to finish and for scheduled work to be ready. */
+	private readonly _resumesAfterWake = new Map<string, { readonly session: string; readonly turnId: string; readonly error: ErrorInfo; delayElapsed: boolean }>();
 	/** Runs already resumed after a wake; another failure ends them. */
 	private readonly _resumedAfterWake = new Set<string>();
-	private _didRecoverRuns = false;
+	/** Pending runs that a Run Now request reused; like manual runs, they start without waiting for scheduled work to be ready. */
+	private readonly _manuallyRequestedRuns = new Set<string>();
 	private readonly _customizations: AgentHostAutomationCustomizations;
 	private readonly _startup: Promise<void>;
 	private readonly _mcpAuthenticationChallenges = new Map<string, Map<string, Set<string>>>();
@@ -143,6 +184,14 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		const stored = this._load();
 		this._runs = new Map(stored?.runs?.map(run => [run.resource, run]));
 		this._runProviders = new Map(Object.entries(stored?.runProviders ?? {}));
+		this._sessionCreations = new Map(stored?.sessionCreations?.map(creation => [creation.run, creation]));
+		this._historyDeletions = new Map(stored?.historyDeletions?.map(deletion => [deletion.automation, deletion]));
+		this._historyDeletionReceipts = new Map(stored?.historyDeletionReceipts?.map(receipt => [receipt.requestId, receipt]));
+		for (const run of this._runs.values()) {
+			if (run.lifecycle.status === AutomationRunStatus.Running || this._sessionCreations.has(run.resource)) {
+				this._runsToRecover.add(run.resource);
+			}
+		}
 		this._catalog = stored?.catalog ? {
 			entries: stored.catalog.automations.map(automation => {
 				const restored = withRunWindow(migrateStoredAutomation(automation), this._runs, RUN_HISTORY_PAGE_SIZE);
@@ -160,23 +209,31 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => this._handleEnvelope(envelope)));
 		this._register(this._stateManager.onDidDeleteSession(session => this._cancelRunsForDeletedSession(session)));
 		this._register(autorun(reader => {
-			if (this._systemWake.isFullyAwake.read(reader)) {
-				this._scheduleResumesAfterWake();
+			if (!this._systemWake.isFullyAwake.read(reader)) {
+				this._resumeAfterWakeTimer.clear();
+				for (const pending of this._resumesAfterWake.values()) {
+					pending.delayElapsed = false;
+				}
+				for (const run of this._runs.values()) {
+					if (run.lifecycle.status === AutomationRunStatus.Running) {
+						this._sleptRuns.add(run.resource);
+					}
+				}
 				return;
 			}
-			this._resumeAfterWakeTimer.clear();
-			for (const run of this._runs.values()) {
-				if (run.lifecycle.status === AutomationRunStatus.Running) {
-					this._sleptRuns.add(run.resource);
-				}
+			// Readiness implies full wake, so it is only tracked while awake.
+			if (this._systemWake.isReadyForScheduledWork.read(reader)) {
+				void this._resumeTurnsAfterWake();
 			}
+			this._scheduleResumesAfterWake();
 		}));
 		this._startup = this._enqueueMutation(async () => {
 			if (this._catalog) {
+				await this._restoreHistoryOwners();
 				await this._customizations.collectGarbage(this._catalog.entries);
 			}
 		});
-		if (this._catalog && this._isAutomationsEnabled()) {
+		if (this._catalog) {
 			void this._startup.then(() => {
 				if (!this._store.isDisposed) {
 					this._recoverRuns();
@@ -201,6 +258,10 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	}
 
 	private _operationsForItem(automation: AutomationEntry): AutomationOperation[] {
+		const historyState = getAgentHostAutomationHistoryState(automation);
+		if (historyState) {
+			return historyState === 'retained' ? [AutomationOperation.Remove] : [];
+		}
 		return [
 			AutomationOperation.Update,
 			...(automation.runs.some(run => !isTerminalLifecycle(run.lifecycle)) ? [] : [AutomationOperation.Remove]),
@@ -225,18 +286,29 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 					this._stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, { type: ActionType.AutomationSet, automation });
 				}
 			}
-			if (this._isAutomationsEnabled()) {
-				this._recoverRuns();
-			}
+			this._recoverRuns();
 			this._scheduleNext();
 		});
 	}
 
 	handleAgentsChanged(): void {
-		if (!this._catalog || !this._isAutomationsEnabled()) {
+		if (!this._catalog) {
 			return;
 		}
+		this._recoverRuns();
 		this._scheduleNext();
+	}
+
+	getLegacySessionOrigin(session: string, provider: string): AutomationSessionOrigin | undefined {
+		for (const run of this._runs.values()) {
+			const creation = this._sessionCreations.get(run.resource);
+			const owner = this._runProviders.get(run.resource);
+			if ((owner === undefined || owner === provider) && (run.primarySession === session || run.sessions.includes(session))
+				|| creation?.session === session && creation.provider === provider) {
+				return { kind: SessionOriginKind.Automation, automation: run.automation, run: run.resource };
+			}
+		}
+		return undefined;
 	}
 
 	async handleCreate(action: AutomationCreateRequestedAction, clientId?: string): Promise<void> {
@@ -331,9 +403,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	}
 
 	/** Runs a catalogue mutation, then reclaims copies it left unreferenced, including those of a rejected capture. */
-	private async _collectingCustomizations(mutation: () => Promise<void>): Promise<void> {
+	private async _collectingCustomizations<T>(mutation: () => Promise<T>): Promise<T> {
 		try {
-			await mutation();
+			return await mutation();
 		} finally {
 			if (this._catalog) {
 				await this._customizations.collectGarbage(this._catalog.entries);
@@ -342,25 +414,254 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	}
 
 	async handleRemove(action: AutomationRemovedAction): Promise<void> {
-		return this._enqueueMutation(() => this._collectingCustomizations(() => this._handleRemove(action)));
+		await this.deleteAutomation(action.resource, true);
 	}
 
-	private async _handleRemove(action: AutomationRemovedAction): Promise<void> {
+	async deleteAutomation(resource: string, deleteHistory: boolean, legacySessions: readonly URI[] = [], requestId?: string): Promise<readonly string[]> {
+		const prepared = await this._enqueueMutation(() => this._prepareAutomationDeletion(resource, deleteHistory, legacySessions, requestId));
+		await this._enqueueMutation(() => this._customizations.collectGarbage(this._requireCatalog().entries));
+		return prepared ?? this._runHistoryDeletion(resource);
+	}
+
+	async acknowledgeAutomationDeletion(requestId: string): Promise<void> {
+		await this._enqueueMutation(async () => {
+			if (!this._historyDeletionReceipts.has(requestId)) {
+				return;
+			}
+			const receipts = new Map(this._historyDeletionReceipts);
+			receipts.delete(requestId);
+			await this._persist(this._requireCatalog(), this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations, this._historyDeletions, receipts);
+		});
+	}
+
+	private async _prepareAutomationDeletion(resource: string, deleteHistory: boolean, legacySessions: readonly URI[], requestId: string | undefined): Promise<readonly string[] | undefined> {
 		const catalog = this._requireCatalog();
-		const existing = catalog.entries.find(automation => automation.resource === action.resource);
+		const existing = catalog.entries.find(automation => automation.resource === resource);
 		if (!existing) {
-			return;
+			const receipt = requestId ? this._historyDeletionReceipts.get(requestId) : undefined;
+			return receipt?.automation === resource ? receipt.sessions : [];
+		}
+		if (this._historyDeletions.has(resource)) {
+			if (!deleteHistory) {
+				throw new Error(`Automation history deletion is already in progress: ${resource}`);
+			}
+			const current = this._historyDeletions.get(resource)!;
+			const sessions = new Map(current.sessions.map(entry => [entry.session, entry]));
+			const deletedSessions = new Set(current.deletedSessions ?? []);
+			for (const session of legacySessions) {
+				if (!sessions.has(session.toString()) && !deletedSessions.has(session.toString())) {
+					sessions.set(session.toString(), { session: session.toString() });
+				}
+			}
+			const requestIds = new Set(this._historyDeletionRequestIds(current));
+			if (requestId) {
+				requestIds.add(requestId);
+			}
+			if (sessions.size !== current.sessions.length || requestIds.size !== this._historyDeletionRequestIds(current).length) {
+				const deletions = new Map(this._historyDeletions);
+				const { requestId: _legacyRequestId, ...stored } = current;
+				deletions.set(resource, { ...stored, requestIds: [...requestIds], sessions: [...sessions.values()] });
+				await this._persist(catalog, this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations, deletions);
+			}
+			return undefined;
 		}
 		this._requireOperation(existing, AutomationOperation.Remove);
-		if (existing.runs.some(run => !isTerminalLifecycle(run.lifecycle))) {
-			throw new Error(`Automation has an active run and cannot be removed: ${action.resource}`);
+		const runs = [...this._runs.values()].filter(run => run.automation === resource);
+		if (runs.some(run => !isTerminalLifecycle(run.lifecycle) || this._sessionCreations.has(run.resource))) {
+			throw new Error(`Automation has an active or recovering run and cannot be removed: ${resource}`);
 		}
-		const next = automationReducer(catalog, action, this._log);
-		await this._persist(next, this._runs, this._manualRunRequests);
+		const automation = this._historyOwner(existing, deleteHistory ? 'deleting' : 'retained');
+		const deletions = new Map(this._historyDeletions);
+		if (deleteHistory) {
+			const sessions = new Map<string, { session: string; provider?: string }>();
+			for (const run of runs) {
+				for (const session of new Set([...run.sessions, ...(run.primarySession ? [run.primarySession] : [])])) {
+					sessions.set(session, { session, provider: this._runProviders.get(run.resource) });
+				}
+			}
+			for (const session of legacySessions) {
+				if (!sessions.has(session.toString())) {
+					sessions.set(session.toString(), { session: session.toString() });
+				}
+			}
+			deletions.set(resource, {
+				automation: resource,
+				...(requestId ? { requestIds: [requestId] } : {}),
+				sessions: [...sessions.values()],
+			});
+		}
+		const next = automationReducer(catalog, { type: ActionType.AutomationSet, automation }, this._log);
+		await this._persist(next, this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations, deletions);
 		this._catalog = next;
-		this._stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, action);
+		this._publishAutomation(next, resource);
 		logAutomationDeleted(this._telemetryService, this._definitionTelemetry(existing));
 		this._scheduleNext();
+		return deleteHistory ? undefined : [];
+	}
+
+	private _historyOwner(existing: AutomationEntry, state: 'retained' | 'deleting'): AutomationEntry {
+		return withRunWindow({
+			resource: existing.resource,
+			definition: {
+				title: existing.definition.title,
+				message: { text: '', origin: { kind: MessageKind.Automation } },
+				session: {},
+				enabled: false,
+				triggers: [],
+			},
+			createdAt: existing.createdAt,
+			modifiedAt: existing.modifiedAt,
+			operations: state === 'retained' ? [AutomationOperation.Remove] : [],
+			runs: [],
+			_meta: withAgentHostAutomationHistoryState(undefined, state),
+		}, this._runs, RUN_HISTORY_PAGE_SIZE);
+	}
+
+	private _runHistoryDeletion(resource: string): Promise<readonly string[]> {
+		const current = this._historyDeletionPromises.get(resource);
+		if (current) {
+			return current;
+		}
+		const deletion = this._deleteHistory(resource).finally(() => this._historyDeletionPromises.delete(resource));
+		this._historyDeletionPromises.set(resource, deletion);
+		return deletion;
+	}
+
+	private async _deleteHistory(resource: string): Promise<readonly string[]> {
+		while (true) {
+			let failure: unknown;
+			const sessions = await this._enqueueMutation(() => Promise.resolve(this._historyDeletions.get(resource)?.sessions ?? []));
+			if (sessions.length === 0) {
+				const completed = await this._enqueueMutation(() => this._completeHistoryDeletion(resource));
+				if (completed !== undefined) {
+					return completed;
+				}
+				continue;
+			}
+			for (const entry of sessions) {
+				try {
+					const session = URI.parse(entry.session);
+					const provider = entry.provider ?? await this._execution.getRecoverableSessionProvider(session);
+					if (provider === undefined) {
+						throw new Error(`Cannot resolve the persisted provider for Automation history session: ${entry.session}`);
+					}
+					if (entry.provider === undefined) {
+						await this._enqueueMutation(() => this._recordHistoryDeletionProvider(resource, entry.session, provider));
+					}
+					await this._execution.deleteSession(session, provider);
+					await this._enqueueMutation(() => this._recordDeletedHistorySession(resource, entry.session));
+				} catch (error) {
+					this._logService.error(`[AgentHostAutomationService] Failed to delete Automation history session ${entry.session}`, error);
+					failure = error;
+				}
+			}
+			if (failure) {
+				throw failure;
+			}
+		}
+	}
+
+	private async _recordHistoryDeletionProvider(resource: string, session: string, provider: string): Promise<void> {
+		const current = this._historyDeletions.get(resource);
+		if (!current) {
+			return;
+		}
+		const deletions = new Map(this._historyDeletions);
+		deletions.set(resource, {
+			...current,
+			sessions: current.sessions.map(candidate => candidate.session === session ? { ...candidate, provider } : candidate),
+		});
+		await this._persist(this._requireCatalog(), this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations, deletions);
+	}
+
+	private async _recordDeletedHistorySession(resource: string, session: string): Promise<void> {
+		const current = this._historyDeletions.get(resource);
+		if (!current) {
+			return;
+		}
+		const deletions = new Map(this._historyDeletions);
+		deletions.set(resource, {
+			...current,
+			sessions: current.sessions.filter(candidate => candidate.session !== session),
+			deletedSessions: [...new Set([...(current.deletedSessions ?? []), session])],
+		});
+		await this._persist(this._requireCatalog(), this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations, deletions);
+	}
+
+	private async _completeHistoryDeletion(resource: string): Promise<readonly string[] | undefined> {
+		const deletion = this._historyDeletions.get(resource);
+		if (!deletion) {
+			return [];
+		}
+		if (deletion.sessions.length > 0) {
+			return undefined;
+		}
+		const deleted = deletion.deletedSessions ?? [];
+		const deletions = new Map(this._historyDeletions);
+		deletions.delete(resource);
+		const runs = new Map([...this._runs].filter(([, run]) => run.automation !== resource));
+		const requests = new Map([...this._manualRunRequests].filter(([, request]) => request.automation !== resource));
+		const action: AutomationRemovedAction = { type: ActionType.AutomationRemoved, resource };
+		const catalog = automationReducer(this._requireCatalog(), action, this._log);
+		const receipts = new Map(this._historyDeletionReceipts);
+		for (const requestId of this._historyDeletionRequestIds(deletion)) {
+			receipts.set(requestId, { requestId, automation: resource, sessions: deleted });
+		}
+		await this._persist(catalog, runs, requests, this._runProviders, this._sessionCreations, deletions, receipts);
+		this._catalog = catalog;
+		this._runs = runs;
+		this._manualRunRequests = requests;
+		this._stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, action);
+		return deleted;
+	}
+
+	private _historyDeletionRequestIds(deletion: IStoredHistoryDeletion): readonly string[] {
+		return [...new Set([...(deletion.requestIds ?? []), ...(deletion.requestId ? [deletion.requestId] : [])])];
+	}
+
+	private async _restoreHistoryOwners(): Promise<void> {
+		let catalog = this._requireCatalog();
+		const providers = new Map(this._runProviders);
+		for (const run of this._runs.values()) {
+			let provider = providers.get(run.resource);
+			if (!provider) {
+				for (const resource of new Set([...(run.primarySession ? [run.primarySession] : []), ...run.sessions])) {
+					try {
+						provider = await this._execution.getRecoverableSessionProvider(URI.parse(resource));
+					} catch (error) {
+						this._logService.warn(`[AgentHostAutomationService] Failed to resolve retained run session ${resource}`, error);
+					}
+					if (provider) {
+						providers.set(run.resource, provider);
+						break;
+					}
+				}
+			}
+			if (catalog.entries.some(entry => entry.resource === run.automation)) {
+				continue;
+			}
+			const automation = withRunWindow({
+				resource: run.automation,
+				definition: {
+					title: localize('deletedAutomation', "Deleted automation"),
+					message: { text: '', origin: { kind: MessageKind.Automation } },
+					session: { provider },
+					enabled: false,
+					triggers: [],
+				},
+				createdAt: run.lifecycle.createdAt,
+				modifiedAt: run.lifecycle.createdAt,
+				operations: [AutomationOperation.Remove],
+				runs: [],
+				_meta: withAgentHostAutomationHistoryState(undefined, 'retained'),
+			}, this._runs, RUN_HISTORY_PAGE_SIZE);
+			catalog = automationReducer(catalog, { type: ActionType.AutomationSet, automation }, this._log);
+		}
+		if (catalog !== this._catalog || providers.size !== this._runProviders.size) {
+			await this._persist(catalog, this._runs, this._manualRunRequests, providers);
+			this._catalog = catalog;
+			this._stateManager.setAutomationCatalogState(catalog);
+		}
 	}
 
 	async listTriggerDefinitions(_params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> {
@@ -446,6 +747,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		runs: ReadonlyMap<string, AutomationRunState>,
 		manualRunRequests: ReadonlyMap<string, IStoredManualRunRequest>,
 		runProviders: ReadonlyMap<string, string> = this._runProviders,
+		sessionCreations: ReadonlyMap<string, IStoredSessionCreation> = this._sessionCreations,
+		historyDeletions: ReadonlyMap<string, IStoredHistoryDeletion> = this._historyDeletions,
+		historyDeletionReceipts: ReadonlyMap<string, IStoredHistoryDeletionReceipt> = this._historyDeletionReceipts,
 	): Promise<void> {
 		const nextRunProviders = new Map([...runProviders].filter(([resource]) => runs.has(resource)));
 		await this._storageService.setAndFlush<IStoredAutomations>(STORAGE_KEY, {
@@ -457,8 +761,14 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			runs: [...runs.values()],
 			...(nextRunProviders.size > 0 ? { runProviders: Object.fromEntries(nextRunProviders) } : {}),
 			manualRunRequests: [...manualRunRequests.values()],
+			...(sessionCreations.size > 0 ? { sessionCreations: [...sessionCreations.values()] } : {}),
+			...(historyDeletions.size > 0 ? { historyDeletions: [...historyDeletions.values()] } : {}),
+			...(historyDeletionReceipts.size > 0 ? { historyDeletionReceipts: [...historyDeletionReceipts.values()] } : {}),
 		});
 		this._runProviders = nextRunProviders;
+		this._sessionCreations = new Map(sessionCreations);
+		this._historyDeletions = new Map(historyDeletions);
+		this._historyDeletionReceipts = new Map(historyDeletionReceipts);
 	}
 
 	private _requireCatalog(): AutomationState {
@@ -506,12 +816,15 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._executionAvailabilityWatcher.value = autorun(reader => {
 			const available = catalog.entries.filter(automation => this._execution.isSessionTemplateAvailable(getExecutionSessionTemplate(automation.definition), reader));
 			this._scheduleTimer.clear();
-			// Work started while the machine sleeps or is in a background wake stalls when it
-			// sleeps again, so due schedules and pending runs wait until it is fully awake.
-			if (!this._isAutomationsEnabled() || !this._systemWake.isFullyAwake.read(reader)) {
+			if (!this._isAutomationsEnabled()) {
 				return;
 			}
-			this._startPendingRuns(available);
+			// Scheduled work waits until the machine is fully awake and reconnected; manual runs are never held.
+			const readyForScheduledWork = this._systemWake.isReadyForScheduledWork.read(reader);
+			this._startPendingRuns(available, readyForScheduledWork);
+			if (!readyForScheduledWork) {
+				return;
+			}
 			const timestamps = available
 				.filter(automation => automation.definition.enabled
 					&& automation.operations.includes(AutomationOperation.Run)
@@ -535,7 +848,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 
 	private async _claimDueRuns(): Promise<readonly { readonly run: AutomationRunState; readonly definition: AutomationDefinition }[]> {
 		const catalog = this._requireAvailableCatalog();
-		if (!this._systemWake.isFullyAwake.get()) {
+		if (!this._systemWake.isReadyForScheduledWork.get()) {
 			return [];
 		}
 		const now = new Date();
@@ -623,22 +936,50 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	}
 
 	private _recoverRuns(): void {
-		if (this._didRecoverRuns) {
-			return;
-		}
-		this._didRecoverRuns = true;
-		for (const run of this._runs.values()) {
-			if (run.lifecycle.status === AutomationRunStatus.Running) {
-				void this._enqueueMutation(() => this._failRun(run.resource, new Error('Automation execution was interrupted by an Agent Host restart.'), 'interrupted')).catch(error => {
-					this._logService.error(`[AgentHostAutomationService] Failed to recover interrupted Automation run: run=${run.resource}, error=${toErrorMessage(error)}`);
-				});
+		for (const resource of this._runsToRecover) {
+			if (this._recoveringRuns.has(resource)) {
+				continue;
 			}
+			this._recoveringRuns.add(resource);
+			void this._enqueueMutation(() => this._recoverRun(resource)).catch(error => {
+				this._logService.error(`[AgentHostAutomationService] Failed to recover interrupted Automation run: run=${resource}`, error);
+			}).finally(() => this._recoveringRuns.delete(resource));
+		}
+		for (const resource of this._historyDeletions.keys()) {
+			if (this._recoveringHistoryDeletions.has(resource)) {
+				continue;
+			}
+			this._recoveringHistoryDeletions.add(resource);
+			void this._runHistoryDeletion(resource).catch(error => {
+				this._logService.error(`[AgentHostAutomationService] Failed to recover Automation history deletion: ${resource}`, error);
+			}).finally(() => this._recoveringHistoryDeletions.delete(resource));
 		}
 	}
 
-	private _startPendingRuns(availableAutomations: readonly AutomationEntry[]): void {
+	private async _recoverRun(resource: string, creationError?: unknown): Promise<void> {
+		const creation = this._sessionCreations.get(resource);
+		if (creation) {
+			const session = URI.parse(creation.session);
+			const provider = await this._execution.getRecoverableSessionProvider(session, creation.provider);
+			if (provider) {
+				await this._linkRunSession(resource, creation.session, undefined, provider);
+			} else {
+				await this._execution.deleteSession(session, creation.provider);
+				const creations = new Map(this._sessionCreations);
+				creations.delete(resource);
+				await this._persist(this._requireCatalog(), this._runs, this._manualRunRequests, this._runProviders, creations);
+			}
+		}
+		await this._failRun(resource, creationError ?? new Error('Automation execution was interrupted before its initial prompt completed.'), creationError === undefined ? 'interrupted' : 'error');
+		this._runsToRecover.delete(resource);
+	}
+
+	private _startPendingRuns(availableAutomations: readonly AutomationEntry[], includeScheduledRuns: boolean): void {
 		for (const run of this._runs.values()) {
 			if (run.lifecycle.status !== AutomationRunStatus.Pending) {
+				continue;
+			}
+			if (!includeScheduledRuns && run.origin.kind !== AutomationRunOriginKind.Manual && !this._manuallyRequestedRuns.has(run.resource)) {
 				continue;
 			}
 			const automation = availableAutomations.find(candidate => candidate.resource === run.automation);
@@ -672,7 +1013,12 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._requireOperation(automation, AutomationOperation.Run);
 		const activeRun = this._activeRunFor(automation.resource);
 		if (activeRun) {
-			return { run: activeRun };
+			if (activeRun.lifecycle.status !== AutomationRunStatus.Pending) {
+				return { run: activeRun };
+			}
+			// Run Now is never held, so it also starts a pending scheduled run that it reuses.
+			this._manuallyRequestedRuns.add(activeRun.resource);
+			return { run: activeRun, definition: automation.definition };
 		}
 		const createdAt = new Date().toISOString();
 		const run = this._createRunState(automation.resource, { kind: AutomationRunOriginKind.Manual }, createdAt);
@@ -720,13 +1066,14 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				this._logService.info(`[AgentHostAutomationService] Deferring Automation run until its provider is available: run=${initialRun.resource}.`);
 				return;
 			}
-			const running = await this._enqueueMutation(() => this._markRunRunning(initialRun.resource));
+			const allocation = await this._execution.allocateSession(template);
+			const running = await this._enqueueMutation(() => this._markRunRunning(initialRun.resource, allocation));
 			if (!running) {
 				return;
 			}
 			const configuration = this._configurationTelemetry(definition.session);
-			const session = await this._execution.createSession(template, running, activeClient);
-			const shouldStart = await this._enqueueMutation(() => this._linkRunSession(running.resource, session.toString(), configuration));
+			const session = await this._execution.createSession({ ...template, provider: allocation.provider }, running, allocation.session, activeClient);
+			const shouldStart = await this._enqueueMutation(() => this._linkRunSession(running.resource, session.toString(), configuration, allocation.provider));
 			if (!shouldStart) {
 				await this._execution.cancelSession(session);
 				return;
@@ -738,14 +1085,21 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			await this._execution.startSession(session, message);
 		} catch (error) {
 			try {
-				await this._enqueueMutation(() => this._failRun(initialRun.resource, error));
+				await this._enqueueMutation(async () => {
+					if (this._sessionCreations.has(initialRun.resource)) {
+						this._runsToRecover.add(initialRun.resource);
+						await this._recoverRun(initialRun.resource, error);
+					} else {
+						await this._failRun(initialRun.resource, error);
+					}
+				});
 			} catch (persistError) {
 				this._logService.error(`[AgentHostAutomationService] Failed to persist automation run failure: run=${initialRun.resource}, error=${toErrorMessage(persistError)}`);
 			}
 		}
 	}
 
-	private async _markRunRunning(resource: string): Promise<AutomationRunState | undefined> {
+	private async _markRunRunning(resource: string, allocation: { readonly session: URI; readonly provider: string }): Promise<AutomationRunState | undefined> {
 		const run = this._runs.get(resource);
 		if (!run || run.lifecycle.status !== AutomationRunStatus.Pending) {
 			return undefined;
@@ -756,16 +1110,17 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			startedAt: new Date().toISOString(),
 		};
 		const next = { ...run, lifecycle };
-		await this._commitRun(next, [{ type: ActionType.AutomationRunLifecycleChanged, lifecycle }]);
+		const creations = new Map(this._sessionCreations);
+		creations.set(resource, { run: resource, session: allocation.session.toString(), provider: allocation.provider });
+		await this._commitRun(next, [{ type: ActionType.AutomationRunLifecycleChanged, lifecycle }], undefined, allocation.provider, creations);
 		return next;
 	}
 
-	private async _linkRunSession(resource: string, session: string, configuration: IAutomationConfigurationTelemetry): Promise<boolean> {
+	private async _linkRunSession(resource: string, session: string, configuration: IAutomationConfigurationTelemetry | undefined, provider: string): Promise<boolean> {
 		const run = this._runs.get(resource);
 		if (!run) {
 			throw new Error(`Automation run not found while linking session: ${resource}`);
 		}
-		const sessionProvider = this._stateManager.getSessionSummary(session)?.provider ?? AgentSession.provider(session);
 		const sessions = run.sessions.includes(session) ? run.sessions : [...run.sessions, session];
 		const next = { ...run, sessions, primarySession: session };
 		const actions: Array<AutomationRunSessionSetAction | AutomationRunPrimarySessionChangedAction> = [];
@@ -775,8 +1130,10 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		if (run.primarySession !== session) {
 			actions.push({ type: ActionType.AutomationRunPrimarySessionChanged, primarySession: session });
 		}
-		await this._commitRun(next, actions, undefined, sessionProvider);
-		if (run.primarySession === undefined && !isTerminalLifecycle(next.lifecycle)) {
+		const creations = new Map(this._sessionCreations);
+		creations.delete(resource);
+		await this._commitRun(next, actions, undefined, provider, creations);
+		if (configuration && run.primarySession === undefined && !isTerminalLifecycle(next.lifecycle)) {
 			logAutomationRunStarted(this._telemetryService, {
 				...configuration,
 				...this._runTelemetry(next),
@@ -881,7 +1238,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 					const session = current.sessions.find(candidate => this._chatOwnership.getDefaultChat(candidate) === envelope.channel);
 					if (session && action.part.resumable === true && !this._resumedAfterWake.has(current.resource)
 						&& (this._sleptRuns.has(current.resource) || !this._systemWake.isFullyAwake.get())) {
-						this._resumesAfterWake.set(current.resource, { session, turnId: action.turnId, error: action.part.error });
+						this._resumesAfterWake.set(current.resource, { session, turnId: action.turnId, error: action.part.error, delayElapsed: false });
 						this._logService.info(`[AgentHostAutomationService] Automation run will resume once the machine is fully awake: run=${current.resource}, turnId=${action.turnId}.`);
 						this._scheduleResumesAfterWake();
 						return;
@@ -901,11 +1258,14 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	}
 
 	private _scheduleResumesAfterWake(): void {
-		if (this._resumesAfterWake.size === 0 || this._resumeAfterWakeTimer.value || !this._systemWake.isFullyAwake.get()) {
+		if (this._resumeAfterWakeTimer.value || !this._systemWake.isFullyAwake.get() || !Iterable.some(this._resumesAfterWake.values(), pending => !pending.delayElapsed)) {
 			return;
 		}
 		this._resumeAfterWakeTimer.value = disposableTimeout(() => {
 			this._resumeAfterWakeTimer.clear();
+			for (const pending of this._resumesAfterWake.values()) {
+				pending.delayElapsed = true;
+			}
 			void this._resumeTurnsAfterWake();
 		}, RESUME_AFTER_WAKE_DELAY_MS);
 	}
@@ -913,7 +1273,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	private async _resumeTurnsAfterWake(): Promise<void> {
 		for (const resource of [...this._resumesAfterWake.keys()]) {
 			const pending = this._resumesAfterWake.get(resource);
-			if (!pending || !this._systemWake.isFullyAwake.get()) {
+			if (!pending?.delayElapsed || !this._systemWake.isReadyForScheduledWork.get()) {
 				continue;
 			}
 			this._resumesAfterWake.delete(resource);
@@ -978,7 +1338,8 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			}
 		}
 		for (const server of servers) {
-			if (server.state?.kind !== McpServerStatus.AuthRequired) {
+			// Connector-owned servers use the session credential; an MCP token can never satisfy their challenge.
+			if (server.state?.kind !== McpServerStatus.AuthRequired || readMcpServerConnectorName(server) !== undefined) {
 				continue;
 			}
 			const { resource, requiredScopes, reason, oauthClient, description } = server.state;
@@ -1018,6 +1379,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		actions: readonly (AutomationRunLifecycleChangedAction | AutomationRunSessionSetAction | AutomationRunPrimarySessionChangedAction)[],
 		outcome?: AutomationRunOutcome,
 		provider?: string,
+		sessionCreations: ReadonlyMap<string, IStoredSessionCreation> = this._sessionCreations,
 	): Promise<void> {
 		const catalog = this._requireCatalog();
 		const previous = this._runs.get(run.resource);
@@ -1025,7 +1387,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		const nextRuns = new Map(this._runs);
 		nextRuns.set(run.resource, run);
 		const runProviders = provider === undefined ? this._runProviders : new Map(this._runProviders).set(run.resource, provider);
-		await this._persist(nextCatalog, nextRuns, this._manualRunRequests, runProviders);
+		await this._persist(nextCatalog, nextRuns, this._manualRunRequests, runProviders, sessionCreations);
 		this._catalog = nextCatalog;
 		this._runs = nextRuns;
 		for (const action of actions) {
@@ -1043,6 +1405,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			this._sleptRuns.delete(run.resource);
 			this._resumesAfterWake.delete(run.resource);
 			this._resumedAfterWake.delete(run.resource);
+			this._manuallyRequestedRuns.delete(run.resource);
 			this._scheduleNext();
 		}
 	}
@@ -1093,7 +1456,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			runId: AgentSession.id(run.resource),
 			trigger: run.origin.kind === AutomationRunOriginKind.Manual ? 'manual' : run.origin.catchUp ? 'catch_up' : run.origin.scheduledFor ? 'schedule' : 'event',
 			runCreatedAt: run.lifecycle.createdAt,
-			provider: session ? getAutomationTelemetryProvider(snapshotProvider ?? this._stateManager.getSessionSummary(session)?.provider ?? AgentSession.provider(session)) : 'default',
+			provider: session ? getAutomationTelemetryProvider(snapshotProvider ?? this._stateManager.getSessionSummary(session)?.provider) : 'default',
 			agentSessionId: session ? AgentSession.id(session) : undefined,
 			sessionCreated: run.sessions.length > 0,
 		};
@@ -1203,7 +1566,40 @@ function isStoredAutomations(value: unknown): value is IStoredAutomations {
 		&& (stored['runs'] === undefined || Array.isArray(stored['runs']) && stored['runs'].every(isAutomationRunState))
 		&& (runProviders === undefined || !!runProviders && typeof runProviders === 'object' && !Array.isArray(runProviders)
 			&& Object.values(runProviders).every(provider => typeof provider === 'string' && provider.length > 0))
+		&& (stored['sessionCreations'] === undefined || Array.isArray(stored['sessionCreations']) && stored['sessionCreations'].every(isStoredSessionCreation))
+		&& (stored['historyDeletions'] === undefined || Array.isArray(stored['historyDeletions']) && stored['historyDeletions'].every(isStoredHistoryDeletion))
+		&& (stored['historyDeletionReceipts'] === undefined || Array.isArray(stored['historyDeletionReceipts']) && stored['historyDeletionReceipts'].every(isStoredHistoryDeletionReceipt))
 		&& (stored['manualRunRequests'] === undefined || Array.isArray(stored['manualRunRequests']) && stored['manualRunRequests'].every(isStoredManualRunRequest));
+}
+
+function isStoredSessionCreation(value: unknown): value is IStoredSessionCreation {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	return 'run' in value && typeof value.run === 'string'
+		&& 'session' in value && typeof value.session === 'string'
+		&& 'provider' in value && typeof value.provider === 'string' && value.provider.length > 0;
+}
+
+function isStoredHistoryDeletion(value: unknown): value is IStoredHistoryDeletion {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	return 'automation' in value && typeof value.automation === 'string'
+		&& (!('requestId' in value) || value.requestId === undefined || typeof value.requestId === 'string')
+		&& (!('requestIds' in value) || value.requestIds === undefined || Array.isArray(value.requestIds) && value.requestIds.every(requestId => typeof requestId === 'string'))
+		&& 'sessions' in value && Array.isArray(value.sessions) && value.sessions.every((entry: unknown) =>
+			!!entry && typeof entry === 'object'
+			&& 'session' in entry && typeof entry.session === 'string'
+			&& (!('provider' in entry) || entry.provider === undefined || typeof entry.provider === 'string'))
+		&& (!('deletedSessions' in value) || value.deletedSessions === undefined || Array.isArray(value.deletedSessions) && value.deletedSessions.every(session => typeof session === 'string'));
+}
+
+function isStoredHistoryDeletionReceipt(value: unknown): value is IStoredHistoryDeletionReceipt {
+	return !!value && typeof value === 'object'
+		&& 'requestId' in value && typeof value.requestId === 'string'
+		&& 'automation' in value && typeof value.automation === 'string'
+		&& 'sessions' in value && Array.isArray(value.sessions) && value.sessions.every(session => typeof session === 'string');
 }
 
 function isAutomationEntry(value: unknown): value is AutomationEntry {
@@ -1262,7 +1658,7 @@ function withRunSummary(automation: AutomationEntry, allRuns: ReadonlyMap<string
 	const hasActiveRun = runs.some(candidate => !isTerminalLifecycle(candidate.lifecycle));
 	return {
 		...window,
-		operations: hasActiveRun
+		operations: getAgentHostAutomationHistoryState(automation) === 'deleting' ? [] : hasActiveRun
 			? automation.operations.filter(operation => operation !== AutomationOperation.Remove)
 			: withOperation(automation.operations, AutomationOperation.Remove),
 	};

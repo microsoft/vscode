@@ -720,13 +720,16 @@ export function registerTerminalActions() {
 		f1: false,
 		precondition: sharedWhenClause.terminalAvailable_and_singularSelection,
 		run: async (c, accessor, args) => {
-			let icon: TerminalIcon | undefined;
+			let icon: TerminalIcon | null | undefined;
 			if (c.groupService.lastAccessedMenu === 'inline-tab') {
 				getResourceOrActiveInstance(c, args)?.changeIcon();
 				return;
 			}
 			for (const terminal of getSelectedViewInstances(accessor) ?? []) {
 				icon = await terminal.changeIcon(icon);
+				if (icon === undefined) {
+					break;
+				}
 			}
 		}
 	});

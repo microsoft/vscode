@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../base/common/event.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -20,12 +19,13 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { GitHubService } from '../../browser/githubService.js';
+import { IPullRequestIconCache, PullRequestIconCache } from '../../browser/pullRequestIconCache.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
 
 suite('GitHubService', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: GitHubService;
 	let domainCalls: { operation: string; args: readonly unknown[] }[];
 
@@ -34,12 +34,14 @@ suite('GitHubService', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
+		instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
 		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 			override readonly onDidChangeDefaultAccount = Event.None;
 			override readonly currentDefaultAccount = null;
 			override getDefaultAccountAuthenticationProvider() { return { id: 'github', name: 'GitHub', enterprise: false }; }
 		}());
 		instantiationService.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
+			override readonly onDidChangeDefaultClient = Event.None;
 			override async acquireDefaultAccountApiClient() {
 				return upcastPartial<IGitHubAccountClient>({
 					onDidInvalidate: Event.None,
@@ -71,10 +73,6 @@ suite('GitHubService', () => {
 
 		service = store.add(instantiationService.createInstance(GitHubService));
 	});
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('delegates commit, file, and branch lookup to typed domains and reuses successful branch lookups', async () => {
 		const commit = await service.getCommit('o', 'r', 'abc', CancellationToken.None);

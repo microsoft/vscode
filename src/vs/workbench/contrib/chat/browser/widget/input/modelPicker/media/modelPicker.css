@@ -472,7 +472,7 @@
 }
 
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio .monaco-button:hover:not(.active),
-.action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action:hover {
+.action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action:hover:not(.disabled) {
 	color: var(--vscode-modernTab-hoverForeground);
 	background: var(--vscode-modernTab-hoverBackground);
 }
@@ -736,6 +736,27 @@
 	white-space: nowrap;
 }
 
+/* Copilot Fusion's row is twice the height of the others, so a line beneath its name says
+ * what it does. The first line keeps a fixed height so both lines centre in the row, and
+ * the second starts under the name, past the check column. */
+.action-widget .chat-model-picker-tabbed .monaco-list-row.action.chat-model-picker-featured.has-detail {
+	row-gap: var(--vscode-spacing-size20);
+	padding-right: var(--vscode-spacing-size160);
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row.action.chat-model-picker-featured.has-detail > .codicon:first-child {
+	height: var(--vscode-spacing-size200);
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row.action.chat-model-picker-featured.has-detail > .title {
+	line-height: var(--vscode-spacing-size200);
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row.action.chat-model-picker-featured.has-detail > .detail {
+	padding-left: var(--vscode-spacing-size200);
+	font-size: var(--vscode-fontSize-label2);
+}
+
 /* Align the smaller badge text by baseline; keep icons and chevrons centered. */
 .action-widget .chat-model-picker-tabbed .monaco-list-row.action > .title,
 .action-widget .chat-model-picker-tabbed .monaco-list-row.action > .action-item-badge {
@@ -745,6 +766,7 @@
 /* A filled pill reads as a box, so it centres with the icon and chevron. Sharing a
  * baseline would leave it a pixel low, since its type is smaller than the model name's. */
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-promo > .action-item-badge,
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-fusion > .action-item-badge,
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-warning > .action-item-badge,
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-active > .action-item-badge {
 	align-self: center;
@@ -800,6 +822,35 @@
 	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size60);
 	color: var(--vscode-foreground);
 	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 22%, transparent);
+}
+
+/* Copilot Fusion's badge, its discount or else Recommended, is a neutral pill whose border
+ * takes the GitHub Copilot brand gradient. The gradient is masked to the stroke, so the
+ * translucent fill stays neutral. High contrast drops the gradient for the contrast border. */
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-fusion > .action-item-badge {
+	position: relative;
+	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size60);
+	color: var(--vscode-foreground);
+	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-contrastBorder, transparent);
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-fusion > .action-item-badge::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	padding: var(--vscode-strokeThickness);
+	border-radius: inherit;
+	background: linear-gradient(to right, var(--vscode-chat-fusionBadgeGradientStart), var(--vscode-chat-fusionBadgeGradientEnd));
+	-webkit-mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	-webkit-mask-composite: xor;
+	mask-composite: exclude;
+	pointer-events: none;
 }
 
 .action-widget .chat-model-picker-tabbed .monaco-list-row .chat-model-picker-org-default-badge,

@@ -5,6 +5,9 @@
 
 import { $, append } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { toAction } from '../../../../../base/common/actions.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { autorun, constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -23,8 +26,13 @@ import { ChatViewSessionActivityBar } from '../../../../browser/parts/sessionAct
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutConstants.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
+import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../../../services/activity/common/sessionActivityBarActivityService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
-import { FixtureContextViewService, FixtureKeybindingService, FixtureMenuService, fixtureBrowser, fixtureCanvas, fixtureChanges, fixtureFiles, fixtureTogglePanel, fixtureToggleSidePanel, IFixtureEntry } from '../../../../test/browser/addTabFixtureUtils.js';
+import { IconBadge } from '../../../../../workbench/services/activity/common/activity.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { FixtureContextViewService, FixtureKeybindingService, FixtureMenuService, fixtureBrowser, fixtureCanvas, fixtureChanges, fixtureFiles, fixtureTerminal, fixtureTogglePanel, fixtureToggleSidePanel, IFixtureEntry } from '../../../../test/browser/addTabFixtureUtils.js';
+import { SessionActivityBarGroup } from '../../../../browser/menus.js';
+import { OPEN_PULL_REQUEST_ACTION_ID } from '../../../github/common/types.js';
 import { ExternalSessionBanner } from '../../browser/externalSessionBanner.js';
 import '../../browser/media/chatView.css';
 import '../../../../browser/parts/media/chatCompositeBar.css';
@@ -47,14 +55,21 @@ interface IFixtureOptions {
 	readonly openSubmenu?: boolean;
 	/** Drags the strip down by this many pixels. */
 	readonly dragBy?: number;
+	/** Badges the Changes entry, as new changes do. */
+	readonly newChanges?: boolean;
+	readonly githubReferenceCount?: number;
+	readonly githubChecked?: boolean;
 }
 
-const workspaceChatEntries = [fixtureToggleSidePanel, fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas, fixtureTogglePanel];
+// The tab entries share the side panel toggle's group; the terminal shares the panel toggle's.
+const sidePanelGroup = (entries: readonly IFixtureEntry[]) => entries.map(entry => ({ ...entry, group: SessionActivityBarGroup.SidePanel }));
+const workspaceChatEntries = [fixtureToggleSidePanel, ...sidePanelGroup([fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas]), fixtureTerminal, fixtureTogglePanel];
 const highContrastThemes: ['darkHighContrast', 'lightHighContrast'] = ['darkHighContrast', 'lightHighContrast'];
 
 function activityBarFixture(options: IFixtureOptions, additionalThemes?: typeof highContrastThemes) {
 	return defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		// Keep the flaky submenu fixture available for manual exploration only.
+		labels: { kind: options.openSubmenu ? 'animated' : 'screenshot' },
 		// The transcript settles through native resize and scroll callbacks.
 		virtualTime: { enabled: false },
 		additionalThemes,
@@ -76,11 +91,15 @@ export default defineThemedFixtureGroup({ path: 'sessions/sessionActivityBar/' }
 	RulerTimelineWide: activityBarFixture({ width: 1280, rulerTimeline: true }),
 	ExternalSessionBanner: activityBarFixture({ externalBanner: true }),
 	ExternalSessionBannerWide: activityBarFixture({ width: 1280, externalBanner: true }),
-	ChatWithoutWorkspace: activityBarFixture({ entries: [fixtureToggleSidePanel, fixtureBrowser, fixtureCanvas, fixtureTogglePanel] }),
-	WithoutLayoutActions: activityBarFixture({ entries: [fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas] }),
+	ChatWithoutWorkspace: activityBarFixture({ entries: [fixtureToggleSidePanel, ...sidePanelGroup([fixtureBrowser, fixtureCanvas]), fixtureTerminal, fixtureTogglePanel] }),
+	WithoutLayoutActions: activityBarFixture({ entries: [...sidePanelGroup([fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas]), fixtureTerminal] }),
 	Moved: activityBarFixture({ dragBy: 60 }),
 	AtBottom: activityBarFixture({ dragBy: 2000 }),
 	SubmenuOpen: activityBarFixture({ openSubmenu: true }, highContrastThemes),
+	NewChanges: activityBarFixture({ newChanges: true }, highContrastThemes),
+	GitHubReferences: activityBarFixture({ githubReferenceCount: 1 }, highContrastThemes),
+	MultipleGitHubReferences: activityBarFixture({ githubReferenceCount: 2 }, highContrastThemes),
+	CheckedGitHubReferences: activityBarFixture({ githubReferenceCount: 2, githubChecked: true }, highContrastThemes),
 });
 
 const HEIGHT = 500;
@@ -117,7 +136,10 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	const { container, disposableStore, theme } = context;
 	const { renderChatWidget } = await import('../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js');
 	const width = options.width ?? 640;
-	const entries = options.entries ?? workspaceChatEntries;
+	const githubEntries: readonly IFixtureEntry[] = options.githubReferenceCount ? [
+		{ id: OPEN_PULL_REQUEST_ACTION_ID, title: 'Open Pull Request', icon: Codicon.gitPullRequest, group: SessionActivityBarGroup.SidePanel },
+	] : [];
+	const entries = [...(options.entries ?? workspaceChatEntries), ...githubEntries];
 	container.style.width = `${width}px`;
 	container.style.height = `${HEIGHT}px`;
 	container.classList.add('agent-sessions-workbench');
@@ -141,13 +163,20 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	append(append(header, $('.chat-composite-bar-header')), $('.chat-composite-bar-header-main')).textContent = 'Session Activity Bar';
 
 	const menuService = new FixtureMenuService(entries);
+	const activityService = disposableStore.add(new SessionActivityBarActivityService());
+	if (options.newChanges) {
+		disposableStore.add(activityService.showActivity(fixtureChanges.id, { badge: new IconBadge(Codicon.circleFilled, () => 'New changes') }));
+	}
+	const contextViewService = new FixtureContextViewService(container);
+	disposableStore.add(toDisposable(() => contextViewService.hideContextView()));
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IMenuService, menuService);
+			reg.defineInstance(ISessionActivityBarActivityService, activityService);
 			reg.defineInstance(IKeybindingService, new FixtureKeybindingService(entries));
-			reg.defineInstance(IContextViewService, new FixtureContextViewService(container));
+			reg.defineInstance(IContextViewService, contextViewService);
 			reg.defineInstance(IConfigurationService, new TestConfigurationService({
 				[SESSION_ACTIVITY_BAR_SETTING]: options.enabled ?? true,
 				[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: true,
@@ -166,14 +195,22 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 
 	const areaHeight = HEIGHT - HEADER_HEIGHT;
 	const activityBar = disposableStore.add(instantiationService.createInstance(ChatViewSessionActivityBar, chatGroup));
+	activityBar.setChatActions(constObservable(githubEntries.map(entry => toAction({
+		id: entry.id,
+		label: options.githubReferenceCount === 1 ? `${entry.title} #42: Improve the activity bar` : `${entry.title} (${options.githubReferenceCount})`,
+		class: ThemeIcon.asClassName(entry.icon),
+		checked: options.githubChecked,
+		run: () => { },
+	}))));
 	activityBar.layout(HEADER_HEIGHT, areaHeight);
-	const reservedWidth = activityBar.reservedWidth.get();
+	// As the chat group lays it out: to the left of the strip's column.
+	const chatWidth = Math.max(0, width - activityBar.reservedWidth.get());
 
 	const view = disposableStore.add(new FixtureChatView());
 	view.element.classList.add('chat-view-chat');
 	chatGroup.appendChild(view.element);
 	const widgetContainer = append(view.element, $('.chat-view-widget'));
-	view.layout(width, areaHeight, HEADER_HEIGHT, 0, reservedWidth);
+	view.layout(chatWidth, areaHeight, HEADER_HEIGHT, 0);
 
 	if (options.externalBanner) {
 		const banner = disposableStore.add(instantiationService.createInstance(ExternalSessionBanner, view.element, {}));
@@ -187,14 +224,12 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	}
 	// As in `ChatView`, only the external-session banner precedes the widget in normal flow.
 	const widgetHeight = areaHeight - widgetContainer.offsetTop;
-	// As in `ChatView`, content is inset by the reserved width on both sides.
-	const contentWidth = Math.max(0, width - 2 * reservedWidth);
 	// Mirrors `ChatWidget`, which caps its renderer to the centered band outside a multi-group grid.
-	const rendererWidth = options.split ? contentWidth : Math.min(AGENTS_CENTERED_CONTENT_MAX_WIDTH, contentWidth);
+	const rendererWidth = options.split ? chatWidth : Math.min(AGENTS_CENTERED_CONTENT_MAX_WIDTH, chatWidth);
 
 	let renderedChat: IChatWidgetFixtureHandle | undefined;
 	await renderChatWidget({ ...context, container: widgetContainer }, {
-		width,
+		width: chatWidth,
 		height: widgetHeight,
 		contentHorizontalPadding: 48,
 		useAuxiliaryBarWrapper: false,
@@ -215,7 +250,6 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	});
 	await waitForFixtureCondition(() => !!view.element.querySelector('.interactive-item-container.interactive-response .rendered-markdown'), 'The chat response did not render');
 	const { listWidget } = renderedChat!;
-	activityBar.setScrollDownButton(listWidget.scrollDownButtonDomNode);
 	let previousHeight = -1;
 	let stableFrames = 0;
 	await waitForFixtureCondition(() => {

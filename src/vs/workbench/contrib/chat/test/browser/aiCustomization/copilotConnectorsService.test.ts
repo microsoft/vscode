@@ -77,7 +77,7 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 suite('CopilotConnectorsService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createFixture(responses: Array<{ readonly status?: number; readonly body?: unknown; readonly ready?: Promise<void>; readonly headers?: Record<string, string> }>, enabled = true, enterprise = false) {
+	function createFixture(responses: Array<{ readonly status?: number; readonly body?: unknown; readonly ready?: Promise<void> | (() => Promise<void>); readonly headers?: Record<string, string> }>, enabled = true, enterprise = false) {
 		const requestLifetime = store.add(new DisposableStore());
 		const requests: Array<{ readonly type: string | undefined; readonly url: string; readonly data: string | undefined }> = [];
 		const requestTokens: CancellationToken[] = [];
@@ -182,7 +182,7 @@ suite('CopilotConnectorsService', () => {
 				validators.push(new Headers(options.headers).get('If-None-Match'));
 				const response = responses.shift() ?? {};
 				if (response.ready) {
-					await response.ready;
+					await (typeof response.ready === 'function' ? response.ready() : response.ready);
 				}
 				const body = response.body === undefined ? '' : JSON.stringify(response.body);
 				return new Response(response.status === 204 || response.status === 304 ? null : body, { status: response.status ?? 200, headers: response.headers });
@@ -787,7 +787,7 @@ suite('CopilotConnectorsService', () => {
 		});
 	});
 
-	test('a connector session that covers a narrow default session but not the Copilot credential scopes does not satisfy authorization', async () => {
+	test('a connector session that covers a narrow default session but not the forwarded Copilot credential scopes does not satisfy authorization', async () => {
 		const fixture = createFixture([]);
 		fixture.setSessions([
 			{ ...fixture.initialSession, scopes: ['user:email'] },
@@ -796,8 +796,40 @@ suite('CopilotConnectorsService', () => {
 		]);
 		const authorized = await fixture.service.authorize(CancellationToken.None);
 		assert.deepStrictEqual({ consent: fixture.consentCalls, authorized: authorized.id }, {
-			consent: [['github', ['user:email', 'read:user', 'write:plugin_gateway_connections'], { account: { id: 'account', label: 'octocat' } }]],
+			consent: [['github', ['user:email', 'read:user', 'repo', 'workflow', 'write:plugin_gateway_connections'], { account: { id: 'account', label: 'octocat' } }]],
 			authorized: 'authorized-session',
+		});
+	});
+
+	test('a connector session that grants the Copilot scopes but drops scopes of the forwarded credential does not satisfy authorization', async () => {
+		// A narrow default session once produced a Connector session without `repo`. The Agent Host never forwards it
+		// in place of the account's Copilot credential, so it must not count as authorized. Equally narrow credentials
+		// may each be forwarded, so the new session keeps the scopes of all of them.
+		const fixture = createFixture([]);
+		fixture.setSessions([
+			{ ...fixture.initialSession, scopes: ['user:email'] },
+			{ ...fixture.initialSession, id: 'copilot-session', accessToken: 'copilot-token', scopes: ['read:user', 'user:email', 'repo', 'workflow'] },
+			{ ...fixture.initialSession, id: 'codespace-session', accessToken: 'codespace-token', scopes: ['codespace', 'read:user', 'repo', 'user:email'] },
+			{ ...fixture.initialSession, id: 'narrow-connector-session', accessToken: 'narrow-connector-token', scopes: ['user:email', 'read:user', 'write:plugin_gateway_connections'] },
+		]);
+		const authorized = await fixture.service.authorize(CancellationToken.None);
+		assert.deepStrictEqual({ consent: fixture.consentCalls, authorized: authorized.id }, {
+			consent: [['github', ['user:email', 'read:user', 'repo', 'workflow', 'codespace', 'write:plugin_gateway_connections'], { account: { id: 'account', label: 'octocat' } }]],
+			authorized: 'authorized-session',
+		});
+	});
+
+	test('a connector session that keeps the forwarded Copilot credential scopes satisfies authorization without consent', async () => {
+		const fixture = createFixture([]);
+		fixture.setSessions([
+			{ ...fixture.initialSession, scopes: ['user:email'] },
+			{ ...fixture.initialSession, id: 'copilot-session', accessToken: 'copilot-token', scopes: ['read:user', 'user:email', 'repo', 'workflow'] },
+			{ ...fixture.initialSession, id: 'full-connector-session', accessToken: 'full-connector-token', scopes: ['read:user', 'user:email', 'repo', 'workflow', 'write:plugin_gateway_connections'] },
+		]);
+		const authorized = await fixture.service.authorize(CancellationToken.None);
+		assert.deepStrictEqual({ consent: fixture.consentCalls, authorized: authorized.id }, {
+			consent: [],
+			authorized: 'full-connector-session',
 		});
 	});
 
@@ -1303,6 +1335,73 @@ suite('CopilotConnectorsService', () => {
 		assert.deepStrictEqual({ methods: fixture.requests.map(request => request.type), opened: fixture.opened, status: fixture.service.connectors[0].connectionStatus }, {
 			methods: ['GET', 'PUT', 'GET'], opened: [], status: 'connected',
 		});
+	});
+
+	for (const phase of ['before consent', 'while polling']) {
+		test(`a same-account session change ${phase} does not abandon the connection`, async () => {
+			const reached = new DeferredPromise<void>();
+			const response = new DeferredPromise<void>();
+			const ready = () => { void reached.complete(); return response.p; };
+			const consent = { body: { status: 'Unauthenticated', provisioning_state: 'Succeeded', consent_link: 'https://github.com/settings/copilot/connectors/mail' } };
+			const fixture = createFixture(phase === 'before consent' ? [
+				{ body: catalogResponse('not_connected'), ready },
+				{ body: catalogResponse('not_connected') },
+				consent,
+				{ body: catalogResponse('connected') },
+			] : [
+				{ body: catalogResponse('not_connected') },
+				consent,
+				{ body: catalogResponse('pending'), ready },
+				{ body: catalogResponse('connected') },
+			]);
+			const connect = fixture.service.connect('mail', CancellationToken.None);
+			await reached.p;
+			fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: undefined, removed: undefined, changed: [fixture.initialSession] } });
+			await response.complete();
+			await connect;
+			assert.deepStrictEqual({ methods: fixture.requests.map(request => request.type), opened: fixture.opened, status: fixture.service.connectors[0]?.connectionStatus }, {
+				methods: phase === 'before consent' ? ['GET', 'GET', 'PUT', 'GET'] : ['GET', 'PUT', 'GET', 'GET'],
+				opened: ['https://github.com/settings/copilot/connectors/mail'],
+				status: 'connected',
+			});
+		});
+	}
+
+	test('an account switch while polling still cancels the connection', async () => {
+		const reached = new DeferredPromise<void>();
+		const response = new DeferredPromise<void>();
+		const fixture = createFixture([
+			{ body: catalogResponse('not_connected') },
+			{ body: { status: 'Unauthenticated', provisioning_state: 'Succeeded', consent_link: 'https://github.com/settings/copilot/connectors/mail' } },
+			{ body: catalogResponse('pending'), ready: () => { void reached.complete(); return response.p; } },
+			{ body: catalogResponse('connected') },
+		]);
+		const connect = assert.rejects(fixture.service.connect('mail', CancellationToken.None), isCancellationError);
+		await reached.p;
+		fixture.setSessions([{ ...fixture.initialSession, id: 'other-session', account: { id: 'other-account', label: 'other' } }]);
+		fixture.setAccount({ ...fixture.initialAccount, accountName: 'other', sessionId: 'other-session' });
+		await response.complete();
+		await connect;
+		assert.deepStrictEqual(fixture.requests.map(request => request.type), ['GET', 'PUT', 'GET']);
+	});
+
+	test('cancelling while waiting for browser authorization stops polling', async () => {
+		const reached = new DeferredPromise<void>();
+		const fixture = createFixture([
+			{ body: catalogResponse('not_connected') },
+			{ body: { status: 'Unauthenticated', provisioning_state: 'Succeeded', consent_link: 'https://github.com/settings/copilot/connectors/mail' } },
+			{ body: catalogResponse('pending'), ready: () => { void reached.complete(); return Promise.resolve(); } },
+			{ body: catalogResponse('connected') },
+		]);
+		const cancellation = store.add(new CancellationTokenSource());
+		const connect = assert.rejects(fixture.service.connect('mail', cancellation.token), isCancellationError);
+		await reached.p;
+		await timeout(50);
+
+		cancellation.cancel();
+		await connect;
+
+		assert.deepStrictEqual(fixture.requests.map(request => request.type), ['GET', 'PUT', 'GET']);
 	});
 
 	function connectionResponse(status: ConnectorPlugin['connection']['status']): { readonly body: ConnectorCatalog } {

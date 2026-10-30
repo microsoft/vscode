@@ -87,6 +87,10 @@ export const Menus = {
 	SessionChatBackgroundContext: new MenuId('SessionsSessionChatBackgroundContext'),
 	SessionItemToolbar: new MenuId('SessionItemToolbar'),
 	SessionItemSettings: new MenuId('SessionsSessionItemSettings'),
+	/** Context menu of a section header in the Sessions list. The list merges its own section actions into these groups. */
+	SessionSectionContext: new MenuId('SessionsSessionSectionContext'),
+	/** Context menu of a custom or comparison group header in the Sessions list. The list merges its own group actions into these groups. */
+	SessionGroupContext: new MenuId('SessionsSessionGroupContext'),
 	SessionsEditorHeaderPrimary: new MenuId('SessionsEditorHeaderPrimary'),
 	SessionsEditorHeaderLayout: new MenuId('SessionsEditorHeaderLayout'),
 	SessionsEditorTitle: new MenuId('SessionsEditorTitle'),
@@ -95,6 +99,9 @@ export const Menus = {
 	SessionsEditorTabsBarAddTab: new MenuId('SessionsEditorTabsBarAddTab'),
 	SessionsEditorTabsBarAddTabCanvas: new MenuId('SessionsEditorTabsBarAddTabCanvas'),
 	EmptyFileEditorActions: new MenuId('SessionsEmptyFileEditorActions'),
+	EmptySearchEditorActions: new MenuId('SessionsEmptySearchEditorActions'),
+	EmptyBrowserEditorActions: new MenuId('SessionsEmptyBrowserEditorActions'),
+	EmptyChangesActions: new MenuId('SessionsEmptyChangesActions'),
 	/**
 	 * The Add Tab actions listed in place of the watermark in an empty editor
 	 * group. A subset of {@link SessionsEditorTabsBarAddTab}, which still backs
@@ -104,13 +111,15 @@ export const Menus = {
 	/**
 	 * The Session Activity Bar, docked at the right edge of the active chat view, grouped by
 	 * {@link SessionActivityBarGroup}. Each tab entry opens or activates its side pane tab, revealing
-	 * the side pane when it is closed; these entries are gated on availability only. The side panel
-	 * toggle above them and the panel toggle below them leave the title bar while the activity bar
-	 * shows its layout actions.
+	 * the side pane when it is closed; these entries are gated on availability only. The terminal
+	 * entry reveals the terminal in the panel. The side panel toggle before the tab entries and the
+	 * panel toggle after the terminal leave the title bar while the activity bar shows its layout actions.
 	 */
 	SessionActivityBar: new MenuId('SessionActivityBar'),
+	SessionActivityBarCanvas: new MenuId('SessionActivityBarCanvas'),
 	/** The Session Activity Bar's context menu, shown after the activity bar's own entry actions. */
 	SessionActivityBarContext: new MenuId('SessionActivityBarContext'),
+	ChangesFilesView: new MenuId('SessionsChangesFilesView'),
 	/**
 	 * Entries merged into the dropdown of the changes button bar's primary
 	 * button. A submenu contributed to its `primary` group names a group of
@@ -133,7 +142,10 @@ export const SessionHeaderMenus = [Menus.SessionHeaderContext, Menus.SessionBarT
 
 /** The groups of {@link Menus.SessionActivityBar}, top to bottom, each set apart by a separator. */
 export const SessionActivityBarGroup = {
+	/** The side panel toggle, followed by the entries that open its tabs. */
 	SidePanel: '1_sidePanel',
-	Tabs: '2_tabs',
-	Panel: '3_panel',
+	/** The terminal, followed by the panel toggle. */
+	Panel: '2_panel',
+	/** Links to the active chat's pull requests and issues. */
+	GitHub: '3_github',
 } as const;

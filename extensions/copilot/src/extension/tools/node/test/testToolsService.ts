@@ -227,23 +227,6 @@ export class TestToolsService extends BaseToolsService implements IToolsService 
 	}
 }
 
-export class NoopTestToolsService extends TestToolsService {
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ILogService logService: ILogService,
-	) {
-		super(new Set(), instantiationService, logService);
-	}
-
-	override invokeTool(name: string, options: vscode.LanguageModelToolInvocationOptions<unknown>, token: CancellationToken): Promise<LanguageModelToolResult2> {
-		throw new Error('NoopTestToolsService does not support invoking tools');
-	}
-
-	protected override getFilteredTools(_disabledTools: Set<string>): readonly ICopilotToolCtor[] {
-		return ToolRegistry.getTools();
-	}
-}
-
 export function getPackagejsonToolsForTest() {
 	// Simulate what vscode would do- enable all tools that would be in the picker (tools in a toolset or with canBeReferencedInPrompt)
 	const toolsetReferenceNames = new Set(packageJson.contributes.languageModelToolSets

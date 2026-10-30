@@ -146,6 +146,9 @@ suite('CopilotShellTools', () => {
 			getChatOwnConfigValues: () => ({}),
 			updateChatConfig: (target, config) => service.updateSessionConfig(target.session, config),
 			seedChatConfig: () => ({ values: {}, dispose: () => { } }),
+			completeChatConfigs: () => { },
+			getChatPersistedConfigValues: () => undefined,
+			getCompleteChatConfigValues: (_session: string, own: Readonly<Record<string, unknown>>) => ({ ...own }),
 			getEffectiveWorkingDirectories: () => undefined,
 			getSessionConfigValues: session => sessionValues.get(session),
 			resolveConfigurationOwner: session => session,
@@ -154,6 +157,7 @@ suite('CopilotShellTools', () => {
 			getChatSandboxEnabled: () => undefined,
 			getChatAttachmentScopes: target => [target.session],
 			setChatSandboxEnabled: () => { },
+			reportChatSandboxConflict: () => { },
 			rejectChatSandboxChange: () => { },
 			setSessionSandboxPolicy: (session, policy) => {
 				policies.set(session, policy);

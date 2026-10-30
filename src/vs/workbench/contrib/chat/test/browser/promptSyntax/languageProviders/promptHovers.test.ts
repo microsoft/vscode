@@ -27,7 +27,10 @@ import { PromptFileParser } from '../../../../common/promptSyntax/promptFilePars
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
-import { createVSCodeHarnessDescriptor, ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
+import { createVSCodeHarnessDescriptor, ICustomizationHarnessService, type IAgentFileToolInventoryEntry, type ICustomizationItem } from '../../../../common/customizationHarnessService.js';
+import { constObservable } from '../../../../../../../base/common/observable.js';
+import { Event } from '../../../../../../../base/common/event.js';
+import { AICustomizationSources } from '../../../../common/aiCustomizationWorkspaceService.js';
 
 suite('PromptHoverProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -35,9 +38,13 @@ suite('PromptHoverProvider', () => {
 	let instaService: TestInstantiationService;
 	let hoverProvider: PromptHoverProvider;
 	let activeTarget: Target;
+	let copilotToolInventory: readonly IAgentFileToolInventoryEntry[];
+	let copilotSkillInventory: ICustomizationItem[];
 
 	setup(async () => {
 		activeTarget = Target.Undefined;
+		copilotToolInventory = [];
+		copilotSkillInventory = [];
 		const testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
 		instaService = workbenchInstantiationService({
@@ -62,10 +69,12 @@ suite('PromptHoverProvider', () => {
 			{ id: 'claude-sonnet-4.5', name: 'Claude Sonnet 4.5', vendor: 'copilot', version: '1.0', family: 'claude', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 200000, maxOutputTokens: 8192, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {} } satisfies ILanguageModelChatMetadata,
 			{ id: 'claude-opus-4.6', name: 'Claude Opus 4.6', vendor: 'copilot', version: '1.0', family: 'claude', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 200000, maxOutputTokens: 8192, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {} } satisfies ILanguageModelChatMetadata,
 			{ id: 'claude-haiku-4.5', name: 'Claude Haiku 4.5', vendor: 'copilot', version: '1.0', family: 'claude', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 200000, maxOutputTokens: 8192, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {} } satisfies ILanguageModelChatMetadata,
+			{ id: 'copilot-model', name: 'Copilot Model', vendor: 'copilot-test', version: '1.0', family: 'copilot', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'copilot-test', tooltip: 'Copilot model tooltip', configurationSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', enum: ['low', 'high'] } } } } satisfies ILanguageModelChatMetadata,
 		];
 
 		instaService.stub(ILanguageModelsService, {
 			getLanguageModelIds() { return testModels.map(m => m.id); },
+			lookupLanguageModel(id: string) { return testModels.find(model => model.id === id); },
 			lookupLanguageModelByQualifiedName(qualifiedName: string) {
 				for (const metadata of testModels) {
 					if (ILanguageModelChatMetadata.matchesQualifiedName(qualifiedName, metadata)) {
@@ -73,7 +82,8 @@ suite('PromptHoverProvider', () => {
 					}
 				}
 				return undefined;
-			}
+			},
+			hasResolvedVendor: () => true,
 		});
 
 		const customChatMode = new CustomChatMode({
@@ -94,8 +104,22 @@ suite('PromptHoverProvider', () => {
 				return parser.parse(model.uri, model.getValue());
 			}
 		});
+		const localDescriptor = createVSCodeHarnessDescriptor();
+		const copilotDescriptor = {
+			...localDescriptor,
+			id: 'copilot-test',
+			customAgentTarget: Target.GitHubCopilot,
+			itemProvider: {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: async () => copilotSkillInventory,
+				provideAgentFileTools: async () => copilotToolInventory,
+			},
+		};
 		instaService.stub(ICustomizationHarnessService, {
-			getActiveDescriptor: () => ({ ...createVSCodeHarnessDescriptor(), customAgentTarget: activeTarget }),
+			activeHarness: constObservable('copilot-test'),
+			availableHarnesses: constObservable([localDescriptor, copilotDescriptor]),
+			getActiveDescriptor: () => activeTarget === Target.GitHubCopilot ? copilotDescriptor : localDescriptor,
+			getSessionResourceForHarness: harnessId => URI.parse(`test:/${harnessId}`),
 		});
 
 		hoverProvider = instaService.createInstance(PromptHoverProvider);
@@ -184,6 +208,35 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			const hover = await getHover(content, 4, 1, PromptsType.agent);
 			assert.strictEqual(hover, 'The model to use. An array is treated as an ordered list of model preferences.');
+		});
+
+		test('hover on a model from the github-copilot harness', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'model: copilot-model',
+				'---',
+			].join('\n');
+
+			const hover = await getHover(content, 3, 10, PromptsType.agent);
+
+			assert.strictEqual(hover, 'The model to use. An array is treated as an ordered list of model preferences.\n\n- Name: Copilot Model\n- Family: copilot\n- Vendor: copilot-test\n\n\nCopilot model tooltip');
+		});
+
+		test('hover on model-specific github-copilot reasoning effort', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'model: copilot-model',
+				'reasoning-effort: high',
+				'---',
+			].join('\n');
+
+			const hover = await getHover(content, 4, 20, PromptsType.agent);
+
+			assert.strictEqual(hover, 'The reasoning-effort override for this custom agent. Supported values depend on the selected model.\n\nSupported by: `copilot-model` (copilot-test).');
 		});
 
 		test('hover on github-copilot model policy uses schema description', async () => {
@@ -386,11 +439,45 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			// Hover on 'shell' tool
 			const hoverShell = await getHover(content, 4, 10, PromptsType.agent);
-			assert.strictEqual(hoverShell, 'ToolSet: execute\n\n\nExecute code and applications on your machine');
+			assert.strictEqual(hoverShell, 'Execute commands');
 
 			// Hover on 'read' tool
 			const hoverEdit = await getHover(content, 4, 20, PromptsType.agent);
-			assert.strictEqual(hoverEdit, 'ToolSet: read\n\n\nRead files in your workspace');
+			assert.strictEqual(hoverEdit, 'Read files');
+		});
+
+		test('hover on unavailable github-copilot tool shows provider availability', async () => {
+			copilotToolInventory = [{ name: 'github/*', description: 'GitHub tools', availability: 'disabled' }];
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				`tools: ['github/*']`,
+				'---',
+			].join('\n');
+
+			const hover = await getHover(content, 4, 10, PromptsType.agent);
+
+			assert.strictEqual(hover, 'GitHub tools\n\nThis tool is recognized but disabled for the matching GitHub Copilot harness.');
+		});
+
+		test('hover on github-copilot skill shows description, source, and availability', async () => {
+			copilotSkillInventory = [createSkill('review', {
+				description: 'Review changes',
+				status: 'error',
+				statusMessage: 'Skill failed to load',
+			})];
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				`skills: ['review']`,
+				'---',
+			].join('\n');
+
+			const hover = await getHover(content, 4, 12, PromptsType.agent);
+
+			assert.strictEqual(hover, 'Review changes\n\nSource: Workspace\n\nSkill failed to load\n\nThis skill is recognized but currently unavailable for the matching GitHub Copilot harness.');
 		});
 
 		test('hover on github-copilot tool with target undefined', async () => {
@@ -409,6 +496,19 @@ suite('PromptHoverProvider', () => {
 			const hoverEdit = await getHover(content, 4, 20, PromptsType.agent);
 			assert.strictEqual(hoverEdit, 'ToolSet: read\n\n\nRead files in your workspace');
 		});
+
+		function createSkill(name: string, overrides: Partial<ICustomizationItem> = {}): ICustomizationItem {
+			return {
+				uri: URI.parse(`test:/skills/${name}/SKILL.md`),
+				type: PromptsType.skill,
+				name,
+				source: AICustomizationSources.local,
+				extensionId: undefined,
+				pluginUri: undefined,
+				enabled: true,
+				...overrides,
+			};
+		}
 
 		test('hover on vscode tool shows detailed description', async () => {
 			const content = [

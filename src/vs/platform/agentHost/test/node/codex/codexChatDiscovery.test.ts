@@ -199,7 +199,7 @@ function createHarness(store: DisposableStore, sessionData = createSessionDataSe
 	};
 	const events: (readonly IAgentDiscoveredChat[])[] = [];
 	store.add(agent.onDidDiscoverChats(chats => events.push(chats)));
-	return { agent, internal, client, files, filesystem, events, downloader };
+	return { agent, internal, client, files, filesystem, events, downloader, config };
 }
 
 suite('Codex chat discovery', () => {
@@ -265,14 +265,10 @@ suite('Codex chat discovery', () => {
 			const store = disposables.add(new DisposableStore());
 			const telemetry = new TestAgentHostStartupTelemetryService();
 			const startupPerformance = store.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService()));
-			const setupChecked = new DeferredPromise<void>();
 			const downloader = new class extends RecordingAgentSdkDownloader {
 				checks = 0;
 				override async isSdkResolvableWithoutDownload(): Promise<boolean> {
 					this.checks++;
-					if (this.checks === 1) {
-						void setupChecked.complete();
-					}
 					return super.isSdkResolvableWithoutDownload();
 				}
 			};
@@ -282,10 +278,11 @@ suite('Codex chat discovery', () => {
 				downloads++;
 				throw new Error('unexpected download');
 			};
-			const { agent, internal, client } = createHarness(store, undefined, startupPerformance, downloader);
-			internal._activated = active;
+			const { agent, internal, client, config } = createHarness(store, undefined, startupPerformance, downloader);
+			internal._activated = false;
 			client.threads = [];
-			await setupChecked.p;
+			await Event.toPromise(config.onDidRootConfigChange);
+			internal._activated = active;
 			const setupChecks = downloader.checks;
 			const first = await agent.listChatsToMigrate();
 			const initialChecks = downloader.checks - setupChecks;

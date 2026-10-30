@@ -965,6 +965,38 @@ suite('AgentHostFileSystemProvider - permission errors and requestResourceAccess
 		}
 	});
 
+	test('authentication failures remain Unavailable across filesystem operations', async () => {
+		const { provider, connection } = setup();
+		const wrapped = agentHostUri('remote', '/protected');
+		const error = new ProtocolError(AhpErrorCodes.AuthRequired, 'Relay identity authentication is required');
+		connection.readError = error;
+		connection.listError = error;
+		connection.resolveError = error;
+		connection.writeError = error;
+		connection.deleteError = error;
+		connection.moveError = error;
+		connection.copyError = error;
+		connection.mkdirError = error;
+		connection.requestError = error;
+		const operations = [
+			() => provider.stat(wrapped),
+			() => provider.realpath(wrapped),
+			() => provider.readFile(wrapped),
+			() => provider.readdir(wrapped),
+			() => provider.writeFile(wrapped, new Uint8Array(), { create: true, overwrite: true, unlock: false, atomic: false }),
+			() => provider.delete(wrapped, { recursive: false, useTrash: false, atomic: false }),
+			() => provider.rename(wrapped, agentHostUri('remote', '/dst'), { overwrite: true }),
+			() => provider.copy(wrapped, agentHostUri('remote', '/dst'), { overwrite: true }),
+			() => provider.mkdir(wrapped),
+			() => provider.requestResourceAccess(wrapped, { read: true }),
+		];
+		for (const operation of operations) {
+			await assert.rejects(operation(), err => err instanceof Error
+				&& err.message === error.message
+				&& toFileSystemProviderErrorCode(err) === FileSystemProviderErrorCode.Unavailable);
+		}
+	});
+
 	test('writeFile / delete / rename / readdir all surface NoPermissions on PermissionDenied', async () => {
 		const { provider, connection } = setup();
 		const wrapped = agentHostUri('remote', '/no-write');

@@ -37,7 +37,8 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { getFileNamesMessage, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { GitHubIssue, GitHubIssueRef } from '../../../../../../platform/github/common/githubQueryService.js';
-import { PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
+import { PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
+import { getRequiredPullRequestChecksStatus } from '../../../../../../platform/github/common/pullRequestRequiredChecks.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { parseGitHubCommitTarget } from '../../../../../../platform/github/common/githubUrls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -59,7 +60,8 @@ import { createCustomizationIndexObservable, createProgressiveChatCustomizations
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../common/constants.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
-import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { IChatEditingService, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { IChatSessionWorkingSetKeep, IChatSessionWorkingSetUndo, isSameSessionFileChange } from '../../widget/input/chatSessionWorkingSet.js';
 import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget/chatWidget.js';
 import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
@@ -72,7 +74,7 @@ import { createSessionPullRequestPillData, type IChatPullRequestPillEntry } from
 import { SessionCustomizations } from '../../sessionCustomizations.js';
 import { createSessionSubagentsPillData, type IChatSubagentPillEntry } from '../../sessionSubagentsPill.js';
 import { AgentHostBackgroundShellOutputs } from './agentHostBackgroundShells.js';
-import { agentHostChangesetFileToEntryDiff } from './agentHostResponseFileChanges.js';
+import { agentHostChangesetFileToEntryDiff, getAgentHostResourceAuthority } from './agentHostResponseFileChanges.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { GitHubCommitResolver } from '../../../../github/browser/githubCommitResolver.js';
 import { createCommitResourceHover, createIssueResourceHover, createPullRequestResourceHover, getIssueResourceStatus, getPullRequestChecksStatusLabel, getPullRequestResourceStatus, type GitHubChecksStatus, type IGitHubIssueHoverModel, type IGitHubPullRequestHoverModel } from '../../../../github/browser/githubResourceHover.js';
@@ -421,7 +423,7 @@ class AgentHostGitHubReferenceResolver extends Disposable {
 			const subscription = store.add(client.pullRequests.subscribePullRequest(ref, {
 				priority: 'visible',
 				core: true,
-				checks: { includeOptional: true },
+				checks: { required: true, includeOptional: true },
 			}));
 			store.add(autorun(reader => {
 				const snapshot = subscription.resource.snapshot.read(reader);
@@ -483,25 +485,13 @@ function toPullRequestHoverModel(pullRequest: PullRequestCore): IGitHubPullReque
 	};
 }
 
+/** The status of the checks that count (see {@link getRequiredPullRequestChecksStatus}) for the pull request's current head. */
 function getChecksStatus(snapshot: PullRequestSnapshot): GitHubChecksStatus | undefined {
 	const checksValue = snapshot.checks.value;
 	if (!checksValue || checksValue.headSha !== snapshot.core.value?.headSha) {
 		return undefined;
 	}
-	const checks = checksValue.checks;
-	if (!checks?.length) {
-		return undefined;
-	}
-	if (checks.some(isPendingCheck)) {
-		return 'pending';
-	}
-	return checks.some(isFailingCheck) ? 'failure' : 'success';
-}
-
-function isPendingCheck(check: PullRequestCheck): boolean {
-	return check.type === 'checkRun'
-		? check.status !== 'COMPLETED'
-		: check.status === 'PENDING' || check.status === 'EXPECTED';
+	return getRequiredPullRequestChecksStatus(checksValue);
 }
 
 /** Whether `operation` is the host's Discard Changes operation for single files. */
@@ -549,19 +539,11 @@ async function whenChangesetReady(changeset: IAgentSubscription<ChangesetState>)
 	return state instanceof Error || state?.status !== ChangesetStatus.Ready ? undefined : state;
 }
 
-function isFailingCheck(check: PullRequestCheck): boolean {
-	return check.type === 'checkRun'
-		? check.conclusion === 'FAILURE'
-		|| check.conclusion === 'TIMED_OUT'
-		|| check.conclusion === 'CANCELLED'
-		|| check.conclusion === 'ACTION_REQUIRED'
-		|| check.conclusion === 'STARTUP_FAILURE'
-		: check.status === 'FAILURE' || check.status === 'ERROR';
-}
-
 /** Adds Agent Host session metadata pills to a workbench chat input. */
 export class AgentHostSessionInputPills extends Disposable {
 
+	/** Binds operations to the displayed diff, not a newer changeset publication. */
+	private readonly _fileChangeNonces = new WeakMap<IEditSessionEntryDiff, string>();
 	private readonly _browserChanged = observableSignal(this);
 	private readonly _browserListeners = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _pullRequestHoverCache = this._register(new ChatPillHoverCache());
@@ -588,6 +570,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICommandService commandService: ICommandService,
 		@IDialogService private readonly _dialogService: IDialogService,
+		@IChatEditingService chatEditingService: IChatEditingService,
 	) {
 		super();
 		this._gitHubReferenceResolver = this._register(instantiationService.createInstance(AgentHostGitHubReferenceResolver));
@@ -667,10 +650,10 @@ export class AgentHostSessionInputPills extends Disposable {
 		const sessionWorkingSetChangeset = derived(this, reader => sessionState.read(reader)?.changesets
 			?.find(changeset => changeset.changeKind === ChangesetKind.WorkingSet && !changeset.uriTemplate.includes('{')));
 		// Only inputs that can show the working set swap the Changes pill for it, so the Agents window keeps its pill.
-		const workingSetSupported = derived(this, reader => this._widget.inputPart.supportsSessionWorkingSet
-			&& workingSetConfigured.read(reader)
+		const workingSetAvailable = derived(this, reader => this._widget.inputPart.supportsSessionWorkingSet
 			&& isCopilotAgentHostProvider(sessionState.read(reader)?.provider)
 			&& !subagentChat.read(reader));
+		const workingSetSupported = derived(this, reader => workingSetAvailable.read(reader) && workingSetConfigured.read(reader));
 		const workingSetEnabled = derived(this, reader => workingSetSupported.read(reader)
 			&& (sessionWorkingSetChangeset.read(reader) !== undefined
 				|| selectableChangesets.read(reader)?.some(({ changeset }) => changeset.changeKind === ChangesetKind.Session) === true));
@@ -733,15 +716,19 @@ export class AgentHostSessionInputPills extends Disposable {
 				defaultKind,
 			);
 		});
-		const changesetStateSource = derived(this, reader => {
+		const changesetSubscription = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
 			const resource = changesetTarget.read(reader)?.resource;
 			if (!currentResolution || !resource) {
-				return constObservable<ChangesetState | undefined>(undefined);
+				return undefined;
 			}
 			const subscription = reader.store.add(currentResolution.connection.getSubscription(StateComponents.Changeset, resource, 'AgentHostSessionInputPills'));
-			return observableFromSubscription(this, subscription.object);
+			return {
+				state: observableFromSubscription(this, subscription.object),
+				failed: observableFromEvent(this, Event.any(subscription.object.onDidChange, subscription.object.onDidError ?? Event.None), () => subscription.object.value instanceof Error),
+			};
 		});
+		const changesetStateSource = derived(this, reader => changesetSubscription.read(reader)?.state ?? constObservable<ChangesetState | undefined>(undefined));
 		const changesetFiles = derivedObservableWithCache<{ readonly connectionAuthority: string; readonly resource: URI; readonly files: ChangesetState['files'] } | undefined>(this, (reader, lastValue) => {
 			const currentResolution = resolution.read(reader);
 			const target = changesetTarget.read(reader);
@@ -772,15 +759,47 @@ export class AgentHostSessionInputPills extends Disposable {
 			if (!currentResolution || !files) {
 				return [];
 			}
+			const authority = getAgentHostResourceAuthority(currentResolution);
 			return files
-				.map(file => agentHostChangesetFileToEntryDiff(file, currentResolution.connectionAuthority))
+				.map(file => {
+					const diff = agentHostChangesetFileToEntryDiff(file, authority);
+					if (diff && file.nonce !== undefined) {
+						this._fileChangeNonces.set(diff, file.nonce);
+					}
+					return diff;
+				})
 				.filter(isDefined);
 		});
+		const checkpointReview = derived(this, reader => {
+			const resource = sessionResource.read(reader);
+			chatEditingService.editingSessionsObs.read(reader);
+			const session = resource ? chatEditingService.getEditingSession(resource) : undefined;
+			return session instanceof AgentHostSnapshotController ? session.checkpointReview : undefined;
+		});
+		const checkpointSource = derived(this, reader => {
+			const channel = changesetTarget.read(reader)?.resource;
+			const state = changesetStateSource.read(reader).read(reader);
+			return channel ? {
+				channel,
+				ready: state?.status === ChangesetStatus.Ready,
+				failed: changesetSubscription.read(reader)?.failed.read(reader) || state?.status === ChangesetStatus.Error,
+				files: changes.read(reader).map(diff => ({ diff, nonce: this._fileChangeNonces.get(diff) })),
+			} : undefined;
+		});
+		this._register(autorun(reader => {
+			const review = checkpointReview.read(reader);
+			if (review && workingSetEnabled.read(reader)) {
+				reader.store.add(review.registerSource(checkpointSource));
+			}
+		}));
 		const workingSetChanges = derived(this, reader => {
 			if (!workingSetEnabled.read(reader)) {
 				return undefined;
 			}
-			return changes.read(reader);
+			const channel = changesetTarget.read(reader)?.resource;
+			const review = checkpointReview.read(reader);
+			const diffs = changes.read(reader);
+			return channel && review ? review.project(channel, diffs.map(diff => ({ diff, nonce: this._fileChangeNonces.get(diff) })), reader).map(file => file.diff) : diffs;
 		});
 		// Undo reverts a file's changes with the host's file-level Discard Changes operation, when the host offers it.
 		const workingSetDiscard = derived<ChangesetOperation | undefined>(this, reader => {
@@ -996,15 +1015,26 @@ export class AgentHostSessionInputPills extends Disposable {
 		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations, chatCustomizations, customizationFolders));
 		// A new source per chat keeps one chat's shell details from carrying over to another.
 		const backgroundShellOutputs = new AgentHostBackgroundShellOutputs(reader => resolution.read(reader)?.connection);
-		const backgroundShells = this._register(instantiationService.createInstance(SessionBackgroundShellsControl, derived(this, reader => chatResource.read(reader) ? {
+		const backgroundShellSource = derived(this, reader => chatResource.read(reader) ? {
 			backgroundShells: derivedOpts<readonly IChatBackgroundShell[]>({ owner: this, equalsFn: structuralEquals }, shellReader => backgroundShellOutputs.project(chatState.read(shellReader)?.backgroundWork, chatResource.read(shellReader))),
-		} : undefined)));
+		} : undefined);
+		const backgroundShells = this._register(instantiationService.createInstance(SessionBackgroundShellsControl, backgroundShellSource));
 
+		const subagentPillData = createSessionSubagentsPillData(subagents, visibility.subagents);
+		this._register(this._widget.registerBackgroundActivityPillSections({
+			subagents: subagentPillData.inProgressSections,
+			backgroundShells: derived(this, reader => backgroundShellSource.read(reader)?.backgroundShells.read(reader) ?? []),
+		}));
 		const sources = this._register(instantiationService.createInstance(StandardChatInputPillSources, {
 			changes: {
 				stats: changeStats,
 				label: derived(this, reader => changesetTarget.read(reader)?.changeset.label ?? localize('agentHostSessionPills.changes', "Changes")),
 				open: () => this._openChanges(changesetTarget.get()?.changeset, changes.get()),
+				getContextMenuPrimaryActions: () => workingSetAvailable.get() ? [toAction({
+					id: 'chat.sessionWorkingSet.showWorkingSet',
+					label: localize('agentHostSessionPills.showWorkingSet', "Show Working Set"),
+					run: () => this._configurationService.updateValue(ChatConfiguration.EditorWorkingSetEnabled, true),
+				})] : [],
 			},
 			pullRequests: createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestIcon),
 			issues: { sections: issueSections, icon: issueIcon },
@@ -1013,9 +1043,13 @@ export class AgentHostSessionInputPills extends Disposable {
 			customizations: sessionCustomizations,
 			canvases: { sections: canvases.sections },
 			browsers: { sections: browserSections },
-			subagents: createSessionSubagentsPillData(subagents, visibility.subagents),
+			subagents: subagentPillData,
 			backgroundShells,
-		}, SESSION_CHAT_PILL_KINDS));
+		}, SESSION_CHAT_PILL_KINDS, derived(this, reader => {
+			const session = sessionResource.read(reader);
+			const chat = chatResource.read(reader);
+			return session && chat ? JSON.stringify([getLocalAgentHostSessionProvider(session), session.toString(), chat.toString()]) : undefined;
+		})));
 		const inputPills = this._register(instantiationService.createInstance(ChatInputPills, this._widget.inputPart.persistentContentContainerElement, {
 			debugName: 'AgentHostSessionInputPills.content',
 			compact,
@@ -1195,7 +1229,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				return undefined;
 			}
 			const resource = artifact.type === SessionArtifactType.File
-				? toAgentHostUri(artifactResource, resolution.connectionAuthority)
+				? toAgentHostUri(artifactResource, getAgentHostResourceAuthority(resolution))
 				: artifactResource;
 			const label = artifact.type === SessionArtifactType.File ? basename(resource) : artifact.label;
 			const imageMimeType = artifact.type === SessionArtifactType.File && !artifact.isArtifact ? getMediaMime(resource.path) : undefined;
@@ -1453,7 +1487,8 @@ export class AgentHostSessionInputPills extends Disposable {
 	}
 
 	private async _doInvokeFileOperation(resolution: IAgentHostSessionResolution, channel: URI, operation: ChangesetOperation, diffs: readonly IEditSessionEntryDiff[], messages: { readonly unverified: string; changed(fileName: string): string; failed(fileNames: string, messages: string): string }): Promise<boolean> {
-		const { connection, connectionAuthority } = resolution;
+		const { connection } = resolution;
+		const authority = getAgentHostResourceAuthority(resolution);
 		const channelKey = channel.toString();
 		// Each file is checked against the channel's latest state, which outlasts a switch to another session.
 		const changeset = connection.getSubscription(StateComponents.Changeset, channel, 'AgentHostSessionInputPills.fileOperation');
@@ -1470,22 +1505,30 @@ export class AgentHostSessionInputPills extends Disposable {
 					failures.push(...diffs.slice(i).map(remaining => ({ fileName: basename(remaining.modifiedURI), message: messages.unverified })));
 					break;
 				}
-				const current = state.files
-					.map(file => agentHostChangesetFileToEntryDiff(file, connectionAuthority))
-					.find(candidate => candidate && isEqual(candidate.modifiedURI, diff.modifiedURI));
+				const currentFile = state.files.find(file => {
+					const candidate = agentHostChangesetFileToEntryDiff(file, authority);
+					return candidate && isEqual(candidate.modifiedURI, diff.modifiedURI);
+				});
+				const current = currentFile && agentHostChangesetFileToEntryDiff(currentFile, authority);
 				if (!current) {
 					// The file's changes are already gone.
 					continue;
 				}
-				if (!isSameSessionFileChange(current, diff)) {
+				const nonce = this._fileChangeNonces.get(diff);
+				if (!isSameSessionFileChange(current, diff) || (nonce !== undefined && nonce !== currentFile?.nonce)) {
 					failures.push({ fileName, message: messages.changed(fileName) });
 					continue;
 				}
+				// The agent may change the file while it works, so a Working Set operation names the changes that were shown.
 				try {
 					await connection.invokeChangesetOperation({
 						channel: channelKey,
 						operationId: operation.id,
-						target: { kind: ChangesetOperationTargetKind.Resource, resource: connection.resourceUris.toAgentHost(diff.modifiedURI).toString() },
+						target: {
+							kind: ChangesetOperationTargetKind.Resource,
+							resource: connection.resourceUris.toAgentHost(diff.modifiedURI).toString(),
+							...(nonce !== undefined ? { nonce } : {}),
+						},
 					});
 					succeeded++;
 				} catch (error) {

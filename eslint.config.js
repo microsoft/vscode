@@ -188,6 +188,19 @@ export default defineConfig(
 			'local/code-no-sync-fs': 'error',
 		},
 	},
+	// Opt in migrated areas without introducing warnings in the remaining callback APIs.
+	{
+		files: [
+			'src/vs/platform/agentHost/node/claude/claudeAgent.ts',
+			'src/vs/platform/agentHost/node/claude/claudeAgentSdkService.ts',
+			'src/vs/platform/agentHost/node/claude/claudeFileEditObserver.ts',
+			'src/vs/workbench/api/browser/mainThreadMcp.ts',
+			'src/vs/workbench/api/common/extHostQuickOpen.ts',
+		],
+		rules: {
+			'local/code-prefer-event-or-observable': 'warn',
+		},
+	},
 	// Disallow bracket notation for property names that can use dot notation.
 	{
 		files: [
@@ -981,8 +994,6 @@ export default defineConfig(
 				{
 					// Files should (only) be removed from the list once they no longer poll
 					'exclude': [
-						'src/vs/platform/agentHost/test/node/agentHostDebugLogs.test.ts',
-						'src/vs/platform/agentHost/test/node/agentService.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/chatLayoutOwnership.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/desktopLayoutController.test.ts',
 					]
@@ -1803,18 +1814,6 @@ export default defineConfig(
 						'zod', // used by agentHost for Claude client-tool MCP input schemas
 						{ 'when': 'hasNode', 'pattern': 'libsodium-wrappers' },
 						{ 'when': 'hasNode', 'pattern': '@hpke/core' },
-						{
-							'when': 'test',
-							'pattern': 'events'
-						},
-						{
-							'when': 'test',
-							'pattern': 'module'
-						},
-						{
-							'when': 'test',
-							'pattern': 'websocket'
-						}
 					]
 				},
 				{
@@ -2434,6 +2433,13 @@ export default defineConfig(
 					]
 				},
 				{
+					'target': 'test/unit/**',
+					'restrictions': [
+						'test/unit/**',
+						'*' // node modules
+					]
+				},
+				{
 					'target': 'test/monaco/**',
 					'restrictions': [
 						'test/monaco/**',
@@ -2451,19 +2457,6 @@ export default defineConfig(
 						'@vscode/*',
 						'@parcel/*',
 						'@playwright/*',
-						'*' // node modules
-					]
-				},
-				{
-					'target': 'test/mcp/**',
-					'restrictions': [
-						'test/automation',
-						'test/scenario',
-						'test/mcp/**',
-						'@vscode/*',
-						'@parcel/*',
-						'@playwright/*',
-						'@modelcontextprotocol/sdk/**/*',
 						'*' // node modules
 					]
 				},

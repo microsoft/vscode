@@ -31,12 +31,13 @@ class SessionCanvasAddTabContribution extends Disposable implements IWorkbenchCo
 	constructor(
 		@ICanvasService canvasService: ICanvasService,
 		@ISessionCanvasRegistryService registryService: ISessionCanvasRegistryService,
+		@ICanvasContextService contextService: ICanvasContextService,
 		@IChatContextPickService contextPickService: IChatContextPickService,
 		@IMenuService menuService: IMenuService,
 		@INotificationService notificationService: INotificationService,
 	) {
 		super();
-		this._register(registerSessionCanvasActions(canvasService, registryService));
+		this._register(registerSessionCanvasActions(canvasService, registryService, contextService));
 		this._register(registerCanvasContextPicker(contextPickService, menuService, notificationService, Menus.SessionsEditorTabsBarAddTabCanvas));
 	}
 }

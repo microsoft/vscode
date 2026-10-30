@@ -12,24 +12,30 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, observableValue, type IReader } from '../../../../../base/common/observable.js';
-import { isWeb } from '../../../../../base/common/platform.js';
+import { isMacintosh, isWeb, isWindows } from '../../../../../base/common/platform.js';
+import { basename, extname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { LOCAL_AGENT_HOST_AUTHORITY, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { ArtifactIntegrationsSettingId, IArtifactModel } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { GitHubCommit } from '../../../../../platform/github/common/githubQueryService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { NullSharedWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
-import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
+import { getChatPillEntryHoverActions, type IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
 import { ChatPillHoverCache } from '../../../../../workbench/browser/chatPillHover.js';
+import { FileDownload } from '../../../../../workbench/contrib/files/browser/fileImportExport.js';
 import { IChatImageCarouselOptions, IChatImageCarouselService } from '../../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatResponseModelChangeReason, ChatResponseResource, IChatChangeEvent, IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatResponseModel, IResponse } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -64,7 +70,7 @@ suite('Session Artifacts', () => {
 		},
 	};
 
-	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo, commit?: GitHubCommit, getCommit?: ISessionsGitHubService['getCommit'], fromChat = false, workbenchGitHubService?: IWorkbenchGitHubService) {
+	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo, commit?: GitHubCommit, getCommit?: ISessionsGitHubService['getCommit'], fromChat = false, workbenchGitHubService?: IWorkbenchGitHubService, followChat = false, withIntegrations = false) {
 		const artifacts = observableValue('artifacts', entries);
 		const loading = observableValue('loading', false);
 		const removed: string[] = [];
@@ -76,6 +82,8 @@ suite('Session Artifacts', () => {
 		const openedResources: URI[] = [];
 		const downloadedResources: URI[] = [];
 		const savedImages: { resource: URI; data: string }[] = [];
+		const executedCommands: { id: string; args: unknown[] }[] = [];
+		const resourceDownloads: { resource: URI; name: string; isDirectory: boolean }[][] = [];
 		let cancelDownload = false;
 		let downloadError: Error | undefined;
 		const telemetryEvents: { readonly name: string | undefined; readonly data: unknown }[] = [];
@@ -99,18 +107,25 @@ suite('Session Artifacts', () => {
 		const session = observableValue<IActiveSession | undefined>('session', new class extends mock<IActiveSession>() {
 			override readonly sessionId = 'provider:session';
 			override readonly resource = chatResource;
+			override readonly mainChat = constObservable(upcastPartial<IChat>({ resource: chatResource }));
 			override readonly artifacts = artifacts;
 			override readonly loading = loading;
-			override readonly capabilities = constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true });
+			override readonly capabilities = constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true, supportsArtifactIntegrations: withIntegrations });
 			override readonly workspace = workspace;
 		}());
 		const configurationService = new TestConfigurationService();
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		if (withIntegrations) {
+			void configurationService.setUserConfiguration(ArtifactIntegrationsSettingId, true);
+		}
+		// Like the chat input toolbar, `followChat` resolves the dedicated GitHub pills for the focused chat.
+		const gitHubReferences = derived(reader => getSessionGitHubReferences(session.read(reader), reader, followChat ? chat.read(reader) : fromChat ? upcastPartial<IChat>({ resource: chatResource, workspace }) : undefined));
 		const presentation = disposables.add(new SessionArtifacts(
 			session,
 			chat,
 			constObservable(new Set<string>()),
-			derived(reader => getSessionGitHubReferences(session.read(reader), reader, fromChat ? upcastPartial<IChat>({ resource: URI.parse('ahp-chat://peer/session'), workspace }) : undefined)),
+			gitHubReferences,
+			{ id: 'test-artifact-details', selected: constObservable(undefined), toggle() { }, release() { } },
 			new class extends mock<IClipboardService>() { }(),
 			configurationService,
 			new class extends mock<ILabelService>() {
@@ -124,6 +139,8 @@ suite('Session Artifacts', () => {
 				override async open(resource: URI): Promise<boolean> { openedResources.push(resource); return true; }
 			}(),
 			new class extends mock<ISessionsManagementService>() {
+				override readonly onDidChangeSessions = Event.None;
+				override async acquireArtifactIntegration() { return withIntegrations ? { object: upcastPartial<IArtifactModel>({}), dispose() { } } : undefined; }
 				override async removeSessionArtifact(_session: IActiveSession, artifactId: string): Promise<void> {
 					removed.push(artifactId);
 					if (removalError) {
@@ -136,6 +153,16 @@ suite('Session Artifacts', () => {
 				override readonly onDidChangeWorkspaceFolders = Event.None;
 			}(),
 			upcastPartial<ISessionsGitHubService>({ getCommit: getCommit ?? (() => commit ? Promise.resolve(commit) : new Promise(() => { })) }),
+			new class extends mock<IInstantiationService>() {
+				// Stands in for an integration presentation that contributes to its artifact, or for a file download.
+				override createInstance = ((ctor: unknown) => ctor === FileDownload ? {
+					download: async (sources: { resource: URI; name: string; isDirectory: boolean }[]) => { resourceDownloads.push(sources); },
+				} : {
+					snapshot: constObservable({ contributions: [{}] }),
+					decorate: (entry: IChatPillEntry) => entry,
+					dispose() { },
+				}) as IInstantiationService['createInstance'];
+			}(),
 			workbenchGitHubService ?? upcastPartial<IWorkbenchGitHubService>({ onDidChangeDefaultClient: Event.None, acquireDefaultAccountClient: () => new Promise(() => { }) }),
 			new NullLogService(),
 			new class extends mock<ITelemetryService>() {
@@ -155,6 +182,7 @@ suite('Session Artifacts', () => {
 					}
 					return upcastPartial<IFileContent>({ value: VSBuffer.fromString('original image bytes') });
 				},
+				resolve: async resource => upcastPartial<IFileStatWithMetadata>({ resource, name: basename(resource), isDirectory: !extname(resource) }),
 				writeFile: async (resource, content) => {
 					assert.ok(content instanceof VSBuffer);
 					savedImages.push({ resource, data: content.toString() });
@@ -166,9 +194,15 @@ suite('Session Artifacts', () => {
 				showSaveDialog: async options => cancelDownload ? undefined : options.defaultUri,
 			}),
 			new NullSharedWebContentExtractorService(),
+			new class extends mock<ICommandService>() {
+				override async executeCommand<R>(id: string, ...args: unknown[]): Promise<R | undefined> {
+					executedCommands.push({ id, args });
+					return undefined;
+				}
+			}(),
 		));
 		return {
-			presentation, session, chat, chatModels, openedImages, openedResources, configurationService, artifacts, loading, workspace, gitHubInfo, removed, errors, telemetryEvents, downloadedResources, savedImages,
+			presentation, session, chat, chatModels, openedImages, openedResources, configurationService, artifacts, loading, workspace, gitHubInfo, gitHubReferences, removed, errors, telemetryEvents, downloadedResources, savedImages, executedCommands, resourceDownloads,
 			setRemovalError: (error: Error | undefined) => { removalError = error; },
 			setCancelDownload: () => { cancelDownload = true; },
 			setDownloadError: (error: Error) => { downloadError = error; },
@@ -454,15 +488,95 @@ suite('Session Artifacts', () => {
 			downloadImage: async (uri, name) => { downloaded.push({ uri, name }); },
 		}, labelService, false, new Set()).flatMap(section => section.entries);
 		for (const entry of entries) {
-			await entry.toolbarActions?.find(action => action.label === 'Download Image')?.run();
+			await entry.toolbarActions?.find(action => action.label === 'Download...')?.run();
 		}
 
 		assert.deepStrictEqual({
 			actions: entries.map(entry => [entry.id, entry.toolbarActions?.map(action => action.label)]),
 			downloaded,
 		}, {
-			actions: [['image', ['Download Image', 'Copy Path']], ['reference', ['Download Image', 'Copy Path']], ['file', ['Copy Path']]],
+			actions: [['image', ['Download...', 'Copy Path']], ['reference', ['Download...', 'Copy Path']], ['file', ['Copy Path']]],
 			downloaded: [{ uri: artifacts[0].uri, name: 'image.png' }, { uri: artifacts[1].uri, name: 'reference.jpg' }],
+		});
+	});
+
+	test('reveals files on this device and downloads files from remote devices', async () => {
+		const revealLabel = isWindows ? 'Reveal in File Explorer' : isMacintosh ? 'Reveal in Finder' : 'Open Containing Folder';
+		const revealed: URI[] = [];
+		const downloaded: { uri: URI; name: string }[] = [];
+		const downloadedImages: URI[] = [];
+		const localFile = URI.file('/home/alice/repo/report.md');
+		const remoteVideo = toAgentHostUri(URI.file('/home/bob/demo.mp4'), 'my-server');
+		const artifacts: ISessionArtifact[] = [
+			{ id: 'local-file', kind: SessionArtifactKind.File, label: 'report.md', uri: localFile, isArtifact: true },
+			{ id: 'local-agent-host-folder', kind: SessionArtifactKind.File, label: 'out', uri: toAgentHostUri(URI.file('/home/alice/repo/out'), LOCAL_AGENT_HOST_AUTHORITY), isArtifact: true },
+			{ id: 'remote-video', kind: SessionArtifactKind.File, label: 'demo.mp4', uri: remoteVideo, isArtifact: true },
+			{ id: 'ssh-folder', kind: SessionArtifactKind.File, label: 'logs', uri: URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+box', path: '/home/bob/logs' }), isArtifact: true },
+			{ id: 'local-image', kind: SessionArtifactKind.File, label: 'shot.png', uri: URI.file('/home/alice/shot.png'), isArtifact: true },
+			{ id: 'remote-image', kind: SessionArtifactKind.File, label: 'chart.png', uri: toAgentHostUri(URI.file('/home/bob/chart.png'), 'my-server'), isArtifact: true },
+			{ id: 'local-resource', kind: SessionArtifactKind.Resource, label: 'Build Output', uri: URI.file('/home/alice/repo/dist'), isArtifact: true },
+			{ id: 'web-resource', kind: SessionArtifactKind.Resource, label: 'Dashboard', uri: URI.parse('https://example.com/dashboard'), isArtifact: true },
+		];
+		const entries = buildSessionArtifactSections(artifacts, {
+			...actions,
+			revealInOS: uri => revealed.push(uri),
+			downloadResource: async (uri, name) => { downloaded.push({ uri, name }); },
+			downloadImage: async uri => { downloadedImages.push(uri); },
+		}, labelService, true, new Set()).flatMap(section => section.entries);
+		for (const entry of entries) {
+			await entry.toolbarActions?.[0].run();
+		}
+		const [onlyEntry] = buildSessionArtifactSections([artifacts[2]], { ...actions, downloadResource: async () => { } }, labelService, true, new Set()).flatMap(section => section.entries);
+
+		assert.deepStrictEqual({
+			rowActions: entries.map(entry => [entry.id, entry.toolbarActions?.map(action => action.label)]),
+			singleEntryContextMenu: getChatPillEntryHoverActions(onlyEntry).map(action => action.label),
+			revealed: revealed.map(uri => uri.toString()),
+			downloaded: downloaded.map(({ uri, name }) => [uri.toString(), name]),
+			downloadedImages: downloadedImages.map(uri => uri.toString()),
+		}, {
+			rowActions: [
+				['local-image', [revealLabel, 'Copy Path']],
+				['remote-image', ['Download...', 'Copy Path']],
+				['local-file', [revealLabel, 'Copy Path']],
+				['local-agent-host-folder', [revealLabel, 'Copy Path']],
+				['remote-video', ['Download...', 'Copy Path']],
+				['ssh-folder', ['Download...', 'Copy Path']],
+				['local-resource', [revealLabel, 'Copy URI']],
+				['web-resource', ['Copy URI']],
+			],
+			singleEntryContextMenu: ['Download...', 'Copy Path', 'Copy Relative Path'],
+			revealed: [
+				URI.file('/home/alice/shot.png').toString(),
+				localFile.toString(),
+				URI.file('/home/alice/repo/out').toString(),
+				URI.file('/home/alice/repo/dist').toString(),
+			],
+			downloaded: [
+				[remoteVideo.toString(), 'demo.mp4'],
+				['vscode-remote://ssh-remote%2Bbox/home/bob/logs', 'logs'],
+			],
+			downloadedImages: [toAgentHostUri(URI.file('/home/bob/chart.png'), 'my-server').toString()],
+		});
+	});
+
+	(isWeb ? test.skip : test)('reveals local artifacts through the OS and downloads remote ones with their file kind', async () => {
+		const harness = createPresentation([
+			{ id: 'local', kind: SessionArtifactKind.File, label: 'report.md', uri: URI.file('/repo/report.md'), isArtifact: true },
+			{ id: 'remote', kind: SessionArtifactKind.File, label: 'out', uri: toAgentHostUri(URI.file('/home/bob/out'), 'my-server'), isArtifact: true },
+		]);
+		for (const entry of harness.presentation.sections.get().flatMap(section => section.entries)) {
+			await entry.toolbarActions![0].run();
+		}
+
+		assert.deepStrictEqual({
+			commands: harness.executedCommands.map(({ id, args }) => [id, args.map(arg => String(arg))]),
+			downloads: harness.resourceDownloads.map(sources => sources.map(({ resource, name, isDirectory }) => [resource.toString(), name, isDirectory])),
+			errors: harness.errors,
+		}, {
+			commands: [['revealFileInOS', [URI.file('/repo/report.md').toString()]]],
+			downloads: [[[toAgentHostUri(URI.file('/home/bob/out'), 'my-server').toString(), 'out', true]]],
+			errors: [],
 		});
 	});
 
@@ -484,7 +598,7 @@ suite('Session Artifacts', () => {
 			}
 			const entry = harness.presentation.sections.get()[0].entries[0];
 
-			await entry.toolbarActions!.find(action => action.label === 'Download Image')!.run();
+			await entry.toolbarActions!.find(action => action.label === 'Download...')!.run();
 
 			assert.deepStrictEqual({
 				reads: harness.downloadedResources,
@@ -581,38 +695,33 @@ suite('Session Artifacts', () => {
 		]);
 	});
 
-	test('adds image previews to references without changing image artifacts', () => {
+	test('previews images and videos of artifacts and references in their hovers', () => {
 		const referenceUri = URI.file('/home/alice/references/design.png');
 		const artifactUri = URI.file('/home/alice/artifacts/result.jpg');
+		const videoUri = toAgentHostUri(URI.file('/home/bob/demo.mp4'), 'my-server');
 		const sections = buildSessionArtifactSections([
 			{ id: 'reference', kind: SessionArtifactKind.File, label: 'Design', isArtifact: false, uri: referenceUri },
 			{ id: 'artifact', kind: SessionArtifactKind.File, label: 'Result', isArtifact: true, uri: artifactUri },
+			{ id: 'video', kind: SessionArtifactKind.File, label: 'Demo', isArtifact: true, uri: videoUri },
+			{ id: 'file', kind: SessionArtifactKind.File, label: 'Notes', isArtifact: true, uri: URI.file('/home/alice/notes.md') },
 		], actions, labelService, true, new Set());
 
+		const preview = (value: { resource: URI; mimeType: string } | undefined) => value && [value.resource.toString(), value.mimeType];
 		assert.deepStrictEqual(sections.map(section => ({
 			title: section.title,
-			entries: section.entries.map(entry => ({
-				id: entry.id,
-				imagePreview: entry.imagePreview && {
-					resource: entry.imagePreview.resource.toString(),
-					mimeType: entry.imagePreview.mimeType,
-				},
-				ariaDescription: entry.ariaDescription,
-			})),
+			entries: section.entries.map(entry => [entry.id, preview(entry.imagePreview), preview(entry.videoPreview)]),
 		})), [{
 			title: 'Images',
-			entries: [{
-				id: 'reference',
-				imagePreview: {
-					resource: referenceUri.toString(),
-					mimeType: 'image/png',
-				},
-				ariaDescription: '~/references/design.png',
-			}, {
-				id: 'artifact',
-				imagePreview: undefined,
-				ariaDescription: '~/artifacts/result.jpg',
-			}],
+			entries: [
+				['reference', [referenceUri.toString(), 'image/png'], undefined],
+				['artifact', [artifactUri.toString(), 'image/jpg'], undefined],
+			],
+		}, {
+			title: 'Files',
+			entries: [
+				['video', undefined, [videoUri.toString(), 'video/mp4']],
+				['file', undefined, undefined],
+			],
 		}]);
 	});
 
@@ -661,7 +770,8 @@ suite('Session Artifacts', () => {
 
 		assert.deepStrictEqual(visibleEntries(presentation), {
 			artifacts: ['gitlab-pr', 'file'],
-			references: ['referenced-pr', 'referenced-promoted-pr', 'referenced-discovered-pr', 'foreign-pr-reference', 'referenced-issue', 'referenced-promoted-issue'],
+			// References repeating a created pull request or issue in this chat fold into it.
+			references: ['referenced-pr', 'referenced-discovered-pr', 'foreign-pr-reference', 'referenced-issue'],
 		});
 	});
 
@@ -775,6 +885,102 @@ suite('Session Artifacts', () => {
 		});
 	});
 
+	test('shows only the focused chat\'s own records, treating unowned records as the main chat\'s, so peer pull requests never fall back into the artifacts pill', () => {
+		const pullRequest = (number: number) => URI.parse(`https://github.com/owner/repo/pull/${number}`);
+		const mainChat = URI.parse('chat-session://test/images');
+		const peerChat = URI.parse('chat-session://test/peer');
+		const { presentation, chat, gitHubReferences } = createPresentation([
+			{ id: 'main-pr', chat: mainChat, kind: SessionArtifactKind.PullRequest, label: 'Main PR', isArtifact: true, isGitHub: true, link: pullRequest(1) },
+			{ id: 'peer-pr', chat: peerChat, kind: SessionArtifactKind.PullRequest, label: 'Peer PR', isArtifact: true, isGitHub: true, link: pullRequest(2) },
+			{ id: 'main-file', chat: mainChat, kind: SessionArtifactKind.File, label: 'Main plan', isArtifact: true, uri: URI.file('/repo/main.md') },
+			{ id: 'peer-file', chat: peerChat, kind: SessionArtifactKind.File, label: 'Peer plan', isArtifact: true, uri: URI.file('/repo/peer.md') },
+			{ id: 'unowned-file', kind: SessionArtifactKind.File, label: 'Session plan', isArtifact: true, uri: URI.file('/repo/session.md') },
+			{ id: 'main-reference', chat: mainChat, kind: SessionArtifactKind.Website, label: 'Main docs', isArtifact: false, link: URI.parse('https://example.com/main') },
+			{ id: 'peer-reference', chat: peerChat, kind: SessionArtifactKind.Website, label: 'Peer docs', isArtifact: false, link: URI.parse('https://example.com/peer') },
+		], { owner: 'owner', repo: 'repo' }, undefined, undefined, false, undefined, true);
+		const snapshot = () => ({
+			pullRequestPill: gitHubReferences.get().pullRequests.map(ref => ref.recordedReferenceId),
+			...visibleEntries(presentation),
+		});
+
+		const main = snapshot();
+		chat.set(upcastPartial<IChat>({ resource: peerChat }), undefined);
+		const peer = snapshot();
+		chat.set(undefined, undefined);
+		const sessionWide = snapshot();
+
+		assert.deepStrictEqual({ main, peer, sessionWide }, {
+			main: { pullRequestPill: ['main-pr'], artifacts: ['main-file', 'unowned-file'], references: ['main-reference'] },
+			peer: { pullRequestPill: ['peer-pr'], artifacts: ['peer-file'], references: ['peer-reference'] },
+			sessionWide: { pullRequestPill: ['main-pr', 'peer-pr'], artifacts: ['main-file', 'peer-file', 'unowned-file'], references: ['main-reference', 'peer-reference'] },
+		});
+	});
+
+	test('shows a resource once per chat that recorded it, and only in those chats', async () => {
+		const pullRequest = URI.parse('https://github.com/owner/repo/pull/1');
+		const mainChat = URI.parse('chat-session://test/images');
+		const peerChat = URI.parse('chat-session://test/peer');
+		const { presentation, chat, gitHubReferences } = createPresentation([
+			{ id: 'legacy-pr', kind: SessionArtifactKind.PullRequest, label: 'Legacy', isArtifact: true, isGitHub: true, link: pullRequest },
+			{ id: 'main-pr', chat: mainChat, kind: SessionArtifactKind.PullRequest, label: 'Main', isArtifact: true, isGitHub: true, link: pullRequest },
+			{ id: 'peer-pr', chat: peerChat, kind: SessionArtifactKind.PullRequest, label: 'Peer', isArtifact: true, isGitHub: true, link: pullRequest },
+			{ id: 'other-pr', chat: mainChat, kind: SessionArtifactKind.PullRequest, label: 'Other', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/owner/repo/pull/2') },
+		], {
+			owner: 'owner',
+			repo: 'repo',
+			// The provider echoes every chat's records into the session folder's associations.
+			pullRequests: [
+				{ owner: 'owner', repo: 'repo', number: 1, uri: pullRequest, recordedReferenceId: 'peer-pr' },
+				{ owner: 'owner', repo: 'repo', number: 2, uri: URI.parse('https://github.com/owner/repo/pull/2'), recordedReferenceId: 'other-pr' },
+			],
+		}, undefined, undefined, false, undefined, true, true);
+		await timeout(0);
+		const snapshot = async () => {
+			await timeout(0);
+			return {
+				integrated: presentation.integratedEntries.get().map(entry => entry.id),
+				pullRequestPill: gitHubReferences.get().pullRequests.map(ref => ref.recordedReferenceId),
+			};
+		};
+
+		const main = await snapshot();
+		chat.set(upcastPartial<IChat>({ resource: peerChat }), undefined);
+		const peer = await snapshot();
+		chat.set(undefined, undefined);
+		const sessionWide = await snapshot();
+
+		assert.deepStrictEqual({ main, peer, sessionWide }, {
+			main: { integrated: ['legacy-pr', 'other-pr'], pullRequestPill: ['legacy-pr', 'other-pr'] },
+			peer: { integrated: ['peer-pr'], pullRequestPill: ['peer-pr'] },
+			sessionWide: { integrated: ['legacy-pr', 'peer-pr', 'other-pr'], pullRequestPill: ['legacy-pr', 'other-pr'] },
+		});
+	});
+
+	test('matches GitHub links irrespective of case and trailing slash but keeps case-distinct resources apart', async () => {
+		const entries: readonly ISessionArtifact[] = [
+			{ id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'PR', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/owner/repo/pull/1') },
+			{ id: 'pr-slash', kind: SessionArtifactKind.PullRequest, label: 'PR', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/Owner/Repo/pull/1/') },
+			{ id: 'issue', kind: SessionArtifactKind.Issue, label: 'Issue', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/owner/repo/issues/2') },
+			{ id: 'issue-slash', kind: SessionArtifactKind.Issue, label: 'Issue', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/OWNER/repo/issues/2/') },
+			{ id: 'upper-file', kind: SessionArtifactKind.File, label: 'Report', isArtifact: true, uri: URI.file('/repo/Report.md') },
+			{ id: 'lower-file', kind: SessionArtifactKind.File, label: 'report', isArtifact: true, uri: URI.file('/repo/report.md') },
+			{ id: 'upper-site', kind: SessionArtifactKind.Website, label: 'Docs', isArtifact: true, link: URI.parse('https://example.com/Docs?q=A') },
+			{ id: 'lower-site', kind: SessionArtifactKind.Website, label: 'docs', isArtifact: true, link: URI.parse('https://example.com/docs?q=a') },
+		];
+		const { presentation } = createPresentation(entries);
+		const { presentation: integrations } = createPresentation(entries, undefined, undefined, undefined, false, undefined, false, true);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			artifacts: visibleEntries(presentation).artifacts,
+			integrated: integrations.integratedEntries.get().map(entry => entry.id),
+		}, {
+			// The pull request and issue are promoted into their own pills.
+			artifacts: ['upper-site', 'lower-site', 'upper-file', 'lower-file'],
+			integrated: ['pr', 'issue', 'upper-file', 'lower-file', 'upper-site', 'lower-site'],
+		});
+	});
+
 	test('retains non-GitHub and noncanonical entries even when their URLs are surfaced', () => {
 		const pullRequest: ISessionArtifact = {
 			id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'PR', isArtifact: true, isGitHub: true,
@@ -850,7 +1056,8 @@ suite('Session Artifacts', () => {
 		session.set(undefined, undefined);
 		const noSession = visible;
 
-		const references = ['duplicate-reference', 'reference'];
+		// The chat already has the created PR, so its reference to the same PR collapses into the artifact.
+		const references = ['reference'];
 		assert.deepStrictEqual({ withoutWorkspace, withoutGitHubInfo, hydrated, changedGitHubInfo, recordedFile, unmounted, noSession }, {
 			withoutWorkspace: { artifacts: [], references },
 			withoutGitHubInfo: { artifacts: [], references },
@@ -886,6 +1093,7 @@ suite('Session Artifacts', () => {
 
 		assert.deepStrictEqual({
 			entries: entries.map(entry => [entry.label, entry.toolbarActions?.map(action => action.label) ?? []]),
+			footerLabels: entries.filter(entry => entry.label !== 'index.ts').map(entry => entry.toolbarActions?.[0].hoverLabel),
 			copied,
 		}, {
 			entries: [
@@ -896,6 +1104,7 @@ suite('Session Artifacts', () => {
 				['index.ts', ['Copy Path']],
 				['Chat settings', ['Copy URI']],
 			],
+			footerLabels: ['Copy URL', 'Copy URL', 'Copy URL', 'Copy URL', 'Copy URL'],
 			copied: [
 				pullRequestLink.toString(true),
 				issueLink.toString(true),
@@ -1130,14 +1339,15 @@ suite('Session Artifacts', () => {
 	test('retries a failed commit lookup without orphaning existing observers', async () => {
 		const link = URI.parse('https://github.com/microsoft/vscode/commit/abc123');
 		const requests: DeferredPromise<GitHubCommit>[] = [];
-		const { presentation } = createPresentation([
-			{ id: 'reference', kind: SessionArtifactKind.Commit, label: 'Recorded reference', isArtifact: false, link },
+		const { presentation, chat } = createPresentation([
+			{ id: 'reference', chat: URI.parse('chat-session://test/peer'), kind: SessionArtifactKind.Commit, label: 'Recorded reference', isArtifact: false, link },
 			{ id: 'artifact', kind: SessionArtifactKind.Commit, label: 'Recorded artifact', isArtifact: true, link },
 		], undefined, undefined, () => {
 			const result = new DeferredPromise<GitHubCommit>();
 			requests.push(result);
 			return result.p;
 		});
+		chat.set(undefined, undefined);
 		let referenceLabel: string | undefined;
 		disposables.add(autorun(reader => {
 			referenceLabel = presentation.referenceSections.read(reader).flatMap(section => section.entries)[0]?.label;
@@ -1166,14 +1376,15 @@ suite('Session Artifacts', () => {
 		});
 	});
 
-	test('removes references and durable artifacts by stable id, preserving duplicates', async () => {
+	test('removes references and durable artifacts by stable id, preserving duplicates recorded by other chats', async () => {
 		const duplicateLink = URI.parse('https://example.com/docs');
-		const { presentation, artifacts, removed, errors, setRemovalError } = createPresentation([
+		const { presentation, artifacts, removed, errors, setRemovalError, chat } = createPresentation([
 			{ id: 'artifact', kind: SessionArtifactKind.Website, label: 'Durable', isArtifact: true, link: duplicateLink },
-			{ id: 'reference-a', kind: SessionArtifactKind.Website, label: 'Docs', isArtifact: false, link: duplicateLink },
-			{ id: 'reference-b', kind: SessionArtifactKind.Website, label: 'Docs', isArtifact: false, link: duplicateLink },
+			{ id: 'reference-a', chat: URI.parse('chat-session://test/a'), kind: SessionArtifactKind.Website, label: 'Docs', isArtifact: false, link: duplicateLink },
+			{ id: 'reference-b', chat: URI.parse('chat-session://test/b'), kind: SessionArtifactKind.Website, label: 'Docs', isArtifact: false, link: duplicateLink },
 			{ id: 'issue', kind: SessionArtifactKind.Issue, label: 'Issue', isArtifact: false, link: URI.parse('https://github.com/microsoft/vscode/issues/1') },
 		]);
+		chat.set(undefined, undefined);
 		const read = () => ({
 			sections: presentation.referenceSections.get().map(section => [section.title, section.entries.map(entry => entry.id)]),
 			artifacts: presentation.sections.get().map(section => [section.title, section.entries.map(entry => entry.id)]),

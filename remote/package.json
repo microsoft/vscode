@@ -4,7 +4,7 @@
   "private": true,
   "dependencies": {
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot-sdk": "1.0.24",
+    "@github/copilot-sdk": "1.0.27-unstable.40031404408.gba6c003",
     "@hpke/core": "^1.9.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -43,7 +43,7 @@
     "libsodium-wrappers": "^0.8.4",
     "minimist": "^1.2.8",
     "node-addon-api": "^6.0.0",
-    "node-pty": "^1.2.0-beta.15",
+    "node-pty": "^1.2.0-beta.18",
     "ssh2": "^1.16.0",
     "tar": "^7.5.20",
     "tas-client": "0.4.6",
@@ -66,7 +66,7 @@
   "allowScripts": {
     "kerberos@2.1.1": true,
     "koffi@3.2.1": false,
-    "node-pty@1.2.0-beta.15": true,
+    "node-pty@1.2.0-beta.18": true,
     "@parcel/watcher@2.5.6": true,
     "@vscode/deviceid@0.1.5": true,
     "@vscode/fs-copyfile@2.0.0": true,
@@ -79,5 +79,5 @@
     "@vscode/windows-ca-certs@0.3.4": true,
     "@vscode/windows-process-tree@0.8.0": true
   },
-  "copilotRuntimeVersion": "1.0.101"
+  "copilotRuntimeVersion": "1.0.103-unstable.r40031404408.gba6c003"
 }

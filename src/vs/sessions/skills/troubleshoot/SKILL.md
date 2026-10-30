@@ -92,7 +92,7 @@ A new `logs/<timestamp>/` folder is created per VS Code session — pick the **m
 
 **Named by _connection_ id, not session id** — one log **multiplexes all sessions on that connection** (no per-session file). Long connections rotate into `ahp-….1.jsonl`, `.2.jsonl`, … (max 5); the active one is the **most recently modified** (the locate commands pick it). Read the newest log for connection-level health; to isolate one session, filter by its id (the `session-state/<sessionId>/` folder name, which appears in frames' `params`/`result`).
 
-**If no `ahp/` folder exists, the wire log is disabled** (it is off by default). Tell the user to set `"chat.agentHost.ahpJsonlLoggingEnabled": true`, restart VS Code, reproduce the issue, then re-run.
+**If no `ahp/` folder exists, the wire log is disabled** (it is on by default only in Insiders). Tell the user to set `"chat.agentHost.ahpJsonlLoggingEnabled": true`, restart VS Code, reproduce the issue, then re-run.
 
 ### Format
 
