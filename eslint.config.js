@@ -2769,7 +2769,7 @@ export default defineConfig(
 							from: ['./extensions/copilot/src/extension']
 						},
 						{
-							target: ['./extensions/copilot/test', '!./extensions/copilot/test/base/extHostContext/*.ts'],
+							target: './extensions/copilot/test',
 							from: ['**/vscode-node/**', '**/vscode-worker/**']
 						},
 						{

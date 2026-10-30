@@ -67,7 +67,7 @@ export interface IFileBasedScenario extends ICommonScenarioProps {
 	readonly workspaceFolders?: Uri[];
 }
 export type IScenario = IDeserializedWorkspaceStateBasedScenario | IFileBasedScenario;
-export type DiagnosticProviderId = 'tsc' | 'eslint' | 'pylint' | 'pyright' | 'roslyn' | 'cpp' | 'ruff';
+export type DiagnosticProviderId = 'tsc' | 'pyright';
 
 export interface IScenarioQuery {
 	file?: string | Uri;

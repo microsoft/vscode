@@ -24,8 +24,6 @@ export const INLINE_INITIAL_DOC_TAG = 'inline-initial-doc-tag';
 export const INLINE_CHANGED_DOC_TAG = 'inline-changed-doc-tag';
 export const INLINE_STATE_TAG = 'inline-state-tag';
 
-export const SIDEBAR_RAW_RESPONSE_TAG = 'sidebar-raw-response-tag';
-
 export const NES_USER_EDITS_HISTORY_TAG = 'nes-user-edits-history-tag';
 export const NES_LOG_CONTEXT_TAG = 'nes-log-context-tag';
 export const NEXT_EDIT_SUGGESTION_TAG = 'next-edit-suggestion-tag';

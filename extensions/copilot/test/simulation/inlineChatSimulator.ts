@@ -19,7 +19,6 @@ import { editorAgentName, getChatParticipantIdFromName } from '../../src/platfor
 import { IChatMLFetcher } from '../../src/platform/chat/common/chatMLFetcher';
 import { ILanguageFeaturesService } from '../../src/platform/languages/common/languageFeaturesService';
 import { ITabsAndEditorsService } from '../../src/platform/tabs/common/tabsAndEditorsService';
-import { isInExtensionHost } from '../../src/platform/test/node/isInExtensionHost';
 import { IDeserializedWorkspaceState } from '../../src/platform/test/node/promptContextModel';
 import { ITestingServicesAccessor, TestingServiceCollection } from '../../src/platform/test/node/services';
 import { IFile, isNotebook, SimulationWorkspace } from '../../src/platform/test/node/simulationWorkspace';
@@ -36,8 +35,6 @@ import { URI } from '../../src/util/vs/base/common/uri';
 import { SyncDescriptor } from '../../src/util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../src/util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation, ChatRequest, ChatRequestEditorData, ChatResponseMarkdownPart, ChatResponseNotebookEditPart, ChatResponseTextEditPart, Diagnostic, DiagnosticRelatedInformation, LanguageModelToolResult, Location, NotebookRange, Range, Selection, TextEdit, Uri, WorkspaceEdit } from '../../src/vscodeTypes';
-import { SimulationExtHostToolsService } from '../base/extHostContext/simulationExtHostToolsService';
-import { SimulationWorkspaceExtHost } from '../base/extHostContext/simulationWorkspaceExtHost';
 import { SpyingChatMLFetcher } from '../base/spyingChatMLFetcher';
 import { ISimulationTestRuntime } from '../base/stest';
 import { createWorkingSetFileVariable, parseQueryForTest } from '../e2e/testHelper';
@@ -51,7 +48,7 @@ import { DiagnosticProviderId, IDeserializedWorkspaceStateBasedScenario, IInline
 export type SimulationWorkspaceInput = { files: IFile[]; workspaceFolders?: Uri[] } | { workspaceState: IDeserializedWorkspaceState };
 
 export function setupSimulationWorkspace(testingServiceCollection: TestingServiceCollection, input: SimulationWorkspaceInput): SimulationWorkspace {
-	const workspace = isInExtensionHost ? new SimulationWorkspaceExtHost() : new SimulationWorkspace();
+	const workspace = new SimulationWorkspace();
 	if ('workspaceState' in input) {
 		workspace.resetFromDeserializedWorkspaceState(input.workspaceState);
 	} else {
@@ -300,7 +297,7 @@ export async function simulateEditingScenario(
 				isParticipantDetected: false,
 				enableCommandDetection: true, // TODO@ulugbekna: add support for disabling intent detection?
 				toolReferences,
-				toolInvocationToken: (isInExtensionHost ? undefined : {}) as never,
+				toolInvocationToken: {} as never,
 				model: null!, // https://github.com/microsoft/vscode-copilot/issues/9475
 				tools: new Map(),
 				id: '1',
@@ -628,7 +625,7 @@ export async function simulateEditingScenario(
 }
 
 function setupTools(stream: vscode.ChatResponseStream, request: ChatRequest, accessor: ITestingServicesAccessor) {
-	const toolsService = accessor.get(IToolsService) as TestToolsService | SimulationExtHostToolsService;
+	const toolsService = accessor.get(IToolsService) as TestToolsService;
 	const instaService = accessor.get(IInstantiationService);
 	const editTool = instaService.createInstance(TestEditFileTool, stream);
 	toolsService.addTestToolOverride(
