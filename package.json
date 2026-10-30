@@ -2,7 +2,7 @@
   "name": "code-oss-dev",
   "version": "1.145.0",
   "packageManager": "pnpm@12.16.0",
-  "distro": "165a83e58ea80a0a4a0a4332c175f1399b5be61e",
+  "distro": "4c7e27840cb044e1d1ae965063d31efbe7681cb6",
   "author": {
     "name": "Microsoft Corporation"
   },
