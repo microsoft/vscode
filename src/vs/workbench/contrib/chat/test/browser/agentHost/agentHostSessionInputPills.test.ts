@@ -1602,7 +1602,13 @@ suite('AgentHostSessionInputPills', () => {
 			_meta: withSessionArtifacts(undefined, artifacts),
 		}), undefined, undefined, 'local', createRichGitHubService([]));
 		await timeout(0);
-		const row = (entry: ReturnType<typeof activity.dropdownItems>[number]) => ({ label: entry.label, badge: entry.badge, leading: entry.leading });
+		const row = (entry: ReturnType<typeof activity.dropdownItems>[number]) => ({
+			label: entry.label,
+			badge: entry.badge,
+			leading: entry.leading,
+			description: entry.description,
+			expandable: entry.hover?.expandable,
+		});
 		const pr = activity.dropdown('Pull Requests').find(entry => entry.badge === '#2')!;
 		activity.instantiationService.get(IActionWidgetService).hide();
 		const issue = activity.dropdown('Issues').find(entry => entry.badge === '#4')!;
@@ -1614,8 +1620,14 @@ suite('AgentHostSessionInputPills', () => {
 			pullRequest: [pr, references.find(entry => entry.badge === '#2')!].map(row),
 			issue: [issue, references.find(entry => entry.badge === '#4')!].map(row),
 		}, {
-			pullRequest: Array.from({ length: 2 }, () => ({ label: 'Live pull request 2', badge: '#2', leading: true })),
-			issue: Array.from({ length: 2 }, () => ({ label: 'Live issue title', badge: '#4', leading: true })),
+			pullRequest: [
+				{ label: 'Live pull request 2', badge: '#2', leading: true, description: 'Open. https://github.com/microsoft/vscode/pull/2', expandable: true },
+				{ label: 'Live pull request 2', badge: '#2', leading: true, description: undefined, expandable: true },
+			],
+			issue: [
+				{ label: 'Live issue title', badge: '#4', leading: true, description: 'Closed. https://github.com/microsoft/vscode/issues/4', expandable: true },
+				{ label: 'Live issue title', badge: '#4', leading: true, description: undefined, expandable: true },
+			],
 		});
 	});
 
@@ -1753,8 +1765,37 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
+	test('keeps destinations in unavailable dedicated issue and pull request rows', async () => {
+		const pullRequests = ['https://github.com/microsoft/vscode/pull/1', 'https://github.com/microsoft/monaco-editor/pull/1'];
+		const issues = ['https://github.com/microsoft/vscode/issues/1', 'https://github.com/microsoft/monaco-editor/issues/1'];
+		const artifacts: ISessionArtifact[] = [...pullRequests, ...issues].map((link, index) => ({
+			id: `artifact-${index}`,
+			type: index < pullRequests.length ? SessionArtifactType.PullRequest : SessionArtifactType.Issue,
+			label: 'Related item', link, isGitHub: true, isArtifact: true,
+		}));
+		const activity = createActivityPills(upcastPartial<SessionState>({
+			defaultChat: 'vendor:/sessions/42/chats/main', chats: [],
+			_meta: withSessionArtifacts(undefined, artifacts),
+		}), undefined, undefined, 'local', createRichGitHubService([], { credentialState: { fail: true, calls: 0 } }));
+		await timeout(0);
+		const descriptions = (title: string) => {
+			activity.dropdown(title);
+			const result = activity.dropdownItems().filter(item => item.badge).map(item => item.description).sort();
+			activity.instantiationService.get(IActionWidgetService).hide();
+			return result;
+		};
+		assert.deepStrictEqual({
+			pullRequests: descriptions('Pull Requests'),
+			issues: descriptions('Issues'),
+		}, {
+			pullRequests: [...pullRequests].sort(),
+			issues: [...issues].sort(),
+		});
+	});
+
 	test('keeps recorded reference labels when GitHub metadata fails', async () => {
 		const links = ['https://github.com/microsoft/vscode/pull/1', 'https://github.com/microsoft/vscode/issues/2'];
+		const credentialState = { fail: true, calls: 0 };
 		const activity = createActivityPills(upcastPartial<SessionState>({
 			defaultChat: 'vendor:/sessions/42/chats/main',
 			chats: [],
@@ -1762,12 +1803,23 @@ suite('AgentHostSessionInputPills', () => {
 				id: `reference-${index}`, type: index === 0 ? SessionArtifactType.PullRequest : SessionArtifactType.Issue,
 				label: 'Related item', link, isGitHub: true, isArtifact: false,
 			}))),
-		}), undefined, undefined, 'local', createRichGitHubService([], { credentialState: { fail: true, calls: 0 } }));
+		}), undefined, undefined, 'local', createRichGitHubService([], { credentialState }));
 		activity.dropdown('Reference');
 		await timeout(0);
 		assert.deepStrictEqual(activity.dropdownItems().filter(item => item.label === 'Related item').map(item => ({
-			label: item.label, description: item.description,
-		})), links.map(description => ({ label: 'Related item', description })));
+			label: item.label, description: item.description, expandable: item.hover?.expandable,
+		})), links.map(description => ({ label: 'Related item', description, expandable: undefined })));
+
+		credentialState.fail = false;
+		activity.instantiationService.get(IActionWidgetService).hide();
+		activity.dropdown('Reference');
+		await timeout(0);
+		assert.deepStrictEqual(activity.dropdownItems().filter(item => item.badge).map(item => ({
+			label: item.label, description: item.description, expandable: item.hover?.expandable,
+		})), [
+			{ label: 'Live pull request 1', description: undefined, expandable: true },
+			{ label: 'Live issue title', description: undefined, expandable: true },
+		]);
 	});
 
 	test('warms new reference titles before dropdown or hover intent', async () => {

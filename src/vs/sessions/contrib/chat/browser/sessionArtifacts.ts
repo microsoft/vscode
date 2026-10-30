@@ -420,7 +420,9 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 		: gitHubKind
 			? getGitHubResourcePresentation(link, gitHubKind, undefined, artifact.label)
 			: undefined;
+	const gitHubHover = gitHubDetails?.hover.read(reader);
 	const displayLabel = gitHubPresentation?.label ?? artifact.label;
+	const location = sessionArtifactLocationText(link, labelService);
 	const pullRequest = artifact.kind === SessionArtifactKind.PullRequest ? parseGitHubArtifactLink(artifact) : undefined;
 	const pullRequestChangesAction = pullRequest
 		? [createOpenPullRequestChangesAction(pullRequest, () => actions.openPullRequestChanges({
@@ -435,9 +437,11 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 		label: displayLabel,
 		icon,
 		toolbarActions: [...pullRequestChangesAction, ...copyLinkAction],
-		...sessionArtifactLocation(sessionArtifactLocationText(link, labelService), displayLabel),
+		...sessionArtifactLocation(location, displayLabel),
 		...gitHubPresentation,
-		...gitHubDetails?.hover,
+		...gitHubHover,
+		...(gitHubDetails ? { prefetch: gitHubDetails.prefetch } : {}),
+		...(gitHubDetails && !gitHubHover ? { ariaDescription: location === displayLabel ? undefined : location } : {}),
 		open: () => openArtifact(artifact, actions, () => actions.openExternal(link)),
 	}, actions);
 }
