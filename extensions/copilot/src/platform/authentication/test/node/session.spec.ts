@@ -199,6 +199,21 @@ describe('Copilot session provenance', () => {
 		});
 	});
 
+	test('falls back to minimal scopes when the default scopes cannot be resolved', async () => {
+		const minimal = api.sessions[1];
+		vscodeAuthentication.getSession
+			.mockRejectedValueOnce(new Error(`Authentication provider 'github-enterprise' does not define default scopes.`))
+			.mockResolvedValueOnce(minimal);
+		const selected = await getAnyAuthSession(configuration, { silent: true });
+		expect({
+			scopes: vscodeAuthentication.getSession.mock.calls.map(([, scopes]) => scopes),
+			session: selected?.id,
+		}).toEqual({
+			scopes: [{ defaultScopes: true }, GITHUB_SCOPE_USER_EMAIL],
+			session: minimal.id,
+		});
+	});
+
 	test('preserves explicit account and issuer hints on scope probes', async () => {
 		const selected = api.sessions[1];
 		await getAnyAuthSession(configuration, { account: selected.account, authorizationServer: selected.authorizationServer, silent: true });

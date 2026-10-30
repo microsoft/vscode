@@ -6,7 +6,7 @@
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import * as nls from '../../../nls.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { AuthenticationSession, AuthenticationSessionsChangeEvent, getDynamicAuthenticationProviderId, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions, isAuthenticationWwwAuthenticateRequest, IAuthenticationConstraint, IAuthenticationWwwAuthenticateRequest, withoutWorkbenchOnlySessionOptions, IAuthenticationDefaultScopesRequest, isAuthenticationDefaultScopesRequest, resolveAuthenticationDefaultScopes } from '../../services/authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, getDynamicAuthenticationProviderId, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions, isAuthenticationWwwAuthenticateRequest, IAuthenticationConstraint, IAuthenticationWwwAuthenticateRequest, withoutWorkbenchOnlySessionOptions, IAuthenticationDefaultScopesRequest, isAuthenticationDefaultScopesRequest, resolveAuthenticationDefaultScopes, getAuthenticationSessionIdentity } from '../../services/authentication/common/authentication.js';
 import { AuthenticationGetSessionOptions, AuthenticationInteractiveOptions, ExtHostAuthenticationShape, ExtHostContext, IRegisterAuthenticationProviderDetails, IRegisterDynamicAuthenticationProviderDetails, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import Severity from '../../../base/common/severity.js';
@@ -43,11 +43,6 @@ export function reviveAuthenticationSession(session: Dto<AuthenticationSession>)
 		account: { ...session.account, icon: URI.revive(session.account.icon) },
 		authorizationServer: URI.revive(session.authorizationServer)
 	};
-}
-
-/** Identifies the account and issuer of a session, so that tokens with different scopes for one identity compare equal. */
-function getSessionIdentity(session: AuthenticationSession): string {
-	return JSON.stringify([session.account.id, session.authorizationServer?.toString(true)]);
 }
 
 function prepareSessionRequest(options: AuthenticationGetSessionOptions) {
@@ -543,7 +538,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				return validSessions[0];
 			}
 			// A default scopes request can match several tokens of one identity. They are ordered narrowest first.
-			if (validSessions.length > 1 && isAuthenticationDefaultScopesRequest(scopeListOrRequest) && new Set(validSessions.map(getSessionIdentity)).size === 1) {
+			if (validSessions.length > 1 && isAuthenticationDefaultScopesRequest(scopeListOrRequest) && new Set(validSessions.map(getAuthenticationSessionIdentity)).size === 1) {
 				return validSessions[0];
 			}
 		}

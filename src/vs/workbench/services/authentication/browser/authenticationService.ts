@@ -12,7 +12,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { IAuthenticationAccessService } from './authenticationAccessService.js';
-import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationGetSessionsOptions, IAuthenticationProvider, IAuthenticationProviderHostDelegate, IAuthenticationService, IAuthenticationDefaultScopesRequest, IAuthenticationWwwAuthenticateRequest, isAuthenticationDefaultScopesRequest, isAuthenticationWwwAuthenticateRequest, resolveAuthenticationDefaultScopes } from '../common/authentication.js';
+import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationGetSessionsOptions, IAuthenticationProvider, IAuthenticationProviderHostDelegate, IAuthenticationService, IAuthenticationDefaultScopesRequest, IAuthenticationWwwAuthenticateRequest, getAuthenticationSessionIdentity, isAuthenticationDefaultScopesRequest, isAuthenticationWwwAuthenticateRequest, resolveAuthenticationDefaultScopes } from '../common/authentication.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { ActivationKind, IExtensionService } from '../../extensions/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -325,12 +325,16 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				return sessions;
 			}
 			const eligible = filterSessionsWithScopes(sessions, requiredScopes);
-			if (eligible.length) {
+			const eligibleIdentities = new Set(eligible.map(getAuthenticationSessionIdentity));
+			if (eligible.length && sessions.every(session => eligibleIdentities.has(getAuthenticationSessionIdentity(session)))) {
 				return eligible;
 			}
 			// An unscoped lookup can skip sessions that a provider only produces on demand for specific scopes, such as
-			// GitHub sessions restored from a linked Microsoft account that already has a narrower session.
-			return filterSessionsWithScopes(await authProvider.getSessions([...requiredScopes], { ...options }), requiredScopes);
+			// GitHub sessions restored from a linked Microsoft account that already has a narrower session. Ask for the
+			// resolved scopes whenever an identity has no eligible session, so that it is not passed over for another one.
+			const knownSessionIds = new Set(sessions.map(session => session.id));
+			const scopedSessions = await authProvider.getSessions([...requiredScopes], { ...options });
+			return filterSessionsWithScopes([...sessions, ...scopedSessions.filter(session => !knownSessionIds.has(session.id))], requiredScopes);
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}

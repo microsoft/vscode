@@ -138,6 +138,13 @@ export function resolveAuthenticationDefaultScopes(productService: Pick<IProduct
 }
 
 /**
+ * Identifies the account and issuer of a session, so that tokens with different scopes for one identity compare equal.
+ */
+export function getAuthenticationSessionIdentity(session: AuthenticationSession): string {
+	return JSON.stringify([session.account.id, session.authorizationServer?.toString(true)]);
+}
+
+/**
  * Represents constraints for authentication, including challenges and optional scopes.
  * This is used when creating or retrieving sessions that must satisfy specific authentication
  * requirements from WWW-Authenticate headers.

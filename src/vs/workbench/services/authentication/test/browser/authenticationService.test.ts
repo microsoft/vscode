@@ -609,6 +609,29 @@ suite('AuthenticationService - default scopes', () => {
 		});
 	});
 
+	test('getSessions asks for the resolved scopes when one identity has no eligible session', async () => {
+		const service = createService();
+		const requests: (string[] | undefined)[] = [];
+		const linkedAccount = { id: 'linked', label: 'Linked' };
+		const broad = session('broad', [...defaultScopes, 'gist']);
+		const restored = { ...session('restored', defaultScopes), account: linkedAccount };
+		service.registerAuthenticationProvider('github', createProvider({
+			id: 'github',
+			// The linked account only has a narrower session until one with the requested scopes is restored for it.
+			getSessions: async scopes => {
+				requests.push(scopes);
+				return scopes ? [restored] : [broad, { ...session('minimal', ['user:email']), account: linkedAccount }];
+			},
+		}));
+
+		const result = await service.getSessions('github', { defaultScopes: true });
+
+		assert.deepStrictEqual({ sessions: result.map(candidate => candidate.id), requests }, {
+			sessions: ['restored', 'broad'],
+			requests: [undefined, defaultScopes]
+		});
+	});
+
 	test('additionalScopes are required on top of the defaults', async () => {
 		const service = createService();
 		registerProvider(service, 'github', sessions);

@@ -61,7 +61,13 @@ export function getAnyAuthSession(configurationService: IConfigurationService, o
 		async () => {
 			// Ask for aligned scopes first, since that's what we want to use going forward.
 			if (configurationService.getConfig(ConfigKey.Shared.AuthPermissions) !== AuthPermissionMode.Minimal) {
-				const permissive = await authentication.getSession(providerId, GITHUB_DEFAULT_SCOPES_REQUEST, silentOptions);
+				let permissive: AuthenticationSession | undefined;
+				try {
+					permissive = await authentication.getSession(providerId, GITHUB_DEFAULT_SCOPES_REQUEST, silentOptions);
+				} catch {
+					// The default scopes are only preferred here, so a build that does not define them must still find a
+					// minimal session. Any other failure of the provider is reported by the lookups below.
+				}
 				if (permissive) {
 					return permissive;
 				}
