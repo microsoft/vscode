@@ -347,19 +347,30 @@ suite('BrowserViewWorkbenchService', () => {
 		});
 	});
 
-	test('does not fall back when an external view requires its resolved network', async () => {
-		const { service, events, creationOptions } = createService();
-		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
-		store.add(service.registerNetworkResolver({
-			resolveNetwork: () => ({ authority: 'host' }),
-			...hostStatuses({ host: false }),
-		}));
+	test('embedded views require their owner\'s network instead of falling back to the local network', async () => {
+		const embed = async (proxySupported: boolean, enableRemoteProxy: boolean) => {
+			const { service, events, creationOptions, configurationService } = createService();
+			events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+			const proxyCalls: string[] = [];
+			registerProxyProvider(service, proxyCalls);
+			store.add(service.registerNetworkResolver({ resolveNetwork: () => ({ authority: 'host' }), ...hostStatuses({ host: proxySupported }) }));
+			await configurationService.setUserConfiguration('workbench.browser.enableRemoteProxy', enableRemoteProxy);
+			const outcome = await service.createExternalBrowserView('http://127.0.0.1:3000/', 'canvas', { type: 'agent', sessionId: 'chat' }).then(model => {
+				model.dispose();
+				return 'created';
+			}, (error: Error) => error.message);
+			return { outcome, sessions: creationOptions.map(options => options.session), proxyCalls };
+		};
 
-		await assert.rejects(
-			service.createExternalBrowserView('http://page/', 'canvas', { type: 'agent', sessionId: 'chat' }, true),
-			/The required remote network is unavailable/,
-		);
-		assert.strictEqual(creationOptions.length, 0);
+		assert.deepStrictEqual({
+			supported: await embed(true, true),
+			proxyDisabled: await embed(true, false),
+			hostUnsupported: await embed(false, true),
+		}, {
+			supported: { outcome: 'created', sessions: [{ scope: BrowserViewStorageScope.Ephemeral, network: { authority: 'host' } }], proxyCalls: ['acquire host', 'release host'] },
+			proxyDisabled: { outcome: 'The required remote network is unavailable.', sessions: [], proxyCalls: [] },
+			hostUnsupported: { outcome: 'The required remote network is unavailable.', sessions: [], proxyCalls: [] },
+		});
 	});
 
 	test('applies current restrictions without changing the saved session request', async () => {

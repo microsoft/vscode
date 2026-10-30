@@ -913,7 +913,7 @@ export interface IAgentHostAdapterOptions {
 	/** The resource scheme an agent's sessions and models are registered under on this host. */
 	readonly resourceSchemeForAgent?: (agentProvider: string) => string;
 	/** Whether this provider can present server-published canvas channels for the agent. */
-	readonly supportsCanvasPresentation?: (agentProvider: string) => boolean;
+	readonly supportsCanvasPresentation?: (agentProvider: string, connection: IAgentConnection | undefined, reader: IReader) => boolean;
 	/**
 	 * The scheme the host addresses this session under, when it differs from the agent provider
 	 * (cloud sandbox: provider `copilot`, sessions `ahp-session:/<id>`). Defaults to the provider.
@@ -1863,7 +1863,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.capabilities = derivedOpts<ISessionCapabilities>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const agentCapabilities = this._options.agentCapabilities.read(reader)?.get(this.agentProvider);
 			this._options.connectionStatus?.read(reader);
-			const connection = this._options.getConnection();
+			const connection = this._options.getConnection(reader);
 			connection?.initializeResult.read(reader);
 			const supportsMultipleChats = agentCapabilities?.multipleChats !== undefined;
 			const chatProviders = supportsMultipleChats ? this._options.chatProviders?.read(reader) : undefined;
@@ -1871,7 +1871,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				supportsRemoveArtifacts: !!connection?.removeSessionArtifact && supportsAgentHostArtifactRemoval(connection.initializeResult.read(reader)),
 				supportsImport: this.isExternal.read(reader) && !!connection?.importSession && supportsAgentHostSessionImport(connection.initializeResult.read(reader)),
 				...(connection?.artifactIntegrationTransport ? { supportsArtifactIntegrations: true } : {}),
-				supportsCanvases: this._options.supportsCanvasPresentation?.(this.agentProvider) === true,
+				supportsCanvases: this._options.supportsCanvasPresentation?.(this.agentProvider, connection, reader) === true,
 				supportsMultipleChats,
 				...(chatProviders?.length ? { supportsChatHarnesses: chatProviders.map(toAgentHostChatHarness) } : {}),
 				supportsIndependentChatReadState: this._supportsChatReadState.read(reader),

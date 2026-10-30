@@ -432,9 +432,10 @@ export interface IBrowserViewWorkbenchService {
 
 	/**
 	 * Creates an unlisted user-owned ephemeral view for embedding outside the browser editor.
-	 * When `networkOwner` is given, the view uses the network resolved for that owner.
+	 * When `networkOwner` is given, the view uses the network resolved for that owner, and
+	 * fails rather than load from the local network when it cannot use that network.
 	 */
-	createExternalBrowserView(initialUrl: string, openSource?: IntegratedBrowserOpenSource, networkOwner?: IBrowserViewOwner, requireResolvedNetwork?: boolean): Promise<IBrowserViewModel>;
+	createExternalBrowserView(initialUrl: string, openSource?: IntegratedBrowserOpenSource, networkOwner?: IBrowserViewOwner): Promise<IBrowserViewModel>;
 
 	/**
 	 * Get an existing browser view for the given ID, or create a new one if it doesn't exist.
