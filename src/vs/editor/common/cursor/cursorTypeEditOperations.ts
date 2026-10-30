@@ -786,19 +786,16 @@ export class TypeWithoutInterceptorsOperation {
 
 export class TabOperation {
 
-	public static getCommands(config: CursorConfiguration, model: ITextModel, selections: Selection[]) {
+	public static getCommands(config: CursorConfiguration, model: ITextModel, selections: Selection[]): ICommand[] {
 		const commands: ICommand[] = [];
-		let autoClosingPairClose: string | null = null;
-		let autoCloseOpenText: string | null = null;
 
-		const areAllSelectionsEmpty = selections.every(s => s.isEmpty());
-		if (areAllSelectionsEmpty) {
-			const typeText = config.insertSpaces ? '' : '\t';
-			if (!config.insertSpaces && typeText === '\t') {
-				autoClosingPairClose = AutoClosingOpenCharTypeOperation.getAutoClosingPairClose(config, model, selections, '\t', false);
-				if (autoClosingPairClose !== null) {
-					autoCloseOpenText = '\t';
+		if (!config.insertSpaces) {
+			const autoClosingPairClose = AutoClosingOpenCharTypeOperation.getAutoClosingPairClose(config, model, selections, '\t', false);
+			if (autoClosingPairClose !== null) {
+				for (let i = 0, len = selections.length; i < len; i++) {
+					commands[i] = new TypeWithAutoClosingCommand(selections[i], '\t', true, autoClosingPairClose);
 				}
+				return commands;
 			}
 		}
 
@@ -815,11 +812,7 @@ export class TabOperation {
 						continue;
 					}
 				}
-				if (autoClosingPairClose !== null && autoCloseOpenText !== null) {
-					commands[i] = new TypeWithAutoClosingCommand(selection, autoCloseOpenText, true, autoClosingPairClose);
-				} else {
-					commands[i] = this._replaceJumpToNextIndent(config, model, selection, true);
-				}
+				commands[i] = this._replaceJumpToNextIndent(config, model, selection, true);
 			} else {
 				if (selection.startLineNumber === selection.endLineNumber) {
 					const lineMaxColumn = model.getLineMaxColumn(selection.startLineNumber);
@@ -883,7 +876,7 @@ export class TabOperation {
 		return indentation;
 	}
 
-	private static _replaceJumpToNextIndent(config: CursorConfiguration, model: ITextModel, selection: Selection, insertsAutoWhitespace: boolean): ICommand {
+	private static _replaceJumpToNextIndent(config: CursorConfiguration, model: ICursorSimpleModel, selection: Selection, insertsAutoWhitespace: boolean): ReplaceCommand {
 		let typeText = '';
 		const position = selection.getStartPosition();
 		if (config.insertSpaces) {
