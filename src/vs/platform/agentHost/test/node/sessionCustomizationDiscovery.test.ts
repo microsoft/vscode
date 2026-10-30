@@ -14,7 +14,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { CustomizationLoadStatus, CustomizationType, type SkillCustomization } from '../../common/state/sessionState.js';
@@ -35,9 +35,7 @@ suite('SessionCustomizationDiscovery', () => {
 	let userHome: URI;
 
 	setup(() => {
-		fileService = disposables.add(new FileService(new NullLogService()));
-		const memFs = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(Schemas.inMemory, memFs));
+		fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, fileService);

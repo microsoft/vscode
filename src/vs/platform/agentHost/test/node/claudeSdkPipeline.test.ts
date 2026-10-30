@@ -12,9 +12,9 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileService } from '../../../files/common/fileService.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { IFileService } from '../../../files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -197,9 +197,7 @@ function createPipeline(
 ): IPipelineHarness {
 	const controller = new AbortController();
 	const warm = typeof warmOrFactory === 'function' ? warmOrFactory(controller.signal) : warmOrFactory;
-	const fileService = disposables.add(new FileService(new NullLogService()));
-	const fs = disposables.add(new InMemoryFileSystemProvider());
-	disposables.add(fileService.registerProvider('file', fs));
+	const fileService = createInMemoryFileService(disposables, Schemas.file);
 
 	const db = new TestSessionDatabase();
 	const dbRef: IReference<ISessionDatabase> = { object: db, dispose: () => { } };
@@ -275,9 +273,7 @@ suite('ClaudeSdkPipeline', () => {
 			}
 			const controller = new AbortController();
 			const warm = new WarmWithReload();
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			const fs = disposables.add(new InMemoryFileSystemProvider());
-			disposables.add(fileService.registerProvider('file', fs));
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
 			const db = new TestSessionDatabase();
 			const dbRef: IReference<ISessionDatabase> = { object: db, dispose: () => { } };
 			const services = new ServiceCollection(
