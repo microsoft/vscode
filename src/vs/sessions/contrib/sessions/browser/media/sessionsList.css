@@ -40,6 +40,53 @@
 	}
 }
 
+/* A pinned canvas row names its owning chat after the canvas title, demoted to secondary text. */
+.session-section.session-section-pinned-canvas {
+	.session-section-label-container {
+		gap: var(--vscode-spacing-size60);
+	}
+
+	.session-section-description {
+		/* The chat title only fills the space the canvas title leaves. */
+		flex: 1 1 0;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: var(--vscode-fontSize-label2);
+		font-weight: var(--vscode-fontWeight-regular);
+		color: var(--vscode-descriptionForeground);
+	}
+
+	&.pending .session-section-icon,
+	&.unavailable .session-section-label {
+		opacity: 0.7;
+	}
+}
+
+/* A pinned canvas row reveals its toolbar on hover or keyboard focus, like a session row. */
+.session-section .session-section-pinned-canvas-toolbar {
+	display: none;
+	flex-shrink: 0;
+	margin-left: var(--vscode-spacing-size40);
+
+	.monaco-action-bar .action-label {
+		border-radius: var(--vscode-cornerRadius-small);
+	}
+}
+
+/* A tree row contains its section, while a navigation row is its own section. */
+.monaco-list-row:is(:hover, .hovered) .session-section-pinned-canvas .session-section-pinned-canvas-toolbar,
+.monaco-list-row.session-section-pinned-canvas:is(:hover, .hovered) .session-section-pinned-canvas-toolbar,
+.monaco-list:focus-within .monaco-list-row.focused .session-section-pinned-canvas .session-section-pinned-canvas-toolbar,
+.monaco-list:focus-within .monaco-list-row.focused.session-section-pinned-canvas .session-section-pinned-canvas-toolbar {
+	display: block;
+}
+
+.session-section .session-section-description:empty {
+	display: none;
+}
+
 .sessions-list-control {
 	position: relative;
 	flex: 1 1 auto;
