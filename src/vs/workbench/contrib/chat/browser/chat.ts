@@ -7,8 +7,11 @@ import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
+import { isMobile, isWeb } from '../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IPosition } from '../../../../editor/common/core/position.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { EditDeltaInfo } from '../../../../editor/common/textModelEditSource.js';
@@ -16,6 +19,7 @@ import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { PreferredGroup } from '../../../services/editor/common/editorService.js';
+import type { IChatPillSection } from '../../../browser/chatPills.js';
 import { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../common/attachments/chatVariables.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData } from '../common/participants/chatAgents.js';
@@ -29,10 +33,12 @@ import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatPen
 import { ChatAgentLocation, ChatModeKind, IResolvedNewChatSessionType } from '../common/constants.js';
 import { ChatAttachmentModel } from './attachments/chatAttachmentModel.js';
 import { IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
-import { ChatInputPart } from './widget/input/chatInputPart.js';
+import { ChatInputPart, IChatInputHostModelSelection, IChatInputHostSubmit } from './widget/input/chatInputPart.js';
 import { IChatWidgetContrib } from './widget/chatWidget.js';
 import { ICodeBlockActionContext, ICodeBlockRenderOptions } from './widget/chatContentParts/codeBlockPart.js';
 import { AgentSessionTarget } from './agentSessions/agentSessions.js';
+import type { IChatBackgroundShell } from '../common/sessionChatPills.js';
+import type { IResolvedResponseSelection } from './responseSelectionResolver.js';
 
 export { ChatOutline } from './chatOutline.js';
 
@@ -166,7 +172,7 @@ export interface IChatWidgetService {
 	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 
-	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined;
+	getWidgetBySessionResource(sessionResource: URI, options?: { readonly preferInputRequests?: boolean }): IChatWidget | undefined;
 
 	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget>;
 
@@ -241,6 +247,7 @@ export interface IChatContextMenuActionContext {
 	readonly $chatContextMenu: true;
 	readonly item: ChatTreeItem | null;
 	readonly linkTarget?: string;
+	readonly responseSelection?: IResolvedResponseSelection;
 }
 
 export function isChatContextMenuActionContext(context: unknown): context is IChatContextMenuActionContext {
@@ -249,6 +256,25 @@ export function isChatContextMenuActionContext(context: unknown): context is ICh
 
 export function unwrapChatContextMenuActionContext(context: unknown): unknown {
 	return isChatContextMenuActionContext(context) ? context.item : context;
+}
+
+/** Who answers a chat, when that is not the agent its session type serves. */
+export interface IChatResponseIdentity {
+	readonly label: string;
+	readonly icon: ThemeIcon;
+}
+
+/** An agent answering a chat in place of the one its session type serves. */
+export interface IChatRespondent extends IChatResponseIdentity {
+	/** The session type whose models the chat selects from; `undefined` while not known, when none are offered. */
+	readonly modelSessionType: string | undefined;
+}
+
+/** In-progress work for the transcript status, independent of input-pill filters. */
+export interface IChatBackgroundActivityPillSections {
+	readonly subagents?: IObservable<readonly IChatPillSection[]>;
+	/** Shell metadata; each transcript part owns its detail views. */
+	readonly backgroundShells?: IObservable<readonly IChatBackgroundShell[]>;
 }
 
 export interface IChatListItemRendererOptions {
@@ -261,26 +287,46 @@ export interface IChatListItemRendererOptions {
 	readonly editable?: boolean;
 	/** Whether the chat is read-only, independently of whether request editing is enabled. */
 	readonly readOnly?: boolean;
+	/** Whether to render questions, confirmations, and other requests for user input. Defaults to true. */
+	readonly renderInputRequests?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly progressMessageAction?: IObservable<{ readonly label: string; readonly run: () => void } | undefined>;
+	readonly backgroundActivityPillSections?: IChatBackgroundActivityPillSections;
 	readonly contentHorizontalPadding?: number;
+	/** Collapses the first request under this label without changing its message or attachments. */
+	readonly firstRequestSummary?: string;
 	/**
 	 * Render options applied to code blocks in response markdown (e.g. force word-wrap
 	 * so command/tool output pasted by the model wraps instead of overflowing).
 	 */
 	readonly codeBlockRenderOptions?: ICodeBlockRenderOptions;
+	/** Presents responses as coming from this identity instead of the responding agent's own. */
+	readonly responseIdentity?: IChatResponseIdentity;
 }
 
 export interface IChatWidgetViewOptions {
+	/** Whether this widget can host the chat pet. Defaults to true. */
+	readonly renderChatPet?: boolean;
+	readonly firstRequestSummary?: IObservable<string | undefined>;
 	autoScroll?: boolean | ((mode: ChatModeKind) => boolean);
 	renderInputOnTop?: boolean;
 	/** Show the read-only status banner above the transcript instead of beside the composer. */
 	readOnlyBannerAtTop?: boolean;
 	renderFollowups?: boolean;
+	/** Disable the legacy artifacts list when the host provides an artifacts pill. */
+	renderArtifactsWidget?: boolean;
 	renderStyle?: 'compact' | 'minimal';
 	renderInputToolbarBelowInput?: boolean;
+	/** Whether to create the toolbar backed by {@link MenuId.ChatInputSecondary}. */
+	renderSecondaryToolbar?: boolean;
+	/** Whether to create the toolbar backed by {@link MenuId.ChatInputStatus}. A host can render its own. */
+	renderStatusToolbar?: boolean;
+	/**
+	 * Whether the widget shows the getting-started tip. `false` leaves the input's
+	 * tip slot to the host, which may present its own tip there.
+	 */
 	renderGettingStartedTip?: boolean | (() => boolean);
 	customizationMigrationNotice?: {
 		readonly workspace: IObservable<URI | undefined>;
@@ -301,6 +347,11 @@ export interface IChatWidgetViewOptions {
 		 */
 		executeToolbar?: MenuId;
 		/**
+		 * The menu rendered in the input's toolbar, for pickers such as model and mode.
+		 * Defaults to {@link MenuId.ChatInput}.
+		 */
+		inputToolbar?: MenuId;
+		/**
 		 * The menu that next to the input editor, use for close, config etc
 		 */
 		inputSideToolbar?: MenuId;
@@ -314,8 +365,14 @@ export interface IChatWidgetViewOptions {
 	enableImplicitContext?: boolean;
 	enableWorkingSet?: 'explicit' | 'implicit';
 	supportsChangingModes?: boolean;
+	/** Side chat capability supplied by hosts that own their session model. */
+	supportsSideChat?: IObservable<boolean>;
 	dndContainer?: HTMLElement;
 	inputEditorMinLines?: number;
+	/** Vertical padding of the input editor. Defaults to the render style's padding. */
+	inputEditorPadding?: { readonly top: number; readonly bottom: number };
+	/** The input's placeholder, in place of the session's or a locked agent's. */
+	inputPlaceholder?: string;
 	defaultMode?: IChatMode;
 	/**
 	 * Optional delegate for the session target picker.
@@ -345,6 +402,27 @@ export interface IChatWidgetViewOptions {
 	 * instead of silently dropping them.
 	 */
 	submitHandler?: (query: string, mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[], isVoiceModeInput?: boolean) => Promise<boolean>;
+	/**
+	 * Horizontal space the input part reserves around itself. Hosts that render the
+	 * input flush with their own content set this to `0`.
+	 */
+	inputPartHorizontalPadding?: number;
+	/** Model selection owned by the host instead of the input; see {@link IChatInputHostModelSelection}. */
+	hostModelSelection?: IChatInputHostModelSelection;
+	/** Whether deferred notifications, such as promotions, may show in the input. Defaults to the input's own rule. */
+	deferredNotificationsEnabled?: IObservable<boolean>;
+	/**
+	 * Whether this input owns a Voice Mode session that targets a draft the host
+	 * has not created yet. Without it, such a session belongs to no chat input.
+	 */
+	ownsDraftVoiceSession?: IObservable<boolean>;
+	/**
+	 * Submitting that a host sending through {@link submitHandler} takes part in;
+	 * see {@link IChatInputHostSubmit}. The host, not the widget's chat model,
+	 * then decides whether the input is blocked. Requests the widget sends itself
+	 * are still checked by the chat service.
+	 */
+	hostSubmit?: IChatInputHostSubmit;
 	/**
 	 * Whether we are running in the sessions window.
 	 * When true, the secondary toolbar (permissions picker) is hidden.
@@ -430,6 +508,16 @@ export interface IChatWidgetViewModelChangeEvent {
 export interface IChatWidgetViewState {
 	readonly scrollTop: number;
 	readonly isAtBottom?: boolean;
+	/** The row at the top of the viewport. Unlike `scrollTop`, it lands on the same content when the rows above it haven't been measured yet. */
+	readonly scrollAnchor?: IChatScrollAnchor;
+}
+
+/** A transcript row and how far the viewport is scrolled past its top. */
+export interface IChatScrollAnchor {
+	/** The ID of the request, or of the request that the response answers. Response IDs can change when a chat is restored. */
+	readonly requestId: string;
+	readonly kind: 'request' | 'response';
+	readonly offset: number;
 }
 
 export const CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT = 100;
@@ -458,6 +546,8 @@ export interface IChatWidget {
 	readonly viewModel: IChatViewModel | undefined;
 	readonly inputEditor: ICodeEditor;
 	readonly supportsFileReferences: boolean;
+	/** Whether this widget can host question and confirmation controls. Defaults to true. */
+	readonly supportsInputRequests?: boolean;
 	/** Whether the input part is rendered above the transcript instead of below it (quick chat, composer-style widgets). */
 	readonly rendersInputOnTop: boolean;
 	readonly attachmentCapabilities: IChatAgentAttachmentCapabilities;
@@ -484,6 +574,8 @@ export interface IChatWidget {
 	refreshParsedInput(): void;
 	/** Floats persistent input content and reserves matching space below the transcript. */
 	setPersistentContentHeight(height: number | undefined): void;
+	/** Shares the host's background activity dropdowns with the transcript's running status. */
+	registerBackgroundActivityPillSections(sections: IChatBackgroundActivityPillSections): IDisposable;
 	logInputHistory(): void;
 	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
 	getSelectedModelRequestOptions(): Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>;
@@ -580,6 +672,10 @@ export interface IChatFindController {
 	focus(): void;
 }
 
+export function isResponseSelectionSupported(platform = { isWeb, isMobile }): boolean {
+	return !(platform.isWeb && platform.isMobile);
+}
+
 /**
  * Binds a freshly loaded model to a chat widget, preserving any text the user
  * typed into the input while the session was still loading (the input stays
@@ -625,7 +721,18 @@ export const InstalledAgentPluginsViewId = 'workbench.views.agentPlugins.install
 export interface IChatAttachmentTarget {
 	readonly attachments: readonly IChatRequestVariableEntry[];
 
-	addAttachments(entries: readonly IChatRequestVariableEntry[]): void;
+	/**
+	 * @param dropPosition Where in the target's input the attachments were
+	 * dropped, see {@link getDropPosition}.
+	 */
+	addAttachments(entries: readonly IChatRequestVariableEntry[], dropPosition?: IPosition): void;
+
+	/**
+	 * The position in the target's input at a point in the window where
+	 * attachments are dropped, when the target places attachments in its input,
+	 * as it does for inline attachment pills.
+	 */
+	getDropPosition?(clientX: number, clientY: number): IPosition | undefined;
 }
 
 /**
@@ -640,6 +747,15 @@ export interface IChatPasteTarget extends IChatAttachmentTarget {
 
 	/** Inline references currently present in the input. */
 	readonly inlineReferences: readonly IDynamicVariable[];
+
+	/**
+	 * The prompt that a copied range of the input stands for when the input
+	 * shows attachments as pills inline with the prompt, with the references in
+	 * it relative to the copied text, and the attachments of pills outside the
+	 * range, which the copy leaves out. `undefined` when the input does not
+	 * show attachments inline.
+	 */
+	getCopiedInlinePrompt?(ranges: readonly IRange[]): { readonly text: string; readonly references: readonly IDynamicVariable[]; readonly excludedAttachmentIds: ReadonlySet<string> } | undefined;
 
 	removeAttachments(ids: readonly string[]): void;
 

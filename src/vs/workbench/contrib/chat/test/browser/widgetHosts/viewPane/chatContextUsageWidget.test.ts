@@ -6,12 +6,11 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -151,10 +150,7 @@ suite('ChatContextUsageWidget', () => {
 	}
 
 	function createWidget(instantiationService: IInstantiationService = {} as IInstantiationService, languageModelsService: ILanguageModelsService = createLanguageModelsService()): ChatContextUsageWidget {
-		const hoverService = {
-			setupDelayedHover: () => Disposable.None,
-			showInstantHover: () => { },
-		} as unknown as IHoverService;
+		const hoverService = { ...NullHoverService };
 		return store.add(new ChatContextUsageWidget(
 			hoverService,
 			instantiationService,
@@ -190,6 +186,25 @@ suite('ChatContextUsageWidget', () => {
 	function usage(actualModelId?: string): IChatUsage {
 		return { kind: 'usage', promptTokens: 50_000, completionTokens: 4_000, actualModelId };
 	}
+
+	test('stays hidden when the session has a cost but no context usage', () => {
+		const { widget } = createWidgetWithData();
+		widget.update(createRequest(CONCRETE_MODEL, undefined, Event.None, () => 0.6));
+		widget.updateSessionCost(0.6);
+		assert.deepStrictEqual({ visible: widget.isVisible.get(), detailsShown: widget.showDetails() }, { visible: false, detailsShown: false });
+	});
+
+	test('uses reported Copilot context usage instead of cumulative turn consumption', () => {
+		const { widget, getData } = createWidgetWithData();
+		const reported = usageInfoToChatUsage({ inputTokens: 70_000, outputTokens: 10_000 }, undefined, { currentTokens: 25_000, tokenLimit: 100_000, messagesLength: 3 });
+		widget.update(createRequest(CONCRETE_MODEL, reported));
+		widget.showDetails();
+		assert.deepStrictEqual({
+			used: getData()?.usedTokens,
+			limit: getData()?.totalContextWindow,
+			label: widget.domNode.querySelector('.percentage-label')?.textContent,
+		}, { used: 25_000, limit: 100_000, label: '25%' });
+	});
 
 	for (const { name, limits } of [
 		{ name: 'only a total context window', limits: { maxContextWindow: 108_000 } },

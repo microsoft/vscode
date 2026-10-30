@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { bufferToReadable, bufferToStream, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { consumeStream, newWriteableStream, ReadableStreamEvents } from '../../../../base/common/stream.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -27,11 +27,7 @@ class BufferedWriteFileSystemProvider extends InMemoryFileSystemProvider {
 
 suite('File Service', () => {
 
-	const disposables = new DisposableStore();
-
-	teardown(() => {
-		disposables.clear();
-	});
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('resolveAll does not trace missing resources', async () => {
 		const traces: (string | Error)[] = [];
@@ -313,6 +309,37 @@ suite('File Service', () => {
 		}
 	}
 
+	test('readFileStream releases cancellation listeners when the provider throws synchronously', async () => {
+		const service = disposables.add(new FileService(new NullLogService()));
+		const provider = new class extends NullFileSystemProvider {
+			override async stat(): Promise<IStat> {
+				return { type: FileType.File, ctime: 0, mtime: 0, size: 1 };
+			}
+
+			override readFileStream(): ReadableStreamEvents<Uint8Array> {
+				throw new Error('read failed');
+			}
+		};
+		provider.setCapabilities(FileSystemProviderCapabilities.FileReadStream);
+		disposables.add(service.registerProvider('test', provider));
+
+		const emitter = disposables.add(new class extends Emitter<void> {
+			get listenerCount(): number { return this._size; }
+		}());
+		const token: CancellationToken = {
+			isCancellationRequested: false,
+			onCancellationRequested: emitter.event,
+		};
+
+		const listenerCounts: number[] = [];
+		for (let i = 0; i < 5; i++) {
+			await assert.rejects(service.readFileStream(URI.parse('test:///resource'), undefined, token), /read failed/);
+			listenerCounts.push(emitter.listenerCount);
+		}
+
+		assert.deepStrictEqual(listenerCounts, [0, 0, 0, 0, 0]);
+	});
+
 	test('readFile/readFileStream supports cancellation (https://github.com/microsoft/vscode/issues/138805)', async () => {
 		const service = disposables.add(new FileService(new NullLogService()));
 
@@ -370,6 +397,56 @@ suite('File Service', () => {
 
 		assert.ok(e2);
 	});
+
+	for (const validationError of [false, true]) {
+		test(`readFile waits for handle closure after ${validationError ? 'metadata failure' : 'cancellation during open'}`, async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			const cts = disposables.add(new CancellationTokenSource());
+			const closeStarted = new DeferredPromise<void>();
+			const finishClose = new DeferredPromise<void>();
+			const calls: string[] = [];
+			const provider = new class extends NullFileSystemProvider {
+				override async stat(): Promise<IStat> {
+					if (validationError) {
+						throw new Error('metadata failed');
+					}
+					return { type: FileType.File, ctime: 0, mtime: 0, size: 1 };
+				}
+
+				override async open(): Promise<number> {
+					calls.push('open');
+					cts.cancel();
+					return 42;
+				}
+
+				override async read(): Promise<number> {
+					calls.push('read');
+					return 0;
+				}
+
+				override async close(): Promise<void> {
+					calls.push('close');
+					closeStarted.complete();
+					await finishClose.p;
+				}
+			};
+			provider.setCapabilities(FileSystemProviderCapabilities.FileOpenReadWriteClose);
+			disposables.add(service.registerProvider('test', provider));
+
+			let settled = false;
+			const result = service.readFile(URI.parse('test:///resource'), undefined, cts.token).finally(() => settled = true);
+			const rejected = assert.rejects(result, validationError ? /metadata failed/ : /Canceled/);
+			await closeStarted.p;
+			const settledBeforeClose = settled;
+			finishClose.complete();
+			await rejected;
+
+			assert.deepStrictEqual({ calls, settledBeforeClose }, {
+				calls: ['open', 'close'],
+				settledBeforeClose: false,
+			});
+		});
+	}
 
 	test('enforced atomic read/write/delete', async () => {
 		const service = disposables.add(new FileService(new NullLogService()));
@@ -747,5 +824,4 @@ suite('File Service', () => {
 		});
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
 });

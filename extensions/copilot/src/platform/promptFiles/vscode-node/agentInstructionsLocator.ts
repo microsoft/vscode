@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { ResourceSet } from '../../../util/vs/base/common/map';
@@ -11,11 +10,13 @@ import { Schemas } from '../../../util/vs/base/common/network';
 import { dirname, isEqual, joinPath } from '../../../util/vs/base/common/resources';
 import { equalsIgnoreCase } from '../../../util/vs/base/common/strings';
 import { URI } from '../../../util/vs/base/common/uri';
+import { ExcludeSettingOptions } from '../../../vscodeTypes';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { INativeEnvService } from '../../env/common/envService';
 import { IFileSystemService } from '../../filesystem/common/fileSystemService';
 import { FileType } from '../../filesystem/common/fileTypes';
 import { ILogService } from '../../log/common/logService';
+import { ISearchService } from '../../search/common/searchService';
 import { IWorkspaceService } from '../../workspace/common/workspaceService';
 import { AgentInstructionFileType, AgentInstructionsLogger, IAgentInstructionFile, PromptConfig } from '../common/promptsService';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
@@ -29,8 +30,6 @@ const CLAUDE_CONFIG_FOLDER = '.claude';
 const COPILOT_CONFIG_FOLDER = '.copilot';
 const COPILOT_CUSTOM_INSTRUCTIONS_FILENAME = 'copilot-instructions.md';
 const GITHUB_CONFIG_FOLDER = '.github';
-
-
 
 interface IWorkspaceInstructionFile {
 	readonly fileName: string;
@@ -51,6 +50,7 @@ export class AgentInstructionsLocator extends Disposable {
 		@INativeEnvService private readonly envService: INativeEnvService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
+		@ISearchService private readonly searchService: ISearchService,
 	) {
 		super();
 
@@ -64,8 +64,7 @@ export class AgentInstructionsLocator extends Disposable {
 		const resolvedAgentFiles: IAgentInstructionFile[] = [];
 		const promises: Promise<IAgentInstructionFile[]>[] = [];
 
-		const includeParents = this.configurationService.getNonExtensionConfig<boolean>(PromptConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS) === true;
-		const rootFolders = await this.getWorkspaceFolderRoots(includeParents, logger);
+		const rootFolders = await this.getWorkspaceFolderRoots(undefined, logger);
 
 		const rootFiles: IWorkspaceInstructionFile[] = [];
 		const useAgentMD = this.configurationService.getNonExtensionConfig<boolean>(PromptConfig.USE_AGENT_MD) !== false;
@@ -144,9 +143,13 @@ export class AgentInstructionsLocator extends Disposable {
 		if (!useNestedAgentMD) {
 			return [];
 		}
-		// Use the proposed `vscode.workspace.findFiles` glob search so we only pull back
-		// `AGENTS.md` paths and respect the user's standard exclude/.gitignore filters.
-		const found = await vscode.workspace.findFiles('**/AGENTS.md', undefined, undefined, token);
+		const found = await this.searchService.findFiles('**/AGENTS.md', {
+			useExcludeSettings: ExcludeSettingOptions.SearchAndFilesExclude,
+			useIgnoreFiles: {
+				local: !this.configurationService.getNonExtensionConfig<boolean>('explorer.excludeGitIgnore'),
+			},
+			caseInsensitive: true,
+		}, token);
 		if (token.isCancellationRequested) {
 			return [];
 		}
@@ -154,17 +157,17 @@ export class AgentInstructionsLocator extends Disposable {
 	}
 
 	/**
-	 * Returns the workspace folders, optionally walking up to enclosing
-	 * repository roots when {@link includeParents} is `true`.
+	 * Returns the supplied workspace folders, walking up to enclosing trusted
+	 * repository roots when `chat.useCustomizationsInParentRepositories` is enabled.
 	 *
 	 * Mirrors `PromptFilesLocator.getWorkspaceFolderRoots`, including the
 	 * per-URI trust check on the discovered repo root via the workspace
 	 * service's `isResourceTrusted` API.
 	 */
-	private async getWorkspaceFolderRoots(includeParents: boolean, logger?: AgentInstructionsLogger): Promise<URI[]> {
-		const workspaceFolders = this.workspaceService.getWorkspaceFolders();
+	public async getWorkspaceFolderRoots(workspaceFolders: readonly URI[] = this.workspaceService.getWorkspaceFolders(), logger?: AgentInstructionsLogger): Promise<URI[]> {
+		const includeParents = this.configurationService.getNonExtensionConfig<boolean>(PromptConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS) === true;
 		if (!includeParents) {
-			return workspaceFolders;
+			return [...workspaceFolders];
 		}
 		const roots = new ResourceSet();
 		const userHome = this.envService.userHome;
@@ -180,7 +183,8 @@ export class AgentInstructionsLocator extends Disposable {
 
 	/**
 	 * Walks up from {@link folderUri} collecting parent folders until a
-	 * repository root (a folder containing `.git`) is found. Returns the
+	 * repository root (a folder containing a `.git` directory or pointer) is
+	 * found. Returns the
 	 * intermediate parent folders only when a repo root is found.
 	 */
 	private async findParentRepoFolders(folderUri: URI, userHome: URI, seen: ResourceSet, logger?: AgentInstructionsLogger): Promise<URI[]> {
@@ -190,7 +194,8 @@ export class AgentInstructionsLocator extends Disposable {
 			try {
 				const gitFolder = joinPath(current, '.git');
 				const gitStat = await this.fileSystemService.stat(gitFolder).then(stat => stat, () => undefined);
-				const isRepoRoot = gitStat !== undefined && (gitStat.type & FileType.Directory) !== 0;
+				const isRepoRoot = gitStat !== undefined && ((gitStat.type & FileType.Directory) !== 0
+					|| (gitStat.type & FileType.File) !== 0);
 				if (isRepoRoot) {
 					// Only include the repo root (and any intermediate parents) if the user has explicitly trusted it.
 					const trusted = await this.workspaceService.isResourceTrusted(current);
@@ -228,6 +233,7 @@ export class AgentInstructionsLocator extends Disposable {
 			if (token.isCancellationRequested) {
 				return;
 			}
+
 			const dirUri = folder !== undefined ? joinPath(root, folder) : root;
 			let entries: [string, FileType][];
 			try {

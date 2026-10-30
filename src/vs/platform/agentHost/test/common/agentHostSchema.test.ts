@@ -5,9 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { AgentHostAgentOrchestrationLimitsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
-import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAgentOrchestrationLimitsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostTitleGenerationConfigKey, createSchema, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import { omitTransientSessionConfigValues, SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { IShellInitScript } from '../../common/shellInitScript.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
@@ -31,6 +30,40 @@ suite('agentHostSchema', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('a chat may set its approvals, mode, tool permissions and sandbox; workspace settings stay with the session', () => {
+		const properties = platformSessionSchema.toProtocol().properties;
+		assert.deepStrictEqual(Object.keys(properties).filter(key => properties[key].chatMutable).sort(), [
+			SessionConfigKey.AutoApprove,
+			SessionConfigKey.Mode,
+			SessionConfigKey.Permissions,
+			SessionConfigKey.SandboxEnabled,
+		].sort());
+	});
+
+	test('automatic title generation root settings default to utility naming', () => {
+		const properties = platformRootSchema.toProtocol().properties;
+		assert.deepStrictEqual({
+			strategy: {
+				type: properties[AgentHostTitleGenerationConfigKey].type,
+				enum: properties[AgentHostTitleGenerationConfigKey].enum,
+				default: properties[AgentHostTitleGenerationConfigKey].default,
+				rejectsUnselectableStrategy: !platformRootSchema.validate(AgentHostTitleGenerationConfigKey, 'deferred'),
+			},
+			legacyActiveAgent: {
+				type: properties[AgentHostActiveAgentTitleGenerationConfigKey].type,
+				default: properties[AgentHostActiveAgentTitleGenerationConfigKey].default,
+			},
+			legacyDeferred: {
+				type: properties[AgentHostDeferredTitleGenerationConfigKey].type,
+				default: properties[AgentHostDeferredTitleGenerationConfigKey].default,
+			},
+		}, {
+			strategy: { type: 'string', enum: ['utility', 'activeAgent', 'agentReview'], default: 'utility', rejectsUnselectableStrategy: true },
+			legacyActiveAgent: { type: 'boolean', default: false },
+			legacyDeferred: { type: 'boolean', default: false },
+		});
+	});
+
 	test('Markdown plan rich links are an additive boolean root setting', () => {
 		const property = platformRootSchema.toProtocol().properties[AgentHostMarkdownPlanRichLinksEnabledConfigKey];
 		assert.strictEqual(property.type, 'boolean');
@@ -48,10 +81,31 @@ suite('agentHostSchema', () => {
 		assert.strictEqual(property.default, true);
 	});
 
+	test('MCP sampling approval is a host-owned list of server identities, disabled by default', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostMcpSamplingAllowedServersConfigKey];
+		assert.deepStrictEqual({
+			type: property.type,
+			default: property.default,
+			acceptsNames: platformRootSchema.validate(AgentHostMcpSamplingAllowedServersConfigKey, ['test-server', 'other-server']),
+			acceptsEmpty: platformRootSchema.validate(AgentHostMcpSamplingAllowedServersConfigKey, []),
+			rejectsInvalid: ['test-server', { server: true }, [true], [1]].map(value => !platformRootSchema.validate(AgentHostMcpSamplingAllowedServersConfigKey, value)),
+		}, { type: 'array', default: [], acceptsNames: true, acceptsEmpty: true, rejectsInvalid: [true, true, true, true] });
+	});
+
 	test('automatic pull request attachment is an additive enabled-by-default root setting', () => {
 		const property = platformRootSchema.toProtocol().properties[AgentHostAutoAttachPullRequestsConfigKey];
 		assert.strictEqual(property.type, 'boolean');
 		assert.strictEqual(property.default, true);
+	});
+
+	test('BYOK models are enabled by default', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostByokModelsEnabledConfigKey];
+		assert.deepStrictEqual({ type: property.type, default: property.default }, { type: 'boolean', default: true });
+	});
+
+	test('Canvases are an additive disabled-by-default root setting', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostCanvasesEnabledConfigKey];
+		assert.deepStrictEqual({ type: property.type, default: property.default }, { type: 'boolean', default: false });
 	});
 
 	// ---- schemaProperty / individual validators ---------------------------
@@ -334,11 +388,17 @@ suite('agentHostSchema', () => {
 			});
 		});
 
-		test('validates permissions shape', () => {
-			const ok: IPermissionsValue = { allow: ['read'], deny: [] };
-			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Permissions, ok), true);
-			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Permissions, { allow: [42], deny: [] }), false);
-			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Permissions, { allow: [] }), true);
+		test('validates permissions shape including optional ask rules', () => {
+			const ok: IPermissionsValue = { allow: ['Shell(npm run *)'], deny: [], ask: ['Shell(/git push/)'] };
+			assert.deepStrictEqual([
+				platformSessionSchema.validate(SessionConfigKey.Permissions, ok),
+				platformRootSchema.validate(SessionConfigKey.Permissions, ok),
+				platformSessionSchema.validate(SessionConfigKey.Permissions, { allow: [42], deny: [] }),
+				platformSessionSchema.validate(SessionConfigKey.Permissions, { allow: [] }),
+				platformSessionSchema.validate(SessionConfigKey.Permissions, { allow: [], deny: [], ask: [42] }),
+				platformSessionSchema.validate(SessionConfigKey.Permissions, { allow: [], deny: [], ask: 'Shell' }),
+				platformSessionSchema.toProtocol().properties[SessionConfigKey.Permissions].default,
+			], [true, true, false, true, false, false, { allow: [], deny: [] }]);
 		});
 
 		test('validates the agent modes', () => {
@@ -359,6 +419,35 @@ suite('agentHostSchema', () => {
 				platformSessionSchema.validate(SessionConfigKey.ShellInitScripts, [{ shell: 'bash', script: 1 }]),
 				platformSessionSchema.validate(SessionConfigKey.ShellInitScripts, 'nope'),
 			], [true, true, false, false, false, false]);
+		});
+
+		test('validates sensitive edit locations as read-only mutable session config', () => {
+			const property = platformSessionSchema.toProtocol().properties[SessionConfigKey.SensitiveEditLocations];
+			assert.deepStrictEqual({
+				results: [
+					platformSessionSchema.validate(SessionConfigKey.SensitiveEditLocations, []),
+					platformSessionSchema.validate(SessionConfigKey.SensitiveEditLocations, [{ path: 'custom-hooks', isDirectory: true }]),
+					platformSessionSchema.validate(SessionConfigKey.SensitiveEditLocations, [{ path: 'custom-hooks' }]),
+					platformSessionSchema.validate(SessionConfigKey.SensitiveEditLocations, [{ path: 42, isDirectory: true }]),
+					platformSessionSchema.validate(SessionConfigKey.SensitiveEditLocations, 'custom-hooks'),
+				],
+				readOnly: property.readOnly,
+				sessionMutable: property.sessionMutable,
+			}, {
+				results: [true, true, false, false, false],
+				readOnly: true,
+				sessionMutable: true,
+			});
+		});
+
+		test('omits client-derived values from persisted session config', () => {
+			assert.deepStrictEqual(omitTransientSessionConfigValues({
+				[SessionConfigKey.Mode]: 'interactive',
+				[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'x' }],
+				[SessionConfigKey.SensitiveEditLocations]: [{ path: 'custom-hooks', isDirectory: true }],
+			}), {
+				[SessionConfigKey.Mode]: 'interactive',
+			});
 		});
 
 		test('is marked read-only so it stays out of the session settings file', () => {
@@ -421,55 +510,4 @@ suite('agentHostSchema', () => {
 		});
 	});
 
-	// ---- terminal auto-approve rule forwarding -----------------------------
-
-	suite('normalizeAgentHostTerminalAutoApproveRulesConfig', () => {
-
-		test('keeps null entries and object rules', () => {
-			const inspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>> = {};
-			const result = normalizeAgentHostTerminalAutoApproveRulesConfig({
-				echo: null,
-				python: true,
-				'/^npm run build$/': { approve: true, matchCommandLine: true },
-			}, inspectValue, false);
-
-			assert.deepStrictEqual(result, {
-				echo: null,
-				python: true,
-				'/^npm run build$/': { approve: true, matchCommandLine: true },
-			});
-		});
-
-		test('removes default-only entries when default rules are ignored', () => {
-			const inspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>> = {
-				default: { value: { echo: true, ls: true, python: false } },
-				user: { value: { echo: null } },
-			};
-			const result = normalizeAgentHostTerminalAutoApproveRulesConfig({
-				echo: null,
-				ls: true,
-				python: true,
-			}, inspectValue, true);
-
-			assert.deepStrictEqual(result, {
-				echo: null,
-				python: true,
-			});
-		});
-
-		test('keeps entries that match defaults when they come from a non-default target', () => {
-			const inspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>> = {
-				default: { value: { echo: true, ls: true } },
-				userValue: { ls: true },
-			};
-			const result = normalizeAgentHostTerminalAutoApproveRulesConfig({
-				echo: true,
-				ls: true,
-			}, inspectValue, true);
-
-			assert.deepStrictEqual(result, {
-				ls: true,
-			});
-		});
-	});
 });

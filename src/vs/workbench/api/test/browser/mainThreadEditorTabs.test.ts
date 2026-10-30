@@ -16,15 +16,20 @@ import { TestConfigurationService } from '../../../../platform/configuration/tes
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { GroupModelChangeKind } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
+import { AUDIO_PREVIEW_EDITOR_ID, IMAGE_PREVIEW_EDITOR_ID, VIDEO_PREVIEW_EDITOR_ID } from '../../../contrib/mediaPreview/common/mediaPreview.js';
+import { ImagePreviewEditorInput } from '../../../contrib/mediaPreview/browser/imagePreviewEditorInput.js';
+import { MediaPlayerEditorInput } from '../../../contrib/mediaPreview/browser/mediaPlayerEditorInput.js';
 import { MultiDiffEditorInput } from '../../../contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolverService, MultiDiffEditorItem } from '../../../contrib/multiDiffEditor/browser/multiDiffSourceResolverService.js';
+import { IOverlayWebview } from '../../../contrib/webview/browser/webview.js';
 import { IEditorGroup, IEditorGroupsService, IModalEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorsChangeEvent, IEditorService } from '../../../services/editor/common/editorService.js';
 import { ITextFileEditorModelManager, ITextFileService } from '../../../services/textfile/common/textfiles.js';
-import { TestEditorInput } from '../../../test/browser/workbenchTestServices.js';
+import { TestEditorInput, workbenchInstantiationService } from '../../../test/browser/workbenchTestServices.js';
 import { MainThreadEditorTabs } from '../../browser/mainThreadEditorTabs.js';
-import { MainThreadEditorTabsShape } from '../../common/extHost.protocol.js';
+import { MainThreadEditorTabsShape, TabModelOperationKind } from '../../common/extHost.protocol.js';
 import { ExtHostEditorTabs } from '../../common/extHostEditorTabs.js';
+import { CustomEditorTabInput } from '../../common/extHostTypes.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 
 suite('MainThreadEditorTabs', () => {
@@ -204,6 +209,65 @@ suite('MainThreadEditorTabs', () => {
 		});
 	});
 
+	test('media preview tabs report the custom editor they replaced', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const createWebview = () => new class extends mock<IOverlayWebview>() {
+			override readonly onMessage = Event.None;
+			override dispose() { }
+		}();
+		const image = URI.file('/media/pic.png');
+		const video = URI.file('/media/clip.mp4');
+		const audio = URI.file('/media/tone.wav');
+		const editors: EditorInput[] = [
+			disposables.add(instantiationService.createInstance(ImagePreviewEditorInput, image, undefined)),
+			disposables.add(instantiationService.createInstance(MediaPlayerEditorInput, 'video', video, createWebview())),
+			disposables.add(instantiationService.createInstance(MediaPlayerEditorInput, 'audio', audio, createWebview())),
+		];
+
+		const group = new class extends mock<IEditorGroup>() {
+			override readonly id = 1;
+			override get editors() { return editors; }
+			override isSticky() { return false; }
+			override isPinned() { return true; }
+			override isActive(editor: EditorInput) { return editor === editors[0]; }
+		}();
+		const editorGroupsService = new class extends mock<IEditorGroupsService>() {
+			override readonly onDidAddGroup = Event.None;
+			override readonly onDidRemoveGroup = Event.None;
+			override readonly whenReady = Promise.resolve();
+			override readonly activeModalEditorPart = undefined;
+			override get groups(): readonly IEditorGroup[] { return [group]; }
+			override getGroups(): readonly IEditorGroup[] { return [group]; }
+			override get activeGroup(): IEditorGroup { return group; }
+			override getGroup(): IEditorGroup | undefined { return group; }
+		}();
+		const editorService = new class extends mock<IEditorService>() {
+			override readonly onDidEditorsChange = Event.None;
+		}();
+
+		const extHostEditorTabs = new ExtHostEditorTabs(
+			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() { })
+		);
+		disposables.add(new MainThreadEditorTabs(
+			SingleProxyRPCProtocol(extHostEditorTabs),
+			editorGroupsService,
+			new TestConfigurationService(),
+			new NullLogService(),
+			editorService,
+		));
+		await Promise.resolve();
+
+		const tabInputs = extHostEditorTabs.tabGroups.all.flatMap(g => g.tabs).map(tab => tab.input instanceof CustomEditorTabInput
+			? { uri: tab.input.uri.toString(), viewType: tab.input.viewType }
+			: tab.input
+		);
+		assert.deepStrictEqual(tabInputs, [
+			{ uri: image.toString(), viewType: IMAGE_PREVIEW_EDITOR_ID },
+			{ uri: video.toString(), viewType: VIDEO_PREVIEW_EDITOR_ID },
+			{ uri: audio.toString(), viewType: AUDIO_PREVIEW_EDITOR_ID },
+		]);
+	});
+
 	test('multi diff tab whose resources changed does not become the active tab', async () => {
 		const resources = observableValue<readonly MultiDiffEditorItem[]>('resources', []);
 		const sourceResolverService = new class extends mock<IMultiDiffSourceResolverService>() {
@@ -240,15 +304,23 @@ suite('MainThreadEditorTabs', () => {
 			override isPinned() { return true; }
 			override isActive(editor: EditorInput) { return editor === activeEditor; }
 		}();
+		const otherGroupEditors: EditorInput[] = [];
+		const otherGroup = new class extends mock<IEditorGroup>() {
+			override readonly id = 2;
+			override get editors() { return otherGroupEditors; }
+			override isSticky() { return false; }
+			override isPinned() { return true; }
+			override isActive() { return false; }
+		}();
 		const editorGroupsService = new class extends mock<IEditorGroupsService>() {
 			override readonly onDidAddGroup = Event.None;
 			override readonly onDidRemoveGroup = Event.None;
 			override readonly whenReady = Promise.resolve();
 			override readonly activeModalEditorPart = undefined;
-			override get groups(): readonly IEditorGroup[] { return [group]; }
-			override getGroups(): readonly IEditorGroup[] { return [group]; }
+			override get groups(): readonly IEditorGroup[] { return [group, otherGroup]; }
+			override getGroups(): readonly IEditorGroup[] { return [group, otherGroup]; }
 			override get activeGroup(): IEditorGroup { return group; }
-			override getGroup(): IEditorGroup | undefined { return group; }
+			override getGroup(id: number): IEditorGroup | undefined { return id === group.id ? group : id === otherGroup.id ? otherGroup : undefined; }
 		}();
 		const editorChanges = disposables.add(new Emitter<IEditorsChangeEvent>());
 		const editorService = new class extends mock<IEditorService>() {
@@ -258,13 +330,23 @@ suite('MainThreadEditorTabs', () => {
 		const extHostEditorTabs = new ExtHostEditorTabs(
 			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() { })
 		);
-		disposables.add(new MainThreadEditorTabs(
+		let tabUpdateCount = 0;
+		const acceptTabOperation = extHostEditorTabs.$acceptTabOperation.bind(extHostEditorTabs);
+		extHostEditorTabs.$acceptTabOperation = operation => {
+			if (operation.kind === TabModelOperationKind.TAB_UPDATE) {
+				tabUpdateCount++;
+			}
+			acceptTabOperation(operation);
+		};
+		const mainThreadEditorTabs = disposables.add(new MainThreadEditorTabs(
 			SingleProxyRPCProtocol(extHostEditorTabs),
 			editorGroupsService,
 			new TestConfigurationService(),
 			new NullLogService(),
 			editorService,
 		));
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect listener ownership without exposing a test-only API.
+		const multiDiffEditorInputListeners = mainThreadEditorTabs['_multiDiffEditorInputListeners'];
 		await Promise.resolve();
 
 		// Open the multi diff editor so that its resources listener gets registered
@@ -301,5 +383,30 @@ suite('MainThreadEditorTabs', () => {
 			afterActivatingOther: other.getName(),
 			afterLabelChange: other.getName(),
 		});
+
+		otherGroupEditors.push(multiDiffInput);
+		editorChanges.fire({
+			groupId: otherGroup.id,
+			event: { kind: GroupModelChangeKind.EDITOR_OPEN, editor: multiDiffInput, editorIndex: 0 }
+		});
+		assert.strictEqual(multiDiffEditorInputListeners.size, 2);
+
+		editors.splice(1, 1);
+		editorChanges.fire({
+			groupId: group.id,
+			event: { kind: GroupModelChangeKind.EDITOR_CLOSE, editor: multiDiffInput, editorIndex: 1 }
+		});
+		assert.strictEqual(multiDiffEditorInputListeners.size, 1);
+
+		tabUpdateCount = 0;
+		resources.set([], undefined);
+		assert.strictEqual(tabUpdateCount, 1);
+
+		otherGroupEditors.splice(0, 1);
+		editorChanges.fire({
+			groupId: otherGroup.id,
+			event: { kind: GroupModelChangeKind.EDITOR_CLOSE, editor: multiDiffInput, editorIndex: 0 }
+		});
+		assert.strictEqual(multiDiffEditorInputListeners.size, 0);
 	});
 });

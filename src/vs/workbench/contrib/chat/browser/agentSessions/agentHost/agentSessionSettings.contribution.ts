@@ -7,6 +7,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -99,7 +100,7 @@ registerAction2(class OpenAgentSessionSettingsAction extends Action2 {
 		if (!session) {
 			return;
 		}
-		const backendSession = toAgentHostBackendSessionUri(session.resource);
+		const backendSession = toAgentHostBackendSessionUri(session.resource, accessor.get(IAgentHostConnectionsService));
 		if (!backendSession) {
 			return;
 		}

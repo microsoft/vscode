@@ -10,6 +10,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -37,10 +38,14 @@ interface IChatInputNotificationActionBase {
 	readonly iconOnly?: boolean;
 	/** Whether the action anchors to the leading edge of a split action row. */
 	readonly leading?: boolean;
+	/** Whether a secondary action uses the standard filled button style instead of a ghost button. */
+	readonly filled?: boolean;
 	/** Whether a secondary action keeps a theme-aware border. */
 	readonly outlined?: boolean;
 	readonly tooltip?: string;
 	readonly primary?: boolean;
+	/** Shows the action but it can't be chosen, e.g. while a request it sent takes effect; progress updates can change it in place. */
+	readonly disabled?: boolean;
 	readonly keepOpen?: boolean;
 	/** Stable id reported to telemetry, so two actions of the same kind can be told apart. */
 	readonly telemetryActionId?: string;
@@ -101,19 +106,40 @@ export interface IChatInputNotificationBody {
 	readonly actions: readonly IChatInputNotificationAction[];
 }
 
+/** Progress of the operation a notification reports, rendered as the standard progress bar under its message. */
+export interface IChatInputNotificationProgress {
+	/** Completed percentage, from 0 to 100. `undefined` renders an animated indeterminate bar. */
+	readonly percent?: number;
+}
+
+/** Notifications of one feature that must not compete: only the highest-priority applicable members are considered; the rest wait. */
+export interface IChatInputNotificationGroup {
+	readonly id: string;
+	readonly priority: number;
+}
+
+export interface IChatInputNotificationSetOptions {
+	/** Updates the content of a set notification (e.g. progress) without moving it in front of newer ones or undoing a dismissal; sets it as usual otherwise. */
+	readonly inPlace?: boolean;
+}
+
 export interface IChatInputNotification {
 	readonly id: string;
 	/** Targets one input instance, including when several inputs show the same session. */
 	readonly inputUri?: URI;
 	readonly telemetryId?: string;
 	readonly severity: ChatInputNotificationSeverity;
+	/** Optional header icon. Defaults to the severity icon. */
+	readonly icon?: ThemeIcon;
 	readonly message: string | IMarkdownString;
+	/** What assistive technology reads and hears when the message changes too often to announce, e.g. a countdown. Defaults to the message. */
+	readonly ariaMessage?: string;
 	readonly description: string | IMarkdownString | undefined;
 	readonly actions: readonly IChatInputNotificationAction[];
 	/** Controls whether this notification applies to an input. */
 	readonly when?: (context: IChatInputNotificationContext) => boolean;
-	/** Called when the notification first becomes visible in each input. Must be idempotent. */
-	readonly onDidShow?: () => void;
+	/** Called with the rendering input's context when first visible in each input. Must be idempotent. */
+	readonly onDidShow?: (context: IChatInputNotificationContext) => void;
 	/** Resolves the description and actions for an input. */
 	readonly resolveBody?: (context: IChatInputNotificationContext) => IChatInputNotificationBody;
 	readonly dismissible: boolean;
@@ -135,6 +161,14 @@ export interface IChatInputNotification {
 	 * that is distinct from a one-off dismissal. Omit to hide the button.
 	 */
 	readonly mute?: IChatInputNotificationMuteAction;
+	/** Shows a progress bar under the message; while the id and layout stay the same, updates change the message, bar and actions in place so focus stays. */
+	readonly progress?: IChatInputNotificationProgress;
+	/** Shows the in-progress indicator of an active agent session in place of the icon while the operation runs, kept through updates in place. */
+	readonly busy?: boolean;
+	/** When set, screen readers hear the notification again only when this key changes (a new phase, a pause, a failure), not on every text change. */
+	readonly announcementKey?: string;
+	/** Defers this notification to higher-priority members of the same group. */
+	readonly group?: IChatInputNotificationGroup;
 }
 
 /** Creates a matcher for a fixed model identifier. */
@@ -179,6 +213,9 @@ export function resolveChatInputNotificationBody(
 
 /** Returns the text signature used to de-duplicate announcements. */
 export function getChatInputNotificationAnnouncementSignature(notification: IChatInputNotification, body: IChatInputNotificationBody): string {
+	if (notification.announcementKey !== undefined) {
+		return `${notification.id}\u0000\u0000${notification.announcementKey}`;
+	}
 	const message = typeof notification.message === 'string' ? notification.message : notification.message.value;
 	const description = typeof body.description === 'string' ? body.description : body.description?.value ?? '';
 	return `${notification.id}\u0000${message}\u0000${description}`;
@@ -208,8 +245,11 @@ export interface IChatInputNotificationService {
 	/**
 	 * Set or update a notification. If a notification with the same ID already
 	 * exists, its content is replaced and any previous user dismissal is cleared.
+	 * With {@link IChatInputNotificationSetOptions.inPlace}, an existing
+	 * notification's content is replaced but it keeps its dismissal and its
+	 * place among others of the same severity.
 	 */
-	setNotification(notification: IChatInputNotification): void;
+	setNotification(notification: IChatInputNotification, options?: IChatInputNotificationSetOptions): void;
 
 	/**
 	 * Remove a notification entirely (e.g., when the extension disposes it).
@@ -230,6 +270,8 @@ export interface IChatInputNotificationService {
 	 * notification that has not been dismissed. Ties are broken by most-recent insertion.
 	 * An optional `filter` can be provided to restrict the set of notifications considered,
 	 * so a non-matching higher-priority notification doesn't mask other eligible ones.
+	 * Members of a {@link IChatInputNotification.group} are only considered while no
+	 * other eligible member of their group has a higher priority.
 	 */
 	getActiveNotification(filter?: (notification: IChatInputNotification) => boolean): IChatInputNotification | undefined;
 
@@ -274,10 +316,13 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 		super();
 	}
 
-	setNotification(notification: IChatInputNotification): void {
+	setNotification(notification: IChatInputNotification, options?: IChatInputNotificationSetOptions): void {
+		const existing = this._notifications.has(notification.id);
 		this._notifications.set(notification.id, notification);
-		this._dismissed.delete(notification.id);
-		this._insertionOrder.set(notification.id, this._insertionCounter++);
+		if (!existing || !options?.inPlace) {
+			this._dismissed.delete(notification.id);
+			this._insertionOrder.set(notification.id, this._insertionCounter++);
+		}
 		this._fireDidChange();
 	}
 
@@ -321,14 +366,27 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 	}
 
 	getActiveNotification(filter?: (notification: IChatInputNotification) => boolean): IChatInputNotification | undefined {
-		let best: IChatInputNotification | undefined;
-		let bestOrder = -1;
-
+		const eligible: IChatInputNotification[] = [];
+		const groupPriorities = new Map<string, number>();
 		for (const notification of this._notifications.values()) {
 			if (this._dismissed.has(notification.id)) {
 				continue;
 			}
 			if (filter && !filter(notification)) {
+				continue;
+			}
+			eligible.push(notification);
+			const group = notification.group;
+			if (group) {
+				groupPriorities.set(group.id, Math.max(groupPriorities.get(group.id) ?? group.priority, group.priority));
+			}
+		}
+
+		let best: IChatInputNotification | undefined;
+		let bestOrder = -1;
+
+		for (const notification of eligible) {
+			if (notification.group && notification.group.priority < (groupPriorities.get(notification.group.id) ?? notification.group.priority)) {
 				continue;
 			}
 
@@ -392,7 +450,7 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 		// Strip Markdown syntax so screen readers don't read backticks, link
 		// targets, etc. verbatim. Done after the de-dupe check so we don't pay
 		// the parse cost on unrelated re-renders.
-		const message = renderAsPlaintext(notification.message);
+		const message = notification.ariaMessage ?? renderAsPlaintext(notification.message);
 		const description = resolvedBody.description ? renderAsPlaintext(resolvedBody.description) : '';
 		const text = description ? `${message}. ${description}` : message;
 		status(text);

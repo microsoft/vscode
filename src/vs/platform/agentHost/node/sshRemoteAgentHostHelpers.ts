@@ -348,9 +348,10 @@ export function buildAgentEndpointsCommand(cliBin: string, cliDataDir: string, u
 /**
  * Build the command that spawns a brand-new dedicated standalone agent
  * host on the remote, self-managed via `--idle-timeout`: once no client
- * has been connected for `idleTimeoutSec`, the process exits on its own,
- * so callers must NOT tie its lifetime to the SSH exec channel used to
- * launch it (see {@link waitForNewStandaloneEndpoint}).
+ * has been connected for `idleTimeoutSec` and its agent host server has
+ * stopped itself (which it only does once no session is running), the
+ * process exits on its own, so callers must NOT tie its lifetime to the
+ * SSH exec channel used to launch it (see {@link waitForNewStandaloneEndpoint}).
  *
  * Always passes `--new-instance`: plain `agent host` reuses an existing
  * live standalone when one is already registered, which would silently

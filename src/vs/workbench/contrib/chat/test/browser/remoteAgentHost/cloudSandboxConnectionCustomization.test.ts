@@ -7,11 +7,54 @@ import assert from 'assert';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { cloudSandboxAddress, ICloudSandboxAgentHostService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { AuthenticateTargetKind, type McpServerAuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { createCloudSandboxConnectionCustomization } from '../../../browser/remoteAgentHost/cloudSandboxConnectionCustomization.js';
 
-suite('CloudSandboxConnectionCustomization authentication', () => {
+suite('CloudSandboxConnectionCustomization', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('identifies managed cloud input without relabeling other providers or remote computers', () => {
+		const service = new class extends mock<ICloudSandboxAgentHostService>() { }();
+		const sandbox = createCloudSandboxConnectionCustomization(cloudSandboxAddress('env-1'), service);
+		const userLocal = createCloudSandboxConnectionCustomization(cloudSandboxAddress('desktop'), service, true);
+		assert.deepStrictEqual({
+			sandbox: ['copilot', 'copilotcli', 'claude'].map(provider => sandbox?.inputPlaceholder?.(provider)),
+			userLocal: ['copilot', 'copilotcli', 'claude'].map(provider => userLocal?.inputPlaceholder?.(provider)),
+			ordinaryRemote: createCloudSandboxConnectionCustomization('ssh:host', service)?.inputPlaceholder?.('copilot'),
+		}, {
+			sandbox: ['Chat with Copilot Cloud', undefined, undefined],
+			userLocal: [undefined, undefined, undefined],
+			ordinaryRemote: undefined,
+		});
+	});
+
+	test('only cloud sandbox connections opt out of workspace trust', () => {
+		const service = new class extends mock<ICloudSandboxAgentHostService>() { }();
+		assert.deepStrictEqual({
+			sandbox: createCloudSandboxConnectionCustomization(cloudSandboxAddress('env-1'), service)?.requiresWorkspaceTrust,
+			ssh: createCloudSandboxConnectionCustomization('ssh:host', service),
+			websocket: createCloudSandboxConnectionCustomization('localhost:8080', service),
+		}, {
+			sandbox: false,
+			ssh: undefined,
+			websocket: undefined,
+		});
+	});
+
+	test('only sandbox Copilot opts into consumed steering display retention', () => {
+		const service = new class extends mock<ICloudSandboxAgentHostService>() { }();
+		const sandbox = createCloudSandboxConnectionCustomization(cloudSandboxAddress('env-1'), service);
+		const userLocal = createCloudSandboxConnectionCustomization(cloudSandboxAddress('desktop'), service, true);
+		assert.deepStrictEqual({
+			sandbox: ['copilot', 'copilotcli', 'claude', 'codex'].map(provider => sandbox?.retainConsumedSteeringMessages?.(provider)),
+			userLocal: ['copilot', 'copilotcli', 'claude', 'codex'].map(provider => userLocal?.retainConsumedSteeringMessages?.(provider)),
+			ssh: createCloudSandboxConnectionCustomization('ssh:host', service),
+			websocket: createCloudSandboxConnectionCustomization('localhost:8080', service),
+		}, {
+			sandbox: [true, false, false, false], userLocal: [false, false, false, false], ssh: undefined, websocket: undefined,
+		});
+	});
 
 	function createFixture(refresh: () => Promise<string | undefined> = async () => 'copilot-sealed.v1.key.fresh') {
 		const requests: string[] = [];
@@ -26,9 +69,92 @@ suite('CloudSandboxConnectionCustomization authentication', () => {
 			}
 		}();
 		const customization = createCloudSandboxConnectionCustomization(cloudSandboxAddress('env-1'), service);
-		assert.ok(customization?.authenticate);
-		return { authenticate: customization.authenticate, requests };
+		assert.ok(customization?.authenticate && customization.renewAuthentication);
+		return { authenticate: customization.authenticate, renewAuthentication: customization.renewAuthentication, requests };
 	}
+
+	test('renews a protected resource without a user authentication token', async () => {
+		const fixture = createFixture();
+		const result = await fixture.renewAuthentication({
+			resource: 'https://api.github.com',
+			scopes_supported: ['repo', 'read:user'],
+		});
+		assert.deepStrictEqual({ result, requests: fixture.requests }, {
+			result: { resource: 'https://api.github.com', scopes: ['repo', 'read:user'], token: 'copilot-sealed.v1.key.fresh' },
+			requests: ['refresh:env-1'],
+		});
+	});
+
+	test('user-local MCP renewal without a target remains raw until the trusted protocol send boundary', async () => {
+		const service = new class extends mock<ICloudSandboxAgentHostService>() { }();
+		const customization = createCloudSandboxConnectionCustomization(cloudSandboxAddress('env-1'), service, true);
+		assert.ok(customization?.authenticate && customization.renewAuthentication);
+		const request = { resource: 'https://mcp.example.test', scopes: ['mcp'], token: 'test-mcp-token' };
+		const result = await customization.authenticate(request, AuthRequiredReason.Expired);
+		assert.deepStrictEqual({ result, renewal: await customization.renewAuthentication({ resource: request.resource }) }, {
+			result: request,
+			renewal: undefined,
+		});
+	});
+
+	test('user-local renewal owns only the relay identity resource', async () => {
+		const calls: { resource: string; renew: boolean }[] = [];
+		const service = new class extends mock<ICloudSandboxAgentHostService>() {
+			override async resolveUserLocalAuthentication(_id: string, resource: string, renew = false) {
+				calls.push({ resource, renew });
+				return { resource, token: 'fresh-identity-token', expiresIn: 120 };
+			}
+		}();
+		const customization = createCloudSandboxConnectionCustomization(cloudSandboxAddress('env-1'), service, true);
+		assert.ok(customization?.renewAuthentication);
+		const resources = ['https://api.github.com', 'https://api.github.com/repos', 'https://api.github.com/mcp', 'https://example.test/mcp'];
+		const results = await Promise.all(resources.map(resource => customization.renewAuthentication!({ resource })));
+		assert.deepStrictEqual({ results, calls }, {
+			results: [
+				{ resource: 'https://api.github.com', token: 'fresh-identity-token', expiresIn: 120, scopes: undefined },
+				undefined, undefined, undefined,
+			],
+			calls: [{ resource: 'https://api.github.com', renew: true }],
+		});
+	});
+
+	test('preserves an MCP target when replacing a credential with a sealed token', async () => {
+		const fixture = createFixture();
+		const target: McpServerAuthenticateTarget = { kind: AuthenticateTargetKind.McpServer, session: 'other-agent://tenant/conversations/opaque-session', customizationId: 'opaque/github/server' };
+		const request = { target, resource: 'https://api.github.com/mcp', scopes: ['repo'], token: 'plaintext' };
+		const result = await fixture.authenticate(request);
+		assert.deepStrictEqual({ result, requests: fixture.requests }, {
+			result: { ...request, token: 'copilot-sealed.v1.key.cached' },
+			requests: ['cached:env-1'],
+		});
+	});
+
+	test('user-local MCP targets use MCP sealing even at the provider resource origin', async () => {
+		const service = new class extends mock<ICloudSandboxAgentHostService>() { }();
+		const customization = createCloudSandboxConnectionCustomization(cloudSandboxAddress('env-1'), service, true);
+		const target: McpServerAuthenticateTarget = { kind: AuthenticateTargetKind.McpServer, session: 'other-agent://tenant/conversations/opaque-session', customizationId: 'opaque/github/server' };
+		const request = { target, resource: 'https://api.github.com', token: 'test-mcp-token' };
+		assert.deepStrictEqual(await customization?.authenticate?.(request), request);
+	});
+
+	test('user-local provider authentication uses identity tokens rather than broker ciphertext or the workbench bearer', async () => {
+		const calls: boolean[] = [];
+		const service = new class extends mock<ICloudSandboxAgentHostService>() {
+			override async resolveUserLocalAuthentication(_id: string, resource: string, renew = false) {
+				calls.push(renew);
+				return { resource, token: 'identity-token', expiresIn: 120 };
+			}
+		}();
+		const customization = createCloudSandboxConnectionCustomization(cloudSandboxAddress('env-1'), service, true);
+		const request = { resource: 'https://api.github.com', scopes: ['read'], token: 'workbench-bearer' };
+		const ordinary = await customization?.authenticate?.(request);
+		const renewed = await customization?.authenticate?.(request, AuthRequiredReason.Expired);
+		assert.deepStrictEqual({ ordinary, renewed, calls }, {
+			ordinary: { resource: request.resource, token: 'identity-token', expiresIn: 120, scopes: ['read'] },
+			renewed: { resource: request.resource, token: 'identity-token', expiresIn: 120, scopes: ['read'] },
+			calls: [false, true],
+		});
+	});
 
 	for (const token of ['plaintext', 'copilot-sealed.v1.key.challenged']) {
 		test(`renews an expired challenge instead of forwarding ${token}`, async () => {
@@ -63,14 +189,16 @@ suite('CloudSandboxConnectionCustomization authentication', () => {
 		const failure = new Error('refresh unavailable');
 		const fixture = createFixture(async () => { throw failure; });
 		await assert.rejects(fixture.authenticate({ resource: 'https://api.github.com', token: 'plaintext' }, AuthRequiredReason.Expired), failure);
-		assert.deepStrictEqual(fixture.requests, ['refresh:env-1']);
+		await assert.rejects(fixture.renewAuthentication({ resource: 'https://api.github.com' }), failure);
+		assert.deepStrictEqual(fixture.requests, ['refresh:env-1', 'refresh:env-1']);
 	});
 
 	for (const token of [undefined, 'plaintext']) {
 		test(`rejects an unusable renewed credential: ${token}`, async () => {
 			const fixture = createFixture(async () => token);
 			await assert.rejects(fixture.authenticate({ resource: 'https://api.github.com', token: 'plaintext' }, AuthRequiredReason.Expired), /No sealed GitHub token/);
-			assert.deepStrictEqual(fixture.requests, ['refresh:env-1']);
+			await assert.rejects(fixture.renewAuthentication({ resource: 'https://api.github.com' }), /No sealed GitHub token/);
+			assert.deepStrictEqual(fixture.requests, ['refresh:env-1', 'refresh:env-1']);
 		});
 	}
 
@@ -78,6 +206,7 @@ suite('CloudSandboxConnectionCustomization authentication', () => {
 		const fixture = createFixture();
 		for (const resource of ['https://example.com', 'https://github.com.example.com', 'not a URL']) {
 			await assert.rejects(fixture.authenticate({ resource, token: 'copilot-sealed.v1.key.challenged' }, AuthRequiredReason.Expired), /non-GitHub resource/);
+			await assert.rejects(fixture.renewAuthentication({ resource }), /non-GitHub resource/);
 		}
 		assert.deepStrictEqual(fixture.requests, []);
 	});

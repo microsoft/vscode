@@ -28,7 +28,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IFileManagedSettingsService, INativeManagedSettingsService, ManagedSettingsChannel, ManagedSettingsData, resolveForceRemoteSettingsRefresh } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingsFreshness, IManagedSettingsFreshnessScope, isManagedSettingsFreshnessBlocking, isManagedSettingsFreshnessSatisfiedFor, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { asJson, asText, IRequestService, isClientError, isSuccess, readHeader, retryAfterFromHeaders } from '../../../../platform/request/common/request.js';
+import { asJson, asText, IRequestService, isSuccess, readHeader, retryAfterFromHeaders } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
@@ -817,6 +817,12 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			return this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider, sessions, options, managedSettingsSources);
 		} catch (error) {
 			this.logService.error('[DefaultAccount] Failed to get default account for provider:', authenticationProvider.id, getErrorMessage(error));
+			// A failed lookup (for example while an extension host restart re-registers the provider) is not a sign-out.
+			// Keep the known account with its policy and freshness; session removals still clear it through onDidChangeSessions.
+			if (this._defaultAccount?.defaultAccount.authenticationProvider.id === authenticationProvider.id) {
+				this.logService.info('[DefaultAccount] Keeping the current default account after the session lookup failed');
+				return this._defaultAccount;
+			}
 			this.blockManagedSettingsFreshnessWithoutToken(refreshRequirement);
 			return null;
 		}
@@ -849,7 +855,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				: undefined;
 			if (!requirement.effective) {
 				this.setManagedSettingsFreshness(MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED);
-			} else if ((!scope || !isManagedSettingsFreshnessSatisfiedFor(this._managedSettingsFreshness, scope) || options?.forceRefresh) && this.canRequestManagedSettings(options, scope)) {
+			} else if ((!scope || !isManagedSettingsFreshnessSatisfiedFor(this._managedSettingsFreshness, scope)) && this.canRequestManagedSettings(options, scope)) {
 				this.setManagedSettingsFreshness({
 					state: ManagedSettingsFreshnessState.Pending,
 					source: requirement.source,
@@ -887,9 +893,16 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				policyData.mcp = tokenEntitlementsData.policyData.mcp;
 				if (policyData.mcp) {
 					const mcpRegistryResult = await this.getMcpRegistryProvider(sessions, accountPolicyData, options, sessionContext);
-					mcpRegistryDataFetchedAt = mcpRegistryResult?.fetchedAt;
-					policyData.mcpRegistryUrl = mcpRegistryResult?.data?.url;
-					policyData.mcpAccess = mcpRegistryResult?.data?.registry_access;
+					if (mcpRegistryResult) {
+						mcpRegistryDataFetchedAt = mcpRegistryResult.fetchedAt;
+						policyData.mcpRegistryUrl = mcpRegistryResult.data?.url;
+						policyData.mcpAccess = mcpRegistryResult.data?.registry_access;
+					} else {
+						// A failed fetch is not evidence that the registry policy was withdrawn: keep the last known
+						// registry URL and access level (already copied from the same account's cached policy) and its
+						// original timestamp, so the failure does not count as a refresh and the next refresh retries.
+						mcpRegistryDataFetchedAt = accountPolicyData?.mcpRegistryDataFetchedAt;
+					}
 				} else {
 					policyData.mcpRegistryUrl = undefined;
 					policyData.mcpAccess = undefined;
@@ -1097,8 +1110,11 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		}
 
 		if (!isSuccess(response)) {
-			if (isClientError(response)) {
-				this.logService.debug(`[DefaultAccount] Received ${response.res.statusCode} for MCP registry data, treating as no registry available.`);
+			// Only a 404 means no organization or enterprise registry policy applies to the user. A 403 means MCP was
+			// disabled for the user (enforced separately through the token's `mcp` flag) or rate limiting, and 401/429/5xx
+			// are failures; none of them withdraw a registry restriction.
+			if (response.res.statusCode === 404) {
+				this.logService.debug('[DefaultAccount] Received 404 for MCP registry data, treating as no registry available.');
 				return null;
 			}
 			this.logService.debug(`[DefaultAccount] unexpected status code ${response.res.statusCode} while fetching MCP registry data`);
@@ -1195,7 +1211,8 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		}
 
 		const lastAttemptAt = Date.now();
-		if (requirement.effective) {
+		// Keep the accepted policy active during a same-scope refresh; failures below still close the gate.
+		if (requirement.effective && !freshnessSatisfied) {
 			this.setManagedSettingsFreshness({
 				state: ManagedSettingsFreshnessState.Pending,
 				source: requirement.source,

@@ -351,7 +351,7 @@ export class VirtualToolGrouper implements IToolCategorization {
 		}
 
 		// compute the embeddings for the query
-		const queryEmbedding = await this.embeddingsComputer.computeEmbeddings(EMBEDDING_TYPE_FOR_TOOL_GROUPING, [query], {}, new TelemetryCorrelationId('VirtualToolGrouper::_getPredictedTools'), token);
+		const queryEmbedding = await this.embeddingsComputer.computeEmbeddings(EMBEDDING_TYPE_FOR_TOOL_GROUPING, [query], { inputType: 'query' }, new TelemetryCorrelationId('VirtualToolGrouper::_getPredictedTools'), token);
 		if (!queryEmbedding || queryEmbedding.values.length === 0) {
 			return [];
 		}

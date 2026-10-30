@@ -6,10 +6,9 @@
 import { IReader } from '../../../../base/common/observable.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { parseGitHubIssueUrl } from '../../../../platform/agentHost/common/githubIssueReferences.js';
+import { parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../platform/github/common/githubUrls.js';
 import { linkKey } from '../../../common/sessionLinks.js';
-import { getGitHubPullRequestRefs, IChat, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionArtifact, SessionArtifactKind } from '../../../services/sessions/common/session.js';
-import { parseGitHubPullRequestUrl } from './utils.js';
+import { getChatSessionArtifacts, getGitHubPullRequestRefs, IChat, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionArtifact, SessionArtifactKind } from '../../../services/sessions/common/session.js';
 
 export interface ISessionGitHubReferences {
 	readonly pullRequests: readonly IGitHubPullRequestRef[];
@@ -29,11 +28,11 @@ export function parseGitHubArtifactLink(artifact: ISessionArtifact): Pick<IGitHu
 	return artifact.kind === SessionArtifactKind.Issue ? parseGitHubIssueUrl(link) : undefined;
 }
 
-/** Drops associations repeated across folders, keeping distinct recorded entries for the same link. */
-function dedupeByLink<T extends { readonly uri: URI; readonly recordedReferenceId?: string }>(refs: readonly T[]): readonly T[] {
+/** Drops entries repeated across folders or chats, keeping the first entry for each link. */
+function dedupeByLink<T extends { readonly uri: URI }>(refs: readonly T[]): readonly T[] {
 	const seen = new Set<string>();
 	return refs.filter(ref => {
-		const key = `${linkKey(ref.uri.toString())}\u0001${ref.recordedReferenceId ?? ''}`;
+		const key = linkKey(ref.uri.toString());
 		if (seen.has(key)) {
 			return false;
 		}
@@ -42,16 +41,13 @@ function dedupeByLink<T extends { readonly uri: URI; readonly recordedReferenceI
 	});
 }
 
-function isSameRepository(first: { readonly owner: string; readonly repo: string }, second: { readonly owner: string; readonly repo: string }): boolean {
-	return first.owner.toLowerCase() === second.owner.toLowerCase() && first.repo.toLowerCase() === second.repo.toLowerCase();
-}
-
 function mergeGitHubReferences<T extends IGitHubIssueRef>(recorded: readonly T[], associated: readonly T[], merge: (recorded: T, associated: T) => T): readonly T[] {
-	const recordedLinks = new Set(recorded.map(ref => linkKey(ref.uri.toString())));
+	const uniqueRecorded = dedupeByLink(recorded);
+	const recordedLinks = new Set(uniqueRecorded.map(ref => linkKey(ref.uri.toString())));
 	return [
-		...recorded.map(ref => {
+		...uniqueRecorded.map(ref => {
 			const match = associated.find(candidate => candidate.recordedReferenceId === ref.recordedReferenceId)
-				?? associated.find(candidate => !candidate.recordedReferenceId && linkKey(candidate.uri.toString()) === linkKey(ref.uri.toString()));
+				?? associated.find(candidate => linkKey(candidate.uri.toString()) === linkKey(ref.uri.toString()));
 			return match ? merge(ref, match) : ref;
 		}),
 		...associated.filter(ref => !recordedLinks.has(linkKey(ref.uri.toString()))),
@@ -59,26 +55,32 @@ function mergeGitHubReferences<T extends IGitHubIssueRef>(recorded: readonly T[]
 }
 
 /**
- * Resolves the pull requests and issues for the dedicated GitHub pills: recorded artifacts, independently of a
- * workspace, and repository-discovered associations. Recorded references are left out, as the references pill
- * lists them.
- * Pass `chat` to use the repository associations of every folder of the chat's workspace instead of the
- * session's primary folder; recorded pull requests from other repositories are then left out once the
- * chat's repositories are known.
+ * Resolves dedicated GitHub pills from artifacts and workspace associations, scoped to `chat` when supplied.
+ * A chat shows only the records it created, where unowned legacy records belong to the main chat. Without
+ * automatic PR association, chats show no pull requests beyond their own.
  */
-export function getSessionGitHubReferences(session: ISession | undefined, reader: IReader | undefined, chat?: IChat): ISessionGitHubReferences {
+export function getSessionGitHubReferences(session: ISession | undefined, reader: IReader | undefined, chat?: IChat, autoAssociatePullRequests = true): ISessionGitHubReferences {
 	const chatWorkspace = chat?.workspace?.read(reader);
 	// A chat reports the repository associations of each of its folders.
 	const folderGitHubInfos = chatWorkspace
 		? chatWorkspace.folders.map(folder => folder.gitRepository?.gitHubInfo.read(reader)).filter(isDefined)
 		: [];
 	const gitHubInfo = chatWorkspace ? folderGitHubInfos[0] : session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
-	const chatRepositories = chatWorkspace && folderGitHubInfos.length > 0 ? folderGitHubInfos : undefined;
-	const artifacts = session?.artifacts?.read(reader) ?? [];
+	const artifacts = getChatSessionArtifacts(session, chat, reader);
+	const restrictPullRequestsToChat = !!chat && !autoAssociatePullRequests;
+	const chatPullRequestArtifacts = artifacts.filter(artifact => artifact.kind === SessionArtifactKind.PullRequest && artifact.isArtifact && parseGitHubArtifactLink(artifact));
+	const chatPullRequestLinks = new Set(chatPullRequestArtifacts.flatMap(artifact => artifact.link ? [linkKey(artifact.link.toString())] : []));
+	// Providers echo every chat's records into their associations; only the chat that recorded one shows it.
+	const shownRecordIds = new Set(artifacts.map(artifact => artifact.id));
+	const otherRecordIds = new Set(chat ? (session?.artifacts?.read(reader) ?? []).filter(artifact => !shownRecordIds.has(artifact.id)).map(artifact => artifact.id) : []);
+	const isOtherRecord = (ref: { readonly recordedReferenceId?: string }) => !!ref.recordedReferenceId && otherRecordIds.has(ref.recordedReferenceId);
 	// Providers may echo recorded references into their associations; those stay out of the dedicated pills too.
 	const recordedReferenceIds = new Set(artifacts.filter(artifact => !artifact.isArtifact).map(artifact => artifact.id));
 	const isRecordedReference = (ref: { readonly recordedReferenceId?: string }) => !!ref.recordedReferenceId && recordedReferenceIds.has(ref.recordedReferenceId);
 	const associatedPullRequests = (chatWorkspace ? folderGitHubInfos.flatMap(info => getGitHubPullRequestRefs(info)) : getGitHubPullRequestRefs(gitHubInfo)).flatMap(ref => {
+		if (isOtherRecord(ref) || (restrictPullRequestsToChat && !chatPullRequestLinks.has(linkKey(ref.uri.toString())))) {
+			return [];
+		}
 		if (!isRecordedReference(ref)) {
 			return [ref];
 		}
@@ -86,7 +88,7 @@ export function getSessionGitHubReferences(session: ISession | undefined, reader
 		const { recordedReferenceId: _, ...association } = ref;
 		return ref.createdByThisSession ? [association] : [];
 	});
-	const associatedIssues = (chatWorkspace ? folderGitHubInfos.flatMap(info => info.issues ?? []) : gitHubInfo?.issues ?? []).filter(ref => !isRecordedReference(ref));
+	const associatedIssues = (chatWorkspace ? folderGitHubInfos.flatMap(info => info.issues ?? []) : gitHubInfo?.issues ?? []).filter(ref => !isOtherRecord(ref) && !isRecordedReference(ref));
 	const pullRequests: IGitHubPullRequestRef[] = [];
 	const issues: IGitHubIssueRef[] = [];
 	for (const artifact of artifacts) {
@@ -101,9 +103,7 @@ export function getSessionGitHubReferences(session: ISession | undefined, reader
 			recordedReferenceId: artifact.id,
 		};
 		if (artifact.kind === SessionArtifactKind.PullRequest) {
-			if (!chatRepositories || chatRepositories.some(repository => isSameRepository(ref, repository))) {
-				pullRequests.push({ ...ref, createdByThisSession: true });
-			}
+			pullRequests.push({ ...ref, createdByThisSession: true });
 		} else {
 			issues.push(ref);
 		}

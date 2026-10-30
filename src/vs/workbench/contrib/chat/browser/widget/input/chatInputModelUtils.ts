@@ -6,6 +6,7 @@
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, isLanguageModelVendorAbsenceConclusive } from '../../../common/languageModels.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { isDefined } from '../../../../../../base/common/types.js';
 import { isAgentHostTarget, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { isByokModel } from '../../../common/chatSelectedModel.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
@@ -131,6 +132,29 @@ export function isModelHiddenInPicker(
 	}
 	const manageModelsIdentifier = getAgentHostByokManageModelsIdentifier(model.metadata);
 	return manageModelsIdentifier !== undefined && isModelHidden(manageModelsIdentifier);
+}
+
+/**
+ * The model the Switch to Next Model commands move to: the one after
+ * `currentIdentifier` in `models`, wrapping around, or the first when the
+ * current model is not in the list. When `pinnedModelIds` is given, only the
+ * pinned models are cycled, in pin order.
+ */
+export function getNextModelInCycle(
+	models: readonly ILanguageModelChatMetadataAndIdentifier[],
+	currentIdentifier: string | undefined,
+	pinnedModelIds?: readonly string[],
+): ILanguageModelChatMetadataAndIdentifier | undefined {
+	let candidates = models;
+	if (pinnedModelIds) {
+		const modelsById = new Map(models.map(model => [model.identifier, model]));
+		candidates = pinnedModelIds.map(id => modelsById.get(id)).filter(isDefined);
+	}
+	if (candidates.length === 0) {
+		return undefined;
+	}
+	const currentIndex = candidates.findIndex(model => model.identifier === currentIdentifier);
+	return candidates[(currentIndex + 1) % candidates.length];
 }
 
 /**

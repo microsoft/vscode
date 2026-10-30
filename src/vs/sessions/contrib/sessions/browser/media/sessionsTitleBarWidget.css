@@ -76,14 +76,6 @@
 	overflow: hidden;
 }
 
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-session {
-	flex: 0 1 auto;
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-separator {
 	flex-shrink: 0;
 }

@@ -26,7 +26,7 @@ The failure looks like this:
 
 ## Step 1: Get the expected hashes from CI
 
-> **Never regenerate the hashes locally.** They are hashes of the rendered PNG bytes, produced on `ubuntu-latest`. Rendering on macOS or Windows yields different bytes and therefore different hashes, so locally generated values will fail CI. Always copy the values from the CI job.
+> **Never regenerate the hashes locally.** They are hashes of the rendered PNG bytes, produced on the `vscode-large-runners-ubuntu-8-core` Linux runners. Rendering on macOS or Windows yields different bytes and therefore different hashes, so locally generated values will fail CI. Always copy the values from the CI job.
 
 Three surfaces carry the same content — use whichever is handy:
 

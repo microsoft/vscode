@@ -15,11 +15,12 @@ import { normalizePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { ICodeEditorService } from './codeEditorService.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { EditorOpenSource } from '../../../platform/editor/common/editor.js';
+import { EditorOpenSource, ViewColumn } from '../../../platform/editor/common/editor.js';
 import { defaultExternalUriOpenerId, extractSelection, IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, OpenOptions, ResolveExternalUriOptions } from '../../../platform/opener/common/opener.js';
 
 interface IExternalUriOpenTarget {
 	readonly sourceUri: URI;
+	readonly sourceHref: string;
 	readonly href: string;
 	readonly validationTarget: URI | string;
 }
@@ -265,6 +266,7 @@ export class OpenerService implements IOpenerService {
 
 		return {
 			sourceUri: uri,
+			sourceHref: typeof resource === 'string' ? resource : uri.toString(true),
 			href,
 			validationTarget: preserveOriginalString ? resource : externalUri,
 		};
@@ -275,7 +277,9 @@ export class OpenerService implements IOpenerService {
 		for (const opener of this._externalOpeners) {
 			const didOpen = await opener.openExternal(target.href, {
 				sourceUri: target.sourceUri,
+				sourceHref: target.sourceHref,
 				preferredOpenerId,
+				viewColumn: options?.openToSide ? ViewColumn.Beside : undefined,
 			}, CancellationToken.None);
 			if (didOpen) {
 				return true;
@@ -286,7 +290,7 @@ export class OpenerService implements IOpenerService {
 	}
 
 	private _openDefaultExternal(target: IExternalUriOpenTarget): Promise<boolean> {
-		return this._defaultExternalOpener.openExternal(target.href, { sourceUri: target.sourceUri }, CancellationToken.None);
+		return this._defaultExternalOpener.openExternal(target.href, { sourceUri: target.sourceUri, sourceHref: target.sourceHref }, CancellationToken.None);
 	}
 
 	private async _doOpenExternal(resource: URI | string, options: OpenOptions | undefined): Promise<boolean> {

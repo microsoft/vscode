@@ -14,7 +14,7 @@ import { ChatLocation } from '../../chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
 import { AnthropicMessagesTool, ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagementFromConfig, isAnthropicContextEditingEnabled, isExtendedCacheTtlEnabled, isExtendedCacheTtlMessagesEnabled } from '../../networking/common/anthropic';
-import { FinishedCallback, getRequestId, IIPCodeCitation, IResponseDelta } from '../../networking/common/fetch';
+import { FinishedCallback, getRequestId, gitHubCopilotRequestTeProperty, IIPCodeCitation, IResponseDelta } from '../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody } from '../../networking/common/networking';
 import { ChatCompletion, FinishedCompletionReason, rawMessageToCAPI } from '../../networking/common/openai';
 import { IToolDeferralService } from '../../networking/common/toolDeferralService';
@@ -692,8 +692,9 @@ export async function processResponseFromMessagesEndpoint(
 	return new AsyncIterableObject<ChatCompletion>(async feed => {
 		const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
 		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
-		const { serverExperiments, copilotServiceRequestId } = getRequestId(response.headers);
+		const { serverExperiments, copilotServiceRequestId, gitHubCopilotRequestTe } = getRequestId(response.headers);
 		const processor = instantiationService.createInstance(AnthropicMessagesProcessor, telemetryData, requestId, ghRequestId, copilotServiceRequestId, serverExperiments);
+		processor.gitHubCopilotRequestTe = gitHubCopilotRequestTe;
 		const parser = new SSEParser((ev) => {
 			try {
 				logService.trace(`[messagesAPI]SSE: ${ev.data}`);
@@ -713,14 +714,15 @@ export async function processResponseFromMessagesEndpoint(
 
 					const dataToSendToTelemetry = telemetryData.extendedBy({
 						completionChoiceFinishReason: completion.finishReason,
-						headerRequestId: completion.requestId.headerRequestId
+						headerRequestId: completion.requestId.headerRequestId,
+						...gitHubCopilotRequestTeProperty(completion.requestId.gitHubCopilotRequestTe),
 					});
 					telemetryService.sendGHTelemetryEvent('completion.finishReason', dataToSendToTelemetry.properties, dataToSendToTelemetry.measurements);
 
-					const telemetryMessage = rawMessageToCAPI(completion.message);
-					let telemetryDataWithUsage = telemetryData;
+					const telemetryMessages = completion.telemetryMessages ?? [rawMessageToCAPI(completion.message)];
+					let telemetryDataWithUsage = telemetryData.extendedBy(gitHubCopilotRequestTeProperty(completion.requestId.gitHubCopilotRequestTe));
 					if (completion.usage) {
-						telemetryDataWithUsage = telemetryData.extendedBy({}, {
+						telemetryDataWithUsage = telemetryDataWithUsage.extendedBy({}, {
 							promptTokens: completion.usage.prompt_tokens,
 							completionTokens: completion.usage.completion_tokens,
 							totalTokens: completion.usage.total_tokens,
@@ -732,7 +734,7 @@ export async function processResponseFromMessagesEndpoint(
 							}),
 						});
 					}
-					sendEngineMessagesTelemetry(telemetryService, [telemetryMessage], telemetryDataWithUsage, true, logService);
+					sendEngineMessagesTelemetry(telemetryService, telemetryMessages, telemetryDataWithUsage, true, logService);
 
 					feed.emitOne(completion);
 				}
@@ -776,6 +778,7 @@ interface AnthropicCompletionState {
 	readonly requestId: string;
 	readonly ghRequestId: string;
 	readonly copilotServiceRequestId: string;
+	readonly gitHubCopilotRequestTe?: string;
 	readonly serverExperiments: string;
 	readonly telemetryData: TelemetryData;
 	readonly copilotUsage?: { total_nano_aiu: number };
@@ -820,6 +823,7 @@ function buildAnthropicCompletion(state: AnthropicCompletionState, logService: I
 			headerRequestId: state.requestId,
 			gitHubRequestId: state.ghRequestId,
 			copilotServiceRequestId: state.copilotServiceRequestId,
+			...gitHubCopilotRequestTeProperty(state.gitHubCopilotRequestTe),
 			completionId: state.messageId,
 			created: Date.now(),
 			deploymentId: '',
@@ -911,8 +915,8 @@ type AnthropicNonStreamingResponse =
  * Process a non-streaming response from the Anthropic Messages API.
  * Returns the same `ChatCompletion` shape as the streaming path.
  *
- * NOTE: Thinking / redacted_thinking content blocks are intentionally
- * not surfaced. If a future caller needs them, this function must be
+ * NOTE: Thinking / redacted_thinking content blocks are retained in restricted telemetry but
+ * intentionally not surfaced to callers. If a future caller needs them, this function must be
  * extended to include them in the `ChatCompletion.message` and in the
  * `finishCallback` delta.
  */
@@ -924,7 +928,7 @@ export async function processNonStreamingResponseFromMessagesEndpoint(
 	telemetryData: TelemetryData
 ): Promise<AsyncIterableObject<ChatCompletion>> {
 	return new AsyncIterableObject<ChatCompletion>(async feed => {
-		const { headerRequestId, serverExperiments, copilotServiceRequestId } = getRequestId(response.headers);
+		const { headerRequestId, serverExperiments, copilotServiceRequestId, gitHubCopilotRequestTe } = getRequestId(response.headers);
 		const requestId = headerRequestId || generateUuid();
 		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
 
@@ -1038,6 +1042,7 @@ export async function processNonStreamingResponseFromMessagesEndpoint(
 			requestId,
 			ghRequestId,
 			copilotServiceRequestId,
+			gitHubCopilotRequestTe,
 			serverExperiments,
 			telemetryData,
 		}, logService);
@@ -1046,14 +1051,18 @@ export async function processNonStreamingResponseFromMessagesEndpoint(
 
 		const dataToSendToTelemetry = telemetryData.extendedBy({
 			completionChoiceFinishReason: completion.finishReason,
-			headerRequestId: completion.requestId.headerRequestId
+			headerRequestId: completion.requestId.headerRequestId,
+			...gitHubCopilotRequestTeProperty(completion.requestId.gitHubCopilotRequestTe),
 		});
 		telemetryService.sendGHTelemetryEvent('completion.finishReason', dataToSendToTelemetry.properties, dataToSendToTelemetry.measurements);
 
 		const telemetryMessage = rawMessageToCAPI(completion.message);
-		let telemetryDataWithUsage = telemetryData;
+		const telemetryMessages = parsed.content?.some(block => block.type === 'thinking' || block.type === 'redacted_thinking')
+			? [{ ...telemetryMessage, content: parsed.content }]
+			: [telemetryMessage];
+		let telemetryDataWithUsage = telemetryData.extendedBy(gitHubCopilotRequestTeProperty(completion.requestId.gitHubCopilotRequestTe));
 		if (completion.usage) {
-			telemetryDataWithUsage = telemetryData.extendedBy({}, {
+			telemetryDataWithUsage = telemetryDataWithUsage.extendedBy({}, {
 				promptTokens: completion.usage.prompt_tokens,
 				completionTokens: completion.usage.completion_tokens,
 				totalTokens: completion.usage.total_tokens,
@@ -1065,7 +1074,7 @@ export async function processNonStreamingResponseFromMessagesEndpoint(
 				}),
 			});
 		}
-		sendEngineMessagesTelemetry(telemetryService, [telemetryMessage], telemetryDataWithUsage, true, logService);
+		sendEngineMessagesTelemetry(telemetryService, telemetryMessages, telemetryDataWithUsage, true, logService);
 
 		feed.emitOne(completion);
 	}, async () => {
@@ -1077,6 +1086,7 @@ export class AnthropicMessagesProcessor {
 	private textAccumulator: string = '';
 	private toolCallAccumulator: Map<number, { id: string; name: string; arguments: string }> = new Map();
 	private thinkingAccumulator: Map<number, { thinking: string; signature: string }> = new Map();
+	private readonly telemetryContent = new Map<number, TextBlockParam | ThinkingBlockParam | RedactedThinkingBlockParam>();
 	private completedToolCalls: Array<{ id: string; name: string; arguments: string }> = [];
 	private messageId: string = '';
 	private model: string = '';
@@ -1091,6 +1101,8 @@ export class AnthropicMessagesProcessor {
 	private contextManagementResponse?: ContextManagementResponse;
 	private stopReason: string | undefined;
 	private stopDetails?: RefusalStopDetails;
+	/** Raw `X-GitHub-Copilot-Request-Te` value for this model call. */
+	gitHubCopilotRequestTe: string | undefined;
 
 	constructor(
 		private readonly telemetryData: TelemetryData,
@@ -1188,12 +1200,16 @@ export class AnthropicMessagesProcessor {
 						text: '',
 						beginToolCalls: [{ name: chunk.content_block.name || '', id: toolCallId }]
 					});
+				} else if (chunk.content_block?.type === 'text' && chunk.index !== undefined) {
+					this.telemetryContent.set(chunk.index, { ...chunk.content_block });
 				} else if (chunk.content_block?.type === 'thinking' && chunk.index !== undefined) {
 					this.thinkingAccumulator.set(chunk.index, {
 						thinking: '',
 						signature: '',
 					});
+					this.telemetryContent.set(chunk.index, { ...chunk.content_block });
 				} else if (chunk.content_block?.type === 'redacted_thinking' && chunk.index !== undefined) {
+					this.telemetryContent.set(chunk.index, { ...chunk.content_block });
 					const data = (chunk.content_block as { type: 'redacted_thinking'; data: string }).data;
 					onProgress({
 						text: '',
@@ -1208,12 +1224,20 @@ export class AnthropicMessagesProcessor {
 			case 'content_block_delta':
 				if (chunk.delta) {
 					if (chunk.delta.type === 'text_delta' && chunk.delta.text) {
+						const block = chunk.index !== undefined ? this.telemetryContent.get(chunk.index) : undefined;
+						if (block?.type === 'text') {
+							block.text += chunk.delta.text;
+						}
 						const ipCitations = this.extractIPCodeCitations(chunk.copilot_annotations);
 						if (ipCitations.length > 0) {
 							return onProgress({ text: chunk.delta.text, ipCitations });
 						}
 						return onProgress({ text: chunk.delta.text });
 					} else if (chunk.delta.type === 'thinking_delta' && chunk.delta.thinking && chunk.index !== undefined) {
+						const block = this.telemetryContent.get(chunk.index);
+						if (block?.type === 'thinking') {
+							block.thinking += chunk.delta.thinking;
+						}
 						const thinking = this.thinkingAccumulator.get(chunk.index);
 						if (thinking) {
 							thinking.thinking += chunk.delta.thinking;
@@ -1226,6 +1250,10 @@ export class AnthropicMessagesProcessor {
 							}
 						});
 					} else if (chunk.delta.type === 'signature_delta' && chunk.delta.signature && chunk.index !== undefined) {
+						const block = this.telemetryContent.get(chunk.index);
+						if (block?.type === 'thinking') {
+							block.signature += chunk.delta.signature;
+						}
 						const thinking = this.thinkingAccumulator.get(chunk.index);
 						if (thinking) {
 							thinking.signature += chunk.delta.signature;
@@ -1368,7 +1396,7 @@ export class AnthropicMessagesProcessor {
 					);
 				}
 
-				return buildAnthropicCompletion({
+				const completion = buildAnthropicCompletion({
 					model: this.model,
 					messageId: this.messageId,
 					stopReason: this.stopReason,
@@ -1384,10 +1412,16 @@ export class AnthropicMessagesProcessor {
 					requestId: this.requestId,
 					ghRequestId: this.ghRequestId,
 					copilotServiceRequestId: this.copilotServiceRequestId,
+					gitHubCopilotRequestTe: this.gitHubCopilotRequestTe,
 					serverExperiments: this.serverExperiments,
 					telemetryData: this.telemetryData,
 					copilotUsage: this.copilotUsage,
 				}, this.logService);
+				const content = [...this.telemetryContent.entries()].sort(([a], [b]) => a - b).map(([, block]) => block);
+				if (content.some(block => block.type === 'thinking' || block.type === 'redacted_thinking')) {
+					completion.telemetryMessages = [{ ...rawMessageToCAPI(completion.message), content }];
+				}
+				return completion;
 			}
 			case 'error': {
 				const errorMessage = (chunk as unknown as { error?: { message?: string } }).error?.message || 'Unknown error';

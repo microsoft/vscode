@@ -7,10 +7,7 @@ parameters:
 steps:
   - template: ../common/checkout.yml@self
 
-  - task: NodeTool@0
-    inputs:
-      versionSource: fromFile
-      versionFilePath: .nvmrc
+  - template: ../common/setup-node.yml@self
 
   - task: UsePythonVersion@0
     inputs:
@@ -25,6 +22,31 @@ steps:
       azureSubscription: vscode-oss-build-secrets
       KeyVaultName: vscode-oss-build-secrets
       SecretsFilter: "github-token-code-oss"
+
+  - powershell: node build/setup-npm-registry.ts $env:NPM_REGISTRY
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Registry
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      # Set the private NPM registry to the global npmrc file
+      # so that authentication works for subfolders like build/, remote/, extensions/ etc
+      # which does not have their own .npmrc file
+      exec { npm config set registry "$env:NPM_REGISTRY" }
+      $NpmrcPath = (npm config get userconfig)
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$NpmrcPath"
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: $(NPMRC_PATH)
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Authentication
+
+  - task: NuGetAuthenticate@1
+    displayName: Setup NuGet Authentication
 
   - pwsh: |
       $includes = @'
@@ -69,6 +91,7 @@ steps:
       path: .build/apiscan_node_modules_cache
       cacheHitVar: APISCAN_NODE_MODULES_RESTORED
     displayName: Restore API Scan node_modules cache
+    retryCountOnTaskFailure: 2
 
   - powershell: 7z.exe x .build/apiscan_node_modules_cache/cache.7z -aoa
     condition: and(succeeded(), eq(variables.APISCAN_NODE_MODULES_RESTORED, 'true'))
@@ -94,9 +117,8 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
-  - template: ../common/foundry-local.yml@self
-    parameters:
-      phase: prepare
+  - task: NuGetAuthenticate@1
+    displayName: Setup NuGet Authentication
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -108,13 +130,18 @@ steps:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-token-code-oss)"
+      FOUNDRY_LOCAL_NUGET_MODE: dotnet
+      FOUNDRY_LOCAL_NUGET_FEEDS: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json"
     retryCountOnTaskFailure: 5
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.APISCAN_NODE_MODULES_RESTORED, 'true'))
 
-  - template: ../common/foundry-local.yml@self
-    parameters:
-      phase: install
+  # NuGetAuthenticate@1 exposes its access token to all later steps as the
+  # VSS_NUGET_ACCESSTOKEN environment variable, from where they can write it to
+  # logs. Only installing dependencies needs it, so clear it now.
+  - powershell: echo "##vso[task.setvariable variable=VSS_NUGET_ACCESSTOKEN]"
+    displayName: Clear package feed credentials
+    condition: always()
 
   - powershell: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
     displayName: Verify native optional dependency binaries

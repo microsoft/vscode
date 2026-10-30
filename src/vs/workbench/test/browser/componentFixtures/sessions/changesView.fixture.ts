@@ -37,7 +37,7 @@ import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChan
 // eslint-disable-next-line local/code-import-patterns
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewMode, IsolationMode } from '../../../../../sessions/contrib/changes/common/changes.js';
 // eslint-disable-next-line local/code-import-patterns
-import { SinglePaneChangesViewPane } from '../../../../../sessions/contrib/changes/browser/changesView.js';
+import { DesktopChangesViewPane } from '../../../../../sessions/contrib/changes/browser/changesView.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionChangesService, SessionChangesService } from '../../../../../sessions/contrib/changes/browser/sessionChangesService.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -158,7 +158,7 @@ const changesViewContainer: ViewContainer = {
 const changesViewDescriptor: IViewDescriptor = {
 	id: CHANGES_VIEW_ID,
 	name: localize2('fixtureChangesView', 'Changes'),
-	ctorDescriptor: new SyncDescriptor(SinglePaneChangesViewPane),
+	ctorDescriptor: new SyncDescriptor(DesktopChangesViewPane),
 	containerIcon: Codicon.gitCompare,
 };
 
@@ -364,7 +364,6 @@ function createGitHubService(checks: readonly IGitHubCICheck[] | undefined): IGi
 		override readonly activeSessionPullRequestObs = constObservable(undefined);
 		override readonly activeSessionPullRequestCIObs = constObservable(createCIModel(checks));
 		override readonly activeSessionPullRequestReviewThreadsObs = constObservable(undefined);
-		override createRepositoryModelReference(): ReturnType<IGitHubService['createRepositoryModelReference']> { throw new Error('Not implemented in fixture.'); }
 		override createPullRequestModelReference(): ReturnType<IGitHubService['createPullRequestModelReference']> { throw new Error('Not implemented in fixture.'); }
 		override createPullRequestReviewThreadsModelReference(): ReturnType<IGitHubService['createPullRequestReviewThreadsModelReference']> { throw new Error('Not implemented in fixture.'); }
 		override createPullRequestCIModelReference(): ReturnType<IGitHubService['createPullRequestCIModelReference']> { throw new Error('Not implemented in fixture.'); }
@@ -451,7 +450,7 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 		},
 	});
 
-	const view = disposableStore.add(instantiationService.createInstance(SinglePaneChangesViewPane, {
+	const view = disposableStore.add(instantiationService.createInstance(DesktopChangesViewPane, {
 		id: CHANGES_VIEW_ID,
 		title: 'Changes',
 		minimumBodySize: 0,

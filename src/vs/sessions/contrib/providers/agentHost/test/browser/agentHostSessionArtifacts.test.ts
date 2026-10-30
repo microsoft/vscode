@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { partitionSessionArtifacts } from '../../browser/agentHostSessionArtifacts.js';
 
@@ -30,4 +30,55 @@ suite('Agent Host Session Artifacts', () => {
 			'artifact-file': toAgentHostUri(artifactFileUri, connectionAuthority).toString(),
 		});
 	});
+
+	test('preserves each artifact owner in the session-wide projection', () => {
+		const defaultChat = URI.parse('remote-chat:/session/default');
+		const peerChat = URI.parse('remote-chat:/session/peer');
+		const result = partitionSessionArtifacts(withSessionArtifacts(undefined, [
+			{ id: 'default', type: SessionArtifactType.Website, label: 'Default', isArtifact: true, link: 'https://example.com/default', chat: defaultChat.toString() },
+			{ id: 'peer', type: SessionArtifactType.Website, label: 'Peer', isArtifact: true, link: 'https://example.com/peer', chat: peerChat.toString() },
+		]));
+
+		assert.deepStrictEqual(result.entries.map(({ artifact }) => ({ id: artifact.id, chat: artifact.chat?.toString() })), [
+			{ id: 'peer', chat: peerChat.toString() },
+			{ id: 'default', chat: defaultChat.toString() },
+		]);
+	});
+
+	test('maps persisted Windows file paths without interpreting the drive as a URI scheme', () => {
+		const fileUri = URI.file('C:/Users/test/.copilot/session-state/sdk-session/files/report.md');
+		const authority = 'remote-host';
+		const result = partitionSessionArtifacts(withSessionArtifacts(undefined, [
+			{ id: 'backslashes', type: SessionArtifactType.File, label: 'Report', isArtifact: true, uri: 'C:\\Users\\test\\.copilot\\session-state\\sdk-session\\files\\report.md' },
+			{ id: 'slashes', type: SessionArtifactType.File, label: 'Report', isArtifact: false, uri: 'C:/Users/test/.copilot/session-state/sdk-session/files/report.md' },
+			{ id: 'uri', type: SessionArtifactType.File, label: 'Report', isArtifact: true, uri: fileUri.toString() },
+		]), uri => toAgentHostUri(uri, authority));
+
+		assert.deepStrictEqual(result.entries.map(({ artifact }) => ({ id: artifact.id, uri: artifact.uri?.toString() })), [
+			{ id: 'uri', uri: toAgentHostUri(fileUri, authority).toString() },
+			{ id: 'slashes', uri: toAgentHostUri(fileUri, authority).toString() },
+			{ id: 'backslashes', uri: toAgentHostUri(fileUri, authority).toString() },
+		]);
+	});
+
+	test('maps persisted UNC file paths while preserving their server authority', () => {
+		const fileUri = URI.parse('file://server/share/report.md');
+		const authority = 'remote-host';
+		const result = partitionSessionArtifacts(withSessionArtifacts(undefined, [
+			{ id: 'backslashes', type: SessionArtifactType.File, label: 'Report', isArtifact: true, uri: '\\\\server\\share\\report.md' },
+			{ id: 'slashes', type: SessionArtifactType.File, label: 'Report', isArtifact: false, uri: '//server/share/report.md' },
+			{ id: 'uri', type: SessionArtifactType.File, label: 'Report', isArtifact: true, uri: fileUri.toString() },
+		]), uri => toAgentHostUri(uri, authority));
+
+		assert.deepStrictEqual(result.entries.map(({ artifact }) => ({
+			id: artifact.id,
+			uri: artifact.uri?.toString(),
+			original: artifact.uri && fromAgentHostUri(artifact.uri).toString(),
+		})), ['uri', 'slashes', 'backslashes'].map(id => ({
+			id,
+			uri: toAgentHostUri(fileUri, authority).toString(),
+			original: fileUri.toString(),
+		})));
+	});
+
 });

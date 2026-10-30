@@ -329,7 +329,7 @@ export function setup(logger: Logger): void {
 			before(async function () {
 				const app = this.app as Application;
 				await updateUserSettingsWhileChatIsOpen(app, [
-					['chat.agent.sandbox.allowNetwork', 'false'],
+					['chat.agent.sandbox.network.allowNetwork', 'false'],
 				]);
 			});
 

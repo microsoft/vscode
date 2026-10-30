@@ -4,21 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
-import { IDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
+import type { AgentChatInputState } from '../../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ICommandEvent, ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { SyncDescriptor } from '../../../../../../../platform/instantiation/common/descriptors.js';
 import { getSingletonServiceDescriptors } from '../../../../../../../platform/instantiation/common/extensions.js';
 import { ServiceCollection } from '../../../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IOpenerService, OpenOptions } from '../../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationBody, IChatInputNotificationContext, IChatInputNotificationModelState, IChatInputNotificationService, matchesModelIdentifier } from '../../../../browser/widget/input/chatInputNotificationService.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
@@ -27,6 +35,8 @@ import { isByokModel } from '../../../../common/chatSelectedModel.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema } from '../../../../common/languageModels.js';
 import { localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
+import { getCopilotHarnessIntroductionContent } from '../../../../browser/agentSessions/copilotHarnessIntroduction.js';
+import { AgentHostChatInputState } from '../../../../browser/agentSessions/agentHost/agentHostChatInputState.js';
 
 class TestCommandService implements ICommandService {
 	declare readonly _serviceBrand: undefined;
@@ -118,6 +128,39 @@ suite('ChatInputNotificationWidget', () => {
 		store.add(notificationService as IChatInputNotificationService & IDisposable);
 		return notificationService;
 	}
+
+	test('keeps the blocking conversation notice above a session warning until input is available', () => {
+		const notificationService = createNotificationService();
+		const sessionResource = URI.parse('agent-host-codex:/locked');
+		const input = observableValue<AgentChatInputState | undefined>('input', { kind: 'checking' });
+		store.add(new AgentHostChatInputState(sessionResource, input, async () => { }, notificationService));
+		notificationService.setNotification({
+			id: 'sandbox-warning',
+			severity: ChatInputNotificationSeverity.Warning,
+			message: 'Sandboxing is unavailable in this environment',
+			description: undefined,
+			actions: [],
+			dismissible: true,
+			autoDismissOnMessage: false,
+			sessionResources: [sessionResource],
+		});
+		const snapshot = () => {
+			const notice = notificationService.getActiveNotification();
+			return { message: notice?.message, actions: notice?.actions.map(action => action.label) };
+		};
+		const checking = snapshot();
+		input.set({ kind: 'blocked', error: { errorType: 'CodexThreadInUse', message: 'Thread is in use' } }, undefined);
+		const locked = snapshot();
+		input.set({ kind: 'checking' }, undefined);
+		const rechecking = snapshot();
+		input.set(undefined, undefined);
+		assert.deepStrictEqual({ checking, locked, rechecking, available: snapshot() }, {
+			checking: { message: 'Checking Conversation', actions: [] },
+			locked: { message: 'This chat is open in another app', actions: ['Retry'] },
+			rechecking: { message: 'This chat is open in another app', actions: ['Retry'] },
+			available: { message: 'Sandboxing is unavailable in this environment', actions: [] },
+		});
+	});
 
 	test('reactively applies session type filter when pending delegation target changes', () => {
 		const currentSessionType = observableValue<string | undefined>('currentSessionType', localChatSessionType);
@@ -390,6 +433,64 @@ suite('ChatInputNotificationWidget', () => {
 		});
 	});
 
+	test('escaped diagnostic text is selectable and support links open with mouse and keyboard', () => {
+		const notificationService = createNotificationService();
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		instantiationService.stub(IChatInputNotificationService, notificationService);
+		instantiationService.stub(ICommandService, new TestCommandService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		const opened: { link: string; allowCommands: boolean | readonly string[] | undefined }[] = [];
+		instantiationService.stub(IOpenerService, {
+			open: async (link: URI | string, options?: OpenOptions) => {
+				opened.push({ link: link.toString(), allowCommands: options?.allowCommands });
+				return true;
+			},
+		});
+
+		const container = dom.append(document.body, dom.$('.monaco-workbench'));
+		instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
+		store.add(toDisposable(() => container.remove()));
+		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, undefined));
+		container.appendChild(widget.domNode);
+		const url = 'https://aka.ms/ghcp-sandbox-os-support';
+		const reason = `Update Windows: ${url} [not a command](command:evil) <b>literal</b>`;
+		notificationService.setNotification({
+			id: 'sandbox-diagnostic',
+			severity: ChatInputNotificationSeverity.Warning,
+			message: 'Sandboxing is unavailable in this environment',
+			description: new MarkdownString().appendText('Update Windows: ').appendLink(url, url).appendText(' [not a command](command:evil) <b>literal</b>'),
+			actions: [],
+			dismissible: true,
+			autoDismissOnMessage: false,
+		});
+
+		const title = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-title');
+		const description = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-description');
+		const link = description?.querySelector('a');
+		assert.ok(title && description && link);
+		link.click();
+		link.focus();
+		const focused = document.activeElement === link;
+		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		const titleStyle = dom.getWindow(title).getComputedStyle(title);
+		const descriptionStyle = dom.getWindow(description).getComputedStyle(description);
+		assert.deepStrictEqual({
+			text: description.textContent?.replace(/\u00a0/g, ' '),
+			links: description.querySelectorAll('a').length,
+			titleSelection: titleStyle.userSelect || titleStyle.getPropertyValue('-webkit-user-select'),
+			descriptionSelection: descriptionStyle.userSelect || descriptionStyle.getPropertyValue('-webkit-user-select'),
+			focused,
+			opened,
+		}, {
+			text: reason,
+			links: 1,
+			titleSelection: 'text',
+			descriptionSelection: 'text',
+			focused: true,
+			opened: [{ link: url, allowCommands: false }, { link: url, allowCommands: false }],
+		});
+	});
+
 	test('auto-dismiss on message only applies to the sending session', () => {
 		const firstSession = URI.parse('vscode-chat-session://agent-host-copilotcli/session-1');
 		const secondSession = URI.parse('vscode-chat-session://agent-host-copilotcli/session-2');
@@ -526,6 +627,7 @@ suite('ChatInputNotificationWidget', () => {
 		commandService?: ICommandService;
 		telemetryService?: ITelemetryService;
 		logService?: ILogService;
+		accessibilityService?: IAccessibilityService;
 	} = {}) {
 		const notificationService = createRecordingNotificationService();
 		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
@@ -534,6 +636,9 @@ suite('ChatInputNotificationWidget', () => {
 		instantiationService.stub(ITelemetryService, options.telemetryService ?? NullTelemetryService);
 		if (options.logService) {
 			instantiationService.stub(ILogService, options.logService);
+		}
+		if (options.accessibilityService) {
+			instantiationService.stub(IAccessibilityService, options.accessibilityService);
 		}
 		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, options.delegate));
 		return { notificationService, widget };
@@ -548,10 +653,26 @@ suite('ChatInputNotificationWidget', () => {
 
 	test('only marks a banner shown when its host becomes visible', () => {
 		const hostVisible = observableValue('hostVisible', false);
+		const inputUri = URI.parse('test-input:/first');
+		const sessionResource = URI.parse('remote-host-copilot:/session');
 		const telemetryService = new RecordingTelemetryService();
-		const { notificationService, widget } = createWidget({ delegate: { hostVisible }, telemetryService });
+		const { notificationService, widget } = createWidget({
+			delegate: {
+				hostVisible,
+				inputUri,
+				sessionResource: constObservable(sessionResource),
+				modelTargetChatSessionType: constObservable('remote-host-copilot'),
+			},
+			telemetryService,
+		});
 		let shown = 0;
-		showNotification(notificationService, { id: 'promo', message: 'Sale', actions: [], onDidShow: () => shown++ });
+		let shownContext: IChatInputNotificationContext | undefined;
+		showNotification(notificationService, {
+			id: 'promo', message: 'Sale', actions: [], onDidShow: context => {
+				shown++;
+				shownContext = context;
+			}
+		});
 		const contents = widget.domNode.firstChild;
 		const whileHidden = shown;
 		hostVisible.set(true, undefined);
@@ -563,6 +684,7 @@ suite('ChatInputNotificationWidget', () => {
 			sameContents: widget.domNode.firstChild === contents,
 			impressions: telemetryService.events.filter(event => event.name === 'chatInputNotificationShown').length,
 		}, { whileHidden: 0, shown: 1, sameContents: true, impressions: 1 });
+		assert.deepStrictEqual(shownContext, context({ inputUri, sessionResource, sessionType: 'remote-host-copilot' }));
 	});
 
 	function clickAction(widget: ChatInputNotificationWidget): void {
@@ -615,11 +737,12 @@ suite('ChatInputNotificationWidget', () => {
 		assert.deepStrictEqual(buttons.map(button => ({
 			label: button.textContent,
 			secondary: button.classList.contains('secondary'),
+			background: button.style.backgroundColor,
 			tabIndex: button.tabIndex,
 			description: button.getAttribute('aria-description'),
 		})), [
-			{ label: 'Open Agents Window', secondary: false, tabIndex: 0, description: null },
-			{ label: 'Ignore', secondary: true, tabIndex: 0, description: 'Don\'t Show Again' },
+			{ label: 'Open Agents Window', secondary: false, background: defaultButtonStyles.buttonBackground, tabIndex: 0, description: null },
+			{ label: 'Ignore', secondary: true, background: '', tabIndex: 0, description: 'Don\'t Show Again' },
 		]);
 		assert.ok(widget.domNode.querySelector('.chat-input-notification-dismiss'));
 	});
@@ -654,41 +777,91 @@ suite('ChatInputNotificationWidget', () => {
 		});
 	});
 
-	test('splits a leading outlined action from trailing feedback actions', () => {
+	for (const leading of [false, true]) {
+		test(`renders ${leading ? 'split' : 'grouped'} filled actions with a header dismiss button`, () => {
+			const { notificationService, widget } = createWidget();
+			showNotification(notificationService, {
+				id: 'feedback',
+				message: 'Copilot preview',
+				actions: [{
+					kind: ChatInputNotificationActionKind.Command,
+					label: 'Learn More',
+					commandId: 'test.learnMore',
+					primary: false,
+					leading,
+					filled: true,
+				}, {
+					kind: ChatInputNotificationActionKind.Command,
+					label: '$(thumbsup) Got it!',
+					ariaLabel: 'Got it!',
+					commandId: 'test.gotIt',
+					primary: true,
+				}],
+			});
+			const actions = widget.domNode.querySelector('.chat-input-notification-actions');
+			const buttons = [...widget.domNode.querySelectorAll<HTMLElement>('.chat-input-notification-action-button')];
+			const dismiss = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-header .chat-input-notification-dismiss');
+			buttons[0].dispatchEvent(new MouseEvent('mouseover'));
+			const hoverBackground = buttons[0].style.backgroundColor;
+			buttons[0].dispatchEvent(new MouseEvent('mouseout'));
+
+			assert.deepStrictEqual({
+				split: actions?.classList.contains('split'),
+				buttons: buttons.map(button => ({
+					label: button.textContent,
+					leading: button.classList.contains('leading'),
+					filled: button.classList.contains('filled'),
+					secondary: button.classList.contains('secondary'),
+					background: button.style.backgroundColor,
+					foreground: button.style.color,
+					ariaLabel: button.ariaLabel,
+					tabIndex: button.tabIndex,
+				})),
+				hoverBackground,
+				dismiss: { ariaLabel: dismiss?.ariaLabel, tabIndex: dismiss?.tabIndex },
+			}, {
+				split: leading,
+				buttons: [
+					{ label: 'Learn More', leading, filled: true, secondary: true, background: defaultButtonStyles.buttonSecondaryBackground, foreground: defaultButtonStyles.buttonSecondaryForeground, ariaLabel: 'Copilot preview Learn More', tabIndex: 0 },
+					{ label: 'Got it!', leading: false, filled: false, secondary: false, background: defaultButtonStyles.buttonBackground, foreground: defaultButtonStyles.buttonForeground, ariaLabel: 'Copilot preview Got it!', tabIndex: 0 },
+				],
+				hoverBackground: defaultButtonStyles.buttonSecondaryHoverBackground,
+				dismiss: { ariaLabel: 'Dismiss notification', tabIndex: 0 },
+			});
+		});
+	}
+
+	test('renders the original feedback layout with a leading outlined action and no header dismiss', () => {
 		const { notificationService, widget } = createWidget();
+		const content = getCopilotHarnessIntroductionContent('current', 'feedback');
 		showNotification(notificationService, {
 			id: 'feedback',
-			message: 'Copilot preview',
-			actions: [{
-				kind: ChatInputNotificationActionKind.Command,
-				label: 'Learn More',
-				commandId: 'test.learnMore',
-				primary: false,
-				leading: true,
-				outlined: true,
-			}, {
-				kind: ChatInputNotificationActionKind.Command,
-				label: '$(thumbsup) Got it!',
-				commandId: 'test.gotIt',
-				primary: true,
-			}],
+			message: content.title,
+			actions: content.actions,
+			dismissible: content.dismissible,
 		});
 		const actions = widget.domNode.querySelector('.chat-input-notification-actions');
-		const buttons = [...widget.domNode.querySelectorAll<HTMLElement>('.chat-input-notification-action-button')];
-
 		assert.deepStrictEqual({
 			split: actions?.classList.contains('split'),
-			buttons: buttons.map(button => ({
+			compact: actions?.classList.contains('compact'),
+			dismiss: !!widget.domNode.querySelector('.chat-input-notification-dismiss'),
+			buttons: [...widget.domNode.querySelectorAll<HTMLElement>('.chat-input-notification-action-button')].map(button => ({
 				label: button.textContent,
 				leading: button.classList.contains('leading'),
 				outlined: button.classList.contains('outlined'),
-				secondary: button.classList.contains('secondary'),
+				filled: button.classList.contains('filled'),
+				iconOnly: button.classList.contains('icon-only'),
+				ariaLabel: button.ariaLabel,
+				tabIndex: button.tabIndex,
 			})),
 		}, {
 			split: true,
+			compact: true,
+			dismiss: false,
 			buttons: [
-				{ label: 'Learn More', leading: true, outlined: true, secondary: true },
-				{ label: 'Got it!', leading: false, outlined: false, secondary: false },
+				{ label: 'Learn More', leading: true, outlined: true, filled: false, iconOnly: false, ariaLabel: 'You\'re using a new Copilot experience Learn More', tabIndex: 0 },
+				{ label: 'Got it!', leading: false, outlined: false, filled: false, iconOnly: false, ariaLabel: 'You\'re using a new Copilot experience Got it!', tabIndex: 0 },
+				{ label: '', leading: false, outlined: false, filled: false, iconOnly: true, ariaLabel: 'You\'re using a new Copilot experience Not Helpful', tabIndex: 0 },
 			],
 		});
 	});
@@ -1167,5 +1340,252 @@ suite('ChatInputNotificationWidget', () => {
 			id: 'copilot-promo',
 			description: 'Agent Host body',
 		});
+	});
+
+	test('a group shows only its highest-priority eligible member; other notifications keep the severity order', () => {
+		const notificationService = createNotificationService();
+		const notification = (id: string, severity: ChatInputNotificationSeverity, priority?: number): IChatInputNotification => ({
+			id, severity, message: id, description: undefined, actions: [], dismissible: true, autoDismissOnMessage: false,
+			group: priority === undefined ? undefined : { id: 'feature', priority },
+		});
+		notificationService.setNotification(notification('running', ChatInputNotificationSeverity.Info, 2));
+		// A more severe and more recent member of the group still waits.
+		notificationService.setNotification(notification('notLoaded', ChatInputNotificationSeverity.Warning, 0));
+		const active = (filter?: (notification: IChatInputNotification) => boolean) => notificationService.getActiveNotification(filter)?.id;
+		const grouped = active();
+		// A member that doesn't apply to the input doesn't hold the others back.
+		const runningNotApplicable = active(candidate => candidate.id !== 'running');
+		notificationService.setNotification(notification('quota', ChatInputNotificationSeverity.Error));
+		const withUngroupedError = active();
+		notificationService.dismissNotification('quota');
+		notificationService.dismissNotification('running');
+		assert.deepStrictEqual({ grouped, runningNotApplicable, withUngroupedError, afterDismissals: active() }, {
+			grouped: 'running',
+			runningNotApplicable: 'notLoaded',
+			withUngroupedError: 'quota',
+			afterDismissals: 'notLoaded',
+		});
+	});
+
+	test('renders progress as the standard progress bar, labelled, determinate or animated while indeterminate, switching in place on the same bar', () => {
+		const { notificationService, widget } = createWidget();
+		const report = (percent: number | undefined) => showNotification(notificationService, { id: 'load', message: 'Loading', progress: { percent }, announcementKey: 'loading', actions: [] });
+		const bar = () => widget.domNode.querySelector<HTMLElement>('.chat-input-notification-progress .monaco-progress-container[role="progressbar"]');
+		const describe = () => {
+			const element = bar();
+			return element && `${element.getAttribute('aria-label')}: ${element.classList.contains('infinite') ? 'indeterminate' : `${element.getAttribute('aria-valuenow')} of ${element.getAttribute('aria-valuemax')}`}, min ${element.getAttribute('aria-valuemin')}, fill ${element.querySelector<HTMLElement>('.progress-bit')?.style.width}`;
+		};
+		report(undefined);
+		const first = bar();
+		const states = [describe()];
+		for (const percent of [30, 42.4, undefined]) {
+			report(percent);
+			states.push(describe());
+		}
+		const sameBar = bar() === first;
+		showNotification(notificationService, { id: 'plain', message: 'Plain', actions: [] });
+		assert.deepStrictEqual({ states, sameBar, plain: bar() }, {
+			states: ['Loading: indeterminate, min null, fill 2%', 'Loading: 30 of 100, min 0, fill 30%', 'Loading: 42 of 100, min 0, fill 42%', 'Loading: indeterminate, min null, fill 2%'],
+			sameBar: true,
+			plain: null,
+		});
+	});
+
+	test('a secondary button action keeps the standard button style, and a disabled one changes its label and state in place', () => {
+		const commandService = new TestCommandService();
+		const { notificationService, widget } = createWidget({ commandService });
+		const container = dom.append(document.body, dom.$('.monaco-workbench'));
+		store.add(toDisposable(() => container.remove()));
+		container.appendChild(widget.domNode);
+		const report = (message: string, cancel: string, disabled: boolean) => showNotification(notificationService, {
+			id: 'load',
+			message,
+			progress: {},
+			announcementKey: message,
+			actions: [
+				{ kind: ChatInputNotificationActionKind.Command, label: 'Details', commandId: 'test.details', primary: false, keepOpen: true },
+				{ kind: ChatInputNotificationActionKind.Command, label: cancel, commandId: 'test.cancel', primary: false, filled: true, disabled, keepOpen: true },
+			],
+		});
+		const buttons = () => [...widget.domNode.querySelectorAll<HTMLElement>('.chat-input-notification-action-button')];
+		const describe = () => buttons().map(button => ({
+			label: button.textContent,
+			filled: button.classList.contains('filled'),
+			disabled: button.getAttribute('aria-disabled'),
+			ariaLabel: button.ariaLabel,
+		}));
+
+		report('Loading Example', 'Cancel', false);
+		const [details, cancel] = buttons();
+		const styles = [details, cancel].map(button => ({ secondary: button.classList.contains('secondary'), background: button.style.backgroundColor, foreground: button.style.color }));
+		const running = describe();
+		cancel.focus();
+		cancel.click();
+		report('Cancelling loading Example', 'Cancelling…', true);
+		const pending = describe();
+		cancel.click();
+
+		assert.deepStrictEqual({
+			styles,
+			running,
+			pending,
+			sameButton: buttons()[1] === cancel,
+			focused: document.activeElement === cancel,
+			executed: commandService.executed.map(entry => entry.id),
+		}, {
+			// Details reads as text; Cancel is a standard secondary button, like those of a notification toast.
+			styles: [
+				{ secondary: true, background: '', foreground: '' },
+				{ secondary: true, background: defaultButtonStyles.buttonSecondaryBackground, foreground: defaultButtonStyles.buttonSecondaryForeground },
+			],
+			running: [
+				{ label: 'Details', filled: false, disabled: 'false', ariaLabel: 'Loading Example Details' },
+				{ label: 'Cancel', filled: true, disabled: 'false', ariaLabel: 'Loading Example Cancel' },
+			],
+			pending: [
+				{ label: 'Details', filled: false, disabled: 'false', ariaLabel: 'Cancelling loading Example Details' },
+				{ label: 'Cancelling…', filled: true, disabled: 'true', ariaLabel: 'Cancelling loading Example Cancelling…' },
+			],
+			sameButton: true,
+			focused: true,
+			// The disabled button doesn't run its action again.
+			executed: ['test.cancel'],
+		});
+	});
+
+	test('progress updates change the message and bar in place, keep focus on an action, and announce only when the announcement key changes', () => {
+		const commandService = new TestCommandService();
+		const { notificationService, widget } = createWidget({ commandService });
+		const container = dom.append(document.body, dom.$('.monaco-workbench'));
+		store.add(toDisposable(() => container.remove()));
+		container.appendChild(widget.domNode);
+		const report = (message: string, percent: number | undefined, announcementKey: string, operationId: string) => showNotification(notificationService, {
+			id: 'download',
+			message,
+			progress: { percent },
+			announcementKey,
+			actions: [{ kind: ChatInputNotificationActionKind.Command, label: 'Pause', commandId: 'test.pause', commandArgs: [operationId], keepOpen: true }],
+		});
+		const button = () => widget.domNode.querySelector<HTMLElement>('.chat-input-notification-action-button');
+
+		report('Downloading: 1 GB of 50 GB', 2, 'downloading', 'op-1');
+		const first = button();
+		first?.focus();
+		report('Downloading: 2 GB of 50 GB', 4, 'downloading', 'op-2');
+		const inPlace = {
+			sameButton: button() === first,
+			focused: document.activeElement === first,
+			title: widget.domNode.querySelector('.chat-input-notification-title')?.textContent,
+			buttonLabel: first?.ariaLabel,
+			value: widget.domNode.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow'),
+		};
+		first?.click();
+		// A new phase without the same actions is a new layout: rebuilt, and announced for its key.
+		showNotification(notificationService, { id: 'download', message: 'Verifying', progress: {}, announcementKey: 'verifying', actions: [] });
+
+		assert.deepStrictEqual({
+			inPlace,
+			executed: commandService.executed,
+			rebuiltForNewLayout: button() === first,
+			announced: notificationService.announced.filter(entry => entry.notification).map(entry => entry.notification?.message),
+		}, {
+			inPlace: { sameButton: true, focused: true, title: 'Downloading: 2 GB of 50 GB', buttonLabel: 'Downloading: 2 GB of 50 GB Pause', value: '4' },
+			// The action runs with the arguments of the update on screen.
+			executed: [{ id: 'test.pause', args: ['op-2'] }],
+			rebuiltForNewLayout: false,
+			announced: ['Downloading: 1 GB of 50 GB', 'Verifying'],
+		});
+	});
+
+	test('a message that changes every second, such as a countdown, shows on screen while the accessible name keeps its ariaMessage', () => {
+		const { notificationService, widget } = createWidget();
+		const container = dom.append(document.body, dom.$('.monaco-workbench'));
+		store.add(toDisposable(() => container.remove()));
+		container.appendChild(widget.domNode);
+		const report = (message: string, ariaMessage: string, percent: number) => showNotification(notificationService, {
+			id: 'loading',
+			message,
+			ariaMessage,
+			progress: { percent },
+			announcementKey: 'loading',
+			actions: [{ kind: ChatInputNotificationActionKind.Command, label: 'Cancel', commandId: 'test.cancel', keepOpen: true }],
+		});
+		const read = () => ({
+			title: widget.domNode.querySelector('.chat-input-notification-title')?.textContent,
+			region: widget.domNode.getAttribute('aria-label'),
+			button: widget.domNode.querySelector<HTMLElement>('.chat-input-notification-action-button')?.ariaLabel,
+			bar: widget.domNode.querySelector('[role="progressbar"]')?.getAttribute('aria-label'),
+		});
+		report('Loading Example Flash, about 5 s remaining', 'Loading Example Flash, about 5 s remaining', 85);
+		const first = read();
+		report('Loading Example Flash, about 4 s remaining', 'Loading Example Flash, about 5 s remaining', 86);
+		assert.deepStrictEqual({ first, next: read(), announced: notificationService.announced.filter(entry => entry.notification).map(entry => entry.notification?.ariaMessage) }, {
+			first: { title: 'Loading Example Flash, about 5 s remaining', region: 'Loading Example Flash, about 5 s remaining', button: 'Loading Example Flash, about 5 s remaining Cancel', bar: 'Loading Example Flash, about 5 s remaining' },
+			next: { title: 'Loading Example Flash, about 4 s remaining', region: 'Loading Example Flash, about 5 s remaining', button: 'Loading Example Flash, about 5 s remaining Cancel', bar: 'Loading Example Flash, about 5 s remaining' },
+			announced: ['Loading Example Flash, about 5 s remaining'],
+		});
+	});
+
+	test('a busy notification shows the in-progress indicator of an active session, kept through updates in place and following reduced motion; the severity icon returns once it is done', () => {
+		const onDidChangeReducedMotion = store.add(new Emitter<void>());
+		let reducedMotion = false;
+		const accessibilityService = new class extends TestAccessibilityService {
+			override onDidChangeReducedMotion = onDidChangeReducedMotion.event;
+			override isMotionReduced(): boolean { return reducedMotion; }
+		}();
+		const { notificationService, widget } = createWidget({ accessibilityService });
+		const spinner = () => widget.domNode.querySelector('.chat-input-notification-icon .monaco-pixel-spinner');
+		const icon = () => {
+			const element = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-icon');
+			return element && { busy: element.classList.contains('busy'), spinner: !!spinner(), codicon: element.querySelector('.codicon')?.className };
+		};
+		const report = (percent: number | undefined) => showNotification(notificationService, { id: 'load', message: 'Loading', progress: { percent }, busy: true, announcementKey: 'loading', actions: [] });
+
+		report(undefined);
+		const running = icon();
+		const first = spinner();
+		report(40);
+		const updated = { ...icon(), sameSpinner: spinner() === first };
+		reducedMotion = true;
+		onDidChangeReducedMotion.fire();
+		const reduced = icon();
+		showNotification(notificationService, { id: 'load', message: 'Loaded', actions: [] });
+		assert.deepStrictEqual({ running, updated, reduced, done: icon() }, {
+			running: { busy: true, spinner: true, codicon: undefined },
+			updated: { busy: true, spinner: true, codicon: undefined, sameSpinner: true },
+			reduced: { busy: true, spinner: false, codicon: `codicon codicon-${Codicon.sessionInProgress.id}` },
+			done: { busy: false, spinner: false, codicon: `codicon codicon-${Codicon.info.id}` },
+		});
+	});
+
+	test('changes to notifications that stay hidden keep the visible notice\'s controls and focus', () => {
+		const notificationService = createNotificationService();
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		instantiationService.stub(IChatInputNotificationService, notificationService);
+		instantiationService.stub(ICommandService, new TestCommandService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		const container = dom.append(document.body, dom.$('.monaco-workbench'));
+		store.add(toDisposable(() => container.remove()));
+		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, undefined));
+		container.appendChild(widget.domNode);
+		notificationService.setNotification({
+			id: 'sandbox-warning',
+			severity: ChatInputNotificationSeverity.Warning,
+			message: 'Sandboxing is unavailable',
+			description: 'Commands run without a sandbox.',
+			actions: [{ kind: ChatInputNotificationActionKind.Command, label: 'Learn More', commandId: 'test.learnMore' }],
+			dismissible: true,
+			autoDismissOnMessage: false,
+		});
+		const button = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-action-button');
+		button?.focus();
+		for (const percent of [1, 2, 3]) {
+			notificationService.setNotification({ id: 'download', severity: ChatInputNotificationSeverity.Info, message: `Downloading: ${percent}%`, description: undefined, actions: [], progress: { percent }, dismissible: true, autoDismissOnMessage: false }, { inPlace: true });
+		}
+		assert.deepStrictEqual({
+			title: widget.domNode.querySelector('.chat-input-notification-title')?.textContent,
+			sameButton: widget.domNode.querySelector('.chat-input-notification-action-button') === button,
+			focused: !!button && document.activeElement === button,
+		}, { title: 'Sandboxing is unavailable', sameButton: true, focused: true });
 	});
 });

@@ -67,6 +67,14 @@ export class AgentCustomizationContentExpander {
 				}
 				if (promptType === PromptsType.skill) {
 					children.push(...await this.collectFromSkillDir(stat.children, pluginUri, source, groupKey, isBundleItem, pluginLabel, token));
+				} else if (promptType === PromptsType.agent && isBundleItem) {
+					const namespaces = await Promise.all(stat.children
+						.filter(child => child.isDirectory && !child.name.startsWith('.'))
+						.map(child => this.fileService.resolve(child.resource)));
+					children.push(...await this.collectFromRegularDir(
+						[...stat.children, ...namespaces.flatMap(namespace => namespace.children ?? [])],
+						pluginUri, source, promptType, groupKey, isBundleItem, pluginLabel, token,
+					));
 				} else {
 					children.push(...await this.collectFromRegularDir(stat.children, pluginUri, source, promptType, groupKey, isBundleItem, pluginLabel, token));
 				}

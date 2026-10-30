@@ -13,7 +13,8 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { IEnvironmentMainService } from '../../../environment/electron-main/environmentMainService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { InMemoryTestStateMainService } from '../../../test/electron-main/workbenchTestServices.js';
-import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../window/common/window.js';
+import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getMacOSWindowControlsPosition } from '../../../window/common/window.js';
+import { release } from 'os';
 import { BaseWindow } from '../../electron-main/windowImpl.js';
 
 class TestWindow extends BaseWindow {
@@ -43,16 +44,17 @@ suite('BaseWindow - window controls overlay', () => {
 			store.add(new NullLogService())
 		));
 		const setTitleBarOverlay = sinon.stub();
+		const setWindowButtonPosition = sinon.stub();
 		const on = sinon.stub();
 		const removeListener = sinon.stub();
 		const nativeWindow = upcastPartial<BrowserWindow>({
 			on,
 			removeListener,
 			setSheetOffset: sinon.stub(),
-			setWindowButtonPosition: sinon.stub(),
+			setWindowButtonPosition,
 			setTitleBarOverlay,
 		});
-		return { window, nativeWindow, configurationService, setTitleBarOverlay };
+		return { window, nativeWindow, configurationService, setTitleBarOverlay, setWindowButtonPosition };
 	}
 
 	const windowsWithoutOverlay: { name: string; options?: BrowserWindowConstructorOptions }[] = [
@@ -94,4 +96,20 @@ suite('BaseWindow - window controls overlay', () => {
 			assert.deepStrictEqual(setTitleBarOverlay.args, enabled ? [[{ color: '#ffffff', symbolColor: '#000000', height: 39 }]] : []);
 		});
 	}
+
+	(isMacintosh ? test : test.skip)('honors a fixed horizontal inset when the title-bar height changes', () => {
+		const { window, nativeWindow, setWindowButtonPosition } = createWindow();
+		window.setWin(nativeWindow, { titleBarStyle: 'hidden' });
+		setWindowButtonPosition.resetHistory();
+		const horizontalInset = getMacOSWindowControlsPosition(DEFAULT_CUSTOM_TITLEBAR_HEIGHT, release())!.x;
+
+		for (const height of [35, 44, 35]) {
+			window.updateWindowControls({ height, horizontalInset });
+		}
+
+		assert.deepStrictEqual(setWindowButtonPosition.args, [35, 44, 35].map(height => [{
+			x: horizontalInset,
+			y: getMacOSWindowControlsPosition(height, release())!.y,
+		}]));
+	});
 });

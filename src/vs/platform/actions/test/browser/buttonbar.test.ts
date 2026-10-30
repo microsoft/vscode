@@ -19,17 +19,30 @@ import { IHoverService } from '../../../hover/browser/hover.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { WorkbenchButtonBar, type IButtonConfigProvider } from '../../browser/buttonbar.js';
 
 const SPINNER_SELECTOR = '.monaco-pixel-spinner';
 
+class TestTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { readonly name: string; readonly data: unknown }[] = [];
+
+	override publicLog2(eventName?: string, data?: unknown): void {
+		if (eventName) {
+			this.events.push({ name: eventName, data });
+		}
+	}
+}
+
 suite('WorkbenchButtonBar', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createButtonBar(buttonConfigProvider: IButtonConfigProvider): { readonly bar: WorkbenchButtonBar; readonly container: HTMLElement } {
+	function createButtonBar(
+		buttonConfigProvider: IButtonConfigProvider,
+		options?: { readonly telemetryService?: ITelemetryService; readonly telemetrySource?: string }
+	): { readonly bar: WorkbenchButtonBar; readonly container: HTMLElement } {
 		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(ITelemetryService, options?.telemetryService ?? NullTelemetryService);
 		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
 			override showContextMenu(): void { }
 		}());
@@ -41,7 +54,10 @@ suite('WorkbenchButtonBar', () => {
 		}());
 
 		const container = $('div');
-		const bar = disposables.add(instantiationService.createInstance(WorkbenchButtonBar, container, { buttonConfigProvider }));
+		const bar = disposables.add(instantiationService.createInstance(WorkbenchButtonBar, container, {
+			buttonConfigProvider,
+			telemetrySource: options?.telemetrySource
+		}));
 		return { bar, container };
 	}
 
@@ -211,6 +227,35 @@ suite('WorkbenchButtonBar', () => {
 			busyLeading: 'monaco-pixel-spinner monaco-button-leading-icon monaco-button-leading-icon-only',
 			idleWearsIcon: true,
 			idleLeading: undefined,
+		});
+	});
+
+	test('logs telemetry before an action disposes the button bar', () => {
+		const telemetryService = new TestTelemetryService();
+		const { bar } = createButtonBar(() => ({ showLabel: true }), { telemetryService, telemetrySource: 'testButtonBar' });
+		let eventsDuringRun: readonly { readonly name: string; readonly data: unknown }[] = [];
+		const selfDisposingAction = toAction({
+			id: 'selfDisposing',
+			label: 'selfDisposing',
+			run: () => {
+				eventsDuringRun = telemetryService.events.slice();
+				bar.dispose();
+			}
+		});
+
+		bar.update([selfDisposingAction], []);
+		bar.buttons[0].element.click();
+
+		const expectedEvents = [{
+			name: 'workbenchActionExecuted',
+			data: { id: 'selfDisposing', from: 'testButtonBar' }
+		}];
+		assert.deepStrictEqual({
+			eventsDuringRun,
+			eventsAfterRun: telemetryService.events
+		}, {
+			eventsDuringRun: expectedEvents,
+			eventsAfterRun: expectedEvents
 		});
 	});
 });

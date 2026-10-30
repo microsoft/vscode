@@ -22,7 +22,6 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -33,7 +32,8 @@ import { ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, 
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
-import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { getAgentHostProviderForTelemetry, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../chat.js';
 import { getAgentSessionProvider, AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
@@ -197,6 +197,7 @@ export class ChatSubmitAction extends SubmitAction {
 		const menuCondition = ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask);
 		const precondition = ContextKeyExpr.and(
 			ChatContextKeys.inputHasSendableContent,
+			ChatContextKeys.inputBlocked.negate(),
 			ChatContextKeys.transcriptProgressActive.negate(),
 			ContextKeyExpr.or(whenNotInProgress, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
 			ChatContextKeys.chatSessionOptionsValid,
@@ -282,6 +283,7 @@ class ToggleChatModeAction extends Action2 {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 
 		const arg = args.at(0) as IToggleChatModeArgs | undefined;
+		const chatSessionsService = accessor.get(IChatSessionsService);
 		let widget: IChatWidget | undefined;
 		if (arg?.sessionResource) {
 			widget = chatWidgetService.getWidgetBySessionResource(arg.sessionResource);
@@ -308,7 +310,7 @@ class ToggleChatModeAction extends Action2 {
 			return;
 		}
 
-		reportChatModeChange(telemetryService, currentMode, switchToMode, requestCount);
+		reportChatModeChange(telemetryService, currentMode, switchToMode, requestCount, getAgentHostProviderForTelemetry(chatSession ? getChatSessionType(chatSession.sessionResource) : undefined, chatSessionsService));
 
 		widget.input.setChatMode(switchToMode.id, true, true);
 
@@ -409,8 +411,7 @@ export class OpenModelPickerAction extends Action2 {
 							ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local),
 							ContextKeyExpr.and(
 								IsSessionsWindowContext,
-								ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.AgentHostCopilot),
-								ContextKeyExpr.equals(`config.${AgentHostAllowSignedOutWhenUsableSettingId}`, true)))
+								ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.AgentHostCopilot)))
 					)
 			}
 		});
@@ -490,6 +491,7 @@ export class OpenModePickerAction extends Action2 {
 					order: 1,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
+						ChatContextKeys.agentPickerInAttachContext.negate(),
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
 						// Hide the agent picker while a delegation (continue in) target is pending
@@ -754,6 +756,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 		const menuCondition = ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask);
 		const precondition = ContextKeyExpr.and(
 			ChatContextKeys.inputHasSendableContent,
+			ChatContextKeys.inputBlocked.negate(),
 			notInProgressOrEditing,
 			ChatContextKeys.chatSessionOptionsValid
 		);
@@ -952,6 +955,7 @@ export class CancelAction extends Action2 {
 					ContextKeyExpr.or(ChatContextKeys.hasActiveRequest, ChatContextKeys.transcriptProgressActive),
 					ChatContextKeys.remoteJobCreating.negate()
 				),
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Escape },
 				win: { primary: KeyMod.Alt | KeyCode.Backspace },
 			}
 		});

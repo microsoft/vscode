@@ -195,6 +195,8 @@ Use:
 
 Spotlights are keyboard operable, dismissible with Escape, and keep interactive targets available when requested. Important state changes remain the responsibility of the owning feature.
 
+For a selection-driven step, `primaryAction` can offer the same action through a labeled callout button. It runs only on an explicit button click and does not advance the tour itself: use `advanceOnTargetSelection` or `advanceWhen` to confirm the outcome. The button is disabled after activation, and the action's cancellation token is cancelled when the step ends or its target is replaced. Check that token after asynchronous preparation and before changing state. End Tour remains available even on the final action step.
+
 ## Own and scope spotlight targets
 
 Feature-owned adapters can register target providers that resolve controls through their owner's API:
@@ -207,6 +209,10 @@ this._register(registerOnboardingTargetProvider(MY_FEATURE_ONBOARDING_TARGET, sc
 	return control && element ? { element, open: () => control.open() } : undefined;
 }));
 ```
+
+A target can also return `additionalElements` to highlight other elements together with it, such as a menu that `open` shows outside the target. The spotlight reads them on every layout, covers the target and every visible element in the hole, and places the callout beside them all. While focus is inside one of them, clicking the callout leaves focus there, so elements that close on blur stay open across steps, and Escape is left to the element. Because focus can move into them, the step is also announced to screen readers. Set `allowTargetInteraction` on the step to keep them interactive.
+
+Return `close` with `open` when what `open` shows must not outlive its steps. The spotlight keeps it open while consecutive steps target the same element, and calls `close` before it shows a step for another element and when the tour ends, before focus returns to the workbench.
 
 The shared resolver validates the element's document and visibility. A registered provider is authoritative: returning `undefined` does not fall back to marked DOM elements. In particular, an unknown or expired scope must not fall back to the feature's active owner.
 
@@ -294,15 +300,25 @@ The events respect existing usage-telemetry settings and policies. Register thei
 
 ## Release-note markup
 
-Release notes use standard conditional comments and command links:
+Release-note tryout links use a backtick-wrapped inline-code shorthand, without conditional comments:
 
 ```md
-<!-- %IF TRYOUTS %
-[Try My Feature](command:workbench.action.onboarding.tryFeature?%5B%22myFeature.guide%22%5D)
-%ENDIF % -->
+`try(myFeature.guide,Try My Feature)`
 ```
 
-Only the stable ID belongs in Markdown. Use **Developer: Copy Feature Example Link** to produce the encoded link. For manual validation, add the link to [releaseNotesTryouts.md](test/browser/fixtures/releaseNotesTryouts.md), open that file, and run **Developer: Open Current File as Release Notes**.
+The syntax is `try(<tryout-id>,<link-text>)`. The first argument is a stable registered tryout ID, not a command ID. The required link text is presentation only; all executable behavior and availability checks remain in installed code. Surrounding argument whitespace is trimmed. The first comma separates the ID from the label, and the final closing parenthesis ends the token, so labels can contain commas and parentheses. Labels are literal text, not Markdown or HTML.
+
+Only a complete inline-code token is recognized. Bare text, code blocks, and code inside links or raw HTML remain noninteractive. Malformed shorthand stays literal code; a valid but unknown ID shows the existing unavailable-example explanation. Renderers without tryout support display the shorthand as literal inline code.
+
+Use **Developer: Copy Feature Example Link** to produce the shorthand with the installed title as its initial label. The command chooses a longer backtick delimiter when the title contains backticks. Authors may edit the label without changing the registered behavior.
+
+Existing encoded command links remain supported and retain their product-generated `Try This: <title>` labels:
+
+```md
+[Try My Feature](command:workbench.action.onboarding.tryFeature?%5B%22myFeature.guide%22%5D)
+```
+
+For manual validation, add the shorthand to [releaseNotesTryouts.md](test/browser/fixtures/releaseNotesTryouts.md), open that file, and run **Developer: Open Current File as Release Notes**.
 
 ## Choosing the interaction level
 

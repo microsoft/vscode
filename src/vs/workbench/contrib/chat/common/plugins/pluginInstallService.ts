@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IMarketplaceReference } from './marketplaceReference.js';
 import { IMarketplacePlugin } from './pluginMarketplaceService.js';
 
 export const IPluginInstallService = createDecorator<IPluginInstallService>('pluginInstallService');
@@ -40,7 +41,7 @@ export interface IUpdateAllPluginsResult {
 }
 
 export interface IInstallPluginFromSourceOptions {
-	/** Install the single plugin at this repository-relative directory instead of scanning the marketplace. */
+	/** Install the exact standalone or marketplace-declared plugin at this repository-relative directory. */
 	readonly path?: string;
 	/**
 	 * When set, targets a specific plugin by name within the marketplace
@@ -66,6 +67,15 @@ export interface IPluginInstallService {
 	 */
 	installPlugin(plugin: IMarketplacePlugin, token?: CancellationToken): Promise<void>;
 
+	/** Validates policy and obtains user trust for a marketplace before installing from it. */
+	ensureMarketplaceTrusted(reference: IMarketplaceReference, token?: CancellationToken): Promise<boolean>;
+
+	/**
+	 * Removes the exact installed plugin entry and performs best-effort source cleanup.
+	 * Returns `false` when no installed entry matches the URI.
+	 */
+	uninstallPlugin(pluginUri: URI): Promise<boolean>;
+
 	/**
 	 * Installs a plugin directly from a source location string. Accepts
 	 * GitHub shorthand (`owner/repo`), a full git clone URL, or a local
@@ -74,7 +84,7 @@ export interface IPluginInstallService {
 	 * discover plugins, and registers the selected plugin. For local folders,
 	 * detects whether the folder is a marketplace or a standalone plugin and
 	 * registers it under the appropriate configuration.
-	 * An explicit `path` installs only the manifest-backed plugin in that repository subdirectory.
+	 * An explicit `path` installs only the standalone or marketplace-declared plugin in that repository subdirectory.
 	 *
 	 * Returns a result with an optional error message (e.g. invalid source or
 	 * no plugins found); callers are responsible for surfacing it. When
@@ -91,14 +101,15 @@ export interface IPluginInstallService {
 	validatePluginSource(source: string): string | undefined;
 
 	/**
-	 * Pulls the latest changes for an already-cloned marketplace repository.
+	 * Updates an installed plugin and replaces its installed URI when the source location changes.
 	 */
-	updatePlugin(plugin: IMarketplacePlugin): Promise<boolean>;
+	updatePlugin(plugin: IMarketplacePlugin, silent?: boolean, token?: CancellationToken): Promise<boolean>;
 
 	/**
 	 * Updates all installed plugins. First pulls each unique marketplace
 	 * repository, then updates non-relative-path plugins individually
-	 * (git pull, npm install, pip install, etc.).
+	 * (git pull, npm install, pip install, etc.). Git sources are refreshed
+	 * even when their source descriptors have not changed.
 	 */
 	updateAllPlugins(options: IUpdateAllPluginsOptions, token: CancellationToken): Promise<IUpdateAllPluginsResult>;
 

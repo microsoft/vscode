@@ -14,6 +14,7 @@ import { IActionListItem } from '../../../../../../platform/actionWidget/browser
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -39,6 +40,7 @@ function makeClaudePermissionModeConfig(): ResolveSessionConfigResult {
 					title: 'Approvals',
 					description: '',
 					type: 'string',
+					sessionMutable: true,
 					enum: ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'],
 					enumLabels: ['Ask Before Edits', 'Edit Automatically', 'Plan Mode', 'Auto Mode', 'Bypass Permissions'],
 					enumDescriptions: [
@@ -55,7 +57,7 @@ function makeClaudePermissionModeConfig(): ResolveSessionConfigResult {
 	} as ResolveSessionConfigResult;
 }
 
-class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'setSessionConfigValue' | 'isSessionConfigResolving'> {
+class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'getCreateSessionConfig' | 'setSessionConfigValue' | 'isSessionConfigResolving'> {
 	readonly id = PROVIDER_ID;
 	readonly onDidChangeSessionConfig: Event<string> = Event.None;
 	readonly setCalls: Array<[string, string, unknown]> = [];
@@ -64,11 +66,15 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 		return makeClaudePermissionModeConfig();
 	}
 
+	getCreateSessionConfig(_sessionId: string): undefined {
+		return undefined;
+	}
+
 	isSessionConfigResolving(_sessionId: string) {
 		return constObservable(false);
 	}
 
-	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
+	async setSessionConfigValue(sessionId: string, _chat: URI, property: string, value: unknown): Promise<void> {
 		this.setCalls.push([sessionId, property, value]);
 	}
 }
@@ -90,7 +96,7 @@ function setupPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedI
 			onHide = delegate.onHide;
 		},
 	});
-	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', { providerId: PROVIDER_ID, sessionId: SESSION_ID } as IActiveSession);
+	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', { providerId: PROVIDER_ID, sessionId: SESSION_ID, activeChat: constObservable({ resource: URI.parse('agent-host-claude:/session') }) } as unknown as IActiveSession);
 	instantiationService.set(ISessionsService, new (class extends mock<ISessionsService>() {
 		override readonly activeSession = sessionObs;
 	})());
@@ -108,9 +114,7 @@ function setupPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedI
 		}
 	})());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
-	instantiationService.stub(IHoverService, {
-		setupDelayedHover: () => ({ dispose: () => { } }),
-	} as Partial<IHoverService> as IHoverService);
+	instantiationService.stub(IHoverService, { ...NullHoverService });
 
 	const picker = store.add(instantiationService.createInstance(AgentHostClaudePermissionModePicker, sessionObs));
 	const container = document.createElement('div');

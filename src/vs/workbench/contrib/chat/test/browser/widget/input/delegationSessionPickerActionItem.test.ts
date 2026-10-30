@@ -9,12 +9,14 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { MenuItemAction, registerAction2 } from '../../../../../../../platform/actions/common/actions.js';
 import { IAgentHostEnablementService } from '../../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -37,6 +39,7 @@ import { TestChatEntitlementService, TestContextService } from '../../../../../.
 import { OpenDelegationPickerAction } from '../../../../browser/actions/chatExecuteActions.js';
 import { AgentSessionProviders, AgentSessionTarget } from '../../../../browser/agentSessions/agentSessions.js';
 import { IChatWidget, IChatWidgetService } from '../../../../browser/chat.js';
+import { IChatHarnessSwitchFeedbackSurveyService } from '../../../../browser/feedbackSurvey/chatHarnessSwitchFeedbackSurveyService.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import { DelegationSessionPickerActionItem } from '../../../../browser/widget/input/delegationSessionPickerActionItem.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
@@ -70,6 +73,7 @@ suite('DelegationSessionPickerActionItem', () => {
 
 	function createPicker(sessionType: AgentSessionTarget, isSessionsWindow = false, initialContributions = contributions) {
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
 		const configurationService = new TestConfigurationService({
 			'chat.copilotHarnessIntroduction.mode': CopilotHarnessIntroductionMode.AfterRequest,
 		});
@@ -141,6 +145,7 @@ suite('DelegationSessionPickerActionItem', () => {
 		instantiationService.stub(IAgentSdkSetupService, { setups: [] });
 		instantiationService.stub(ICodexAccountService, { account: { status: 'unknown' } });
 		instantiationService.stub(IGitService, new class extends mock<IGitService>() { }());
+		instantiationService.stub(IChatHarnessSwitchFeedbackSurveyService, { prompt: () => { } });
 
 		const action = instantiationService.createInstance(MenuItemAction, new OpenDelegationPickerAction().desc, undefined, undefined, undefined, undefined);
 		const compact = observableValue('compact', false);
@@ -149,7 +154,7 @@ suite('DelegationSessionPickerActionItem', () => {
 			getPendingDelegationTarget: () => pendingTarget,
 			setPendingDelegationTarget: target => { pendingTarget = target; },
 			onDidChangeActiveSessionProvider: activeProviderChanged.event,
-		}, { compact }));
+		}, { compact }, URI.parse('vscode-chat-input://input-1')));
 		const container = dom.append(document.body, dom.$('.action-item'));
 		store.add(toDisposable(() => container.remove()));
 		picker.render(container);

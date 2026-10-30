@@ -5,29 +5,34 @@
 
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IReader, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { ISessionGroup, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
-import { ISessionsListModelService, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { IInboxNotificationsService, InboxNotificationsSortMode } from '../../../inboxOne/common/inboxNotificationsService.js';
+import { IDeletedSessionGroups, ISessionGroup, ISessionGroupAppearance, ISessionGroupPlacement, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupTree } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, ISession, ISessionCapabilities, ISessionChangesSummary, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionComparison, ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { IDeleteChatOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { getSessionApplication } from '../../../../common/sessionApplication.js';
 
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
 
@@ -42,17 +47,22 @@ export class TestCommandService extends mock<ICommandService>() {
 
 export class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 	override readonly onDidChangeSessions = Event.None;
+	override canMoveChat(_session: ISession, _chat: IChat): boolean { return false; }
+	override canMoveSessionUnder(_session: ISession): boolean { return false; }
 	sessions: ISession[];
 	readonly readSessions: ISession[] = [];
 	readonly renamed: { readonly session: ISession; readonly title: string }[] = [];
 	readonly archived: ISession[] = [];
 	readonly cancelled: ISession[] = [];
 	readonly imported: ISession[] = [];
+	readonly deleted: ISession[] = [];
 	readonly renamedChats: { readonly session: ISession; readonly chatResource: URI; readonly title: string }[] = [];
 	readonly deletedChats: { readonly session: ISession; readonly chatResource: URI }[] = [];
 	readonly deleteChatOptions: (IDeleteChatOptions | undefined)[] = [];
 	renameError: Error | undefined;
 	renameChatError: Error | undefined;
+	/** Optional side effect for tests that need archiving to update the session, as the real service does. */
+	onDidArchive: ((session: ISession) => void) | undefined;
 
 	constructor(sessions: ISession[]) {
 		super();
@@ -61,6 +71,10 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 
 	override getSessions(): ISession[] {
 		return this.sessions;
+	}
+
+	override getSession(resource: URI): ISession | undefined {
+		return this.sessions.find(session => session.resource.toString() === resource.toString());
 	}
 
 	override async markRead(session: ISession): Promise<void> {
@@ -80,6 +94,13 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 
 	override async archiveSession(session: ISession): Promise<void> {
 		this.archived.push(session);
+		this.onDidArchive?.(session);
+	}
+
+	readonly unarchived: ISession[] = [];
+
+	override async unarchiveSession(session: ISession): Promise<void> {
+		this.unarchived.push(session);
 	}
 
 	override async cancelCurrentRequest(session: ISession): Promise<void> {
@@ -88,6 +109,10 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 
 	override async importSession(session: ISession): Promise<void> {
 		this.imported.push(session);
+	}
+
+	override async deleteSessions(sessions: readonly ISession[]): Promise<void> {
+		this.deleted.push(...sessions);
 	}
 
 	override async deleteChat(session: ISession, chatResource: URI, options?: IDeleteChatOptions): Promise<boolean> {
@@ -115,50 +140,81 @@ export interface ITestSession {
 
 export interface ITestSessionOptions {
 	readonly resourceId?: string;
+	/** Defaults to `test`. */
+	readonly providerId?: string;
+	readonly harness?: string;
+	readonly environment?: string;
+	readonly application?: string;
 	readonly workspaceLabel?: string;
+	/** Defaults to a resource unique to the session. */
+	readonly workspaceResource?: URI;
+	/** A GitHub repository, as `owner/name`, that the workspace's folder reports through its Git metadata. */
+	readonly repository?: string;
 	readonly status?: SessionStatus;
 	readonly isArchived?: boolean;
 	readonly isRead?: boolean;
 	readonly isQuickChat?: boolean;
 	readonly isExternal?: boolean;
+	readonly createdAt?: Date;
+	/** Defaults to {@link createdAt}. */
+	readonly updatedAt?: Date;
 	readonly changesSummary?: ISessionChangesSummary;
 }
 
 export function createTestSession(title: string, options: ITestSessionOptions = {}): ITestSession {
 	const resourceId = options.resourceId ?? title;
-	const now = new Date();
+	const now = options.createdAt ?? new Date();
 	const resource = URI.parse(`test-session://${resourceId}`);
 	const capabilities = observableValue<ISessionCapabilities>(`capabilities-${resourceId}`, { supportsMultipleChats: false, supportsRename: true });
 	const status = observableValue(`status-${resourceId}`, options.status ?? SessionStatus.Completed);
+	const isRead = observableValue(`read-${resourceId}`, options.isRead ?? true);
 	const mainChat = new class extends mock<IChat>() {
 		override readonly resource = resource.with({ fragment: 'main' });
+		override readonly updatedAt = constObservable(now);
 		override readonly status = status;
+		override readonly isRead = isRead;
+		override readonly description = constObservable(undefined);
 		override readonly changes = constObservable([]);
 		override readonly changesets = constObservable([]);
 	}();
 	const isArchived = observableValue(`archived-${resourceId}`, options.isArchived ?? false);
-	const isRead = observableValue(`read-${resourceId}`, options.isRead ?? true);
 	const isExternal = observableValue(`external-${resourceId}`, options.isExternal ?? false);
 	const workspaceLabel = options.workspaceLabel ?? 'Workspace';
+	const workspaceUri = options.workspaceResource ?? URI.parse(`test-workspace://${resourceId}`);
+	const [repositoryOwner, repositoryName] = options.repository?.split('/') ?? [];
 	const isQuickChat = options.isQuickChat ?? false;
 	const session: ISession = {
 		sessionId: resourceId,
 		resource,
-		providerId: 'test',
+		providerId: options.providerId ?? 'test',
 		sessionType: 'test',
+		harness: options.harness ?? 'copilot',
+		environment: options.environment ?? 'local',
+		application: constObservable(getSessionApplication(options.application ?? 'vscode')),
 		icon: Codicon.account,
 		createdAt: now,
 		workspace: constObservable(isQuickChat ? undefined : {
-			uri: URI.parse(`test-workspace://${resourceId}`),
+			uri: workspaceUri,
 			label: workspaceLabel,
 			icon: Codicon.folder,
-			folders: [],
+			folders: options.repository ? [{
+				root: workspaceUri,
+				workingDirectory: workspaceUri,
+				name: workspaceLabel,
+				description: undefined,
+				gitRepository: {
+					uri: workspaceUri,
+					workTreeUri: undefined,
+					baseBranchName: undefined,
+					gitHubInfo: constObservable({ owner: repositoryOwner, repo: repositoryName }),
+				},
+			}] : [],
 			requiresWorkspaceTrust: false,
 			isVirtualWorkspace: false,
 		}),
 		isQuickChat: constObservable(isQuickChat),
 		title: constObservable(title),
-		updatedAt: constObservable(now),
+		updatedAt: constObservable(options.updatedAt ?? now),
 		status,
 		changesSummary: constObservable(options.changesSummary),
 		modelId: constObservable(undefined),
@@ -185,8 +241,22 @@ export interface IListHarness {
 	readonly instantiationService: TestInstantiationService;
 	readonly managementService: TestSessionsManagementService;
 	readonly commandService: TestCommandService;
+	readonly deletedGroupIds: string[];
+	readonly cancelledComparisonIds: string[];
+	readonly archivedComparisonIds: string[];
+	readonly addedToGroups: Array<{ readonly groupId: string; readonly sessionIds: readonly string[] }>;
+	/** Session ids passed to `removeFromGroup`, in call order. */
+	readonly removedFromGroups: string[];
+	/** Groups created through the groups service, in call order. */
+	readonly createdGroups: Array<{ readonly name: string; readonly sessionIds: readonly string[]; readonly parentId: string | undefined }>;
+	/** Groups nested in another group, or made top-level (`parentId: undefined`), with where they land among the new parent's subgroups, in call order. */
+	readonly movedGroups: Array<{ readonly groupId: string; readonly parentId: string | undefined; readonly placement: ISessionGroupPlacement | undefined }>;
+	readonly movedSections: Array<{ readonly sectionId: string; readonly parentId: string | undefined; readonly placement: ISessionGroupPlacement | undefined }>;
+	/** Pin state changes applied through the sessions list model service. */
+	readonly pinChanges: Array<{ readonly sessionId: string; readonly pinned: boolean }>;
 	/** Manual sort-key changes applied through the sessions list model service. */
 	readonly sortChanges: ISortChangeRecord[];
+	readonly sectionReorders: Array<{ readonly visibleOrder: readonly string[]; readonly draggedId: string; readonly targetId: string; readonly position: 'before' | 'after'; readonly promoteId: string | undefined }>;
 	createContainer(width?: number, height?: number): HTMLElement;
 }
 
@@ -199,7 +269,19 @@ export interface ISortChangeRecord {
 export interface IListHarnessOptions {
 	readonly groups?: readonly ISessionGroup[];
 	readonly memberships?: ReadonlyMap<string, string>;
+	readonly sectionMemberships?: ReadonlyMap<string, string>;
+	readonly sectionAppearances?: ReadonlyMap<string, ISessionGroupAppearance>;
 	readonly pinnedSessionIds?: ReadonlySet<string>;
+	/** Automation sessions shown in the Sessions list. The harness updates the set as the real service does. */
+	readonly shownAutomationSessionIds?: ReadonlySet<string>;
+	/** Apply sort changes and fire change events, as the real service does. */
+	readonly liveListModel?: boolean;
+	/** Apply pinSession changes and fire change events, as the real service does. */
+	readonly livePins?: boolean;
+	readonly liveGroups?: boolean;
+	readonly comparisons?: readonly ISessionComparison[];
+	/** Custom groups the user capped with "Show less" in an earlier window; groups otherwise list every session. */
+	readonly cappedGroupIds?: readonly string[];
 }
 
 type ConfigureListHarness = (instantiationService: TestInstantiationService) => void;
@@ -211,10 +293,27 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const commandService = new TestCommandService();
 	const configure = typeof optionsOrConfigure === 'function' ? optionsOrConfigure : undefined;
 	const options: IListHarnessOptions = typeof optionsOrConfigure === 'function' ? {} : optionsOrConfigure;
-	const groups = options.groups ?? [];
+	const groups = [...options.groups ?? []];
 	const memberships = options.memberships ?? new Map();
+	const sectionMemberships = options.sectionMemberships ?? new Map();
 	const pinnedSessionIds = options.pinnedSessionIds ?? new Set();
+	const livePinnedSessionIds = new Set<string>();
+	const shownAutomationSessionIds = new Set(options.shownAutomationSessionIds);
+	const comparisons = options.comparisons ?? [];
+	const deletedGroupIds: string[] = [];
+	const cancelledComparisonIds: string[] = [];
+	const archivedComparisonIds: string[] = [];
+	const addedToGroups: Array<{ readonly groupId: string; readonly sessionIds: readonly string[] }> = [];
+	const removedFromGroups: string[] = [];
+	const createdGroups: IListHarness['createdGroups'] = [];
+	const movedGroups: IListHarness['movedGroups'] = [];
+	const movedSections: IListHarness['movedSections'] = [];
+	const pinChanges: IListHarness['pinChanges'] = [];
 	const sortChanges: ISortChangeRecord[] = [];
+	const sortOverrides = new Map<SessionSortMode, Map<string, number>>();
+	const getNaturalSortKey = (session: SessionSortEntry, mode: SessionSortMode) => mode === 'created' ? session.createdAt.getTime() : session.updatedAt.get().getTime();
+	const onDidChangeListModel = store.add(new Emitter<ISessionListModelChangeEvent>());
+	const sectionReorders: IListHarness['sectionReorders'] = [];
 
 	instantiationService.stub(ISessionsManagementService, managementService);
 	instantiationService.stub(ICommandService, commandService);
@@ -223,29 +322,143 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
 	});
 	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
-		override readonly onDidChange = Event.None;
-		override isSessionPinned(session: ISession): boolean { return pinnedSessionIds.has(session.sessionId); }
+		override readonly onDidChange = onDidChangeListModel.event;
+		override isSessionPinned(session: ISession): boolean { return pinnedSessionIds.has(session.sessionId) || livePinnedSessionIds.has(session.sessionId); }
+		override pinSession(session: ISession): void {
+			pinChanges.push({ sessionId: session.sessionId, pinned: true });
+			if (options.livePins) {
+				livePinnedSessionIds.add(session.sessionId);
+				onDidChangeListModel.fire({ changes: [{ sessionId: session.sessionId, kind: SessionListModelChangeKind.Pinned }] });
+			}
+		}
+		override unpinSessions(sessions: ISession[]): void {
+			for (const session of sessions) {
+				if (pinnedSessionIds.has(session.sessionId)) {
+					pinChanges.push({ sessionId: session.sessionId, pinned: false });
+				}
+			}
+		}
 		override migrateLegacyReadState(): void { }
-		override getSortKey(session: ISession, mode: SessionSortMode): number {
-			return mode === 'created' ? session.createdAt.getTime() : session.updatedAt.get().getTime();
+		override isSessionListed(session: ISession, reader?: IReader): boolean {
+			return !session.isAutomation?.read(reader) || shownAutomationSessionIds.has(session.sessionId);
 		}
-		override getNaturalSortKey(session: ISession, mode: SessionSortMode): number {
-			return mode === 'created' ? session.createdAt.getTime() : session.updatedAt.get().getTime();
+		override showAutomationSessions(sessions: readonly ISession[]): void {
+			this.setAutomationSessionsShown(sessions, true);
 		}
-		override applySortChanges(_mode: SessionSortMode, set: ReadonlyMap<string, number>, clear: Iterable<string>): void {
-			sortChanges.push({ set: new Map(set), clear: [...clear] });
+		override hideAutomationSessions(sessions: readonly ISession[]): void {
+			this.setAutomationSessionsShown(sessions, false);
+		}
+		private setAutomationSessionsShown(sessions: readonly ISession[], shown: boolean): void {
+			for (const session of sessions) {
+				if (shown) {
+					shownAutomationSessionIds.add(session.sessionId);
+				} else {
+					shownAutomationSessionIds.delete(session.sessionId);
+				}
+			}
+			onDidChangeListModel.fire({ changes: sessions.map(session => ({ sessionId: session.sessionId, kind: SessionListModelChangeKind.AutomationListing })) });
+		}
+		override getSortKey(session: SessionSortEntry, mode: SessionSortMode): number {
+			return sortOverrides.get(mode)?.get(session.sessionId) ?? getNaturalSortKey(session, mode);
+		}
+		override getNaturalSortKey(session: SessionSortEntry, mode: SessionSortMode): number {
+			return getNaturalSortKey(session, mode);
+		}
+		override applySortChanges(mode: SessionSortMode, set: ReadonlyMap<string, number>, clear: Iterable<string>): void {
+			const cleared = [...clear];
+			sortChanges.push({ set: new Map(set), clear: cleared });
+			if (!options.liveListModel) {
+				return;
+			}
+			const overrides = sortOverrides.get(mode) ?? new Map<string, number>();
+			sortOverrides.set(mode, overrides);
+			for (const sessionId of cleared) {
+				overrides.delete(sessionId);
+			}
+			for (const [sessionId, key] of set) {
+				overrides.set(sessionId, key);
+			}
+			onDidChangeListModel.fire({ changes: [...set.keys(), ...cleared].map(sessionId => ({ sessionId, kind: SessionListModelChangeKind.Sort })) });
 		}
 		override getStatusIcon(status: SessionStatus, _isRead: boolean, isArchived: boolean, completedStateIcon?: ThemeIcon) {
 			return status === SessionStatus.Error ? Codicon.error : isArchived ? Codicon.passFilled : completedStateIcon ?? Codicon.circleSmallFilled;
 		}
 	});
+	const appearanceChanges = store.add(new Emitter<ISessionGroupsChangeEvent>());
+	const sectionAppearances = new Map(options.sectionAppearances);
 	instantiationService.stub(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
-		override readonly onDidChange = Event.None;
+		override readonly onDidChange = appearanceChanges.event;
+		override getSectionAppearance(sectionId: string) { return sectionAppearances.get(sectionId); }
+		override setSectionIcon(sectionId: string, icon: string | undefined) {
+			this.setSectionAppearance(sectionId, { ...sectionAppearances.get(sectionId), icon });
+		}
+		override setSectionColor(sectionId: string, color: string | undefined) {
+			this.setSectionAppearance(sectionId, { ...sectionAppearances.get(sectionId), color });
+		}
+		private setSectionAppearance(sectionId: string, appearance: ISessionGroupAppearance): void {
+			const previous = sectionAppearances.get(sectionId);
+			if (previous?.icon === appearance.icon && previous?.color === appearance.color) {
+				return;
+			}
+			if (appearance.icon === undefined && appearance.color === undefined) {
+				sectionAppearances.delete(sectionId);
+			} else {
+				sectionAppearances.set(sectionId, appearance);
+			}
+			appearanceChanges.fire({ groupsChanged: false, membershipChanged: new Set() });
+		}
 		override getGroups() { return [...groups]; }
+		override getTree() { return new SessionGroupTree(groups); }
 		override getGroup(groupId: string) { return groups.find(group => group.id === groupId); }
 		override getGroupOfSession(sessionId: string) { return memberships.get(sessionId); }
+		override getGroupOfSection(sectionId: string) { return sectionMemberships.get(sectionId); }
+		override getSectionIdsInGroup(groupId: string) { return [...sectionMemberships].filter(([, parentId]) => parentId === groupId).map(([sectionId]) => sectionId); }
+		override getChildIds(groupId: string) { return [...this.getTree().getSubgroups(groupId).map(group => group.id), ...this.getSectionIdsInGroup(groupId)]; }
 		override getSessionIdsInGroup(groupId: string) {
 			return [...memberships].filter(([, memberGroupId]) => memberGroupId === groupId).map(([sessionId]) => sessionId);
+		}
+		override deleteGroup(groupId: string): IDeletedSessionGroups | undefined {
+			deletedGroupIds.push(groupId);
+			return undefined;
+		}
+		override createGroup(name: string, memberSessionIds: Iterable<string> = [], parentId?: string): ISessionGroup {
+			createdGroups.push({ name, sessionIds: [...memberSessionIds], parentId });
+			return { id: `created-${createdGroups.length}`, name, createdAt: Date.now() };
+		}
+		override moveGroup(groupId: string, parentId: string | undefined, placement?: ISessionGroupPlacement): void {
+			movedGroups.push({ groupId, parentId, placement });
+			if (options.liveGroups) {
+				const index = groups.findIndex(group => group.id === groupId);
+				groups[index] = { ...groups[index], parentId };
+				appearanceChanges.fire({ groupsChanged: true, membershipChanged: new Set() });
+			}
+		}
+		override moveSection(sectionId: string, parentId: string | undefined, placement?: ISessionGroupPlacement): void {
+			movedSections.push({ sectionId, parentId, placement });
+		}
+		override addToGroup(sessionId: string, groupId: string): void;
+		override addToGroup(sessionIds: Iterable<string>, groupId: string): void;
+		override addToGroup(sessionIds: string | Iterable<string>, groupId: string): void {
+			addedToGroups.push({ groupId, sessionIds: typeof sessionIds === 'string' ? [sessionIds] : [...sessionIds] });
+		}
+		override removeFromGroup(sessionId: string): void {
+			removedFromGroups.push(sessionId);
+		}
+	});
+	instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
+		override readonly comparisons = constObservable(comparisons);
+		override getComparison(comparisonId: string) { return comparisons.find(comparison => comparison.id === comparisonId); }
+		override getComparisonForSession(resource: URI) {
+			return comparisons.find(comparison => comparison.participants.some(participant => participant.sessionResource?.toString() === resource.toString()));
+		}
+		override cancelComparison(comparisonId: string): void {
+			cancelledComparisonIds.push(comparisonId);
+		}
+		override canRetryJudge(): boolean {
+			return false;
+		}
+		override archiveComparison(comparisonId: string): void {
+			archivedComparisonIds.push(comparisonId);
 		}
 	});
 	instantiationService.stub(ISessionSectionOrderService, new class extends mock<ISessionSectionOrderService>() {
@@ -253,11 +466,18 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override resolveOrder(ids: readonly string[]) { return [...ids]; }
 		override isPromoted() { return false; }
 		override retain(): void { }
+		override reorder(visibleOrder: readonly string[], draggedId: string, targetId: string, position: 'before' | 'after', promoteId?: string): void {
+			sectionReorders.push({ visibleOrder: [...visibleOrder], draggedId, targetId, position, promoteId });
+		}
 	});
 	instantiationService.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 		override readonly onDidChange = Event.None;
 		override readonly selectedHostId = undefined;
 		override readonly selectedHost = undefined;
+	});
+	instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+		override readonly activeCustomView = constObservable(undefined);
+		override hideCustomView(): void { }
 	});
 	instantiationService.stub(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() {
 		override readonly onDidRefetchAssignments = Event.None;
@@ -267,6 +487,12 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override readonly onDidChangeProviders = Event.None;
 		override getProviders() { return []; }
 		override getProvider() { return undefined; }
+	});
+	instantiationService.stub(IInboxNotificationsService, new class extends mock<IInboxNotificationsService>() {
+		override readonly notifications = constObservable([]);
+		override readonly isLoading = constObservable(false);
+		override readonly sortMode = constObservable(InboxNotificationsSortMode.Priority);
+		override setSortMode(): void { }
 	});
 	instantiationService.stub(ISessionsWindowUsageService, new class extends mock<ISessionsWindowUsageService>() {
 		override readonly hadPriorWindowOpen = true;
@@ -284,6 +510,10 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 		override readonly chatModels = constObservable([]);
 	});
+	if (options.cappedGroupIds?.length) {
+		const state = Object.fromEntries(options.cappedGroupIds.map(groupId => [`group:${groupId}`, false]));
+		instantiationService.get(IStorageService).store('sessionsListControl.sessionGroupExpansionState', JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+	}
 	configure?.(instantiationService);
 
 	const createContainer = (width = 400, height = 300) => {
@@ -295,5 +525,5 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		return container;
 	};
 
-	return { store, instantiationService, managementService, commandService, sortChanges, createContainer };
+	return { store, instantiationService, managementService, commandService, deletedGroupIds, cancelledComparisonIds, archivedComparisonIds, addedToGroups, removedFromGroups, createdGroups, movedGroups, movedSections, pinChanges, sortChanges, sectionReorders, createContainer };
 }

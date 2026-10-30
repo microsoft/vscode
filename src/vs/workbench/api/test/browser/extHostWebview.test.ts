@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -25,21 +24,14 @@ import { IExtHostContext } from '../../../services/extensions/common/extHostCust
 import type * as vscode from 'vscode';
 
 suite('ExtHostWebview', () => {
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let rpcProtocol: (IExtHostRpcService & IExtHostContext) | undefined;
 
 	setup(() => {
-		disposables = new DisposableStore();
 
 		const shape = createNoopMainThreadWebviews();
 		rpcProtocol = SingleProxyRPCProtocol(shape);
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createWebview(rpcProtocol: (IExtHostRpcService & IExtHostContext) | undefined, remoteAuthority: string | undefined) {
 		const extHostWebviews = disposables.add(new ExtHostWebviews(rpcProtocol!, {

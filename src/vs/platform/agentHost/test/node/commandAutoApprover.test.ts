@@ -6,8 +6,9 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { defaultTerminalAutoApproveRules } from '../../../terminal/common/autoApprove/defaultAutoApproveRules.js';
 import { gitAutoApproveRules } from '../../../terminal/common/autoApprove/gitAutoApproveRules.js';
-import { CommandAutoApprover, type ICommandApprovalEvaluation } from '../../node/commandAutoApprover.js';
+import { CommandAutoApprover } from '../../node/commandAutoApprover.js';
 
 suite('CommandAutoApprover initialization', () => {
 
@@ -268,11 +269,11 @@ suite('CommandAutoApprover', () => {
 		test('sed in-place commands cannot be allowed by a full-command rule', () => {
 			const commandLine = 'sed -i "s/foo/bar/" file.txt';
 			assert.deepStrictEqual(approver.evaluate(commandLine, {
-				autoApproveRules: {
+				defaultRules: {
 					sed: true,
 					'/^sed -i "s\\/foo\\/bar\\/" file\\.txt$/': { approve: true, matchCommandLine: true },
 				},
-			}), { result: 'denied', autoApproveRuleResolvable: false });
+			}), { result: 'denied', hasUnsafeSubCommand: true, subCommands: [commandLine], unapprovedSubCommands: [commandLine] });
 		});
 
 		// npm/package managers
@@ -307,7 +308,7 @@ suite('CommandAutoApprover', () => {
 				'pnpm install --frozen-lockfile --workspace-root',
 				'pnpm install --frozen-lockfile --no-frozen-lockfile',
 			];
-			const forwardedRules = {
+			const customDefaults = {
 				'npm ci': true,
 				'/^npm\\s+ci\\s+\\S/': false,
 				'/^yarn\\s+install\\s+--frozen-lockfile\\b/': true,
@@ -316,35 +317,10 @@ suite('CommandAutoApprover', () => {
 				'/^pnpm\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
 			};
 
-			for (const options of [undefined, { autoApproveRules: forwardedRules }]) {
+			for (const options of [undefined, { defaultRules: customDefaults }]) {
 				assert.deepStrictEqual(exactCommands.map(command => approver.shouldAutoApprove(command, options)), exactCommands.map(() => 'approved'));
 				assert.deepStrictEqual(commandsWithOptions.map(command => approver.shouldAutoApprove(command, options)), commandsWithOptions.map(() => 'denied'));
 			}
-		});
-
-		test('preserves persisted legacy package manager overrides', () => {
-			const rules = {
-				'npm ci': true,
-				'/^npm\\s+ci\\s+\\S/': false,
-				'/^yarn\\s+install\\s+--frozen-lockfile\\b/': true,
-				'/^yarn\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
-				'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': true,
-				'/^pnpm\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
-			};
-			const exactCommands = ['npm ci', 'yarn install --frozen-lockfile', 'pnpm install --frozen-lockfile'];
-			const commandsWithOptions = ['npm ci --prefix other', 'yarn install --frozen-lockfile --cwd other', 'pnpm install --frozen-lockfile --dir other'];
-
-			assert.deepStrictEqual(exactCommands.map(command => approver.shouldAutoApprove(command, { autoApproveRules: rules })), exactCommands.map(() => 'approved'));
-			assert.deepStrictEqual(commandsWithOptions.map(command => approver.shouldAutoApprove(command, { autoApproveRules: rules })), commandsWithOptions.map(() => 'denied'));
-
-			const nullOverrides = {
-				...rules,
-				'npm ci': null,
-				'/^yarn\\s+install\\s+--frozen-lockfile\\b/': null,
-				'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': null,
-			};
-			assert.deepStrictEqual(exactCommands.map(command => approver.shouldAutoApprove(command, { autoApproveRules: nullOverrides })), exactCommands.map(() => 'noMatch'));
-			assert.deepStrictEqual(commandsWithOptions.map(command => approver.shouldAutoApprove(command, { autoApproveRules: nullOverrides })), commandsWithOptions.map(() => 'denied'));
 		});
 
 		// Unknown commands get noMatch
@@ -354,13 +330,13 @@ suite('CommandAutoApprover', () => {
 			assert.strictEqual(approver.shouldAutoApprove('node index.js'), 'noMatch');
 		});
 
-		test('respects forwarded terminal auto-approve rule config', () => {
+		test('respects custom implicit terminal rules', () => {
 			assert.deepStrictEqual([
-				approver.shouldAutoApprove('echo hello', { autoApproveRules: { echo: false } }),
-				approver.shouldAutoApprove('python script.py', { autoApproveRules: { python: true } }),
-				approver.shouldAutoApprove('echo hello', { autoApproveRules: { echo: null } }),
-				approver.shouldAutoApprove('npm run build', { autoApproveRules: { '/^npm run build$/': { approve: true, matchCommandLine: true } } }),
-				approver.shouldAutoApprove('echo hello', { autoApproveRules: { echo: true, '/^echo hello$/': { approve: false, matchCommandLine: true } } }),
+				approver.shouldAutoApprove('echo hello', { defaultRules: { echo: false } }),
+				approver.shouldAutoApprove('python script.py', { defaultRules: { python: true } }),
+				approver.shouldAutoApprove('echo hello', { defaultRules: {} }),
+				approver.shouldAutoApprove('npm run build', { defaultRules: { '/^npm run build$/': { approve: true, matchCommandLine: true } } }),
+				approver.shouldAutoApprove('echo hello', { defaultRules: { echo: true, '/^echo hello$/': { approve: false, matchCommandLine: true } } }),
 			], [
 				'denied',
 				'approved',
@@ -370,10 +346,10 @@ suite('CommandAutoApprover', () => {
 			]);
 		});
 
-		test('uses forwarded terminal auto-approve rules instead of fallback defaults', () => {
+		test('an empty default rule set disables implicit defaults', () => {
 			assert.deepStrictEqual([
-				approver.shouldAutoApprove('echo hello', { autoApproveRules: {} }),
-				approver.shouldAutoApprove('rm file.txt', { autoApproveRules: {} }),
+				approver.shouldAutoApprove('echo hello', { defaultRules: {} }),
+				approver.shouldAutoApprove('rm file.txt', { defaultRules: {} }),
 			], [
 				'noMatch',
 				'noMatch',
@@ -441,7 +417,7 @@ suite('CommandAutoApprover', () => {
 			];
 
 			assert.deepStrictEqual(commands.map(command => approver.shouldAutoApprove(command, pwsh)), expected);
-			assert.deepStrictEqual(commands.map(command => approver.shouldAutoApprove(command, { ...pwsh, autoApproveRules: gitAutoApproveRules })), expected);
+			assert.deepStrictEqual(commands.map(command => approver.shouldAutoApprove(command, { ...pwsh, defaultRules: gitAutoApproveRules })), expected);
 		});
 
 		test('requires confirmation for Git grep pager options', () => {
@@ -467,8 +443,8 @@ suite('CommandAutoApprover', () => {
 			const options = [
 				undefined,
 				{ language: 'powershell' } as const,
-				{ autoApproveRules: gitAutoApproveRules },
-				{ language: 'powershell', autoApproveRules: gitAutoApproveRules } as const,
+				{ defaultRules: gitAutoApproveRules },
+				{ language: 'powershell', defaultRules: gitAutoApproveRules } as const,
 			];
 
 			for (const option of options) {
@@ -598,6 +574,30 @@ suite('CommandAutoApprover', () => {
 			assert.deepStrictEqual(seen, []);
 		});
 
+		test('checks the destination of combined stdout and stderr redirects', () => {
+			const destinations: string[] = [];
+			const opts = {
+				isWriteDestApproved: (dest: string) => {
+					destinations.push(dest);
+					return !dest.startsWith('/');
+				},
+			};
+			assert.deepStrictEqual({
+				results: [
+					approver.shouldAutoApprove('echo hi >& /outside/file', opts),
+					approver.shouldAutoApprove('echo hi >&/outside/file', opts),
+					approver.shouldAutoApprove('echo hi 1>& /outside/file', opts),
+					approver.shouldAutoApprove('echo hi >& "/outside/file"', opts),
+					approver.shouldAutoApprove('echo hi >& out.txt', opts),
+					approver.shouldAutoApprove('echo hi 2>&1', opts),
+				],
+				destinations,
+			}, {
+				results: ['noMatch', 'noMatch', 'noMatch', 'noMatch', 'approved', 'approved'],
+				destinations: ['/outside/file', '/outside/file', '/outside/file', '/outside/file', 'out.txt'],
+			});
+		});
+
 		test('requires confirmation for redirect pathname globs', () => {
 			const allowAllDestinations = { isWriteDestApproved: () => true };
 			const powershell = { language: 'powershell', isWriteDestApproved: () => true } as const;
@@ -636,28 +636,54 @@ suite('CommandAutoApprover', () => {
 
 	suite('evaluate', () => {
 
-		test('reports whether a persistent rule could resolve the outcome', () => {
-			const cases: [commandLine: string, expected: ICommandApprovalEvaluation][] = [
-				// Approved and denied outcomes leave nothing for a rule to resolve.
-				['ls', { result: 'approved', autoApproveRuleResolvable: false }],
-				['rm file.txt', { result: 'denied', autoApproveRuleResolvable: false }],
-				// Unknown command blocked only by a missing allow rule.
-				['my-custom-script', { result: 'noMatch', autoApproveRuleResolvable: true }],
-				// Transient env-var assignments are denied outright.
-				['FOO=bar my-custom-script', { result: 'denied', autoApproveRuleResolvable: false }],
-				// Unapproved write redirects block regardless of rules, whether
-				// the command itself is approved or unmatched.
-				['echo hi > /etc/passwd', { result: 'noMatch', autoApproveRuleResolvable: false }],
-				['my-custom-script > /etc/passwd', { result: 'noMatch', autoApproveRuleResolvable: false }],
-				// Safe sinks do not block.
-				['echo hi > /dev/null', { result: 'approved', autoApproveRuleResolvable: false }],
-			];
-			assert.deepStrictEqual(cases.map(([commandLine]) => approver.evaluate(commandLine)), cases.map(([, expected]) => expected));
+		test('explicit decisions precede defaults for each sub-command', () => {
+			const classify = (command: string): 'allow' | 'ask' | undefined => command.startsWith('rm ') ? 'allow' : command.startsWith('echo ') ? 'ask' : undefined;
+			assert.deepStrictEqual({
+				overridden: approver.evaluate('rm file.txt && git status', { classify }),
+				asked: approver.evaluate('rm file.txt && echo hello', { classify }),
+				defaultBlocked: approver.shouldAutoApprove('rm file.txt'),
+				missing: approver.shouldAutoApprove('custom --flag && git status', { classify }),
+				redirect: approver.shouldAutoApprove('rm file.txt > /outside/file.txt', { classify }),
+			}, {
+				overridden: { result: 'approved', subCommands: ['rm file.txt', 'git status'], unapprovedSubCommands: [] },
+				asked: { result: 'noMatch', hasAskRule: true, subCommands: ['rm file.txt', 'echo hello'], unapprovedSubCommands: ['echo hello'] },
+				defaultBlocked: 'denied',
+				missing: 'noMatch',
+				redirect: 'noMatch',
+			});
 		});
 
-		test('is not rule-resolvable while the parser is unavailable', () => {
+		test('command-line decisions approve the whole line unless a rule asks or safety checks fail', () => {
+			const allow = { classifyCommandLine: () => 'allow' as const };
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('custom --flag && rm file.txt', allow),
+				approver.shouldAutoApprove('custom --flag && rm file.txt', { ...allow, classify: command => command.startsWith('rm ') ? 'ask' : undefined }),
+				approver.shouldAutoApprove('ls && echo hi', { classifyCommandLine: () => 'ask', classify: () => 'allow' }),
+				approver.shouldAutoApprove('FOO=bar custom', allow),
+				approver.shouldAutoApprove('sed -i "s/foo/bar/" file.txt', allow),
+				approver.shouldAutoApprove('custom > /outside/file.txt', allow),
+				approver.shouldAutoApprove('export FOO=bar', allow),
+			], ['approved', 'noMatch', 'noMatch', 'denied', 'denied', 'noMatch', 'noMatch']);
+		});
+
+		test('shared defaults apply implicitly and can be ignored without disabling explicit rules', () => {
+			const commands = ['echo hello', 'rm file.txt', 'npm ci', 'git status', 'custom --flag'];
+			assert.deepStrictEqual({
+				implicit: commands.map(command => approver.shouldAutoApprove(command)),
+				shared: commands.map(command => approver.shouldAutoApprove(command, { defaultRules: defaultTerminalAutoApproveRules })),
+				ignored: commands.map(command => approver.shouldAutoApprove(command, { defaultRules: {} })),
+				explicit: approver.shouldAutoApprove('custom --flag', { defaultRules: {}, classify: () => 'allow' }),
+			}, {
+				implicit: ['approved', 'denied', 'approved', 'approved', 'noMatch'],
+				shared: ['approved', 'denied', 'approved', 'approved', 'noMatch'],
+				ignored: ['noMatch', 'noMatch', 'noMatch', 'noMatch', 'noMatch'],
+				explicit: 'approved',
+			});
+		});
+
+		test('requires confirmation while the parser is unavailable', () => {
 			const uninitialized = disposables.add(new CommandAutoApprover(new NullLogService()));
-			assert.deepStrictEqual(uninitialized.evaluate('ls'), { result: 'noMatch', autoApproveRuleResolvable: false });
+			assert.deepStrictEqual(uninitialized.evaluate('ls'), { result: 'noMatch' });
 		});
 	});
 
@@ -708,7 +734,7 @@ suite('CommandAutoApprover', () => {
 		test('does not auto-approve denied commands nested in Measure-Command script blocks', () => {
 			const rules = {
 				...pwsh,
-				autoApproveRules: {
+				defaultRules: {
 					'Measure-Command': true,
 					'Where-Object': true,
 					'Set-Content': false,
@@ -723,7 +749,7 @@ suite('CommandAutoApprover', () => {
 				// Visible separators already rejected nested denied commands.
 				approver.shouldAutoApprove('Write-Host hi; Set-Content -Path out.txt -Value pwned', rules),
 				// The wrong dialect demonstrates the opaque-block bypass.
-				approver.shouldAutoApprove('Measure-Command { Set-Content -Path out.txt -Value pwned }', { language: 'bash', autoApproveRules: rules.autoApproveRules }),
+				approver.shouldAutoApprove('Measure-Command { Set-Content -Path out.txt -Value pwned }', { language: 'bash', defaultRules: rules.defaultRules }),
 			], ['denied', 'denied', 'denied', 'denied', 'approved']);
 		});
 
@@ -780,10 +806,10 @@ suite('CommandAutoApprover', () => {
 		});
 
 		test('PowerShell matchCommandLine allow rules stay case-sensitive', () => {
-			const autoApproveRules = { '/^Get-ChildItem$/': { approve: true, matchCommandLine: true } };
+			const defaultRules = { '/^Get-ChildItem$/': { approve: true, matchCommandLine: true } };
 			assert.deepStrictEqual([
-				approver.shouldAutoApprove('Get-ChildItem', { language: 'powershell', autoApproveRules }),
-				approver.shouldAutoApprove('get-childitem', { language: 'powershell', autoApproveRules }),
+				approver.shouldAutoApprove('Get-ChildItem', { language: 'powershell', defaultRules }),
+				approver.shouldAutoApprove('get-childitem', { language: 'powershell', defaultRules }),
 			], ['approved', 'noMatch']);
 		});
 
@@ -797,22 +823,19 @@ suite('CommandAutoApprover', () => {
 				'/^Get-ChildItem -Force$/i': { approve: false, matchCommandLine: true },
 			};
 			assert.deepStrictEqual([
-				approver.shouldAutoApprove('Get-ChildItem -Force', { language: 'powershell', autoApproveRules: caseSensitiveRules }),
-				approver.shouldAutoApprove('get-childitem -Force', { language: 'powershell', autoApproveRules: caseSensitiveRules }),
-				approver.shouldAutoApprove('get-childitem -Force', { language: 'powershell', autoApproveRules: caseInsensitiveRules }),
-				approver.shouldAutoApprove('get-childitem -Force', { language: 'bash', autoApproveRules: caseSensitiveRules }),
+				approver.shouldAutoApprove('Get-ChildItem -Force', { language: 'powershell', defaultRules: caseSensitiveRules }),
+				approver.shouldAutoApprove('get-childitem -Force', { language: 'powershell', defaultRules: caseSensitiveRules }),
+				approver.shouldAutoApprove('get-childitem -Force', { language: 'powershell', defaultRules: caseInsensitiveRules }),
+				approver.shouldAutoApprove('get-childitem -Force', { language: 'bash', defaultRules: caseSensitiveRules }),
 			], ['denied', 'approved', 'denied', 'noMatch']);
 		});
 
-		test('reports rule resolvability', () => {
-			const cases: [commandLine: string, expected: ICommandApprovalEvaluation][] = [
-				['My-CustomCmdlet', { result: 'noMatch', autoApproveRuleResolvable: true }],
-				// Unapproved write redirects block regardless of rules.
-				['Write-Host hi > out.txt', { result: 'noMatch', autoApproveRuleResolvable: false }],
-				// Commands the grammar cannot parse are never rule-resolvable.
-				['if ($x -eq', { result: 'noMatch', autoApproveRuleResolvable: false }],
-			];
-			assert.deepStrictEqual(cases.map(([commandLine]) => approver.evaluate(commandLine, pwsh)), cases.map(([, expected]) => expected));
+		test('unknown commands, redirects and parse failures require confirmation', () => {
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('My-CustomCmdlet', pwsh),
+				approver.shouldAutoApprove('Write-Host hi > out.txt', pwsh),
+				approver.shouldAutoApprove('if ($x -eq', pwsh),
+			], ['noMatch', 'noMatch', 'noMatch']);
 		});
 
 		test('fails closed on PowerShell assignments and invocations', () => {
@@ -848,11 +871,11 @@ suite('CommandAutoApprover', () => {
 				'/^Get-ChildItem; Remove-Item x$/': { approve: true, matchCommandLine: true },
 			};
 			assert.deepStrictEqual([
-				approver.shouldAutoApprove('if ($x -eq', { language: 'powershell', autoApproveRules: parseErrorAllow }),
-				approver.shouldAutoApprove('if ($x -eq', { language: 'powershell', autoApproveRules: parseErrorDeny }),
-				approver.shouldAutoApprove('Write-Output ([math]::Round(1.5))', { language: 'powershell', autoApproveRules: invocationAllow }),
-				approver.shouldAutoApprove('Write-Host hi >out.txt', { language: 'powershell', autoApproveRules: redirectAllow }),
-				approver.shouldAutoApprove('Get-ChildItem; Remove-Item x', { language: 'powershell', autoApproveRules: deniedSubCommand }),
+				approver.shouldAutoApprove('if ($x -eq', { language: 'powershell', defaultRules: parseErrorAllow }),
+				approver.shouldAutoApprove('if ($x -eq', { language: 'powershell', defaultRules: parseErrorDeny }),
+				approver.shouldAutoApprove('Write-Output ([math]::Round(1.5))', { language: 'powershell', defaultRules: invocationAllow }),
+				approver.shouldAutoApprove('Write-Host hi >out.txt', { language: 'powershell', defaultRules: redirectAllow }),
+				approver.shouldAutoApprove('Get-ChildItem; Remove-Item x', { language: 'powershell', defaultRules: deniedSubCommand }),
 			], ['noMatch', 'denied', 'noMatch', 'noMatch', 'denied']);
 		});
 	});

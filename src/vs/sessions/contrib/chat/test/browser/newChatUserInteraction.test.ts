@@ -24,7 +24,8 @@ import { createChatUserInteractionTestHarness } from '../../../../../workbench/c
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { INewChatInputSendRequest, NewChatInputWidget } from '../../browser/newChatInput.js';
+import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';
+import { INewChatInputSendRequest } from '../../browser/newChatComposerInput.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatUserInteraction } from '../../browser/newChatUserInteraction.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
@@ -75,26 +76,34 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 		};
 	}
 
-	function createInput(h: ReturnType<typeof createHarness>, sendRequest: (request: INewChatInputSendRequest) => Promise<boolean>, tryHandle: () => Promise<boolean> = async () => false) {
+	function createInput(h: ReturnType<typeof createHarness>, sendRequest: (request: INewChatInputSendRequest) => Promise<boolean>, tryHandle: () => Promise<boolean> = async () => false, confirmSend?: (query: string) => Promise<boolean>) {
 		let query = 'test request';
 		const sourceOwner = disposables.add(new MutableDisposable());
-		const input: NewChatInputWidget = Object.assign(Object.create(NewChatInputWidget.prototype), {
-			_editorContainer: h.element,
-			_editor: { getModel: () => ({ getValue: () => query, setValue: (value: string) => { query = value; } }), updateOptions: () => { } },
-			_sending: false,
+		const input: SharedChatInputComposer = Object.assign(Object.create(SharedChatInputComposer.prototype), {
+			_widget: {
+				domNode: h.element,
+				getInput: () => query,
+				setInput: (value: string) => { query = value; },
+				inputEditor: { getModel: () => undefined },
+				attachmentModel: { attachments: [], addContext: () => { } },
+				input: {
+					setInputEnabled: () => { },
+					hasFocus: () => false,
+					focus: () => { },
+					getAttachedContext: () => ({ asArray: () => [] }),
+					acceptInput: async () => { query = ''; },
+				},
+			},
+			_sending: observableValue('sending', false),
+			_confirmingSend: observableValue('confirmingSend', false),
 			_userInteractionSource: sourceOwner,
 			_canSendRequest: constObservable(true),
-			_contextAttachments: { attachments: [], clear: () => { } },
-			options: { session: constObservable(h.session), inputVisible: h.sourceVisible, hostVisible: h.hostVisible, sendRequest },
+			_modelRef: { value: undefined },
+			options: { session: constObservable(h.session), inputVisible: h.sourceVisible, hostVisible: h.hostVisible, sendRequest, confirmSend },
 			instantiationService: h.instantiationService,
 			chatSubmitRequestHandlerService: { tryHandle },
-			chatInputNotificationService: { handleMessageSent: () => { } },
+			storageService: { store: () => { } },
 			logService: { error: () => { } },
-			_getNotificationContext: () => ({}),
-			_clearDraftState: () => { },
-			_updateDraftState: () => { },
-			_updateSendButtonState: () => { },
-			_updateInputLoadingState: () => { },
 		});
 		return { input, sourceOwner };
 	}
@@ -104,8 +113,11 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 		const owner = {
 			send: Reflect.get(newSession ? NewChatWidget.prototype : NewChatInSessionWidget.prototype, '_send') as Send,
 			_session: constObservable(h.session),
+			_chat: constObservable(undefined),
 			_feedbackItems: constObservable([]),
 			_isQuickChatComposer: constObservable(false),
+			_workspaceSupport: constObservable(undefined),
+			_comparisonSelection: { enabled: constObservable(false) },
 			_workspacePicker: { clearAttachedContext: () => { }, showPicker: () => { } },
 			_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
 			agentFeedbackService: { removeFeedback: () => { } },
@@ -188,6 +200,39 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 			h.assertFinished('error');
 		});
 	}
+
+	test('a host answers its send confirmation before the request is measured', async () => {
+		const h = createHarness(true);
+		const answers = [new DeferredPromise<boolean>(), new DeferredPromise<boolean>()];
+		const confirmed: string[] = [];
+		const sent: string[] = [];
+		const { input } = createInput(h, async request => {
+			sent.push(request.query);
+			return false;
+		}, undefined, query => {
+			confirmed.push(query);
+			return answers[confirmed.length - 1].p;
+		});
+
+		const declined = input.submit();
+		const startsWhileDeclining = h.starts.length;
+		await answers[0].complete(false);
+		const declinedResult = await declined;
+		const continued = input.submit();
+		const startsWhileContinuing = h.starts.length;
+		await answers[1].complete(true);
+		await continued;
+
+		assert.deepStrictEqual({ startsWhileDeclining, declinedResult, startsWhileContinuing, starts: h.starts.length, confirmed, sent }, {
+			startsWhileDeclining: 0,
+			declinedResult: false,
+			startsWhileContinuing: 0,
+			starts: 1,
+			confirmed: ['test request', 'test request'],
+			sent: ['test request'],
+		});
+		h.assertFinished('notDispatched');
+	});
 
 	for (const replacement of ['replaced', 'replacedDraft'] as const) {
 		test(`${replacement} updates the remote routing identity before a response`, () => {
