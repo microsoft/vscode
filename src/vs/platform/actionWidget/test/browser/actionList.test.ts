@@ -203,6 +203,29 @@ function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreL
 suite('ActionListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('the header name is keyboard-operable without selecting a method', () => {
+		let renames = 0;
+		let selections = 0;
+		const widget = createActionListWidget(disposables, {
+			onSelect: () => selections++,
+			listOptions: {
+				headerText: 'Shared as Workstation',
+				headerAction: toAction({ id: 'rename', label: 'Workstation', tooltip: 'Rename Remote Environment', run: () => renames++ }),
+			},
+		});
+		widget.domNode.parentElement!.prepend(widget.headerContainer!);
+		widget.focus();
+		const list = widget.domNode.querySelector<HTMLElement>('.monaco-list')!;
+		const link = widget.headerContainer!.querySelector<HTMLElement>('.monaco-link')!;
+		dispatchKeyDown(list, { key: 'Tab' });
+		const tabFocus = isActiveElement(link);
+		dispatchKeyDown(link, { key: 'Enter', keyCode: 13 });
+		dispatchKeyDown(link, { key: 'Tab', shiftKey: true });
+		assert.deepStrictEqual({ tabFocus, returned: isActiveElement(list), renames, selections, text: widget.headerContainer?.textContent }, {
+			tabFocus: true, returned: true, renames: 1, selections: 0, text: 'Shared as Workstation',
+		});
+	});
+
 	test('the footer name is independently keyboard-operable without selecting a row', () => {
 		let renames = 0;
 		let selections = 0;

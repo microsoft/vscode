@@ -110,7 +110,7 @@ export class TunnelHostContribution extends Disposable implements IWorkbenchCont
 		}));
 
 		const viewItemFactory: IActionViewItemFactory = (action, _options, instantiationService) => {
-			return instantiationService.createInstance(RemoteConnectionsActionViewItem, action, true);
+			return instantiationService.createInstance(RemoteConnectionsActionViewItem, action, true, {});
 		};
 		this._register(actionViewItemService.register(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID, viewItemFactory, this.remoteTunnelService.onDidChangeTunnelStatus));
 		void this._loadState();

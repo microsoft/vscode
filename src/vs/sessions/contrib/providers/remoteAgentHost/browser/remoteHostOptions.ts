@@ -277,13 +277,13 @@ export function watchForIncompatibleNotifications(
 export function getStatusLabel(status: RemoteAgentHostConnectionStatus): string {
 	switch (status.kind) {
 		case 'connected':
-			return localize('workspacePicker.statusOnline', "Online");
+			return localize('workspacePicker.statusConnected', "Connected");
 		case 'connecting':
 			return localize('workspacePicker.statusConnecting', "Connecting");
 		case 'reconnecting':
 			return localize('workspacePicker.statusReconnecting', "Reconnecting");
 		case 'disconnected':
-			return localize('workspacePicker.statusOffline', "Offline");
+			return localize('workspacePicker.statusDisconnected', "Disconnected");
 		case 'incompatible':
 			return localize('workspacePicker.statusIncompatible', "Incompatible");
 	}

@@ -20,6 +20,29 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
+.remotes-local-sharing .tunnel-host-toggle.with-label {
+	display: flex;
+	font-family: inherit;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-button-border, var(--vscode-contrastBorder));
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	width: auto;
+	height: auto;
+}
+
+.remotes-local-sharing .tunnel-host-toggle:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+}
+
+.remotes-local-sharing .tunnel-host-label {
+	font-family: inherit;
+	font-size: var(--vscode-fontSize-body1);
+}
+
 .tunnel-host-toggle:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;

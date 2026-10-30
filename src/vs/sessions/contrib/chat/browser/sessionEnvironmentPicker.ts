@@ -40,7 +40,7 @@ import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../common/constants.js';
-import { getLocalAgentHostConnectionDescription, getLocalAgentHostHover, getThisComputerHover } from '../../../browser/remoteAgentHostPresentation.js';
+import { getLocalAgentHostHover, getThisComputerHover } from '../../../browser/remoteAgentHostPresentation.js';
 
 export interface ISessionCreationEnvironment {
 	readonly id: string;
@@ -69,7 +69,10 @@ export function getSessionCreationEnvironments(providers: readonly ISessionsProv
 		});
 	}
 	if (cloud.length) {
-		environments.push({ id: 'cloud', kind: 'cloud', label: localize('environmentPicker.cloud', "Cloud"), icon: Codicon.cloud, providerIds: cloud.map(provider => provider.id) });
+		environments.push({
+			id: 'cloud', kind: 'cloud', label: localize('environmentPicker.cloud', "Cloud"), icon: Codicon.cloud, providerIds: cloud.map(provider => provider.id),
+			hover: localize('environmentPicker.cloudHover', "Run this session in a cloud environment, not on this computer"),
+		});
 	}
 	for (const provider of visible) {
 		const environment = getRemoteSessionCreationEnvironment(provider);
@@ -92,7 +95,7 @@ export function getRemoteSessionCreationEnvironment(provider: ISessionsProvider,
 		kind: containerRequested ? 'container' : 'remote',
 		label: containerRequested ? localize('environmentPicker.container', "Dev Container") : provider.label,
 		icon: containerRequested ? Codicon.remote : provider.icon, providerIds: [provider.id],
-		description: localRegistration ? getLocalAgentHostConnectionDescription(localRegistration, connectionDescription) : connectionDescription,
+		description: localRegistration ? localize('environmentPicker.thisComputerRoute', "This Computer ({0})", connectionDescription) : connectionDescription,
 		hover: localRegistration ? getLocalAgentHostHover(localRegistration) : undefined,
 	};
 }

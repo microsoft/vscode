@@ -68,7 +68,9 @@ export interface IAgentHostConnectionLabels {
 export function getAgentHostConnectionStatusLabel(status: RemoteAgentHostConnectionStatus): string {
 	return status.kind === 'connected' ? localize('agentHost.connected', "Connected")
 		: status.kind === 'connecting' ? localize('agentHost.connecting', "Connecting")
-			: localize('agentHost.disconnected', "Disconnected");
+			: status.kind === 'reconnecting' ? localize('agentHost.reconnecting', "Reconnecting")
+				: status.kind === 'incompatible' ? localize('agentHost.incompatible', "Incompatible")
+					: localize('agentHost.disconnected', "Disconnected");
 }
 
 /**

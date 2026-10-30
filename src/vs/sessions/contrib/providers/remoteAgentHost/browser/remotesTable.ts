@@ -70,15 +70,20 @@ type RemoteCellTemplate = {
 	row?: IRemoteTableRow;
 } & (
 		| { readonly column: 'name'; readonly label: HTMLElement; readonly count: HTMLElement; readonly progress: HTMLElement; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
-		| { readonly column: 'connection'; readonly label: HTMLElement; readonly warning: HTMLElement }
+		| { readonly column: 'connection'; readonly label: HTMLElement; readonly availability: HTMLElement; readonly warning: HTMLElement }
 		| { readonly column: 'gutter'; readonly action: Action; readonly toolbar: WorkbenchToolBar }
 		| { readonly column: 'actions'; readonly action: Action; readonly rename: Action; readonly copyAddress: Action; readonly locationPreference: Action; readonly updateServer: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
 	);
 
 export function getConnectionLabel(remote: ICustomizationRemote, connecting?: boolean): string {
-	return connecting === undefined ? remote.kind === 'environment' && remote.unavailableReason && RemoteAgentHostConnectionStatus.isDisconnected(remote.connectionStatus)
-		? localize('remotes.offline', "Offline") : getAgentHostConnectionStatusLabel(remote.connectionStatus)
+	return connecting === undefined ? getAgentHostConnectionStatusLabel(remote.connectionStatus)
 		: connecting ? getAgentHostConnectionStatusLabel(RemoteAgentHostConnectionStatus.connecting) : localize('remotes.disconnecting', "Disconnecting");
+}
+
+export function getHostAvailabilityLabel(remote: ICustomizationRemote): string | undefined {
+	return remote.hostAvailability === 'online' ? localize('remotes.hostOnline', "Host online")
+		: remote.hostAvailability === 'offline' ? localize('remotes.hostOffline', "Host offline")
+			: remote.hostAvailability === 'unknown' ? localize('remotes.hostUnknown', "Host availability unknown") : undefined;
 }
 
 export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, RemoteCellTemplate> {
@@ -122,10 +127,12 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				break;
 			}
 			case 'connection': {
-				const label = dom.append(container, dom.$('.remotes-connection-state'));
+				const content = dom.append(container, dom.$('.remotes-connection-content'));
+				const label = dom.append(content, dom.$('.remotes-connection-state'));
+				const availability = dom.append(content, dom.$('.remotes-availability-state'));
 				const warning = dom.append(container, dom.$('.remotes-connection-warning'));
 				dom.append(warning, renderIcon(Codicon.warning)).setAttribute('aria-hidden', 'true');
-				template = { ...base, column: this.column, label, warning };
+				template = { ...base, column: this.column, label, availability, warning };
 				break;
 			}
 			default: {
@@ -217,8 +224,10 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				listRow.setAttribute('aria-busy', String(entry.type === 'group' ? entry.refreshing : entry.type === 'remote' ? entry.busy : signingIn));
 				template.label.textContent = entry.type === 'remote' ? entry.remote.name : entry.label;
 				template.label.classList.toggle('remotes-empty-label', entry.type === 'empty');
-				template.count.textContent = entry.type === 'group' ? String(entry.count) : '';
-				template.count.hidden = entry.type !== 'group';
+				template.count.textContent = entry.type === 'group' ? String(entry.count)
+					: entry.type === 'remote' && entry.remote.localRegistration ? localize('remotes.thisComputerBadge', "This Computer") : '';
+				template.count.classList.toggle('remotes-local-badge', entry.type === 'remote' && !!entry.remote.localRegistration);
+				template.count.hidden = !template.count.textContent;
 				template.progress.hidden = entry.type !== 'group' || !entry.refreshing;
 				dom.clearNode(template.warning);
 				if (entry.type === 'group' && entry.warning) {
@@ -270,6 +279,15 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 			}
 			case 'connection': {
 				template.label.textContent = entry.type === 'remote' ? getConnectionLabel(entry.remote, entry.connecting) : '';
+				const availability = entry.type === 'remote' ? getHostAvailabilityLabel(entry.remote) : undefined;
+				template.availability.textContent = availability ?? '';
+				template.availability.hidden = !availability;
+				if (availability) {
+					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.availability, {
+						content: localize('remotes.hostAvailabilityHelp', "{0}. This is the last reported host availability, not this window's connection. Refresh to check again.", availability),
+						style: HoverStyle.Pointer,
+					}, { groupId: this.hoverGroupId }));
+				}
 				const error = entry.type === 'remote' && entry.connecting === undefined
 					? entry.remote.lastConnectionError : undefined;
 				template.warning.hidden = !error;

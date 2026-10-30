@@ -161,7 +161,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => restore());
 
-	function fixture(backend: AgentHostRemoteConnectionsBackend = 'devTunnel', options: { quality?: IProductService['quality']; isChatInput?: boolean; precedingAction?: boolean } = { quality: 'insider', isChatInput: true }) {
+	function fixture(backend: AgentHostRemoteConnectionsBackend = 'devTunnel', options: { quality?: IProductService['quality']; isChatInput?: boolean; precedingAction?: boolean; tunnelsAvailable?: boolean } = { quality: 'insider', isChatInput: true }) {
 		const instantiation = store.add(new TestInstantiationService());
 		const availability = observableValue('availability', true);
 		instantiation.stub(IMissionControlAvailabilityService, { available: availability });
@@ -209,6 +209,10 @@ suite('RemoteConnectionsActionViewItem', () => {
 		}());
 		instantiation.stub(IProductService, new class extends mock<IProductService>() {
 			override readonly quality = options.quality;
+			override readonly tunnelApplicationName = options.tunnelsAvailable === false ? undefined : 'code';
+			override readonly tunnelApplicationConfig = options.tunnelsAvailable === false ? undefined : {
+				authenticationProviders: {}, editorWebUrl: 'https://vscode.dev', extension: { extensionId: 'test.tunnels', friendlyName: 'Tunnels' },
+			};
 		}());
 		instantiation.stub(IActionWidgetService, actionWidget);
 		instantiation.stub(IKeybindingService, new MockKeybindingService());
@@ -233,7 +237,9 @@ suite('RemoteConnectionsActionViewItem', () => {
 
 		const run = stub().callsFake(() => instantiation.invokeFunction(accessor => executeToggleRemoteConnections(accessor)));
 		const action = store.add(new Action('test.toggleRemoteConnections', 'Toggle Remote Connections', undefined, true, run));
-		const viewItem = store.add(instantiation.createInstance(RemoteConnectionsActionViewItem, action, options.isChatInput ?? false));
+		const viewItem = store.add(instantiation.createInstance(RemoteConnectionsActionViewItem, action, options.isChatInput ?? false, {
+			managementAction: !options.isChatInput ? store.add(new Action('test.manage', 'Manage Remote Environments...', undefined, true, () => commands.executeCommand('test.manage'))) : undefined,
+		}));
 		const container = dom.append(document.body, dom.$('div'));
 		store.add(toDisposable(() => container.remove()));
 		const actionBar = store.add(new ActionBar(container, { actionViewItemProvider: candidate => candidate === action ? viewItem : undefined }));
@@ -258,9 +264,30 @@ suite('RemoteConnectionsActionViewItem', () => {
 		openMenu();
 		assert.deepStrictEqual(menuItems(), [
 			{ label: 'Off', detail: undefined, badge: undefined, role: 'menuitemcheckbox' },
-			{ label: 'Dev Tunnels', detail: 'Let supported VS Code and browser clients reach agents and folders on this computer. Remote Tunnels can also open the full editor.', badge: undefined, role: 'menuitemcheckbox' },
-			{ label: 'GitHub Environments', detail: 'Continue agents and use folders on this computer from supported VS Code, browser, GitHub, and Copilot clients.', badge: 'Preview', role: 'menuitemcheckbox' },
+			{ label: 'Dev Tunnels', detail: 'Access workspaces and agents on this machine from VS Code or vscode.dev/agents.', badge: undefined, role: 'menuitemcheckbox' },
+			{ label: 'GitHub Environments', detail: 'Access workspaces and continue agent sessions on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot.', badge: 'Preview', role: 'menuitemcheckbox' },
 		]);
+	});
+
+	test('a pointer-opened menu restores focus to its triggering control', () => {
+		const { primary, openMenu, closeMenu } = fixture();
+		const input = dom.append(document.body, dom.$('input'));
+		store.add(toDisposable(() => input.remove()));
+		input.focus();
+		openMenu();
+		closeMenu();
+		assert.strictEqual(dom.getActiveElement(), primary);
+	});
+
+	test('explains unavailable Dev Tunnels instead of offering a dead action', async () => {
+		const { openMenu, run, notifications } = fixture('devTunnel', { isChatInput: true, tunnelsAvailable: false });
+		const notify = stub(notifications, 'error');
+		const action = openMenu().find(action => action.id === 'remoteConnections.devTunnel')!;
+		await action.run();
+		assert.deepStrictEqual({ enabled: action.enabled, detail: action.detail, toggles: run.callCount, errors: notify.args }, {
+			enabled: false, detail: 'Dev Tunnels are not available in this build.', toggles: 0,
+			errors: [[new Error('Dev Tunnels are not available in this build.')]],
+		});
 	});
 
 	test('opens remote host management from the title bar menu', async () => {
@@ -268,12 +295,12 @@ suite('RemoteConnectionsActionViewItem', () => {
 		const actions = openMenu();
 		assert.deepStrictEqual(actions.map(action => ({ id: action.id, label: action.label, detail: action.detail })), [
 			{ id: 'remoteConnections.off', label: 'Off', detail: undefined },
-			{ id: 'remoteConnections.devTunnel', label: 'Dev Tunnels', detail: 'Let supported VS Code and browser clients reach agents and folders on this computer. Remote Tunnels can also open the full editor.' },
-			{ id: 'remoteConnections.githubEnvironment', label: 'GitHub Environments', detail: 'Continue agents and use folders on this computer from supported VS Code, browser, GitHub, and Copilot clients.' },
-			{ id: 'workbench.action.sessions.manageRemoteAgentHosts', label: 'Manage Remote Agent Hosts...', detail: 'View this computer and remote connection routes.' },
+			{ id: 'remoteConnections.devTunnel', label: 'Dev Tunnels', detail: 'Access workspaces and agents on this machine from VS Code or vscode.dev/agents.' },
+			{ id: 'remoteConnections.githubEnvironment', label: 'GitHub Environments', detail: 'Access workspaces and continue agent sessions on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot.' },
+			{ id: 'test.manage', label: 'Manage Remote Environments...', detail: undefined },
 		]);
 		await actions[3].run();
-		assert.deepStrictEqual(commands.commands, [{ id: 'workbench.action.sessions.manageRemoteAgentHosts', args: [] }]);
+		assert.deepStrictEqual(commands.commands, [{ id: 'test.manage', args: [] }]);
 	});
 
 	test('connection methods do not add extra hovers', () => {
@@ -658,7 +685,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		});
 	});
 
-	test('uses a narrow wrapping picker and the host-owned environment name in its footer', async () => {
+	test('uses a narrow wrapping picker and the host-owned environment name in its header', async () => {
 		const { sharing, openMenu, closeMenu, listOptions } = fixture('githubEnvironment');
 		await timeout(0);
 		openMenu();
@@ -670,8 +697,8 @@ suite('RemoteConnectionsActionViewItem', () => {
 			minWidth: disabled?.minWidth,
 			maxWidth: disabled?.maxWidth,
 			wrap: disabled?.wrapDetails,
-			disabled: disabled?.footerText,
-			enabled: listOptions()?.footerText,
+			disabled: disabled?.headerText,
+			enabled: listOptions()?.headerText,
 		}, {
 			minWidth: 300, maxWidth: 320, wrap: true,
 			disabled: 'Will be shared as: Test Machine (VS Code Insiders)',
@@ -679,12 +706,12 @@ suite('RemoteConnectionsActionViewItem', () => {
 		});
 	});
 
-	test('the footer name opens a prefilled environment rename input and updates the displayed name', async () => {
+	test('the header name opens a prefilled environment rename input and updates the displayed name', async () => {
 		const { quickInput, sharing, openMenu, closeMenu, listOptions } = fixture('githubEnvironment');
 		await timeout(0);
 		quickInput.result = '  Renamed workstation  ';
 		openMenu();
-		const rename = listOptions()?.footerAction;
+		const rename = listOptions()?.headerAction;
 		await rename?.run();
 		closeMenu();
 		openMenu();
@@ -695,7 +722,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			control: await quickInput.options?.validateInput?.('bad\nname'),
 			valid: await quickInput.options?.validateInput?.('Workstation'),
 			name: sharing.environmentName.get(),
-			footer: listOptions()?.footerText,
+			header: listOptions()?.headerText,
 			state: sharing.state.get(),
 		}, {
 			title: 'Rename Remote Environment', value: 'Test Machine (VS Code Insiders)',
@@ -703,7 +730,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			control: 'Enter an environment name without control characters.',
 			valid: undefined,
 			name: 'Renamed workstation',
-			footer: 'Will be shared as: Renamed workstation',
+			header: 'Will be shared as: Renamed workstation',
 			state: 'disabled',
 		});
 	});
@@ -713,7 +740,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		await timeout(0);
 		const rename = stub(sharing, 'setEnvironmentName');
 		openMenu();
-		await listOptions()?.footerAction?.run();
+		await listOptions()?.headerAction?.run();
 		assert.strictEqual(rename.callCount, 0);
 	});
 
@@ -722,7 +749,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		await timeout(0);
 		quickInput.result = 'renamed-tunnel';
 		openMenu();
-		await listOptions()?.footerAction?.run();
+		await listOptions()?.headerAction?.run();
 		assert.deepStrictEqual({ title: quickInput.options?.title, name: configuration.getValue(CONFIGURATION_KEY_HOST_NAME) }, {
 			title: 'Rename Tunnel', name: 'renamed-tunnel',
 		});
@@ -736,29 +763,29 @@ suite('RemoteConnectionsActionViewItem', () => {
 		const notify = stub(notifications, 'error');
 		quickInput.result = 'New name';
 		openMenu();
-		await listOptions()?.footerAction?.run();
+		await listOptions()?.headerAction?.run();
 		assert.deepStrictEqual(notify.args, [[error]]);
 	});
 
-	test('uses the connected tunnel name instead of a stale intended name in the footer', async () => {
+	test('uses the connected tunnel name instead of a stale intended name in the header', async () => {
 		const { remoteTunnel, openMenu, listOptions } = fixture();
 		await timeout(0);
 		remoteTunnel.fireStatus({ type: 'connected', info: { tunnelName: 'assigned-tunnel', isAttached: true }, serviceInstallFailed: false });
 		openMenu();
-		assert.strictEqual(listOptions()?.footerText, 'Shared as Dev Tunnel: assigned-tunnel');
+		assert.strictEqual(listOptions()?.headerText, 'Shared as Dev Tunnel: assigned-tunnel');
 	});
 
 	test('refreshes the intended tunnel name after a rename while sharing is off', async () => {
 		const { remoteTunnel, configuration, openMenu, closeMenu, listOptions } = fixture();
 		await timeout(0);
 		openMenu();
-		const before = listOptions()?.footerText;
+		const before = listOptions()?.headerText;
 		closeMenu();
 		remoteTunnel.name = 'renamed-tunnel';
 		await configuration.updateValue(CONFIGURATION_KEY_HOST_NAME, 'renamed-tunnel');
 		await timeout(0);
 		openMenu();
-		assert.deepStrictEqual({ before, after: listOptions()?.footerText }, {
+		assert.deepStrictEqual({ before, after: listOptions()?.headerText }, {
 			before: 'Will be shared as: test-tunnel',
 			after: 'Will be shared as: renamed-tunnel',
 		});
@@ -812,7 +839,7 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 			_usesMissionControl: () => true,
 			getAriaLabel: () => 'Allow Remote Connections via GitHub environment',
 		}) as { _getHoverContent(): string };
-		assert.strictEqual(viewItem._getHoverContent(), 'Allow Remote Connections via GitHub environment\n\nContinue agents and use folders on this computer from supported VS Code, browser, GitHub, and Copilot clients.');
+		assert.strictEqual(viewItem._getHoverContent(), 'Allow Remote Connections via GitHub environment\n\nAccess workspaces and continue agent sessions on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot.');
 	});
 
 	function backendConfiguration(backend: AgentHostRemoteConnectionsBackend = 'devTunnel') {

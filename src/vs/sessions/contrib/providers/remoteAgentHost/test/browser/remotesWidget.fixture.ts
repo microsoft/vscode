@@ -42,7 +42,7 @@ const remotes: ICustomizationRemote[] = [
 	{ id: 'container:api', kind: 'devContainer', name: 'API service', detail: '/Users/developer/projects/api', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 ];
 
-async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false, options: { readonly height?: number; readonly connectionError?: string; readonly retrying?: boolean } = {}): Promise<void> {
+async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false, options: { readonly height?: number; readonly connectionError?: string; readonly retrying?: boolean; readonly localIdentity?: boolean } = {}): Promise<void> {
 	container.style.width = `${width}px`;
 	container.style.height = `${options.height ?? 640}px`;
 	container.classList.add('remotes-editor');
@@ -81,13 +81,22 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 			await pendingSignIn?.p;
 			this.tunnelAuthenticationRequired.set(undefined, undefined);
 		}
-		readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, empty ? [] : remotes.map(remote =>
-			remote.id === 'ssh:build' && options.connectionError
-				? {
-					...remote, lastConnectionError: options.connectionError,
-					connectionStatus: options.retrying ? RemoteAgentHostConnectionStatus.connecting : RemoteAgentHostConnectionStatus.disconnected,
-				}
-				: remote));
+		readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, empty ? [] : remotes.map((remote): ICustomizationRemote => {
+			if (options.localIdentity && remote.kind === 'tunnel') {
+				return {
+					...remote, name: remote.id === 'tunnel:laptop' ? 'workmac-development-workstation-with-a-long-registration-name' : remote.name,
+					localRegistration: remote.id === 'tunnel:laptop' ? 'devTunnel' : undefined,
+					hostAvailability: remote.id === 'tunnel:laptop' ? 'online' : 'unknown', connectionStatus: RemoteAgentHostConnectionStatus.disconnected,
+				};
+			}
+			if (options.localIdentity && remote.kind === 'environment') {
+				return { ...remote, hostAvailability: remote.unavailableReason ? 'offline' : 'online' };
+			}
+			return remote.id === 'ssh:build' && options.connectionError ? {
+				...remote, lastConnectionError: options.connectionError,
+				connectionStatus: options.retrying ? RemoteAgentHostConnectionStatus.connecting : RemoteAgentHostConnectionStatus.disconnected,
+			} : remote;
+		}));
 		async refresh(_token: CancellationToken, progress?: IProgress<IRemoteRefreshProgress>) {
 			if (pendingRefresh && refreshing) {
 				progress?.report({ kind: refreshing, refreshing: true });
@@ -145,6 +154,14 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
+	LocalIdentityAndAvailability: defineComponentFixture({
+		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => render(context, 1100, OS, false, [], true, undefined, false, { localIdentity: true }),
+	}),
+	LocalIdentityNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => render(context, 480, OS, false, [], true, undefined, false, { localIdentity: true }),
+	}),
 	InlineActions: defineComponentFixture({
 		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: async context => {

@@ -37,6 +37,6 @@ export function getLocalAgentHostHover(registration: LocalAgentHostRegistration)
 export function getThisComputerHover(): string {
 	return localize(
 		'localAgentHost.thisComputerHover',
-		"Runs this session directly on this computer. Sharing controls how other clients reach this computer and does not change where this session runs.",
+		"Run this session directly on this computer",
 	);
 }

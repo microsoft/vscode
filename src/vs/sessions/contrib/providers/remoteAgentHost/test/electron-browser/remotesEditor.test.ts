@@ -11,6 +11,10 @@ import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IMissionControlAvailabilityService, IMissionControlSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IRemoteTunnelService, INACTIVE_TUNNEL_MODE } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
+import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { AccessibleViewType } from '../../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry } from '../../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -80,6 +84,20 @@ suite('RemotesEditor', () => {
 		const instantiation = workbenchInstantiationService({ configurationService: () => configuration }, store);
 		instantiation.stub(ISSHRemoteAgentHostService, {});
 		instantiation.stub(IPreferencesService, {});
+		instantiation.stub(IRemoteTunnelService, {
+			onDidChangeTunnelStatus: Event.None,
+			onDidChangeMode: Event.None,
+			getTunnelStatus: async () => ({ type: 'disconnected' as const }),
+			getMode: async () => INACTIVE_TUNNEL_MODE,
+			getTunnelName: async () => undefined,
+		});
+		instantiation.stub(IMissionControlSharingService, {
+			state: observableValue<'disabled' | 'connecting' | 'enabled'>('sharing', 'disabled'),
+			environmentName: observableValue<string | undefined>('name', undefined),
+		});
+		instantiation.stub(IMissionControlAvailabilityService, { available: observableValue<boolean | undefined>('available', false) });
+		instantiation.stub(ISessionsProvidersService, { getProviders: () => [], onDidChangeProviders: Event.None });
+		instantiation.stub(IAgentHostService, {});
 		instantiation.stub(ISharedProcessService, { getChannel: () => ({ call: async (): Promise<never> => { throw new Error('Unexpected IPC call'); }, listen: () => Event.None }) });
 		const model = store.add(new TestRemotesModel());
 		instantiation.stubInstance(RemotesModel, model);

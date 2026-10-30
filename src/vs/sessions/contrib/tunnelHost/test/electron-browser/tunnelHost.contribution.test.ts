@@ -61,7 +61,7 @@ suite('Sessions - Tunnel Host Contribution', () => {
 		assert.strictEqual(findToggle(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID), undefined);
 		assert.strictEqual(CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID), undefined);
 
-		const contribution = new SessionsTunnelHostTitlebarContribution(new TestRemoteTunnelService(), new NullActionViewItemService());
+		const contribution = new SessionsTunnelHostTitlebarContribution(new TestRemoteTunnelService(), new NullActionViewItemService(), new TestCommandService(), new TestConfigurationService());
 
 		const summarize = (menu: MenuId, id: string) => {
 			const item = findToggle(menu, id);
@@ -83,7 +83,7 @@ suite('Sessions - Tunnel Host Contribution', () => {
 				chatInput: summarize(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID),
 			}, {
 				titlebar: { title: 'Turn On Remote Connections', toggledTitle: 'Turn Off Remote Connections', group: 'navigation', order: 90, icon: Codicon.radioTower.id },
-				workspaceManage: { title: 'Turn On Remote Connections', toggledTitle: 'Turn Off Remote Connections', group: '0_local', order: 1, icon: Codicon.radioTower.id },
+				workspaceManage: undefined,
 				chatInput: { title: 'Turn On Remote Connections', toggledTitle: 'Turn Off Remote Connections', group: 'navigation', order: 10, icon: Codicon.radioTower.id },
 			});
 
@@ -132,7 +132,7 @@ suite('Sessions - Tunnel Host Contribution', () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configuration);
-		const contribution = new SessionsTunnelHostTitlebarContribution(new TestRemoteTunnelService(), new NullActionViewItemService());
+		const contribution = new SessionsTunnelHostTitlebarContribution(new TestRemoteTunnelService(), new NullActionViewItemService(), commandService, configuration);
 
 		try {
 			const command = CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID);
@@ -164,7 +164,7 @@ suite('Sessions - Tunnel Host Contribution', () => {
 			override readonly state = observableValue<'disabled' | 'connecting' | 'enabled'>(this, 'disabled');
 			override async setEnabled(enabled: boolean) { calls.push(enabled); }
 		}());
-		store.add(new SessionsTunnelHostTitlebarContribution(new TestRemoteTunnelService(), new NullActionViewItemService()));
+		store.add(new SessionsTunnelHostTitlebarContribution(new TestRemoteTunnelService(), new NullActionViewItemService(), new TestCommandService(), new TestConfigurationService()));
 		const command = CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID);
 		assert.ok(command);
 		await instantiation.invokeFunction(command.handler);
