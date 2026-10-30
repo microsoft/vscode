@@ -34,7 +34,6 @@ export const SIMULATION_FOLDER_NAME = '.simulation';
 export const STDOUT_FILENAME = 'stdout.json.txt'; // using .txt instead of .json to avoid breaking automation scripts
 export const OLD_BASELINE_FILENAME = 'baseline.old.json.txt'; // using .txt instead of .json to avoid breaking automation scripts
 export const PRODUCED_BASELINE_FILENAME = 'baseline.produced.json.txt'; // using .txt instead of .json to avoid breaking automation scripts
-export const AML_OUTPUT_PATH = 'test/aml/out';
 export const REPORT_FILENAME = 'report.json';
 export const SCORECARD_FILENAME = 'scorecard.csv';
 export const RUN_METADATA = 'metadata.json';
