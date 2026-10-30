@@ -1,0 +1,163 @@
+{
+  "$comment": "Conformance vectors for the `copilot.errorDetail` key on ErrorInfo._meta. See ../error-info.md for the prose spec and ./README.md for the harness contract. `projectFromSdk` drives the real host helper from a SessionErrorData (camelCase wire JSON); `set` / `extract` pin the portable insert / read convention; `wireShape` pins the serialized ErrorInfo carrier.",
+  "key": "copilot.errorDetail",
+  "carrier": "ErrorInfo._meta",
+  "tests": [
+    {
+      "name": "projectFromSdk: stamps every diagnostic field present, excluding first-class errorType/message/stack",
+      "op": "projectFromSdk",
+      "input": {
+        "error": {
+          "errorType": "rate_limit",
+          "message": "You have exceeded your weekly rate limit.",
+          "errorCode": "user_weekly_rate_limited",
+          "statusCode": 429,
+          "url": "https://github.com/settings/copilot",
+          "providerCallId": "req-abc123",
+          "serviceRequestId": "svc-def456",
+          "eligibleForAutoSwitch": true
+        }
+      },
+      "expected": {
+        "meta": {
+          "copilot.errorDetail": {
+            "errorCode": "user_weekly_rate_limited",
+            "statusCode": 429,
+            "url": "https://github.com/settings/copilot",
+            "providerCallId": "req-abc123",
+            "serviceRequestId": "svc-def456",
+            "eligibleForAutoSwitch": true
+          }
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: omits fields whose SDK source is absent",
+      "op": "projectFromSdk",
+      "input": {
+        "error": {
+          "errorType": "authentication",
+          "message": "Please sign in again.",
+          "statusCode": 401
+        }
+      },
+      "expected": {
+        "meta": {
+          "copilot.errorDetail": { "statusCode": 401 }
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: returns no _meta when the error carries only first-class fields",
+      "op": "projectFromSdk",
+      "input": {
+        "error": {
+          "errorType": "query",
+          "message": "Something went wrong.",
+          "stack": "Error: Something went wrong.\n    at foo (bar.ts:1:1)"
+        }
+      },
+      "expected": {
+        "meta": null
+      }
+    },
+    {
+      "name": "set: stamps the key onto an empty _meta",
+      "op": "set",
+      "input": {
+        "detail": { "statusCode": 429, "errorCode": "rate_limited" },
+        "meta": {}
+      },
+      "expected": {
+        "meta": {
+          "copilot.errorDetail": { "statusCode": 429, "errorCode": "rate_limited" }
+        }
+      }
+    },
+    {
+      "name": "set: preserves other _meta keys",
+      "op": "set",
+      "input": {
+        "detail": { "statusCode": 429 },
+        "meta": { "copilot.unrelated": "keep me" }
+      },
+      "expected": {
+        "meta": {
+          "copilot.unrelated": "keep me",
+          "copilot.errorDetail": { "statusCode": 429 }
+        }
+      }
+    },
+    {
+      "name": "extract: returns the detail object when present and non-empty",
+      "op": "extract",
+      "input": {
+        "meta": {
+          "copilot.errorDetail": { "statusCode": 429, "eligibleForAutoSwitch": true }
+        }
+      },
+      "expected": {
+        "detail": { "statusCode": 429, "eligibleForAutoSwitch": true }
+      }
+    },
+    {
+      "name": "extract: returns null when _meta is absent",
+      "op": "extract",
+      "input": {},
+      "expected": { "detail": null }
+    },
+    {
+      "name": "extract: returns null when _meta lacks the key",
+      "op": "extract",
+      "input": {
+        "meta": { "copilot.unrelated": "ignored" }
+      },
+      "expected": { "detail": null }
+    },
+    {
+      "name": "extract: returns null when the value is an empty object",
+      "$comment": "The host never emits an empty detail object; a non-conformant producer that does is treated as 'no detail'.",
+      "op": "extract",
+      "input": {
+        "meta": { "copilot.errorDetail": {} }
+      },
+      "expected": { "detail": null }
+    },
+    {
+      "name": "extract: returns null when the value is a number (wrong type)",
+      "op": "extract",
+      "input": {
+        "meta": { "copilot.errorDetail": 429 }
+      },
+      "expected": { "detail": null }
+    },
+    {
+      "name": "wireShape: an ErrorInfo with errorDetail serializes to camelCase first-class fields plus the flat-dotted _meta key",
+      "op": "wireShape",
+      "input": {
+        "error": {
+          "errorType": "rate_limit",
+          "message": "You have exceeded your weekly rate limit."
+        },
+        "detail": {
+          "errorCode": "user_weekly_rate_limited",
+          "statusCode": 429,
+          "eligibleForAutoSwitch": true
+        }
+      },
+      "expected": {
+        "json": {
+          "errorType": "rate_limit",
+          "message": "You have exceeded your weekly rate limit.",
+          "_meta": {
+            "copilot.errorDetail": {
+              "errorCode": "user_weekly_rate_limited",
+              "statusCode": 429,
+              "eligibleForAutoSwitch": true
+            }
+          }
+        }
+      }
+    }
+  ]
+}

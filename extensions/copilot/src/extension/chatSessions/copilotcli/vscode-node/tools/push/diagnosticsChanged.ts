@@ -49,7 +49,7 @@ function getDiagnosticsForUri(uri: vscode.Uri): DiagnosticInfo {
 			message: d.message,
 			severity: severityToString(d.severity),
 			source: d.source,
-			code: typeof d.code === 'object' ? d.code.value : d.code,
+			code: typeof d.code === 'object' && d.code !== null ? d.code.value : d.code,
 		})),
 	};
 }

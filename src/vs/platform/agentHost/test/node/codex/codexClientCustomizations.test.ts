@@ -6,33 +6,26 @@
 import assert from 'assert';
 import { isCustomizationEnabled } from '../../../common/customizationEnablement.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFilesystemProvider.js';
-import { NullLogService } from '../../../../log/common/log.js';
+import { createInMemoryFileService } from '../../../../files/test/common/inMemoryFileService.js';
 import { PluginFormat, type IMcpServerDefinition, type IParsedAgent, type IParsedPlugin, type IParsedRule, type IParsedSkill } from '../../../../agentPlugins/common/pluginParsers.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../common/agentHostFileSystemService.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../../common/meta/clientPluginCustomizationMeta.js';
 import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
 import { CustomizationType, McpServerStatus, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
-import { CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfig, codexMcpServersFromPlugins, codexSkillCapabilityRoots, codexSkillRootsFromPlugins, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
+import { CODEX_FILE_LINK_INSTRUCTIONS, CodexClientCustomizationStore, codexAgentRoleToml, codexClientSkillInstructions, codexCustomizationConfig, codexMcpServersFromPlugins, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
 
 suite('codexClientCustomizations', () => {
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: FileService;
 
 	setup(() => {
-		fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 	});
-
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function pluginCustomization(id: string): PluginCustomization {
 		return { type: CustomizationType.Plugin, id, uri: `https://plugins/${id}`, name: id, };
@@ -131,16 +124,35 @@ suite('codexClientCustomizations', () => {
 		assert.deepStrictEqual(codexMcpServersFromPlugins(plugins), { dup: { command: 'first' } });
 	});
 
-	test('codexSkillRootsFromPlugins returns the skills root (dirname twice), deduped and sorted', () => {
+	test('advertises client skill metadata once per path without implicitly invoking manual-only skills', () => {
 		const plugins = [plugin('p', '/plugins/p', parsed({
-			skills: [skillDef('/plugins/p', 'b'), skillDef('/plugins/p', 'a')],
-		})), plugin('q', '/plugins/q', parsed({ skills: [skillDef('/plugins/q', 'c')] }))];
-		// The roots are native fsPaths (backslashes on Windows), so express the
-		// expectation with the same platform-aware transform rather than a
-		// hardcoded posix path.
-		const skillsRoot = (pluginDir: string) => URI.file(`${pluginDir}/skills`).fsPath;
-		assert.deepStrictEqual(codexSkillRootsFromPlugins(plugins), [skillsRoot('/plugins/p'), skillsRoot('/plugins/q')]);
-		assert.deepStrictEqual(codexSkillCapabilityRoots(plugins).map(root => root.fsPath), [skillsRoot('/plugins/p'), skillsRoot('/plugins/q')]);
+			skills: [skillDef('/plugins/p', 'greet'), { ...skillDef('/plugins/p', 'manual-only'), disableModelInvocation: true }],
+		})), plugin('q', '/plugins/q', parsed({
+			skills: [skillDef('/plugins/p', 'greet'), { ...skillDef('/plugins/q', 'greet'), disableUserInvocation: true }],
+		}))];
+
+		const catalog = codexClientSkillInstructions(plugins).match(/<client_skills>\n(?<catalog>[\s\S]*?)\n<\/client_skills>/)?.groups?.catalog;
+		assert.ok(catalog);
+		assert.deepStrictEqual(catalog.split('\n').slice(2), [
+			`- greet: greet desc (file: ${URI.file('/plugins/p/skills/greet/SKILL.md').fsPath})`,
+			`- greet: greet desc (file: ${URI.file('/plugins/q/skills/greet/SKILL.md').fsPath})`,
+		]);
+		assert.ok(catalog.includes('read its SKILL.md'));
+	});
+
+	test('an empty client skill catalog explicitly supersedes earlier skill selections', () => {
+		const catalog = codexClientSkillInstructions([]);
+		assert.ok(catalog.includes('replaces any earlier client skill catalog'));
+		assert.ok(catalog.includes('No client skills are currently available.'));
+	});
+
+	test('includes host file-link instructions without client customizations', async () => {
+		const config = await codexCustomizationConfig([], [], undefined, fileService);
+
+		assert.deepStrictEqual(config, {
+			agentRoles: [],
+			developerInstructions: CODEX_FILE_LINK_INSTRUCTIONS,
+		});
 	});
 
 	test('converts agent markdown and plugin instructions into codex launch configuration', async () => {
@@ -162,7 +174,7 @@ suite('codexClientCustomizations', () => {
 				instructions: 'Review the change and report risks.',
 				model: 'gpt-test',
 			}],
-			developerInstructions: 'Always run focused tests.\n\nReview the change and report risks.',
+			developerInstructions: `Always run focused tests.\n\nReview the change and report risks.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
 		});
 		assert.strictEqual(codexAgentRoleToml(config.agentRoles[0]), [
 			'name = "Reviewer"',
@@ -201,7 +213,7 @@ suite('codexClientCustomizations', () => {
 				instructions: 'Review the workspace change.',
 				model: 'gpt-first',
 			}],
-			developerInstructions: 'Review the workspace change.',
+			developerInstructions: `Review the workspace change.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
 		});
 	});
 
@@ -219,7 +231,7 @@ suite('codexClientCustomizations', () => {
 
 		const config = await codexCustomizationConfig([], plugins, undefined, fileService);
 
-		assert.strictEqual(config.developerInstructions, 'Apply globally.');
+		assert.strictEqual(config.developerInstructions, `Apply globally.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`);
 	});
 
 	test('matches a selected source agent to its host-synced plugin copy', async () => {
@@ -244,7 +256,7 @@ suite('codexClientCustomizations', () => {
 
 		const config = await codexCustomizationConfig([], plugins, { uri: sourceAgentUri.toString() }, fileService);
 
-		assert.strictEqual(config.developerInstructions, 'Apply synced reviewer instructions.');
+		assert.strictEqual(config.developerInstructions, `Apply synced reviewer instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`);
 	});
 
 	test('matches an original loose-agent URI to its synthetic bundle copy', async () => {
@@ -268,7 +280,7 @@ suite('codexClientCustomizations', () => {
 
 		const config = await codexCustomizationConfig([], plugins, { uri: sourceAgentUri.toString() }, fileService);
 
-		assert.strictEqual(config.developerInstructions, 'Apply loose reviewer instructions.');
+		assert.strictEqual(config.developerInstructions, `Apply loose reviewer instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`);
 	});
 
 	test('prefers an exact selected agent over a synthetic filename fallback', async () => {
@@ -299,7 +311,7 @@ suite('codexClientCustomizations', () => {
 
 		const config = await codexCustomizationConfig([], plugins, { uri: selectedAgentUri.toString() }, fileService);
 
-		assert.strictEqual(config.developerInstructions, 'Apply exact reviewer instructions.');
+		assert.strictEqual(config.developerInstructions, `Apply exact reviewer instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`);
 	});
 
 	test('removeClient drops a client and setEnabled reports whether it changed', () => {

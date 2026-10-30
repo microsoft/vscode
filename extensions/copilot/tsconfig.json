@@ -23,10 +23,10 @@
 	"include": [
 		"./src",
 		"./test",
-		".vscode/extensions/test-extension"
+		".vscode/extensions/test-extension",
+		"../../src/vscode-dts/vscode.proposed.envIsConnectionMetered.d.ts"
 	],
 	"exclude": [
-		"test/scenarios/**/*",
 		"test/simulation/fixtures/**/*",
 		"test/simulation/workbench/**/*",
 		"src/platform/parser/test/node/fixtures/**/*",

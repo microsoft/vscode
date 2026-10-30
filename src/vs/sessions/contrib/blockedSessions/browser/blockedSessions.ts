@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derivedOpts, IObservable, IReaderWithStore, observableFromEvent } from '../../../../base/common/observable.js';
+import { derived, derivedOpts, IObservable, IReaderWithStore, observableFromEvent } from '../../../../base/common/observable.js';
 import { equals } from '../../../../base/common/arrays.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
+import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
@@ -37,7 +40,7 @@ export interface IBlockedSession {
  * attention. A session is considered blocked when it:
  *
  * - needs input (`SessionStatus.NeedsInput`), or
- * - has failing CI checks while not in progress.
+ * - has failing CI checks while not in progress and not handled by Agent Merge.
  *
  * Archived (done) sessions are never reported as blocked.
  */
@@ -51,10 +54,15 @@ export class BlockedSessions extends Disposable {
 	/** The blocked sessions paired with their reason, most-recently-updated first. */
 	readonly blockedSessionsWithReasons: IObservable<readonly IBlockedSession[]>;
 
+	/** Sessions with eligible CI failures, including sessions that also need input. */
+	readonly failingCISessions: IObservable<readonly ISession[]>;
+
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ILogService private readonly _logService: ILogService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -96,6 +104,9 @@ export class BlockedSessions extends Disposable {
 			owner: this,
 			equalsFn: (a, b) => equals(a, b, (x, y) => x.sessionId === y.sessionId),
 		}, reader => this.blockedSessionsWithReasons.read(reader).map(blocked => blocked.session));
+
+		this.failingCISessions = derived(this, reader => this._allSessions.read(reader)
+			.filter(session => this._getFailingCISession(reader, session) !== undefined));
 	}
 
 	private _getBlockedSession(reader: IReaderWithStore, session: ISession): IBlockedSession | undefined {
@@ -112,8 +123,11 @@ export class BlockedSessions extends Disposable {
 			};
 		}
 
-		// CI failures only count while the session is not actively in progress.
-		if (status === SessionStatus.InProgress) {
+		return this._getFailingCISession(reader, session);
+	}
+
+	private _getFailingCISession(reader: IReaderWithStore, session: ISession): IBlockedSession | undefined {
+		if (session.isArchived.read(reader) || session.status.read(reader) === SessionStatus.InProgress) {
 			return undefined;
 		}
 
@@ -140,6 +154,10 @@ export class BlockedSessions extends Disposable {
 
 		const ciRef = reader.delayedStore.add(this._gitHubService.createPullRequestCIModelReference(gitHubInfo.owner, gitHubInfo.repo, livePR.number, livePR.headSha));
 		if (ciRef.object.overallStatus.read(reader) === GitHubCIOverallStatus.Failure) {
+			const agentMerge = getSessionAgentMergeConfigurationObservable(session, this._sessionsProvidersService, this._configurationService).read(reader);
+			if (agentMerge?.enabled && agentMerge.actions.fixCI) {
+				return undefined;
+			}
 			return {
 				session,
 				reason: BlockedSessionReason.FailingCI,

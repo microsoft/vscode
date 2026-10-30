@@ -155,25 +155,34 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 		if (!editor.model) {
 			await editor.resolve();
 		}
-		const model = editor.model;
+		let model = editor.model;
 		if (!model) {
+			return undefined;
+		}
+		if (model.sharingState === BrowserViewSharingState.BlockedByNetworkPolicy || model.sharingState === BrowserViewSharingState.Unavailable) {
 			return undefined;
 		}
 
 		// Prompt user to share the page with the agent if not already shared
-		if (model.sharingState === BrowserViewSharingState.NotShared) {
-			if (!(await model.setSharedWithAgent(true))) {
+		if (model.sharingState === BrowserViewSharingState.Available) {
+			const sharedModel = await model.setSharedWithAgent(true);
+			if (!sharedModel) {
 				return undefined; // User denied sharing
 			}
+			model = sharedModel;
 		}
 
+		const sharedEditor = views.get(model.id);
+		if (!sharedEditor) {
+			return undefined;
+		}
 		return {
 			kind: 'browserView',
-			id: editor.resource.toString(),
-			name: editor.getName(),
-			value: editor.resource,
-			browserId: editor.id,
-			modelDescription: `Browser page: ${editor.getTitle()}. The pageId is "${editor.id}".`
+			id: sharedEditor.resource.toString(),
+			name: sharedEditor.getName(),
+			value: sharedEditor.resource,
+			browserId: sharedEditor.id,
+			modelDescription: `Browser page: ${sharedEditor.getTitle()}. The pageId is "${sharedEditor.id}".`
 		};
 	}
 

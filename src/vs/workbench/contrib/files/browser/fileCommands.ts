@@ -11,7 +11,7 @@ import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindo
 import { IHostService } from '../../../services/host/browser/host.js';
 import { ServicesAccessor, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService, UNTITLED_WORKSPACE_NAME } from '../../../../platform/workspace/common/workspace.js';
-import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition, ExplorerFolderContext, VIEW_ID } from '../common/files.js';
+import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition, ExplorerFolderContext } from '../common/files.js';
 import { ExplorerViewPaneContainer } from './explorerViewlet.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -29,6 +29,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IEditorService, SIDE_GROUP, ISaveEditorsOptions } from '../../../services/editor/common/editorService.js';
+import { OpenWithEditorPicker } from '../../../services/editor/browser/openWithEditorPicker.js';
 import { IEditorGroupsService, GroupsOrder, IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { basename, joinPath, isEqual } from '../../../../base/common/resources.js';
@@ -40,7 +41,7 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { IAction, toAction } from '../../../../base/common/actions.js';
-import { EditorOpenSource, EditorResolution } from '../../../../platform/editor/common/editor.js';
+import { EditorOpenSource } from '../../../../platform/editor/common/editor.js';
 import { hash } from '../../../../base/common/hash.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
@@ -324,16 +325,19 @@ CommandsRegistry.registerCommand({
 		const uri = getResourceForCommand(resource, editorService, listService);
 
 		if (uri && contextService.isInsideWorkspace(uri)) {
-			const explorerView = await viewService.openView<ExplorerView>(VIEW_ID, false);
+			const explorerView = await viewService.openView<ExplorerView>(explorerService.getViewId(), false);
 			if (explorerView) {
 				const oldAutoReveal = explorerView.autoReveal;
 				// Disable autoreveal before revealing the explorer to prevent a race betwene auto reveal + selection
 				// Fixes #197268
 				explorerView.autoReveal = false;
-				explorerView.setExpanded(true);
-				await explorerService.select(uri, 'force');
-				explorerView.focus();
-				explorerView.autoReveal = oldAutoReveal;
+				try {
+					explorerView.setExpanded(true);
+					await explorerService.select(uri, 'force');
+					explorerView.focus();
+				} finally {
+					explorerView.autoReveal = oldAutoReveal;
+				}
 			}
 		} else {
 			// Do not reveal the open editors view if it's hidden explicitly
@@ -352,9 +356,13 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
 		const listService = accessor.get(IListService);
+		const editorPicker = accessor.get(IInstantiationService).createInstance(OpenWithEditorPicker);
 		const uri = getResourceForCommand(resource, editorService, listService);
 		if (uri) {
-			return editorService.openEditor({ resource: uri, options: { override: EditorResolution.PICK, source: EditorOpenSource.USER } });
+			const options = await editorPicker.pick({ resource: uri, options: { source: EditorOpenSource.USER } });
+			if (options) {
+				return editorService.openEditor({ resource: uri, options });
+			}
 		}
 
 		return undefined;

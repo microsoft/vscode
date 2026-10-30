@@ -81,10 +81,11 @@
 }
 
 .monaco-workbench .hover-language-status > .element {
-	display: flex;
-	justify-content: space-between;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
 	vertical-align: middle;
 	flex-grow: 100;
+	min-width: 0;
 }
 
 .monaco-workbench .hover-language-status > .element > .left > .separator::before {
@@ -99,15 +100,14 @@
 
 .monaco-workbench .hover-language-status > .element .left {
 	margin: auto 0;
-	display: flex;
-	align-items: center;
-	gap: 3px;
-	white-space: nowrap;
+	min-width: 0;
+	white-space: normal;
 }
 
 .monaco-workbench .hover-language-status > .element .right {
 	margin: auto 0;
 	display: flex;
+	flex-shrink: 0;
 }
 
 .monaco-workbench .hover-language-status > .element .right:not(:empty) {

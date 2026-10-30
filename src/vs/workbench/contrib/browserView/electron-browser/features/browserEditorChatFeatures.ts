@@ -6,6 +6,7 @@
 import { localize, localize2 } from '../../../../../nls.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
+import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { IContextKey, IContextKeyService, ContextKeyExpr, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Action2, registerAction2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ServicesAccessor, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -41,7 +42,7 @@ import { Extensions as ConfigurationMigrationExtensions, IConfigurationMigration
 import { safeSetInnerHtml } from '../../../../../base/browser/domSanitize.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ChatDynamicVariableModel } from '../../../chat/browser/attachments/chatDynamicVariables.js';
-import { toAttachedContextDynamicVariable } from '../../../chat/common/attachments/chatVariables.js';
+import { IDynamicVariable, toAttachedContextDynamicVariable } from '../../../chat/common/attachments/chatVariables.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType, IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -101,6 +102,15 @@ function createElementContextValue(elementData: IElementData, displayName: strin
 	sections.push(`CSS:\n\`\`\`css\n${elementData.computedStyle}\n\`\`\``);
 
 	return sections.join('\n\n');
+}
+
+/**
+ * The reference in the chat input to the element that a comment is about. It is
+ * text, or a pill when attachments are shown inline, whose range is its anchor.
+ */
+function findCommentReference(widget: IChatWidget, dynamicVariableModel: ChatDynamicVariableModel | undefined, attachmentId: string): IDynamicVariable | undefined {
+	const isCommentReference = (candidate: IDynamicVariable) => candidate.id === attachmentId && !!candidate.isAttachmentReference;
+	return dynamicVariableModel?.variables.find(isCommentReference) ?? widget.input.inlineAttachments?.getPillReferences().find(isCommentReference);
 }
 
 // Context key expression to check if browser editor is active
@@ -314,9 +324,13 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		const shared = model.sharingState !== BrowserViewSharingState.Shared;
 		let succeeded: boolean;
 		try {
-			succeeded = await model.setSharedWithAgent(shared);
+			succeeded = !!await model.setSharedWithAgent(shared);
 		} catch (error) {
 			this.logService.error('BrowserEditor.toggleShareWithAgent: Failed to update sharing state', error);
+			await this.dialogService.error(
+				localize('browser.shareWithAgent.failed', "Unable to Share Browser Tab"),
+				getErrorMessage(error)
+			);
 			return;
 		}
 		if (shouldUnlockChatPetIntegratedBrowserShare(shared, succeeded)) {
@@ -328,19 +342,28 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		const model = this.editor.model;
 		const isShared = model?.sharingState === BrowserViewSharingState.Shared;
 		const isUnavailable = !model || model.sharingState === BrowserViewSharingState.Unavailable;
+		const isBlockedByNetworkPolicy = model?.sharingState === BrowserViewSharingState.BlockedByNetworkPolicy;
 
 		this.editor.browserContainer.classList.toggle('animate', !isInitialState);
 		this.editor.browserContainer.classList.toggle('shared', isShared);
 
 		this._shareButtonContainer.style.display = isUnavailable ? 'none' : '';
+		this._shareButton.enabled = !isBlockedByNetworkPolicy;
 		this._shareButton.checked = isShared;
 		this._shareButton.label = isShared
 			? localize('browser.sharingWithAgent', "Sharing with Agent") + ' $(share-window)'
 			: '$(share-window)';
 
+		const opensShareableCopy = !isShared
+			&& !!model
+			&& !model.isDirectlyShareable;
 		const title = isShared
 			? localize('browser.unshareWithAgent', "Stop Sharing with Agent")
-			: localize('browser.shareWithAgent', "Share with Agent");
+			: isBlockedByNetworkPolicy
+				? localize('browser.shareWithAgent.blockedByNetworkPolicy', "Cannot share with agents due to network domain policy.")
+				: opensShareableCopy
+					? localize('browser.shareWithAgent.isolated', "Share with Agent (Opens Isolated Tab)")
+					: localize('browser.shareWithAgent', "Share with Agent");
 		this._shareButton.setTitle(title);
 		this._shareButton.element.setAttribute('aria-label', title);
 	}
@@ -594,15 +617,16 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			if (!inputModel || !dynamicVariableModel) {
 				continue;
 			}
-			const variable = dynamicVariableModel.variables.find(candidate => candidate.id === attachmentId && candidate.isAttachmentReference);
+			const variable = findCommentReference(tracked.widget, dynamicVariableModel, attachmentId);
 			if (!variable) {
 				this._deleteCommentAttachments(attachmentId, tracked);
 				continue;
 			}
-			const line = inputModel.getLineContent(variable.range.endLineNumber);
+			const lineNumber = variable.range.endLineNumber;
+			const bodyRange = new Range(lineNumber, variable.range.endColumn, lineNumber, inputModel.getLineMaxColumn(lineNumber));
 			comments.push({
 				elementId: tracked.elementId,
-				body: line.slice(variable.range.endColumn - 1).trimStart()
+				body: (tracked.widget.input.inlineAttachments?.getPromptText(bodyRange) ?? inputModel.getValueInRange(bodyRange)).trimStart()
 			});
 		}
 		void browserModel.setElementComments({ comments, pendingCommentIdsToDiscard });
@@ -614,7 +638,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 				continue;
 			}
 			const dynamicVariableModel = tracked.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID);
-			const variable = dynamicVariableModel?.variables.find(candidate => candidate.id === attachmentId && candidate.isAttachmentReference);
+			const variable = findCommentReference(tracked.widget, dynamicVariableModel, attachmentId);
 			const inputModel = tracked.widget.inputEditor.getModel();
 			if (variable && inputModel) {
 				const lineNumber = variable.range.startLineNumber;

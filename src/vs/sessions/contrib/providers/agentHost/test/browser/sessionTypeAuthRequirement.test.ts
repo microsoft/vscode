@@ -57,8 +57,7 @@ suite('Agent Host - session type auth requirement', () => {
 	});
 
 	test('only `none` counts as usable without GitHub', () => {
-		// The window gate counts `none` only, so `unusable` never holds the
-		// window open and never triggers the discovered-config nudge.
+		// Unusable providers may open the window for setup, but are not immediately usable.
 		const usable = [
 			SessionTypeAuthRequirement.None,
 			SessionTypeAuthRequirement.GitHub,
@@ -70,7 +69,6 @@ suite('Agent Host - session type auth requirement', () => {
 
 	test('no-model notification follows sign-in and model availability', () => {
 		const ready = {
-			allowSignedOutWhenUsable: true,
 			accountResolved: true,
 			entitlementResolved: true,
 			signedIn: false,
@@ -81,7 +79,6 @@ suite('Agent Host - session type auth requirement', () => {
 			setupDialogVisible: false,
 		};
 		assert.deepStrictEqual({
-			featureDisabled: getSignedOutModelsNotificationState({ ...ready, allowSignedOutWhenUsable: false }),
 			loading: getSignedOutModelsNotificationState({ ...ready, localModelsLoaded: false }),
 			loadingPastGracePeriod: getSignedOutModelsNotificationState({ ...ready, localModelsLoaded: false, gracePeriodElapsed: true }),
 			accountUnresolved: getSignedOutModelsNotificationState({ ...ready, accountResolved: false }),
@@ -92,7 +89,6 @@ suite('Agent Host - session type auth requirement', () => {
 			signedIn: getSignedOutModelsNotificationState({ ...ready, signedIn: true }),
 			setupDialogVisible: getSignedOutModelsNotificationState({ ...ready, setupDialogVisible: true }),
 		}, {
-			featureDisabled: SignedOutModelsNotificationState.Hidden,
 			loading: SignedOutModelsNotificationState.Waiting,
 			loadingPastGracePeriod: SignedOutModelsNotificationState.Visible,
 			accountUnresolved: SignedOutModelsNotificationState.Hidden,

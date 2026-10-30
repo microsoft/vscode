@@ -35,7 +35,7 @@ export function registerBlockedSessionsItemActions(): IDisposable {
 		MenuRegistry.appendMenuItem(Menus.BlockedSessionsItem, {
 			command: {
 				id: IGNORE_INPUT_NEEDED_COMMAND_ID,
-				title: localize('ignoreInputNeeded', "Ignore Input Needed"),
+				title: localize('ignoreInputNeeded', "Ignore Needs Attention Alert"),
 				icon: Codicon.bellSlash,
 			},
 			group: 'navigation',
@@ -119,7 +119,7 @@ export class BlockedSessionsList extends Disposable {
 		// right (e.g. the action that opens the full sessions picker).
 		const header = append(element, $('.agent-sessions-blocked-list-header'));
 		const title = append(header, $('.agent-sessions-blocked-list-title'));
-		title.textContent = localize('sessionsRequiringInput', "Sessions requiring input");
+		title.textContent = localize('sessionsRequiringInput', "Sessions needing attention");
 		const headerActions = append(header, $('.agent-sessions-blocked-list-header-actions'));
 		this._register(instantiationService.createInstance(MenuWorkbenchToolBar, headerActions, Menus.BlockedSessionsHeader, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
@@ -146,13 +146,14 @@ export class BlockedSessionsList extends Disposable {
 			ciFixModel: options.ciFixModel,
 			approvalRowMaxLines: BLOCKED_LIST_APPROVAL_ROW_MAX_LINES,
 			toolbarMenuId: Menus.BlockedSessionsItem,
+			toolbarTelemetrySource: 'blockedSessionsList.row',
 			onToolbarAction: (action, session) => {
 				if (action.id !== IGNORE_INPUT_NEEDED_COMMAND_ID && action.id !== IGNORE_CI_FAILURE_COMMAND_ID) {
 					return false;
 				}
 				options.onIgnoreSession(session);
 				status(action.id === IGNORE_INPUT_NEEDED_COMMAND_ID
-					? localize('inputNeededIgnored', "Input needed ignored until this session needs input again.")
+					? localize('inputNeededIgnored', "Needs attention alert ignored until this session needs attention again.")
 					: localize('ciFailureIgnored', "CI failure ignored until this session has another CI failure."));
 				return true;
 			},

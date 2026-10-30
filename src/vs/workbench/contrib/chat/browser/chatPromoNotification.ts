@@ -12,7 +12,8 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IL
 import { addDismissedNotificationId, ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationContext, IChatInputNotificationService, IChatInputNotificationSwitchToModelAction, matchesModelIdentifier, readDismissedNotificationIds } from './widget/input/chatInputNotificationService.js';
 
 const PROMO_NOTIFICATION_ID = 'copilot.promoNotification';
-const DISMISSED_PROMOS_STORAGE_KEY = 'chat.dismissedPromoIds';
+export const DISMISSED_PROMOS_STORAGE_KEY = 'chat.dismissedPromoIds';
+export const SEEN_PROMOS_STORAGE_KEY = 'chat.seenPromoIds';
 
 function isPromoVisible(context: IChatInputNotificationContext): boolean {
 	return context.deferredNotificationsEnabled && !context.isTransientChat && !context.sessionStarted;
@@ -25,6 +26,8 @@ function isPromoVisible(context: IChatInputNotificationContext): boolean {
  * not started yet, and only when the promo is banner-eligible (`showBanner` is
  * not `false`). Dismissals are persisted by promo id in application storage,
  * so they survive reloads and apply to every open window.
+ * Seeing a banner also records the promo id so the collapsed-chat pip does not
+ * offer the same sale again.
  */
 export class ChatPromoNotificationContribution extends Disposable implements IWorkbenchContribution {
 
@@ -106,6 +109,7 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 				description,
 				actions: [action],
 				when: isPromoVisible,
+				onDidShow: () => addDismissedNotificationId(this._storageService, SEEN_PROMOS_STORAGE_KEY, promo.id),
 				dismissible: true,
 				autoDismissOnMessage: false,
 				sessionTypes: [harness],

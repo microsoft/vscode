@@ -24,12 +24,23 @@ suite('Codex account metadata', () => {
 			status: 'signedIn',
 			email: 'person@example.com',
 			planType: undefined,
+			observedAt: undefined,
 			profileImage: undefined,
 			requiresOpenaiAuth: undefined,
 			rateLimit: { usedPercent: 42.4, windowDurationMins: 10080, resetsAt: 1234 },
+			rateLimits: undefined,
 			authUrl: undefined,
 			authUrlNonce: undefined,
 		});
+	});
+
+	test('retains only valid observation timestamps without refreshing them on read', () => {
+		const timestamps = [0, 1234, -1, Infinity, NaN, '1234', undefined];
+		assert.deepStrictEqual(timestamps.map(observedAt => readCodexAccountInfo({
+			agents: [], _meta: {
+				[CODEX_ACCOUNT_META_KEY]: { status: 'signedIn', observedAt },
+			}
+		}).observedAt), [0, 1234, undefined, undefined, undefined, undefined, undefined]);
 	});
 
 	test('drops malformed rate-limit metadata', () => {
@@ -41,6 +52,21 @@ suite('Codex account metadata', () => {
 		});
 		assert.strictEqual(account.status, 'signedIn');
 		assert.strictEqual(account.rateLimit, undefined);
+	});
+
+	test('reads both rate-limit windows and drops malformed entries independently', () => {
+		const weekly = { usedPercent: 42.4, windowDurationMins: 10080, resetsAt: 1234 };
+		const fiveHour = { usedPercent: 0, windowDurationMins: 300, resetsAt: 123 };
+		const account = readCodexAccountInfo({
+			agents: [],
+			_meta: {
+				[CODEX_ACCOUNT_META_KEY]: {
+					status: 'signedIn',
+					rateLimits: [weekly, null, { usedPercent: 101 }, { usedPercent: 10, resetsAt: -1 }, fiveHour],
+				},
+			},
+		});
+		assert.deepStrictEqual(account.rateLimits, [weekly, fiveHour]);
 	});
 
 	test('reads only safe profile-image references', () => {

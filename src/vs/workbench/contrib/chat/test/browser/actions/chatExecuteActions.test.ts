@@ -8,16 +8,19 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IMenuItem, isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
-import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
+import { AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { ChatSubmitAction, ExecuteHandoffActionId, GetHandoffsActionId, OpenModelPickerAction, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
+import { CancelAction, ChatEditingSessionSubmitAction, ChatSubmitAction, ExecuteHandoffActionId, GetHandoffsActionId, OpenDelegationPickerAction, OpenModelPickerAction, OpenSessionTargetPickerAction, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
+import { ChatQueueMessageAction, ChatSteerWithMessageAction } from '../../../browser/actions/chatQueueActions.js';
 import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
@@ -26,6 +29,7 @@ import { IHandOff } from '../../../common/promptSyntax/promptFileParser.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { MockChatWidgetService } from '../widget/mockChatWidget.js';
 import { MockChatModeService } from '../../common/mockChatModeService.js';
+import { IChatService } from '../../../common/chatService/chatService.js';
 
 interface IExecuteHandoffResult {
 	success: boolean;
@@ -50,8 +54,134 @@ function createMockMode(overrides: Partial<IChatMode> & { id: string; kind: Chat
 	} as IChatMode;
 }
 
+suite('OpenDelegationPickerAction', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function getState(values: Record<string, ContextKeyValue>) {
+		const action = new OpenDelegationPickerAction();
+		const context = {
+			getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T,
+		};
+		assert.ok(Array.isArray(action.desc.menu));
+		const menu = action.desc.menu.find(item => item.id === MenuId.ChatInputSecondary);
+		assert.ok(menu?.when);
+		assert.ok(action.desc.precondition);
+		return {
+			visible: menu.when.evaluate(context),
+			enabled: action.desc.precondition.evaluate(context),
+		};
+	}
+
+	const context = {
+		[ChatContextKeys.enabled.key]: true,
+		[ChatContextKeys.location.key]: ChatAgentLocation.Chat,
+		[ChatContextKeys.chatSessionIsEmpty.key]: false,
+		[ChatContextKeys.chatSessionSupportsDelegation.key]: false,
+		[AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY.key]: false,
+	};
+
+	for (const sessionType of [AgentSessionProviders.AgentHostCopilot, AgentSessionProviders.AgentHostClaude, AgentSessionProviders.AgentHostCodex, 'agent-host-custom', 'remote-test-host-copilot']) {
+		test(`gates the disabled editor harness for ${sessionType}`, () => {
+			const values = {
+				...context,
+				[ChatContextKeys.agentSessionType.key]: sessionType,
+				[IsSessionsWindowContext.key]: false,
+			};
+			assert.deepStrictEqual({
+				disabled: getState(values),
+				disabledBeforeRegistration: getState({ ...values, [ChatContextKeys.chatSessionSupportsDelegation.key]: true }),
+				enabled: getState({ ...values, [AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY.key]: true }),
+				enabledBeforeRegistration: getState({
+					...values,
+					[AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY.key]: true,
+					[ChatContextKeys.chatSessionSupportsDelegation.key]: true,
+				}),
+			}, {
+				disabled: { visible: false, enabled: false },
+				disabledBeforeRegistration: { visible: false, enabled: false },
+				enabled: { visible: true, enabled: false },
+				enabledBeforeRegistration: { visible: true, enabled: false },
+			});
+		});
+
+		test(`never shows the existing-session harness for ${sessionType} in the Agents window`, () => {
+			const values = {
+				...context,
+				[ChatContextKeys.agentSessionType.key]: sessionType,
+				[IsSessionsWindowContext.key]: true,
+			};
+			assert.deepStrictEqual({
+				disabled: getState(values),
+				disabledBeforeRegistration: getState({ ...values, [ChatContextKeys.chatSessionSupportsDelegation.key]: true }),
+				enabled: getState({ ...values, [AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY.key]: true }),
+				enabledBeforeRegistration: getState({
+					...values,
+					[AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY.key]: true,
+					[ChatContextKeys.chatSessionSupportsDelegation.key]: true,
+				}),
+			}, {
+				disabled: { visible: false, enabled: false },
+				disabledBeforeRegistration: { visible: false, enabled: false },
+				enabled: { visible: false, enabled: false },
+				enabledBeforeRegistration: { visible: false, enabled: false },
+			});
+		});
+	}
+
+	test('preserves non-Agent-Host visibility and delegation', () => {
+		const values = { ...context, [ChatContextKeys.agentSessionType.key]: AgentSessionProviders.Local, [ChatContextKeys.chatSessionSupportsDelegation.key]: true };
+		assert.deepStrictEqual({
+			localDisabled: getState(values),
+			localEnabled: getState({ ...values, [AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY.key]: true }),
+			unsupported: getState({ ...values, [ChatContextKeys.chatSessionSupportsDelegation.key]: false }),
+			agentsWindow: getState({ ...values, [IsSessionsWindowContext.key]: true }),
+			editingInput: getState({ ...values, [ChatContextKeys.currentlyEditingInput.key]: true }),
+			editingRequest: getState({ ...values, [ChatContextKeys.currentlyEditing.key]: true }),
+		}, {
+			localDisabled: { visible: true, enabled: true },
+			localEnabled: { visible: true, enabled: true },
+			unsupported: { visible: false, enabled: false },
+			agentsWindow: { visible: false, enabled: true },
+			editingInput: { visible: true, enabled: false },
+			editingRequest: { visible: true, enabled: false },
+		});
+	});
+
+	test('preserves AI, chat location, quick chat, and empty-session visibility guards', () => {
+		const values = {
+			...context,
+			[ChatContextKeys.agentSessionType.key]: AgentSessionProviders.AgentHostCopilot,
+			[AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY.key]: true,
+		};
+		assert.deepStrictEqual({
+			aiDisabled: getState({ ...values, [ChatContextKeys.enabled.key]: false }).visible,
+			quickChat: getState({ ...values, [ChatContextKeys.inQuickChat.key]: true }).visible,
+			editorInline: getState({ ...values, [ChatContextKeys.location.key]: ChatAgentLocation.EditorInline }).visible,
+			emptySession: getState({ ...values, [ChatContextKeys.chatSessionIsEmpty.key]: true }).visible,
+		}, {
+			aiDisabled: false,
+			quickChat: false,
+			editorInline: false,
+			emptySession: false,
+		});
+	});
+
+	test('leaves harness selection enabled for new Agent Host sessions', () => {
+		const action = new OpenSessionTargetPickerAction();
+		const values = {
+			...context,
+			[ChatContextKeys.agentSessionType.key]: AgentSessionProviders.AgentHostCopilot,
+			[ChatContextKeys.chatSessionIsEmpty.key]: true,
+		};
+		assert.ok(action.desc.precondition);
+		assert.strictEqual(action.desc.precondition.evaluate({
+			getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T,
+		}), true);
+	});
+});
+
 suite('GetHandoffsAction', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	let chatExecuteActions: DisposableStore;
@@ -75,13 +205,11 @@ suite('GetHandoffsAction', () => {
 		};
 
 		assert.deepStrictEqual({
-			enabled: evaluate({ ...context, [`config.${AgentHostAllowSignedOutWhenUsableSettingId}`]: true }),
-			disabled: evaluate({ ...context, [`config.${AgentHostAllowSignedOutWhenUsableSettingId}`]: false }),
-			editorWindow: evaluate({ ...context, [IsSessionsWindowContext.key]: false, [`config.${AgentHostAllowSignedOutWhenUsableSettingId}`]: true }),
-			claude: evaluate({ ...context, [ChatContextKeys.agentSessionType.key]: AgentSessionProviders.AgentHostClaude, [`config.${AgentHostAllowSignedOutWhenUsableSettingId}`]: true }),
+			signedOut: evaluate(context),
+			editorWindow: evaluate({ ...context, [IsSessionsWindowContext.key]: false }),
+			claude: evaluate({ ...context, [ChatContextKeys.agentSessionType.key]: AgentSessionProviders.AgentHostClaude }),
 		}, {
-			enabled: true,
-			disabled: false,
+			signedOut: true,
 			editorWindow: false,
 			claude: false,
 		});
@@ -94,12 +222,6 @@ suite('GetHandoffsAction', () => {
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('should return all modes when no sourceCustomAgent is specified', async () => {
 		const askMode = createMockMode({ id: 'ask', kind: ChatModeKind.Ask, isBuiltin: true });
@@ -159,7 +281,7 @@ suite('GetHandoffsAction', () => {
 });
 
 suite('ExecuteHandoffAction', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	let chatExecuteActions: DisposableStore;
@@ -174,12 +296,6 @@ suite('ExecuteHandoffAction', () => {
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const testHandoffs: IHandOff[] = [
 		{ agent: 'implement', label: 'Start Implementation', prompt: 'Implement the plan', send: true },
@@ -375,7 +491,7 @@ suite('ExecuteHandoffAction', () => {
 });
 
 suite('SwitchToNextPinnedModelAction', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	let chatExecuteActions: DisposableStore;
@@ -390,12 +506,6 @@ suite('SwitchToNextPinnedModelAction', () => {
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('invokes switchToNextPinnedModel on the last focused widget', async () => {
 		let switchCalls = 0;
@@ -431,12 +541,97 @@ suite('SwitchToNextPinnedModelAction', () => {
 });
 
 suite('ChatSubmitAction', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	let chatExecuteActions: DisposableStore;
 	suiteSetup(() => {
 		chatExecuteActions = registerChatExecuteActions();
+	});
+
+	suite('Transcript preparation execute actions', () => {
+		function createServices() {
+			const services = store.add(new TestInstantiationService());
+			services.set(IChatWidgetService, new MockChatWidgetService());
+			services.set(ITelemetryService, NullTelemetryService);
+			services.set(ILogService, new NullLogService());
+			return services;
+		}
+
+		test('Stop cancels preparation without a view model or cancelling a normal request', async () => {
+			const services = createServices();
+			const calls: string[] = [];
+			services.stub(IChatService, {
+				cancelCurrentRequestForSession: async () => { calls.push('request'); },
+			});
+			const widget = upcastPartial<IChatWidget>({
+				cancelTranscriptProgress: () => { calls.push('preparation'); return true; },
+			});
+			await services.invokeFunction(accessor => new CancelAction().run(accessor, { widget }));
+			assert.deepStrictEqual(calls, ['preparation']);
+		});
+
+		test('Stop continues to cancel ordinary requests once preparation clears', async () => {
+			const services = createServices();
+			const calls: string[] = [];
+			services.stub(IChatService, {
+				cancelCurrentRequestForSession: async () => { calls.push('request'); },
+			});
+			const widget = upcastPartial<IChatWidget>({
+				viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: URI.parse('test:session') }),
+				cancelTranscriptProgress: () => false,
+			});
+			await services.invokeFunction(accessor => new CancelAction().run(accessor, { widget }));
+			assert.deepStrictEqual(calls, ['request']);
+		});
+
+		test('preparation suppresses Send, queue and steer while showing the normal Stop action', () => {
+			const stop = new CancelAction();
+			assert.ok(Array.isArray(stop.desc.menu));
+			const stopMenu = stop.desc.menu.find(menu => menu.id === MenuId.ChatExecute)!;
+			const values: Record<string, ContextKeyValue> = {
+				[ChatContextKeys.transcriptProgressActive.key]: true,
+				[ChatContextKeys.inputHasText.key]: true,
+				[ChatContextKeys.inputHasSendableContent.key]: true,
+				[ChatContextKeys.chatSessionOptionsValid.key]: true,
+				[ChatContextKeys.chatModeKind.key]: ChatModeKind.Agent,
+			};
+			const context = { getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T };
+			const send = new ChatSubmitAction();
+			const editSend = new ChatEditingSessionSubmitAction();
+			const queue = new ChatQueueMessageAction();
+			const steer = new ChatSteerWithMessageAction();
+			const state = () => ({
+				stop: stopMenu.when!.evaluate(context),
+				send: send.desc.precondition!.evaluate(context),
+				editSend: editSend.desc.precondition!.evaluate(context),
+				queue: queue.desc.precondition!.evaluate(context),
+				steer: steer.desc.precondition!.evaluate(context),
+			});
+			const preparing = state();
+			values[ChatContextKeys.transcriptProgressActive.key] = false;
+			const idle = state();
+			values[ChatContextKeys.hasActiveRequest.key] = true;
+			values[ChatContextKeys.requestInProgress.key] = true;
+			assert.deepStrictEqual({ preparing, idle, requesting: state() }, {
+				preparing: { stop: true, send: false, editSend: false, queue: false, steer: false },
+				idle: { stop: false, send: true, editSend: true, queue: true, steer: true },
+				requesting: { stop: true, send: false, editSend: false, queue: true, steer: true },
+			});
+		});
+
+		test('direct Send and Stop and Send calls do not dispatch or alter preparation', async () => {
+			const services = createServices();
+			const calls: string[] = [];
+			const widget = upcastPartial<IChatWidget>({
+				isTranscriptProgressActive: true,
+				acceptInput: async () => { calls.push('send'); return undefined; },
+				cancelTranscriptProgress: () => { calls.push('cancel'); return true; },
+			});
+			await services.invokeFunction(accessor => new ChatSubmitAction().run(accessor, { widget }));
+			await services.invokeFunction(accessor => new ChatSubmitAction().run(accessor, { widget, acceptInputOptions: { cancelCurrentRequest: true } }));
+			assert.deepStrictEqual(calls, []);
+		});
 	});
 
 	suiteTeardown(() => {
@@ -446,12 +641,6 @@ suite('ChatSubmitAction', () => {
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('passes acceptInputOptions to the widget', async () => {
 		let acceptedOptions: unknown;

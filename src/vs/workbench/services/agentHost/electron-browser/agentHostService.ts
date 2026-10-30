@@ -10,10 +10,11 @@
 // (`LocalAgentHostServiceClient`).
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { Event } from '../../../../base/common/event.js';
+import { autorun, ObservablePromise } from '../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostOTelPolicyReadiness, IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { LocalAgentHostServiceClient } from '../../../../platform/agentHost/electron-browser/localAgentHostService.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../../../platform/agentHost/common/agentHostClientInfo.js';
@@ -21,9 +22,12 @@ import { CopilotCliVSCodeAssignmentContextKey } from '../../../../platform/agent
 import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IWorkbenchAssignmentService } from '../../assignment/common/assignmentService.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { AccountPolicyGateUnsatisfiedReason, IAccountPolicyGateService } from '../../policies/common/accountPolicyService.js';
 import { EditorRemoteAgentHostServiceClient } from '../browser/editorRemoteAgentHostServiceClient.js';
 
 /**
@@ -39,15 +43,49 @@ class WorkbenchAgentHostService {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
+		@IAccountPolicyGateService accountPolicyGateService: IAccountPolicyGateService,
+		@ILogService logService: ILogService,
 	) {
 		const inner = environmentService.remoteAuthority
 			? instantiationService.createInstance(EditorRemoteAgentHostServiceClient)
 			: instantiationService.createInstance(
 				LocalAgentHostServiceClient,
 				environmentService.isSessionsWindow ? agentsWindowAgentHostClientInfo : editorWindowAgentHostClientInfo,
+				createAgentHostOTelPolicyReadiness(defaultAccountService, accountPolicyGateService, logService),
+				undefined,
 			);
 		return inner as unknown as WorkbenchAgentHostService;
 	}
+}
+
+/** Reads gate readiness directly, including during configuration events preceding the gate event. */
+export function createAgentHostOTelPolicyReadiness(
+	defaultAccountService: IDefaultAccountService,
+	accountPolicyGateService: IAccountPolicyGateService,
+	logService: ILogService,
+): IAgentHostOTelPolicyReadiness {
+	const initialized = ObservablePromise.fromFn(async () => {
+		try {
+			await defaultAccountService.getDefaultAccount();
+			return true;
+		} catch (error) {
+			logService.error('Failed to resolve account policy for Agent Host OTel', error);
+			return false;
+		}
+	});
+	return {
+		isReady: () => {
+			const gate = accountPolicyGateService.gateInfo;
+			return initialized.promiseResult.get()?.data === true
+				&& gate.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved
+				&& gate.managedSettingsFreshness?.state !== ManagedSettingsFreshnessState.Pending;
+		},
+		onDidChange: Event.any(
+			Event.fromObservableLight(initialized.promiseResult),
+			accountPolicyGateService.onDidChangeGateInfo,
+		),
+	};
 }
 
 class AgentHostPrewarmer extends Disposable {

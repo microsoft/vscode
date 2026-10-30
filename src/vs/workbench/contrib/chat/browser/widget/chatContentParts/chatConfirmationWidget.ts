@@ -67,7 +67,6 @@ export class ChatQueryTitlePart extends Disposable {
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 	private readonly _renderedTitle = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private readonly _fileWidgetStore = this._register(new DisposableStore());
-	private options: IChatQueryTitlePartOptions | undefined;
 
 	public get title() {
 		return this._title;
@@ -92,6 +91,7 @@ export class ChatQueryTitlePart extends Disposable {
 		private readonly element: HTMLElement,
 		private _title: IMarkdownString | string,
 		subtitle: string | IMarkdownString | undefined,
+		private readonly options: IChatQueryTitlePartOptions | undefined,
 		@IMarkdownRendererService private readonly _renderer: IMarkdownRendererService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatMarkdownAnchorService private readonly _chatMarkdownAnchorService: IChatMarkdownAnchorService,
@@ -119,14 +119,18 @@ export class ChatQueryTitlePart extends Disposable {
 		}
 	}
 
-	setOptions(options: IChatQueryTitlePartOptions): void {
-		this.options = options;
-		this.title = this._title;
-	}
-
 	private renderTitle(value: IMarkdownString | string): IRenderedMarkdown {
-		const renderedTitle = this._renderer.render(this.toMdString(value), this.getRenderOptions());
 		this._fileWidgetStore.clear();
+		const markdown = this.toMdString(value);
+		// Literal titles need no parsing, except for Markdown's automatic links and paragraph breaks.
+		if (typeof value === 'string' && markdown.value.length <= 100_000 && !/(?:[a-z][a-z0-9+.-]*:\/\/|www\.|@|[\r\n&])/i.test(value)) {
+			const element = dom.$('div.rendered-markdown');
+			if (value) {
+				element.appendChild(dom.$('p', undefined, value.replace(/[ \t]/g, '\u00a0')));
+			}
+			return { element, dispose: () => { } };
+		}
+		const renderedTitle = this._renderer.render(markdown, this.getRenderOptions());
 		if (this.options?.renderFileWidgets) {
 			renderFileWidgets(renderedTitle.element, this._instantiationService, this._chatMarkdownAnchorService, this._fileWidgetStore);
 		}
@@ -190,6 +194,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 			elements.title,
 			title,
 			subtitle,
+			undefined,
 		));
 
 		this.messageElement = elements.message;
@@ -211,7 +216,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, small: true, secondary: buttonData.isSecondary, title: buttonData.tooltip, disabled: buttonData.disabled };
 
 			let button: IButton;
-			if (buttonData.moreActions) {
+			if (buttonData.moreActions?.some(action => !(action instanceof Separator))) {
 				button = new ButtonWithDropdown(elements.buttons, {
 					...buttonOptions,
 					contextMenuProvider: contextMenuService,
@@ -323,10 +328,17 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	}
 
 	private _buttonsDomNode: HTMLElement;
-	private _buttons: { readonly label: string; readonly widget: IButton }[] = [];
+	private _buttons: { readonly data: IChatConfirmationButton<T>; readonly widget: IButton }[] = [];
 
 	setShowButtons(showButton: boolean): void {
 		this.domNode.classList.toggle('hideButtons', !showButton);
+	}
+
+	runPrimaryAction(): void {
+		const primary = this._buttons[0];
+		if (primary?.widget.enabled) {
+			this._onDidClick.fire({ button: primary.data, isTouchClick: false });
+		}
 	}
 
 	private readonly messageElement: HTMLElement;
@@ -380,6 +392,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 			elements.title,
 			new MarkdownString(icon ? `$(${icon.id}) ${typeof title === 'string' ? title : title.value}` : typeof title === 'string' ? title : title.value),
 			subtitle,
+			undefined,
 		));
 
 		this.messageElement = elements.message;
@@ -440,7 +453,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, small: true, secondary: buttonData.isSecondary, title: buttonData.tooltip, disabled: buttonData.disabled };
 
 			let button: IButton;
-			if (buttonData.moreActions) {
+			if (buttonData.moreActions?.some(action => !(action instanceof Separator))) {
 				button = new ButtonWithDropdown(this._buttonsDomNode, {
 					...buttonOptions,
 					contextMenuProvider: this.contextMenuService,
@@ -466,7 +479,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 			}
 
 			this._register(button);
-			this._buttons.push({ label: buttonData.label, widget: button });
+			this._buttons.push({ data: buttonData, widget: button });
 			button.label = buttonData.label;
 			this._register(button.onDidClick(event => this._onDidClick.fire({ button: buttonData, isTouchClick: !!event && event.type === TouchEventType.Tap })));
 			if (buttonData.onDidChangeDisablement) {
@@ -474,7 +487,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 			}
 		}
 
-		const buttonToFocus = focusedButton && this._buttons.find(button => button.label === focusedButton.label)?.widget;
+		const buttonToFocus = focusedButton && this._buttons.find(button => button.data.label === focusedButton.data.label)?.widget;
 		if (focusedDropdown && buttonToFocus instanceof ButtonWithDropdown) {
 			buttonToFocus.dropdownButton.focus();
 		} else {
@@ -497,7 +510,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 				this._context.codeBlockStartIndex,
 				this.markdownRendererService,
 				undefined,
-				this._context.currentWidth.get(),
+				() => this._context.currentWidth.get(),
 				{
 					allowInlineDiffs: true,
 					horizontalPadding: 6,

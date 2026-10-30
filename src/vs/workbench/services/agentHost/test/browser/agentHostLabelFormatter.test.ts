@@ -11,10 +11,16 @@ import { AGENT_HOST_LABEL_FORMATTER, agentHostLabelFormatter, LOCAL_AGENT_HOST_A
 import { LabelService } from '../../../label/common/labelService.js';
 import { TestEnvironmentService, TestLifecycleService, TestPathService, TestRemoteAgentService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestContextService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { extUri } from '../../../../../base/common/resources.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 
 suite('AgentHost label formatter', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const uriIdentityService = new class extends mock<IUriIdentityService>() {
+		override readonly extUri = extUri;
+	};
 
 	function createLabelService(): LabelService {
 		const labelService = disposables.add(new LabelService(
@@ -23,7 +29,8 @@ suite('AgentHost label formatter', () => {
 			new TestPathService(URI.file('/Users/test')),
 			new TestRemoteAgentService(),
 			disposables.add(new TestStorageService()),
-			disposables.add(new TestLifecycleService())
+			disposables.add(new TestLifecycleService()),
+			uriIdentityService
 		));
 		disposables.add(labelService.registerFormatter(AGENT_HOST_LABEL_FORMATTER));
 		return labelService;

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience } from '../../common/browserView.js';
+import { BrowserViewPresentation, BrowserViewStorageScope, getAgentBrowserViewCreationDefaults, getBrowserViewPopupAction, isBrowserViewAssociatedResourceNavigation, isBrowserViewStorageScopeShareableWithAgent, isInMemoryStorageScope, matchesBrowserViewAudience } from '../../common/browserView.js';
 
 suite('BrowserView', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -26,6 +26,24 @@ suite('BrowserView', () => {
 			fragment: true,
 			otherFile: false,
 			otherScheme: false
+		});
+	});
+
+	test('opens only user-initiated web popups from unlisted views externally', () => {
+		assert.deepStrictEqual({
+			listed: getBrowserViewPopupAction(BrowserViewPresentation.Listed, 'https://example.com/', false),
+			https: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'https://example.com/', true),
+			http: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'http://example.com/', true),
+			noGesture: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'https://example.com/', false),
+			customScheme: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'vscode://settings', true),
+			blank: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'about:blank', true),
+		}, {
+			listed: { action: 'integrated', consumeUserGesture: false },
+			https: { action: 'external', consumeUserGesture: true },
+			http: { action: 'external', consumeUserGesture: true },
+			noGesture: { action: 'deny', consumeUserGesture: false },
+			customScheme: { action: 'deny', consumeUserGesture: false },
+			blank: { action: 'deny', consumeUserGesture: false },
 		});
 	});
 
@@ -52,6 +70,62 @@ suite('BrowserView', () => {
 			generic: true,
 			session: true,
 			otherSession: false
+		});
+	});
+
+	test('configures agent storage affinity independently from ownership', () => {
+		assert.deepStrictEqual({
+			editorWindow: getAgentBrowserViewCreationDefaults('chat-session'),
+			agentsWindow: getAgentBrowserViewCreationDefaults('chat-session', 'chat-session'),
+		}, {
+			editorWindow: {
+				owner: { type: 'agent', sessionId: 'chat-session' },
+				initialAudiences: [{ type: 'agent' }],
+				session: { scope: BrowserViewStorageScope.Agent, affinity: undefined, network: undefined }
+			},
+			agentsWindow: {
+				owner: { type: 'agent', sessionId: 'chat-session' },
+				initialAudiences: [{ type: 'agent' }],
+				session: {
+					scope: BrowserViewStorageScope.Agent,
+					affinity: 'chat-session',
+					network: undefined
+				}
+			}
+		});
+	});
+
+	test('identifies in-memory storage scopes', () => {
+		assert.deepStrictEqual({
+			global: isInMemoryStorageScope(BrowserViewStorageScope.Global),
+			workspace: isInMemoryStorageScope(BrowserViewStorageScope.Workspace),
+			ephemeral: isInMemoryStorageScope(BrowserViewStorageScope.Ephemeral),
+			agent: isInMemoryStorageScope(BrowserViewStorageScope.Agent),
+		}, {
+			global: false,
+			workspace: false,
+			ephemeral: true,
+			agent: true,
+		});
+	});
+
+	test('only shares Agent storage when network filtering is enabled', () => {
+		assert.deepStrictEqual({
+			filteringDisabled: Object.fromEntries(Object.values(BrowserViewStorageScope).map(scope => [scope, isBrowserViewStorageScopeShareableWithAgent(scope, false)])),
+			filteringEnabled: Object.fromEntries(Object.values(BrowserViewStorageScope).map(scope => [scope, isBrowserViewStorageScopeShareableWithAgent(scope, true)])),
+		}, {
+			filteringDisabled: {
+				global: true,
+				workspace: true,
+				ephemeral: true,
+				agent: true,
+			},
+			filteringEnabled: {
+				global: false,
+				workspace: false,
+				ephemeral: false,
+				agent: true,
+			},
 		});
 	});
 });

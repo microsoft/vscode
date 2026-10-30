@@ -5,8 +5,7 @@ description: Primary accessibility skill for VS Code. REQUIRED for new feature a
 
 ## When to Use This Skill
 
-Use this skill for any VS Code feature work that introduces or changes interactive UI.
-Use this skill by default for new features and contributions, including when the request does not explicitly mention accessibility.
+Use this skill for any VS Code feature work that introduces or changes interactive UI. Use this skill by default for new features and contributions, including when the request does not explicitly mention accessibility.
 
 Trigger examples:
 - "add a new feature"
@@ -161,8 +160,7 @@ A verbosity setting controls whether a hint such as "press Alt+F1 for accessibil
 
 ### Steps
 
-1. **Add an entry** to `AccessibilityVerbositySettingId` in
-   `src/vs/workbench/contrib/accessibility/browser/accessibilityConfiguration.ts`:
+1. **Add an entry** to `AccessibilityVerbositySettingId` in `src/vs/workbench/contrib/accessibility/browser/accessibilityConfiguration.ts`:
    ```ts
    export const enum AccessibilityVerbositySettingId {
        // … existing entries …
@@ -252,6 +250,12 @@ Every interactive UI element must be fully operable via the keyboard.
 - **Escape to dismiss**: Overlays, dialogs, and popups must be dismissable with `Escape`, returning focus to the previous element.
 - **Focus trapping**: Modal dialogs must trap focus within the dialog until dismissed.
 
+### Explaining unavailable options
+
+Follow the [discoverable unavailable-feature pattern](../design-philosophy/SKILL.md#make-unavailable-features-understandable): a feature promoted in documentation should not become inexplicably absent solely because the user cannot enable it. Announce both the disabled state and its reason using the control's supported ARIA semantics; a grey label, briefcase icon, or hover alone is insufficient. Keep icons decorative when text already conveys their meaning.
+
+Explanatory links must remain independently mouse- and keyboard-operable without activating the disabled option. Verify actual Tab/Shift+Tab and Enter behavior, not just `tabIndex` or a programmatic `focus()`; list navigation may skip disabled rows. Preserve focus/selection on policy refresh, guard stale actions, and update the feature's accessibility help with the available explanation and next step. Reuse the settings, model, harness, and permission-picker examples linked in the design guidance.
+
 ---
 
 ## 7. ARIA Labels and Roles
@@ -300,4 +304,3 @@ All interactive UI elements must have appropriate ARIA attributes so screen read
 - `src/vs/workbench/contrib/accessibility/browser/accessibilityConfiguration.ts` — `AccessibilityVerbositySettingId`, verbosity setting registration
 - `src/vs/platform/accessibilitySignal/browser/accessibilitySignalService.ts` — `IAccessibilitySignalService`, `AccessibilitySignal`
 - `src/vs/base/browser/ui/aria/aria.ts` — `alert()`, `status()` for ARIA live region announcements
-

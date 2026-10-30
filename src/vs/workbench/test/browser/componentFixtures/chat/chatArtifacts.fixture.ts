@@ -11,6 +11,7 @@ import { IFileDialogService } from '../../../../../platform/dialogs/common/dialo
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ISharedWebContentExtractorService, NullSharedWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { ChatArtifactsWidget } from '../../../../contrib/chat/browser/widget/chatArtifactsWidget.js';
 import { IChatImageCarouselService } from '../../../../contrib/chat/browser/chatImageCarouselService.js';
 import { IChatArtifact, IChatArtifacts, IChatArtifactsService, IArtifactSourceGroup } from '../../../../contrib/chat/common/tools/chatArtifactsService.js';
@@ -56,6 +57,7 @@ function renderArtifactsWidget(context: ComponentFixtureContext, artifacts: ICha
 			reg.define(IListService, ListService);
 			reg.defineInstance(IContextViewService, new class extends mock<IContextViewService>() { }());
 			reg.defineInstance(IChatArtifactsService, createMockArtifactsService(artifacts));
+			reg.defineInstance(ISharedWebContentExtractorService, new NullSharedWebContentExtractorService());
 			reg.defineInstance(IChatImageCarouselService, new class extends mock<IChatImageCarouselService>() { }());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() { override onDidFilesChange = Event.None; override onDidRunOperation = Event.None; }());
 			reg.defineInstance(IFileDialogService, new class extends mock<IFileDialogService>() { }());
@@ -79,6 +81,7 @@ function renderArtifactsWidgetFromGroups(context: ComponentFixtureContext, group
 			reg.define(IListService, ListService);
 			reg.defineInstance(IContextViewService, new class extends mock<IContextViewService>() { }());
 			reg.defineInstance(IChatArtifactsService, createMockArtifactsServiceFromGroups(groups));
+			reg.defineInstance(ISharedWebContentExtractorService, new NullSharedWebContentExtractorService());
 			reg.defineInstance(IChatImageCarouselService, new class extends mock<IChatImageCarouselService>() { }());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() { override onDidFilesChange = Event.None; override onDidRunOperation = Event.None; }());
 			reg.defineInstance(IFileDialogService, new class extends mock<IFileDialogService>() { }());
