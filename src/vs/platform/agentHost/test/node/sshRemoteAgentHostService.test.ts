@@ -8,9 +8,10 @@ import { createRequire } from 'module';
 import * as net from 'net';
 import * as os from 'os';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { isCancellationError } from '../../../../base/common/errors.js';
+import { getErrorCode, isCancellationError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../../base/common/errors.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Event } from '../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -197,6 +198,7 @@ class MockSSHClient {
 
 class KeyboardInteractiveMockSSHClient {
 	ended = false;
+	connectError: Error | undefined;
 	finishResponses: readonly string[] | undefined;
 	connectConfig: ConnectConfig | undefined;
 	readonly authMethods: string[] = [];
@@ -219,6 +221,10 @@ class KeyboardInteractiveMockSSHClient {
 
 	connect(config: ConnectConfig): void {
 		this.connectConfig = config;
+		if (this.connectError) {
+			this.fireError(this.connectError);
+			return;
+		}
 		const authHandler = config.authHandler as ((methodsLeft: AuthenticationType[] | null, partialSuccess: boolean, callback: (next: AnyAuthMethod | false) => void) => void) | undefined;
 		const authenticate = (method: AnyAuthMethod | false) => {
 			if (method) {
@@ -496,7 +502,7 @@ class KeyboardInteractiveConnectTestService extends SSHRemoteAgentHostMainServic
 
 suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: TestableSSHRemoteAgentHostMainService;
 
 	setup(() => {
@@ -514,9 +520,50 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		disposables.add(service);
 	});
 
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	for (const { name, error, expectedMessage } of [
+		{
+			name: 'dual-stack connection refused',
+			error: Object.assign(new AggregateError([
+				Object.assign(new Error('connect ECONNREFUSED ::1:43192'), { code: 'ECONNREFUSED' }),
+				Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:43192'), { code: 'ECONNREFUSED' }),
+			], ''), { code: 'ECONNREFUSED' }),
+			expectedMessage: 'connect ECONNREFUSED ::1:43192\nconnect ECONNREFUSED 127.0.0.1:43192',
+		},
+		{
+			name: 'aggregate with only an error code',
+			error: Object.assign(new AggregateError([], ''), { code: 'ECONNREFUSED' }),
+			expectedMessage: 'ECONNREFUSED',
+		},
+		{
+			name: 'aggregate with an existing message',
+			error: Object.assign(new AggregateError([new Error('nested detail')], 'Connection refused by proxy'), { code: 'ECONNREFUSED' }),
+			expectedMessage: 'Connection refused by proxy',
+		},
+		{
+			name: 'single-address connection refused',
+			error: Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:43192'), { code: 'ECONNREFUSED' }),
+			expectedMessage: 'connect ECONNREFUSED 127.0.0.1:43192',
+		},
+	]) {
+		test(`preserves SSH ${name} details across IPC for the connection error hover`, async () => {
+			const logService = new RecordingLogService();
+			const connecting = disposables.add(new KeyboardInteractiveConnectTestService(
+				logService, { quality, dataFolderName } as IProductService, NullTelemetryService));
+			connecting.client.connectError = error;
+			await assert.rejects(connecting.connectSSHForTest(makeConfig()), actual => {
+				assert.strictEqual(actual, error);
+				const restored = transformErrorFromSerialization(transformErrorForSerialization(error));
+				assert.deepStrictEqual({
+					message: toErrorMessage(restored), code: getErrorCode(restored), name: restored.name,
+					log: logService.errors,
+				}, {
+					message: expectedMessage, code: 'ECONNREFUSED', name: error.name,
+					log: [`[SSHRemoteAgentHost] SSH connection error: ${expectedMessage}`],
+				});
+				return true;
+			});
+		});
+	}
 
 	// --- Duplicate connect / reconnect on an already-connected host ---
 
@@ -1796,11 +1843,7 @@ class AuthAttemptsTestService extends SSHRemoteAgentHostMainService {
 
 suite('SSHRemoteAgentHostMainService - resolveSSHConfig', () => {
 
-	const disposables = new DisposableStore();
-
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	class ResolveConfigTestService extends SSHRemoteAgentHostMainService {
 		readonly resolvedHosts: string[] = [];
@@ -1856,11 +1899,7 @@ suite('SSHRemoteAgentHostMainService - resolveSSHConfig', () => {
 
 suite('SSHRemoteAgentHostMainService - WebSocket relay', () => {
 
-	const disposables = new DisposableStore();
-
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Runs the real relay over a loopback TCP socket standing in for the forwarded SSH channel. */
 	class RelayTestService extends SSHRemoteAgentHostMainService {
@@ -1934,7 +1973,7 @@ suite('SSHRemoteAgentHostMainService - WebSocket relay', () => {
 
 suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: AuthAttemptsTestService;
 
 	setup(() => {
@@ -1951,10 +1990,6 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 		);
 		disposables.add(service);
 	});
-
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const RSA = Buffer.from('rsa-key-bytes');
 	const ED = Buffer.from('ed25519-key-bytes');

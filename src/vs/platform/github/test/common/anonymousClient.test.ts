@@ -76,10 +76,10 @@ suite('GitHub anonymous clients', () => {
 		const first = store.add(service.acquireAnonymousClient());
 		const second = store.add(service.acquireAnonymousClient());
 		assert.strictEqual(requests.length, 0);
-		await first.content.resolveRef('owner', 'repo', 'HEAD', signal());
+		await first.content.resolveRef({ owner: 'owner', repo: 'repo' }, 'HEAD', signal());
 		first.dispose();
-		const result = await second.content.resolveRef('owner', 'repo', 'HEAD', signal());
-		await assert.rejects(first.content.resolveRef('owner', 'repo', 'HEAD', signal()), isCancellationError);
+		const result = await second.content.resolveRef({ owner: 'owner', repo: 'repo' }, 'HEAD', signal());
+		await assert.rejects(first.content.resolveRef({ owner: 'owner', repo: 'repo' }, 'HEAD', signal()), isCancellationError);
 		assert.deepStrictEqual({ sameFacade: first === second, result, requests }, {
 			sameFacade: false, result: commitSha,
 			requests: [
@@ -117,7 +117,7 @@ suite('GitHub anonymous clients', () => {
 		});
 		const client = store.add(service.acquireAnonymousClient());
 		changed.fire({ providerId: 'github' });
-		assert.strictEqual(await client.content.resolveRef('o', 'r', 'HEAD', signal()), commitSha);
+		assert.strictEqual(await client.content.resolveRef({ owner: 'o', repo: 'r' }, 'HEAD', signal()), commitSha);
 	});
 
 	test('private ETags and responses cannot enter the anonymous cache', async () => {
@@ -158,8 +158,8 @@ suite('GitHub anonymous clients', () => {
 		});
 		const first = store.add(service.acquireAnonymousClient());
 		const peer = store.add(service.acquireAnonymousClient());
-		const rejected = assert.rejects(first.content.resolveRef('o', 'r', 'HEAD', signal()), isCancellationError);
-		const pending = peer.content.resolveRef('o', 'r', 'HEAD', signal());
+		const rejected = assert.rejects(first.content.resolveRef({ owner: 'o', repo: 'r' }, 'HEAD', signal()), isCancellationError);
+		const pending = peer.content.resolveRef({ owner: 'o', repo: 'r' }, 'HEAD', signal());
 		const active = await started.p;
 		first.dispose();
 		await rejected;
@@ -182,13 +182,13 @@ suite('GitHub anonymous clients', () => {
 			},
 		});
 		const first = store.add(service.acquireAnonymousClient());
-		const pending = assert.rejects(first.content.resolveRef('o', 'r', 'HEAD', signal()), isCancellationError);
+		const pending = assert.rejects(first.content.resolveRef({ owner: 'o', repo: 'r' }, 'HEAD', signal()), isCancellationError);
 		const active = await started.p;
 		first.dispose();
 		await pending;
 		await response.complete(new Response(commitSha));
 		const next = store.add(service.acquireAnonymousClient());
-		assert.deepStrictEqual({ aborted: active.aborted, result: await next.content.resolveRef('o', 'r', 'HEAD', signal()) }, {
+		assert.deepStrictEqual({ aborted: active.aborted, result: await next.content.resolveRef({ owner: 'o', repo: 'r' }, 'HEAD', signal()) }, {
 			aborted: true, result: commitSha,
 		});
 	});
@@ -346,8 +346,8 @@ suite('GitHub public raw content', () => {
 		});
 		const client = store.add(service.acquireAnonymousClient());
 		const options = { caller: 'devContainerSample', deadline: Date.now() + 10_000 };
-		const sha = await client.content.resolveRef('microsoft', 'sample', 'HEAD', signal(), options);
-		const result = await client.content.getRawFile('microsoft', 'sample', sha, path, signal(), options);
+		const sha = await client.content.resolveRef({ owner: 'microsoft', repo: 'sample' }, 'HEAD', signal(), options);
+		const result = await client.content.getRawFile({ owner: 'microsoft', repo: 'sample' }, sha, path, signal(), options);
 		assert.deepStrictEqual({
 			sha, result,
 			requests: requests.map(request => ({
@@ -367,7 +367,7 @@ suite('GitHub public raw content', () => {
 		const requests: string[] = [];
 		const service = create(async input => { requests.push(String(input)); return new Response(content); });
 		const client = store.add(service.acquireAnonymousClient());
-		await client.content.getRawFile('microsoft', 'sample', commitSha, 'docs/a #?%.md', signal());
+		await client.content.getRawFile({ owner: 'microsoft', repo: 'sample' }, commitSha, 'docs/a #?%.md', signal());
 		assert.deepStrictEqual(requests, [`${rawBaseUri}/microsoft/sample/${commitSha}/docs/a%20%23%3F%25.md`]);
 	});
 
@@ -379,8 +379,8 @@ suite('GitHub public raw content', () => {
 			return new Response(String(input).includes('/commits/') ? expectedSha : content);
 		});
 		const client = store.add(service.acquireAnonymousClient());
-		const sha = await client.content.resolveRef('microsoft', 'sample', 'HEAD', signal());
-		const result = await client.content.getRawFile('microsoft', 'sample', sha, path, signal());
+		const sha = await client.content.resolveRef({ owner: 'microsoft', repo: 'sample' }, 'HEAD', signal());
+		const result = await client.content.getRawFile({ owner: 'microsoft', repo: 'sample' }, sha, path, signal());
 		assert.deepStrictEqual({ sha, result, requests }, {
 			sha: expectedSha, result: content,
 			requests: [`${apiBaseUri}/repos/microsoft/sample/commits/HEAD`, `${rawBaseUri}/microsoft/sample/${expectedSha}/${path}`],
@@ -391,7 +391,7 @@ suite('GitHub public raw content', () => {
 		test(`rejects an invalid raw path before dispatch: ${JSON.stringify(invalidPath)}`, async () => {
 			const service = create(async () => assert.fail('No fetch expected'));
 			const client = store.add(service.acquireAnonymousClient());
-			await assert.rejects(client.content.getRawFile('microsoft', 'sample', commitSha, invalidPath, signal()), { kind: 'validation' });
+			await assert.rejects(client.content.getRawFile({ owner: 'microsoft', repo: 'sample' }, commitSha, invalidPath, signal()), { kind: 'validation' });
 		});
 	}
 
@@ -399,7 +399,7 @@ suite('GitHub public raw content', () => {
 		test(`rejects an invalid pinned revision: ${JSON.stringify(invalidSha)}`, async () => {
 			const service = create(async () => assert.fail('No fetch expected'));
 			const client = store.add(service.acquireAnonymousClient());
-			await assert.rejects(client.content.getRawFile('microsoft', 'sample', invalidSha, path, signal()), { kind: 'validation' });
+			await assert.rejects(client.content.getRawFile({ owner: 'microsoft', repo: 'sample' }, invalidSha, path, signal()), { kind: 'validation' });
 		});
 	}
 
@@ -407,7 +407,7 @@ suite('GitHub public raw content', () => {
 		test(`rejects invalid commit responses: ${JSON.stringify(invalidSha)}`, async () => {
 			const service = create(async () => new Response(invalidSha));
 			const client = store.add(service.acquireAnonymousClient());
-			await assert.rejects(client.content.resolveRef('microsoft', 'sample', 'HEAD', signal()), SchemaError);
+			await assert.rejects(client.content.resolveRef({ owner: 'microsoft', repo: 'sample' }, 'HEAD', signal()), SchemaError);
 		});
 	}
 
@@ -416,7 +416,7 @@ suite('GitHub public raw content', () => {
 			const content = 'a'.repeat(size);
 			const service = create(async () => new Response(content));
 			const client = store.add(service.acquireAnonymousClient());
-			assert.strictEqual(await client.content.getRawFile('microsoft', 'sample', commitSha, path, signal()), content);
+			assert.strictEqual(await client.content.getRawFile({ owner: 'microsoft', repo: 'sample' }, commitSha, path, signal()), content);
 		});
 	}
 
@@ -424,7 +424,7 @@ suite('GitHub public raw content', () => {
 		const text = `\ufeff \t${content}\r\n `;
 		const service = create(async () => new Response(text));
 		const client = store.add(service.acquireAnonymousClient());
-		assert.strictEqual(await client.content.getRawFile('microsoft', 'sample', commitSha, path, signal()), text);
+		assert.strictEqual(await client.content.getRawFile({ owner: 'microsoft', repo: 'sample' }, commitSha, path, signal()), text);
 	});
 
 	test('enforces a byte limit and cancels the oversized response', async () => {
@@ -435,14 +435,14 @@ suite('GitHub public raw content', () => {
 			cancel: () => { void cancelled.complete(); },
 		})));
 		const client = store.add(service.acquireAnonymousClient());
-		await assert.rejects(client.content.getRawFile('microsoft', 'sample', commitSha, path, signal()), { kind: 'responseTooLarge' });
+		await assert.rejects(client.content.getRawFile({ owner: 'microsoft', repo: 'sample' }, commitSha, path, signal()), { kind: 'responseTooLarge' });
 		await cancelled.p;
 	});
 
 	test('does not return failed response bodies as successful files', async () => {
 		const service = create(async () => new Response(new ReadableStream<Uint8Array>({ start: controller => controller.error(new Error('Body failed')) })));
 		const client = store.add(service.acquireAnonymousClient());
-		await assert.rejects(client.content.getRawFile('microsoft', 'sample', commitSha, path, signal()), { kind: 'network' });
+		await assert.rejects(client.content.getRawFile({ owner: 'microsoft', repo: 'sample' }, commitSha, path, signal()), { kind: 'network' });
 	});
 
 	for (const location of [
@@ -456,7 +456,7 @@ suite('GitHub public raw content', () => {
 				return new Response(null, { status: 302, headers: { location } });
 			});
 			const client = store.add(service.acquireAnonymousClient());
-			await assert.rejects(client.content.getRawFile('microsoft', 'sample', commitSha, path, signal()), { kind: 'authorization' });
+			await assert.rejects(client.content.getRawFile({ owner: 'microsoft', repo: 'sample' }, commitSha, path, signal()), { kind: 'authorization' });
 			assert.deepStrictEqual(requests, [rawBaseUri + rawPath]);
 		});
 	}
@@ -469,7 +469,7 @@ suite('GitHub public raw content', () => {
 			return requests.length === 1 ? new Response(null, { status: 302, headers: { location: renamed } }) : new Response(content);
 		});
 		const client = store.add(service.acquireAnonymousClient());
-		const result = await client.content.getRawFile('microsoft', 'sample', commitSha, path, signal());
+		const result = await client.content.getRawFile({ owner: 'microsoft', repo: 'sample' }, commitSha, path, signal());
 		assert.deepStrictEqual({
 			result, requests: requests.map(request => ({
 				url: request.url, authorization: request.headers.get('authorization'), credentials: request.credentials,
@@ -485,8 +485,8 @@ suite('GitHub public raw content', () => {
 			: new Response(content));
 		const client = store.add(service.acquireAnonymousClient());
 		const options = { deadline: Date.now() + 1_000 };
-		const sha = await client.content.resolveRef('microsoft', 'sample', 'HEAD', signal(), options);
-		assert.strictEqual(await client.content.getRawFile('microsoft', 'sample', sha, path, signal(), options), content);
+		const sha = await client.content.resolveRef({ owner: 'microsoft', repo: 'sample' }, 'HEAD', signal(), options);
+		assert.strictEqual(await client.content.getRawFile({ owner: 'microsoft', repo: 'sample' }, sha, path, signal(), options), content);
 	});
 
 	test('raw cooldowns survive reacquisition without blocking API reads', () => runWithFakedTimers({}, async () => {
@@ -497,11 +497,11 @@ suite('GitHub public raw content', () => {
 		});
 		try {
 			const first = store.add(service.acquireAnonymousClient());
-			await assert.rejects(first.content.getRawFile('microsoft', 'sample', commitSha, path, signal()), { kind: 'rateLimit' });
+			await assert.rejects(first.content.getRawFile({ owner: 'microsoft', repo: 'sample' }, commitSha, path, signal()), { kind: 'rateLimit' });
 			first.dispose();
 			const second = store.add(service.acquireAnonymousClient());
-			const sha = await second.content.resolveRef('microsoft', 'sample', 'HEAD', signal());
-			await assert.rejects(second.content.getRawFile('microsoft', 'sample', sha, path, signal(), { deadline: Date.now() + 50 }), { kind: 'timeout' });
+			const sha = await second.content.resolveRef({ owner: 'microsoft', repo: 'sample' }, 'HEAD', signal());
+			await assert.rejects(second.content.getRawFile({ owner: 'microsoft', repo: 'sample' }, sha, path, signal(), { deadline: Date.now() + 50 }), { kind: 'timeout' });
 			assert.deepStrictEqual(requests, [rawBaseUri + rawPath, `${apiBaseUri}/repos/microsoft/sample/commits/HEAD`]);
 		} finally {
 			service.dispose();
@@ -512,8 +512,8 @@ suite('GitHub public raw content', () => {
 		let calls = 0;
 		const service = create(async () => new Response(content, { status: ++calls === 1 ? 404 : 202 }));
 		const client = store.add(service.acquireAnonymousClient());
-		await assert.rejects(client.content.getRawFile('microsoft', 'sample', commitSha, path, signal()), { kind: 'notFound', statusCode: 404 });
-		await assert.rejects(client.content.getRawFile('microsoft', 'sample', commitSha, path, signal()), { kind: 'malformedResponse', statusCode: 202 });
+		await assert.rejects(client.content.getRawFile({ owner: 'microsoft', repo: 'sample' }, commitSha, path, signal()), { kind: 'notFound', statusCode: 404 });
+		await assert.rejects(client.content.getRawFile({ owner: 'microsoft', repo: 'sample' }, commitSha, path, signal()), { kind: 'malformedResponse', statusCode: 202 });
 		assert.strictEqual(calls, 2);
 	});
 
@@ -523,7 +523,7 @@ suite('GitHub public raw content', () => {
 			const client = store.add(service.acquireAnonymousClient());
 			const controller = new AbortController();
 			controller.abort(reason);
-			await assert.rejects(client.content.getRawFile('microsoft', 'sample', commitSha, path, controller.signal), error => error === controller.signal.reason);
+			await assert.rejects(client.content.getRawFile({ owner: 'microsoft', repo: 'sample' }, commitSha, path, controller.signal), error => error === controller.signal.reason);
 		});
 	}
 
@@ -538,7 +538,7 @@ suite('GitHub public raw content', () => {
 			});
 			const client = store.add(service.acquireAnonymousClient());
 			const controller = new AbortController();
-			const rejected = assert.rejects(client.content.getRawFile('microsoft', 'sample', commitSha, path, controller.signal), isCancellationError);
+			const rejected = assert.rejects(client.content.getRawFile({ owner: 'microsoft', repo: 'sample' }, commitSha, path, controller.signal), isCancellationError);
 			const active = await started.p;
 			if (kind === 'caller') {
 				controller.abort(new CancellationError());
@@ -566,8 +566,8 @@ suite('GitHub public raw content', () => {
 		try {
 			const client = store.add(service.acquireAnonymousClient());
 			const options = { caller: 'devContainerSample', deadline: startedAt + 50 };
-			const sha = await client.content.resolveRef('microsoft', 'sample', 'HEAD', signal(), options);
-			await assert.rejects(client.content.getRawFile('microsoft', 'sample', sha, path, signal(), options), { kind: 'timeout', requestDispatched: true });
+			const sha = await client.content.resolveRef({ owner: 'microsoft', repo: 'sample' }, 'HEAD', signal(), options);
+			await assert.rejects(client.content.getRawFile({ owner: 'microsoft', repo: 'sample' }, sha, path, signal(), options), { kind: 'timeout', requestDispatched: true });
 			assert.strictEqual(Date.now() - startedAt, 50);
 		} finally {
 			await response.complete(new Response(content));

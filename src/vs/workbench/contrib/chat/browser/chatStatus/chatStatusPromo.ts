@@ -62,6 +62,7 @@ export class ChatStatusPromo extends Disposable {
 	private promo: IPromo | undefined;
 	private tooltip: ITooltipWithCommands | undefined;
 	private readonly shownPromos = new Set<string>();
+	private readonly armedPromos = new Set<string>();
 
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
@@ -153,8 +154,13 @@ export class ChatStatusPromo extends Disposable {
 				},
 			};
 		}
+		const showPip = !this.shownPromos.has(promo.id);
+		if (showPip && !this.armedPromos.has(promo.id)) {
+			this.armedPromos.add(promo.id);
+			this.telemetryService.publicLog2<PromoTelemetry, PromoClassification>('chatPromoWidgetArmed', { promoId: promo.id });
+		}
 		return {
-			showPip: !this.shownPromos.has(promo.id),
+			showPip,
 			ariaLabel: localize('chat.promo.pipAria', "{0}. Open the sale offer.", promo.message),
 			tooltip: this.tooltip,
 		};

@@ -11,7 +11,7 @@ import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
 import { mcpGalleryServiceUrlConfig } from '../../mcp/common/mcpManagement.js';
-import { ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceRequest, ICustomizationMarketplaceSourceInfo } from './customizationMarketplaceService.js';
+import { CustomizationMarketplaceQueryProgressCallback, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceRequest, ICustomizationMarketplaceSourceInfo } from './customizationMarketplaceService.js';
 
 export const enum CustomizationMarketplaceConfiguration {
 	MarketplaceEnabled = 'chat.customizations.marketplace.enabled',
@@ -65,7 +65,8 @@ export async function queryEnabledCustomizationMarketplaceSources(
 	sources: readonly ICustomizationMarketplaceSourceInfo[],
 	options: ICustomizationMarketplaceQuery,
 	token: CancellationToken,
-	query: (request: ICustomizationMarketplaceRequest, token: CancellationToken) => Promise<ICustomizationMarketplacePage>,
+	query: (request: ICustomizationMarketplaceRequest, token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback) => Promise<ICustomizationMarketplacePage>,
+	onProgress?: CustomizationMarketplaceQueryProgressCallback,
 ): Promise<ICustomizationMarketplacePage> {
 	const getSourceIds = () => getEnabledCustomizationMarketplaceSources(configurationService, sources)
 		.filter(source => !options.sourceIds || options.sourceIds.includes(source.id))
@@ -86,7 +87,7 @@ export async function queryEnabledCustomizationMarketplaceSources(
 		}
 	}));
 	try {
-		return await raceCancellationError(query({ ...options, sourceIds }, cancellation.token), cancellation.token);
+		return await raceCancellationError(query({ ...options, sourceIds }, cancellation.token, onProgress), cancellation.token);
 	} finally {
 		cancellation.cancel();
 		store.dispose();

@@ -112,6 +112,25 @@ usable after a failed refresh, but the extension does not advertise a folder
 with surviving legacy wrappers that could shadow the native executable.
 The terminal link provider and Copilot session data are unchanged.
 
+### Terminal PATH locality and recovery
+
+Authority matching follows terminal backend routing and is case-insensitive. Variable names follow the terminal's OS: Windows treats all PATH spellings alike; on macOS and Linux only `PATH` is subject to locality filtering, while `Path` and `path` remain distinct ordinary variables.
+
+The extension's terminal PATH contribution is applied only to terminals on the
+same computer as the producing extension host. A local contribution applies to
+local terminals, including local terminals in remote windows; a remote
+contribution applies only to terminals on that same remote authority. Other
+environment variables retain their existing cross-host sharing behavior, and
+the terminal's base PATH and independently installed commands are not changed.
+
+Saved PATH contributions with an unknown origin, or an origin on another
+computer, are absent from the extension's initial cached collection until the
+extension refreshes them. Correctly tagged same-computer saved contributions
+remain usable before activation. This cache migration is distinct from remote
+process recovery: a recovered pre-fix remote process retains its complete
+historical environment until normal relaunch, when the current filtered
+contribution is applied.
+
 ### Ownership
 
 VS Code owns only the shim, the launcher that gets Copilot CLI onto the device.
@@ -119,6 +138,30 @@ Everything else belongs to Copilot CLI and the method that installed it: the
 CLI's files, its `PATH` entry, its updates, its uninstallation, and its data.
 The shim installs Copilot CLI only when there is none, never updates it, and
 uninstalling VS Code never removes it or its data (`~/.copilot`).
+
+### `copilot` on PATH in Linux DEB/RPM packages
+
+Stable and Insiders packages expose their existing `bin/copilot-shim/copilot` through a lifecycle-managed `/usr/bin/copilot` symlink. Package installation does not download or install the real Copilot CLI, modify shell profiles, or change the existing `code` command. The system command directory must already be on the user's `PATH`.
+
+The shared link is not an ordinary package payload file or an RPM `%ghost` entry. Each edition owns its nested shim, while the [shared lifecycle helper](../resources/linux/copilot-link.sh) guards changes to the shared command:
+
+- With no command entry, installation creates a link to its own usable shim.
+- Only links whose literal targets are `/usr/share/code/bin/copilot-shim/copilot` or `/usr/share/code-insiders/bin/copilot-shim/copilot` are recognized as VS Code-owned. An installation or upgrade takes over either recognized link, including a dangling one. The last processed installation/upgrade wins, not necessarily the newest shim version.
+- Foreign executables, directories, unknown links, and relative or indirect links remain unchanged, even when a relative or indirect link ultimately resolves to a VS Code shim.
+- Removing the owning edition repoints to the other edition's regular executable shim when available; otherwise it removes only its own link. Removing a non-owner leaves the entry alone. Old-version removal during an upgrade must not undo the new selection.
+- Inspection or mutation failures produce a warning without failing the editor package operation. A failed final removal may leave a broken recognized link; a later installation can repair it. This is not a successful-cleanup result.
+
+Every installation and upgrade, and every final removal, applies the [`CopilotCliCommand` policy](#enterprise-policy) and the edition's choice, in this order:
+
+1. The scripts run [`copilot --vscode-shim policy`](#policy) with the edition's own shim; removal uses the other edition's shim because its own is already gone. When it reports the policy disabled, they remove a link to either edition's shim, so no `copilot` command remains. On Linux both editions read the same `/etc/vscode/policy.json`.
+2. A DEB edition whose `<package>/add-copilot-command` debconf answer is `false` doesn't create or take over the link and gives up a link to its own shim. The question defaults to `true` and is asked at medium priority, so the default applies unless an administrator preseeds the answer, for example with `echo "code code/add-copilot-command boolean false" | sudo debconf-set-selections`, or `dpkg-reconfigure` asks it. RPM has no equivalent choice.
+3. Otherwise installation creates or takes over the link as above. When the policy can't be read, for example because the shim can't run, installation warns and leaves the entry unchanged rather than create a link.
+
+Giving up or removing a link to the current shim hands it to the other edition only when that edition's shim is usable, its debconf answer isn't `false`, and its shim reports that the policy allows the command; otherwise the link is removed.
+
+The scripts apply a changed policy or answer at the next upgrade. To apply it sooner, run `sudo dpkg-reconfigure code` (or `code-insiders`), which also asks the question again, or reinstall the RPM.
+
+This command ownership applies only to `code` and `code-insiders`, not OSS or Exploration. Snap aliases, archive exposure/layout, third-party recipes, and special handling for image-based Fedora systems remain outside this work. Shared Linux runtime and policy changes still apply to binaries included in other existing payloads.
 
 ### macOS Shell Command installation
 
@@ -233,8 +276,8 @@ The implementation does not:
 - register a VS Code terminal profile.
 - replace `CopilotCLITerminalLinkProvider`.
 - modify the existing `cli/` Cargo package.
-- add the shim to `PATH` outside integrated terminals on macOS and Linux, apart
-  from WSL shells, which use the Windows `PATH`.
+- add the shim to `PATH` outside integrated terminals on macOS.
+- add Snap command aliases, change archive command exposure/layout, or manage third-party and image-based Linux packaging.
 - ship the shim in the web server builds (`vscode-server-*-web`).
 
 ## Normative language
@@ -279,7 +322,7 @@ consumes an argument meant for the Copilot CLI:
 
 ```text
 copilot [--vscode-shim <modifier>]... [--] [copilot arguments...]
-copilot [--vscode-shim verbose]... --vscode-shim <probe|install> [command options...]
+copilot [--vscode-shim verbose]... --vscode-shim <probe|install|policy> [command options...]
 ```
 
 - Only leading `--vscode-shim <name>` pairs are options. Parsing stops at the
@@ -806,21 +849,15 @@ The official script tests `command -v copilot` after installation. A shim
 visible to that command would suppress the missing-PATH notice and profile
 prompt even when the newly installed CLI is not on PATH.
 
-Only the Bash command executing that script MUST receive a PATH with every
-positively identified current, copied, aliased, and legacy shim directory
-excluded. Preserve unrelated entries, order, and native strings; handle
-relative/empty entries and aliases without substring matching. Reject an
-entirely excluded PATH rather than accidentally searching the current
-directory. Leave the parent environment, downloader commands, Homebrew,
-Windows MSI, host probes, and final CLI environment unchanged.
+On Linux the Bash command executing the script MUST inherit the original PATH without an override, preserving native bytes, order, and duplicates. Filtering a system-directory shim would also remove utilities from `/usr/bin` and, on merged-`/usr` systems, `/bin`. Real-CLI discovery still rejects the running shim, other Rust shim copies, and recognized legacy shims.
 
-Do not add the predicted installation directory to this child PATH. The
-official script must decide whether the real CLI is accessible and, when
-needed, offer its own profile update. It selects the profile from SHELL and
-existing configuration (for example `.profile`, `.bash_profile`, `.zprofile`,
-or fish configuration); neither Rust nor VS Code duplicates this prompt or
-edits/sources profiles itself. The directory persisted on consent is the real
-CLI's installation directory, not extension global storage.
+On macOS only the Bash command executing the script receives a PATH with every positively identified current, copied, aliased, and legacy shim directory excluded. Preserve unrelated entries, order, and native strings; handle relative/empty entries and aliases without substring matching. Reject an entirely excluded PATH rather than accidentally searching the current directory.
+
+Leave the parent environment, downloader commands, Homebrew, Windows MSI, host probes, and final CLI environment unchanged on both platforms. Do not add the predicted installation directory to the script's child PATH.
+
+On Linux a visible shim may cause the script to skip its profile prompt. The shim must still find a successfully installed real CLI through the official-install-directory fallback, immediately and on subsequent invocations. Uninstalling VS Code can remove this route while leaving the real CLI installed; that CLI may then need its own PATH entry. A custom prefix must remain discoverable through PATH or the applicable fallback environment on later invocations.
+
+When the script does offer a profile update, it selects the profile from SHELL and existing configuration (for example `.profile`, `.bash_profile`, `.zprofile`, or fish configuration). Neither Rust nor VS Code duplicates this prompt or edits/sources profiles itself. The directory persisted on consent is the real CLI's installation directory, not extension global storage.
 
 Profile updates affect future shells that read that profile. They do not
 change the running terminal's or shim's PATH. Declining the profile edit does
@@ -889,7 +926,7 @@ directly; a tool that ends `copilot` by its process ID ends the CLI.
 | Installer tools are missing | Print which tools to install and the documentation URL; exit `1`. |
 | All installation attempts fail | Print that the install failed, the documentation URL, and how to turn on verbose mode; exit `1`. The Windows MSI install first prints its reason. Each attempt's result is a diagnostic. |
 | Installer returns zero but re-discovery fails | Print actionable PATH/installation guidance; exit `1`. |
-| The Unix installation location or installer-only PATH cannot be prepared | Print an actionable explanation; exit `1`. |
+| The Unix installation location or macOS installer-only PATH cannot be prepared | Print an actionable explanation; exit `1`. |
 | Automatic installation is unsupported for the target | Print manual-install or upstream-support guidance; exit `1` without an installer attempt. |
 | Bootstrap or installer operation is canceled | Wait for the installer to stop, without fallback, and clean up owned temporary files; exit `130`. |
 | User declines installation | Exit `0` without launching. |
@@ -916,15 +953,15 @@ own output are neither, and are always visible.
 
 ## Enterprise policy
 
-The VS Code policy `CopilotCliCommand` controls the core setting
-`chat.copilotCliCommand.enabled`. When it is disabled:
+The VS Code policy `CopilotCliCommand` controls the core setting `chat.copilotCliCommand.enabled`. The native shim discovers an eligible installed CLI, including its supported installation-directory fallback, before evaluating installation policy. When the policy is disabled:
 
-- the shim still launches a Copilot CLI that is already installed, but never
-  installs one. It prints a message that names the policy and exits with `10`;
+- an already-installed eligible CLI still launches; when no CLI is available, the shim prints a message naming the policy and exits with `10` without offering installation;
 - `probe` reports `policy=disabled` and skips its network check, and `install`
   reports the `policy` status;
 - VS Code setup on Windows doesn't show its Copilot CLI page, doesn't publish
-  the shim, and removes the `PATH` entry it added; and
+  the shim, and removes the `PATH` entry it added;
+- the Linux DEB/RPM scripts don't create `/usr/bin/copilot` and remove a link
+  to either edition's shim (see [`copilot` on PATH in Linux DEB/RPM packages](#copilot-on-path-in-linux-debrpm-packages)); and
 - the Copilot extension doesn't add the shim to integrated terminals, which run
   `copilot` from `PATH` instead.
 
@@ -936,7 +973,11 @@ quality, the `HKLM` value takes precedence over the `HKCU` value, as in VS Code.
 A disabled policy in any quality wins, because the shim of any installed quality
 can be the one on `PATH`; VS Code setup applies the same rule.
 
-On macOS and Linux the shim doesn't read the policy. It is reachable from integrated terminals there, where the Copilot extension applies the policy through the setting; the macOS workbench Shell Command action also applies that effective setting before advertising or invoking its install-only shim route.
+On Linux the native shim reads `/etc/vscode/policy.json`. Only an object member named `CopilotCliCommand` with the JSON boolean value `false` disables installation. Missing or unreadable files, invalid JSON, non-object roots, missing members, `true`, and other value types are non-disabling. The reader is used on each fresh invocation that needs an installation decision, with no cache or production policy-path override. The setup `probe`, `install`, and `policy` commands consume the same result.
+
+The Linux shim doesn't read an ordinary per-user VS Code setting. The DEB/RPM scripts use its `policy` command to manage the system link; a link that predates the policy remains until the next upgrade or reconfiguration, and the shim then still refuses installation. The Copilot extension still controls integrated-terminal exposure through the setting.
+
+On macOS the native shim reads the effective `CopilotCliCommand` preference with `CFPreferencesCopyAppValue` in the `com.microsoft.VSCode`, `com.microsoft.VSCodeInsiders`, `com.microsoft.VSCodeExploration`, and `com.visualstudio.code.oss` domains, which configuration profiles manage. Only a `CFBoolean` `false` disables installation; missing values and other types are non-disabling. As on Windows, a disabled policy in any quality wins. The reader matches VS Code's scalar policy semantics and doesn't require `CFPreferencesAppValueIsForced`. The Copilot extension also applies the policy through the effective setting for integrated terminals, and the macOS workbench Shell Command action applies that setting before advertising or invoking its install-only shim route; the shim enforces the policy again when that route runs.
 
 `CopilotCliCommand` is the only local control over the shim and installation.
 It doesn't turn Copilot CLI itself on or off: that's a GitHub organization or
@@ -944,7 +985,8 @@ enterprise policy, which the CLI applies after sign-in.
 
 ## Setup commands
 
-The Windows installer runs these commands; they never launch the Copilot CLI.
+The Windows installer runs `probe` and `install`, and the Linux DEB/RPM scripts
+run `policy`; they never launch the Copilot CLI.
 Result files are INI files encoded as UTF-16LE with a byte order mark, so
 `GetPrivateProfileString` reads them on every Windows version. Values are
 single-line, and each file is replaced atomically.
@@ -984,7 +1026,7 @@ copilot --vscode-shim install --non-interactive --consent=installer
 `install` runs the Windows installation described under
 [Installation commands](#installation-commands), including its result-file status contract. On macOS x64/arm64 only, `copilot --vscode-shim install --interactive` is an install-only route for the workbench action after it has collected consent: it discovers an existing CLI first without executing, probing, updating, or reinstalling it; otherwise it uses the normal Homebrew-then-temporary-file official-script routes, rediscovery, and installer-owned prompts. It never launches the discovered CLI. Linux and macOS noninteractive setup semantics are unchanged, including their existing-CLI reporting; only macOS interactive mode gains this route.
 
-The macOS interactive install-only route exits `0` after an initial discovery finds an existing usable CLI or post-install rediscovery finds a newly installed one. The existing discovery checks require an eligible executable file and exclude the running, copied, aliased, and legacy shims; they do not execute, version-probe, or canonicalize the discovered `candidate.path`. On stderr, initial discovery prints `GitHub Copilot CLI is already installed.` and post-install rediscovery prints `GitHub Copilot CLI installed successfully.`, each followed by `Location: <discovered absolute candidate.path>`. It exits immediately without launching the CLI. It exits `1` for discovery or installer failures, `127` when a missing CLI cannot be installed without an interactive terminal, and `130` for handled cancellation. These are not Windows setup result-file statuses. On macOS, the [workbench action](#macos-shell-command-installation) checks the effective Copilot CLI setting/policy before starting the shim; the native macOS shim does not read that policy or return a policy-denial exit code.
+The macOS interactive install-only route exits `0` after an initial discovery finds an existing usable CLI or post-install rediscovery finds a newly installed one. The existing discovery checks require an eligible executable file and exclude the running, copied, aliased, and legacy shims; they do not execute, version-probe, or canonicalize the discovered `candidate.path`. On stderr, initial discovery prints `GitHub Copilot CLI is already installed.` and post-install rediscovery prints `GitHub Copilot CLI installed successfully.`, each followed by `Location: <discovered absolute candidate.path>`. It exits immediately without launching the CLI. It exits `1` for discovery or installer failures, `10` when a missing CLI can't be installed because the `CopilotCliCommand` policy is disabled, `127` when a missing CLI cannot be installed without an interactive terminal, and `130` for handled cancellation. These are not Windows setup result-file statuses. On macOS, the [workbench action](#macos-shell-command-installation) checks the effective Copilot CLI setting/policy before starting the shim, and the shim reads the policy again before installing.
 
 `--non-interactive` requires `--consent=installer`, the consent that setup
 collected on its page or command line. In that mode the command:
@@ -1007,6 +1049,20 @@ collected on its page or command line. In that mode the command:
 | `msiexec` | `40` |
 | `cancelled` | `50` |
 | `unsupported`, `error` | `1` |
+
+### `policy`
+
+```text
+copilot --vscode-shim policy
+```
+
+`policy` reads the [`CopilotCliCommand` policy](#enterprise-policy) with the
+same platform reader as the launch workflow and reports it only through its
+exit code: `0` when the policy allows the command and `10` (the `policy`
+status) when it turns the command off. It takes no options, writes nothing
+except a verbose-mode diagnostic, never searches for or launches a Copilot CLI,
+and doesn't read standard input. Callers treat any other exit code, including
+`2` from an older shim without this command, as an unknown policy.
 
 ## Cargo package requirements
 
@@ -1192,12 +1248,9 @@ fixtures.
 - Successful install not visible in current PATH.
 - Official-script default/root/custom/relative PREFIX resolution, invalid
   fallback files, and original-PATH precedence.
-- Installer-only exclusion of all shim entries without affecting downloader,
-  Homebrew, MSI, ordinary discovery, or final CLI environments.
-- Isolated Unix PTY installation with both profile-consent answers, actual
-  `command -v` checking, immediate verified launch, and no reinstall on a
-  second invocation with unchanged PATH. Use temporary HOME/PREFIX and fake
-  installers; never modify the developer's real profile.
+- Production Linux installer dispatch inherits PATH unchanged for curl and wget, including directories containing both shims and tools, duplicate entries, and merged-directory aliases.
+- macOS installer-only exclusion of all shim entries without affecting downloader, Homebrew, MSI, ordinary discovery, or final CLI environments.
+- Isolated macOS PTY installation with both profile-consent answers, and Linux PTY installation where visible shims suppress profile consent. Both verify immediate launch and no reinstall on a second invocation with unchanged PATH. Use temporary HOME/PREFIX and fake installers; never modify the developer's real profile.
 - No repeated install prompt in one invocation.
 - Ctrl+C/handled termination during installation cancels without fallback,
   another prompt, or final CLI launch; the shim waits for the installer to stop.
@@ -1229,6 +1282,19 @@ fixtures.
   policy message and exits with code `10` without a prompt; an installed CLI
   still launches.
 - Policy registry values are read only from `REG_DWORD` values.
+- Linux parser/reader tests cover strict-false, true, missing, unreadable, malformed, non-object, and wrong-type data through temporary paths. Installed CLI discovery must precede the launch workflow's policy read.
+- macOS reader tests cover `false`, `true`, missing, numeric, and string values through an injected copier, release every copied value, stop at the first disabling domain, and read a never-written domain without writing product-domain preferences.
+- The `policy` command exits `0` or `10` from the runtime's policy without prompting, searching, or launching, and rejects options.
+- A separately selected native Linux policy-dispatch test runs only in an explicitly provisioned disposable environment. It refuses existing policy files, verifies the real runtime's policy message/exit and installed-CLI launch, and cleans only its own fixture. Ordinary tests never modify the host policy file.
+
+### Linux package lifecycle
+
+- Real DEB/RPM transactions cover both edition roles, fresh installation, coexistence, upgrades in both orders, non-owner removal, usable fallback, last-owner removal, and recognized dangling-link repair.
+- Foreign regular files, valid/broken symlinks, and relative/indirect links survive installation, upgrades, and removal. The shared path is absent from package file ownership; the nested executable remains package-owned.
+- Batched transactions use observed installation-hook order, not command-line argument order, to verify the final selected edition.
+- Reconfiguration, old-version cleanup, OSS no-op behaviour, and warning-only mutation failures are covered without weakening existing fresh-install safety checks.
+- Helper tests run the shipped lifecycle helper with `sh` and `bash` against stub shims and a temporary link path. They cover allowed, disabled, and unknown policy; foreign entries under a disabled policy; the DEB `add-copilot-command` answer for each edition; and hand-over on removal. They also verify that the shim never receives the maintainer script's standard input, which debconf uses.
+- Source-built test packages and official product artifacts are distinct validation inputs. Minimal lifecycle fixtures do not establish complete-package launcher behaviour. See the [focused sanity suite](../test/sanity/README.md#focused-linux-copilot-shim-package-lifecycle-suite) for prerequisites and execution.
 
 ### Launch behavior
 
@@ -1306,9 +1372,9 @@ The work is complete only when:
     global-storage native shim without deleting that directory or unrelated
     content. Unconfigured paths and unavailable platforms are not reported
     as validated live deployment.
-17. Shim entries do not suppress the official installer's profile prompt, and
-    a verified official-script installation launches immediately and on later
-    stale-PATH invocations without another installation.
+17. Linux inherits the installer PATH without depending on a profile prompt, while macOS retains shim-directory filtering and profile-consent coverage. A verified official-script installation launches immediately and on later stale-PATH invocations without another installation.
+18. Native Linux policy dispatch enforces the strict-false contract for installation without blocking an eligible installed CLI or changing Windows/macOS behaviour.
+19. DEB/RPM lifecycle handling satisfies the shared-command ownership contract for both editions, including package-manager file ownership and cleanup semantics, without installing the real CLI or modifying its files/data.
 
 ## Source references
 

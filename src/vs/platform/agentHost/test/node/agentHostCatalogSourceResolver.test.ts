@@ -15,11 +15,11 @@ import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/
 import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
 import { readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { parseSessionArtifacts, SessionArtifactType, SESSION_META_ARTIFACTS_KEY, withSessionArtifacts } from '../../common/sessionArtifacts.js';
-import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/state.js';
+import { ChatInteractivity, ChatOriginKind, SessionOriginKind } from '../../common/state/protocol/state.js';
 import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, buildDefaultChatUri, SessionSourceControlOutcome, SessionStatus, withSessionCreationReference, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, ICatalogSourceState } from '../../node/agentHostCatalogSourceResolver.js';
-import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_ORIGIN_KEY, SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import { WORKTREE_FOLDERS_KEY } from '../../node/shared/sessionWorktreeFolders.js';
 
@@ -117,6 +117,27 @@ function createResolver(metadata: Readonly<Record<string, string>>, unpersistedB
 
 suite('AgentHostCatalogSourceResolver', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('persisted automation origin survives restart and partial live summaries', async () => {
+		const origin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/a', run: 'ahp-automation-run:/r' } as const;
+		const initial = await createResolver({}).buildCatalogSyncRequest(session, { ...sourceState(), origin }, {}, false);
+		const restored = await createResolver({ [SESSION_ORIGIN_KEY]: JSON.stringify(origin) }).buildCatalogSyncRequest(session, sourceState(), {}, true);
+		assert.deepStrictEqual({ initial: initial.data.origin, restored: restored.data.origin }, { initial: origin, restored: origin });
+	});
+
+	test('malformed optional origin is reported without dropping the other metadata', async () => {
+		const reported: string[] = [];
+		const resolver = new AgentHostCatalogSourceResolver({
+			isUnpersistedChatBacking: () => false,
+			worktreeProjectFromRepositoryRoot: () => undefined,
+			reportMalformedArtifacts: () => assert.fail('Unexpected malformed artifacts'),
+			reportMalformedOrigin: resource => reported.push(resource),
+		});
+		const request = await resolver.buildCatalogSyncRequest(session, sourceState(), { [SESSION_ORIGIN_KEY]: '{', [SESSION_CUSTOM_TITLE_KEY]: 'Saved title' }, true);
+		assert.deepStrictEqual({ reported, title: request.data.summary, origin: request.data.origin, folders: request.data.workingDirectories }, {
+			reported: [session.toString()], title: 'Saved title', origin: undefined, folders: ['file:///live'],
+		});
+	});
 
 	test('a session whose primary folder is a worktree a move recorded for it projects that worktree\'s repository; a stale entry is ignored, its own recorded worktree wins (Block 5)', async () => {
 		const session = URI.parse('ahp-session:/promoted');
@@ -556,6 +577,20 @@ suite('AgentHostCatalogSourceResolver', () => {
 
 		assert.strictEqual(result.data.chats[0].summary, 'Live chat');
 	});
+
+	for (const adopted of [false, true]) {
+		test(`projects legacy archive state until adoption rather than a partial host mirror (adopted: ${adopted})`, async () => {
+			const state = { ...sourceState(), status: SessionStatus.Idle | SessionStatus.IsArchived };
+			const result = await createResolver({
+				[AH_META_IS_ARCHIVED_DB_KEY]: '',
+				...(adopted ? { [AH_META_EHCLI_ADOPTED_DB_KEY]: 'true' } : {}),
+			}).buildCatalogSyncRequest(session, state, {}, true);
+			assert.deepStrictEqual({
+				archived: result.data.isArchived,
+				mirror: result.legacyMetadata[AH_META_IS_ARCHIVED_DB_KEY],
+			}, { archived: !adopted, mirror: adopted ? '' : 'true' });
+		});
+	}
 
 	test('projects chat change aggregates from live state or the persisted chat key', async () => {
 		const live = { additions: 1, deletions: 0, files: 1 };

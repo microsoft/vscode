@@ -5,12 +5,17 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
+import { OS } from '../../../../../base/common/platform.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
@@ -21,6 +26,12 @@ import { IChatSessionsService } from '../../../../../workbench/contrib/chat/comm
 import { MockChatSessionsService } from '../../../../../workbench/contrib/chat/test/common/mockChatSessionsService.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
+import { COMPARE_SESSION_MODELS_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { SessionView } from '../../../../browser/parts/sessionView.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../../common/contextkeys.js';
 import { ISessionContext, SessionContext } from '../../../../services/sessions/browser/sessionContext.js';
@@ -79,6 +90,58 @@ suite('ModelPicker selectability', () => {
 
 suite('ModelPicker automation toolbar', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('comparison shortcut requires the Agents window, AI, comparison availability and composer or picker focus', () => {
+		const rule = KeybindingsRegistry.getDefaultKeybindings().find(rule => rule.command === COMPARE_SESSION_MODELS_COMMAND_ID);
+		assert.ok(rule);
+		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const sessionsWindow = IsSessionsWindowContext.bindTo(context);
+		const aiEnabled = ChatContextKeys.enabled.bindTo(context);
+		const available = ModelComparisonAvailableContext.bindTo(context);
+		const input = ChatContextKeys.inputHasFocus.bindTo(context);
+		const composer = ChatContextKeys.inChatComposer.bindTo(context);
+		const picker = ModelComparisonPickerFocusedContext.bindTo(context);
+		const matches = (window: boolean, ai: boolean, canCompare: boolean, inputFocused: boolean, composerFocused: boolean, pickerFocused: boolean) => {
+			sessionsWindow.set(window);
+			aiEnabled.set(ai);
+			available.set(canCompare);
+			input.set(inputFocused);
+			composer.set(composerFocused);
+			picker.set(pickerFocused);
+			return context.contextMatchesRules(rule.when ?? undefined);
+		};
+		assert.deepStrictEqual({
+			keybinding: rule.keybinding?.equals(decodeKeybinding(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyM, OS)),
+			input: matches(true, true, true, true, false, false),
+			composer: matches(true, true, true, false, true, false),
+			picker: matches(true, true, true, false, false, true),
+			elsewhere: matches(true, true, true, false, false, false),
+			unavailable: matches(true, true, false, true, false, false),
+			aiDisabled: matches(true, false, true, true, false, false),
+			editorWindow: matches(false, true, true, true, false, false),
+		}, {
+			keybinding: true,
+			input: true, composer: true, picker: true, elsewhere: false,
+			unavailable: false, aiDisabled: false, editorWindow: false,
+		});
+
+	});
+
+	test('comparison command targets the focused session view rather than the last registered composer', () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const calls: string[] = [];
+		const focusedView = upcastPartial<SessionView>({ openModelComparison: () => calls.push('focused') });
+		const activeView = upcastPartial<SessionView>({ openModelComparison: () => calls.push('active') });
+		instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({
+			getFocusedSessionView: () => focusedView,
+			getSessionView: () => activeView,
+		}));
+		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ activeSession: constObservable(undefined) }));
+		const command = CommandsRegistry.getCommand(COMPARE_SESSION_MODELS_COMMAND_ID);
+		assert.ok(command);
+		instantiationService.invokeFunction(command.handler);
+		assert.deepStrictEqual(calls, ['focused']);
+	});
 
 	test('contributes the model picker inside the automation prompt with AI and phone gating', () => {
 		const item = MenuRegistry.getMenuItems(Menus.AutomationsDialogInputToolbar).find(item => isIMenuItem(item) && item.command.id === 'sessions.modelPicker');

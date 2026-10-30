@@ -11,7 +11,7 @@ import assert from 'assert';
 import { existsSync } from 'fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
-import { timeout } from '../../../../../base/common/async.js';
+import { retry, timeout } from '../../../../../base/common/async.js';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -19,7 +19,7 @@ import { AgentHostCanvasesEnabledConfigKey } from '../../../common/agentHostSche
 import { hasKey } from '../../../../../base/common/types.js';
 import { ActionType, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatTurnStartedAction } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
-import { MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallContributorKind, ToolResultContentType, type ISessionWithDefaultChat, type RootState, type ToolDefinition } from '../../../common/state/sessionState.js';
+import { customizationId, CustomizationLoadStatus, CustomizationType, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallContributorKind, ToolResultContentType, type ClientPluginCustomization, type ISessionWithDefaultChat, type PluginCustomization, type RootState, type ToolDefinition, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { ToolCallConfirmationReason } from '../../../common/state/protocol/channels-chat/state.js';
 import type { CanvasState } from '../../../common/state/protocol/channels-canvas/state.js';
 import type { SubscribeResult } from '../../../common/state/protocol/common/commands.js';
@@ -44,6 +44,8 @@ const STEERING_OWNER_SCENARIO_ID = 'steering-client-tool-owner';
 const STEERING_RESPONSE_DELAY_MS = 10_000;
 const CANVAS_SCENARIO_ID = 'model-opened-canvas';
 const CANVAS_EXTENSION_TURN_SCENARIO_ID = 'canvas-extension-turn';
+const PLUGIN_SIBLING_SCENARIO_ID = 'plugin-sibling-delegation';
+const PLUGIN_RESTRICTED_SIBLING_SCENARIO_ID = 'plugin-restricted-sibling-delegation';
 
 function quoteShellArgument(value: string): string {
 	return isWindows ? `'${value.replace(/'/g, '\'\'')}'` : `'${value.replace(/'/g, `'\\''`)}'`;
@@ -56,6 +58,32 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 	let suiteHome: string;
 	const createdSessions: string[] = [];
 	const tempDirs: string[] = [];
+	let restrictedAgentType: string | undefined;
+
+	function forwardedAgentType(name: string): string {
+		const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+			typeof value === 'object' && value !== null && !Array.isArray(value);
+		const captured = server.mockLlm?.getRequests?.().at(-1);
+		assert.ok(isRecord(captured) && isRecord(captured.body) && Array.isArray(captured.body.tools));
+		const tools: readonly unknown[] = captured.body.tools;
+		for (const raw of tools) {
+			const tool = isRecord(raw) && isRecord(raw.function) ? raw.function : raw;
+			if (!isRecord(tool) || tool.name !== 'task' || typeof tool.description !== 'string') {
+				continue;
+			}
+			const schema = tool.input_schema ?? tool.parameters;
+			assert.ok(isRecord(schema) && isRecord(schema.properties) && isRecord(schema.properties.agent_type));
+			const agentType = schema.properties.agent_type;
+			assert.ok(Array.isArray(agentType.enum));
+			const values: readonly unknown[] = agentType.enum;
+			const description = tool.description;
+			const matches = values.filter((id): id is string => typeof id === 'string').filter(id =>
+				description.split('\n').some(line => line.startsWith(`- **${id}**: ${name}:`) || line === `- **${id}**: ${name}`));
+			assert.strictEqual(matches.length, 1, `The task catalog must expose exactly one agent named ${name}`);
+			return matches[0];
+		}
+		throw new Error('The model request did not expose the task tool');
+	}
 
 	suiteSetup(async function () {
 		this.timeout(120_000);
@@ -110,6 +138,52 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 				definition: {
 					type: 'multi-turn',
 					turns: [{ kind: 'content', chunks: [{ content: 'Canvas-originated request completed.', delayMs: 0 }] }],
+				},
+			}, {
+				id: PLUGIN_SIBLING_SCENARIO_ID,
+				definition: {
+					type: 'multi-turn',
+					turns: [
+						{
+							kind: 'tool-calls',
+							toolCalls: [{
+								toolNamePattern: /^task$/,
+								arguments: () => {
+									restrictedAgentType = forwardedAgentType('plugin-restricted');
+									return {
+										name: 'plugin-sibling',
+										description: 'Run the plugin sibling',
+										prompt: 'Complete the delegated task.',
+										agent_type: forwardedAgentType('plugin-sibling'),
+									};
+								},
+							}],
+						},
+						{ kind: 'content', chunks: [{ content: 'PLUGIN_PARENT_DONE', delayMs: 0 }] },
+					],
+				},
+			}, {
+				id: PLUGIN_RESTRICTED_SIBLING_SCENARIO_ID,
+				definition: {
+					type: 'multi-turn',
+					turns: [
+						{
+							kind: 'tool-calls',
+							toolCalls: [{
+								toolNamePattern: /^task$/,
+								arguments: () => {
+									assert.ok(restrictedAgentType, 'the first turn must discover the agent before invocation is restricted');
+									return {
+										name: 'plugin-restricted',
+										description: 'Run the restricted plugin sibling',
+										prompt: 'Complete the restricted delegated task.',
+										agent_type: restrictedAgentType,
+									};
+								},
+							}],
+						},
+						{ kind: 'content', chunks: [{ content: 'PLUGIN_RESTRICTED_DONE', delayMs: 0 }] },
+					],
 				},
 			}],
 		});
@@ -166,6 +240,147 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 		const markdownText = turn?.responseParts.map(p => p.kind === ResponsePartKind.Markdown ? p.content : '').join('\n') ?? ``;
 		assert.ok(markdownText.trim().length > 0, `expected non-empty assistant markdown; got: ${JSON.stringify(markdownText)}`);
 		assert.match(markdownText, new RegExp(`\\b${probeToken}\\b`, 'i'), `expected probe token in assistant markdown; got: ${JSON.stringify(markdownText)}`);
+	});
+
+	test('selected plugin agent delegates to a sibling from the same plugin', async function () {
+		this.timeout(180_000);
+
+		const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-plugin-subagents`);
+		tempDirs.push(workspaceDir);
+		const pluginDir = join(workspaceDir, 'plugin');
+		const parentAgentFile = join(pluginDir, 'agents', 'parent.agent.md');
+		const siblingAgentFile = join(pluginDir, 'agents', 'sibling.agent.md');
+		const restrictedAgentFile = join(pluginDir, 'agents', 'restricted.agent.md');
+		await Promise.all([
+			mkdir(join(pluginDir, '.plugin'), { recursive: true }),
+			mkdir(join(pluginDir, 'agents'), { recursive: true }),
+		]);
+		await Promise.all([
+			writeFile(join(pluginDir, '.plugin', 'plugin.json'), JSON.stringify({ name: 'Plugin Delegation' })),
+			writeFile(parentAgentFile, '---\nname: plugin-parent\ndescription: Delegates plugin work\n---\nDelegate work to plugin-sibling.'),
+			writeFile(siblingAgentFile, '---\nname: plugin-sibling\ndescription: Completes plugin work\n---\nComplete the delegated task.'),
+			writeFile(restrictedAgentFile, '---\nname: plugin-restricted\n---\nComplete the restricted task.'),
+		]);
+
+		const clientId = 'real-sdk-plugin-subagents';
+		const sessionUri = await createProviderSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workspaceDir));
+		const pluginUri = URI.file(pluginDir).toString();
+		const pluginCustomization: ClientPluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: customizationId(pluginUri),
+			uri: pluginUri as ProtocolURI,
+			name: 'Plugin Delegation',
+			nonce: '1',
+		};
+		client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId, tools: [], customizations: [pluginCustomization] },
+			},
+		});
+		await client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.SessionActiveClientSet)
+			&& getActionEnvelope(notification).channel === sessionUri,
+			30_000,
+		);
+		let parentAgentUri = await retry(async () => {
+			const session = await fetchSessionWithChat(client, sessionUri);
+			const plugin = session.customizations?.find((customization): customization is PluginCustomization =>
+				customization.type === CustomizationType.Plugin && customization.uri === pluginUri
+			);
+			assert.deepStrictEqual(plugin?.children?.map(child => child.name).sort(), ['plugin-parent', 'plugin-restricted', 'plugin-sibling']);
+			const parent = plugin?.children?.find(child => child.name === 'plugin-parent');
+			assert.ok(parent);
+			return parent.uri;
+		}, 100, 300);
+
+		const chatUri = defaultChatChannel(sessionUri);
+		const delegate = async (clientSeq: number, turnId: string, scenarioId: string) => {
+			client.clearReceived();
+			const taskStarted = client.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.ChatToolCallStart)
+				&& getActionEnvelope(notification).channel === chatUri
+				&& (getActionEnvelope(notification).action as ChatToolCallStartAction).toolName === 'task',
+				90_000,
+			);
+			client.dispatch({
+				channel: chatUri,
+				clientSeq,
+				action: {
+					type: ActionType.ChatTurnStarted,
+					turnId,
+					startedAt: new Date().toISOString(),
+					message: {
+						text: `[scenario:${scenarioId}] Delegate to the plugin sibling.`,
+						origin: { kind: MessageKind.User },
+						agent: { uri: parentAgentUri },
+					},
+				},
+			});
+			const startAction = getActionEnvelope(await taskStarted).action as ChatToolCallStartAction;
+			const completeNotification = await client.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.ChatToolCallComplete)
+				&& getActionEnvelope(notification).channel === chatUri
+				&& (getActionEnvelope(notification).action as ChatToolCallCompleteAction).toolCallId === startAction.toolCallId,
+				90_000,
+			);
+			await client.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.ChatTurnComplete)
+				&& getActionEnvelope(notification).channel === chatUri
+				&& (getActionEnvelope(notification).action as ChatTurnCompleteAction).turnId === turnId,
+				90_000,
+			);
+
+			const completeAction = getActionEnvelope(completeNotification).action as ChatToolCallCompleteAction;
+			const session = await fetchSessionWithChat(client, sessionUri);
+			const response = session.turns.find(turn => turn.id === turnId)?.responseParts
+				.filter(part => part.kind === ResponsePartKind.Markdown)
+				.map(part => part.content)
+				.join('');
+			return { taskSucceeded: completeAction.result.success, parentResponse: response };
+		};
+
+		const modelInvocable = await delegate(2, 'turn-plugin-subagent', PLUGIN_SIBLING_SCENARIO_ID);
+		await writeFile(restrictedAgentFile, '---\nname: plugin-restricted\ninfer: false\n---\nComplete the restricted task.');
+		client.clearReceived();
+		client.dispatch({
+			channel: sessionUri,
+			clientSeq: 3,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId, tools: [], customizations: [{ ...pluginCustomization, nonce: '2' }] },
+			},
+		});
+		const updated = await client.waitForNotification(notification => {
+			if (!isActionNotification(notification, ActionType.SessionCustomizationUpdated)) {
+				return false;
+			}
+			const { channel, action } = getActionEnvelope(notification);
+			return channel === sessionUri && action.type === ActionType.SessionCustomizationUpdated
+				&& action.customization.type === CustomizationType.Plugin && action.customization.uri === pluginUri
+				&& action.customization.load?.kind === CustomizationLoadStatus.Loaded
+				&& action.customization.children?.some(child => child.name === 'plugin-parent') === true;
+		}, 30_000);
+		const update = getActionEnvelope(updated).action;
+		assert.ok(update.type === ActionType.SessionCustomizationUpdated && update.customization.type === CustomizationType.Plugin);
+		const parent = update.customization.children?.find(child => child.name === 'plugin-parent');
+		assert.ok(parent);
+		parentAgentUri = parent.uri;
+		assert.deepStrictEqual({
+			modelInvocable,
+			modelRestricted: await delegate(4, 'turn-plugin-restricted-subagent', PLUGIN_RESTRICTED_SIBLING_SCENARIO_ID),
+		}, {
+			modelInvocable: {
+				taskSucceeded: true,
+				parentResponse: 'PLUGIN_PARENT_DONE',
+			},
+			modelRestricted: {
+				taskSucceeded: false,
+				parentResponse: 'PLUGIN_RESTRICTED_DONE',
+			},
+		});
 	});
 
 	test('loads a project extension through the client-resolved SDK before the model opens its canvas and projects extension-started turns', async function () {

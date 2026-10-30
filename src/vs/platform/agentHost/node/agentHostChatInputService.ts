@@ -63,7 +63,7 @@ export class AgentHostChatInputService extends Disposable implements IAgentHostC
 		const state = this._stateManager.getChatState(chatKey);
 		const sessionState = this._stateManager.getSessionState(session);
 		const previous = readChatInputState(sessionState, chatKey);
-		const provider = this._providers.getProviderForSession(session);
+		const provider = this._providers.getProviderForChat(session, chatKey);
 		if (this._store.isDisposed || !state || !sessionState || !provider?.chats.prepareChat || state.activeTurn
 			|| state.interactivity === ChatInteractivity.Hidden
 			|| isSessionStatusArchived(sessionState.status) || isSessionStatusArchived(state.status)

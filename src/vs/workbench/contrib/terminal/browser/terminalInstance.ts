@@ -552,10 +552,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._containerReadyBarrier = new AutoOpenBarrier(Constants.WaitForContainerThreshold);
 		this._attachBarrier = new AutoOpenBarrier(1000);
+		this._register(toDisposable(() => {
+			this._containerReadyBarrier.open();
+			this._attachBarrier.open();
+		}));
 		this._xtermReadyPromise = this._createXterm();
 		this._xtermReadyPromise.then(async () => {
 			// Wait for a period to allow a container to be ready
 			await this._containerReadyBarrier.wait();
+			if (this.isDisposed) {
+				return;
+			}
 
 			// Resolve the executable ahead of time if shell integration is enabled, this should not
 			// be done for custom PTYs as that would cause extension Pseudoterminal-based terminals
@@ -577,6 +584,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (os && this.shellLaunchConfig.executable) {
 				this.setShellType(guessShellTypeFromExecutable(os, this.shellLaunchConfig.executable));
 			}
+
+			// Starts the window handle lookup early; createProcess waits for it before starting the shell
+			this._processManager.setParentWindow(dom.getWindow(this._container).vscodeWindowId);
 
 			await this._createProcess();
 
@@ -1084,6 +1094,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// The container changed, reattach
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
+		this._processManager.setParentWindow(dom.getWindow(container).vscodeWindowId);
 
 		// If xterm is already attached, call open again to pick up any changes to the window.
 		if (this.xterm?.raw.element) {
@@ -1398,7 +1409,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	async focusWhenReady(force?: boolean): Promise<void> {
 		await this._xtermReadyPromise;
 		await this._attachBarrier.wait();
-		this.focus(force);
+		if (!this.isDisposed) {
+			this.focus(force);
+		}
 	}
 
 	async sendText(text: string, shouldExecute: boolean, forceBracketedPasteMode?: boolean): Promise<void> {
@@ -2353,9 +2366,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._shellLaunchConfig.env = shellLaunchConfig.env;
 	}
 
-	private _onEnvironmentVariableInfoChanged(info: IEnvironmentVariableInfo): void {
-		if (info.requiresAction) {
+	private _onEnvironmentVariableInfoChanged(info: IEnvironmentVariableInfo | undefined): void {
+		if (info?.requiresAction) {
 			this.xterm?.raw.textarea?.setAttribute('aria-label', nls.localize('terminalStaleTextBoxAriaLabel', "Terminal {0} environment is stale, run the 'Show Environment Information' command for more information", this._instanceId));
+		} else {
+			this._setAriaLabel(this.xterm?.raw, this._instanceId, this._title);
 		}
 		this._refreshEnvironmentVariableInfoWidgetState(info);
 	}
@@ -2471,21 +2486,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	async changeIcon(icon?: TerminalIcon): Promise<TerminalIcon | undefined> {
-		if (icon) {
-			this._icon = icon;
-			this._onIconChanged.fire({ instance: this, userInitiated: true });
-			return icon;
+	async changeIcon(icon?: TerminalIcon | null): Promise<TerminalIcon | null | undefined> {
+		if (icon === undefined) {
+			const iconPicker = this._scopedInstantiationService.createInstance(TerminalIconPicker);
+			try {
+				icon = await iconPicker.pickIcons();
+			} finally {
+				iconPicker.dispose();
+			}
 		}
-		const iconPicker = this._scopedInstantiationService.createInstance(TerminalIconPicker);
-		const pickedIcon = await iconPicker.pickIcons();
-		iconPicker.dispose();
-		if (!pickedIcon) {
+		if (icon === undefined) {
 			return undefined;
 		}
-		this._icon = pickedIcon;
+		this._icon = icon ?? undefined;
 		this._onIconChanged.fire({ instance: this, userInitiated: true });
-		return pickedIcon;
+		return icon;
 	}
 
 	async changeColor(color?: string, skipQuickPick?: boolean): Promise<string | undefined> {
@@ -2522,6 +2537,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		disposables.push(quickPick);
 		quickPick.items = items;
 		quickPick.matchOnDescription = true;
+		quickPick.useNeutralSelection = true;
 		quickPick.placeholder = nls.localize('changeColor', 'Select a color for the terminal');
 		quickPick.show();
 		const result = await new Promise<IQuickPickItem | undefined>(r => {

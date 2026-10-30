@@ -838,7 +838,7 @@ function _loadSyntaxTokens(extensionResourceLoaderService: IExtensionResourceLoa
 			const contentValue = parsePList(content);
 			const settings: ITextMateThemingRule[] = contentValue.settings;
 			if (!Array.isArray(settings)) {
-				return Promise.reject(new Error(nls.localize('error.plist.invalidformat', "Problem parsing tmTheme file: {0}. 'settings' is not array.")));
+				return Promise.reject(new Error(nls.localize('error.plist.invalidformat', "Problem parsing tmTheme file: {0}. 'settings' is not array.", themeLocation.toString())));
 			}
 			convertSettings(settings, result);
 			return Promise.resolve(null);

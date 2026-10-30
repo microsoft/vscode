@@ -4,12 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Dimension } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { decodeKeybinding, ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { OS } from '../../../../../base/common/platform.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -17,34 +21,36 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { IMenuService, isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, isIMenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyExpression, ContextKeyValue, IContext, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../../../../platform/files/common/files.js';
-import product from '../../../../../platform/product/common/product.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem, QuickInputType } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../../../../platform/theme/common/themeService.js';
-import { EditorInputCapabilities } from '../../../../../workbench/common/editor.js';
+import { EditorInputCapabilities, EditorsOrder, ITextDiffEditorPane } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { TAB_ACTIVE_BACKGROUND } from '../../../../../workbench/common/theme.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, LayoutSettings, ModernUIEditorTabStyle, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { generateColorThemeCSS } from '../../../../../workbench/services/themes/browser/colorThemeCss.js';
 import { ColorThemeData } from '../../../../../workbench/services/themes/common/colorThemeData.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
@@ -55,18 +61,18 @@ import { openNewSearchEditor } from '../../../../../workbench/contrib/searchEdit
 import { IFileQuery, ISearchComplete, ISearchService } from '../../../../../workbench/services/search/common/search.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { Menus } from '../../../../browser/menus.js';
-import { SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING } from '../../../../common/sessionConfig.js';
+import { NEW_FILE_TAB_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
-import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../browser/addTabActions.js';
-import { EmptyFileEditor } from '../../browser/emptyFileEditor.js';
-import { emptyFileEditorConfiguration } from '../../browser/emptyFileEditor.contribution.js';
+import { NEW_BROWSER_TAB_COMMAND_ID, NEW_CHANGES_TAB_COMMAND_ID, NEW_SEARCH_TAB_COMMAND_ID, NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction, OPEN_BROWSER_COMMAND_ID, OpenBrowserAction, registerSessionActivityBarTabEntries } from '../../browser/addTabActions.js';
+import { EmptyFileEditor, EmptyFileEditorFocusedContext, OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID } from '../../browser/emptyFileEditor.js';
+import '../../browser/emptyFileEditor.contribution.js';
 import { EmptyFileEditorSearch, EmptyFileEditorSearchPickerFocusedContext } from '../../browser/emptyFileEditorSearch.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
-import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { TestEnvironmentService, TestLayoutService, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { createFileStat } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IsQuickChatSessionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/contextkeys.js';
@@ -100,14 +106,24 @@ function registerEmptyFileEditorActions() {
 	});
 }
 
-async function waitForCondition(condition: () => boolean, message: string): Promise<void> {
-	const deadline = Date.now() + 2000;
-	while (!condition()) {
-		if (Date.now() >= deadline) {
-			throw new Error(message);
-		}
-		await timeout(10);
+/**
+ * Resolves once `condition` holds. The condition is checked right away and then
+ * each time `event` fires, so a change that already happened is not missed.
+ */
+async function waitForCondition<T>(event: Event<T>, condition: () => boolean): Promise<void> {
+	if (!condition()) {
+		await Event.toPromise(Event.filter(event, () => condition()));
 	}
+}
+
+/**
+ * Returns the open quick pick. It shows new results by applying them, which
+ * activates their first item and fires `onDidChangeActive`.
+ */
+function getQuickPick(instantiationService: TestInstantiationService): IQuickPick<IQuickPickItem, { useSeparators: true }> {
+	const quickInput = instantiationService.get(IQuickInputService).currentQuickInput;
+	assert.strictEqual(quickInput?.type, QuickInputType.QuickPick);
+	return quickInput as IQuickPick<IQuickPickItem, { useSeparators: true }>;
 }
 
 class TestResourceEditorInput extends EditorInput {
@@ -122,6 +138,12 @@ function hasResource(value: unknown): value is { resource: URI } {
 
 suite('Sessions - Editor Contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createFileSearch(instantiationService: TestInstantiationService): EmptyFileEditorSearch {
+		const container = appendElement(mainWindow.document.body, 'empty-file-editor-search');
+		store.add(toDisposable(() => container.remove()));
+		return store.add(instantiationService.createInstance(EmptyFileEditorSearch, container));
+	}
 
 	test('shares the connected tab setting across Agents windows independently of Modern UI', async () => {
 		const configurationService = new TestConfigurationService({
@@ -582,76 +604,42 @@ suite('Sessions - Editor Contribution', () => {
 		}]);
 	});
 
-	test('registers empty file editor actions as an Insiders-default experiment-controlled setting', () => {
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-		if (!configurationRegistry.getConfigurationProperties()[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]) {
-			configurationRegistry.registerConfiguration(emptyFileEditorConfiguration);
-			store.add(toDisposable(() => configurationRegistry.deregisterConfigurations([emptyFileEditorConfiguration])));
-		}
-		const property = configurationRegistry.getConfigurationProperties()[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING];
-		assert.deepStrictEqual({
-			id: SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING,
-			type: property.type,
-			default: property.default,
-			scope: property.scope,
-			tags: property.tags,
-			experiment: property.experiment,
-		}, {
-			id: 'sessions.experimental.emptyFileEditorActions',
-			type: 'boolean',
-			default: product.quality === 'insider',
-			scope: ConfigurationScope.WINDOW,
-			tags: ['experimental', 'onExP'],
-			experiment: { mode: 'auto' },
-		});
-	});
-
-	test('empty file editor gates experimental actions and responds to setting changes', async () => {
+	test('empty file editor opens an untitled file on double-click in empty space by default', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		store.add(registerEmptyFileEditorActions());
-		instantiationService.stub(IContextKeyService, new class extends MockContextKeyService {
-			override contextMatchesRules(): boolean {
-				return true;
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const commands: string[] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override executeCommand<T>(id: string): Promise<T | undefined> {
+				commands.push(id);
+				return Promise.resolve(undefined);
 			}
 		});
-		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
-		const configurationService = new TestConfigurationService({
-			[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]: false,
-		});
-		store.add(configurationService.onDidChangeConfigurationEmitter);
-		instantiationService.stub(IConfigurationService, configurationService);
-		const telemetryService = new TestExperimentTriggerTelemetryService();
-		instantiationService.stub(ITelemetryService, telemetryService);
 		const editor = store.add(instantiationService.createInstance(EmptyFileEditor, new class extends mock<IEditorGroup>() {
 			override windowId = mainWindow.vscodeWindowId;
 		}()));
 		const container = appendElement(mainWindow.document.body, 'empty-file-editor-test');
 		store.add({ dispose: () => container.remove() });
-
 		editor.create(container);
-		const disabledContent = Array.from(container.querySelector('.empty-file-editor-content')?.children ?? []).map(element => element.className);
-		await configurationService.setUserConfiguration(SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING, true);
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: setting => setting === SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING,
-			source: ConfigurationTarget.USER,
-			affectedKeys: new Set([SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]),
-			change: { keys: [SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING], overrides: [] },
-		});
+		const doubleClick = (selector: string) => {
+			container.querySelector(selector)?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+			return commands.splice(0);
+		};
 
 		assert.deepStrictEqual({
-			disabledContent,
-			enabledContent: Array.from(container.querySelector('.empty-file-editor-content')?.children ?? []).map(element => element.className),
-			description: container.querySelector('.sessions-empty-state-description')?.textContent,
-			triggers: telemetryService.triggers,
+			emptySpace: doubleClick('.empty-file-editor'),
+			searchInput: doubleClick('.empty-file-editor-search input'),
+			actionLabel: doubleClick('.sessions-add-tab-watermark-label'),
+			actions: doubleClick('.empty-file-editor-actions'),
 		}, {
-			disabledContent: ['sessions-empty-state'],
-			enabledContent: ['sessions-empty-state', 'empty-file-editor-search', 'empty-file-editor-actions'],
-			description: 'Select a file from the Files view',
-			triggers: [`config.${SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING}`],
+			emptySpace: ['workbench.action.files.newUntitledFile'],
+			searchInput: [],
+			actionLabel: [],
+			actions: [],
 		});
 	});
 
-	test('empty file editor shows file search and new file action', () => {
+	test('empty file editor shows search and action rows by default without repeated copy or experiment triggers', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		store.add(registerEmptyFileEditorActions());
 		instantiationService.stub(IContextKeyService, new class extends MockContextKeyService {
@@ -659,11 +647,6 @@ suite('Sessions - Editor Contribution', () => {
 				return true;
 			}
 		});
-		const configurationService = new TestConfigurationService({
-			[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]: true,
-		});
-		store.add(configurationService.onDidChangeConfigurationEmitter);
-		instantiationService.stub(IConfigurationService, configurationService);
 		const telemetryService = new TestExperimentTriggerTelemetryService();
 		instantiationService.stub(ITelemetryService, telemetryService);
 		const commands: { id: string; args: unknown[] }[] = [];
@@ -681,31 +664,230 @@ suite('Sessions - Editor Contribution', () => {
 		store.add({ dispose: () => container.remove() });
 
 		editor.create(container);
-		const buttons = Array.from(container.querySelectorAll<HTMLAnchorElement>('.empty-file-editor-actions .monaco-button'));
+		const buttons = Array.from(container.querySelectorAll<HTMLAnchorElement>('.empty-file-editor-actions .sessions-add-tab-watermark-entry'));
+		container.style.cssText = 'height: 400px; width: 400px; --vscode-spacing-size160: 16px; --vscode-spacing-size240: 24px; --vscode-spacing-size280: 28px;';
+		editor.layout(new Dimension(400, 400));
+		const panel = container.querySelector<HTMLElement>('.empty-file-editor');
+		const search = container.querySelector<HTMLElement>('.empty-file-editor-search');
+		assert.ok(panel && search && buttons[0]);
+		const panelBounds = panel.getBoundingClientRect();
+		const firstButtonTop = buttons[0].getBoundingClientRect().top;
 		buttons.forEach(button => button.click());
 
 		assert.deepStrictEqual({
-			searchPlaceholder: container.querySelector<HTMLInputElement>('.empty-file-editor-search input')?.placeholder,
+			search: {
+				placeholder: container.querySelector<HTMLInputElement>('input')?.placeholder,
+				ariaLabel: container.querySelector('input')?.getAttribute('aria-label'),
+			},
 			content: Array.from(container.querySelector('.empty-file-editor-content')?.children ?? []).map(element => element.className),
 			description: container.querySelector('.sessions-empty-state-description')?.textContent,
+			layout: {
+				firstButtonAligned: Math.abs(firstButtonTop - (panelBounds.top + panelBounds.bottom) / 2 + 42) < 1,
+				searchAboveButtons: search.getBoundingClientRect().bottom < firstButtonTop,
+			},
 			buttons: buttons.map(button => ({
 				text: button.textContent,
 				ariaLabel: button.getAttribute('aria-label'),
-				icon: button.querySelector('.new-session-button-icon.codicon-new-file')?.getAttribute('aria-hidden'),
+				role: button.getAttribute('role'),
+				icon: button.querySelector('.sessions-add-tab-watermark-icon')?.getAttribute('aria-hidden'),
 			})),
-			commands,
+			commands: commands.map(({ id, args }) => ({ id, editorContext: args[0] === editor })),
 			triggers: telemetryService.triggers,
 		}, {
-			searchPlaceholder: 'Search files by name',
-			content: ['sessions-empty-state', 'empty-file-editor-search', 'empty-file-editor-actions'],
-			description: 'Select a file from the Files view',
+			search: {
+				placeholder: 'Search files by name',
+				ariaLabel: 'Search files in the session workspace',
+			},
+			content: ['empty-file-editor-search', 'empty-file-editor-actions sessions-watermark-actions'],
+			description: undefined,
+			layout: { firstButtonAligned: true, searchAboveButtons: true },
 			buttons: [
-				{ text: 'New File', ariaLabel: 'New File', icon: 'true' },
+				{ text: 'Open File...', ariaLabel: 'Open File...', role: 'button', icon: 'true' },
+				{ text: 'New File', ariaLabel: 'New File', role: 'button', icon: 'true' },
 			],
 			commands: [
-				{ id: 'workbench.action.files.newUntitledFile', args: [] },
+				{ id: OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID, editorContext: true },
+				{ id: 'workbench.action.files.newUntitledFile', editorContext: true },
 			],
-			triggers: [`config.${SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING}`],
+			triggers: [],
+		});
+	});
+
+	test('empty file editor focuses its container without opening the file picker', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		store.add(registerEmptyFileEditorActions());
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const editor = store.add(instantiationService.createInstance(EmptyFileEditor, new class extends mock<IEditorGroup>() {
+			override windowId = mainWindow.vscodeWindowId;
+		}()));
+		const container = appendElement(mainWindow.document.body, 'empty-file-editor-focus-test');
+		// Focusing scrolls the document to the element; restore it so later tests measure unscrolled bounds.
+		store.add({ dispose: () => mainWindow.scrollTo(0, 0) });
+		store.add({ dispose: () => container.remove() });
+
+		editor.create(container);
+		// Keyboard focus must be inside the editor part so `editorAreaFocus` keeps Cmd+N on New File.
+		editor.focus();
+
+		const editorContainer = container.querySelector('.empty-file-editor');
+		assert.deepStrictEqual({
+			role: editorContainer?.getAttribute('role'),
+			ariaLabel: editorContainer?.getAttribute('aria-label'),
+			containerFocused: mainWindow.document.activeElement === editorContainer,
+			pickerOpen: !!instantiationService.get(IQuickInputService).currentQuickInput,
+		}, {
+			role: 'group',
+			ariaLabel: 'Files editor',
+			containerFocused: true,
+			pickerOpen: false,
+		});
+	});
+
+	test('empty file editor updates shortcut hints and accessible names when keybindings change', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		store.add(registerEmptyFileEditorActions());
+		instantiationService.stub(IContextKeyService, new class extends MockContextKeyService {
+			override contextMatchesRules(): boolean { return true; }
+		});
+		const onDidUpdateKeybindings = store.add(new Emitter<void>());
+		let keybinding: ResolvedKeybinding | undefined = USLayoutResolvedKeybinding.resolveKeybinding(decodeKeybinding(KeyMod.CtrlCmd | KeyCode.KeyP, OS)!, OS)[0];
+		instantiationService.stub(IKeybindingService, new class extends MockKeybindingService {
+			override get onDidUpdateKeybindings() { return onDidUpdateKeybindings.event; }
+			override lookupKeybinding(id: string) {
+				return id === OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID ? keybinding : undefined;
+			}
+		});
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const editor = store.add(instantiationService.createInstance(EmptyFileEditor, new class extends mock<IEditorGroup>() {
+			override windowId = mainWindow.vscodeWindowId;
+		}()));
+		const container = appendElement(mainWindow.document.body, 'empty-file-editor-test');
+		store.add(toDisposable(() => container.remove()));
+		editor.create(container);
+		const row = container.querySelector<HTMLElement>('.sessions-add-tab-watermark-entry');
+		const before = row?.getAttribute('aria-label');
+		const beforeExpected = `Open File... (${keybinding.getAriaLabel()})`;
+		keybinding = USLayoutResolvedKeybinding.resolveKeybinding(decodeKeybinding(KeyMod.CtrlCmd | KeyCode.KeyO, OS)!, OS)[0];
+		onDidUpdateKeybindings.fire();
+		const afterExpected = `Open File... (${keybinding.getAriaLabel()})`;
+		const after = row?.getAttribute('aria-label');
+		const hintHidden = row?.querySelector<HTMLElement>('.sessions-add-tab-watermark-keybinding')?.hidden;
+		const updatedKeybinding = keybinding;
+		keybinding = undefined;
+		onDidUpdateKeybindings.fire();
+		const removed = { label: row?.getAttribute('aria-label'), trailing: row?.lastElementChild?.className };
+		keybinding = updatedKeybinding;
+		onDidUpdateKeybindings.fire();
+		assert.deepStrictEqual({
+			before,
+			after,
+			hintHidden,
+			removed,
+			restored: { label: row?.getAttribute('aria-label'), hints: row?.querySelectorAll('.sessions-add-tab-watermark-keybinding').length },
+		}, {
+			before: beforeExpected,
+			after: afterExpected,
+			hintHidden: false,
+			removed: { label: 'Open File...', trailing: 'sessions-add-tab-watermark-label' },
+			restored: { label: afterExpected, hints: 1 },
+		});
+	});
+
+	test('empty file editor Open File command searches its own session workspace', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const queries: IFileQuery[] = [];
+		const onDidSearch = store.add(new Emitter<void>());
+		instantiationService.stub(ISearchService, new class extends mock<ISearchService>() {
+			override async fileSearch(query: IFileQuery): Promise<ISearchComplete> {
+				queries.push(query);
+				onDidSearch.fire();
+				return { results: [], messages: [], limitHit: false };
+			}
+			override async clearCache(): Promise<void> { }
+		});
+		const editor = store.add(instantiationService.createInstance(EmptyFileEditor, new class extends mock<IEditorGroup>() {
+			override windowId = mainWindow.vscodeWindowId;
+		}()));
+		const container = appendElement(mainWindow.document.body, 'empty-file-editor-test');
+		store.add(toDisposable(() => container.remove()));
+		editor.create(container);
+		const input = store.add(instantiationService.createInstance(EmptyFileEditorInput, createWorkspace(URI.file('/repo/session'))));
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+		const handler = CommandsRegistry.getCommand(OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID)?.handler;
+		assert.ok(handler);
+		handler(instantiationService, editor);
+		const picker = getQuickPick(instantiationService);
+		const pickerContainer = mainWindow.document.activeElement?.closest('.quick-input-widget');
+		assert.ok(pickerContainer);
+		store.add(toDisposable(() => pickerContainer.remove()));
+		const initialValue = picker.value;
+		picker.value = 'app';
+		await waitForCondition(onDidSearch.event, () => queries.length === 1);
+		picker.value = '';
+		const staysOpenWhenCleared = instantiationService.get(IQuickInputService).currentQuickInput === picker;
+		input.setWorkspace(createWorkspace(URI.file('/repo/other-session')));
+		assert.deepStrictEqual({
+			initialValue,
+			folders: queries[0].folderQueries.map(folder => folder.folder.toString()),
+			staysOpenWhenCleared,
+			closedOnWorkspaceChange: !instantiationService.get(IQuickInputService).currentQuickInput,
+		}, {
+			initialValue: '',
+			folders: [URI.file('/repo/session').toString()],
+			staysOpenWhenCleared: true,
+			closedOnWorkspaceChange: true,
+		});
+	});
+
+	test('empty file editor always offers Open File and scopes its shortcut to editor focus', () => {
+		const ctrlCmdP = decodeKeybinding(KeyMod.CtrlCmd | KeyCode.KeyP, OS)!.getHashCode();
+		const rule = KeybindingsRegistry.getDefaultKeybindings()
+			.find(item => item.command === OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID && item.keybinding?.getHashCode() === ctrlCmdP);
+		const menuItem = MenuRegistry.getMenuItems(Menus.EmptyFileEditorActions)
+			.find(item => isIMenuItem(item) && item.command.id === OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID);
+		assert.ok(menuItem && isIMenuItem(menuItem));
+		const states = [true, false, undefined].map(focused => {
+			const values: Record<string, boolean | undefined> = {
+				[EmptyFileEditorFocusedContext.key]: focused,
+			};
+			const context = { getValue: <T>(key: string) => values[key] as T | undefined };
+			return {
+				focused,
+				shortcutEnabled: rule?.when?.evaluate(context),
+				menuVisible: menuItem.when?.evaluate(context) ?? true,
+				actionEnabled: menuItem.command.precondition?.evaluate(context) ?? true,
+			};
+		});
+		assert.deepStrictEqual({
+			registered: !!rule,
+			states,
+		}, {
+			registered: true,
+			states: [true, false, undefined].map(focused => ({
+				focused,
+				shortcutEnabled: focused === true,
+				menuVisible: true,
+				actionEnabled: true,
+			})),
+		});
+	});
+
+	test('empty file editor search picker keeps Cmd+N on New File', () => {
+		const ctrlCmdN = decodeKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN, OS)!.getHashCode();
+		const rule = KeybindingsRegistry.getDefaultKeybindings()
+			.find(item => item.command === 'workbench.action.files.newUntitledFile' && item.keybinding?.getHashCode() === ctrlCmdN && item.weight1 > KeybindingWeight.SessionsContrib);
+		const evaluate = (values: Record<string, boolean>) => rule?.when?.evaluate({ getValue: <T>(key: string) => values[key] as T | undefined }) ?? true;
+
+		assert.deepStrictEqual({
+			// Outweighs the Agents Window New Session binding, which also matches outside the editor area.
+			registered: !!rule,
+			pickerFocused: evaluate({ [EmptyFileEditorSearchPickerFocusedContext.key]: true }),
+			elsewhere: evaluate({}),
+		}, {
+			registered: true,
+			pickerFocused: true,
+			elsewhere: false,
 		});
 	});
 
@@ -714,6 +896,8 @@ suite('Sessions - Editor Contribution', () => {
 		const queries: IFileQuery[] = [];
 		const clearedCacheKeys: string[] = [];
 		const opened: { resource: URI; preserveFocus: boolean | undefined; pinned: boolean | undefined }[] = [];
+		const onDidClearCache = store.add(new Emitter<void>());
+		const onDidOpen = store.add(new Emitter<void>());
 		instantiationService.stub(ISearchService, new class extends mock<ISearchService>() {
 			override async fileSearch(query: IFileQuery): Promise<ISearchComplete> {
 				queries.push(query);
@@ -730,6 +914,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 			override clearCache(cacheKey: string): Promise<void> {
 				clearedCacheKeys.push(cacheKey);
+				onDidClearCache.fire();
 				return Promise.resolve();
 			}
 		});
@@ -739,14 +924,12 @@ suite('Sessions - Editor Contribution', () => {
 				if (hasResource(editor)) {
 					const options = Reflect.get(editor, 'options') as IEditorOptions | undefined;
 					opened.push({ resource: editor.resource, preserveFocus: options?.preserveFocus, pinned: options?.pinned });
+					onDidOpen.fire();
 				}
 				return undefined;
 			}
 		});
-		const container = appendElement(mainWindow.document.body, 'empty-file-editor-search empty-file-editor-search-test');
-		container.style.width = '420px';
-		store.add({ dispose: () => container.remove() });
-		const search = store.add(instantiationService.createInstance(EmptyFileEditorSearch, container));
+		const search = createFileSearch(instantiationService);
 		search.setWorkspace(createWorkspaceWithFolders([{
 			root: URI.file('/repo'),
 			workingDirectory: URI.file('/repo/.worktrees/session'),
@@ -754,65 +937,53 @@ suite('Sessions - Editor Contribution', () => {
 			description: undefined,
 		}]));
 
-		const input = container.querySelector<HTMLInputElement>('input');
-		assert.ok(input);
-		const inputBox = container.querySelector<HTMLElement>('.monaco-inputbox');
-		assert.ok(inputBox);
-		const getInputBounds = () => {
-			const { left, top, width, height } = inputBox.getBoundingClientRect();
-			return { left, top, width, height };
-		};
-		const inputBoundsBeforeSearch = getInputBounds();
-		input.value = 'a';
-		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-		const pickerTextInput = mainWindow.document.querySelector<HTMLInputElement>('.quick-input-widget.quick-input-widget-overlay .quick-input-filter input');
+		search.show();
+		const onDidShowResults = getQuickPick(instantiationService).onDidChangeActive;
+		const picker = mainWindow.document.activeElement?.closest<HTMLElement>('.quick-input-widget');
+		assert.ok(picker);
+		store.add(toDisposable(() => picker.remove()));
+		const pickerTextInput = picker.querySelector<HTMLInputElement>('.quick-input-filter input');
 		assert.ok(pickerTextInput);
-		pickerTextInput.setRangeText('p', pickerTextInput.selectionStart ?? 0, pickerTextInput.selectionEnd ?? 0, 'end');
+		pickerTextInput.setRangeText('a', pickerTextInput.selectionStart ?? 0, pickerTextInput.selectionEnd ?? 0, 'end');
 		pickerTextInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
 		pickerTextInput.setRangeText('p', pickerTextInput.selectionStart ?? 0, pickerTextInput.selectionEnd ?? 0, 'end');
 		pickerTextInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-		await waitForCondition(() => queries.length >= 1
-			&& mainWindow.document.querySelectorAll('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row').length === 2,
-			'Expected file search results to appear');
+		pickerTextInput.setRangeText('p', pickerTextInput.selectionStart ?? 0, pickerTextInput.selectionEnd ?? 0, 'end');
+		pickerTextInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		await waitForCondition(onDidShowResults, () => queries.length >= 1
+			&& picker.querySelectorAll('.quick-input-list .monaco-list-row').length === 2);
 		const valueAfterPickerOpened = pickerTextInput.value;
 
-		const picker = mainWindow.document.querySelector<HTMLElement>('.quick-input-widget.quick-input-widget-overlay');
-		const pickerInput = picker?.querySelector<HTMLElement>('.quick-input-filter');
 		const rows = Array.from(picker?.querySelectorAll<HTMLElement>('.quick-input-list .monaco-list-row') ?? []);
-		const pickerInputBounds = pickerInput?.getBoundingClientRect();
 		const pickerHelpContext = instantiationService.get(IContextKeyService).getContextKeyValue(EmptyFileEditorSearchPickerFocusedContext.key);
 		const activePicker = instantiationService.get(IQuickInputService).currentQuickInput;
 		assert.strictEqual(activePicker?.type, QuickInputType.QuickPick);
 		(activePicker as IQuickPick<IQuickPickItem, { useSeparators: true }>).accept(true);
-		await waitForCondition(() => opened.length === 1, 'Expected the background acceptance to open the active file');
+		await waitForCondition(onDidOpen.event, () => opened.length === 1);
 		const backgroundAcceptState = {
 			pickerVisible: picker?.style.display !== 'none',
 			preserveFocus: opened[0].preserveFocus,
 			pinned: opened[0].pinned,
 		};
 		(activePicker as IQuickPick<IQuickPickItem, { useSeparators: true }>).value = '#app';
-		await waitForCondition(() => queries.some(query => query.filePattern === '#app')
-			&& mainWindow.document.querySelectorAll('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row').length === 1,
-			'Expected the literal prefixed filename query to stay with file search');
+		await waitForCondition(onDidShowResults, () => queries.some(query => query.filePattern === '#app')
+			&& picker.querySelectorAll('.quick-input-list .monaco-list-row').length === 1);
 		const prefixedRows = Array.from(
-			mainWindow.document.querySelectorAll<HTMLElement>('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row')
+			picker.querySelectorAll<HTMLElement>('.quick-input-list .monaco-list-row')
 		).map(row => row.textContent);
 		const queryCountBeforeMultiTerm = queries.length;
 		(activePicker as IQuickPick<IQuickPickItem, { useSeparators: true }>).value = 'app test';
-		await waitForCondition(() => queries.length > queryCountBeforeMultiTerm
-			&& mainWindow.document.querySelectorAll('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row').length === 1,
-			'Expected multi-term filtering to settle');
+		await waitForCondition(onDidShowResults, () => queries.length > queryCountBeforeMultiTerm
+			&& picker.querySelectorAll('.quick-input-list .monaco-list-row').length === 1);
 		const multiTermRows = Array.from(
-			mainWindow.document.querySelectorAll<HTMLElement>('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row')
+			picker.querySelectorAll<HTMLElement>('.quick-input-list .monaco-list-row')
 		).map(row => row.textContent);
 		(activePicker as IQuickPick<IQuickPickItem, { useSeparators: true }>).accept();
-		await waitForCondition(() => opened.length === 2, 'Expected the foreground acceptance to open the active file');
-		await waitForCondition(() => picker?.style.display === 'none', 'Expected the picker to close after foreground acceptance');
-		await waitForCondition(() => queries.every(query => typeof query.cacheKey === 'string' && clearedCacheKeys.includes(query.cacheKey)),
-			'Expected the picker-scoped search cache to be cleared');
-		input.blur();
-		await waitForCondition(() => instantiationService.get(IContextKeyService).getContextKeyValue(EmptyFileEditorSearchPickerFocusedContext.key) === false,
-			'Expected the search help context to clear after focus leaves');
+		await waitForCondition(onDidOpen.event, () => opened.length === 2);
+		const onDidHidePicker = (activePicker as IQuickPick<IQuickPickItem, { useSeparators: true }>).onDidHide;
+		await waitForCondition(onDidHidePicker, () => picker?.style.display === 'none');
+		await waitForCondition(onDidClearCache.event, () => queries.every(query => typeof query.cacheKey === 'string' && clearedCacheKeys.includes(query.cacheKey)));
+		await waitForCondition(onDidHidePicker, () => instantiationService.get(IContextKeyService).getContextKeyValue(EmptyFileEditorSearchPickerFocusedContext.key) === false);
 
 		assert.deepStrictEqual({
 			query: queries[0] && {
@@ -828,13 +999,9 @@ suite('Sessions - Editor Contribution', () => {
 			prefixedRows,
 			multiTermRows,
 			usesFileIcon: rows[0]?.querySelector('.monaco-icon-label')?.classList.contains('file-icon'),
-			usesRealQuickPick: picker?.classList.contains('quick-input-widget-overlay'),
+			usesCenteredQuickPick: picker?.classList.contains('quick-input-widget') && !picker.classList.contains('quick-input-widget-overlay'),
 			hasItemButtons: rows.some(row => !!row.querySelector('.quick-input-list-entry.has-actions')),
 			valueAfterPickerOpened,
-			inputBoundsStable: pickerInputBounds?.left === inputBoundsBeforeSearch.left
-				&& pickerInputBounds.top === inputBoundsBeforeSearch.top
-				&& pickerInputBounds.width === inputBoundsBeforeSearch.width
-				&& pickerInputBounds.height === inputBoundsBeforeSearch.height,
 			pickerHelpContext,
 			backgroundAcceptState,
 			opened: opened.map(({ resource, preserveFocus, pinned }) => ({ resource: resource.toString(), preserveFocus, pinned })),
@@ -853,10 +1020,9 @@ suite('Sessions - Editor Contribution', () => {
 			prefixedRows: ['#app.tssrc'],
 			multiTermRows: ['app.test.tstest'],
 			usesFileIcon: true,
-			usesRealQuickPick: true,
+			usesCenteredQuickPick: true,
 			hasItemButtons: false,
 			valueAfterPickerOpened: 'app',
-			inputBoundsStable: true,
 			pickerHelpContext: true,
 			backgroundAcceptState: {
 				pickerVisible: true,
@@ -871,21 +1037,111 @@ suite('Sessions - Editor Contribution', () => {
 		});
 	});
 
-	test('empty file editor search combines session working directories before native ranking', async () => {
+	test('empty file editor inline search anchors results and restores the field on Escape', async () => {
+		await mainWindow.document.fonts.ready;
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const queries: IFileQuery[] = [];
+		const onDidSearch = store.add(new Emitter<void>());
 		instantiationService.stub(ISearchService, new class extends mock<ISearchService>() {
 			override async fileSearch(query: IFileQuery): Promise<ISearchComplete> {
 				queries.push(query);
+				onDidSearch.fire();
+				return {
+					results: [{ resource: URI.file(`/repo/${query.filePattern}.ts`) }],
+					messages: [],
+					limitHit: false,
+				};
+			}
+			override async clearCache(): Promise<void> { }
+		});
+		const container = appendElement(mainWindow.document.body, 'empty-file-editor-search');
+		container.style.width = '320px';
+		container.style.height = '28px';
+		store.add(toDisposable(() => container.remove()));
+		store.add(toDisposable(() => mainWindow.scrollTo(0, 0)));
+		const search = store.add(instantiationService.createInstance(EmptyFileEditorSearch, container));
+		search.setWorkspace(createWorkspace(URI.file('/repo')));
+		const input = container.querySelector<HTMLInputElement>('input');
+		const inputBox = container.querySelector<HTMLElement>('.monaco-inputbox');
+		assert.ok(input && inputBox);
+		input.focus();
+		const pickerClosedBeforeTyping = !instantiationService.get(IQuickInputService).currentQuickInput;
+		const inputBounds = inputBox.getBoundingClientRect();
+		const typeQuery = (value: string) => {
+			input.value = value;
+			input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		};
+		typeQuery('app');
+		const picker = getQuickPick(instantiationService);
+		const pickerContainer = mainWindow.document.activeElement?.closest<HTMLElement>('.quick-input-widget');
+		assert.ok(pickerContainer);
+		store.add(toDisposable(() => pickerContainer.remove()));
+		const pickerInputBounds = pickerContainer.querySelector('.quick-input-filter')?.getBoundingClientRect();
+		assert.ok(pickerInputBounds);
+		const initialState = {
+			anchored: pickerContainer.classList.contains('quick-input-widget-overlay'),
+			query: picker.value,
+			fieldHidden: container.style.visibility,
+			bounds: { left: pickerInputBounds.left, top: pickerInputBounds.top, width: pickerInputBounds.width, height: pickerInputBounds.height },
+		};
+		picker.value = 'other';
+		await waitForCondition(onDidSearch.event, () => queries.some(query => query.filePattern === 'other'));
+		const mirroredValue = input.value;
+		pickerContainer.querySelector('input')?.dispatchEvent(new mainWindow.KeyboardEvent('keydown', {
+			key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true,
+		}));
+		const afterEscape = {
+			value: input.value,
+			fieldVisibility: container.style.visibility,
+			fieldFocused: mainWindow.document.activeElement === input,
+			pickerClosed: !instantiationService.get(IQuickInputService).currentQuickInput,
+		};
+		typeQuery('app');
+		search.setWorkspace(createWorkspace(URI.file('/other')));
+		const afterWorkspaceChange = {
+			value: input.value,
+			fieldVisibility: container.style.visibility,
+			pickerClosed: !instantiationService.get(IQuickInputService).currentQuickInput,
+		};
+		typeQuery('app');
+		search.dispose();
+		assert.deepStrictEqual({
+			pickerClosedBeforeTyping,
+			initialState,
+			mirroredValue,
+			afterEscape,
+			afterWorkspaceChange,
+			pickerClosedOnDispose: !instantiationService.get(IQuickInputService).currentQuickInput,
+		}, {
+			pickerClosedBeforeTyping: true,
+			initialState: {
+				anchored: true,
+				query: 'app',
+				fieldHidden: 'hidden',
+				bounds: { left: inputBounds.left, top: inputBounds.top, width: inputBounds.width, height: inputBounds.height },
+			},
+			mirroredValue: 'other',
+			afterEscape: { value: '', fieldVisibility: '', fieldFocused: true, pickerClosed: true },
+			afterWorkspaceChange: { value: '', fieldVisibility: '', pickerClosed: true },
+			pickerClosedOnDispose: true,
+		});
+	});
+
+	test('empty file editor search combines session working directories before native ranking', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const queries: IFileQuery[] = [];
+		const onDidSearch = store.add(new Emitter<void>());
+		instantiationService.stub(ISearchService, new class extends mock<ISearchService>() {
+			override async fileSearch(query: IFileQuery): Promise<ISearchComplete> {
+				queries.push(query);
+				onDidSearch.fire();
 				return { results: [], messages: [], limitHit: false };
 			}
 			override clearCache(): Promise<void> {
 				return Promise.resolve();
 			}
 		});
-		const container = appendElement(mainWindow.document.body, 'empty-file-editor-search');
-		store.add({ dispose: () => container.remove() });
-		const search = store.add(instantiationService.createInstance(EmptyFileEditorSearch, container));
+		const search = createFileSearch(instantiationService);
 		search.setWorkspace(createWorkspaceWithFolders([
 			{
 				root: URI.file('/repo'),
@@ -901,11 +1157,9 @@ suite('Sessions - Editor Contribution', () => {
 			},
 		]));
 
-		const input = container.querySelector<HTMLInputElement>('input');
-		assert.ok(input);
-		input.value = 'file';
-		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-		await waitForCondition(() => queries.length === 1, 'Expected a combined workspace search');
+		search.show();
+		getQuickPick(instantiationService).value = 'file';
+		await waitForCondition(onDidSearch.event, () => queries.length === 1);
 
 		assert.deepStrictEqual({
 			folders: queries[0].folderQueries.map(folderQuery => folderQuery.folder.toString()),
@@ -921,6 +1175,9 @@ suite('Sessions - Editor Contribution', () => {
 
 	test('empty file editor search announces its accessibility help hint once', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(ISearchService, new class extends mock<ISearchService>() {
+			override async clearCache(): Promise<void> { }
+		});
 		const announcements: string[] = [];
 		let hint: string | null = null;
 		instantiationService.stub(IAccessibilityService, new class extends mock<IAccessibilityService>() {
@@ -936,17 +1193,13 @@ suite('Sessions - Editor Contribution', () => {
 				return hint;
 			}
 		});
-		const container = appendElement(mainWindow.document.body, 'empty-file-editor-search');
-		store.add({ dispose: () => container.remove() });
-		store.add(instantiationService.createInstance(EmptyFileEditorSearch, container));
-		const input = container.querySelector<HTMLInputElement>('input');
-		assert.ok(input);
-
-		input.focus();
-		input.blur();
+		const search = createFileSearch(instantiationService);
+		search.show();
+		getQuickPick(instantiationService).hide();
 		hint = 'Inspect accessibility help';
-		input.dispatchEvent(new mainWindow.FocusEvent('focus'));
-		input.dispatchEvent(new mainWindow.FocusEvent('focus'));
+		search.show();
+		getQuickPick(instantiationService).hide();
+		search.show();
 
 		assert.deepStrictEqual(announcements, ['Inspect accessibility help']);
 	});
@@ -962,6 +1215,7 @@ suite('Sessions - Editor Contribution', () => {
 		const excludedResource = root.with({ path: '/root/ignored/secret.ts' });
 		const searchQueries: IFileQuery[] = [];
 		const opened: URI[] = [];
+		const onDidOpen = store.add(new Emitter<void>());
 		let excludedResolved = false;
 		const configurationService = new TestConfigurationService({
 			files: {
@@ -1016,43 +1270,37 @@ suite('Sessions - Editor Contribution', () => {
 				const editor = args[0];
 				if (hasResource(editor)) {
 					opened.push(editor.resource);
+					onDidOpen.fire();
 				}
 				return undefined;
 			}
 		});
-		const container = appendElement(mainWindow.document.body, 'empty-file-editor-search');
-		store.add({ dispose: () => container.remove() });
-		const search = store.add(instantiationService.createInstance(EmptyFileEditorSearch, container));
+		const search = createFileSearch(instantiationService);
 		search.setWorkspace(createWorkspace(root));
 
-		const input = container.querySelector<HTMLInputElement>('input');
-		assert.ok(input);
-		input.value = 'app';
-		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-		await waitForCondition(() => mainWindow.document.querySelectorAll('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row').length === 1,
-			'Expected sibling-dependent excludes to remove the generated file');
-		const pickerInput = mainWindow.document.querySelector<HTMLInputElement>('.quick-input-widget.quick-input-widget-overlay .quick-input-filter input');
-		assert.ok(pickerInput);
-		pickerInput.value = '"app*.ts"';
-		pickerInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-		await waitForCondition(() => mainWindow.document.querySelectorAll('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row').length === 1,
-			'Expected quoted wildcard syntax to match the virtual file');
-		const rows = Array.from(mainWindow.document.querySelectorAll<HTMLElement>('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row'));
+		search.show();
+		const picker = getQuickPick(instantiationService);
+		picker.value = 'app';
+		await waitForCondition(picker.onDidChangeActive, () => mainWindow.document.querySelectorAll('.quick-input-widget .quick-input-list .monaco-list-row').length === 1);
+		const unquotedResult = picker.activeItems[0];
+		picker.value = '"app*.test.ts"';
+		await waitForCondition(picker.onDidChangeActive, () => picker.activeItems[0] !== unquotedResult);
+		const rows = Array.from(mainWindow.document.querySelectorAll<HTMLElement>('.quick-input-widget .quick-input-list .monaco-list-row'));
 		rows[0]?.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
-		await timeout(0);
+		await waitForCondition(onDidOpen.event, () => opened.length === 1);
 
 		assert.deepStrictEqual({
 			rows: rows.map(row => row.textContent),
 			opened: opened.map(candidate => candidate.toString()),
 			searchQueries: searchQueries.length,
 			excludedResolved,
-			query: pickerInput.value,
+			query: picker.value,
 		}, {
 			rows: ['app.test.tssrc'],
 			opened: [resource.toString()],
 			searchQueries: 0,
 			excludedResolved: false,
-			query: '"app*.ts"',
+			query: '"app*.test.ts"',
 		});
 	});
 
@@ -1090,28 +1338,21 @@ suite('Sessions - Editor Contribution', () => {
 				};
 			}
 		});
-		const container = appendElement(mainWindow.document.body, 'empty-file-editor-search');
-		store.add({ dispose: () => container.remove() });
-		const search = store.add(instantiationService.createInstance(EmptyFileEditorSearch, container));
+		const search = createFileSearch(instantiationService);
 		search.setWorkspace(createWorkspaceWithFolders([
 			{ root: nativeRoot, workingDirectory: nativeRoot, name: 'native', description: undefined },
 			{ root: virtualRoot, workingDirectory: virtualRoot, name: 'virtual', description: undefined },
 		]));
 
-		const input = container.querySelector<HTMLInputElement>('input');
-		assert.ok(input);
-		input.value = 'app';
-		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-		await waitForCondition(() => virtualResolveAttempts >= 1
-			&& mainWindow.document.querySelectorAll('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row').length === 1,
-			'Expected native results despite the virtual provider failure');
-		const firstRows = Array.from(mainWindow.document.querySelectorAll<HTMLElement>('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row')).map(row => row.textContent);
-		const picker = instantiationService.get(IQuickInputService).currentQuickInput;
-		assert.strictEqual(picker?.type, QuickInputType.QuickPick);
-		(picker as IQuickPick<IQuickPickItem, { useSeparators: true }>).value = 'other';
-		await waitForCondition(() => fileSearchPatterns.includes('other'),
-			'Expected a failed virtual index to be retried');
-		const secondRows = Array.from(mainWindow.document.querySelectorAll<HTMLElement>('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row')).map(row => row.textContent);
+		search.show();
+		const picker = getQuickPick(instantiationService);
+		picker.value = 'app';
+		await waitForCondition(picker.onDidChangeActive, () => virtualResolveAttempts >= 1
+			&& mainWindow.document.querySelectorAll('.quick-input-widget .quick-input-list .monaco-list-row').length === 1);
+		const firstRows = Array.from(mainWindow.document.querySelectorAll<HTMLElement>('.quick-input-widget .quick-input-list .monaco-list-row')).map(row => row.textContent);
+		picker.value = 'other';
+		await waitForCondition(picker.onDidChangeActive, () => fileSearchPatterns.includes('other'));
+		const secondRows = Array.from(mainWindow.document.querySelectorAll<HTMLElement>('.quick-input-widget .quick-input-list .monaco-list-row')).map(row => row.textContent);
 
 		assert.deepStrictEqual({
 			firstRows,
@@ -1150,6 +1391,72 @@ suite('Sessions - Editor Contribution', () => {
 			isBrowserEditor: editor === browserInput,
 			pinned: options?.pinned,
 		})), [{ isBrowserEditor: true, pinned: true }]);
+	});
+
+	test('session activity bar browser action activates an existing browser tab or opens a new preview tab', async () => {
+		const createBrowserInput = (url: string | undefined): BrowserEditorInput => {
+			const input = Object.create(BrowserEditorInput.prototype) as BrowserEditorInput;
+			Object.defineProperty(input, 'url', { value: url });
+			return input;
+		};
+		const newInput = createBrowserInput(undefined);
+		const navigatedInput = createBrowserInput('https://example.com');
+		const blankInput = createBrowserInput(undefined);
+		const otherInput = Object.create(EditorInput.prototype) as EditorInput;
+		const browserPane = new class extends mock<ITextDiffEditorPane>() { };
+		const group = new class extends mock<IEditorGroup>() { };
+		const names = new Map<unknown, string>([[newInput, 'new'], [navigatedInput, 'navigated'], [blankInput, 'blank'], [otherInput, 'other'], [browserPane, 'browserPane'], [group, 'group']]);
+		const name = (value: unknown) => names.get(value) ?? String(value);
+
+		const run = async (mruEditors: EditorInput[]) => {
+			const calls: unknown[] = [];
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+				override readonly mainPart = new class extends mock<IEditorPart>() {
+					override readonly activeGroup = Object.assign(group, {
+						getEditors: (order: EditorsOrder) => order === EditorsOrder.MOST_RECENTLY_ACTIVE ? mruEditors : []
+					});
+				};
+			});
+			instantiationService.stub(IBrowserViewWorkbenchService, new class extends mock<IBrowserViewWorkbenchService>() {
+				override getOrCreateLazy(): BrowserEditorInput {
+					return newInput;
+				}
+			});
+			instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+				override async openEditor(...args: unknown[]): Promise<ITextDiffEditorPane> {
+					calls.push({ openEditor: name(args[0]), options: args[1], group: name(args[2]) });
+					return browserPane;
+				}
+			});
+			instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+				override async executeCommand<R>(id: string, ...args: unknown[]): Promise<R> {
+					calls.push({ command: id, editorPane: name(args[0]) });
+					return undefined as R;
+				}
+			});
+
+			await new OpenBrowserAction().run(instantiationService);
+			return calls;
+		};
+
+		assert.deepStrictEqual({
+			noBrowserTab: await run([otherInput]),
+			existingNavigatedTab: await run([otherInput, navigatedInput, blankInput]),
+			existingBlankTab: await run([blankInput, navigatedInput]),
+		}, {
+			noBrowserTab: [
+				{ openEditor: 'new', options: undefined, group: 'group' },
+				{ command: BrowserViewCommandId.FocusUrlInput, editorPane: 'browserPane' },
+			],
+			existingNavigatedTab: [
+				{ openEditor: 'navigated', options: undefined, group: 'group' },
+			],
+			existingBlankTab: [
+				{ openEditor: 'blank', options: undefined, group: 'group' },
+				{ command: BrowserViewCommandId.FocusUrlInput, editorPane: 'browserPane' },
+			],
+		});
 	});
 
 	test('Add Tab menu stays available in dock-only mode', () => {
@@ -1214,13 +1521,15 @@ suite('Sessions - Editor Contribution', () => {
 	});
 
 	test('the session activity bar offers each tab whenever it is available', () => {
-		const actions = { changes: new NewChangesTabAction(), files: new NewFileTabAction(), browser: new NewBrowserTabAction(), search: new NewSearchTabAction() };
-		// Search is only offered in the Add Tab dropdown.
-		const evaluate = (action: NewChangesTabAction | NewFileTabAction | NewBrowserTabAction | NewSearchTabAction, values: Record<string, ContextKeyValue>): boolean | undefined => {
-			const menu = action.desc.menu;
-			const item = (Array.isArray(menu) ? menu : [menu]).find(item => item?.id === Menus.SessionActivityBar);
-			return item?.when?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext);
-		};
+		store.add(registerSessionActivityBarTabEntries());
+		for (const action of [NewChangesTabAction, NewFileTabAction, OpenBrowserAction, NewBrowserTabAction, NewSearchTabAction]) {
+			store.add(registerAction2(action));
+		}
+		const ids = { changes: NEW_CHANGES_TAB_COMMAND_ID, files: NEW_FILE_TAB_COMMAND_ID, browser: OPEN_BROWSER_COMMAND_ID, addBrowserTab: NEW_BROWSER_TAB_COMMAND_ID, search: NEW_SEARCH_TAB_COMMAND_ID };
+		// Search and the explicit new browser tab are only offered in the Add Tab dropdown.
+		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBar).filter(isIMenuItem);
+		const evaluate = (id: string, values: Record<string, ContextKeyValue>): boolean | undefined =>
+			items.find(item => item.command.id === id)?.when?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext);
 		// The toolbar ignores tab state: tabs are open and the right group is not the active one.
 		const baseContext: Record<string, ContextKeyValue> = {
 			[IsSessionsWindowContext.key]: true,
@@ -1239,7 +1548,7 @@ suite('Sessions - Editor Contribution', () => {
 
 		const result: Record<string, string[]> = {};
 		for (const [name, values] of Object.entries(contexts)) {
-			result[name] = Object.entries(actions).filter(([, action]) => evaluate(action, values)).map(([id]) => id);
+			result[name] = Object.entries(ids).filter(([, id]) => evaluate(id, values)).map(([name]) => name);
 		}
 		assert.deepStrictEqual(result, {
 			workspaceChat: ['changes', 'files', 'browser'],
@@ -1247,6 +1556,35 @@ suite('Sessions - Editor Contribution', () => {
 			quickChat: ['browser'],
 			auxiliaryWindow: [],
 		});
+	});
+
+	test('the session activity bar checks the entry whose editor the side pane shows', () => {
+		store.add(registerSessionActivityBarTabEntries());
+		store.add(registerAction2(OpenBrowserAction));
+		const ids = { changes: NEW_CHANGES_TAB_COMMAND_ID, files: NEW_FILE_TAB_COMMAND_ID, browser: OPEN_BROWSER_COMMAND_ID };
+		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBar).filter(isIMenuItem);
+		const checked = (values: Record<string, ContextKeyValue>) => Object.entries(ids)
+			.filter(([, id]) => (items.find(item => item.command.id === id)?.command.toggled as ContextKeyExpression | undefined)?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext))
+			.map(([name]) => name);
+		const showing = (editorId: string, editorAreaVisible = true, detailPanelVisible = false) => ({ [ActiveEditorContext.key]: editorId, [MainEditorAreaVisibleContext.key]: editorAreaVisible, [AuxiliaryBarVisibleContext.key]: detailPanelVisible });
+
+		assert.deepStrictEqual({
+			changes: checked(showing(SessionChangesEditorInput.EDITOR_ID)),
+			files: checked(showing(EmptyFileEditorInput.EDITOR_ID)),
+			browser: checked(showing(BrowserEditorInput.EDITOR_ID)),
+			otherEditor: checked(showing('workbench.editors.files.textFileEditor')),
+			detailPanelOnly: checked(showing(EmptyFileEditorInput.EDITOR_ID, false, true)),
+			sidePaneClosed: checked(showing(SessionChangesEditorInput.EDITOR_ID, false)),
+		}, {
+			changes: ['changes'],
+			files: ['files'],
+			browser: ['browser'],
+			otherEditor: [],
+			detailPanelOnly: ['files'],
+			sidePaneClosed: [],
+		});
+		// The Add Tab entries are not checked.
+		assert.deepStrictEqual([new NewChangesTabAction(), new NewFileTabAction()].map(action => action.desc.toggled), [undefined, undefined]);
 	});
 
 	test('new changes tab action is enabled for an uncreated workspace session with Changes available', () => {

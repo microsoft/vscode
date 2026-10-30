@@ -9,10 +9,8 @@ import { DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, type CopilotSdkLogLevelSettin
 
 export class CopilotAgentStartupConfig {
 	constructor(
-		readonly sessionSync: boolean,
 		readonly rubberDuck: boolean,
 		readonly claudeAdvisor: boolean,
-		readonly tgrep: boolean,
 		readonly hydraFusion: boolean,
 		readonly hydraFusionV2: boolean,
 		readonly hydraFusionMultiRoot: boolean,
@@ -27,11 +25,14 @@ export class CopilotAgentStartupConfig {
 		readonly managedSettingsPermissions: IAgentHostManagedSettingsPermissions,
 		readonly localIndexEnabled: boolean,
 		readonly legacyApprovalRestricted = false,
+		readonly searchSubagentModel = '',
 		/** `chat.copilot.localModel.enabled`: the request handler can only be installed when the client starts. */
 		readonly localModel = false,
 		readonly executionSubagent = false,
 		readonly executionSubagentModel = DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL,
 		readonly dynamicAutoTiers = false,
+		/** `chat.agentHost.computerUse.enabled`: built-in plugins can only be registered before any session exists. */
+		readonly computerUse = false,
 	) { }
 
 	equals(other: CopilotAgentStartupConfig): boolean {

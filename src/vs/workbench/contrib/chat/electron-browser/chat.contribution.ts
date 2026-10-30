@@ -32,7 +32,9 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
+import '../browser/aiCustomization/copilotCanvases.contribution.js';
 import './codexCustomizationSettings.contribution.js';
+import './agentSessions/computerUseHelperApp.contribution.js';
 import { AgentSessionProviders, getAgentSessionProviderName } from '../browser/agentSessions/agentSessions.js';
 import { IAgentSessionsService } from '../browser/agentSessions/agentSessionsService.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../browser/chat.js';
@@ -165,7 +167,6 @@ class ChatLifecycleHandler extends Disposable {
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IChatWidgetService private readonly widgetService: IChatWidgetService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
@@ -203,10 +204,6 @@ class ChatLifecycleHandler extends Disposable {
 		const windowCount = reason === ShutdownReason.CLOSE ? await this.nativeHostService.getWindowCount() : 0;
 		const effectiveReason = getEffectiveSessionShutdownReason(reason, windowCount, isMacintosh);
 		if (!this.hasSessionThatWillStop(effectiveReason)) {
-			return false;
-		}
-
-		if (ChatContextKeys.skipChatRequestInProgressMessage.getValue(this.contextKeyService) === true) {
 			return false;
 		}
 

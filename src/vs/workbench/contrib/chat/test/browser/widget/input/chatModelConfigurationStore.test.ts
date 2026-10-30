@@ -708,6 +708,24 @@ suite('ChatModelConfigurationStore', () => {
 		});
 	}
 
+	test('a managed Fusion tier withdraws the legacy Auto default for the Agent Host runtime only', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		const settings: ManagedSettingsData = { autoTier: 'intelligence', fusionTier: 'standard' };
+		const managed: IManagedSettingsService = {
+			_serviceBrand: undefined, onDidChangeManagedSettings: Event.None, getManagedSettingValue: key => settings[key],
+			getManagedSettings: () => settings,
+		};
+		const configurations = ['agent-host-copilotcli', 'copilot'].map(vendor => {
+			control.setAutoModel(vendor);
+			return JSON.parse(JSON.stringify(createStore(storage, control.service, () => true, managed, true).getModelConfiguration(MODEL)));
+		});
+		assert.deepStrictEqual(configurations, [
+			{ tier: 'balance', tierSource: 'default' },
+			{ tier: 'intelligence', tierSource: 'managed' },
+		]);
+	});
+
 	test('invalid and unsupported managed values clear the old default and log without persisting it', () => {
 		const storage = store.add(new InMemoryStorageService());
 		const control = createControllableService();
@@ -1015,6 +1033,7 @@ suite('ChatModelConfigurationStore', () => {
 				_currentChatModesObservable: observableValue('test.modes', modes),
 				_currentSessionModelObservable: observableValue('test.model', undefined),
 				_currentSessionTypeObservable: observableValue<string | undefined>('test.sessionType', undefined),
+				_modelSessionTypeOverride: observableValue('test.modelSessionTypeOverride', undefined),
 				_currentLanguageModel: observableValue('test.selectedModel', selectedModel),
 				chatModeService: { createModes: () => modes },
 				selectedToolsModel: { resetSessionEnablementState() { } },

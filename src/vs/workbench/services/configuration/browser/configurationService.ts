@@ -1442,7 +1442,7 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 			const request = {};
 			this.assignmentRequests.set(property, request);
 			try {
-				const { value, hasAssignment } = await this.workbenchAssignmentService.getTreatmentWithAssignment(getConfigurationExperimentName(property, schema.experiment));
+				const { value: treatmentValue, hasAssignment } = await this.workbenchAssignmentService.getTreatmentWithAssignment(getConfigurationExperimentName(property, schema.experiment));
 				assignmentUpdates.push(hasAssignment.then(assigned => {
 					if (!this._store.isDisposed && this.assignmentRequests.get(property) === request && (allProperties[property] ?? excludedProperties[property])?.experiment === schema.experiment) {
 						this.experimentalSettingsService.setAssignment(property, assigned);
@@ -1456,6 +1456,7 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 				if (this._store.isDisposed || this.assignmentRequests.get(property) !== request || (allProperties[property] ?? excludedProperties[property]) !== schema) {
 					continue;
 				}
+				const value = this.parseExperimentalSettingValue(property, treatmentValue, schema);
 				// Latch a `startup` value once it first resolves; keep it pending until then so a
 				// later (sign-in gated) value can still be applied.
 				if (!isAutoExperiment) {
@@ -1498,6 +1499,30 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 			});
 		}
 		await Promise.all(assignmentUpdates);
+	}
+
+	/**
+	 * TAS carries array settings as JSON strings; native arrays from developer overrides pass through. Settings that also
+	 * accept other types, such as booleans, keep values of those types.
+	 */
+	private parseExperimentalSettingValue(property: string, value: unknown, schema: IConfigurationPropertySchema): unknown {
+		const types = Array.isArray(schema.type) ? schema.type : [schema.type];
+		const hasOtherType = (candidate: unknown) => types.some(type => type === typeof candidate);
+		if (!types.includes('array') || isUndefined(value) || hasOtherType(value)) {
+			return value;
+		}
+		if (typeof value === 'string') {
+			try {
+				value = JSON.parse(value);
+			} catch {
+				value = undefined;
+			}
+		}
+		if (Array.isArray(value) || hasOtherType(value)) {
+			return value;
+		}
+		this.logService.error('ConfigurationService#processExperimentalSettings', property, 'Expected an array or a JSON-encoded array treatment.');
+		return undefined;
 	}
 
 	private shouldOverride(value: unknown, schema: IConfigurationPropertySchema): boolean {

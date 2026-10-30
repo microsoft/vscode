@@ -52,6 +52,23 @@ suite('Terminal chat agent tools configuration', () => {
 		}, { enabled: ['off', 'on'], windows: undefined });
 	});
 
+	test('tags terminal approval and sandbox settings as chat permissions', () => {
+		const expectedSettingIds = [
+			TerminalChatAgentToolsSettingId.EnableAutoApprove,
+			TerminalChatAgentToolsSettingId.AutoApprove,
+			TerminalChatAgentToolsSettingId.AutoApproveWorkspaceNpmScripts,
+			TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules,
+			TerminalChatAgentToolsSettingId.BlockDetectedFileWrites,
+			...Object.keys(terminalChatAgentToolsConfiguration).filter(key => key.startsWith('chat.agent.sandbox.')),
+		];
+		assert.deepStrictEqual(
+			Object.entries(terminalChatAgentToolsConfiguration)
+				.filter(([, setting]) => setting.tags?.includes('chatPermissions'))
+				.map(([key]) => key).sort(),
+			expectedSettingIds.sort(),
+		);
+	});
+
 	test('adds sandbox search keywords and ordering to settings consumed by the Agent Host Copilot sandbox', () => {
 		const settingIds = [
 			[AgentSandboxSettingId.AgentSandboxEnabled, 10],
@@ -60,7 +77,6 @@ suite('Terminal chat agent tools configuration', () => {
 			[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, 30],
 			[AgentSandboxSettingId.AgentSandboxMcpServers, 40],
 			[AgentSandboxSettingId.AgentSandboxLspServers, 50],
-			[AgentSandboxSettingId.AgentSandboxMaskedEnvironmentVariables, 53],
 			[AgentSandboxSettingId.AgentSandboxAuthenticateGit, 51],
 			[AgentSandboxSettingId.AgentSandboxAuthenticateGh, 52],
 			[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess, 60],
@@ -108,60 +124,18 @@ suite('Terminal chat agent tools configuration', () => {
 		})));
 	});
 
-	test('registers sandbox masked environment variables as a restricted object', () => {
-		const setting = terminalChatAgentToolsConfiguration[AgentSandboxSettingId.AgentSandboxMaskedEnvironmentVariables];
+	test('does not register the unimplemented sandbox masked environment variables setting', async () => {
+		const settingId = 'chat.agent.sandbox.maskedEnvironmentVariables';
+		const defaults = await store.add(new DefaultConfiguration(new NullLogService())).initialize();
 		assert.deepStrictEqual({
-			id: AgentSandboxSettingId.AgentSandboxMaskedEnvironmentVariables,
-			description: setting.markdownDescription,
-			type: setting.type,
-			default: setting.default,
-			restricted: setting.restricted,
-			additionalProperties: setting.additionalProperties,
-			properties: setting.properties,
+			setting: terminalChatAgentToolsConfiguration[settingId],
+			registered: configurationRegistry.getConfigurationProperties()[settingId],
+			default: defaults.getValue(settingId),
 		}, {
-			id: 'chat.agent.sandbox.maskedEnvironmentVariables',
-			description: 'Choose environment variables and the HTTPS hosts allowed to receive their real values.',
-			type: 'object',
-			default: {},
-			restricted: true,
-			additionalProperties: false,
-			properties: {
-				envVars: {
-					type: 'object',
-					description: 'Map environment variable names to the hosts where their values may be injected. Specify environment variable names, not secret values.',
-					additionalProperties: {
-						type: 'object',
-						additionalProperties: false,
-						required: ['injectHosts'],
-						properties: {
-							injectHosts: {
-								type: 'array',
-								items: { type: 'string' },
-								description: 'Hosts where the credential may be injected.',
-							},
-						},
-					},
-				},
-			},
+			setting: undefined,
+			registered: undefined,
+			default: undefined,
 		});
-	});
-
-	test('preserves credential authentication defaults when configuring nested environment variables', async () => {
-		const logService = new NullLogService();
-		const defaults = await store.add(new DefaultConfiguration(logService)).initialize();
-		const envVars = { MY_API_TOKEN: { injectHosts: ['api.example.com'] } };
-		const parser = new ConfigurationModelParser('sandboxCredentialsSettings', logService);
-		parser.parse(JSON.stringify({ [AgentSandboxSettingId.AgentSandboxMaskedEnvironmentVariables]: { envVars } }));
-		const configured = defaults.merge(parser.configurationModel);
-
-		assert.deepStrictEqual([defaults, configured].map(model => ({
-			authenticategit: model.getValue(AgentSandboxSettingId.AgentSandboxAuthenticateGit),
-			authenticategh: model.getValue(AgentSandboxSettingId.AgentSandboxAuthenticateGh),
-			envVars: model.getValue(`${AgentSandboxSettingId.AgentSandboxMaskedEnvironmentVariables}.envVars`),
-		})), [
-			{ authenticategit: true, authenticategh: true, envVars: undefined },
-			{ authenticategit: true, authenticategh: true, envVars },
-		]);
 	});
 
 	test('registers Copilot user-configured paths and warns about legacy filesystem settings', () => {
@@ -353,7 +327,7 @@ suite('Terminal chat agent tools configuration', () => {
 			assert.deepStrictEqual({
 				values, type: setting.type, restricted: setting.restricted, tags: setting.tags,
 				placeholder: setting.markdownDescription?.includes('This setting has no effect yet.'),
-			}, { values: [defaultValue, false, true], type: 'boolean', restricted: true, tags: undefined, placeholder: false });
+			}, { values: [defaultValue, false, true], type: 'boolean', restricted: true, tags: ['chatPermissions'], placeholder: false });
 		});
 	}
 

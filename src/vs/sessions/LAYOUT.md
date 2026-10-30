@@ -53,6 +53,12 @@ The workbench omits the standard Activity Bar, Status Bar, and Banner. Part posi
 | Panel | Terminal and other panel views |
 | Custom View Grid | Full-surface contributed views that replace session content |
 
+### Window canvases
+
+Built-in native canvases, including Inbox, open as singleton tabs in the Editor rather than replacing the Sessions Part with a custom view. Their definitions and live content belong to `IWindowCanvasService`, not to an agent, session, or chat. The existing Canvas menus expose both native window canvases and provider-owned browser canvases; provider canvases retain their existing ownership and permission model.
+
+Window-canvas content survives tab hiding and session working-set replacement. The service persists which registered canvases are open independently of session working sets, reopens them without taking focus after a working-set restore, and respects the layout's editor visibility. Explicitly closing a tab releases its content and removes it from restoration. Removing a definition (including disabling Inbox or hiding AI) closes its tab and prevents restoration. Inbox's existing session actions, embedded composers, accessibility help, and accessible view remain owned by Inbox.
+
 The Sessions Part contains its own nested two-dimensional split grid. Its leaves are not workbench editor groups, nor the chat groups inside an individual session.
 
 ## Grid behavior
@@ -74,6 +80,8 @@ The desktop Panel supports two profile-scoped alignments. The default justified 
 ## Sessions Part
 
 Each visible session has one Sessions-owned view. The view presents the active chat for that session and scopes commands, menus, and context keys to the represented session.
+
+New-session views may opt into `preserveOnSessionCleared` to retain their composer when a draft is cleared to the empty slot. The host preserves that view's input, picker state, and focus rather than constructing a replacement that could restore an automatic workspace; other views keep the default replacement lifecycle.
 
 A child chat may also occupy a standalone leaf in the outer grid. The view service owns this placement through a chat-scoped `IActiveSession` with unchanged session identity and provider ownership; the parent view excludes that chat while its standalone leaf is present. These leaves remain usable without a visible parent pane: closing the parent pane preserves its standalone children, and opening or focusing a standalone child does not reopen the parent. Focus selects the represented chat, and closing or reattaching its pane does not close the owning session. Provider removal still removes all leaves belonging to that session. Outer-grid persistence binds these leaves by both session resource and chat resource and supports layouts containing only child leaves.
 
@@ -130,7 +138,11 @@ Session providers register internal per-session directories as resource label ho
 
 A custom view is mutually exclusive with the Sessions Part, grid Editor, Auxiliary Bar, and Panel. The title bar and Sidebar remain available. Covered parts retain desired visibility separately from effective grid visibility so their state can be restored when the custom view closes.
 
+Inbox evidence is scoped to the selected notification's conversation, independently of the active Sessions grid. Its recorded artifacts retain conversation provenance; command and image-tool results belong to the notification's pending request, or the latest request for other notifications. AI-written previews live in a non-collapsible Agent interpretation section at the top of the detail pane, not on notification cards, and are requested on selection rather than card exposure. A richer interpretation replaces the preview when available; empty sections and fallback placeholders stay hidden. Interpretation may summarize relevant recorded command results and cite their output sources, but raw terminal output remains in the terminal or chat response. Changed files remain in the Changes view rather than the evidence pane. Model interpretation is separate from recorded evidence and is not independent verification. An explicitly selected extension canvas uses the existing canvas definitions and provider operations, but owns a disposable desktop-native presentation rather than borrowing an editor's model or changing the active session. Hiding or disposing that presentation does not close the provider's canvas. Canvas editors do not auto-reveal while Inbox covers the Sessions grid.
+
 Explicit session and chat open actions dismiss the active custom view. Reactive fallback opens driven by session or chat lifecycle changes preserve the custom view while reconciling the hidden Sessions grid. On phone layouts, custom views participate in mobile navigation so platform back navigation dismisses them.
+
+Custom views may handle an unparameterized New Session action through their descriptor and host the shared new-session composer. Such composers prepare drafts with `preserveCustomView`; workspace and agent selection must not dismiss their host. Parameterized New Session actions, including opening to the side or supplying a prompt, retain normal session navigation.
 
 ## Part lifecycle
 

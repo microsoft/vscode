@@ -62,7 +62,7 @@ export function getTerminalDecorationHoverContent(command: ITerminalCommand | un
 					hoverContent += localize('terminalPromptCommandFailedWithExitCode', 'Command executed {0} and failed (Exit Code {1})', fromNow(command.timestamp, true), command.exitCode);
 				}
 			} else {
-				hoverContent += localize('terminalPromptCommandSuccess', 'Command executed {0} now');
+				hoverContent += localize('terminalPromptCommandSuccess.noDuration', 'Command executed {0}', fromNow(command.timestamp, true));
 			}
 		}
 	}

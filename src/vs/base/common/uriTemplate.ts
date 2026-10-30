@@ -230,7 +230,7 @@ export class UriTemplate {
 			}
 			let str = String(value);
 			if (v.prefixLength !== undefined) {
-				str = str.substring(0, v.prefixLength);
+				str = Array.from(str).slice(0, v.prefixLength).join('');
 			}
 			// For simple expansion, encode ! as well (not reserved)
 			// Only + and # are reserved
@@ -287,19 +287,5 @@ export class UriTemplate {
 }
 
 function pctEncode(str: string): string {
-	let out = '';
-	for (let i = 0; i < str.length; i++) {
-		const chr = str.charCodeAt(i);
-		if (
-			// alphanum ranges:
-			(chr >= 0x30 && chr <= 0x39 || chr >= 0x41 && chr <= 0x5a || chr >= 0x61 && chr <= 0x7a) ||
-			// unreserved characters:
-			(chr === 0x2d || chr === 0x2e || chr === 0x5f || chr === 0x7e)
-		) {
-			out += str[i];
-		} else {
-			out += '%' + chr.toString(16).toUpperCase().padStart(2, '0');
-		}
-	}
-	return out;
+	return encodeURIComponent(str).replace(/[!'()*]/g, char => '%' + char.charCodeAt(0).toString(16).toUpperCase());
 }

@@ -1,0 +1,55 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-artifact-action:not(.collapsed) > .chat-action-request-card {
+	width: 100%;
+}
+
+.chat-artifact-action-resource {
+	display: flex;
+	min-width: 0;
+}
+
+.chat-artifact-action-resource .chat-pill-button,
+.chat-artifact-action-resource .chat-pill-label {
+	min-width: 0;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-artifact-action-section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+}
+
+.chat-artifact-action-section-title {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.chat-artifact-action p.chat-artifact-action-description {
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+	overflow-wrap: anywhere;
+}
+
+.chat-artifact-action-facts {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	gap: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
+	margin: var(--vscode-spacing-size40) 0;
+}
+
+.chat-artifact-action-facts dt {
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-artifact-action-facts dd {
+	margin: 0;
+	overflow-wrap: anywhere;
+}

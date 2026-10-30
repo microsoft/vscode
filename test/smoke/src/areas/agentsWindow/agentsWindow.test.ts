@@ -16,7 +16,7 @@ import { createRemoteDevContainerFixture, getDevContainerCliInstallCommand, getT
 // Selector for the send button in the Agents Window new-session homepage.
 // Kept in sync with `SEND_BUTTON_ENABLED` in `test/automation/src/agentsWindow.ts`
 // (without the `:not(.disabled)` filter so we can observe the disabled state).
-const AGENTS_SEND_BUTTON_SELECTOR = '.sessions-chat-widget .new-chat-widget-container .sessions-chat-send-button .monaco-button';
+const AGENTS_SEND_BUTTON_SELECTOR = '.sessions-chat-widget .new-chat-widget-container .sessions-shared-chat-input .chat-execute-toolbar .action-item.chat-submit-button';
 const NETWORK_PROXY_HEADER_NAME = 'X-VSCode-Smoke-Proxy';
 
 function mockServerStartOptions(logger: (message: string) => void, captureRequests = false) {
@@ -75,8 +75,12 @@ function prepareDevContainerWorkspace(workspacePath: string, port: number, optio
 	}, null, 2));
 }
 
-function cleanupDevContainerWorkspace(workspacePath: string): void {
+function removeDevContainerConfiguration(workspacePath: string): void {
 	fs.rmSync(path.join(workspacePath, '.devcontainer'), { recursive: true, force: true });
+}
+
+function cleanupDevContainerWorkspace(workspacePath: string): void {
+	removeDevContainerConfiguration(workspacePath);
 	removeDevContainer(workspacePath);
 }
 
@@ -347,7 +351,9 @@ export function setup(logger: Logger, quality: Quality) {
 					'chat.remoteAgentHostsEnabled': true,
 				},
 				prepareWorkspace: (workspacePath, options) => prepareDevContainerWorkspace(workspacePath, context.mockServer.port, options),
-				cleanupWorkspace: cleanupDevContainerWorkspace,
+				// The WSL fixture removes its container from the Docker daemon in WSL, and the Windows host
+				// may have no Docker daemon of its own.
+				cleanupWorkspace: transport === 'wsl' ? removeDevContainerConfiguration : cleanupDevContainerWorkspace,
 			});
 
 			it(`Starts and reopens a Dev Container session over ${label}`, async function () {
@@ -522,7 +528,7 @@ export function setup(logger: Logger, quality: Quality) {
 		it('recovers when the command palette loses focus before finding New Session', async function () {
 			const app = this.app as Application;
 			await app.workbench.agentsWindow.waitForNewSessionView();
-			const inputSelector = `.sessions-chat-editor .monaco-editor[role="code"] ${app.code.editContextEnabled ? '.native-edit-context' : 'textarea'}`;
+			const inputSelector = `.sessions-shared-chat-input .interactive-input-part .monaco-editor[role="code"] ${app.code.editContextEnabled ? '.native-edit-context' : 'textarea'}`;
 			const interruption = await app.code.driver.currentPage.evaluateHandle(selector => {
 				const chatInput = document.querySelector<HTMLElement>(selector);
 				if (!chatInput) {
@@ -830,6 +836,8 @@ function setupAgentHostSuite(logger: Logger, config: {
 				'chat.agentHost.copilotSdk.logLevel': 'trace',
 				// These suites exercise Agent Host and sandbox behavior, not Auto routing.
 				'chat.defaultModel': AGENT_HOST_MODEL,
+				// The mock server does not serve the `/meta` model catalog that dynamic Auto tiers read.
+				'chat.copilot.dynamicAutoTiers.enabled': false,
 				...config.settings,
 				...remoteFixture?.settings,
 			}, null, 2);

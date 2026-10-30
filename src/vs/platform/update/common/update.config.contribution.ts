@@ -87,6 +87,14 @@ configurationRegistry.registerConfiguration({
 			description: localize('showPostInstallInfo', "Show a post-install update tooltip in the title bar instead of opening the release notes editor."),
 			tags: ['usesOnlineServices']
 		},
+		'update.showOutdatedBuildReminder': {
+			type: 'boolean',
+			default: true,
+			experiment: { mode: 'auto' },
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('showOutdatedBuildReminder', "Show a reminder to update once this version of VS Code is two months old. The reminder is shown at most once a month."),
+			included: !isWeb
+		},
 		'update.titleBar': {
 			type: 'boolean',
 			default: true,

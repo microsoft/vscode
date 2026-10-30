@@ -1,0 +1,896 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.inbox-notifications-view {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 1.5;
+}
+
+.inbox-notifications-content {
+	position: relative;
+	display: flex;
+	flex-direction: row;
+	flex: 1 1 auto;
+	min-height: 0;
+	width: 100%;
+}
+
+.inbox-notifications-new-session {
+	display: none;
+	height: 240px;
+	flex: none;
+}
+
+.inbox-notifications-new-session.visible {
+	display: block;
+}
+
+.inbox-notifications-new-session .new-chat-widget-container,
+.inbox-notifications-new-session .new-chat-widget-container.revealed {
+	justify-content: flex-start;
+}
+
+.inbox-notifications-new-session .new-session-welcome-message {
+	display: none;
+}
+
+.inbox-notifications-list-pane {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+	flex: 0 0 auto;
+	min-width: 0;
+	height: 100%;
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size240);
+	overflow: hidden;
+}
+
+.inbox-notifications-content.no-detail .inbox-notifications-list-pane {
+	flex: 1 1 auto;
+}
+
+.inbox-notifications-detail-pane {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 0;
+	min-width: 0;
+	height: 100%;
+	box-sizing: border-box;
+	border-inline-start: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-widget-border, var(--vscode-editorGroup-border)));
+	overflow: hidden;
+}
+
+.inbox-notifications-content.no-detail .inbox-notifications-detail-pane {
+	display: none;
+}
+
+/* Narrow container: stack the list and detail panes vertically so the detail surface keeps a usable width. */
+.inbox-notifications-content.narrow {
+	flex-direction: column;
+}
+
+.inbox-notifications-content.narrow .inbox-notifications-list-pane,
+.inbox-notifications-content.narrow .inbox-notifications-detail-pane {
+	width: 100%;
+	height: auto;
+	flex: 1 1 0;
+	min-height: 0;
+}
+
+.inbox-notifications-content.narrow .inbox-notifications-detail-pane {
+	border-inline-start: none;
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-widget-border, var(--vscode-editorGroup-border)));
+}
+
+.inbox-notifications-content.narrow > .monaco-sash {
+	display: none;
+}
+
+.inbox-notifications-detail-scrollable {
+	flex: 1 1 0;
+	height: 100%;
+	min-height: 0;
+}
+
+.inbox-notifications-detail-chat {
+	display: none;
+	height: 200px;
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.inbox-notifications-detail-pane.has-chat .inbox-notifications-detail-chat {
+	display: flex;
+}
+
+.inbox-notifications-detail-chat .interactive-list,
+.inbox-notifications-detail-chat .chat-welcome-view-container,
+.inbox-notifications-detail-chat .prompt-timeline-rail {
+	display: none;
+}
+
+.inbox-notifications-latest-exchange > summary {
+	cursor: pointer;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	margin-inline: calc(-1 * var(--vscode-spacing-size80));
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.inbox-notifications-latest-exchange > summary:is(:hover, .hovered) {
+	color: var(--vscode-foreground);
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.inbox-notifications-latest-exchange > summary:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.inbox-notifications-latest-exchange-content {
+	height: 240px;
+	max-height: 40vh;
+	max-width: none;
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.inbox-notifications-session-preview > .inbox-notifications-detail-section-label {
+	padding: 0 var(--vscode-spacing-size120);
+}
+
+.inbox-notifications-session-preview-response {
+	max-width: 40em;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+}
+
+.inbox-notifications-detail-content {
+	height: 100%;
+}
+
+.inbox-notifications-detail-info {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size160);
+	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size240);
+	box-sizing: border-box;
+}
+
+.inbox-notifications-detail-pane:not(.has-chat) .inbox-notifications-detail-info {
+	min-height: 100%;
+}
+
+.inbox-notifications-detail-info > * {
+	flex-shrink: 0;
+}
+
+.inbox-notifications-detail-placeholder {
+	margin: auto;
+	color: var(--vscode-descriptionForeground);
+	text-align: center;
+	padding: var(--vscode-spacing-size320);
+}
+
+.inbox-notifications-detail-header {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+}
+
+.inbox-notifications-detail-kind {
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-descriptionForeground);
+}
+
+.inbox-notifications-detail-title {
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	overflow-wrap: anywhere;
+}
+
+.inbox-notifications-detail-meta {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size100);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.inbox-notifications-detail-body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size160);
+}
+
+.inbox-notifications-detail-summary {
+	white-space: pre-wrap;
+	color: var(--vscode-editor-foreground);
+}
+
+.inbox-notifications-detail-section-label {
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-descriptionForeground);
+}
+
+.inbox-notifications-detail-pr {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+}
+
+.inbox-notifications-detail-pr-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.inbox-notifications-detail-pr-row .monaco-button {
+	width: auto;
+	flex: 0 0 auto;
+}
+
+.inbox-notifications-detail-pr-status {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.inbox-notifications-detail-evidence {
+	color: var(--vscode-descriptionForeground);
+}
+
+.inbox-notifications-interpretation-content .inbox-notifications-detail-section-label {
+	margin-block: var(--vscode-spacing-size160) var(--vscode-spacing-size60);
+}
+
+.inbox-notifications-interpretation-content .inbox-notifications-detail-section-label:first-child {
+	margin-block-start: 0;
+}
+
+.inbox-notifications-interpretation-content,
+.inbox-evidence,
+.inbox-evidence-section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+	min-width: 0;
+}
+
+.inbox-evidence:empty,
+.inbox-notifications-detail-evidence[hidden],
+.inbox-evidence-canvases[hidden] {
+	display: none;
+}
+
+.inbox-evidence h3,
+.inbox-notifications-detail-evidence h3,
+.inbox-evidence-canvases h3 {
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.inbox-evidence-note {
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	overflow-wrap: anywhere;
+}
+
+.inbox-evidence-images {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+	gap: var(--vscode-spacing-size120);
+}
+
+.inbox-evidence-image {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	margin: 0;
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-widget-border));
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.inbox-evidence-image img {
+	width: 100%;
+	height: 160px;
+	object-fit: contain;
+}
+
+.inbox-evidence-image figcaption {
+	overflow-wrap: anywhere;
+}
+
+.inbox-evidence-files {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.inbox-evidence-files li {
+	min-width: 0;
+	max-width: 100%;
+}
+
+.inbox-evidence .monaco-button,
+.inbox-evidence-canvases .monaco-button {
+	width: auto;
+	height: auto;
+	white-space: normal;
+	overflow-wrap: anywhere;
+	text-align: start;
+}
+
+.inbox-evidence-canvas-controls {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+	margin-bottom: var(--vscode-spacing-size120);
+}
+
+.inbox-evidence-canvas-controls h3,
+.inbox-evidence-canvas-controls p {
+	flex-basis: 100%;
+}
+
+.inbox-evidence-canvas-presentation .inbox-evidence-native-canvas {
+	position: relative;
+	width: 100%;
+	min-height: 80px;
+	overflow: hidden;
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-widget-border));
+}
+
+.inbox-notifications-detail-loading {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.inbox-notifications-detail-list {
+	margin: 0;
+	padding-inline-start: var(--vscode-spacing-size200);
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+}
+
+.inbox-notifications-detail-list li {
+	color: var(--vscode-foreground);
+}
+
+.inbox-notifications-detail-list .inbox-notifications-evidence-link.monaco-button {
+	display: inline;
+	margin-inline-start: var(--vscode-spacing-size40);
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: var(--vscode-textLink-foreground);
+	font-size: inherit;
+}
+
+.inbox-notifications-detail-list .inbox-notifications-evidence-link.monaco-button:is(:hover, .hovered) {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.inbox-notifications-evidence-label {
+	margin-inline-start: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+}
+
+.inbox-notifications-toolbar {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	justify-content: flex-start;
+	gap: var(--vscode-spacing-size100);
+}
+
+.inbox-notifications-sort-buttons {
+	display: flex;
+	gap: var(--vscode-spacing-size20);
+	flex: 0 0 auto;
+	flex-wrap: wrap;
+}
+
+.inbox-notifications-toolbar > .monaco-button,
+.inbox-notifications-sort-buttons .monaco-button {
+	width: auto;
+	flex: 0 0 auto;
+}
+
+.inbox-notifications-sort-buttons .inbox-notifications-filter-button {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	margin-inline-start: var(--vscode-spacing-size60);
+}
+
+.inbox-notifications-sort-buttons .inbox-notifications-filter-button .codicon {
+	margin: 0;
+}
+
+.inbox-notifications-toolbar-actions {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	justify-content: flex-start;
+	gap: var(--vscode-spacing-size80);
+	flex: 0 1 auto;
+	min-width: 0;
+	margin-left: auto;
+}
+
+.inbox-notifications-toolbar-actions .monaco-button {
+	width: auto;
+	flex: 0 0 auto;
+}
+
+.inbox-notifications-toolbar-spinner {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	color: var(--vscode-progressBar-background, var(--vscode-foreground));
+}
+
+.inbox-notifications-toolbar-spinner.hidden {
+	display: none;
+}
+
+.inbox-notifications-view .inbox-notifications-toolbar .monaco-button.secondary,
+.inbox-notifications-view .inbox-notifications-item-header-actions .monaco-button.secondary {
+	background-color: transparent;
+	color: var(--vscode-descriptionForeground);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-regular);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+}
+
+.inbox-notifications-view .inbox-notifications-toolbar .monaco-button.secondary:is(:hover, .hovered):not(.disabled),
+.inbox-notifications-view .inbox-notifications-item-header-actions .monaco-button.secondary:is(:hover, .hovered):not(.disabled) {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.inbox-notifications-feedback-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.inbox-notifications-deferred-updates {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size100);
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120);
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-editorWidget-background);
+}
+
+.inbox-notifications-deferred-updates.hidden {
+	display: none;
+}
+
+.inbox-notifications-deferred-updates-label {
+	color: var(--vscode-descriptionForeground);
+}
+
+.inbox-notifications-deferred-updates .monaco-button {
+	width: auto;
+	flex: 0 0 auto;
+}
+
+.inbox-notifications-view .inbox-notifications-sort-buttons .monaco-button.secondary:is(.active, .checked) {
+	background-color: var(--vscode-inputOption-activeBackground);
+	color: var(--vscode-inputOption-activeForeground);
+	border-color: var(--vscode-inputOption-activeBorder, var(--vscode-contrastBorder, transparent));
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.inbox-notifications-sort-buttons .monaco-button.disabled {
+	opacity: 0.55;
+}
+
+.inbox-notifications-scrollable {
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+.inbox-notifications-list-scrollable {
+	height: 100%;
+	min-height: 100%;
+	overflow: hidden;
+	width: 100%;
+}
+
+.inbox-notifications-list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size160);
+	padding: var(--vscode-spacing-size20);
+}
+
+.inbox-notifications-section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size60);
+}
+
+.inbox-notifications-section-cards {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+}
+
+.inbox-notifications-item {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size60);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-widget-border, transparent));
+	border-radius: var(--vscode-cornerRadius-small);
+	padding: var(--vscode-spacing-size120);
+	background-color: transparent;
+	cursor: pointer;
+}
+
+.inbox-notifications-item:is(:hover, .hovered):not(.selected) {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.inbox-notifications-item.selected {
+	background-color: color-mix(in srgb, var(--vscode-list-inactiveSelectionBackground) 35%, transparent);
+	border-color: var(--vscode-list-inactiveFocusOutline, var(--vscode-contrastBorder, var(--vscode-widget-border, transparent)));
+	box-shadow: inset var(--vscode-spacing-size20) 0 var(--vscode-list-activeSelectionBackground);
+}
+
+.inbox-notifications-item:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.inbox-notifications-section-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	width: 100%;
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	text-align: start;
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.inbox-notifications-section-header:is(:hover, .hovered) {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.inbox-notifications-section-header:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.inbox-notifications-section-caret {
+	flex: 0 0 auto;
+	color: var(--vscode-descriptionForeground);
+}
+
+.inbox-notifications-section-label {
+	flex: 0 0 auto;
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.inbox-notifications-section-count {
+	flex: 0 0 auto;
+	min-width: 1ch;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-regular);
+	text-align: center;
+}
+
+.inbox-notifications-section-header.neutral .inbox-notifications-section-label {
+	color: var(--vscode-descriptionForeground);
+}
+
+.inbox-notifications-item-header {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size100);
+}
+
+.inbox-notifications-item-kind-label {
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	white-space: nowrap;
+	color: var(--vscode-descriptionForeground);
+}
+
+.inbox-notifications-item-kind-label.priority-0 {
+	color: var(--vscode-textLink-foreground);
+}
+
+.inbox-notifications-item-title-group {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size80);
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.inbox-notifications-item-title {
+	min-width: 0;
+	font-weight: var(--vscode-fontWeight-semiBold);
+	overflow-wrap: anywhere;
+}
+
+.inbox-notifications-item-header-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	justify-content: flex-end;
+	margin-inline-start: auto;
+	flex: 0 0 auto;
+	min-width: min-content;
+	max-width: 50%;
+}
+
+.inbox-notifications-item-header-actions .monaco-button,
+.inbox-notifications-item-header-actions .monaco-text-button {
+	width: auto;
+	flex: 0 0 auto;
+	max-width: 100%;
+	box-sizing: border-box;
+}
+
+.inbox-notifications-item-header-actions .monaco-button-dropdown {
+	flex: 0 0 auto;
+}
+
+.inbox-notifications-item-badges {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.inbox-notifications-item-badge {
+	display: inline-flex;
+	align-items: center;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.inbox-notifications-item-badge.repository {
+	padding-inline-start: var(--vscode-spacing-size80);
+	border-inline-start: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-widget-border, var(--vscode-editorGroup-border)));
+	overflow-wrap: anywhere;
+	min-width: 0;
+}
+
+.inbox-notifications-item-time {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+	white-space: nowrap;
+}
+
+.inbox-notifications-item-description {
+	color: var(--vscode-descriptionForeground);
+	white-space: pre-wrap;
+}
+
+.inbox-notifications-item-pr-states {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size100);
+}
+
+.inbox-notifications-item-pr-state {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	color: var(--vscode-foreground);
+	min-height: 20px;
+}
+
+.inbox-notifications-item-pr-state .codicon {
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.inbox-notifications-item-pr-state-label {
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.inbox-notifications-item-pr-state-link {
+	width: auto;
+	min-width: 0;
+	padding: 0 var(--vscode-spacing-size60);
+}
+
+.inbox-notifications-chat-part-host {
+	padding-top: var(--vscode-spacing-size80);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-widget-border, var(--vscode-editorGroup-border)));
+}
+
+.inbox-notifications-chat-part-host.interactive-session {
+	display: block;
+	width: 100%;
+	height: auto;
+	max-width: none;
+	margin: 0;
+}
+
+.inbox-notifications-chat-part-host .chat-confirmation-widget-container,
+.inbox-notifications-chat-part-host .chat-question-carousel-container {
+	width: 100%;
+}
+
+.inbox-notifications-chat-part-host .interactive-input-part,
+.inbox-notifications-chat-part-host .interactive-input-part > .chat-question-carousel-widget-container {
+	width: 100%;
+}
+
+/*
+ * The shared chat input styling (chat.css) applies `margin: 0 12px` to
+ * `.interactive-session .interactive-input-part`, which indents the question
+ * carousel away from the item description. Neutralize the horizontal margin so
+ * the response card aligns left with the description.
+ */
+.inbox-notifications-chat-part-host.interactive-session .interactive-input-part {
+	margin-inline: 0;
+}
+
+.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container {
+	margin: 0;
+	border-color: transparent;
+	border-radius: 0;
+	background: transparent;
+}
+
+.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-card-header {
+	padding: var(--vscode-spacing-size80) 0;
+	border-bottom: none;
+}
+
+.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-carousel-message,
+.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-description {
+	padding: 0 0 var(--vscode-spacing-size60);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-input-container {
+	padding: 0;
+}
+
+.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-input-container::after {
+	height: var(--vscode-spacing-size40);
+}
+
+.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-list {
+	gap: var(--vscode-spacing-size40);
+}
+
+.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-input-container .chat-question-list .chat-question-list-item {
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-small);
+	padding: var(--vscode-spacing-size80);
+}
+
+.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-list-item:is(:hover, .hovered):not(.selected) {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-list-item.selected {
+	border-color: var(--vscode-list-inactiveFocusOutline, var(--vscode-focusBorder));
+}
+
+.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-list:focus-visible .chat-question-list-item.selected,
+.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-list-item:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-input-container .chat-question-list .chat-question-list-item .chat-question-list-label {
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-input-container .chat-question-list .chat-question-list-item .chat-question-list-label-title {
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-footer-row {
+	padding: var(--vscode-spacing-size40) 0 0;
+	border-top: none;
+}
+
+.inbox-notifications-chat-part-host .chat-confirmation-widget,
+.inbox-notifications-chat-part-host .chat-confirmation-widget2 {
+	border-color: transparent;
+	border-radius: 0;
+	background: transparent;
+}
+
+.inbox-notifications-chat-part-host .chat-confirmation-widget .chat-confirmation-widget-message-container {
+	width: 100%;
+	border: none;
+	border-radius: 0;
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.inbox-notifications-chat-part-host .chat-confirmation-widget-container .chat-confirmation-widget .chat-confirmation-widget-title {
+	padding: 0;
+	color: var(--vscode-foreground);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.inbox-notifications-chat-part-host .chat-confirmation-widget .chat-buttons-container,
+.inbox-notifications-chat-part-host .chat-confirmation-widget .chat-confirmation-widget-message {
+	padding: 0;
+}
+
+.inbox-notifications-chat-part-host .chat-confirmation-widget .chat-buttons {
+	flex-wrap: wrap;
+}
+
+.inbox-notifications-chat-part-host .chat-confirmation-widget .chat-buttons .monaco-button {
+	width: auto;
+}
+
+.hc-black .inbox-notifications-item.selected,
+.hc-light .inbox-notifications-item.selected {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	border-color: var(--vscode-focusBorder);
+	box-shadow: none;
+}
+
+.inbox-notifications-item-header-actions .inbox-notifications-item-action-done {
+	min-width: 0;
+	padding-inline: var(--vscode-spacing-size80);
+}
+
+.inbox-notifications-empty {
+	color: var(--vscode-descriptionForeground);
+	padding: var(--vscode-spacing-size320) var(--vscode-spacing-size100);
+}
