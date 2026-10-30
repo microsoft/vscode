@@ -146,7 +146,7 @@ export function resolvePluginSkillUri(reference: URI, skills: readonly { readonl
 }
 
 export function resolveInstalledPluginSkillLink(item: IAgentPluginItem, link: string): URI | undefined {
-	return item.kind === AgentPluginItemKind.Installed
+	return item.kind === AgentPluginItemKind.Installed && isContributionEnabled(item.plugin.enablement.get()) && !isPluginPolicyBlocked(item.plugin)
 		? resolvePluginSkillUri(URI.parse(link), item.plugin.skills.get())
 		: undefined;
 }

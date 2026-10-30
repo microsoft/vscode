@@ -25,6 +25,7 @@ import { dirname } from '../../../../../../base/common/resources.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { createCustomizationMarketplaceInstallationSnapshot, emptyCustomizationMarketplaceInstallationSnapshot } from '../../../common/customizationMarketplaceInstallService.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { ContributionEnablementState } from '../../../common/enablement.js';
 
 class StatusRequestService extends mock<IRequestService>() {
 	override readonly onDidCompleteRequest = Event.None;
@@ -243,28 +244,46 @@ suite('embeddedAgentPluginDetail', () => {
 		});
 	});
 
-	test('resolves installed plugin README skill links to the skill file', () => {
+	test('resolves enabled installed plugin README skill links to the skill file', () => {
 		const pluginUri = URI.file('/plugins/example');
 		const skillUri = URI.joinPath(pluginUri, 'skills', 'review', 'SKILL.md');
+		const enablement = observableValue('enablement', ContributionEnablementState.EnabledProfile);
+		const policyEnablement = observableValue<boolean | undefined>('policyEnablement', undefined);
 		const item = {
 			kind: AgentPluginItemKind.Installed,
 			name: 'example',
 			description: 'Example plugin',
 			plugin: new class extends mock<IAgentPlugin>() {
+				override readonly enablement = enablement;
+				override readonly policyEnablement = policyEnablement;
 				override readonly skills = observableValue('skills', [{ name: 'review', uri: skillUri }]);
 			}(),
 		} satisfies IAgentPluginItem;
 
+		const directory = resolveInstalledPluginSkillLink(item, dirname(skillUri).toString())?.toString();
+		const file = resolveInstalledPluginSkillLink(item, skillUri.toString())?.toString();
+		const unrelated = resolveInstalledPluginSkillLink(item, URI.joinPath(pluginUri, 'docs', 'guide.md').toString())?.toString();
+		const marketplace = resolveInstalledPluginSkillLink(createMarketplaceItem(URI.parse('https://example.test/README.md')), skillUri.toString())?.toString();
+		enablement.set(ContributionEnablementState.DisabledProfile, undefined);
+		const disabled = resolveInstalledPluginSkillLink(item, skillUri.toString())?.toString();
+		enablement.set(ContributionEnablementState.EnabledProfile, undefined);
+		policyEnablement.set(false, undefined);
+		const policyBlocked = resolveInstalledPluginSkillLink(item, skillUri.toString())?.toString();
+
 		assert.deepStrictEqual({
-			directory: resolveInstalledPluginSkillLink(item, dirname(skillUri).toString())?.toString(),
-			file: resolveInstalledPluginSkillLink(item, skillUri.toString())?.toString(),
-			unrelated: resolveInstalledPluginSkillLink(item, URI.joinPath(pluginUri, 'docs', 'guide.md').toString())?.toString(),
-			marketplace: resolveInstalledPluginSkillLink(createMarketplaceItem(URI.parse('https://example.test/README.md')), skillUri.toString())?.toString(),
+			directory,
+			file,
+			unrelated,
+			marketplace,
+			disabled,
+			policyBlocked,
 		}, {
 			directory: skillUri.toString(),
 			file: skillUri.toString(),
 			unrelated: undefined,
 			marketplace: undefined,
+			disabled: undefined,
+			policyBlocked: undefined,
 		});
 	});
 
