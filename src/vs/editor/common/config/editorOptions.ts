@@ -667,6 +667,11 @@ export interface IEditorOptions {
 	 */
 	occurrencesHighlightDelay?: number;
 	/**
+	 * Merge single-document highlights from all matching providers.
+	 * Defaults to false.
+	 */
+	occurrencesHighlightFromAllProviders?: boolean;
+	/**
 	 * Show code lens
 	 * Defaults to true.
 	 */
@@ -5931,6 +5936,7 @@ export const enum EditorOption {
 	multiCursorLimit,
 	occurrencesHighlight,
 	occurrencesHighlightDelay,
+	occurrencesHighlightFromAllProviders,
 	overtypeCursorStyle,
 	overtypeOnPaste,
 	overviewRulerBorder,
@@ -6430,7 +6436,7 @@ export const EditorOptions = {
 		{
 			enumDescriptions: [
 				nls.localize('fullwidthCharacterWidth.font', "Render full-width characters using the width defined by the font."),
-				nls.localize('fullwidthCharacterWidth.twoCells', "Render full-width characters centered in exactly two character cells. Only applies to monospace fonts. Does not apply to multi codepoint full-width characters or to GPU rendering. This has a performance impact on line rendering."),
+				nls.localize('fullwidthCharacterWidth.twoCells', "Render full-width characters centered in exactly two character cells. Only applies to monospace fonts when font ligatures are disabled. Does not apply to multi codepoint full-width characters or to GPU rendering. This has a performance impact on line rendering."),
 			],
 			description: nls.localize('fullwidthCharacterWidth', "Controls the width used to render full-width characters.")
 		}
@@ -6563,6 +6569,12 @@ export const EditorOptions = {
 		{
 			description: nls.localize('occurrencesHighlightDelay', "Controls the delay in milliseconds after which occurrences are highlighted."),
 			tags: ['preview']
+		}
+	)),
+	occurrencesHighlightFromAllProviders: register(new EditorBooleanOption(
+		EditorOption.occurrencesHighlightFromAllProviders, 'occurrencesHighlightFromAllProviders', false,
+		{
+			description: nls.localize('occurrencesHighlightFromAllProviders', "Controls whether single-document highlights from all matching providers are merged. When enabled, basic word-based highlighting is only used if no other provider matches.")
 		}
 	)),
 	overtypeOnPaste: register(new EditorBooleanOption(

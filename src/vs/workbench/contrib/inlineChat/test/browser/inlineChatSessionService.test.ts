@@ -19,6 +19,8 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { NullCommandService } from '../../../../../platform/commands/test/common/nullCommandService.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -33,6 +35,7 @@ import { ChatEditingSession } from '../../../chat/browser/chatEditing/chatEditin
 import { ChatSessionsService } from '../../../chat/browser/chatSessions/chatSessions.contribution.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ChatService } from '../../../chat/common/chatService/chatServiceImpl.js';
+import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../chat/common/chatOpenDiagnosticsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../chat/common/constants.js';
 import { IChatEditingService } from '../../../chat/common/editing/chatEditingService.js';
 import { ChatModel } from '../../../chat/common/model/chatModel.js';
@@ -162,6 +165,7 @@ suite('InlineChatSessionService', () => {
 
 	setup(() => {
 		const collection = new ServiceCollection();
+		collection.set(ICommandService, NullCommandService);
 		collection.set(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 		collection.set(IChatAgentService, new SyncDescriptor(ChatAgentService));
 		collection.set(IChatVariablesService, new MockChatVariablesService());
@@ -171,6 +175,7 @@ suite('InlineChatSessionService', () => {
 		collection.set(IChatEditingService, new SyncDescriptor(ChatEditingService));
 		collection.set(IEditorWorkerService, new SyncDescriptor(TestWorkerService));
 		collection.set(IChatService, new SyncDescriptor(ChatService));
+		collection.set(IChatOpenDiagnosticsService, new SyncDescriptor(ChatOpenDiagnosticsService));
 		collection.set(IMcpService, new TestMcpService());
 		collection.set(ICustomizationMigrationService, new class extends mock<ICustomizationMigrationService>() { });
 		collection.set(ICustomizationMigrationTelemetryService, new class extends mock<ICustomizationMigrationTelemetryService>() { });

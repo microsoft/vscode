@@ -8,6 +8,7 @@ import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid
 import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { IAction } from '../../../base/common/actions.js';
 import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
@@ -17,6 +18,7 @@ import { IProgressScope, ScopedProgressIndicator } from '../../../workbench/serv
 import { IChat, ISession } from '../../services/sessions/common/session.js';
 import { WorkspaceSelectionOrigin } from '../../common/workspaceSelection.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
+import type { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
 
 /**
  * Discriminates between concrete {@link AbstractChatView} subclasses without
@@ -30,6 +32,13 @@ export type ChatViewKind = 'newSession' | 'newChatInSession' | 'chat';
 export interface IChatViewOptions {
 	/** Visibility of the owning session slot, preserved across composer/preparation/transcript handoffs. */
 	readonly hostVisible?: IObservable<boolean>;
+	/** Keep the custom view hosting this composer visible while preparing its draft. */
+	readonly preserveCustomView?: boolean;
+	/** Send new-session requests without navigating away from the hosting view. */
+	readonly backgroundSend?: boolean;
+	readonly renderChatPet?: boolean;
+	/** Host only the composer, without transcript content, input interactions, or transcript view-state persistence. */
+	readonly inputOnly?: boolean;
 }
 
 export interface ISelectWorkspaceOptions {
@@ -69,6 +78,9 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	private readonly _onDidChange = this._register(new Emitter<IViewSize | undefined>());
 	readonly onDidChange: Event<IViewSize | undefined> = this._onDidChange.event;
 
+	/** A user request accepted for sending or queuing from this view, identified by its originating chat. */
+	readonly onDidSubmitRequest: Event<URI> = Event.None;
+
 	/**
 	 * Lazily-created progress indicator scoped to this leaf. Mirrors how each
 	 * editor group owns its own {@link ProgressBar} + `ScopedProgressIndicator`.
@@ -84,12 +96,47 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 
 	readonly pickerVisibility: IObservable<ISessionPickerVisibility> = constObservable(noSessionPickerVisibility);
 
+	get activityBarActions(): IObservable<readonly IAction[]> {
+		return constObservable([]);
+	}
+
+	/** Retain the composer while it clears a draft as part of an in-place selection change. */
+	get preserveOnSessionClear(): boolean {
+		return false;
+	}
+
 	focusWorkspacePicker(): void {
 		// no-op by default
 	}
 
 	focusHarnessPicker(): void {
 		// no-op by default
+	}
+
+	focusEnvironmentPicker(): void {
+		// no-op by default
+	}
+
+	focusBranchPicker(): void {
+		// no-op by default
+	}
+
+	focusWorktreePicker(): void {
+		// no-op by default
+	}
+
+	focusSyncAction(): void {
+		// no-op by default
+	}
+
+	openModelComparison(): void { }
+
+	/**
+	 * Intrinsic composer content for input-only hosts to measure and observe.
+	 * Includes new-session pickers where present; ownership stays with the view.
+	 */
+	get inputContentElement(): HTMLElement | undefined {
+		return undefined;
 	}
 
 	/**
@@ -108,14 +155,20 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 
 	/** Whether an input notification already explains a temporary sending restriction. */
 	readonly isInputBlocked: IObservable<boolean> = constObservable(false);
+	readonly historyStatus: IObservable<IChatSessionHistoryStatus | undefined> = constObservable(undefined);
 
 	/**
 	 * Show the given chat in this view. The default implementation is a
 	 * no-op; subclasses that host a chat widget (e.g. `ChatView`) override
 	 * this to load the chat model and feed it into the widget.
 	 */
-	setChat(_chat: IChat, _historyKey?: string, _session?: ISession): void {
+	setChat(_chat: IChat, _historyKey?: string, _session?: ISession, _onInput?: () => void): void {
 		// no-op by default
+	}
+
+	/** Retry a failed load when the user explicitly opens the selected chat again. */
+	reopenChat(_resource: URI): Promise<void> {
+		return Promise.resolve();
 	}
 
 	/**

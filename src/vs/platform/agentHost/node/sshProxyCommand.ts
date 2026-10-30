@@ -71,7 +71,7 @@ export class SSHProxyCommand extends Disposable {
 			this._stopped = true;
 			this.stream.end();
 			if (this._child.pid !== undefined && this._child.exitCode === null && this._child.signalCode === null) {
-				void terminateProcess(this._child.pid, windows).catch(error => logService.warn('[SSHRemoteAgentHost] Failed to stop SSH ProxyCommand', error)).finally(() => this.stream.destroy());
+				void terminateProcess(this._child.pid, windows, message => logService.debug(`[SSHRemoteAgentHost] ${message}`)).catch(error => logService.warn('[SSHRemoteAgentHost] Failed to stop SSH ProxyCommand', error)).finally(() => this.stream.destroy());
 			} else {
 				this.stream.destroy();
 			}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ToolDefinition, URI } from './state/sessionState.js';
+import type { StringOrMarkdown, ToolDefinition, URI } from './state/sessionState.js';
 
 /**
  * A server tool definition plus agent-host-local metadata that is not part of
@@ -17,7 +17,11 @@ export interface IAgentServerToolDefinition extends ToolDefinition {
 	readonly enabledForEphemeralSessions?: boolean;
 	/** Available to owning chats, but not their native or protocol subagents. */
 	readonly topLevelChatOnly?: boolean;
-	/** Defers the tool behind discovery when supported; `false` keeps it eager. Omit to preserve provider defaults. */
+	/**
+	 * Defers the tool behind discovery when supported; `false` keeps it eager,
+	 * which sends its definition on every model request. When omitted, Copilot
+	 * sessions defer the tool and other providers keep their SDK defaults.
+	 */
 	readonly deferLoading?: boolean;
 }
 
@@ -36,6 +40,13 @@ export interface IAgentServerToolDefinition extends ToolDefinition {
  * Tool invocation methods take the exact Agent Host chat channel URI. The host
  * resolves its owning session for session-scoped state and tools.
  */
+/** The confirmation a server tool's call shows, built with the host's state. */
+export interface IServerToolConfirmationDisplay {
+	readonly confirmationTitle?: string;
+	readonly confirmationMessage?: StringOrMarkdown;
+	readonly hideConfirmationInput?: boolean;
+}
+
 export interface IAgentServerToolHost {
 	/** Every server tool definition across the contributed groups. */
 	readonly definitions: readonly IAgentServerToolDefinition[];
@@ -66,6 +77,12 @@ export interface IAgentServerToolHost {
 	 * Providers must consult this before prompting or executing the tool.
 	 */
 	requiresConfirmation(chatUri: URI, toolName: string): boolean;
+	/**
+	 * The confirmation a call of {@link toolName} with {@link args} shows, built by its group with the host's state
+	 * (for example, linking only sessions the host knows). `undefined` for a tool with no confirmation display, where
+	 * providers fall back to their generic one.
+	 */
+	getConfirmationDisplay(toolName: string, args: unknown): IServerToolConfirmationDisplay | undefined;
 	/**
 	 * Executes a server tool for the exact chat that invoked it, dispatching any
 	 * resulting actions, and returns the textual tool result for the agent.

@@ -10,6 +10,12 @@ outputs:
   affected:
     description: "'true' when the Agent Host E2E tests may be affected."
     value: ${{ steps.detect.outputs.affected }}
+  profile:
+    description: "'full' for test, dependency, infrastructure, or uncertain changes; otherwise 'pr'."
+    value: ${{ steps.detect.outputs.profile }}
+  reason:
+    description: Reason for selecting the Agent Host test profile.
+    value: ${{ steps.detect.outputs.reason }}
 
 runs:
   using: composite

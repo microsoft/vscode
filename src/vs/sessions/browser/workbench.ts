@@ -69,6 +69,7 @@ import { EDITOR_PART_DEFAULT_WIDTH, EDITOR_PART_MINIMUM_WIDTH } from './parts/ed
 import { IContextKey, IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
 import { CustomViewVisibleContext, EditorMaximizedContext, IsPhoneLayoutContext, DesktopLayoutContext } from '../common/contextkeys.js';
 import { SessionsLayoutPolicy } from './layoutPolicy.js';
+import { ChatLayoutPresentation } from '../common/chatLayout.js';
 import { AGENTS_PART_CARD_CLASS } from './parts/agentsPartCard.js';
 import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
@@ -199,10 +200,15 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService, I
 	/** Hides the side pane as one semantic transition. */
 	hideSidePane(): void;
 
+	captureSidePaneComposition(): ISidePaneState;
+
+	restoreSidePaneComposition(composition: ISidePaneState): void;
+
 	readonly onDidChangeEditorMaximized: Event<void>;
 
 	/** The concrete Agents workbench presentation selected at startup. */
 	readonly agentWorkbenchLayout: AgentWorkbenchLayout;
+	readonly chatLayoutPresentation: ChatLayoutPresentation;
 
 	/**
 	 * Suppresses the automatic editor part show/hide that normally fires from
@@ -437,6 +443,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	private mainWindowFullscreen = false;
 	private readonly maximized = new Set<number>();
 	protected readonly layoutPolicy = this._register(new SessionsLayoutPolicy());
+	chatLayoutPresentation!: ChatLayoutPresentation;
 	private readonly mobileNavStack = this._register(new MobileNavigationStack());
 	private mobileTopBarElement: HTMLElement | undefined;
 	private focusMobileTopBar: (() => void) | undefined;
@@ -561,15 +568,16 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 				const lifecycleService = accessor.get(ILifecycleService);
 				const storageService = accessor.get(IStorageService);
 				const configurationService = accessor.get(IConfigurationService);
+				this.chatLayoutPresentation = this._register(new ChatLayoutPresentation(configurationService, this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop, this.layoutPolicy.isPhoneLayout));
 				const hostService = accessor.get(IHostService);
 				const hoverService = accessor.get(IHoverService);
 				const dialogService = accessor.get(IDialogService);
 				const notificationService = accessor.get(INotificationService) as NotificationService;
 				const markdownRendererService = accessor.get(IMarkdownRendererService);
 
-				// On web, the configuration service needs access to the
-				// instantiation service for dynamic configuration resolution.
-				if (isWeb && typeof (configurationService as IConfigurationService & { acquireInstantiationService?(i: IInstantiationService): void }).acquireInstantiationService === 'function') {
+				// The configuration service is created before the workbench services
+				// and needs the instantiation service to report settings write errors.
+				if (typeof (configurationService as IConfigurationService & { acquireInstantiationService?(i: IInstantiationService): void }).acquireInstantiationService === 'function') {
 					(configurationService as IConfigurationService & { acquireInstantiationService(i: IInstantiationService): void }).acquireInstantiationService(instantiationService);
 				}
 
@@ -1064,7 +1072,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		}));
 
 		// Register Commands
-		registerNotificationCommands(notificationsCenter, notificationsToasts, notificationService.model);
+		this._register(registerNotificationCommands(notificationsCenter, notificationsToasts, notificationService.model));
 
 		// Register notification accessible view
 		AccessibleViewRegistry.register(new NotificationAccessibleView());
@@ -1254,7 +1262,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		// bottom panel) for as long as it is shown.
 		this._customViewVisibleKey = CustomViewVisibleContext.bindTo(accessor.get(IContextKeyService));
 		this._register(autorun(reader => {
-			this._applyCustomViewGridVisibility(this.customViewService.activeCustomView.read(reader));
+			this._applyCustomViewGridVisibility(this.customViewService.activeCustomViewOpen.read(reader)?.descriptor);
 		}));
 
 		// Editor opens should only affect the main editor part when
@@ -1511,7 +1519,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	//#endregion
 
-	private registerLayoutListeners(): void {
+	private registerLayoutListeners(isIOSWindow = isIOS): void {
 		// Fullscreen changes
 		this._register(onDidChangeFullscreen(windowId => {
 			if (windowId === getWindowId(mainWindow)) {
@@ -1521,12 +1529,13 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			}
 		}));
 
-		// Window resize — needed for device emulation and mobile viewport changes
-		const onWindowResize = () => this.layout();
-		this._register(addDisposableListener(mainWindow, 'resize', onWindowResize));
+		// NativeWindow / BrowserWindow owns resize, except on iOS where it observes the visual viewport.
+		if (isIOSWindow) {
+			this._register(addDisposableListener(mainWindow, 'resize', () => this.layout()));
+		}
 
 		const visualViewport = getWindow(this.parent).visualViewport;
-		if (visualViewport && !isIOS) {
+		if (visualViewport && !isIOSWindow) {
 			this._register(addDisposableListener(visualViewport, 'resize', () => {
 				if (this.layoutPolicy.viewportClass.get() === 'phone') {
 					this.layout();
@@ -2377,6 +2386,29 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		}
 	}
 
+	captureSidePaneComposition(): ISidePaneState {
+		return this._getSidePaneState();
+	}
+
+	restoreSidePaneComposition(composition: ISidePaneState): void {
+		const before = this._getSidePaneState();
+		if (before.editor === composition.editor && before.auxiliaryBar === composition.auxiliaryBar) {
+			return;
+		}
+
+		const suppressEditorPartAutoVisibility = this.suppressEditorPartAutoVisibility();
+		try {
+			this.setEditorHidden(!composition.editor, false, true);
+			this._setAuxiliaryBarHidden(!composition.auxiliaryBar, undefined, true);
+		} finally {
+			suppressEditorPartAutoVisibility.dispose();
+		}
+
+		if (!before.editor && !before.auxiliaryBar && (composition.editor || composition.auxiliaryBar)) {
+			this._onSidePaneRevealed();
+		}
+	}
+
 	private _getSidePaneState(): ISidePaneState {
 		const editor = this.isVisible(Parts.EDITOR_PART, mainWindow);
 		const auxiliaryBar = this.isVisible(Parts.AUXILIARYBAR_PART);
@@ -2628,6 +2660,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		if (this.partVisibility.customViewGrid === visible) {
 			// Swapping one custom view for another only changes what is rendered.
 			this.customViewGridPartService.setView(descriptor);
+			if (visible) {
+				this.focusPart(Parts.CUSTOM_VIEW_GRID_PART);
+			}
 			return;
 		}
 
@@ -2792,6 +2827,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 					this.workbenchGrid.exitMaximizedView();
 				}
 				this._maximumEditorDimensionsOverride ??= this.getMaximumEditorDimensions(this.mainContainer);
+				this._editorPaneVisibleWhileGridMoves = this.isEditorPaneVisible();
 				if (alignment === 'center') {
 					const panelSize = this._viewMoveSizing(this.panelPartView, 'height');
 					this.workbenchGrid.moveView(this.panelPartView, panelSize, this.sessionsPartView, Direction.Down);
@@ -2826,6 +2862,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			throw error;
 		} finally {
 			this._maximumEditorDimensionsOverride = previousMaximumEditorDimensionsOverride;
+			this._editorPaneVisibleWhileGridMoves = undefined;
 			if (exitMaximizedPanel) {
 				this._panelMaximizedEditorState = undefined;
 			}
@@ -2841,6 +2878,13 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			this.focusPart(focusedPart);
 		}
 	}
+
+	/**
+	 * Whether the side pane showed as the panel started to align, while the grid moves its views. The grid lays out its views
+	 * between the steps of a move, and they read from it, such as the Sessions Part whether the side pane shows: the grid
+	 * cannot answer for a view it has taken out until the move is done, so they read what was before.
+	 */
+	protected _editorPaneVisibleWhileGridMoves: boolean | undefined;
 
 	private _viewMoveSizing(view: ISerializableView, dimension: 'width' | 'height'): number | Sizing {
 		if (this.workbenchGrid.isViewVisible(view)) {

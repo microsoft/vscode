@@ -16,15 +16,20 @@ import { TestConfigurationService } from '../../../../platform/configuration/tes
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { GroupModelChangeKind } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
+import { AUDIO_PREVIEW_EDITOR_ID, IMAGE_PREVIEW_EDITOR_ID, VIDEO_PREVIEW_EDITOR_ID } from '../../../contrib/mediaPreview/common/mediaPreview.js';
+import { ImagePreviewEditorInput } from '../../../contrib/mediaPreview/browser/imagePreviewEditorInput.js';
+import { MediaPlayerEditorInput } from '../../../contrib/mediaPreview/browser/mediaPlayerEditorInput.js';
 import { MultiDiffEditorInput } from '../../../contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolverService, MultiDiffEditorItem } from '../../../contrib/multiDiffEditor/browser/multiDiffSourceResolverService.js';
+import { IOverlayWebview } from '../../../contrib/webview/browser/webview.js';
 import { IEditorGroup, IEditorGroupsService, IModalEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorsChangeEvent, IEditorService } from '../../../services/editor/common/editorService.js';
 import { ITextFileEditorModelManager, ITextFileService } from '../../../services/textfile/common/textfiles.js';
-import { TestEditorInput } from '../../../test/browser/workbenchTestServices.js';
+import { TestEditorInput, workbenchInstantiationService } from '../../../test/browser/workbenchTestServices.js';
 import { MainThreadEditorTabs } from '../../browser/mainThreadEditorTabs.js';
 import { MainThreadEditorTabsShape, TabModelOperationKind } from '../../common/extHost.protocol.js';
 import { ExtHostEditorTabs } from '../../common/extHostEditorTabs.js';
+import { CustomEditorTabInput } from '../../common/extHostTypes.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 
 suite('MainThreadEditorTabs', () => {
@@ -202,6 +207,65 @@ suite('MainThreadEditorTabs', () => {
 			afterStickyChange: 'Panel B',
 			afterPreviewChange: 'Panel B',
 		});
+	});
+
+	test('media preview tabs report the custom editor they replaced', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const createWebview = () => new class extends mock<IOverlayWebview>() {
+			override readonly onMessage = Event.None;
+			override dispose() { }
+		}();
+		const image = URI.file('/media/pic.png');
+		const video = URI.file('/media/clip.mp4');
+		const audio = URI.file('/media/tone.wav');
+		const editors: EditorInput[] = [
+			disposables.add(instantiationService.createInstance(ImagePreviewEditorInput, image, undefined)),
+			disposables.add(instantiationService.createInstance(MediaPlayerEditorInput, 'video', video, createWebview())),
+			disposables.add(instantiationService.createInstance(MediaPlayerEditorInput, 'audio', audio, createWebview())),
+		];
+
+		const group = new class extends mock<IEditorGroup>() {
+			override readonly id = 1;
+			override get editors() { return editors; }
+			override isSticky() { return false; }
+			override isPinned() { return true; }
+			override isActive(editor: EditorInput) { return editor === editors[0]; }
+		}();
+		const editorGroupsService = new class extends mock<IEditorGroupsService>() {
+			override readonly onDidAddGroup = Event.None;
+			override readonly onDidRemoveGroup = Event.None;
+			override readonly whenReady = Promise.resolve();
+			override readonly activeModalEditorPart = undefined;
+			override get groups(): readonly IEditorGroup[] { return [group]; }
+			override getGroups(): readonly IEditorGroup[] { return [group]; }
+			override get activeGroup(): IEditorGroup { return group; }
+			override getGroup(): IEditorGroup | undefined { return group; }
+		}();
+		const editorService = new class extends mock<IEditorService>() {
+			override readonly onDidEditorsChange = Event.None;
+		}();
+
+		const extHostEditorTabs = new ExtHostEditorTabs(
+			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() { })
+		);
+		disposables.add(new MainThreadEditorTabs(
+			SingleProxyRPCProtocol(extHostEditorTabs),
+			editorGroupsService,
+			new TestConfigurationService(),
+			new NullLogService(),
+			editorService,
+		));
+		await Promise.resolve();
+
+		const tabInputs = extHostEditorTabs.tabGroups.all.flatMap(g => g.tabs).map(tab => tab.input instanceof CustomEditorTabInput
+			? { uri: tab.input.uri.toString(), viewType: tab.input.viewType }
+			: tab.input
+		);
+		assert.deepStrictEqual(tabInputs, [
+			{ uri: image.toString(), viewType: IMAGE_PREVIEW_EDITOR_ID },
+			{ uri: video.toString(), viewType: VIDEO_PREVIEW_EDITOR_ID },
+			{ uri: audio.toString(), viewType: AUDIO_PREVIEW_EDITOR_ID },
+		]);
 	});
 
 	test('multi diff tab whose resources changed does not become the active tab', async () => {

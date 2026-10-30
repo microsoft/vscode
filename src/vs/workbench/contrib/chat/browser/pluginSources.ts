@@ -19,6 +19,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { NotificationTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import { TerminalCapability, type ITerminalCommand } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 import { IEnsureRepositoryOptions, IPullRepositoryOptions } from '../common/plugins/agentPluginRepositoryService.js';
@@ -93,10 +94,13 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 
 		const progressTitle = options?.progressTitle ?? localize('cloningPluginSource', "Cloning plugin source '{0}'...", label);
 		const failureLabel = options?.failureLabel ?? label;
-		const ref = (descriptor as IGitHubPluginSource | IGitUrlPluginSource).ref;
+		const git = descriptor as IGitHubPluginSource | IGitUrlPluginSource;
+		const ref = git.sha ?? git.ref;
 
 		await this._cloneRepository(repoDir, this._cloneUrl(descriptor), progressTitle, failureLabel, ref);
-		await this._checkoutRevision(repoDir, descriptor, failureLabel);
+		if (!git.sha || (await this._pluginGit.revParse(repoDir, 'HEAD')).toLowerCase() !== git.sha.trim().toLowerCase()) {
+			await this._checkoutRevision(repoDir, descriptor, failureLabel);
+		}
 		return this.getInstallUri(cacheRoot, descriptor);
 	}
 
@@ -138,6 +142,7 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 				return await this._progressService.withProgress(
 					{
 						location: ProgressLocation.Notification,
+						telemetry: NotificationTelemetryId.PluginRepositoryUpdate,
 						title: localize('updatingPluginSource', "Updating plugin '{0}'...", updateLabel),
 						cancellable: true,
 					},
@@ -167,6 +172,7 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 			await this._progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
+					telemetry: NotificationTelemetryId.PluginRepositoryClone,
 					title: progressTitle,
 					cancellable: true,
 				},
@@ -452,6 +458,7 @@ export abstract class AbstractPackagePluginSource implements IPluginSource {
 			await this._progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
+					telemetry: NotificationTelemetryId.PluginPackageOperation,
 					title: progressTitle,
 					cancellable: false,
 				},

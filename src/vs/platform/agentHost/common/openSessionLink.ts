@@ -9,7 +9,7 @@ import { localize } from '../../../nls.js';
 import { ILinkPresentation, ILinkPresentationStatus } from '../../dataChannel/common/dataChannel.js';
 import { AgentSession } from './agent.js';
 import { SessionServerToolName } from './serverToolNames.js';
-import { DEFAULT_CHAT_ID, isAhpChatChannel, parseChatUri } from './state/sessionState.js';
+import { DEFAULT_CHAT_ID, getAgentHostChatId, isAhpChatChannel } from './state/sessionState.js';
 
 /**
  * Dedicated URI scheme for "open this session" links surfaced in agent/tool
@@ -49,7 +49,7 @@ function getAgentSessionLinkPresentationStatus(status: AgentSessionLinkStatus): 
 	switch (status) {
 		case 'untitled': return { kind: 'neutral', label: localize('agentSessionLink.notStarted', "Not started") };
 		case 'inProgress': return { kind: 'pending', label: localize('agentSessionLink.working', "Working") };
-		case 'needsInput': return { kind: 'warning', label: localize('agentSessionLink.needsInput', "Needs input") };
+		case 'needsInput': return { kind: 'warning', label: localize('agentSessionLink.needsInput', "Needs attention") };
 		case 'completed': return { kind: 'success', label: localize('agentSessionLink.completed', "Completed") };
 		case 'error': return { kind: 'error', label: localize('agentSessionLink.error', "Error") };
 	}
@@ -234,22 +234,26 @@ function readOpenSessionLinkQueryParam(uri: URI | string, name: string): string 
 }
 
 /**
- * Builds an {@link AGENT_HOST_SESSION_LINK_SCHEME} link that opens the chat
- * identified by an AHP chat channel URI (`ahp-chat://...`) or a bare backend
- * session URI. Peer chats carry their chat id so the link opens that specific
- * chat; the default chat is normalized by {@link buildOpenSessionLinkUri} to a
- * session-only link (no chat id). Returns `undefined` when {@link chatResource}
- * cannot be parsed into a session link.
+ * Builds an {@link AGENT_HOST_SESSION_LINK_SCHEME} link that opens
+ * `chatResource` (an AHP chat channel URI or a bare backend session URI) in its
+ * recorded owning session `owner`. `defaultChat` is the owner's default chat:
+ * it and the bare session get a session-only link, and any other chat carries
+ * its chat id so the link opens that specific chat. Returns `undefined` when no
+ * link can be built.
+ * `connectionAuthority` names the client's connection to the host that owns
+ * `owner` so the link opens on that connection; it is `undefined` for links a
+ * host builds for its own sessions.
  *
  * This mirrors the link the host builds when resolving chat attachments so the
  * chat-reference chip in the input opens the exact same target.
  */
-export function buildOpenSessionLinkForChatResource(chatResource: URI | string): string | undefined {
+export function buildOpenSessionLinkForChat(owner: URI | string, chatResource: URI | string, defaultChat: URI | string | undefined, connectionAuthority: string | undefined): string | undefined {
 	try {
-		const resourceStr = typeof chatResource === 'string' ? chatResource : chatResource.toString();
-		const parsedChat = isAhpChatChannel(resourceStr) ? parseChatUri(resourceStr) : undefined;
-		const sourceSession = parsedChat ? parsedChat.session : URI.parse(resourceStr).toString();
-		return buildOpenSessionLinkUri(sourceSession, parsedChat?.chatId);
+		const resourceStr = chatResource.toString();
+		if (!isAhpChatChannel(resourceStr) || (defaultChat !== undefined && resourceStr === defaultChat.toString())) {
+			return buildOpenSessionLinkUri(owner.toString(), undefined, undefined, connectionAuthority);
+		}
+		return buildOpenSessionLinkUri(owner.toString(), getAgentHostChatId(resourceStr), undefined, connectionAuthority);
 	} catch {
 		return undefined;
 	}

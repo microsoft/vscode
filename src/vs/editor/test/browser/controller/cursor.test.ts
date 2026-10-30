@@ -154,54 +154,23 @@ suite('Editor Controller - Cursor', () => {
 
 	// --------- absolute move
 
-	test('no move', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 1);
-			assertCursor(viewModel, new Position(1, 1));
+	const absoluteMoveCases: [name: string, lineNumber: number, column: number, inSelectionMode: boolean, expected: Position | Selection][] = [
+		['no move', 1, 1, false, new Position(1, 1)],
+		['move', 1, 2, false, new Position(1, 2)],
+		['move in selection mode', 1, 2, true, new Selection(1, 1, 1, 2)],
+		['move beyond line end', 1, 25, false, new Position(1, LINE1.length + 1)],
+		['move empty line', 4, 20, false, new Position(4, 1)],
+		['move one char line', 5, 20, false, new Position(5, 2)],
+		['selection down', 2, 1, true, new Selection(1, 1, 2, 1)],
+	];
+	for (const [name, lineNumber, column, inSelectionMode, expected] of absoluteMoveCases) {
+		test(name, () => {
+			runTest((editor, viewModel) => {
+				moveTo(editor, viewModel, lineNumber, column, inSelectionMode);
+				assertCursor(viewModel, expected);
+			});
 		});
-	});
-
-	test('move', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 2);
-			assertCursor(viewModel, new Position(1, 2));
-		});
-	});
-
-	test('move in selection mode', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 2, true);
-			assertCursor(viewModel, new Selection(1, 1, 1, 2));
-		});
-	});
-
-	test('move beyond line end', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 25);
-			assertCursor(viewModel, new Position(1, LINE1.length + 1));
-		});
-	});
-
-	test('move empty line', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 4, 20);
-			assertCursor(viewModel, new Position(4, 1));
-		});
-	});
-
-	test('move one char line', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 5, 20);
-			assertCursor(viewModel, new Position(5, 2));
-		});
-	});
-
-	test('selection down', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 2, 1, true);
-			assertCursor(viewModel, new Selection(1, 1, 2, 1));
-		});
-	});
+	}
 
 	test('move and then select', () => {
 		runTest((editor, viewModel) => {
@@ -225,88 +194,42 @@ suite('Editor Controller - Cursor', () => {
 		});
 	});
 
-	test('move left', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 3);
-			assertCursor(viewModel, new Position(1, 3));
-			moveLeft(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 2));
+	const moveLeftCases: [name: string, lineNumber: number, column: number, inSelectionMode: boolean, expected: Position | Selection][] = [
+		['move left', 1, 3, false, new Position(1, 2)],
+		['move left with surrogate pair', 3, 17, false, new Position(3, 15)],
+		['move left goes to previous row', 2, 1, false, new Position(1, 21)],
+		['move left selection', 2, 1, true, new Selection(2, 1, 1, 21)],
+	];
+	for (const [name, lineNumber, column, inSelectionMode, expected] of moveLeftCases) {
+		test(name, () => {
+			runTest((editor, viewModel) => {
+				moveTo(editor, viewModel, lineNumber, column);
+				assertCursor(viewModel, new Position(lineNumber, column));
+				moveLeft(editor, viewModel, inSelectionMode);
+				assertCursor(viewModel, expected);
+			});
 		});
-	});
-
-	test('move left with surrogate pair', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 17);
-			assertCursor(viewModel, new Position(3, 17));
-			moveLeft(editor, viewModel);
-			assertCursor(viewModel, new Position(3, 15));
-		});
-	});
-
-	test('move left goes to previous row', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 2, 1);
-			assertCursor(viewModel, new Position(2, 1));
-			moveLeft(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 21));
-		});
-	});
-
-	test('move left selection', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 2, 1);
-			assertCursor(viewModel, new Position(2, 1));
-			moveLeft(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(2, 1, 1, 21));
-		});
-	});
+	}
 
 	// --------- move right
 
-	test('move right on bottom right position', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 5, 2);
-			assertCursor(viewModel, new Position(5, 2));
-			moveRight(editor, viewModel);
-			assertCursor(viewModel, new Position(5, 2));
+	const moveRightCases: [name: string, lineNumber: number, column: number, inSelectionMode: boolean, expected: Position | Selection][] = [
+		['move right on bottom right position', 5, 2, false, new Position(5, 2)],
+		['move right', 1, 3, false, new Position(1, 4)],
+		['move right with surrogate pair', 3, 15, false, new Position(3, 17)],
+		['move right goes to next row', 1, 21, false, new Position(2, 1)],
+		['move right selection', 1, 21, true, new Selection(1, 21, 2, 1)],
+	];
+	for (const [name, lineNumber, column, inSelectionMode, expected] of moveRightCases) {
+		test(name, () => {
+			runTest((editor, viewModel) => {
+				moveTo(editor, viewModel, lineNumber, column);
+				assertCursor(viewModel, new Position(lineNumber, column));
+				moveRight(editor, viewModel, inSelectionMode);
+				assertCursor(viewModel, expected);
+			});
 		});
-	});
-
-	test('move right', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 3);
-			assertCursor(viewModel, new Position(1, 3));
-			moveRight(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 4));
-		});
-	});
-
-	test('move right with surrogate pair', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 15);
-			assertCursor(viewModel, new Position(3, 15));
-			moveRight(editor, viewModel);
-			assertCursor(viewModel, new Position(3, 17));
-		});
-	});
-
-	test('move right goes to next row', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 21);
-			assertCursor(viewModel, new Position(1, 21));
-			moveRight(editor, viewModel);
-			assertCursor(viewModel, new Position(2, 1));
-		});
-	});
-
-	test('move right selection', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 21);
-			assertCursor(viewModel, new Position(1, 21));
-			moveRight(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(1, 21, 2, 1));
-		});
-	});
+	}
 
 	// --------- move down
 
@@ -573,89 +496,41 @@ suite('Editor Controller - Cursor', () => {
 		});
 	});
 
-	test('move to beginning of line from within line', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 8);
-			moveToBeginningOfLine(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 6));
-			moveToBeginningOfLine(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 1));
+	const moveToBeginningOfLineCases: [name: string, column: number, inSelectionMode: boolean, firstExpected: Position | Selection, secondExpected: Position | Selection][] = [
+		['move to beginning of line from within line', 8, false, new Position(1, 6), new Position(1, 1)],
+		['move to beginning of line from whitespace at beginning of line', 2, false, new Position(1, 6), new Position(1, 1)],
+		['move to beginning of line from within line selection', 8, true, new Selection(1, 8, 1, 6), new Selection(1, 8, 1, 1)],
+	];
+	for (const [name, column, inSelectionMode, firstExpected, secondExpected] of moveToBeginningOfLineCases) {
+		test(name, () => {
+			runTest((editor, viewModel) => {
+				moveTo(editor, viewModel, 1, column);
+				moveToBeginningOfLine(editor, viewModel, inSelectionMode);
+				assertCursor(viewModel, firstExpected);
+				moveToBeginningOfLine(editor, viewModel, inSelectionMode);
+				assertCursor(viewModel, secondExpected);
+			});
 		});
-	});
+	}
 
-	test('move to beginning of line from whitespace at beginning of line', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 2);
-			moveToBeginningOfLine(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 6));
-			moveToBeginningOfLine(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 1));
+	const moveToBeginningOfLineWithSelectionCases: [name: string, fromLineNumber: number, fromColumn: number, toLineNumber: number, toColumn: number, inSelectionMode: boolean, expected: Selection][] = [
+		['move to beginning of line with selection multiline forward', 1, 8, 3, 9, false, new Selection(3, 5, 3, 5)],
+		['move to beginning of line with selection multiline backward', 3, 9, 1, 8, false, new Selection(1, 6, 1, 6)],
+		['move to beginning of line with selection single line forward', 3, 2, 3, 9, false, new Selection(3, 5, 3, 5)],
+		['move to beginning of line with selection single line backward', 3, 9, 3, 2, false, new Selection(3, 5, 3, 5)],
+		['issue #15401: "End" key is behaving weird when text is selected part 1', 1, 8, 3, 9, false, new Selection(3, 5, 3, 5)],
+		['issue #17011: Shift+home/end now go to the end of the selection start\'s line, not the selection\'s end', 1, 8, 3, 9, true, new Selection(1, 8, 3, 5)],
+	];
+	for (const [name, fromLineNumber, fromColumn, toLineNumber, toColumn, inSelectionMode, expected] of moveToBeginningOfLineWithSelectionCases) {
+		test(name, () => {
+			runTest((editor, viewModel) => {
+				moveTo(editor, viewModel, fromLineNumber, fromColumn);
+				moveTo(editor, viewModel, toLineNumber, toColumn, true);
+				moveToBeginningOfLine(editor, viewModel, inSelectionMode);
+				assertCursor(viewModel, expected);
+			});
 		});
-	});
-
-	test('move to beginning of line from within line selection', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 8);
-			moveToBeginningOfLine(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(1, 8, 1, 6));
-			moveToBeginningOfLine(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(1, 8, 1, 1));
-		});
-	});
-
-	test('move to beginning of line with selection multiline forward', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 8);
-			moveTo(editor, viewModel, 3, 9, true);
-			moveToBeginningOfLine(editor, viewModel, false);
-			assertCursor(viewModel, new Selection(3, 5, 3, 5));
-		});
-	});
-
-	test('move to beginning of line with selection multiline backward', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 9);
-			moveTo(editor, viewModel, 1, 8, true);
-			moveToBeginningOfLine(editor, viewModel, false);
-			assertCursor(viewModel, new Selection(1, 6, 1, 6));
-		});
-	});
-
-	test('move to beginning of line with selection single line forward', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 2);
-			moveTo(editor, viewModel, 3, 9, true);
-			moveToBeginningOfLine(editor, viewModel, false);
-			assertCursor(viewModel, new Selection(3, 5, 3, 5));
-		});
-	});
-
-	test('move to beginning of line with selection single line backward', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 9);
-			moveTo(editor, viewModel, 3, 2, true);
-			moveToBeginningOfLine(editor, viewModel, false);
-			assertCursor(viewModel, new Selection(3, 5, 3, 5));
-		});
-	});
-
-	test('issue #15401: "End" key is behaving weird when text is selected part 1', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 8);
-			moveTo(editor, viewModel, 3, 9, true);
-			moveToBeginningOfLine(editor, viewModel, false);
-			assertCursor(viewModel, new Selection(3, 5, 3, 5));
-		});
-	});
-
-	test('issue #17011: Shift+home/end now go to the end of the selection start\'s line, not the selection\'s end', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 8);
-			moveTo(editor, viewModel, 3, 9, true);
-			moveToBeginningOfLine(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(1, 8, 3, 5));
-		});
-	});
+	}
 
 	// --------- move to end of line
 
@@ -668,80 +543,40 @@ suite('Editor Controller - Cursor', () => {
 		});
 	});
 
-	test('move to end of line from within line', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 6);
-			moveToEndOfLine(editor, viewModel);
-			assertCursor(viewModel, new Position(1, LINE1.length + 1));
-			moveToEndOfLine(editor, viewModel);
-			assertCursor(viewModel, new Position(1, LINE1.length + 1));
+	const moveToEndOfLineCases: [name: string, column: number, inSelectionMode: boolean, expected: Position | Selection][] = [
+		['move to end of line from within line', 6, false, new Position(1, LINE1.length + 1)],
+		['move to end of line from whitespace at end of line', 20, false, new Position(1, LINE1.length + 1)],
+		['move to end of line from within line selection', 6, true, new Selection(1, 6, 1, LINE1.length + 1)],
+	];
+	for (const [name, column, inSelectionMode, expected] of moveToEndOfLineCases) {
+		test(name, () => {
+			runTest((editor, viewModel) => {
+				moveTo(editor, viewModel, 1, column);
+				moveToEndOfLine(editor, viewModel, inSelectionMode);
+				assertCursor(viewModel, expected);
+				moveToEndOfLine(editor, viewModel, inSelectionMode);
+				assertCursor(viewModel, expected);
+			});
 		});
-	});
+	}
 
-	test('move to end of line from whitespace at end of line', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 20);
-			moveToEndOfLine(editor, viewModel);
-			assertCursor(viewModel, new Position(1, LINE1.length + 1));
-			moveToEndOfLine(editor, viewModel);
-			assertCursor(viewModel, new Position(1, LINE1.length + 1));
+	const moveToEndOfLineWithSelectionCases: [name: string, fromLineNumber: number, fromColumn: number, toLineNumber: number, toColumn: number, expected: Selection][] = [
+		['move to end of line with selection multiline forward', 1, 1, 3, 9, new Selection(3, 17, 3, 17)],
+		['move to end of line with selection multiline backward', 3, 9, 1, 1, new Selection(1, 21, 1, 21)],
+		['move to end of line with selection single line forward', 3, 1, 3, 9, new Selection(3, 17, 3, 17)],
+		['move to end of line with selection single line backward', 3, 9, 3, 1, new Selection(3, 17, 3, 17)],
+		['issue #15401: "End" key is behaving weird when text is selected part 2', 1, 1, 3, 9, new Selection(3, 17, 3, 17)],
+	];
+	for (const [name, fromLineNumber, fromColumn, toLineNumber, toColumn, expected] of moveToEndOfLineWithSelectionCases) {
+		test(name, () => {
+			runTest((editor, viewModel) => {
+				moveTo(editor, viewModel, fromLineNumber, fromColumn);
+				moveTo(editor, viewModel, toLineNumber, toColumn, true);
+				moveToEndOfLine(editor, viewModel, false);
+				assertCursor(viewModel, expected);
+			});
 		});
-	});
-
-	test('move to end of line from within line selection', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 6);
-			moveToEndOfLine(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(1, 6, 1, LINE1.length + 1));
-			moveToEndOfLine(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(1, 6, 1, LINE1.length + 1));
-		});
-	});
-
-	test('move to end of line with selection multiline forward', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 1);
-			moveTo(editor, viewModel, 3, 9, true);
-			moveToEndOfLine(editor, viewModel, false);
-			assertCursor(viewModel, new Selection(3, 17, 3, 17));
-		});
-	});
-
-	test('move to end of line with selection multiline backward', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 9);
-			moveTo(editor, viewModel, 1, 1, true);
-			moveToEndOfLine(editor, viewModel, false);
-			assertCursor(viewModel, new Selection(1, 21, 1, 21));
-		});
-	});
-
-	test('move to end of line with selection single line forward', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 1);
-			moveTo(editor, viewModel, 3, 9, true);
-			moveToEndOfLine(editor, viewModel, false);
-			assertCursor(viewModel, new Selection(3, 17, 3, 17));
-		});
-	});
-
-	test('move to end of line with selection single line backward', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 9);
-			moveTo(editor, viewModel, 3, 1, true);
-			moveToEndOfLine(editor, viewModel, false);
-			assertCursor(viewModel, new Selection(3, 17, 3, 17));
-		});
-	});
-
-	test('issue #15401: "End" key is behaving weird when text is selected part 2', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 1);
-			moveTo(editor, viewModel, 3, 9, true);
-			moveToEndOfLine(editor, viewModel, false);
-			assertCursor(viewModel, new Selection(3, 17, 3, 17));
-		});
-	});
+	}
 
 	// --------- move to beginning of buffer
 
@@ -752,37 +587,21 @@ suite('Editor Controller - Cursor', () => {
 		});
 	});
 
-	test('move to beginning of buffer from within first line', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 3);
-			moveToBeginningOfBuffer(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 1));
+	const moveToBeginningOfBufferCases: [name: string, lineNumber: number, column: number, inSelectionMode: boolean, expected: Position | Selection][] = [
+		['move to beginning of buffer from within first line', 1, 3, false, new Position(1, 1)],
+		['move to beginning of buffer from within another line', 3, 3, false, new Position(1, 1)],
+		['move to beginning of buffer from within first line selection', 1, 3, true, new Selection(1, 3, 1, 1)],
+		['move to beginning of buffer from within another line selection', 3, 3, true, new Selection(3, 3, 1, 1)],
+	];
+	for (const [name, lineNumber, column, inSelectionMode, expected] of moveToBeginningOfBufferCases) {
+		test(name, () => {
+			runTest((editor, viewModel) => {
+				moveTo(editor, viewModel, lineNumber, column);
+				moveToBeginningOfBuffer(editor, viewModel, inSelectionMode);
+				assertCursor(viewModel, expected);
+			});
 		});
-	});
-
-	test('move to beginning of buffer from within another line', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 3);
-			moveToBeginningOfBuffer(editor, viewModel);
-			assertCursor(viewModel, new Position(1, 1));
-		});
-	});
-
-	test('move to beginning of buffer from within first line selection', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 1, 3);
-			moveToBeginningOfBuffer(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(1, 3, 1, 1));
-		});
-	});
-
-	test('move to beginning of buffer from within another line selection', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 3);
-			moveToBeginningOfBuffer(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(3, 3, 1, 1));
-		});
-	});
+	}
 
 	// --------- move to end of buffer
 
@@ -793,37 +612,21 @@ suite('Editor Controller - Cursor', () => {
 		});
 	});
 
-	test('move to end of buffer from within last line', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 5, 1);
-			moveToEndOfBuffer(editor, viewModel);
-			assertCursor(viewModel, new Position(5, LINE5.length + 1));
+	const moveToEndOfBufferCases: [name: string, lineNumber: number, column: number, inSelectionMode: boolean, expected: Position | Selection][] = [
+		['move to end of buffer from within last line', 5, 1, false, new Position(5, LINE5.length + 1)],
+		['move to end of buffer from within another line', 3, 3, false, new Position(5, LINE5.length + 1)],
+		['move to end of buffer from within last line selection', 5, 1, true, new Selection(5, 1, 5, LINE5.length + 1)],
+		['move to end of buffer from within another line selection', 3, 3, true, new Selection(3, 3, 5, LINE5.length + 1)],
+	];
+	for (const [name, lineNumber, column, inSelectionMode, expected] of moveToEndOfBufferCases) {
+		test(name, () => {
+			runTest((editor, viewModel) => {
+				moveTo(editor, viewModel, lineNumber, column);
+				moveToEndOfBuffer(editor, viewModel, inSelectionMode);
+				assertCursor(viewModel, expected);
+			});
 		});
-	});
-
-	test('move to end of buffer from within another line', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 3);
-			moveToEndOfBuffer(editor, viewModel);
-			assertCursor(viewModel, new Position(5, LINE5.length + 1));
-		});
-	});
-
-	test('move to end of buffer from within last line selection', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 5, 1);
-			moveToEndOfBuffer(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(5, 1, 5, LINE5.length + 1));
-		});
-	});
-
-	test('move to end of buffer from within another line selection', () => {
-		runTest((editor, viewModel) => {
-			moveTo(editor, viewModel, 3, 3);
-			moveToEndOfBuffer(editor, viewModel, true);
-			assertCursor(viewModel, new Selection(3, 3, 5, LINE5.length + 1));
-		});
-	});
+	}
 
 	// --------- misc
 
@@ -2117,127 +1920,53 @@ suite('Editor Controller', () => {
 		});
 	});
 
-	test('issue #16155: Paste into multiple cursors has edge case when number of lines equals number of cursors - 1', () => {
-		usingCursor({
-			text: [
-				'test',
-				'test',
-				'test',
-				'test'
-			],
-		}, (editor, model, viewModel) => {
-			viewModel.setSelections('test', [
-				new Selection(1, 1, 1, 5),
-				new Selection(2, 1, 2, 5),
-				new Selection(3, 1, 3, 5),
-				new Selection(4, 1, 4, 5),
-			]);
+	const multiCursorPasteCases: [name: string, text: string[], selections: Selection[], pastedText: string, expected: string[]][] = [
+		[
+			'issue #16155: Paste into multiple cursors has edge case when number of lines equals number of cursors - 1',
+			['test', 'test', 'test', 'test'],
+			[new Selection(1, 1, 1, 5), new Selection(2, 1, 2, 5), new Selection(3, 1, 3, 5), new Selection(4, 1, 4, 5)],
+			'aaa\nbbb\nccc\n',
+			['aaa', 'bbb', 'ccc', '', 'aaa', 'bbb', 'ccc', '', 'aaa', 'bbb', 'ccc', '', 'aaa', 'bbb', 'ccc', '']
+		],
+		[
+			'issue #43722: Multiline paste doesn\'t work anymore',
+			['test', 'test', 'test', 'test'],
+			[new Selection(1, 1, 1, 5), new Selection(2, 1, 2, 5), new Selection(3, 1, 3, 5), new Selection(4, 1, 4, 5)],
+			'aaa\r\nbbb\r\nccc\r\nddd\r\n',
+			['aaa', 'bbb', 'ccc', 'ddd']
+		],
+		[
+			'issue #46440: (1) Pasting a multi-line selection pastes entire selection into every insertion point',
+			['line1', 'line2', 'line3'],
+			[new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1), new Selection(3, 1, 3, 1)],
+			'a\nb\nc',
+			['aline1', 'bline2', 'cline3']
+		],
+		[
+			'issue #46440: (2) Pasting a multi-line selection pastes entire selection into every insertion point',
+			['line1', 'line2', 'line3'],
+			[new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1), new Selection(3, 1, 3, 1)],
+			'a\nb\nc\n',
+			['aline1', 'bline2', 'cline3']
+		],
+	];
+	for (const [name, text, selections, pastedText, expected] of multiCursorPasteCases) {
+		test(name, () => {
+			usingCursor({
+				text: text,
+			}, (editor, model, viewModel) => {
+				viewModel.setSelections('test', selections);
 
-			viewModel.paste(
-				'aaa\nbbb\nccc\n',
-				false,
-				null
-			);
+				viewModel.paste(
+					pastedText,
+					false,
+					null
+				);
 
-			assert.strictEqual(model.getValue(), [
-				'aaa',
-				'bbb',
-				'ccc',
-				'',
-				'aaa',
-				'bbb',
-				'ccc',
-				'',
-				'aaa',
-				'bbb',
-				'ccc',
-				'',
-				'aaa',
-				'bbb',
-				'ccc',
-				'',
-			].join('\n'));
+				assert.strictEqual(model.getValue(), expected.join('\n'));
+			});
 		});
-	});
-
-	test('issue #43722: Multiline paste doesn\'t work anymore', () => {
-		usingCursor({
-			text: [
-				'test',
-				'test',
-				'test',
-				'test'
-			],
-		}, (editor, model, viewModel) => {
-			viewModel.setSelections('test', [
-				new Selection(1, 1, 1, 5),
-				new Selection(2, 1, 2, 5),
-				new Selection(3, 1, 3, 5),
-				new Selection(4, 1, 4, 5),
-			]);
-
-			viewModel.paste(
-				'aaa\r\nbbb\r\nccc\r\nddd\r\n',
-				false,
-				null
-			);
-
-			assert.strictEqual(model.getValue(), [
-				'aaa',
-				'bbb',
-				'ccc',
-				'ddd',
-			].join('\n'));
-		});
-	});
-
-	test('issue #46440: (1) Pasting a multi-line selection pastes entire selection into every insertion point', () => {
-		usingCursor({
-			text: [
-				'line1',
-				'line2',
-				'line3'
-			],
-		}, (editor, model, viewModel) => {
-			viewModel.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1), new Selection(3, 1, 3, 1)]);
-
-			viewModel.paste(
-				'a\nb\nc',
-				false,
-				null
-			);
-
-			assert.strictEqual(model.getValue(), [
-				'aline1',
-				'bline2',
-				'cline3'
-			].join('\n'));
-		});
-	});
-
-	test('issue #46440: (2) Pasting a multi-line selection pastes entire selection into every insertion point', () => {
-		usingCursor({
-			text: [
-				'line1',
-				'line2',
-				'line3'
-			],
-		}, (editor, model, viewModel) => {
-			viewModel.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1), new Selection(3, 1, 3, 1)]);
-
-			viewModel.paste(
-				'a\nb\nc\n',
-				false,
-				null
-			);
-
-			assert.strictEqual(model.getValue(), [
-				'aline1',
-				'bline2',
-				'cline3'
-			].join('\n'));
-		});
-	});
+	}
 
 	test('issue #256039: paste from multiple cursors with empty selections and multiCursorPaste full', () => {
 		usingCursor({
@@ -2972,69 +2701,43 @@ suite('Editor Controller', () => {
 		});
 	});
 
-	test('issue #84897: Left delete behavior in some languages is changed', () => {
-		const model = createTextModel(
-			[
-				'สวัสดี'
-			].join('\n')
-		);
+	const leftDeleteCases: [name: string, createOptions: () => TestCodeEditorInstantiationOptions][] = [
+		['issue #84897: Left delete behavior in some languages is changed', () => ({})],
+		['issue #122914: Left delete behavior in some languages is changed (useTabStops: false)', () => ({ useTabStops: false })],
+	];
+	for (const [name, createOptions] of leftDeleteCases) {
+		test(name, () => {
+			const model = createTextModel(
+				[
+					'สวัสดี'
+				].join('\n')
+			);
 
-		withTestCodeEditor(model, {}, (editor, viewModel) => {
-			editor.setSelections([
-				new Selection(1, 7, 1, 7)
-			]);
+			withTestCodeEditor(model, createOptions(), (editor, viewModel) => {
+				editor.setSelections([
+					new Selection(1, 7, 1, 7)
+				]);
 
-			editor.runCommand(CoreEditingCommands.DeleteLeft, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สวัสด');
+				editor.runCommand(CoreEditingCommands.DeleteLeft, null);
+				assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สวัสด');
 
-			editor.runCommand(CoreEditingCommands.DeleteLeft, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สวัส');
+				editor.runCommand(CoreEditingCommands.DeleteLeft, null);
+				assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สวัส');
 
-			editor.runCommand(CoreEditingCommands.DeleteLeft, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สวั');
+				editor.runCommand(CoreEditingCommands.DeleteLeft, null);
+				assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สวั');
 
-			editor.runCommand(CoreEditingCommands.DeleteLeft, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สว');
+				editor.runCommand(CoreEditingCommands.DeleteLeft, null);
+				assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สว');
 
-			editor.runCommand(CoreEditingCommands.DeleteLeft, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'ส');
+				editor.runCommand(CoreEditingCommands.DeleteLeft, null);
+				assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'ส');
 
-			editor.runCommand(CoreEditingCommands.DeleteLeft, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '');
+				editor.runCommand(CoreEditingCommands.DeleteLeft, null);
+				assert.strictEqual(model.getValue(EndOfLinePreference.LF), '');
+			});
 		});
-	});
-
-	test('issue #122914: Left delete behavior in some languages is changed (useTabStops: false)', () => {
-		const model = createTextModel(
-			[
-				'สวัสดี'
-			].join('\n')
-		);
-
-		withTestCodeEditor(model, { useTabStops: false }, (editor, viewModel) => {
-			editor.setSelections([
-				new Selection(1, 7, 1, 7)
-			]);
-
-			editor.runCommand(CoreEditingCommands.DeleteLeft, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สวัสด');
-
-			editor.runCommand(CoreEditingCommands.DeleteLeft, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สวัส');
-
-			editor.runCommand(CoreEditingCommands.DeleteLeft, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สวั');
-
-			editor.runCommand(CoreEditingCommands.DeleteLeft, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สว');
-
-			editor.runCommand(CoreEditingCommands.DeleteLeft, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'ส');
-
-			editor.runCommand(CoreEditingCommands.DeleteLeft, null);
-			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '');
-		});
-	});
+	}
 
 	test('issue #99629: Emoji modifiers in text treated separately when using backspace', () => {
 		const model = createTextModel(
@@ -3282,53 +2985,28 @@ suite('Editor Controller', () => {
 		});
 	});
 
-	test('Enter auto-indents with insertSpaces setting 1', () => {
-		const languageId = setupOnEnterLanguage(IndentAction.Indent);
-		usingCursor({
-			text: [
-				'\thello'
-			],
-			languageId: languageId
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 1, 7, false);
-			assertCursor(viewModel, new Selection(1, 7, 1, 7));
+	const enterAutoIndentCases: [name: string, indentAction: IndentAction, text: string, expected: string][] = [
+		['Enter auto-indents with insertSpaces setting 1', IndentAction.Indent, '\thello', '\thello\r\n        '],
+		['Enter auto-indents with insertSpaces setting 2', IndentAction.None, '\thello', '\thello\r\n    '],
+		['Enter auto-indents with insertSpaces setting 3', IndentAction.IndentOutdent, '\thell()', '\thell(\r\n        \r\n    )'],
+	];
+	for (const [name, indentAction, text, expected] of enterAutoIndentCases) {
+		test(name, () => {
+			const languageId = setupOnEnterLanguage(indentAction);
+			usingCursor({
+				text: [
+					text
+				],
+				languageId: languageId
+			}, (editor, model, viewModel) => {
+				moveTo(editor, viewModel, 1, 7, false);
+				assertCursor(viewModel, new Selection(1, 7, 1, 7));
 
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getValue(EndOfLinePreference.CRLF), '\thello\r\n        ');
+				viewModel.type('\n', 'keyboard');
+				assert.strictEqual(model.getValue(EndOfLinePreference.CRLF), expected);
+			});
 		});
-	});
-
-	test('Enter auto-indents with insertSpaces setting 2', () => {
-		const languageId = setupOnEnterLanguage(IndentAction.None);
-		usingCursor({
-			text: [
-				'\thello'
-			],
-			languageId: languageId
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 1, 7, false);
-			assertCursor(viewModel, new Selection(1, 7, 1, 7));
-
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getValue(EndOfLinePreference.CRLF), '\thello\r\n    ');
-		});
-	});
-
-	test('Enter auto-indents with insertSpaces setting 3', () => {
-		const languageId = setupOnEnterLanguage(IndentAction.IndentOutdent);
-		usingCursor({
-			text: [
-				'\thell()'
-			],
-			languageId: languageId
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 1, 7, false);
-			assertCursor(viewModel, new Selection(1, 7, 1, 7));
-
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getValue(EndOfLinePreference.CRLF), '\thell(\r\n        \r\n    )');
-		});
-	});
+	}
 
 	test('issue #148256: Pressing Enter creates line with bad indent with insertSpaces: true', () => {
 		usingCursor({
@@ -3998,54 +3676,36 @@ suite('Editor Controller', () => {
 		});
 	});
 
-	test('Enter honors tabSize and insertSpaces 2', () => {
-		usingCursor({
-			text: [
-				'if (true) {',
-				'    if (true) {'
-			],
-			languageId: indentRulesLanguageId,
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 1, 12, false);
-			assertCursor(viewModel, new Selection(1, 12, 1, 12));
+	const enterHonorsTabSizeCases: [name: string, modelOpts: IRelaxedTextModelCreationOptions | undefined, firstExpected: Selection, secondExpected: Selection][] = [
+		['Enter honors tabSize and insertSpaces 2', undefined, new Selection(2, 5, 2, 5), new Selection(4, 9, 4, 9)],
+		['Enter honors tabSize and insertSpaces 3', { insertSpaces: false }, new Selection(2, 2, 2, 2), new Selection(4, 3, 4, 3)],
+	];
+	for (const [name, modelOpts, firstExpected, secondExpected] of enterHonorsTabSizeCases) {
+		test(name, () => {
+			usingCursor({
+				text: [
+					'if (true) {',
+					'    if (true) {'
+				],
+				languageId: indentRulesLanguageId,
+				modelOpts: modelOpts
+			}, (editor, model, viewModel) => {
+				moveTo(editor, viewModel, 1, 12, false);
+				assertCursor(viewModel, new Selection(1, 12, 1, 12));
 
-			viewModel.type('\n', 'keyboard');
-			model.tokenization.forceTokenization(model.getLineCount());
-			assertCursor(viewModel, new Selection(2, 5, 2, 5));
+				viewModel.type('\n', 'keyboard');
+				model.tokenization.forceTokenization(model.getLineCount());
+				assertCursor(viewModel, firstExpected);
 
-			moveTo(editor, viewModel, 3, 16, false);
-			assertCursor(viewModel, new Selection(3, 16, 3, 16));
+				moveTo(editor, viewModel, 3, 16, false);
+				assertCursor(viewModel, new Selection(3, 16, 3, 16));
 
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getLineContent(3), '    if (true) {');
-			assertCursor(viewModel, new Selection(4, 9, 4, 9));
+				viewModel.type('\n', 'keyboard');
+				assert.strictEqual(model.getLineContent(3), '    if (true) {');
+				assertCursor(viewModel, secondExpected);
+			});
 		});
-	});
-
-	test('Enter honors tabSize and insertSpaces 3', () => {
-		usingCursor({
-			text: [
-				'if (true) {',
-				'    if (true) {'
-			],
-			languageId: indentRulesLanguageId,
-			modelOpts: { insertSpaces: false }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 1, 12, false);
-			assertCursor(viewModel, new Selection(1, 12, 1, 12));
-
-			viewModel.type('\n', 'keyboard');
-			model.tokenization.forceTokenization(model.getLineCount());
-			assertCursor(viewModel, new Selection(2, 2, 2, 2));
-
-			moveTo(editor, viewModel, 3, 16, false);
-			assertCursor(viewModel, new Selection(3, 16, 3, 16));
-
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getLineContent(3), '    if (true) {');
-			assertCursor(viewModel, new Selection(4, 3, 4, 3));
-		});
-	});
+	}
 
 	test('Enter supports intentional indentation', () => {
 		usingCursor({
@@ -4070,118 +3730,55 @@ suite('Editor Controller', () => {
 		});
 	});
 
-	test('Enter should not adjust cursor position when press enter in the middle of a line 1', () => {
-		usingCursor({
-			text: [
-				'if (true) {',
-				'\tif (true) {',
-				'\t\treturn true;',
-				'\t}a}'
-			],
-			languageId: indentRulesLanguageId,
-			modelOpts: { insertSpaces: false }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 3, 9, false);
-			assertCursor(viewModel, new Selection(3, 9, 3, 9));
+	const enterInMiddleOfLineCases: [name: string, text: string[], modelOpts: IRelaxedTextModelCreationOptions | undefined, column: number, expectedSelection: Selection, expectedLine: string][] = [
+		['Enter should not adjust cursor position when press enter in the middle of a line 1', ['if (true) {', '\tif (true) {', '\t\treturn true;', '\t}a}'], { insertSpaces: false }, 9, new Selection(4, 3, 4, 3), '\t\t true;'],
+		['Enter should not adjust cursor position when press enter in the middle of a line 2', ['if (true) {', '\tif (true) {', '\t\treturn true;', '\t}a}'], { insertSpaces: false }, 3, new Selection(4, 3, 4, 3), '\t\treturn true;'],
+		['Enter should not adjust cursor position when press enter in the middle of a line 3', ['if (true) {', '  if (true) {', '    return true;', '  }a}'], undefined, 11, new Selection(4, 5, 4, 5), '     true;'],
+	];
+	for (const [name, text, modelOpts, column, expectedSelection, expectedLine] of enterInMiddleOfLineCases) {
+		test(name, () => {
+			usingCursor({
+				text: text,
+				languageId: indentRulesLanguageId,
+				modelOpts: modelOpts
+			}, (editor, model, viewModel) => {
+				moveTo(editor, viewModel, 3, column, false);
+				assertCursor(viewModel, new Selection(3, column, 3, column));
 
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(4, 3, 4, 3));
-			assert.strictEqual(model.getLineContent(4), '\t\t true;', '001');
+				viewModel.type('\n', 'keyboard');
+				assertCursor(viewModel, expectedSelection);
+				assert.strictEqual(model.getLineContent(4), expectedLine, '001');
+			});
 		});
-	});
+	}
 
-	test('Enter should not adjust cursor position when press enter in the middle of a line 2', () => {
-		usingCursor({
-			text: [
-				'if (true) {',
-				'\tif (true) {',
-				'\t\treturn true;',
-				'\t}a}'
-			],
-			languageId: indentRulesLanguageId,
-			modelOpts: { insertSpaces: false }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 3, 3, false);
-			assertCursor(viewModel, new Selection(3, 3, 3, 3));
+	const enterInLeadingWhitespaceCases: [name: string, text: string[], column: number, expectedSelection: Selection, expectedLine: string][] = [
+		['Enter should adjust cursor position when press enter in the middle of leading whitespaces 1', ['if (true) {', '\tif (true) {', '\t\treturn true;', '\t}a}'], 2, new Selection(4, 2, 4, 2), '\t\treturn true;'],
+		['Enter should adjust cursor position when press enter in the middle of leading whitespaces 2', ['\tif (true) {', '\t\tif (true) {', '\t    \treturn true;', '\t\t}a}'], 4, new Selection(4, 3, 4, 3), '\t\t\treturn true;'],
+	];
+	for (const [name, text, column, expectedSelection, expectedLine] of enterInLeadingWhitespaceCases) {
+		test(name, () => {
+			usingCursor({
+				text: text,
+				languageId: indentRulesLanguageId,
+				modelOpts: { insertSpaces: false }
+			}, (editor, model, viewModel) => {
+				moveTo(editor, viewModel, 3, column, false);
+				assertCursor(viewModel, new Selection(3, column, 3, column));
 
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(4, 3, 4, 3));
-			assert.strictEqual(model.getLineContent(4), '\t\treturn true;', '001');
+				viewModel.type('\n', 'keyboard');
+				assertCursor(viewModel, expectedSelection);
+				assert.strictEqual(model.getLineContent(4), expectedLine, '001');
+
+				moveTo(editor, viewModel, 4, 1, false);
+				assertCursor(viewModel, new Selection(4, 1, 4, 1));
+
+				viewModel.type('\n', 'keyboard');
+				assertCursor(viewModel, new Selection(5, 1, 5, 1));
+				assert.strictEqual(model.getLineContent(5), expectedLine, '002');
+			});
 		});
-	});
-
-	test('Enter should not adjust cursor position when press enter in the middle of a line 3', () => {
-		usingCursor({
-			text: [
-				'if (true) {',
-				'  if (true) {',
-				'    return true;',
-				'  }a}'
-			],
-			languageId: indentRulesLanguageId
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 3, 11, false);
-			assertCursor(viewModel, new Selection(3, 11, 3, 11));
-
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(4, 5, 4, 5));
-			assert.strictEqual(model.getLineContent(4), '     true;', '001');
-		});
-	});
-
-	test('Enter should adjust cursor position when press enter in the middle of leading whitespaces 1', () => {
-		usingCursor({
-			text: [
-				'if (true) {',
-				'\tif (true) {',
-				'\t\treturn true;',
-				'\t}a}'
-			],
-			languageId: indentRulesLanguageId,
-			modelOpts: { insertSpaces: false }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 3, 2, false);
-			assertCursor(viewModel, new Selection(3, 2, 3, 2));
-
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(4, 2, 4, 2));
-			assert.strictEqual(model.getLineContent(4), '\t\treturn true;', '001');
-
-			moveTo(editor, viewModel, 4, 1, false);
-			assertCursor(viewModel, new Selection(4, 1, 4, 1));
-
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(5, 1, 5, 1));
-			assert.strictEqual(model.getLineContent(5), '\t\treturn true;', '002');
-		});
-	});
-
-	test('Enter should adjust cursor position when press enter in the middle of leading whitespaces 2', () => {
-		usingCursor({
-			text: [
-				'\tif (true) {',
-				'\t\tif (true) {',
-				'\t    \treturn true;',
-				'\t\t}a}'
-			],
-			languageId: indentRulesLanguageId,
-			modelOpts: { insertSpaces: false }
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 3, 4, false);
-			assertCursor(viewModel, new Selection(3, 4, 3, 4));
-
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(4, 3, 4, 3));
-			assert.strictEqual(model.getLineContent(4), '\t\t\treturn true;', '001');
-
-			moveTo(editor, viewModel, 4, 1, false);
-			assertCursor(viewModel, new Selection(4, 1, 4, 1));
-
-			viewModel.type('\n', 'keyboard');
-			assertCursor(viewModel, new Selection(5, 1, 5, 1));
-			assert.strictEqual(model.getLineContent(5), '\t\t\treturn true;', '002');
-		});
-	});
+	}
 
 	test('Enter should adjust cursor position when press enter in the middle of leading whitespaces 3', () => {
 		usingCursor({
@@ -4262,51 +3859,34 @@ suite('Editor Controller', () => {
 		});
 	});
 
-	test('issue microsoft/monaco-editor#108 part 1/2: Auto indentation on Enter with selection is half broken', () => {
-		usingCursor({
-			text: [
-				'function baz() {',
-				'\tvar x = 1;',
-				'\t\t\t\t\t\t\treturn x;',
-				'}'
-			],
-			modelOpts: {
-				insertSpaces: false,
-			},
-			languageId: indentRulesLanguageId,
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 3, 8, false);
-			moveTo(editor, viewModel, 2, 12, true);
-			assertCursor(viewModel, new Selection(3, 8, 2, 12));
+	const enterWithSelectionCases: [name: string, fromLineNumber: number, fromColumn: number, toLineNumber: number, toColumn: number][] = [
+		['issue microsoft/monaco-editor#108 part 1/2: Auto indentation on Enter with selection is half broken', 3, 8, 2, 12],
+		['issue microsoft/monaco-editor#108 part 2/2: Auto indentation on Enter with selection is half broken', 2, 12, 3, 8],
+	];
+	for (const [name, fromLineNumber, fromColumn, toLineNumber, toColumn] of enterWithSelectionCases) {
+		test(name, () => {
+			usingCursor({
+				text: [
+					'function baz() {',
+					'\tvar x = 1;',
+					'\t\t\t\t\t\t\treturn x;',
+					'}'
+				],
+				modelOpts: {
+					insertSpaces: false,
+				},
+				languageId: indentRulesLanguageId,
+			}, (editor, model, viewModel) => {
+				moveTo(editor, viewModel, fromLineNumber, fromColumn, false);
+				moveTo(editor, viewModel, toLineNumber, toColumn, true);
+				assertCursor(viewModel, new Selection(fromLineNumber, fromColumn, toLineNumber, toColumn));
 
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getLineContent(3), '\treturn x;');
-			assertCursor(viewModel, new Position(3, 2));
+				viewModel.type('\n', 'keyboard');
+				assert.strictEqual(model.getLineContent(3), '\treturn x;');
+				assertCursor(viewModel, new Position(3, 2));
+			});
 		});
-	});
-
-	test('issue microsoft/monaco-editor#108 part 2/2: Auto indentation on Enter with selection is half broken', () => {
-		usingCursor({
-			text: [
-				'function baz() {',
-				'\tvar x = 1;',
-				'\t\t\t\t\t\t\treturn x;',
-				'}'
-			],
-			modelOpts: {
-				insertSpaces: false,
-			},
-			languageId: indentRulesLanguageId,
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 12, false);
-			moveTo(editor, viewModel, 3, 8, true);
-			assertCursor(viewModel, new Selection(2, 12, 3, 8));
-
-			viewModel.type('\n', 'keyboard');
-			assert.strictEqual(model.getLineContent(3), '\treturn x;');
-			assertCursor(viewModel, new Position(3, 2));
-		});
-	});
+	}
 
 	test('onEnter works if there are no indentation rules', () => {
 		usingCursor({
@@ -4373,107 +3953,38 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	const tabOnWhitespaceOnlyLineCases: [name: string, whitespaceLine: string, column: number, expected: string][] = [
+		['bug #2938 (1): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', '\t', 2, '\t\t\t'],
+		['bug #2938 (2): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', '    ', 1, '\t\t\t'],
+		['bug #2938 (3): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', '\t\t\t', 3, '\t\t\t\t'],
+		['bug #2938 (4): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', '\t\t\t\t', 4, '\t\t\t\t\t'],
+	];
+	for (const [name, whitespaceLine, column, expected] of tabOnWhitespaceOnlyLineCases) {
+		test(name, () => {
+			const model = createTextModel(
+				[
+					'\tfunction baz() {',
+					'\t\tfunction hello() { // something here',
+					'\t\t',
+					whitespaceLine,
+					'\t\t}',
+					'\t}'
+				].join('\n'),
+				indentRulesLanguageId,
+				{
+					insertSpaces: false,
+				}
+			);
 
-	test('bug #2938 (1): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', () => {
-		const model = createTextModel(
-			[
-				'\tfunction baz() {',
-				'\t\tfunction hello() { // something here',
-				'\t\t',
-				'\t',
-				'\t\t}',
-				'\t}'
-			].join('\n'),
-			indentRulesLanguageId,
-			{
-				insertSpaces: false,
-			}
-		);
+			withTestCodeEditor(model, {}, (editor, viewModel) => {
+				moveTo(editor, viewModel, 4, column, false);
+				assertCursor(viewModel, new Selection(4, column, 4, column));
 
-		withTestCodeEditor(model, {}, (editor, viewModel) => {
-			moveTo(editor, viewModel, 4, 2, false);
-			assertCursor(viewModel, new Selection(4, 2, 4, 2));
-
-			editor.runCommand(CoreEditingCommands.Tab, null);
-			assert.strictEqual(model.getLineContent(4), '\t\t\t');
+				editor.runCommand(CoreEditingCommands.Tab, null);
+				assert.strictEqual(model.getLineContent(4), expected);
+			});
 		});
-	});
-
-
-	test('bug #2938 (2): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', () => {
-		const model = createTextModel(
-			[
-				'\tfunction baz() {',
-				'\t\tfunction hello() { // something here',
-				'\t\t',
-				'    ',
-				'\t\t}',
-				'\t}'
-			].join('\n'),
-			indentRulesLanguageId,
-			{
-				insertSpaces: false,
-			}
-		);
-
-		withTestCodeEditor(model, {}, (editor, viewModel) => {
-			moveTo(editor, viewModel, 4, 1, false);
-			assertCursor(viewModel, new Selection(4, 1, 4, 1));
-
-			editor.runCommand(CoreEditingCommands.Tab, null);
-			assert.strictEqual(model.getLineContent(4), '\t\t\t');
-		});
-	});
-
-	test('bug #2938 (3): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', () => {
-		const model = createTextModel(
-			[
-				'\tfunction baz() {',
-				'\t\tfunction hello() { // something here',
-				'\t\t',
-				'\t\t\t',
-				'\t\t}',
-				'\t}'
-			].join('\n'),
-			indentRulesLanguageId,
-			{
-				insertSpaces: false,
-			}
-		);
-
-		withTestCodeEditor(model, {}, (editor, viewModel) => {
-			moveTo(editor, viewModel, 4, 3, false);
-			assertCursor(viewModel, new Selection(4, 3, 4, 3));
-
-			editor.runCommand(CoreEditingCommands.Tab, null);
-			assert.strictEqual(model.getLineContent(4), '\t\t\t\t');
-		});
-	});
-
-	test('bug #2938 (4): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', () => {
-		const model = createTextModel(
-			[
-				'\tfunction baz() {',
-				'\t\tfunction hello() { // something here',
-				'\t\t',
-				'\t\t\t\t',
-				'\t\t}',
-				'\t}'
-			].join('\n'),
-			indentRulesLanguageId,
-			{
-				insertSpaces: false,
-			}
-		);
-
-		withTestCodeEditor(model, {}, (editor, viewModel) => {
-			moveTo(editor, viewModel, 4, 4, false);
-			assertCursor(viewModel, new Selection(4, 4, 4, 4));
-
-			editor.runCommand(CoreEditingCommands.Tab, null);
-			assert.strictEqual(model.getLineContent(4), '\t\t\t\t\t');
-		});
-	});
+	}
 
 	test('bug #31015: When pressing Tab on lines and Enter rules are avail, indent straight to the right spotTab', () => {
 		const onEnterLanguageId = setupOnEnterLanguage(IndentAction.Indent);
@@ -4764,136 +4275,33 @@ suite('Editor Controller', () => {
 		});
 	});
 
-	test('ElectricCharacter - does nothing if no electric char', () => {
+	function testElectricCharacter(text: string[], lineNumber: number, column: number, chr: string, expected: string): void {
 		usingCursor({
-			text: [
-				'  if (a) {',
-				''
-			],
+			text: text,
 			languageId: electricCharLanguageId
 		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 1);
-			viewModel.type('*', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(2), '*');
+			moveTo(editor, viewModel, lineNumber, column);
+			viewModel.type(chr, 'keyboard');
+			assert.deepStrictEqual(model.getLineContent(lineNumber), expected);
 		});
-	});
+	}
 
-	test('ElectricCharacter - indents in order to match bracket', () => {
-		usingCursor({
-			text: [
-				'  if (a) {',
-				''
-			],
-			languageId: electricCharLanguageId
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 1);
-			viewModel.type('}', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(2), '  }');
+	const electricCharacterCases: [name: string, text: string[], lineNumber: number, column: number, chr: string, expected: string][] = [
+		['ElectricCharacter - does nothing if no electric char', ['  if (a) {', ''], 2, 1, '*', '*'],
+		['ElectricCharacter - indents in order to match bracket', ['  if (a) {', ''], 2, 1, '}', '  }'],
+		['ElectricCharacter - unindents in order to match bracket', ['  if (a) {', '    '], 2, 5, '}', '  }'],
+		['ElectricCharacter - matches with correct bracket', ['  if (a) {', '    if (b) {', '    }', '    '], 4, 1, '}', '  }    '],
+		['ElectricCharacter - does nothing if bracket does not match', ['  if (a) {', '    if (b) {', '    }', '  }  '], 4, 6, '}', '  }  }'],
+		['ElectricCharacter - matches bracket even in line with content', ['  if (a) {', '// hello'], 2, 1, '}', '  }// hello'],
+		['ElectricCharacter - is no-op if bracket is lined up', ['  if (a) {', '  '], 2, 3, '}', '  }'],
+		['ElectricCharacter - is no-op if there is non-whitespace text before', ['  if (a) {', 'a'], 2, 2, '}', 'a}'],
+		['ElectricCharacter - is no-op if pairs are all matched before', ['foo(() => {', '  ( 1 + 2 ) ', '})'], 2, 13, '*', '  ( 1 + 2 ) *'],
+	];
+	for (const [name, text, lineNumber, column, chr, expected] of electricCharacterCases) {
+		test(name, () => {
+			testElectricCharacter(text, lineNumber, column, chr, expected);
 		});
-	});
-
-	test('ElectricCharacter - unindents in order to match bracket', () => {
-		usingCursor({
-			text: [
-				'  if (a) {',
-				'    '
-			],
-			languageId: electricCharLanguageId
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 5);
-			viewModel.type('}', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(2), '  }');
-		});
-	});
-
-	test('ElectricCharacter - matches with correct bracket', () => {
-		usingCursor({
-			text: [
-				'  if (a) {',
-				'    if (b) {',
-				'    }',
-				'    '
-			],
-			languageId: electricCharLanguageId
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 4, 1);
-			viewModel.type('}', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(4), '  }    ');
-		});
-	});
-
-	test('ElectricCharacter - does nothing if bracket does not match', () => {
-		usingCursor({
-			text: [
-				'  if (a) {',
-				'    if (b) {',
-				'    }',
-				'  }  '
-			],
-			languageId: electricCharLanguageId
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 4, 6);
-			viewModel.type('}', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(4), '  }  }');
-		});
-	});
-
-	test('ElectricCharacter - matches bracket even in line with content', () => {
-		usingCursor({
-			text: [
-				'  if (a) {',
-				'// hello'
-			],
-			languageId: electricCharLanguageId
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 1);
-			viewModel.type('}', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(2), '  }// hello');
-		});
-	});
-
-	test('ElectricCharacter - is no-op if bracket is lined up', () => {
-		usingCursor({
-			text: [
-				'  if (a) {',
-				'  '
-			],
-			languageId: electricCharLanguageId
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 3);
-			viewModel.type('}', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(2), '  }');
-		});
-	});
-
-	test('ElectricCharacter - is no-op if there is non-whitespace text before', () => {
-		usingCursor({
-			text: [
-				'  if (a) {',
-				'a'
-			],
-			languageId: electricCharLanguageId
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 2);
-			viewModel.type('}', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(2), 'a}');
-		});
-	});
-
-	test('ElectricCharacter - is no-op if pairs are all matched before', () => {
-		usingCursor({
-			text: [
-				'foo(() => {',
-				'  ( 1 + 2 ) ',
-				'})'
-			],
-			languageId: electricCharLanguageId
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 13);
-			viewModel.type('*', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(2), '  ( 1 + 2 ) *');
-		});
-	});
+	}
 
 	test('ElectricCharacter - is no-op if matching bracket is on the same line', () => {
 		usingCursor({
@@ -4914,48 +4322,16 @@ suite('Editor Controller', () => {
 		});
 	});
 
-	test('ElectricCharacter - is no-op if the line has other content', () => {
-		usingCursor({
-			text: [
-				'Math.max(',
-				'\t2',
-				'\t3'
-			],
-			languageId: electricCharLanguageId
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 3, 3);
-			viewModel.type(')', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(3), '\t3)');
+	const moreElectricCharacterCases: [name: string, text: string[], lineNumber: number, column: number, chr: string, expected: string][] = [
+		['ElectricCharacter - is no-op if the line has other content', ['Math.max(', '\t2', '\t3'], 3, 3, ')', '\t3)'],
+		['ElectricCharacter - appends text', ['  if (a) {', '/*'], 2, 3, '*', '/** */'],
+		['ElectricCharacter - appends text 2', ['  if (a) {', '  /*'], 2, 5, '*', '  /** */'],
+	];
+	for (const [name, text, lineNumber, column, chr, expected] of moreElectricCharacterCases) {
+		test(name, () => {
+			testElectricCharacter(text, lineNumber, column, chr, expected);
 		});
-	});
-
-	test('ElectricCharacter - appends text', () => {
-		usingCursor({
-			text: [
-				'  if (a) {',
-				'/*'
-			],
-			languageId: electricCharLanguageId
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 3);
-			viewModel.type('*', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(2), '/** */');
-		});
-	});
-
-	test('ElectricCharacter - appends text 2', () => {
-		usingCursor({
-			text: [
-				'  if (a) {',
-				'  /*'
-			],
-			languageId: electricCharLanguageId
-		}, (editor, model, viewModel) => {
-			moveTo(editor, viewModel, 2, 5);
-			viewModel.type('*', 'keyboard');
-			assert.deepStrictEqual(model.getLineContent(2), '  /** */');
-		});
-	});
+	}
 
 	test('ElectricCharacter - issue #23711: Replacing selected text with )]} fails to delete old text with backwards-dragged selection', () => {
 		usingCursor({
@@ -5386,6 +4762,203 @@ suite('Editor Controller', () => {
 			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
 			viewModel.type('*', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), '/** */');
+		});
+	});
+
+	test('issue #338693: undo after multi-character autoclose first removes only the auto-closed characters', () => {
+		usingCursor({
+			text: [
+				'begi begi',
+			],
+			languageId: autoClosingLanguageId
+		}, (editor, model, viewModel) => {
+
+			const states: [string, string[]][] = [];
+			const recordState = () => states.push([model.getLineContent(1), viewModel.getSelections().map(s => s.toString())]);
+
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5), new Selection(1, 10, 1, 10)]);
+			viewModel.type('n', 'keyboard');
+			recordState();
+			editor.runCommand(CoreEditingCommands.Undo, null);
+			recordState();
+			editor.runCommand(CoreEditingCommands.Undo, null);
+			recordState();
+
+			assert.deepStrictEqual(states, [
+				['beginend beginend', ['[1,6 -> 1,6]', '[1,15 -> 1,15]']],
+				['begin begin', ['[1,6 -> 1,6]', '[1,12 -> 1,12]']],
+				['begi begi', ['[1,5 -> 1,5]', '[1,10 -> 1,10]']],
+			]);
+		});
+	});
+
+	test('issue #338693: multi-character autoclose does not insert an orphan close when a listener reentrantly removes the typed character', () => {
+		usingCursor({
+			text: [
+				'begi',
+			],
+			languageId: autoClosingLanguageId
+		}, (editor, model, viewModel) => {
+
+			let isFirst = true;
+			disposables.add(model.onDidChangeContent(() => {
+				if (isFirst) {
+					isFirst = false;
+					model.applyEdits([{ range: new Range(1, 5, 1, 6), text: '' }]);
+				}
+			}));
+
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.type('n', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'begi');
+		});
+	});
+
+	test('issue #338693: multi-character autoclose does not use stale selections after a reentrant edit', () => {
+		usingCursor({
+			text: [
+				'begi',
+			],
+			languageId: autoClosingLanguageId
+		}, (editor, model, viewModel) => {
+
+			let isFirst = true;
+			disposables.add(model.onDidChangeContent(() => {
+				if (isFirst) {
+					isFirst = false;
+					model.applyEdits([{ range: new Range(1, 1, 1, 1), text: 'begin\n' }]);
+				}
+			}));
+
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.type('n', 'keyboard');
+			assert.strictEqual(model.getValue(), 'begin\nbegin');
+		});
+	});
+
+	test('issue #338693: undo after multi-character autoclose with auto-indentation first removes only the auto-closed characters', () => {
+		const languageId = 'autoClosingWithIndentRulesLanguage';
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			autoClosingPairs: [{ open: 'begin', close: 'end' }],
+			indentationRules: {
+				increaseIndentPattern: /^\s*procedure\b/,
+				decreaseIndentPattern: /^\s*begin\b/
+			}
+		}));
+		usingCursor({
+			text: [
+				'\tfoo',
+				'\tbegi',
+			],
+			languageId,
+			editorOpts: { autoIndent: 'full' }
+		}, (editor, model, viewModel) => {
+
+			const states: [string, string[]][] = [];
+			const recordState = () => states.push([model.getLineContent(2), viewModel.getSelections().map(s => s.toString())]);
+
+			viewModel.setSelections('test', [new Selection(2, 6, 2, 6)]);
+			viewModel.type('n', 'keyboard');
+			recordState();
+			editor.runCommand(CoreEditingCommands.Undo, null);
+			recordState();
+			editor.runCommand(CoreEditingCommands.Undo, null);
+			recordState();
+
+			assert.deepStrictEqual(states, [
+				['beginend', ['[2,6 -> 2,6]']],
+				['begin', ['[2,6 -> 2,6]']],
+				['\tbegi', ['[2,6 -> 2,6]']],
+			]);
+		});
+	});
+
+	test('autoClosingPairs - beforeText', () => {
+		const languageId = 'autoClosingBeforeText';
+
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			autoClosingPairs: [
+				{ open: 'begin', close: 'end', beforeText: /(?:^|\s)begin$/g }
+			]
+		}));
+
+		usingCursor({
+			text: [
+				'begi',
+				'begi'
+			],
+			languageId
+		}, (editor, model, viewModel) => {
+			const results: string[] = [];
+
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5), new Selection(2, 5, 2, 5)]);
+			viewModel.type('n', 'keyboard');
+			results.push(model.getValue());
+
+			model.setValue('prefixbegi');
+			viewModel.setSelections('test', [new Selection(1, 11, 1, 11)]);
+			viewModel.type('n', 'keyboard');
+			results.push(model.getValue());
+
+			model.setValue('prefix begi');
+			viewModel.setSelections('test', [new Selection(1, 12, 1, 12)]);
+			viewModel.type('n', 'keyboard');
+			results.push(model.getValue());
+
+			assert.deepStrictEqual(results, [
+				'beginend\nbeginend',
+				'prefixbegin',
+				'prefix beginend'
+			]);
+		});
+	});
+
+	test('autoClosingPairs - beforeText falls back to a shorter pair', () => {
+		const languageId = 'autoClosingBeforeTextFallback';
+
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			autoClosingPairs: [
+				{ open: 'begin', close: 'end', beforeText: /(?:^|\s)begin$/ },
+				{ open: 'n', close: ']' }
+			]
+		}));
+
+		usingCursor({
+			text: ['prefixbegi'],
+			languageId
+		}, (editor, model, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 11, 1, 11)]);
+			viewModel.type('n', 'keyboard');
+
+			assert.strictEqual(model.getValue(), 'prefixbegin]');
+		});
+	});
+
+	test('autoClosingPairs - beforeText falls back to a shorter pair after composition', () => {
+		const languageId = 'autoClosingBeforeTextCompositionFallback';
+
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			autoClosingPairs: [
+				{ open: 'begin', close: 'end', beforeText: /(?:^|\s)begin$/ },
+				{ open: 'n', close: ']' }
+			]
+		}));
+
+		usingCursor({
+			text: ['prefixbegi'],
+			languageId
+		}, (editor, model, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 11, 1, 11)]);
+			viewModel.startComposition();
+			viewModel.type('n', 'keyboard');
+			viewModel.compositionType('n', 1, 0, 0, 'keyboard');
+			viewModel.endComposition('keyboard');
+
+			assert.strictEqual(model.getValue(), 'prefixbegin]');
 		});
 	});
 
@@ -6353,67 +5926,42 @@ suite('Undo stops', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('there is an undo stop between typing and deleting left', () => {
-		const model = createTextModel(
-			[
-				'A  line',
-				'Another line',
-			].join('\n')
-		);
+	const typingAndDeletingCases: [name: string, deleteCommand: typeof CoreEditingCommands.DeleteLeft, expectedLine: string, expectedSelection: Selection][] = [
+		['there is an undo stop between typing and deleting left', CoreEditingCommands.DeleteLeft, 'A fir line', new Selection(1, 6, 1, 6)],
+		['there is an undo stop between typing and deleting right', CoreEditingCommands.DeleteRight, 'A firstine', new Selection(1, 8, 1, 8)],
+	];
+	for (const [name, deleteCommand, expectedLine, expectedSelection] of typingAndDeletingCases) {
+		test(name, () => {
+			const model = createTextModel(
+				[
+					'A  line',
+					'Another line',
+				].join('\n')
+			);
 
-		withTestCodeEditor(model, {}, (editor, viewModel) => {
-			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
-			viewModel.type('first', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'A first line');
-			assertCursor(viewModel, new Selection(1, 8, 1, 8));
+			withTestCodeEditor(model, {}, (editor, viewModel) => {
+				viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
+				viewModel.type('first', 'keyboard');
+				assert.strictEqual(model.getLineContent(1), 'A first line');
+				assertCursor(viewModel, new Selection(1, 8, 1, 8));
 
-			editor.runCommand(CoreEditingCommands.DeleteLeft, null);
-			editor.runCommand(CoreEditingCommands.DeleteLeft, null);
-			assert.strictEqual(model.getLineContent(1), 'A fir line');
-			assertCursor(viewModel, new Selection(1, 6, 1, 6));
+				editor.runCommand(deleteCommand, null);
+				editor.runCommand(deleteCommand, null);
+				assert.strictEqual(model.getLineContent(1), expectedLine);
+				assertCursor(viewModel, expectedSelection);
 
-			editor.runCommand(CoreEditingCommands.Undo, null);
-			assert.strictEqual(model.getLineContent(1), 'A first line');
-			assertCursor(viewModel, new Selection(1, 8, 1, 8));
+				editor.runCommand(CoreEditingCommands.Undo, null);
+				assert.strictEqual(model.getLineContent(1), 'A first line');
+				assertCursor(viewModel, new Selection(1, 8, 1, 8));
 
-			editor.runCommand(CoreEditingCommands.Undo, null);
-			assert.strictEqual(model.getLineContent(1), 'A  line');
-			assertCursor(viewModel, new Selection(1, 3, 1, 3));
+				editor.runCommand(CoreEditingCommands.Undo, null);
+				assert.strictEqual(model.getLineContent(1), 'A  line');
+				assertCursor(viewModel, new Selection(1, 3, 1, 3));
+			});
+
+			model.dispose();
 		});
-
-		model.dispose();
-	});
-
-	test('there is an undo stop between typing and deleting right', () => {
-		const model = createTextModel(
-			[
-				'A  line',
-				'Another line',
-			].join('\n')
-		);
-
-		withTestCodeEditor(model, {}, (editor, viewModel) => {
-			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
-			viewModel.type('first', 'keyboard');
-			assert.strictEqual(model.getLineContent(1), 'A first line');
-			assertCursor(viewModel, new Selection(1, 8, 1, 8));
-
-			editor.runCommand(CoreEditingCommands.DeleteRight, null);
-			editor.runCommand(CoreEditingCommands.DeleteRight, null);
-			assert.strictEqual(model.getLineContent(1), 'A firstine');
-			assertCursor(viewModel, new Selection(1, 8, 1, 8));
-
-			editor.runCommand(CoreEditingCommands.Undo, null);
-			assert.strictEqual(model.getLineContent(1), 'A first line');
-			assertCursor(viewModel, new Selection(1, 8, 1, 8));
-
-			editor.runCommand(CoreEditingCommands.Undo, null);
-			assert.strictEqual(model.getLineContent(1), 'A  line');
-			assertCursor(viewModel, new Selection(1, 3, 1, 3));
-		});
-
-		model.dispose();
-	});
+	}
 
 	test('there is an undo stop between deleting left and typing', () => {
 		const model = createTextModel(

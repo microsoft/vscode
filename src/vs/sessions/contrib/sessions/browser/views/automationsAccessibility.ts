@@ -10,15 +10,20 @@ import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationCatalogueState, type IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { AutomationCatalogueState, type AutomationHistoryState, type IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { automationTriggerSummary } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AutomationsCustomViewFocusContext } from '../../../../common/contextkeys.js';
+import { SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { formatUnavailableAutomationsMessage } from './automationCataloguePresentation.js';
+import { formatUnavailableAutomationsMessage, getAutomationOwnershipGroups } from './automationCataloguePresentation.js';
+import { automationRunWithLocalProgress } from './automationRunProgress.js';
 
 class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.Help;
@@ -37,7 +42,8 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const pluginTemplatesVisible = templates.some(template => !!template.source);
 		const content = [
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
-			localize('automationsCustomView.help.authority', "Automations run on their selected Agent Host, not in this window. Creation and changes require a connected Agent Host that supports automations. Run now requests execution from that host; a disconnected or unsupported host never falls back to local execution. To use another host, duplicate the automation. The original history stays with its host, and an enabled original keeps scheduling until you disable it."),
+			localize('automationsCustomView.help.disabled', "Disabled automations are grouped above templates in the Disabled automations section, which starts collapsed. Press Enter or Space on its heading to expand or collapse it. The expansion state is remembered on this machine. Run history and the Accessible View still include disabled automations."),
+			localize('automationsCustomView.help.authority', "Automations run on their selected provider, not in this window. Creation and changes require an available provider that supports automations. Run now requests execution from that provider; a disconnected or unsupported provider never falls back to local execution. To use another provider, duplicate the automation. The original history stays with its provider, and an enabled original keeps scheduling until you disable it."),
 			...(builtInTemplatesVisible ? [
 				hasSavedAutomations
 					? localize('automationsCustomView.help.builtInTemplatesCollapsed', "The Built-in Templates section is collapsed by default because saved automations exist. Press Enter or Space on its disclosure control to expand it.")
@@ -46,11 +52,22 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 			...(pluginTemplatesVisible ? [
 				localize('automationsCustomView.help.pluginTemplates', "The Templates from Plugins section is available whenever enabled plugins provide templates. Press Enter or Space on its disclosure control to expand or collapse it. A blue marker indicates templates added since the section was last expanded. Plugin templates start disabled."),
 			] : []),
-			localize('automationsCustomView.help.sharing', "Use Import Automation in the view header, or drop one .automation.md file anywhere in the view, to review a shared Automation blueprint. Imported Automations start disabled. Open a saved Automation's context menu and choose Export to save a portable blueprint."),
-			localize('automationsCustomView.help.cards', "For saved automations, Tab to a card's Edit control and action buttons. Use Left Arrow and Right Arrow to move between Run now and Delete. Press Enter or Space to activate a control. Edit, or clicking anywhere else on the card, opens the automation dialog. Open a card's context menu{0} (for example Shift+F10). Duplicate opens a prefilled New automation dialog, Disable prevents scheduled runs, and Delete asks for confirmation. Run now starts a session immediately.", '<keybinding:editor.action.showContextMenu>'),
+			localize('automationsCustomView.help.sharing', "Use Import Automation in the view header, or drop one .automation.md file anywhere in the view, to review a shared Automation blueprint. Imported Automations start disabled. For Agent Host automations, open the context menu and choose Export to save a portable blueprint. Cloud automations do not currently offer Export."),
+			localize('automationsCustomView.help.cards2', "For saved automations, Tab to a card's Edit control and action buttons. Use Left Arrow and Right Arrow to move between Run now and More Actions. Press Enter or Space to activate a control. Edit, or clicking anywhere else on the card, opens the automation dialog. More Actions opens the automation menu. Duplicate opens a prefilled New automation dialog for portable schedules and is unavailable for event-triggered automations. Disable prevents future runs, and Delete asks for confirmation. When the provider supports it, clear Delete Run History in that confirmation to keep previous runs. Run now requests execution from the selected provider when available."),
+			localize('automationsCustomView.help.externalDefinition', "For cloud automation cards, More Actions also offers Open on GitHub to open the automation's details in your browser."),
+			localize('automationsCustomView.help.ownership', "Saved cards are grouped under collapsible Your automations and Shared automations sections. Press Enter or Space on a section header to expand or collapse it. The Shared automations info icon explains who can view and edit those automations. Cloud creation has an Owner control after Tools. Use the arrow keys to choose Only me or Repository; Only me is the default. Ownership cannot be changed when editing. Repository readers can view Shared automations; writers can manage them. A failed save leaves the dialog open with the server's explanation above Create."),
 			localize('automationsCustomView.help.dialog', "In the automation dialog, Target controls are above the prompt. Agent and model pickers are inside the prompt input, and execution mode and permission controls are below it. Use Tab and Shift+Tab to move between fields and pickers. When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required."),
-			localize('automationsCustomView.help.history', "Run history is grouped by date. While a run is waiting for its session, a lightweight row shows the automation name with a Working... description. Once the session is available, use Up Arrow and Down Arrow to navigate the Sessions list, Enter to open, and Tab to reach Stop, the configured Archive or Mark as Done action, or Delete when available. Open a row's context menu, for example with Shift+F10, to rename it, change its active or read state, or delete it. Delete permanently deletes the session and removes it from run history after confirmation."),
-			localize('automationsCustomView.help.read', "Completed and failed runs that have not been opened are announced as unread. Use Mark all as read to clear all available unread runs."),
+			localize('automationsCustomView.help.weekdays', "For Agent Host automations, choose Weekdays to run Monday through Friday at the same local time, without choosing a day of the week. Weekdays is not available for Cloud automations."),
+			localize('automationsCustomView.help.cron', "For Agent Host automations, choose cron to enter minute, hour, day of month, month, and day of week. Cron accepts wildcards, lists, ranges, and steps on wildcards or ranges only. For example, 20-59/15 selects minutes 20, 35, and 50 of each hour; shorthand such as 20/15 is not supported. A line below the schedule explains the current valid expression and updates while editing. Day of month and day of week are alternatives when both are restricted. Tab moves between the five parts. Focusing a part shows and describes its allowed values. Escape dismisses that guidance without leaving the field. Up and Down step simple numeric values. Select All then Copy copies the entire expression; pasting a full expression fills the parts. Blank parts mean every value. Entirely empty input has no error, but cannot be saved. Cron is not available for Cloud automations."),
+			localize('automationsCustomView.help.events', "For Cloud automations, the Trigger picker combines Weekly, Daily, Hourly, Issue, Pull Request, and Manual in one control. Issue and Pull Request are offered when their events are available to your account. Scheduled triggers show time and day controls as applicable. Event appears to the right of Trigger, in the same position as Time for a schedule. Issue uses one Event. For Pull Request, activate the Event button to open a searchable checklist. Use Up Arrow and Down Arrow to navigate and Space to select events; at least one stays selected. Enter or Escape closes the checklist. Required event fields appear directly below the Trigger and Event row. Create remains unavailable until they are completed, and its hover explains what is missing. Expand Advanced below them to configure optional filters and Include activity from users without write access to this repository. When selected events support the same filter, such as Query or Paths, it appears once and applies to each of those events. Labels, assignees and changed paths accept comma-separated values; paths use gitignore patterns. Query filters the target and Comment text filters a comment's body. Review states are checkboxes. Include activity from users without write access to this repository starts on; turn it off to require write access to trigger the automation. Unsupported or mixed triggers are read-only with Open on GitHub; editing other fields keeps the saved triggers. Event automations run from GitHub events rather than Run now."),
+			localize('automationsCustomView.help.eventsRepositorySettings', "When repository settings disallow activity from users without write access, that option is turned off and unavailable, with the explanation Disabled by your repository settings."),
+			...(accessor.get(ISessionsManagementService).getAllProviderSessionTypes().some(type => automationService.getProviderConfiguration?.(type.providerId)?.sessionTypes.includes(type.sessionType.id)) ? [
+				localize('automationsCustomView.help.cloudDialog', "When creating an automation and cloud automations are enabled, a Run in the cloud switch, described as Preview, follows the Name field; press Space to turn it on or off. If cloud automations cannot be reached when you turn it on, the switch turns back off and a message asks you to try again in a few moments. When it is on, Cloud is the agent and the workspace picker lists Git-backed workspaces. Only GitHub repositories that support cloud automation management can be selected; unavailable repositories are announced with the reason. Choose Add repository to search for a repository or paste its URL. A matching local folder is retained. If cloud automations become unavailable while the switch is on, Cloud stays selected and Create is unavailable until they return or, for a new automation, you turn the switch off. Turning the switch off restores the previous local workspace and agent, or otherwise selects Copilot when it is available. Cloud models are configured in the prompt section. In the Tools section, the button shows All tools allowed or the number of tools allowed. Activate it to open a searchable checklist of the tools GitHub offers, grouped by category. Categories start collapsed; use Right Arrow to expand one. Press Space to toggle a tool or category. Each change applies immediately to the dialog; Enter or Escape closes the checklist without discarding changes. Save or Create saves the automation. New automations start with every listed tool selected. While the list loads the button is unavailable, and if it cannot be loaded a Retry button appears. Trigger follows the tools controls. Scheduled triggers display local time; GitHub stores a fixed UTC schedule, so the local run time may shift when daylight saving time changes. When editing a cloud automation, the switch and workspace picker are disabled because changing the repository or provider requires duplication. Editing preserves enabled state; enable or disable an automation from its card."),
+			] : []),
+			localize('automationsCustomView.help.history', "Run history is grouped by date. While a run is waiting for its session, a lightweight row shows the automation name with a Working... description. Once the session is available, use Up Arrow and Down Arrow to navigate the Sessions list, Enter to open, and Tab to reach Stop, the configured Archive or Mark as Done action, or Delete when available. Open a row's context menu, for example with Shift+F10, to rename it, change its active or read state, or delete it. Delete permanently deletes the session and removes it from run history after confirmation. When a removed automation retains history, the context menu also offers Delete Run History. The row says Deleting... while deletion is in progress. If deletion is interrupted, it offers Retry Delete Run History."),
+			localize('automationsCustomView.help.sessionsList', "Run sessions are listed here rather than in the Sessions list. Open a run's context menu and choose Show in Sessions List to also list its session there, or Hide from Sessions List to list it only here again, even after later messages. The {0} setting controls when run sessions automatically also appear in the Sessions list: always, after you send a message in one, or never.", SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING),
+			localize('automationsCustomView.help.cloudHistory', "Cloud history shows the repository, status, and last updated time even when no local session is available. When a cloud run has a session on GitHub that is not yet loaded in VS Code, click its row, or Tab to its title and press Enter or Space, to open that exact session. Tab to a row's toolbar and use Left Arrow and Right Arrow to reach Open on GitHub and Stop when supported. Archive or Mark as Done is unavailable until the cloud run and its conversation have finished. It changes local session state, not the task on GitHub. Stop requests remote cancellation; the status changes when GitHub reports it. Follow-up requests show conversation progress and restart bounded history discovery. Use Refresh in the view header to reload definitions and history. Active cloud runs refresh every 15 seconds without moving the history rows; idle definitions do not poll."),
+			localize('automationsCustomView.help.read', "Completed and failed runs that have not been opened are announced as unread. Use Mark all as read in the history header, or focus the Automations sidebar shortcut and press Shift+F10 to choose Mark All as Read from its context menu. This marks available completed and failed runs as read, except cloud runs with an active follow-up."),
 			localize('automationsCustomView.help.accessibleView', "Use Open Accessible View to read the current automations and run history as text."),
 		].join('\n');
 		return new AccessibleContentProvider(
@@ -73,6 +90,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 		const automationService = accessor.get(IAutomationService);
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const chatService = accessor.get(IChatService);
 		const agentPluginService = accessor.get(IAgentPluginService);
 		const restoreFocus = createFocusRestorer(layoutService);
 		return new AccessibleContentProvider(
@@ -83,11 +101,18 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 				automationService.runs.get().filter(run =>
 					run.status === 'pending'
 					|| run.status === 'running'
+					|| !!run.externalResource
 					|| (!!run.sessionResource && !!sessionsManagementService.getSession(run.sessionResource))
+					|| automationService.getAutomationHistoryState?.(run.automationId) !== undefined
 				),
 				automationService.catalogueState.get(),
 				readAutomationTemplates(agentPluginService.plugins.get()),
 				automationService.unavailableProviders.get(),
+				automationService.historyState?.get(),
+				chatService.chatModels.get(),
+				id => automationService.getAutomationHistoryName?.(id),
+				id => automationService.getAutomationHistoryState?.(id),
+				id => automationService.canDeleteAutomationHistory?.(id) === true,
 			),
 			restoreFocus,
 			AccessibilityVerbositySettingId.Automations,
@@ -106,18 +131,32 @@ function createFocusRestorer(layoutService: IAgentWorkbenchLayoutService): () =>
 	};
 }
 
-export function buildAutomationsAccessibleContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], catalogueState: AutomationCatalogueState, templates: readonly IAutomationTemplate[] = readAutomationTemplates([]), unavailableProviders: readonly IAutomationProviderDescriptor[] = []): string {
+export function buildAutomationsAccessibleContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], catalogueState: AutomationCatalogueState, templates: readonly IAutomationTemplate[] = readAutomationTemplates([]), unavailableProviders: readonly IAutomationProviderDescriptor[] = [], historyState?: AutomationCatalogueState, chatModels: Iterable<IChatModel> = [], historyName?: (id: string) => string | undefined, retainedHistoryState?: (id: string) => AutomationHistoryState | undefined, canDeleteRetainedHistory?: (id: string) => boolean): string {
 	const lines = [localize('automationsAccessibleView.title', "Automations")];
 	const builtInTemplates = templates.filter(template => !template.source);
 	const pluginTemplates = templates.filter(template => !!template.source);
 	if (automations.length > 0) {
-		for (const automation of automations) {
-			lines.push('');
-			lines.push(automation.enabled
-				? localize('automationsAccessibleView.automation', "{0}, enabled", automation.name)
-				: localize('automationsAccessibleView.automationDisabled', "{0}, disabled", automation.name));
-			lines.push(localize('automationsAccessibleView.schedule', "Schedule: {0}", formatSchedule(automation.schedule)));
-			lines.push(localize('automationsAccessibleView.prompt', "Prompt: {0}", automation.prompt));
+		for (const group of getAutomationOwnershipGroups(automations)) {
+			lines.push('', group.label);
+			if (group.description) {
+				lines.push(group.description);
+			}
+			if (group.automations.length === 0) {
+				lines.push(localize('automationsAccessibleView.emptyOwnershipGroup', "No automations."));
+			}
+			for (const automation of group.automations) {
+				lines.push('');
+				lines.push(automation.enabled
+					? localize('automationsAccessibleView.automation', "{0}, enabled", automation.name)
+					: localize('automationsAccessibleView.automationDisabled', "{0}, disabled", automation.name));
+				const triggers = automationTriggerSummary(automation.cloudTrigger?.triggers ?? {});
+				lines.push(triggers ? localize('automationsAccessibleView.triggers', "Triggers: {0}", triggers)
+					: localize('automationsAccessibleView.schedule', "Schedule: {0}", formatSchedule(automation.schedule)));
+				lines.push(localize('automationsAccessibleView.prompt', "Prompt: {0}", automation.prompt));
+				if (automation.targetDisplay) {
+					lines.push(automation.targetDisplay.label);
+				}
+			}
 		}
 		if (catalogueState === 'loading') {
 			lines.push('');
@@ -161,20 +200,47 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 
 	lines.push('');
 	lines.push(localize('automationsAccessibleView.history', "Run history"));
+	if (historyState === 'loading') {
+		lines.push(localize('automationsAccessibleView.historyLoading', "Refreshing run history."));
+	} else if (historyState === 'error') {
+		lines.push(localize('automationsAccessibleView.historyError', "Run history could not be refreshed. Use Refresh to try again."));
+	}
 	if (runs.length === 0) {
-		lines.push(localize('automationsAccessibleView.noRuns', "No runs."));
+		if (catalogueState === 'ready' && (historyState === undefined || historyState === 'ready') && automations.length > 0) {
+			lines.push(localize('automationsAccessibleView.noRuns', "No runs."));
+		}
 	} else {
 		const automationNames = new Map(automations.map(automation => [automation.id, automation.name]));
-		for (const run of runs) {
+		const announcedHistoryOwners = new Set<string>();
+		for (const historyRun of runs) {
+			const run = automationRunWithLocalProgress(historyRun, chatModels);
+			const name = automationNames.get(run.automationId) ?? historyName?.(run.automationId) ?? localize('automationsAccessibleView.unknown', "Unknown automation");
 			lines.push(localize(
 				'automationsAccessibleView.run',
 				"{0}, {1}, started {2}",
-				automationNames.get(run.automationId) ?? localize('automationsAccessibleView.unknown', "Unknown automation"),
+				name,
 				formatRunStatus(run),
 				new Date(run.startedAt).toLocaleString(),
 			));
 			if (run.errorMessage) {
 				lines.push(localize('automationsAccessibleView.runError', "Error: {0}", run.errorMessage));
+			}
+			if (run.externalResource) {
+				lines.push(localize('automationsAccessibleView.externalRun', "Open on GitHub: {0}", run.externalResource.toString()));
+			}
+			const retainedState = retainedHistoryState?.(run.automationId);
+			if (retainedState && !announcedHistoryOwners.has(run.automationId)) {
+				announcedHistoryOwners.add(run.automationId);
+				const available = canDeleteRetainedHistory?.(run.automationId) === true;
+				lines.push(retainedState === 'deleting'
+					? localize('automationsAccessibleView.historyDeleting', "Deleting run history for {0}.", name)
+					: retainedState === 'interrupted'
+						? available
+							? localize('automationsAccessibleView.historyDeleteRetry', "Run history deletion for {0} was interrupted. Use the run context menu to retry.", name)
+							: localize('automationsAccessibleView.historyDeleteRetryUnavailable', "Run history deletion for {0} was interrupted. Retry is currently unavailable.", name)
+						: available
+							? localize('automationsAccessibleView.historyRetained', "Run history for {0} is retained. Use the run context menu to delete it.", name)
+							: localize('automationsAccessibleView.historyRetainedUnavailable', "Run history for {0} is retained. Deletion is currently unavailable.", name));
 			}
 		}
 	}
@@ -182,19 +248,27 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 }
 
 function formatSchedule(schedule: IAutomationSchedule): string {
+	const localSchedule = automationScheduleToLocal(schedule);
+	const time = formatTime(localSchedule.scheduleHour, localSchedule.scheduleMinute);
 	switch (schedule.interval) {
+		case 'custom':
+			return localize('automationsAccessibleView.custom', "Custom schedule");
 		case 'manual':
 			return localize('automationsAccessibleView.manual', "Manual");
 		case 'hourly':
 			return localize('automationsAccessibleView.hourly', "Hourly");
+		case 'cron':
+			return localize('automationsAccessibleView.cron', "Cron: {0}", schedule.cronExpression);
 		case 'daily':
-			return localize('automationsAccessibleView.daily', "Daily at {0}", formatTime(schedule.scheduleHour, schedule.scheduleMinute));
+			return localize('automationsAccessibleView.daily', "Daily at {0}", time);
+		case 'weekdays':
+			return localize('automationsAccessibleView.weekdays', "Weekdays at {0}", time);
 		case 'weekly':
 			return localize(
 				'automationsAccessibleView.weekly',
 				"{0} at {1}",
-				DAYS_OF_WEEK[((schedule.scheduleDay % 7) + 7) % 7],
-				formatTime(schedule.scheduleHour, schedule.scheduleMinute),
+				DAYS_OF_WEEK[((localSchedule.scheduleDay % 7) + 7) % 7],
+				time,
 			);
 	}
 }
@@ -205,6 +279,12 @@ function formatTime(hour: number, minute: number): string {
 }
 
 function formatRunStatus(run: IAutomationRun): string {
+	if (run.statusDescription) {
+		return run.statusDescription;
+	}
+	if (run.needsInput) {
+		return localize('automationsAccessibleView.needsInput', "Needs input");
+	}
 	switch (run.status) {
 		case 'pending':
 			return localize('automationsAccessibleView.pending', "Pending");

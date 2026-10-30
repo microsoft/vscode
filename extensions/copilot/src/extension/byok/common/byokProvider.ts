@@ -72,6 +72,8 @@ export interface BYOKModelCapabilities {
 	modelOptions?: IChatModelRequestOptions;
 	supportedEndpoints?: ModelSupportedEndpoint[];
 	zeroDataRetentionEnabled?: boolean;
+	/** Whether the Responses API server retains prior responses for `previous_response_id` chaining. */
+	statefulResponses?: boolean;
 	supportsReasoningEffort?: string[];
 	defaultReasoningEffort?: string;
 	/**
@@ -175,6 +177,7 @@ export function resolveModelInfo(modelId: string, providerName: string, knownMod
 		model_picker_enabled: true,
 		supported_endpoints: knownModelInfo?.supportedEndpoints,
 		zeroDataRetentionEnabled: knownModelInfo?.zeroDataRetentionEnabled,
+		statefulResponses: knownModelInfo?.statefulResponses,
 		modelOptions: knownModelInfo?.modelOptions,
 		reasoningEffortFormat: knownModelInfo?.reasoningEffortFormat
 	};

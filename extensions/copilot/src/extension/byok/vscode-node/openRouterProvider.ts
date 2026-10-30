@@ -141,10 +141,10 @@ export class OpenRouterLMProvider extends AbstractOpenAICompatibleLMProvider {
 /**
  * Checks whether an OpenRouter model ID refers to an Anthropic model.
  * OpenRouter model IDs follow the format `provider/model-name`, e.g.
- * `anthropic/claude-sonnet-4` or `anthropic/claude-opus-4`.
+ * `anthropic/claude-sonnet-4`, or aliases such as `~anthropic/claude-sonnet-latest`.
  */
 function isAnthropicModelId(modelId: string): boolean {
-	return modelId.startsWith('anthropic/');
+	return modelId.includes('anthropic/');
 }
 
 /**

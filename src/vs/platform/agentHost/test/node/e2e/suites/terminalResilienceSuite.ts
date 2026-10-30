@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { existsSync, mkdtempSync, readFileSync, realpathSync, statSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, statSync, writeFileSync } from 'fs';
 import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
@@ -19,6 +19,7 @@ import { ROOT_STATE_URI, type TerminalState } from '../../../../common/state/ses
 import { TerminalClaimKind } from '../../../../common/state/protocol/channels-terminal/state.js';
 import { terminalText } from '../harness/agentHostE2ETestHarness.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const { Terminal }: Pick<typeof import('@xterm/headless'), 'Terminal'> = createRequire(import.meta.url)('@xterm/headless');
 
@@ -52,7 +53,7 @@ export function defineTerminalResilienceTests(context: IAgentHostE2ETestContext)
 		const terminals: { uri: string; workspace: string }[] = [];
 		try {
 			for (let i = 0; i < count; i++) {
-				const workspace = realpathSync(mkdtempSync(join(tmpdir(), 'ahp-terminal-resilience-')));
+				const workspace = createTestDirectory(join(tmpdir(), 'ahp-terminal-resilience-'));
 				context.tempDirs.push(workspace);
 				const uri = URI.from({ scheme: 'agenthost-terminal', authority: 'e2e', path: `/${generateUuid()}` }).toString();
 				await context.client.call('createTerminal', {

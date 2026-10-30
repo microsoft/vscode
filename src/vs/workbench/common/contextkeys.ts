@@ -113,6 +113,7 @@ export const EditorPartMaximizedEditorGroupContext = new RawContextKey<boolean>(
 
 export const EditorPartModalContext = new RawContextKey<boolean>('editorPartModal', false, localize('editorPartModal', "Whether focus is in a modal editor part"));
 export const EditorPartModalVisibleContext = new RawContextKey<boolean>('editorPartModalVisible', false, localize('editorPartModalVisible', "Whether a modal editor part is visible"));
+export const EditorPartModalCanMoveToEditorAreaContext = new RawContextKey<boolean>('editorPartModalCanMoveToEditorArea', true, localize('editorPartModalCanMoveToEditorArea', "Whether the modal editor can move into an editor area"));
 export const EditorPartModalMaximizedContext = new RawContextKey<boolean>('editorPartModalMaximized', false, localize('editorPartModalMaximized', "Whether the modal editor part is maximized"));
 export const EditorPartModalNavigationContext = new RawContextKey<boolean>('editorPartModalNavigation', false, localize('editorPartModalNavigation', "Whether the modal editor part has navigation context"));
 export const EditorPartModalSidebarContext = new RawContextKey<boolean>('editorPartModalSidebar', false, localize('editorPartModalSidebar', "Whether the modal editor part has a sidebar"));
@@ -344,29 +345,37 @@ export class StaticResourceContextKey extends AbstractResourceContextKey { }
 
 //#endregion
 
-export function applyAvailableEditorIds(contextKey: IContextKey<string>, editor: EditorInput | undefined | null, editorResolverService: IEditorResolverService): void {
+export function applyAvailableEditorIds(contextKey: IContextKey<string>, editor: EditorInput | undefined | null, editorResolverService: IEditorResolverService, modelService: IModelService): void {
 	if (!editor) {
 		contextKey.set('');
 		return;
 	}
 
-	const editors = getAvailableEditorIds(editor, editorResolverService);
+	const editors = getAvailableEditorIds(editor, editorResolverService, modelService);
 	contextKey.set(editors.join(','));
 }
 
-function getAvailableEditorIds(editor: EditorInput, editorResolverService: IEditorResolverService): string[] {
-	// Non text editor untitled files cannot be easily serialized between
-	// extensions so instead we disable this context key to prevent common
-	// commands that act on the active editor.
-	if (editor.resource?.scheme === Schemas.untitled && editor.editorId !== DEFAULT_EDITOR_ASSOCIATION.id) {
+/**
+ * Whether the active editor of an untitled file can be switched to another editor type. The
+ * contents of an untitled file can only be handed over to another editor while its text model
+ * still owns them (e.g. in the text editor or a text based custom editor). Other custom editors
+ * take over the contents, which cannot be easily serialized between extensions.
+ */
+export function canSwitchUntitledEditor(editor: EditorInput, modelService: IModelService): boolean {
+	return editor.resource?.scheme !== Schemas.untitled || editor.editorId === DEFAULT_EDITOR_ASSOCIATION.id || !!modelService.getModel(editor.resource);
+}
+
+function getAvailableEditorIds(editor: EditorInput, editorResolverService: IEditorResolverService, modelService: IModelService): string[] {
+	// Disable this context key to prevent common commands that act on the active editor.
+	if (!canSwitchUntitledEditor(editor, modelService)) {
 		return [];
 	}
 
 	// Diff editors. The original and modified resources of a diff editor
 	// *should* be the same, but calculate the set intersection just to be safe.
 	if (isDiffEditorInput(editor)) {
-		const original = getAvailableEditorIds(editor.original, editorResolverService);
-		const modified = new Set(getAvailableEditorIds(editor.modified, editorResolverService));
+		const original = getAvailableEditorIds(editor.original, editorResolverService, modelService);
+		const modified = new Set(getAvailableEditorIds(editor.modified, editorResolverService, modelService));
 		return original.filter(editor => modified.has(editor));
 	}
 

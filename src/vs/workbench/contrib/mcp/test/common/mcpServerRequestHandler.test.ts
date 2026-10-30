@@ -28,6 +28,7 @@ class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 	private readonly _transport: TestMcpMessageTransport;
 
 	priority = 0;
+	resolvePolicyVariables = async () => ({});
 
 	constructor() {
 		super();
@@ -36,6 +37,10 @@ class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 
 
 	substituteVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch> {
+		return Promise.resolve(launch);
+	}
+
+	expandEnvironmentVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch> {
 		return Promise.resolve(launch);
 	}
 

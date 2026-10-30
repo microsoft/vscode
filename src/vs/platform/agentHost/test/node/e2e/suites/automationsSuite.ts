@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtemp } from 'fs/promises';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
 import { equals } from '../../../../../../base/common/objects.js';
@@ -25,6 +24,7 @@ import { AUTOMATION_CATALOG_URI, MessageKind, ROOT_STATE_URI, type AutomationRun
 import { resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const AUTOMATIONS_DISABLED_MESSAGE = 'Automations are disabled.';
 /** Mirrors the host's advertised `runHistoryLimit`. */
@@ -374,7 +374,7 @@ export function defineAutomationsTests(context: IAgentHostE2ETestContext): void 
 		});
 		await openAutomationGates();
 		await subscribeCatalog();
-		const workspace = await mkdtemp(join(tmpdir(), 'ahp-automation-lifecycle-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-automation-lifecycle-'));
 		context.tempDirs.push(workspace);
 		const resource = automationResource(prefix);
 		const definition: AutomationDefinition = {
@@ -409,6 +409,24 @@ export function defineAutomationsTests(context: IAgentHostE2ETestContext): void 
 		}, 100, 300);
 		assert.ok(state);
 		return state;
+	}
+
+	async function subscribeToPrimarySession(runResource: string): Promise<string> {
+		const runSnapshot = await context.client.call<SubscribeResult>('subscribe', { channel: runResource });
+		let primarySession = (runSnapshot.snapshot?.state as AutomationRunState | undefined)?.primarySession;
+		if (!primarySession) {
+			const notification = await context.client.waitForNotification(candidate =>
+				isActionNotification(candidate, ActionType.AutomationRunPrimarySessionChanged)
+				&& getActionEnvelope(candidate).channel === runResource,
+			);
+			primarySession = (getActionEnvelope(notification).action as AutomationRunPrimarySessionChangedAction).primarySession;
+		}
+		assert.ok(primarySession);
+		if (!context.createdSessions.includes(primarySession)) {
+			context.createdSessions.push(primarySession);
+		}
+		await context.client.call('subscribe', { channel: primarySession });
+		return primarySession;
 	}
 
 	async function cancelRun(resource: string): Promise<AutomationRunState> {
@@ -523,9 +541,10 @@ export function defineAutomationsTests(context: IAgentHostE2ETestContext): void 
 		});
 		const requestId = generateUuid();
 		const run = await runAutomation(resource, requestId);
+		const primarySession = await subscribeToPrimarySession(run.resource);
 		const completed = await waitForRun(run.resource, AutomationRunStatus.Completed);
-		assert.ok(completed.primarySession);
-		const session = await fetchSessionWithChat(context.client, completed.primarySession);
+		assert.strictEqual(completed.primarySession, primarySession);
+		const session = await fetchSessionWithChat(context.client, primarySession);
 		const repeated = await runAutomation(resource, requestId);
 		assert.deepStrictEqual({
 			repeated,
@@ -547,8 +566,9 @@ export function defineAutomationsTests(context: IAgentHostE2ETestContext): void 
 			message: { text: firstPrompt, origin: { kind: MessageKind.Automation } },
 		});
 		const first = await runAutomation(resource, generateUuid());
+		const firstPrimarySession = await subscribeToPrimarySession(first.resource);
 		const firstCompleted = await waitForRun(first.resource, AutomationRunStatus.Completed);
-		assert.ok(firstCompleted.primarySession);
+		assert.strictEqual(firstCompleted.primarySession, firstPrimarySession);
 		context.client.clearReceived();
 		context.client.dispatch({
 			channel: AUTOMATION_CATALOG_URI, clientSeq: nextClientSeq(),
@@ -559,12 +579,13 @@ export function defineAutomationsTests(context: IAgentHostE2ETestContext): void 
 		});
 		await waitForAutomationSet(resource, entry => entry.definition.message.text === secondPrompt);
 		const second = await runAutomation(resource, generateUuid());
+		const secondPrimarySession = await subscribeToPrimarySession(second.resource);
 		const secondCompleted = await waitForRun(second.resource, AutomationRunStatus.Completed);
-		assert.ok(secondCompleted.primarySession);
+		assert.strictEqual(secondCompleted.primarySession, secondPrimarySession);
 		assert.notStrictEqual(second.resource, first.resource);
 		assert.deepStrictEqual({
-			firstMessages: (await fetchSessionWithChat(context.client, firstCompleted.primarySession)).turns.map(turn => turn.message.text),
-			secondMessages: (await fetchSessionWithChat(context.client, secondCompleted.primarySession)).turns.map(turn => turn.message.text),
+			firstMessages: (await fetchSessionWithChat(context.client, firstPrimarySession)).turns.map(turn => turn.message.text),
+			secondMessages: (await fetchSessionWithChat(context.client, secondPrimarySession)).turns.map(turn => turn.message.text),
 			runs: entryFor(await subscribeCatalog(), resource)?.runs.map(run => run.resource),
 		}, {
 			firstMessages: [firstPrompt],
@@ -576,7 +597,7 @@ export function defineAutomationsTests(context: IAgentHostE2ETestContext): void 
 	if (context.tier === 'parity' && config.provider === 'copilotcli') {
 		test('an automation run restores Mode and Approvals after host restart', async function () {
 			this.timeout(240_000);
-			const workspace = await mkdtemp(join(tmpdir(), 'ahp-automation-session-config-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-automation-session-config-'));
 			context.tempDirs.push(workspace);
 			await initializeRoot('automations-session-config');
 			await openAutomationGates();
@@ -609,17 +630,7 @@ export function defineAutomationsTests(context: IAgentHostE2ETestContext): void 
 				automation: resource,
 				requestId: `request-${generateUuid()}`,
 			}, 30_000);
-			const runSnapshot = await context.client.call<SubscribeResult>('subscribe', { channel: run.resource });
-			let primarySession = (runSnapshot.snapshot?.state as AutomationRunState | undefined)?.primarySession;
-			if (!primarySession) {
-				const notification = await context.client.waitForNotification(candidate =>
-					isActionNotification(candidate, ActionType.AutomationRunPrimarySessionChanged)
-					&& getActionEnvelope(candidate).channel === run.resource,
-				);
-				primarySession = (getActionEnvelope(notification).action as AutomationRunPrimarySessionChangedAction).primarySession;
-			}
-			assert.ok(primarySession);
-			context.createdSessions.push(primarySession);
+			const primarySession = await subscribeToPrimarySession(run.resource);
 			let createdSession = await fetchSessionWithChat(context.client, primarySession);
 			await retry(async () => {
 				createdSession = await fetchSessionWithChat(context.client, primarySession);

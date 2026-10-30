@@ -13,14 +13,16 @@ import { readSlashCommandResource, toSlashCommandResourceMeta } from '../../comm
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
-import { readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpRoutingServers, readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpRoutingServers, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { readSkillArgumentHint, withSkillArgumentHintMeta } from '../../common/meta/skillCustomizationMeta.js';
 import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
-import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readSessionComparisonMetadata, readUsageInfoMeta, withSessionComparisonMetadata, type AgentCustomization, type ClientPluginCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
+import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readSessionComparisonMetadata, readUsageInfoMeta, withSessionComparisonMetadata, type AgentCustomization, type ClientPluginCustomization, type SkillCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
 import { McpServerStatus, type McpServerCustomization, type SessionModelInfo, type SimpleMessageAttachment } from '../../common/state/protocol/state.js';
 import { createAgentModelByokMeta, readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
 import { createAgentModelSourceMeta, readAgentModelSourceId } from '../../common/agentModelSource.js';
 import { URI } from '../../../../base/common/uri.js';
 import { hasClientPluginMcpDefaultCwd, hasClientPluginMcpDefaultCwds, readClientPluginMcpDefaultCwd, toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
+import { readAgentToolOrigin, withAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.js';
 
 /** Wraps a `_meta` bag in a minimal {@link ToolCallState} so the reader sees the right source type. */
 function toolCall(meta: Record<string, unknown> | undefined): ToolCallState {
@@ -40,6 +42,30 @@ function attachment(meta: Record<string, unknown> | undefined): SimpleMessageAtt
 suite('Agent host _meta readers', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('round trips optional app tool origin and rejects malformed metadata', () => {
+		const tool = withAgentToolOrigin({ name: 'semantic_search', _meta: { unrelated: true } }, 'mcpApp');
+		assert.deepStrictEqual({
+			tool,
+			origins: [
+				readAgentToolOrigin(tool),
+				readAgentToolOrigin(undefined),
+				readAgentToolOrigin({ name: 'semantic_search' }),
+				...[undefined, null, {}, true, 'internal', 'future'].map(value => readAgentToolOrigin({ name: 'semantic_search', _meta: { 'vscode.chat.toolOrigin': value } })),
+			],
+		}, {
+			tool: { name: 'semantic_search', _meta: { unrelated: true, 'vscode.chat.toolOrigin': 'mcpApp' } },
+			origins: ['mcpApp', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined],
+		});
+	});
+
+	test('validates the explicit native tool input contract', () => {
+		const key = 'vscode.toolInputContract';
+		assert.deepStrictEqual([
+			readToolCallMeta(toolCall(toToolCallMeta({ [key]: 'copilot-cli-v1' })))[key],
+			...[undefined, null, {}, true, 'copilot', 'future-v2'].map(value => readToolCallMeta(toolCall({ [key]: value }))[key]),
+		], ['copilot-cli-v1', undefined, undefined, undefined, undefined, undefined, undefined]);
+	});
 
 	test('Copilot network restrictions round trip and reject malformed or absent metadata', () => {
 		const restrictions = { sandboxEnabled: true, allowNetwork: false, allowedDomains: ['example.com'], deniedDomains: [] };
@@ -137,6 +163,40 @@ suite('Agent host _meta readers', () => {
 		})?.role, 'judge');
 	});
 
+	test('validates registered MCP routing servers and preserves opaque chat metadata', () => {
+		const chat = 'ahp-chat://other-host/opaque-id';
+		const otherChat = 'ahp-chat://other-host/another-id';
+		const meta = withMcpRoutingServers(withMcpRoutingServers({ 'test.opaque': 'kept' }, otherChat, ['other']), chat, ['docs', 'mail']);
+		assert.deepStrictEqual({
+			roundTrip: readMcpRoutingServers(JSON.parse(JSON.stringify({ _meta: meta })), chat),
+			invalid: [undefined, null, 'docs', {}, ['docs', 1], ['']].map(value => readMcpRoutingServers({ _meta: { 'vscode.mcpRoutingServers': { [chat]: value } } }, chat)),
+			absent: readMcpRoutingServers(undefined, chat),
+			wrongChat: readMcpRoutingServers({ _meta: meta }, 'ahp-chat://other-host/missing'),
+			cleared: withMcpRoutingServers(meta, chat, []),
+		}, {
+			roundTrip: ['docs', 'mail'],
+			invalid: [[], [], [], [], [], []],
+			absent: [],
+			wrongChat: [],
+			cleared: { 'test.opaque': 'kept', 'vscode.mcpRoutingServers': { [otherChat]: ['other'], [chat]: [] } },
+		});
+	});
+
+	test('registered MCP routing servers are independent of mutable session metadata', () => {
+		const chat = 'ahp-chat://other-host/opaque-id';
+		const servers = ['docs'];
+		const session = { _meta: { 'vscode.mcpRoutingServers': { [chat]: servers } } };
+		const snapshot = readMcpRoutingServers(session, chat);
+		servers.push('mail');
+		assert.deepStrictEqual({
+			snapshot,
+			current: readMcpRoutingServers(session, chat),
+		}, {
+			snapshot: ['docs'],
+			current: ['docs', 'mail'],
+		});
+	});
+
 	test('validates MCP presentation metadata and preserves opaque entries', () => {
 		const server = (meta: Record<string, unknown> | undefined) => ({
 			type: CustomizationType.McpServer,
@@ -151,18 +211,20 @@ suite('Agent host _meta readers', () => {
 
 		assert.deepStrictEqual({
 			sources: [
-				...(['user', 'workspace', 'plugin', 'builtin', 'managed'] as const).map(source => readMcpServerSource(server(withMcpServerSourceMeta(undefined, source)))),
+				...(['user', 'workspace', 'plugin', 'builtin', 'managed', 'account'] as const).map(source => readMcpServerSource(server(withMcpServerSourceMeta(undefined, source)))),
 				...[undefined, 'unknown', 1, {}, ['user']].map(source => readMcpServerSource(server({ 'agentHost.mcpServerSource': source }))),
 				readMcpServerSource(server(undefined)),
 			],
 			displayNames: [' Mail ', '', 'x'.repeat(513), 1].map(displayName => readMcpServerDisplayName(server({ 'vscode.mcpServerDisplayName': displayName }))),
 			merged,
 			unchanged: withMcpServerSourceMeta(opaque, undefined) === opaque,
+			cleared: withMcpServerSourceMeta(merged, undefined),
 		}, {
-			sources: ['user', 'workspace', 'plugin', 'builtin', 'managed', undefined, undefined, undefined, undefined, undefined, undefined],
+			sources: ['user', 'workspace', 'plugin', 'builtin', 'managed', 'account', undefined, undefined, undefined, undefined, undefined, undefined],
 			displayNames: ['Mail', undefined, undefined, undefined],
 			merged: { 'test.opaque': 'kept', 'agentHost.mcpServerSource': 'user', 'vscode.mcpServerDisplayName': 'Mail' },
 			unchanged: true,
+			cleared: { 'test.opaque': 'kept', 'vscode.mcpServerDisplayName': 'Mail' },
 		});
 	});
 
@@ -194,6 +256,31 @@ suite('Agent host _meta readers', () => {
 			cleared: { 'test.opaque': 'kept' },
 			emptied: undefined,
 			unchanged: true,
+		});
+	});
+
+	test('validates skill argument hints and merges them into open metadata', () => {
+		const read = (meta: Record<string, unknown> | undefined) => readSkillArgumentHint({
+			type: CustomizationType.Skill,
+			id: 'skill',
+			uri: 'file:///skills/skill/SKILL.md',
+			name: 'skill',
+			_meta: meta,
+		} satisfies SkillCustomization);
+		const opaque = { 'test.opaque': 'kept' };
+
+		assert.deepStrictEqual({
+			hints: [
+				read(withSkillArgumentHintMeta(undefined, '<problem> [offline]')),
+				...[undefined, '', '  ', 1, {}, ['hint']].map(hint => read({ 'vscode.skill.argumentHint': hint })),
+				read(undefined),
+			],
+			merged: withSkillArgumentHintMeta(opaque, 'task'),
+			unchanged: [withSkillArgumentHintMeta(opaque, undefined) === opaque, withSkillArgumentHintMeta(opaque, ' ') === opaque],
+		}, {
+			hints: ['<problem> [offline]', undefined, undefined, undefined, undefined, undefined, undefined, undefined],
+			merged: { 'test.opaque': 'kept', 'vscode.skill.argumentHint': 'task' },
+			unchanged: [true, true],
 		});
 	});
 
@@ -295,15 +382,13 @@ suite('Agent host _meta readers', () => {
 			});
 		});
 
-		test('round trips the namespaced Fusion description and drops malformed values', () => {
+		test('drops malformed Fusion model values', () => {
 			assert.deepStrictEqual({
-				valid: readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ fusionDescription: 'Workflow description.' }) }).fusionDescription,
-				empty: readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ fusionDescription: '' }) }).fusionDescription,
-				invalid: readAgentSystemNotificationMeta({ _meta: { 'vscode.chat.fusionDescription': 1 } }).fusionDescription,
+				emptyModel: readAgentSystemNotificationMeta({ _meta: { 'vscode.chat.fusionModel': '' } }).fusionModel,
+				invalidModel: readAgentSystemNotificationMeta({ _meta: { 'vscode.chat.fusionModel': 1 } }).fusionModel,
 			}, {
-				valid: 'Workflow description.',
-				empty: '',
-				invalid: undefined,
+				emptyModel: undefined,
+				invalidModel: undefined,
 			});
 		});
 	});
@@ -436,6 +521,25 @@ suite('Agent host _meta readers', () => {
 	});
 
 	suite('readAgentCustomizationMeta', () => {
+		test('round-trips absolute source URIs and ignores malformed optional provenance', () => {
+			const sourceUri = 'client-customizations:/bundle/agents/reviewer.agent.md';
+			assert.deepStrictEqual([
+				readAgentCustomizationMeta(agentCustomization(toAgentCustomizationMeta({ 'vscode.sourceUri': sourceUri, userInvocable: false }))),
+				...[undefined, null, false, 42, {}, '', 'relative/agent.md', '/agent.md'].map(value =>
+					readAgentCustomizationMeta(agentCustomization({ 'vscode.sourceUri': value, userInvocable: true }))),
+			], [
+				{ 'vscode.sourceUri': sourceUri, userInvocable: false },
+				...Array.from({ length: 8 }, () => ({ userInvocable: true })),
+			]);
+		});
+
+		test('reads only explicit, bounded Ask metadata', () => {
+			assert.deepStrictEqual([
+				readAgentCustomizationMeta(agentCustomization(toAgentCustomizationMeta({ 'vscode.chatMode': 'ask' }))),
+				...[undefined, null, true, {}, 'agent', 'Ask'].map(value => readAgentCustomizationMeta(agentCustomization({ 'vscode.chatMode': value }))),
+			], [{ 'vscode.chatMode': 'ask' }, {}, {}, {}, {}, {}, {}]);
+		});
+
 		test('reads userInvocable, ignores garbage, round-trips', () => {
 			assert.deepStrictEqual(readAgentCustomizationMeta(agentCustomization(undefined)), {});
 			assert.deepStrictEqual(readAgentCustomizationMeta(agentCustomization({ userInvocable: 'yes' })), {});
@@ -479,6 +583,11 @@ suite('Agent host _meta readers', () => {
 			const skill = toSkillCompletionAttachmentMeta({ uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon', description: undefined });
 			assert.deepStrictEqual(skill, { uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon' });
 			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(skill)), { kind: 'skill', uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon' });
+
+			const skillWithHint = toSkillCompletionAttachmentMeta({ uri: 'file:///s/SKILL.md', name: 'mon', argumentHint: '<pr number>' });
+			assert.deepStrictEqual(skillWithHint, { uri: 'file:///s/SKILL.md', name: 'mon', argumentHint: '<pr number>' });
+			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(skillWithHint)), { kind: 'skill', uri: 'file:///s/SKILL.md', name: 'mon', argumentHint: '<pr number>' });
+			assert.strictEqual(getCommandArgumentHint(skillWithHint), '<pr number>');
 		});
 
 		test('getCommandArgumentHint reads the hint and ignores wrong-typed / absent bags', () => {
@@ -557,6 +666,27 @@ suite('Agent host _meta readers', () => {
 			assert.strictEqual(readAgentModelSourceId(model(undefined)), undefined);
 			assert.strictEqual(readAgentModelSourceId(model({ modelSourceId: 42 })), undefined);
 			assert.strictEqual(readAgentModelSourceId(model({ modelSourceId: '' })), undefined);
+		});
+	});
+
+	suite('usage info Auto mode resolution', () => {
+		function usage(autoModeResolved: unknown): UsageInfo {
+			return { _meta: { autoModeResolved } };
+		}
+
+		test('reads the selection reason only when it is a non-empty string', () => {
+			const selectionReason = 'Auto selected gpt-5.4-mini to prioritize cost efficiency, alongside model fit for this task.';
+			assert.deepStrictEqual([
+				readUsageInfoMeta(usage({ chosenModel: 'gpt-5.4-mini', selectionReason })).autoModeResolved,
+				readUsageInfoMeta(usage({ chosenModel: 'gpt-5.4-mini' })).autoModeResolved,
+				readUsageInfoMeta(usage({ chosenModel: 'gpt-5.4-mini', selectionReason: '  ' })).autoModeResolved,
+				readUsageInfoMeta(usage({ chosenModel: 'gpt-5.4-mini', selectionReason: 42 })).autoModeResolved,
+			], [
+				{ chosenModel: 'gpt-5.4-mini', selectionReason },
+				{ chosenModel: 'gpt-5.4-mini' },
+				{ chosenModel: 'gpt-5.4-mini' },
+				{ chosenModel: 'gpt-5.4-mini' },
+			]);
 		});
 	});
 

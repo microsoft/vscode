@@ -24,10 +24,6 @@ export function createIssueHover(data: IIssueHoverData): IIssueHover {
 	return createIssueResourceHover({ ...data, issue: toIssueHoverModel(data.issue) });
 }
 
-export function createIssueHoverElement(data: IIssueHoverData): HTMLElement {
-	return createIssueHover(data).element;
-}
-
 /** The issue's display state, used both for the hover's status pill and its accessible description. */
 export function getIssueStatus(issue: IGitHubIssue): { readonly kind: 'open' | 'closed' | 'notPlanned' | 'duplicate'; readonly label: string } {
 	return getIssueResourceStatus(toIssueHoverModel(issue));

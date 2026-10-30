@@ -7,6 +7,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { autorun } from '../../../../../base/common/observable.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, IMenuService, MenuItemAction, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -14,6 +15,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { ServicesAccessor, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -22,6 +24,7 @@ import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../com
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { getStatusLabel, removeRemoteHost, showRemoteHostOptions } from './remoteHostOptions.js';
 import { RemoteAgentHostCommandIds } from './remoteAgentHostActions.js';
+import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 
 interface IRemoteHostQuickPickItem extends IQuickPickItem {
 	readonly kind: 'remote';
@@ -55,6 +58,10 @@ registerAction2(class extends Action2 {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const commandService = accessor.get(ICommandService);
 		const instantiationService = accessor.get(IInstantiationService);
+		const hostFilter = accessor.get(IAgentHostFilterService);
+		const notifications = accessor.get(INotificationService);
+		let lastFilter = '';
+		let lastActive: ManageHostsPickItem | undefined;
 
 		const removeButton: IQuickInputButton = {
 			iconClass: ThemeIcon.asClassName(Codicon.close),
@@ -75,10 +82,12 @@ registerAction2(class extends Action2 {
 					kind: 'remote',
 					provider: p,
 					label: `$(${isTunnel ? 'cloud' : 'remote'}) ${p.label}`,
-					description: status !== undefined ? getStatusLabel(status) : undefined,
-					detail: p.remoteAddress,
+					description: status !== undefined ? p.hostDescription
+						? localize('manageHosts.connectionStatus', "Connection: {0}", getStatusLabel(status))
+						: getStatusLabel(status) : undefined,
+					detail: p.hostDescription?.get() ?? p.remoteAddress,
+					buttons: p.canRemove === false ? [] : p.removeLabel ? [{ ...removeButton, tooltip: p.removeLabel }] : [removeButton],
 				};
-				(item as IRemoteHostQuickPickItem & { buttons?: IQuickInputButton[] }).buttons = [removeButton];
 				return item;
 			});
 
@@ -118,11 +127,29 @@ registerAction2(class extends Action2 {
 			picker.placeholder = localize('manageHosts.placeholder', "Select a remote to manage or pick an action");
 			picker.matchOnDescription = true;
 			picker.matchOnDetail = true;
+			picker.keepScrollPosition = true;
+			picker.buttons = [{ iconClass: ThemeIcon.asClassName(Codicon.refresh), tooltip: localize('manageHosts.refresh', "Refresh Hosts") }];
+			const refreshHosts = async () => {
+				const success = await hostFilter.rediscover();
+				if (!store.isDisposed) {
+					picker.validationMessage = success ? undefined : localize('manageHosts.refreshFailed', "Could not refresh all hosts. Retained hosts are still available; use Refresh Hosts to retry.");
+				}
+			};
+			store.add(hostFilter.onDidChangeDiscovering(() => { picker.busy = hostFilter.isDiscovering; }));
+			store.add(picker.onDidTriggerButton(() => { void refreshHosts(); }));
 
-			let lastFilter = '';
+			picker.value = lastFilter;
+			store.add(picker.onDidChangeValue(value => { lastFilter = value; }));
 			const refresh = () => {
 				lastFilter = picker.value;
-				picker.items = buildItems();
+				const active = picker.activeItems[0] ?? lastActive;
+				const items = buildItems();
+				picker.items = items;
+				if (active) {
+					picker.activeItems = items.filter((item): item is ManageHostsPickItem => item.type !== 'separator')
+						.filter(item => item.kind === active.kind && (item.kind === 'remote' && active.kind === 'remote'
+							? item.provider.id === active.provider.id : item.kind === 'menu-action' && active.kind === 'menu-action' && item.action.id === active.action.id));
+				}
 				picker.value = lastFilter;
 			};
 			refresh();
@@ -137,6 +164,7 @@ registerAction2(class extends Action2 {
 						if (p.connectionStatus) {
 							observerStore.add(autorun(reader => {
 								p.connectionStatus!.read(reader);
+								p.hostDescription?.read(reader);
 								refresh();
 							}));
 						}
@@ -150,14 +178,21 @@ registerAction2(class extends Action2 {
 			store.add(sessionsProvidersService.onDidChangeProviders(() => subscribeToProviders()));
 
 			store.add(picker.onDidTriggerItemButton(async e => {
-				if (e.item.kind === 'remote' && e.button === removeButton) {
-					await removeRemoteHost(e.item.provider, remoteAgentHostService, configurationService);
+				if (e.item.kind === 'remote') {
+					try {
+						await removeRemoteHost(e.item.provider, remoteAgentHostService, configurationService);
+					} catch (error) {
+						if (!isCancellationError(error)) {
+							notifications.error(error instanceof Error ? error : String(error));
+						}
+					}
 					// onDidChangeProviders will refresh
 				}
 			}));
 
 			store.add(picker.onDidAccept(() => {
 				const selected = picker.selectedItems[0];
+				lastActive = selected;
 				picker.hide();
 				if (!selected) {
 					return;
@@ -167,14 +202,15 @@ registerAction2(class extends Action2 {
 						if (result === 'back') {
 							showManagePicker();
 						}
-					});
+					}).catch(error => notifications.error(error));
 				} else if (selected.kind === 'menu-action') {
-					commandService.executeCommand(selected.action.id, () => showManagePicker());
+					void commandService.executeCommand(selected.action.id, () => showManagePicker()).catch(error => notifications.error(error));
 				}
 			}));
 
 			store.add(picker.onDidHide(() => store.dispose()));
 			picker.show();
+			void refreshHosts();
 		};
 
 		showManagePicker();

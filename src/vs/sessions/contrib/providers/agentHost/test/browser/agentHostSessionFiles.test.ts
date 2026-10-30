@@ -6,14 +6,16 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IReference } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import {
 	buildChatUri,
+	CustomizationType,
 	FileEditKind,
 	ResponsePartKind,
 	StateComponents,
@@ -22,8 +24,14 @@ import {
 	ToolResultContentType,
 	type ActiveTurn,
 	type ChatState,
+	type Customization,
 	type ResponsePart,
+	type SessionState,
+	type Turn,
 } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CustomizationIndex } from '../../../../../../workbench/contrib/chat/common/agentHostSessionCustomizations.js';
+import { TestCustomizationJobScheduler } from '../../../../../../workbench/contrib/chat/test/common/testCustomizationJobScheduler.js';
+import type { ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
 import {
 	createIncrementalChatFileEditsParser,
@@ -404,7 +412,9 @@ suite('agentHostSessionFiles - per-chat subscriptions', () => {
 			SESSION_URI,
 			{
 				...createOptions(connection),
-				mapDiffUri: (uri, options) => options?.contentRef ? uri.with({ scheme: 'readonly-content' }) : uri,
+				mapDiffUri: (uri, options) => options?.contentRef
+					? toAgentHostContentUri(uri, 'remote', options.fileUri)
+					: toAgentHostUri(uri, 'remote'),
 			},
 			constObservable(true),
 			constObservable(false),
@@ -412,9 +422,10 @@ suite('agentHostSessionFiles - per-chat subscriptions', () => {
 			new Map<string, unknown>(),
 		);
 		const changes = output.getLastTurnChanges(CHAT_A);
-		const observed: (string | undefined)[] = [];
+		const observed: { path: string | undefined; content: string | undefined }[] = [];
 		const observer = store.add(autorun(reader => {
-			observed.push(changes.read(reader)[0]?.modifiedUri?.toString());
+			const uri = changes.read(reader)[0]?.modifiedUri;
+			observed.push({ path: uri?.path, content: uri && fromAgentHostUri(uri).toString() });
 		}));
 
 		state = createState('snapshot:/after-2/a.ts');
@@ -422,9 +433,120 @@ suite('agentHostSessionFiles - per-chat subscriptions', () => {
 		observer.dispose();
 
 		assert.deepStrictEqual(observed, [
-			'readonly-content:/after-1/a.ts',
-			'readonly-content:/after-2/a.ts',
+			{ path: '/repo/a.ts', content: 'snapshot:/after-1/a.ts' },
+			{ path: '/repo/a.ts', content: 'snapshot:/after-2/a.ts' },
 		]);
+	});
+
+	test('reuses customization path resolutions across unchanged session envelopes', () => {
+		const sessionChanged = store.add(new Emitter<SessionState>());
+		const chatChanged = store.add(new Emitter<ChatState>());
+		const createCustomizations = (id: string, enabled = true, reverse = false): Customization[] => [{
+			id: 'directory',
+			type: CustomizationType.Directory,
+			uri: URI.file('/repo/.github').toString(),
+			name: 'Customizations',
+			enabled,
+			contents: CustomizationType.Hook,
+			writable: true,
+			children: [
+				...(reverse ? [{ id: 'unused-hook', type: CustomizationType.Hook, uri: URI.file('/repo/.github/hooks/unused.md').toString(), name: 'unused' } as const] : []),
+				{ id, type: CustomizationType.Hook, uri: URI.file('/repo/.github/hooks/pre.md').toString(), name: 'pre-commit' },
+				...(!reverse ? [{ id: 'unused-hook', type: CustomizationType.Hook, uri: URI.file('/repo/.github/hooks/unused.md').toString(), name: 'unused' } as const] : []),
+			],
+		}];
+		const createSessionState = (id: string, enabled = true, reverse = false): SessionState =>
+			upcastPartial<SessionState>({ customizations: createCustomizations(id, enabled, reverse) });
+		const createWorkspace = (root: URI): ISessionWorkspace => upcastPartial<ISessionWorkspace>({
+			folders: [upcastPartial<ISessionWorkspace['folders'][number]>({
+				root,
+				workingDirectory: root,
+			})],
+		});
+		let sessionState = createSessionState('hook-1');
+		const chatState = upcastPartial<ChatState>({
+			turns: [upcastPartial<Turn>({
+				id: 'turn-1',
+				responseParts: [toolCallPart({
+					status: ToolCallStatus.Completed,
+					toolCallId: 'read-hook',
+					toolName: 'view',
+					displayName: 'View',
+					toolInput: '{"path":".github/hooks/pre.md"}',
+				})],
+			})],
+		});
+		const connection = new class extends mock<IAgentConnection>() {
+			override getSubscription<T>(component: StateComponents): IReference<IAgentSubscription<T>> {
+				const subscription = component === StateComponents.Session
+					? new class extends mock<IAgentSubscription<SessionState>>() {
+						override get value() { return sessionState; }
+						override readonly onDidChange = sessionChanged.event;
+					}()
+					: new class extends mock<IAgentSubscription<ChatState>>() {
+						override readonly value = chatState;
+						override readonly onDidChange = chatChanged.event;
+					}();
+				return { object: subscription as IAgentSubscription<T>, dispose: () => { } };
+			}
+		}();
+		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', createWorkspace(URI.file('/repo')));
+		const scheduler = new TestCustomizationJobScheduler();
+		let indexCreations = 0;
+		let uncachedPathResolutions = 0;
+		class CountingCustomizationIndex extends CustomizationIndex {
+			protected override _resolvePathUncached(token: string) {
+				uncachedPathResolutions++;
+				return super._resolvePathUncached(token);
+			}
+		}
+		const output = createSessionOutputObs(
+			SESSION_URI,
+			createOptions(connection),
+			constObservable(true),
+			constObservable(false),
+			workspace,
+			new Map<string, unknown>(),
+			(customizations, roots, mapHostUri, previous) => {
+				indexCreations++;
+				return new CountingCustomizationIndex(customizations, roots, mapHostUri, previous);
+			},
+			scheduler,
+		);
+		const observed: string[][] = [];
+		const observer = store.add(autorun(reader => {
+			observed.push(output.getChatCustomizations(CHAT_A).read(reader).map(customization => customization.id));
+		}));
+
+		scheduler.flush();
+		for (let i = 0; i < 5; i++) {
+			workspace.set(createWorkspace(URI.file('/repo')), undefined);
+			sessionState = createSessionState('hook-1');
+			sessionChanged.fire(sessionState);
+			scheduler.flush();
+		}
+		sessionState = createSessionState('hook-2');
+		sessionChanged.fire(sessionState);
+		scheduler.flush();
+		sessionState = createSessionState('hook-2', false);
+		sessionChanged.fire(sessionState);
+		scheduler.flush();
+		sessionState = createSessionState('hook-2', false, true);
+		sessionChanged.fire(sessionState);
+		scheduler.flush();
+		workspace.set(createWorkspace(URI.file('/other')), undefined);
+		scheduler.flush();
+		observer.dispose();
+
+		assert.deepStrictEqual({
+			indexCreations,
+			uncachedPathResolutions,
+			observed,
+		}, {
+			indexCreations: 5,
+			uncachedPathResolutions: 3,
+			observed: [[], ['hook-1'], ['hook-2'], []],
+		});
 	});
 
 	test('releaseChat drops the cached observables for a removed chat', () => {
