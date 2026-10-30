@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -38,7 +39,7 @@ suite('ByokLmProxyService', () => {
 	}
 
 	async function withProxy(
-		chat: (request: IByokLmChatRequest) => Promise<IByokLmChatResult>,
+		chat: IByokLmBridgeConnection['chat'],
 		run: (handle: IByokLmProxyHandle, service: ByokLmProxyService) => Promise<void>,
 	): Promise<void> {
 		const registry = new ByokLmBridgeRegistry();
@@ -61,6 +62,83 @@ suite('ByokLmProxyService', () => {
 	function authHeaders(handle: IByokLmProxyHandle, selectedSessionId = sessionId): Record<string, string> {
 		return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${handle.nonce}.${selectedSessionId}` };
 	}
+
+	test('delivers live text before completion, without replay, and resolves the public continuation ID', async () => {
+		const finish = new DeferredPromise<void>();
+		const captured: IByokLmChatRequest[] = [];
+		await withProxy(async (request, _token, report) => {
+			captured.push(request);
+			if (captured.length === 1) {
+				report?.({ outputIndex: 0, item: { type: 'message', content: [{ type: 'text', text: 'first' }] } });
+				await finish.p;
+				return { responseId: 'provider-continuation', output: [{ type: 'message', content: [{ type: 'text', text: 'first second' }] }] };
+			}
+			return { output: [{ type: 'message', content: [{ type: 'text', text: 'next' }] }] };
+		}, async handle => {
+			const response = await fetch(responsesUrl(handle, 'acme'), {
+				method: 'POST', headers: authHeaders(handle),
+				body: JSON.stringify({ model: 'm', input: 'hi', stream: true }),
+			});
+			const reader = response.body!.getReader();
+			const decoder = new TextDecoder();
+			let text = '';
+			try {
+				while (!text.includes('response.output_text.delta')) {
+					const part = await reader.read();
+					assert.strictEqual(part.done, false);
+					text += decoder.decode(part.value, { stream: true });
+				}
+				assert.ok(text.includes('"delta":"first"'));
+			} finally {
+				await finish.complete();
+			}
+			while (true) {
+				const part = await reader.read();
+				if (part.done) { break; }
+				text += decoder.decode(part.value, { stream: true });
+			}
+			const events = text.split('\n').filter(line => line.startsWith('data: ')).map(line => JSON.parse(line.slice(6)));
+			const publicId: string = events.at(-1).response.id;
+			assert.deepStrictEqual(events.filter(event => event.type === 'response.output_text.delta').map(event => event.delta), ['first', ' second']);
+			assert.strictEqual(events[0].response.id, publicId);
+			const next = await fetch(responsesUrl(handle, 'acme'), {
+				method: 'POST', headers: authHeaders(handle),
+				body: JSON.stringify({ model: 'm', input: 'continue', previous_response_id: publicId }),
+			});
+			assert.strictEqual(next.status, 200);
+			await next.text();
+		});
+		assert.strictEqual(captured[1].previousResponseId, 'provider-continuation');
+	});
+
+	test('signals a failure after partial output instead of completing successfully', async () => {
+		await withProxy(async (_request, _token, report) => {
+			report?.({ outputIndex: 0, item: { type: 'message', content: [{ type: 'text', text: 'partial' }] } });
+			return { output: [], error: 'provider failed' };
+		}, async handle => {
+			const response = await fetch(responsesUrl(handle, 'acme'), { method: 'POST', headers: authHeaders(handle), body: JSON.stringify({ model: 'm', input: 'hi', stream: true }) });
+			const text = await response.text();
+			assert.deepStrictEqual({ failed: text.includes('event: response.failed'), completed: text.includes('event: response.completed'), reason: text.includes('provider failed') }, { failed: true, completed: false, reason: true });
+		});
+	});
+
+	test('cancels the upstream bridge when the streaming HTTP client disconnects', async () => {
+		const cancelled = new DeferredPromise<void>();
+		await withProxy(async (_request, token, report) => {
+			const listener = token!.onCancellationRequested(() => void cancelled.complete());
+			try {
+				report?.({ outputIndex: 0, item: { type: 'message', content: [{ type: 'text', text: 'partial' }] } });
+				await cancelled.p;
+				return { output: [] };
+			} finally {
+				listener.dispose();
+			}
+		}, async handle => {
+			const response = await fetch(responsesUrl(handle, 'acme'), { method: 'POST', headers: authHeaders(handle), body: JSON.stringify({ model: 'm', input: 'hi', stream: true }) });
+			await response.body!.cancel();
+			await cancelled.p;
+		});
+	});
 
 	test('serves the unauthenticated health check', async () => {
 		await withProxy(
