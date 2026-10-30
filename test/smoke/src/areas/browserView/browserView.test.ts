@@ -239,6 +239,39 @@ export function setup(logger: Logger): void {
 			assert.deepStrictEqual(inheritedPermission, { url: 'about:blank', camera: 'granted' });
 		});
 
+		it('EXPERIMENT element picker key press race (temporary, do not merge)', async function () {
+			this.timeout(10 * 60 * 1000);
+			const app = this.app as Application;
+			const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+			const results: unknown[] = [];
+			for (let i = 0; i < 12; i++) {
+				const waitForVisible = i % 2 === 1;
+				const browserPage = await openBrowserPage(app, `${baseUrl}/comment`, openPages);
+				const target = browserPage.locator('#comment-target');
+				await target.waitFor();
+				const visibilityAtDomReady = await browserPage.evaluate(() => document.visibilityState);
+				if (waitForVisible) {
+					await browserPage.waitForFunction(() => document.visibilityState === 'visible');
+				}
+				const visibilityAtPress = await browserPage.evaluate(() => document.visibilityState);
+				await browserPage.keyboard.press(`${modifier}+Shift+c`);
+				let picked = true;
+				try {
+					await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'attached', timeout: 5000 });
+				} catch {
+					picked = false;
+				}
+				const pageKeydowns = await browserPage.evaluate(() => document.querySelector('#comment-keydown-count')!.textContent);
+				const visibilityAfter = await browserPage.evaluate(() => document.visibilityState);
+				results.push({ i, waitForVisible, visibilityAtDomReady, visibilityAtPress, picked, pageKeydowns, visibilityAfter });
+				const closed = browserPage.waitForEvent('close');
+				await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
+				await closed;
+				openPages.delete(browserPage);
+			}
+			console.log(`PICKER-EXPERIMENT ${process.platform} ${JSON.stringify(results)}`);
+		});
+
 		it('adds browser context to chat', async function () {
 			const app = this.app as Application;
 			const browserPage = await openBrowserPage(app, `${baseUrl}/comment`, openPages);
