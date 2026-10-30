@@ -11,20 +11,25 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IExtensionResourceLoaderService } from '../../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
+import { STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_ERROR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ERROR_ITEM_HOVER_FOREGROUND, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND } from '../../../../common/theme.js';
 import { ColorThemeData } from '../../../../services/themes/common/colorThemeData.js';
 
 suite('Default theme colors', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Light 2026 inline code and code links remain distinct and readable on Markdown surfaces', async () => {
-		const theme = ColorThemeData.createUnloadedTheme('vs');
-		theme.location = FileAccess.asFileUri('vs/../../extensions/theme-defaults/themes/2026-light.json');
+	async function loadDefaultTheme(name: string, selector: 'vs' | 'vs-dark'): Promise<ColorThemeData> {
+		const theme = ColorThemeData.createUnloadedTheme(selector);
+		theme.location = FileAccess.asFileUri(`vs/../../extensions/theme-defaults/themes/${name}`);
 		await theme.ensureLoaded(new class extends mock<IExtensionResourceLoaderService>() {
 			override async readExtensionResource(resource: URI): Promise<string> {
 				return fs.promises.readFile(resource.fsPath, 'utf8');
 			}
 		}());
+		return theme;
+	}
 
+	test('Light 2026 inline code and code links remain distinct and readable on Markdown surfaces', async () => {
+		const theme = await loadDefaultTheme('2026-light.json', 'vs');
 		const editorBackground = theme.getColor('editor.background')!;
 		const quoteBackground = theme.getColor('textBlockQuote.background')!.makeOpaque(editorBackground);
 		const codeBackground = theme.getColor('textPreformat.background')!;
@@ -56,6 +61,29 @@ suite('Default theme colors', () => {
 			textContrast: textContrast.map(result => ({ ...result, readable: true })),
 			linkDistinction: linkDistinction.map(result => ({ ...result, distinctFromText: true })),
 			readableCodeBlockKeyword: true,
+		});
+	});
+
+	test('Dark 2026 error status hover stays red, distinguishable and readable', async () => {
+		const theme = await loadDefaultTheme('2026-dark.json', 'vs-dark');
+		const background = theme.getColor(STATUS_BAR_ERROR_ITEM_BACKGROUND)!;
+		const foreground = theme.getColor(STATUS_BAR_ERROR_ITEM_FOREGROUND)!;
+		const hoverBackground = theme.getColor(STATUS_BAR_ERROR_ITEM_HOVER_BACKGROUND)!.makeOpaque(background);
+		const hoverForeground = theme.getColor(STATUS_BAR_ERROR_ITEM_HOVER_FOREGROUND)!;
+		const compactBackground = theme.getColor(STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND)!.makeOpaque(hoverBackground);
+
+		assert.deepStrictEqual({
+			hoverHue: hoverBackground.hsla.h,
+			distinctHover: background.getContrastRatio(hoverBackground) >= 1.2,
+			hoverForeground: hoverForeground.toString(),
+			readableHover: hoverForeground.getContrastRatio(hoverBackground) >= 4.5,
+			readableCompactHover: hoverForeground.getContrastRatio(compactBackground) >= 4.5,
+		}, {
+			hoverHue: background.hsla.h,
+			distinctHover: true,
+			hoverForeground: foreground.toString(),
+			readableHover: true,
+			readableCompactHover: true,
 		});
 	});
 });
