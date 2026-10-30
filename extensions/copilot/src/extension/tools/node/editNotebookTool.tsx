@@ -29,7 +29,7 @@ import { createSingleCallFunction } from '../../../util/vs/base/common/functiona
 import { DisposableStore, toDisposable } from '../../../util/vs/base/common/lifecycle';
 import { isEqual } from '../../../util/vs/base/common/resources';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { EndOfLine, EventEmitter, LanguageModelPromptTsxPart, LanguageModelTextPart, LanguageModelToolResult, MarkdownString, NotebookCellData, NotebookCellKind, NotebookEdit, NotebookRange, Position, Range, TextEdit } from '../../../vscodeTypes';
+import { EndOfLine, EventEmitter, LanguageModelPromptTsxPart, LanguageModelTextPart, LanguageModelToolResult, MarkdownString, NotebookCellData, NotebookCellKind, NotebookEdit, NotebookRange, Position, Range, TextEdit, WorkspaceEdit } from '../../../vscodeTypes';
 import { IBuildPromptContext } from '../../prompt/common/intents';
 import { renderPromptElementJSON } from '../../prompts/node/base/promptRenderer';
 import { Tag } from '../../prompts/node/base/tag';
@@ -59,6 +59,29 @@ class ErrorWithTelemetrySafeReason extends Error {
 		super(message);
 	}
 }
+
+type NotebookEditStream = Pick<vscode.ChatResponseStream, 'notebookEdit' | 'textEdit'>;
+
+/**
+ * Collects the notebook and cell edits that would otherwise go to a chat response stream, so they
+ * can be applied to the notebook document when the tool is invoked without a stream.
+ */
+class WorkspaceEditStream implements NotebookEditStream {
+	readonly edit = new WorkspaceEdit();
+
+	notebookEdit(target: vscode.Uri, edits: NotebookEdit | NotebookEdit[] | true): void {
+		if (edits !== true) {
+			this.edit.set(target, asArray(edits));
+		}
+	}
+
+	textEdit(target: vscode.Uri, edits: TextEdit | TextEdit[] | true): void {
+		if (edits !== true) {
+			this.edit.set(target, asArray(edits));
+		}
+	}
+}
+
 export class EditNotebookTool implements ICopilotTool<IEditNotebookToolParams> {
 	public static toolName = ToolName.EditNotebook;
 	private promptContext?: IBuildPromptContext;
@@ -84,12 +107,11 @@ export class EditNotebookTool implements ICopilotTool<IEditNotebookToolParams> {
 		// Resolve this to notebook.
 		uri = findNotebook(uri, this.workspaceService.notebookDocuments)?.uri || uri;
 
-		// Validate parameters
-		const stream = this.promptContext?.stream;
-		if (!stream) {
-			sendEditNotebookToolOutcomeTelemetry(this.telemetryService, this.endpointProvider, options, 'invalid_input_no_stream');
-			throw new ErrorWithTelemetrySafeReason(`Invalid input, no stream`, 'invalid_input_no_stream');
-		}
+		// Agent sessions, such as the agent host, invoke this tool through the tools service without
+		// calling `resolveInput`, so there is no chat response stream to send the edits to. In that case
+		// collect the edits and apply them to the notebook document, so they land in the open notebook
+		// (next to any unsaved changes) instead of failing.
+		const stream: NotebookEditStream = this.promptContext?.stream ?? new WorkspaceEditStream();
 
 		let notebook: vscode.NotebookDocument;
 		try {
@@ -229,6 +251,15 @@ export class EditNotebookTool implements ICopilotTool<IEditNotebookToolParams> {
 				return;
 			}
 
+			if (stream instanceof WorkspaceEditStream && !await this.workspaceService.applyEdit(stream.edit)) {
+				throw new ErrorWithTelemetrySafeReason('None of the edits were applied as the notebook could not be updated', 'apply_edit_failed');
+			}
+			// Edits applied without a chat response stream are not reviewed or saved by the chat editing
+			// session, so tell the model where they went.
+			const appliedToDocumentPart = stream instanceof WorkspaceEditStream
+				? [new LanguageModelTextPart('The edit was applied to the notebook open in VS Code and may not be saved to disk yet. Do not edit the notebook file on disk; keep using this tool to change the notebook.')]
+				: [];
+
 			done.fire();
 
 			// Possible this logic for waiting for edits is wrong.
@@ -259,7 +290,8 @@ export class EditNotebookTool implements ICopilotTool<IEditNotebookToolParams> {
 				return new LanguageModelToolResult([
 					new LanguageModelTextPart(
 						`Notebook edited successfully. Use the ${ToolName.ReadFile} file tool to get the latest content of the notebook file`
-					)
+					),
+					...appliedToDocumentPart,
 				]);
 			}
 
@@ -277,7 +309,8 @@ export class EditNotebookTool implements ICopilotTool<IEditNotebookToolParams> {
 						},
 						token,
 					),
-				)
+				),
+				...appliedToDocumentPart,
 			]);
 		} catch (error) {
 			if (isCancellationError(error)) {

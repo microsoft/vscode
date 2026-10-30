@@ -18,18 +18,80 @@ import { CancellationToken } from '../../../../util/vs/base/common/cancellation'
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { NotebookCellData, NotebookCellKind, NotebookData, NotebookEdit, NotebookRange, Range, TextEdit, Uri } from '../../../../vscodeTypes';
+import { LanguageModelTextPart, NotebookCellData, NotebookCellKind, NotebookData, NotebookEdit, NotebookRange, Range, TextEdit, Uri, WorkspaceEdit } from '../../../../vscodeTypes';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { EditNotebookTool, IEditNotebookToolParams } from '../editNotebookTool';
+
+/**
+ * Applies the notebook edits passed to `applyEdit` to the in-memory notebook and fires the change
+ * events, like `vscode.workspace.applyEdit` does for an open notebook.
+ */
+class NotebookApplyEditWorkspaceService extends TestWorkspaceService {
+	readonly appliedEdits: (NotebookEdit | [Uri, TextEdit])[] = [];
+	applyEditSucceeds = true;
+
+	constructor(private readonly notebook: ExtHostNotebookDocumentData) {
+		super([], [], [notebook.document]);
+	}
+
+	override async applyEdit(edit?: WorkspaceEdit): Promise<boolean> {
+		if (!edit || !this.applyEditSucceeds) {
+			return false;
+		}
+		for (const [uri, edits] of edit.entries()) {
+			for (const textOrNotebookEdit of edits) {
+				if (textOrNotebookEdit instanceof NotebookEdit) {
+					this.applyNotebookEdit(textOrNotebookEdit);
+				} else {
+					this.applyCellTextEdit(uri, textOrNotebookEdit);
+				}
+			}
+		}
+		return true;
+	}
+
+	private applyNotebookEdit(edit: NotebookEdit) {
+		this.appliedEdits.push(edit);
+		const removedCells = this.notebook.document.getCells(edit.range);
+		ExtHostNotebookDocumentData.applyEdits(this.notebook, [edit]);
+		const addedCells = this.notebook.document.getCells(new NotebookRange(edit.range.start, edit.range.start + edit.newCells.length));
+		this.didChangeNotebookDocumentEmitter.fire({
+			notebook: this.notebook.document,
+			metadata: undefined,
+			cellChanges: [],
+			contentChanges: [{ range: edit.range, addedCells, removedCells }],
+		});
+	}
+
+	private applyCellTextEdit(uri: Uri, edit: TextEdit) {
+		this.appliedEdits.push([uri, edit]);
+		const cell = this.notebook.document.getCells().find(c => c.document.uri.toString() === uri.toString());
+		if (!cell) {
+			throw new Error(`Unknown cell ${uri.toString()}`);
+		}
+		this.didChangeTextDocumentEmitter.fire({
+			document: cell.document,
+			contentChanges: [{ range: edit.range, rangeLength: 0, rangeOffset: 0, text: edit.newText }],
+			reason: undefined,
+			detailedReason: undefined,
+		});
+		this.didChangeNotebookDocumentEmitter.fire({
+			notebook: this.notebook.document,
+			metadata: undefined,
+			cellChanges: [{ cell, document: cell.document, metadata: undefined, outputs: undefined, executionSummary: undefined }],
+			contentChanges: [],
+		});
+	}
+}
 
 describe('Edit Notebook Tool', () => {
 	const disposables = new DisposableStore();
 	afterAll(() => {
 		disposables.clear();
 	});
-	function initialize(notebook: NotebookDocument) {
+	function initialize(notebook: NotebookDocument, workspaceService: TestWorkspaceService = new TestWorkspaceService([], [], [notebook])) {
 		const accessor = disposables.add(createExtensionUnitTestingServices()).createTestingAccessor();
-		const workspaceService = disposables.add(new TestWorkspaceService([], [], [notebook]));
+		disposables.add(workspaceService);
 		const editTool = new EditNotebookTool(
 			new PromptPathRepresentationService(new TestWorkspaceService()),
 			accessor.get(IInstantiationService),
@@ -750,5 +812,70 @@ describe('Edit Notebook Tool', () => {
 		const edit = notebookEdits[0] as [Uri, TextEdit];
 		expect(edit[0].toString()).to.equal(cell2.document.uri.toString());
 		expect(edit[1].newText).to.include('print("Foo Bar")');
+	});
+
+	describe('without a chat response stream', () => {
+		// Agent sessions, such as the agent host, invoke the tool through the tools service without
+		// calling `resolveInput`, so there is no chat response stream to send the edits to.
+		function invokeWithoutStream(editTool: EditNotebookTool, input: IEditNotebookToolParams) {
+			return editTool.invoke({ input, toolInvocationToken: undefined }, CancellationToken.None);
+		}
+
+		test('Insert a cell applies the edit to the open notebook', async () => {
+			const notebook = createNotebook();
+			const cellCount = notebook.document.cellCount;
+			const workspaceService = new NotebookApplyEditWorkspaceService(notebook);
+			const [editTool] = initialize(notebook.document, workspaceService);
+
+			const result = await invokeWithoutStream(editTool, { filePath: notebook.uri.toString(), editType: 'insert', newCode: 'print(1)', language: 'python', cellId: 'bottom' });
+
+			expect(workspaceService.appliedEdits).toHaveLength(1);
+			expect(notebook.document.cellCount).toBe(cellCount + 1);
+			expect(notebook.document.cellAt(cellCount).document.getText()).toBe('print(1)');
+			expect(notebook.document.cellAt(cellCount).kind).toBe(NotebookCellKind.Code);
+			const text = result?.content.filter(part => part instanceof LanguageModelTextPart).map(part => part.value).join('\n');
+			expect(text).toContain('applied to the notebook open in VS Code');
+		});
+
+		test('Edit a cell applies the text edit to the cell', async () => {
+			const notebook = createNotebook();
+			const workspaceService = new NotebookApplyEditWorkspaceService(notebook);
+			const [editTool] = initialize(notebook.document, workspaceService);
+			const cell = notebook.document.cellAt(5);
+
+			await invokeWithoutStream(editTool, { filePath: notebook.uri.toString(), editType: 'edit', cellId: getCellId(cell), newCode: 'print("Foo Bar")' });
+
+			expect(workspaceService.appliedEdits).toHaveLength(1);
+			const [uri, edit] = workspaceService.appliedEdits[0] as [Uri, TextEdit];
+			expect(uri.toString()).toBe(cell.document.uri.toString());
+			expect(edit.range.isEqual(new Range(0, 0, 0, 'print("Hello World")'.length))).toBe(true);
+			expect(edit.newText).toBe('print("Foo Bar")');
+		});
+
+		test('Delete a cell applies the edit to the open notebook', async () => {
+			const notebook = createNotebook();
+			const cellCount = notebook.document.cellCount;
+			const workspaceService = new NotebookApplyEditWorkspaceService(notebook);
+			const [editTool] = initialize(notebook.document, workspaceService);
+			const cell = notebook.document.cellAt(5);
+
+			await invokeWithoutStream(editTool, { filePath: notebook.uri.toString(), editType: 'delete', cellId: getCellId(cell) });
+
+			expect(workspaceService.appliedEdits).toHaveLength(1);
+			expect(notebook.document.cellCount).toBe(cellCount - 1);
+			expect(notebook.document.getCells()).not.toContain(cell);
+		});
+
+		test('Fails when the edit cannot be applied', async () => {
+			const notebook = createNotebook();
+			const cellCount = notebook.document.cellCount;
+			const workspaceService = new NotebookApplyEditWorkspaceService(notebook);
+			workspaceService.applyEditSucceeds = false;
+			const [editTool] = initialize(notebook.document, workspaceService);
+
+			await expect(invokeWithoutStream(editTool, { filePath: notebook.uri.toString(), editType: 'insert', newCode: 'print(1)', language: 'python', cellId: 'bottom' }))
+				.rejects.toThrow('None of the edits were applied');
+			expect(notebook.document.cellCount).toBe(cellCount);
+		});
 	});
 });
