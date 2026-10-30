@@ -7,6 +7,7 @@ import { DeferredPromise, RunOnceScheduler, disposableTimeout, raceCancellationE
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../base/common/map.js';
+import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { ICloudSandboxApiService, CloudSandboxRequestError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { computeReconnectDelay } from '../../../../../platform/agentHost/common/reconnectPolicy.js';
 import { parse } from '../../../../../platform/github/common/client/schema.js';
@@ -52,6 +53,7 @@ export class CloudSandboxSessionFeed extends Disposable {
 	constructor(
 		private readonly _onInvalidate: (refresh: CloudSandboxSessionFeedRefresh) => void,
 		private readonly _webSocketFactory: (url: string, protocol: string) => SessionFeedSocket = (url, protocol) => new WebSocket(url, protocol),
+		private readonly _stopWatchFactory: () => Pick<StopWatch, 'elapsed'> = () => StopWatch.create(),
 		@ICloudSandboxApiService private readonly _apiService: ICloudSandboxApiService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -85,6 +87,7 @@ export class CloudSandboxSessionFeed extends Disposable {
 		const cancellation = new CancellationTokenSource();
 		store.add(toDisposable(() => cancellation.dispose(true)));
 		try {
+			const connectionTime = this._stopWatchFactory();
 			const connection = await this._apiService.connectSessionFeed(cancellation.token);
 			if (this._store.isDisposed) {
 				return;
@@ -160,7 +163,10 @@ export class CloudSandboxSessionFeed extends Disposable {
 			const continuous = previousConnection !== undefined && this._active.value === previousConnection;
 			store.add(disposableTimeout(() => this._reconnectAttempts = 0, healthyConnectionMs));
 			this._active.value = this._pending.clearAndLeak();
-			this._reconnect.schedule(Math.max(1_000, Date.parse(connection.reconnect_after) - Date.now()));
+			const reconnectDelay = connection.reconnect_in !== undefined
+				? connection.reconnect_in - connectionTime.elapsed()
+				: Date.parse(connection.reconnect_after) - Date.now();
+			this._reconnect.schedule(Math.max(1_000, reconnectDelay));
 			this._logService.debug(`${LOG_PREFIX} Connected to task status feed.`);
 			if (refresh) {
 				this._invalidate(continuous ? 'renewal' : 'reconnect');

@@ -420,7 +420,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			}
 			if (this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) === true && !this._sessionFeed.value) {
 				const feed = this._sessionFeed.value = this._instantiationService.createInstance(CloudSandboxSessionFeed,
-					refresh => void this._refreshFromFeed(refresh), undefined);
+					refresh => void this._refreshFromFeed(refresh), undefined, undefined);
 				await feed.start();
 			}
 			if (token.isCancellationRequested || !this._isEnabled()) {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Limiter, raceCancellationError, timeout } from '../../../../../base/common/async.js';
+import { Limiter, MAX_TIMEOUT_DELAY, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
@@ -462,9 +462,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		} catch {
 			throw new Error('Mission Control returned an invalid session feed URL');
 		}
-		const reconnectAt = Date.parse(connection.reconnect_after);
+		const now = Date.now();
+		const reconnectIn = connection.reconnect_in ?? Date.parse(connection.reconnect_after) - now;
+		const expiresIn = connection.expires_in ?? Date.parse(connection.expires_at) - now;
 		if (url.protocol !== 'wss:' || !url.hostname || url.username || url.password || url.hash
-			|| reconnectAt <= Date.now() || reconnectAt >= Date.parse(connection.expires_at)) {
+			|| (connection.reconnect_in === undefined) !== (connection.expires_in === undefined)
+			|| reconnectIn <= 0 || reconnectIn >= expiresIn || reconnectIn > MAX_TIMEOUT_DELAY) {
 			throw new Error('Mission Control returned invalid session feed connection metadata');
 		}
 		if (token.isCancellationRequested) {
