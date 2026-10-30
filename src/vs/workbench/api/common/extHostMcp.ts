@@ -844,12 +844,13 @@ export class McpHTTPHandle extends Disposable {
 	 */
 	private async _fetchWithAuthRetry(mcpUrl: string, init: MinimalRequestInit, headers: Record<string, string>, transportHeaders?: Readonly<Record<string, string>>): Promise<CommonResponse> {
 		const doFetch = () => this._fetch(mcpUrl, init, { transportHeaders });
+		const configuredAuthorization = this._launch.headers.find(([name]) => name.toLowerCase() === 'authorization')?.[1];
 
 		let res = await doFetch();
 		if (isAuthStatusCode(res.status)) {
 			if (!this._authMetadata) {
 				const protocolHeaders = { 'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION };
-				this._authMetadata = await createAuthMetadata(mcpUrl, res.headers, {
+				const authMetadata = await createAuthMetadata(mcpUrl, res.headers, {
 					sameOriginHeaders: {
 						...Object.fromEntries(this._launch.headers),
 						...protocolHeaders,
@@ -860,7 +861,17 @@ export class McpHTTPHandle extends Disposable {
 					}),
 					log: (level, message) => this._log(level, message)
 				});
-				this._proxy.$logMcpAuthSetup(this._authMetadata.telemetry);
+				this._proxy.$logMcpAuthSetup(authMetadata.telemetry);
+				// A server that rejects the configured Authorization header and advertises no OAuth metadata
+				// uses static credentials. Guessing OAuth endpoints for it can only lead to a failed client
+				// registration and a sign-in page that does not exist.
+				if (configuredAuthorization !== undefined && !this._launch.oauth && !this._launch.authentication
+					&& authMetadata.telemetry.resourceMetadataSource === IAuthResourceMetadataSource.None
+					&& authMetadata.telemetry.serverMetadataSource === IAuthServerMetadataSource.Default) {
+					this._log(LogLevel.Warning, `Server rejected the configured Authorization header with status ${res.status} and does not advertise OAuth metadata, not attempting OAuth. Check the credentials configured for this server.`);
+					return res;
+				}
+				this._authMetadata = authMetadata;
 				await this._addAuthHeader(headers);
 				if (headers['Authorization']) {
 					// Update the headers in the init object
@@ -879,8 +890,9 @@ export class McpHTTPHandle extends Disposable {
 				}
 			}
 		}
-		// If we have an Authorization header and still get an auth error, we should retry with a new auth registration
-		if (headers['Authorization'] && isAuthStatusCode(res.status)) {
+		// If an OAuth token is still rejected, retry with a new auth registration. A rejected configured
+		// header is not fixed by registering a new OAuth client.
+		if (headers['Authorization'] && headers['Authorization'] !== configuredAuthorization && isAuthStatusCode(res.status)) {
 			const errorText = await this._getErrText(res);
 			this._log(LogLevel.Info, `Received ${res.status} status with Authorization header, retrying with new auth registration. Error details: ${errorText || 'no additional details'}`);
 			await this._addAuthHeader(headers, { forceNewRegistration: true });

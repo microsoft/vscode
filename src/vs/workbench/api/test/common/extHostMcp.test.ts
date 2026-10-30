@@ -11,7 +11,7 @@ import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { LogLevel, NullLogService } from '../../../../platform/log/common/log.js';
-import { MainThreadMcpShape } from '../../common/extHost.protocol.js';
+import { IMcpAuthenticationDetails, IMcpAuthenticationOptions, MainThreadMcpShape } from '../../common/extHost.protocol.js';
 import { createAuthMetadata, CommonRequestInit, CommonResponse, IAuthMetadata, McpHTTPHandle } from '../../common/extHostMcp.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { McpConnectionState, McpServerTransportHTTP, McpServerTransportType } from '../../../contrib/mcp/common/mcpTypes.js';
@@ -185,14 +185,17 @@ suite('ExtHostMcp', () => {
 		function createHandle(options: {
 			uri?: URI;
 			headers?: McpServerTransportHTTP['headers'];
+			oauth?: McpServerTransportHTTP['oauth'];
 			check?: (url: string) => Promise<string | undefined>;
 			respond?: (url: string, init: CommonRequestInit) => CommonResponse;
+			getToken?: () => Promise<string | undefined>;
 			onState?: (state: McpConnectionState) => void;
 		} = {}) {
 			const requests: { url: string; method: string; headers: Record<string, string>; body: Uint8Array<ArrayBuffer> | undefined }[] = [];
 			const checkedUrls: string[] = [];
 			const states: McpConnectionState[] = [];
 			const signals: AbortSignal[] = [];
+			const tokenRequests: { authorizationEndpoint: string | undefined; forceNewRegistration: boolean }[] = [];
 			const backchannelStopped = new DeferredPromise<void>();
 			const proxy = Object.assign(new class extends mock<MainThreadMcpShape>() {
 				override $onDidChangeState(_id: number, state: McpConnectionState): void {
@@ -205,8 +208,9 @@ suite('ExtHostMcp', () => {
 						void backchannelStopped.complete();
 					}
 				}
-				override async $getTokenFromServerMetadata(): Promise<string> {
-					return 'test-access-token';
+				override async $getTokenFromServerMetadata(_id: number, authDetails: IMcpAuthenticationDetails, tokenOptions?: IMcpAuthenticationOptions): Promise<string | undefined> {
+					tokenRequests.push({ authorizationEndpoint: authDetails.authorizationServerMetadata.authorization_endpoint, forceNewRegistration: !!tokenOptions?.forceNewRegistration });
+					return options.getToken ? options.getToken() : 'test-access-token';
 				}
 				override $logMcpAuthSetup(): void { }
 			}, {
@@ -229,9 +233,10 @@ suite('ExtHostMcp', () => {
 				type: McpServerTransportType.HTTP,
 				uri: options.uri ?? URI.parse(TEST_MCP_URL),
 				headers: options.headers ?? [],
+				oauth: options.oauth,
 			}, proxy, new NullLogService()));
 
-			return { handle, requests, checkedUrls, states, signals, backchannelStopped };
+			return { handle, requests, checkedUrls, states, signals, tokenRequests, backchannelStopped };
 		}
 
 		for (const status of [307, 308]) {
@@ -519,6 +524,76 @@ suite('ExtHostMcp', () => {
 			const metadataRequest = requests.find(request => request.url === metadataUrl);
 			assert.ok(metadataRequest);
 			assert.strictEqual(metadataRequest.headers['MCP-Protocol-Version'], MCP.LATEST_PROTOCOL_VERSION);
+		});
+
+		suite('configured Authorization headers', () => {
+			const configuredHeaders: McpServerTransportHTTP['headers'] = [['Authorization', 'Bearer static-token']];
+			// Like Netdata Cloud: anything but an OAuth token is rejected, and every OAuth discovery URL is a 404.
+			const respondWithoutOAuthMetadata = (url: string, init: CommonRequestInit) => url === TEST_MCP_URL
+				? createMockResponse({ status: init.headers.Authorization === 'Bearer test-access-token' ? 202 : 401 })
+				: createMockResponse({ status: 404 });
+			const respondWithOAuthMetadata = (url: string, init: CommonRequestInit) => {
+				if (url.includes('oauth-protected-resource')) {
+					return createMockResponse({ body: JSON.stringify({ resource: TEST_MCP_URL, authorization_servers: [TEST_AUTH_SERVER] }) });
+				}
+				if (url.startsWith(TEST_AUTH_SERVER)) {
+					return createMockResponse({
+						body: JSON.stringify({
+							issuer: TEST_AUTH_SERVER,
+							authorization_endpoint: `${TEST_AUTH_SERVER}/authorize`,
+							token_endpoint: `${TEST_AUTH_SERVER}/token`,
+							response_types_supported: ['code'],
+						})
+					});
+				}
+				return respondWithoutOAuthMetadata(url, init);
+			};
+
+			async function fetchWithAuthRetry(options: Parameters<typeof createHandle>[0]) {
+				const { handle, tokenRequests } = createHandle(options);
+				const headers = Object.fromEntries(options?.headers ?? []);
+				const response = await handle['_fetchWithAuthRetry'](TEST_MCP_URL, { method: 'POST', headers }, headers);
+				return { status: response.status, tokenRequests };
+			}
+
+			test('does not guess OAuth endpoints when the configured header is rejected', async () => {
+				assert.deepStrictEqual(await fetchWithAuthRetry({ headers: configuredHeaders, respond: respondWithoutOAuthMetadata }), {
+					status: 401,
+					tokenRequests: [],
+				});
+			});
+
+			test('guesses OAuth endpoints when no Authorization header is configured', async () => {
+				assert.deepStrictEqual(await fetchWithAuthRetry({ respond: respondWithoutOAuthMetadata }), {
+					status: 202,
+					tokenRequests: [{ authorizationEndpoint: 'https://example.com/authorize', forceNewRegistration: false }],
+				});
+			});
+
+			test('guesses OAuth endpoints when the server configures an OAuth client', async () => {
+				assert.deepStrictEqual(await fetchWithAuthRetry({ headers: configuredHeaders, oauth: { clientId: 'test-client' }, respond: respondWithoutOAuthMetadata }), {
+					status: 202,
+					tokenRequests: [{ authorizationEndpoint: 'https://example.com/authorize', forceNewRegistration: false }],
+				});
+			});
+
+			test('uses discovered OAuth metadata when the configured header is rejected', async () => {
+				assert.deepStrictEqual(await fetchWithAuthRetry({ headers: configuredHeaders, respond: respondWithOAuthMetadata }), {
+					status: 202,
+					tokenRequests: [{ authorizationEndpoint: `${TEST_AUTH_SERVER}/authorize`, forceNewRegistration: false }],
+				});
+			});
+
+			test('does not force a new client registration when OAuth fails and the configured header is rejected', async () => {
+				assert.deepStrictEqual(await fetchWithAuthRetry({
+					headers: configuredHeaders,
+					respond: respondWithOAuthMetadata,
+					getToken: () => Promise.reject(new Error('User did not provide client details')),
+				}), {
+					status: 401,
+					tokenRequests: [{ authorizationEndpoint: `${TEST_AUTH_SERVER}/authorize`, forceNewRegistration: false }],
+				});
+			});
 		});
 
 		suite('first destinations', () => {
