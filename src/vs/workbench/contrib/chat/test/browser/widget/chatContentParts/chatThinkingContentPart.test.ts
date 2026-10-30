@@ -45,6 +45,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { chatSessionResourceToId } from '../../../../common/model/chatUri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
+import '../../../../browser/widget/media/chat.css';
 
 suite('ChatThinkingContentPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1048,6 +1049,39 @@ suite('ChatThinkingContentPart', () => {
 
 			const scrollable = part.domNode.querySelector('.monaco-scrollable-element');
 			assert.ok(scrollable, 'Should have scrollable container');
+		});
+
+		test('fenced thinking content paints the code-block background only once', () => {
+			const container = $('.interactive-session');
+			disposables.add(toDisposable(() => container.remove()));
+			container.style.setProperty('--vscode-textPreformat-background', 'rgba(0, 0, 0, 0.12)');
+			container.style.setProperty('--vscode-textCodeBlock-background', '#ececec');
+			const response = container.appendChild($('.interactive-item-container.interactive-response'));
+			const value = response.appendChild($('.value'));
+			mainWindow.document.body.appendChild(container);
+			const renderer: IMarkdownRenderer = {
+				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
+			};
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				createThinkingPart('**Inspecting code**\n\nUse `inline`.\n\n```\nblock code\n```'),
+				createMockRenderContext(false),
+				renderer,
+				false
+			));
+			value.appendChild(part.domNode);
+			const block = part.domNode.querySelector<HTMLElement>('[data-code]')!;
+			const code = block.querySelector('code')!;
+			const inline = part.domNode.querySelector('p code')!;
+			assert.deepStrictEqual({
+				block: mainWindow.getComputedStyle(block).backgroundColor,
+				code: mainWindow.getComputedStyle(code).backgroundColor,
+				inline: mainWindow.getComputedStyle(inline).backgroundColor,
+			}, {
+				block: 'rgb(236, 236, 236)',
+				code: 'rgba(0, 0, 0, 0)',
+				inline: 'rgba(0, 0, 0, 0.12)',
+			});
 		});
 
 		test('splits summary headers as they stream without replacing the scroll container', () => {

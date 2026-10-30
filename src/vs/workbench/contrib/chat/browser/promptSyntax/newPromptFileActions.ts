@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor, ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -409,10 +410,13 @@ class NewUntitledPromptFileAction extends Action2 {
 	}
 }
 
-export function registerNewPromptFileActions(): void {
-	registerAction2(NewPromptFileAction);
-	registerAction2(NewInstructionsFileAction);
-	registerAction2(NewAgentFileAction);
-	registerAction2(NewSkillFileAction);
-	registerAction2(NewUntitledPromptFileAction);
+export function registerNewPromptFileActions(): DisposableStore {
+	const store = new DisposableStore();
+	store.add(registerAction2(NewPromptFileAction));
+	store.add(registerAction2(NewInstructionsFileAction));
+	store.add(registerAction2(NewAgentFileAction));
+	store.add(registerAction2(NewSkillFileAction));
+	store.add(registerAction2(NewUntitledPromptFileAction));
+
+	return store;
 }

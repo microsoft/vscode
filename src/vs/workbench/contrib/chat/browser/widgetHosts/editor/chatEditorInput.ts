@@ -184,6 +184,13 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override getName(): string {
+		return this.getKnownTitle() ?? this.options.title?.fallback ?? nls.localize('chatEditorName', "Chat");
+	}
+
+	/**
+	 * The title of this chat, or `undefined` if only the generic fallback name is known.
+	 */
+	getKnownTitle(): string | undefined {
 		// If we have a resolved model, use its title
 		if (this.model?.title) {
 			// Only truncate if the default title is being used (don't truncate custom titles)
@@ -205,13 +212,13 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			}
 		}
 
-		// If a preferred title was provided in options, use it
-		if (this.options.title?.preferred) {
-			return this.options.title.preferred;
+		// The title cached when this editor was last serialized is more recent than the preferred title it was opened with
+		if (this.options.restoredTitle) {
+			return this.options.restoredTitle;
 		}
 
-		// Fall back to default naming pattern
-		return this.options.title?.fallback ?? nls.localize('chatEditorName', "Chat");
+		// If a preferred title was provided in options, use it
+		return this.options.title?.preferred || undefined;
 	}
 
 	override getTitle(verbosity?: Verbosity): string {
@@ -543,7 +550,7 @@ export class ChatEditorInputSerializer implements IEditorSerializer {
 		}
 
 		const obj: ISerializedChatEditorInput = {
-			options: { ...input.options, sessionTypeSelectionReason: undefined },
+			options: { ...input.options, restoredTitle: input.getKnownTitle(), sessionTypeSelectionReason: undefined },
 			sessionResource: input.sessionResource,
 			resource: input.resource,
 

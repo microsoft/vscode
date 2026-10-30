@@ -50,6 +50,7 @@ import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { assertCodexSkillItems, createCodexSkillCustomizations } from './agentHostSkillDiscoveryTestUtils.js';
+import { createInstalledMcpServerDetailInput } from '../../../browser/aiCustomization/mcpListWidget.js';
 
 class FakeTarget implements IAgentHostCustomizationTarget {
 	readonly backendSession = URI.parse('other-agent://tenant/conversations/opaque-session?revision=1');
@@ -424,15 +425,20 @@ suite('AbstractAgentHostCustomizationService', () => {
 		const session = URI.parse('vscode-agent-session:///session-1');
 		const fileServer = mcpServer('file-server', 'File Server');
 		const topLevelServer = { ...mcpServer('top-level-server', 'Top Level Server'), uri: 'mcp-top-level:/top-level-server' };
+		const opaqueServer = { ...mcpServer('opaque-server', 'Opaque Server'), uri: 'agent-discovery://copilot/mcp#opaque' };
 		const resourceUris = createAgentHostResourceUriMapper('remote.example');
-		sut.setTarget(session, new FakeTarget([fileServer, topLevelServer], undefined, undefined, resourceUris));
+		const wrappedOpaqueServer = { ...mcpServer('wrapped-opaque', 'Wrapped Opaque'), uri: resourceUris.fromAgentHost(URI.parse('agent-discovery://copilot/mcp#wrapped')).toString() };
+		sut.setTarget(session, new FakeTarget([fileServer, topLevelServer, opaqueServer, wrappedOpaqueServer], undefined, undefined, resourceUris));
 
 		const servers = sut.getMcpServers(session);
 
-		assert.deepStrictEqual(servers.map(server => server.sourceUri?.toString()), [
-			resourceUris.fromAgentHost(URI.parse(fileServer.uri)).toString(),
-			undefined,
-		]);
+		assert.deepStrictEqual({
+			sources: servers.map(server => server.sourceUri?.toString()),
+			detailSources: servers.map(server => createInstalledMcpServerDetailInput({ type: 'session-server-item', server }).source?.uri.toString()),
+		}, {
+			sources: [resourceUris.fromAgentHost(URI.parse(fileServer.uri)).toString(), undefined, undefined, undefined],
+			detailSources: [resourceUris.fromAgentHost(URI.parse(fileServer.uri)).toString(), undefined, undefined, undefined],
+		});
 	});
 
 	test('preserves host-only MCP presentation metadata without requiring a source file', () => {

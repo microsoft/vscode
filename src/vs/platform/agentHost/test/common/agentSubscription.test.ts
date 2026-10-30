@@ -318,17 +318,7 @@ suite('CanvasStateSubscription', () => {
 
 suite('RootStateSubscription', () => {
 
-	let disposables: DisposableStore;
-
-	setup(() => {
-		disposables = new DisposableStore();
-	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('value is undefined before snapshot', () => {
 		const sub = disposables.add(new RootStateSubscription('c1', noop));
@@ -471,19 +461,12 @@ suite('RootStateSubscription', () => {
 
 suite('SessionStateSubscription', () => {
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let seq: number;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		seq = 0;
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createSub(uri: string = sessionUri, clientId: string = 'c1'): SessionStateSubscription {
 		return disposables.add(new SessionStateSubscription(uri, clientId, () => ++seq, noop));
@@ -729,19 +712,12 @@ suite('ChatStateSubscription', () => {
 		}
 	});
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let seq: number;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		seq = 0;
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createSub(uri: string = chatUri, clientId: string = 'c1'): ChatStateSubscription {
 		return disposables.add(new ChatStateSubscription(uri, clientId, () => ++seq, noop));
@@ -997,17 +973,7 @@ suite('ChatStateSubscription', () => {
 
 suite('TerminalStateSubscription', () => {
 
-	let disposables: DisposableStore;
-
-	setup(() => {
-		disposables = new DisposableStore();
-	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('accepts terminal actions matching its URI', () => {
 		const sub = disposables.add(new TerminalStateSubscription(terminalUri, 'c1', noop));

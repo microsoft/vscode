@@ -46,7 +46,7 @@ import { resolveResponseSelection } from '../responseSelectionResolver.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { ChatCollapsibleContentPart } from './chatContentParts/chatCollapsibleContentPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
-import { getLinkTarget, sanitizeChatClipboardFragment } from './chatClipboard.js';
+import { cloneVisibleSelection, getLinkTarget, sanitizeChatClipboardFragment } from './chatClipboard.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 
@@ -857,7 +857,7 @@ export class ChatListWidget extends Disposable {
 			ranges.push(range);
 		}
 
-		const fragments = ranges.map(range => this.cloneSelectedContents(range));
+		const fragments = ranges.map(range => cloneVisibleSelection(range, this._container));
 		if (!fragments.map(fragment => sanitizeChatClipboardFragment(fragment)).some(Boolean)) {
 			return;
 		}
@@ -870,44 +870,6 @@ export class ChatListWidget extends Disposable {
 		e.clipboardData.setData(Mimes.text, selection.toString());
 		e.clipboardData.setData(Mimes.html, holder.innerHTML);
 		e.preventDefault();
-	}
-
-	/**
-	 * Clones a range along with the elements it sits inside. `cloneContents` returns only what
-	 * lies between the range boundaries, which drops both the heading or list item giving the
-	 * text its shape and, for a partly selected link, the rest of its label.
-	 */
-	private cloneSelectedContents(range: Range): DocumentFragment {
-		let content: Node = range.cloneContents();
-
-		for (
-			let ancestor = range.commonAncestorContainer;
-			ancestor && ancestor !== this._container;
-			ancestor = ancestor.parentNode as Node
-		) {
-			if (!dom.isHTMLElement(ancestor)) {
-				continue;
-			}
-
-			// A link is one unit: selecting part of `foo.ts:42` should still copy the whole
-			// reference rather than a fragment of its label.
-			if (ancestor.tagName === 'A') {
-				content = ancestor.cloneNode(true);
-				continue;
-			}
-
-			const wrapper = ancestor.cloneNode(false);
-			wrapper.appendChild(content);
-			content = wrapper;
-		}
-
-		if (content.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
-			return content as DocumentFragment;
-		}
-
-		const fragment = this._container.ownerDocument.createDocumentFragment();
-		fragment.appendChild(content);
-		return fragment;
 	}
 
 	/**

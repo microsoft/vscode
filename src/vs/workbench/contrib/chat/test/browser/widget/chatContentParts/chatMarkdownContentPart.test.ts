@@ -7,7 +7,8 @@ import assert from 'assert';
 import { spy, stub } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../../base/common/buffer.js';
-import { addDisposableListener } from '../../../../../../../base/browser/dom.js';
+import { addDisposableListener, scheduleAtNextAnimationFrame } from '../../../../../../../base/browser/dom.js';
+import { DomScrollableElement } from '../../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
@@ -32,12 +33,12 @@ import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../../platform
 import { AgentHostFileSystemProvider, IRemoteFilesystemConnection } from '../../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { ContentEncoding, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceType } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
+import { createInMemoryFileService } from '../../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
-import { ChatMarkdownContentPart } from '../../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
+import { ChatMarkdownContentPart, IChatMarkdownContentPartOptions } from '../../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
 import { ChatMarkdownDecorationsRenderer } from '../../../../browser/widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatPetService } from '../../../../browser/chatPetService.js';
@@ -130,7 +131,7 @@ suite('ChatMarkdownContentPart', () => {
 		};
 	}
 
-	function createMarkdownPart(markdown: string | MarkdownString, context?: IChatContentPartRenderContext, fillInIncompleteTokens = false, supportHtml = false): ChatMarkdownContentPart {
+	function createMarkdownPart(markdown: string | MarkdownString, context?: IChatContentPartRenderContext, fillInIncompleteTokens = false, supportHtml = false, rendererOptions: IChatMarkdownContentPartOptions = {}): ChatMarkdownContentPart {
 		const ctx = context ?? createRenderContext();
 		return store.add(instantiationService.createInstance(
 			ChatMarkdownContentPart,
@@ -142,7 +143,7 @@ suite('ChatMarkdownContentPart', () => {
 			renderer,
 			undefined, // markdownRenderOptions
 			() => ctx.currentWidth.get(),
-			{}, // rendererOptions
+			rendererOptions,
 		));
 	}
 
@@ -438,8 +439,7 @@ suite('ChatMarkdownContentPart', () => {
 
 		setup(async () => {
 			resolveImage = undefined;
-			fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(AGENT_HOST_SCHEME, disposables.add(new InMemoryFileSystemProvider())));
+			fileService = createInMemoryFileService(disposables, AGENT_HOST_SCHEME);
 			useFileService(fileService);
 			disposables.add(chatSessionsService.registerChatSessionContentProvider('chat-session', {
 				provideChatSessionContent: async () => { throw new Error('Unexpected session resolution'); },
@@ -743,6 +743,69 @@ suite('ChatMarkdownContentPart', () => {
 		assert.strictEqual(part.codeblocks.length, 0);
 		assert.strictEqual(renderedCodeBlocks.length, 0);
 		assert.ok(part.domNode.textContent?.includes('Hello, world!'));
+	});
+
+	test('re-measures every table scrollbar in one animation frame when the part is resized', async () => {
+		let resize: (() => void) | undefined;
+		class TestResizeObserver implements ResizeObserver {
+			constructor(callback: ResizeObserverCallback) {
+				resize = () => callback([], this);
+			}
+			observe(): void { }
+			unobserve(): void { }
+			disconnect(): void { }
+		}
+		/** Resolves after the table scrollbars measured at the next animation frame have been updated. */
+		const afterNextAnimationFrame = () => new Promise<void>(resolve => scheduleAtNextAnimationFrame(mainWindow, resolve, -20000 /* after dom.modify */));
+
+		const tableCount = 4;
+		const markdown = Array.from({ length: tableCount }, (_, i) => `| Column ${i} | Value |\n| --- | --- |\n| ${'x'.repeat(i * 40)} | ${i} |`).join('\n\n');
+		const ctx = createRenderContext();
+		const part = createMarkdownPart(markdown, ctx, false, false, { resizeObserverCtor: TestResizeObserver });
+		ctx.container.style.width = '200px';
+		ctx.container.appendChild(part.domNode);
+		mainWindow.document.body.appendChild(ctx.container);
+		disposables.add(toDisposable(() => ctx.container.remove()));
+		await afterNextAnimationFrame();
+
+		// A layout read that follows a scrollbar update forces a synchronous layout of the whole transcript.
+		const log: ('read' | 'write')[] = [];
+		const tableContainers = Array.from(part.domNode.querySelectorAll('table'), table => table.parentElement!);
+		for (const tableContainer of tableContainers) {
+			for (const name of ['clientWidth', 'scrollWidth', 'clientHeight', 'scrollHeight', 'scrollLeft', 'scrollTop'] as const) {
+				const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, name)!;
+				Object.defineProperty(tableContainer, name, {
+					configurable: true,
+					get: () => {
+						log.push('read');
+						return descriptor.get!.call(tableContainer);
+					},
+					set: descriptor.set && (value => descriptor.set!.call(tableContainer, value)),
+				});
+			}
+		}
+		const setScrollDimensions = stub(DomScrollableElement.prototype, 'setScrollDimensions').callsFake(function (this: DomScrollableElement, dimensions) {
+			log.push('write');
+			setScrollDimensions.wrappedMethod.call(this, dimensions);
+		});
+		disposables.add(toDisposable(() => setScrollDimensions.restore()));
+
+		ctx.container.style.width = '300px';
+		resize!();
+		const layoutReadsInResizeCallback = log.filter(entry => entry === 'read').length;
+		await afterNextAnimationFrame();
+
+		assert.deepStrictEqual({
+			tables: tableContainers.length,
+			layoutReadsInResizeCallback,
+			scrollbarUpdatesAfterOneFrame: setScrollDimensions.callCount,
+			layoutReadsAfterFirstScrollbarUpdate: log.slice(log.indexOf('write')).filter(entry => entry === 'read').length,
+		}, {
+			tables: tableCount,
+			layoutReadsInResizeCallback: 0,
+			scrollbarUpdatesAfterOneFrame: tableCount,
+			layoutReadsAfterFirstScrollbarUpdate: 0,
+		});
 	});
 
 	test('always renders Agent Host session links as rich links', () => {

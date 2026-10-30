@@ -23,6 +23,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -37,10 +38,10 @@ import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessi
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { getNoWorkspaceDescription, getQuickChatProviderLabel, getRemoteQuickChatSelectedLabel } from './noWorkspaceChoice.js';
-import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
+import { shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID, FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { isAgentHostEnvironmentAvailable, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
-import { NewSessionCreationProviderIdContext } from '../../../common/contextkeys.js';
+import { NewSessionComposerFocusContext, NewSessionCreationProviderIdContext } from '../../../common/contextkeys.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
 import { IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
@@ -77,6 +78,7 @@ import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/age
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
+import { NewSessionBannerPriority, NewSessionBanners } from '../common/newSessionBanners.js';
 import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
 import { getNewSessionWelcomePhrases, INewSessionWelcomeMessagesConfiguration } from '../common/welcomePhrases.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -99,8 +101,16 @@ import { filterConfigurationToSchema } from '../../../../workbench/contrib/chat/
 
 // #region --- New Chat Widget ---
 
-/** Minimum number of started sessions required before showing tips and promotions. */
+/**
+ * Minimum number of started sessions required before showing promotions and other notifications above the
+ * input. The banners below the input, tips included, wait for `NEW_SESSION_BANNERS_MIN_CREATED_SESSIONS`.
+ */
 const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
+
+export function shouldShowNewSessionChatTip(hasAgentHost: boolean, foregroundSessionCount: number | undefined): boolean {
+	return hasAgentHost && foregroundSessionCount === 1;
+}
+
 const WELCOME_PHRASE_INDEX_STORAGE_KEY = 'agentSessions.newSession.welcomePhraseIndex';
 const githubProfileNames = new Map<string, Promise<string | undefined>>();
 
@@ -136,7 +146,9 @@ export class NewChatWidget extends Disposable {
 	private readonly _usage: AgentsWindowUsage;
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _newChatInput: SharedChatInputComposer;
+	private readonly _preserveCustomView: boolean;
 	private readonly _pickedEnvironment = observableValue<ISessionCreationEnvironment | undefined>(this, undefined);
+	private readonly _environmentWorkspaces = new Map<string, URI>();
 	private readonly _environmentWorkspaceChanged = observableSignal(this);
 	private readonly _environment: IObservable<ISessionCreationEnvironment | undefined>;
 	private readonly _environments: IObservable<readonly ISessionCreationEnvironment[]>;
@@ -240,6 +252,7 @@ export class NewChatWidget extends Disposable {
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
+		this._preserveCustomView = options.preserveCustomView === true;
 		this._welcomePhraseIndex = NewChatWidget._takeNextWelcomePhraseIndex(storageService);
 		this._usage = new AgentsWindowUsage(storageService);
 		this._register(this._pendingPreferredUpgrade);
@@ -369,7 +382,6 @@ export class NewChatWidget extends Disposable {
 			getWorkspaceGroupAction: group => {
 				if (group === SESSION_WORKSPACE_GROUP_GITHUB && shouldShowGitHubWorkspaceGroupSignIn(
 					this.defaultAccountService.currentDefaultAccount !== null,
-					isAllowSignedOutWhenUsableEnabled(this.configurationService),
 				)) {
 					return {
 						label: localize('workspacePicker.signInGitHub', "Sign in to GitHub"),
@@ -506,6 +518,7 @@ export class NewChatWidget extends Disposable {
 			supportsBackground: true,
 			deferredNotificationsEnabled,
 			petHostPreferred: this.options.petHostPreferred,
+			renderChatPet: this.options.renderChatPet,
 			getChatPetPlatformElements: () => [
 				...(this._welcomeMessageTitle ? [this._welcomeMessageTitle] : []),
 				...this._workspacePicker.getChatPetPlatformElements(),
@@ -524,7 +537,7 @@ export class NewChatWidget extends Disposable {
 				prepareSessionTypeSelection: pick => this._prepareSessionTypeSelection(pick),
 				focusCommand: {
 					id: FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID,
-					label: localize('newSessionHarnessPicker.tooltip', "Choose the harness for the new session"),
+					label: localize('newSessionHarnessPicker.tooltip', "Agent harness for the new session"),
 					when: FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN,
 					enabled: constObservable(true),
 				},
@@ -647,24 +660,6 @@ export class NewChatWidget extends Disposable {
 		}));
 		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => this._restoreNoWorkspaceDraft()));
 
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (!e.affectsConfiguration('chat.tips.enabled')) {
-				return;
-			}
-			if (this.configurationService.getValue<boolean>('chat.tips.enabled')) {
-				this._renderChatTip();
-			} else {
-				this._clearChatTip();
-			}
-		}));
-		this._register(this._usage.onDidChangeCreatedSessionCount(this._store)(() => this._renderChatTip()));
-		const foregroundSessionCountContextKeys = new Set([ChatContextKeys.foregroundSessionCount.key]);
-		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(foregroundSessionCountContextKeys)) {
-				this._renderChatTip();
-			}
-		}));
-
 		// Comment 2: Re-evaluate the tip when the selected model changes, because
 		// some tips (e.g. tip.switchToAuto) are only eligible for specific models.
 		let previousModelId: string | undefined;
@@ -726,6 +721,11 @@ export class NewChatWidget extends Disposable {
 
 	render(parent: HTMLElement): void {
 		const element = dom.append(parent, dom.$('.sessions-chat-widget'));
+		const composerFocus = NewSessionComposerFocusContext.bindTo(this.contextKeyService);
+		const focusTracker = this._register(dom.trackFocus(element));
+		this._register(focusTracker.onDidFocus(() => composerFocus.set(true)));
+		this._register(focusTracker.onDidBlur(() => composerFocus.set(false)));
+		this._register(toDisposable(() => composerFocus.reset()));
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
 		const welcomeMessage = dom.append(chatWidgetContent, dom.$('.new-session-welcome-message'));
@@ -870,9 +870,12 @@ export class NewChatWidget extends Disposable {
 			onDidChangeInputValue: this._newChatInput.onDidChangeInput,
 		}, undefined));
 
+		// The tip, migration notice and worktree suggestion below the input show one at a time, by priority,
+		// and only once the user started enough sessions.
+		const banners = this._register(this.instantiationService.createInstance(NewSessionBanners));
 		const chatTipContainer = dom.$(`.new-session-getting-started-tip.new-session-getting-started-tip-below.chat-getting-started-tip-container.${chatInputStackSlotClass}`);
 		belowInputSurfaces.prepend(chatTipContainer);
-		this._register(this.instantiationService.createInstance(NewChatMigrationNotice, belowInputSurfaces, this._session, () => this.focusInput()));
+		this._register(this.instantiationService.createInstance(NewChatMigrationNotice, belowInputSurfaces, banners, this._session, () => this.focusInput()));
 		this._worktreeSuggestion = this._register(this.instantiationService.createInstance(WorktreeSuggestionController, belowInputSurfaces, {
 			session: this._session,
 			pickerVisibility: this._newChatInput.pickerVisibility,
@@ -882,31 +885,37 @@ export class NewChatWidget extends Disposable {
 			focusInput: () => this.focusInput(),
 			revealIsolationPicker: () => this._sessionOptionsExpanded.set(true, undefined),
 			openIsolationPicker: () => this.focusWorktreePicker({ focusValue: 'worktree' }),
+			banners,
 		}));
+		const foregroundSessionCountKeys = new Set([ChatContextKeys.foregroundSessionCount.key]);
+		const foregroundSessionCount = observableFromEvent(this,
+			Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(foregroundSessionCountKeys)),
+			() => this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key));
+		const tipsEnabled = observableConfigValue<boolean>('chat.tips.enabled', true, this.configurationService);
+		// The composer owns one foreground chat widget itself. Another foreground widget raises the count
+		// above one and suppresses the tip, as does the no-agent-host empty state.
+		const chatTipBanner = this._register(banners.register(NewSessionBannerPriority.Tip, derived(this, reader => tipsEnabled.read(reader) && shouldShowNewSessionChatTip(
+			!this._activeEmptyState.read(reader),
+			foregroundSessionCount.read(reader),
+		))));
 		this._chatTipPresenter.value = this.instantiationService.createInstance(
 			ChatInputTipPresenter,
 			{
 				container: chatTipContainer,
 				// Reset tip rotation the first time this composer becomes the only
 				// foreground surface, so a returning user gets a fresh tip.
-				onBeforeUpdate: () => {
-					if (this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) !== 0) {
-						this._isChatTipSessionInitialized = false;
-					} else if (!this._isChatTipSessionInitialized) {
-						this._isChatTipSessionInitialized = true;
-						this.chatTipService.resetSession();
-					}
-				},
-				// No tip in the no-agent-host empty state: there is no usable composer.
-				// Tips also stay away until the user has actually started a couple of
-				// sessions, so a first-run composer is not busy.
-				isEligible: () => !chatWidgetContent.classList.contains('no-agent-host')
-					&& this._hasEnoughSessionsForFirstRunNotices()
-					&& this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) === 0,
+				onBeforeUpdate: () => this._prepareChatTipSession(),
+				isEligible: () => chatTipBanner.isShowing.get(),
 				focusInput: () => this.focusInput(),
 			},
 			this._newChatInput.noticeHost,
 		);
+		// Re-evaluates the tip as its conditions change, and as other banners take or free the space. Every
+		// change of the foreground count does, so returning from other foreground chats resets tip rotation.
+		this._register(autorun(reader => {
+			foregroundSessionCount.read(reader);
+			this._updateChatTip(chatTipBanner.isShowing.read(reader), chatTipContainer);
+		}));
 
 		// Quick chat composer: retain the picker only when it created the
 		// workspace-less draft, so the user can switch back to a workspace.
@@ -1152,8 +1161,22 @@ export class NewChatWidget extends Disposable {
 		this._chatTipPresenter.value?.update();
 	}
 
-	private _clearChatTip(): void {
-		this._chatTipPresenter.value?.clear();
+	/** Re-evaluates the tip in `container`. Focus inside it returns to the input as it makes way for another banner. */
+	private _updateChatTip(isShowing: boolean, container: HTMLElement): void {
+		const tipFocused = !isShowing && dom.isAncestorOfActiveElement(container);
+		this._renderChatTip();
+		if (tipFocused) {
+			this.focusInput();
+		}
+	}
+
+	private _prepareChatTipSession(): void {
+		if (this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) !== 1) {
+			this._isChatTipSessionInitialized = false;
+		} else if (!this._isChatTipSessionInitialized) {
+			this._isChatTipSessionInitialized = true;
+			this.chatTipService.resetSession();
+		}
 	}
 
 	private _hasEnoughSessionsForFirstRunNotices(): boolean {
@@ -1388,6 +1411,7 @@ export class NewChatWidget extends Disposable {
 			return await this.sessionsService.openNewSession({
 				folderUri,
 				preserveNavigation: true,
+				...(this._preserveCustomView ? { preserveCustomView: true } : {}),
 				...(environment?.kind === 'container' ? { requireDevContainer: true } : undefined),
 				...(preferredPick
 					? { providerId: preferredPick.providerId, sessionTypeId: preferredPick.sessionTypeId }
@@ -1444,7 +1468,7 @@ export class NewChatWidget extends Disposable {
 		this._workspacePicker.selectNoWorkspace(selectionOptions?.userSelection !== false);
 		const environment = this._environment.get();
 		const session = environment?.kind === 'cloud' || environment?.kind === 'container'
-			? this.sessionsService.openQuickChat(options ?? this._workspaceOptOutTarget.get(), selectionOptions?.preserveNavigation)
+			? this.sessionsService.openQuickChat(options ?? this._workspaceOptOutTarget.get(), this._preserveCustomView ? true : selectionOptions?.preserveNavigation)
 			: this._openQuickChat(options, selectionOptions?.preserveNavigation);
 		if (session && environment && (environment.kind === 'container' || !environment.providerIds.includes(session.providerId))) {
 			this._reconcileWorkspaceEnvironment({ providerId: session.providerId });
@@ -1461,7 +1485,7 @@ export class NewChatWidget extends Disposable {
 				return undefined;
 			}
 		}
-		return this.sessionsService.openQuickChat(options, preserveNavigation);
+		return this.sessionsService.openQuickChat(options, this._preserveCustomView ? true : preserveNavigation);
 	}
 
 	private _getWorkspaceOptOutTarget(environment: ISessionCreationEnvironment | undefined, session: ISession | undefined): ICreateNewSessionOptions | undefined {
@@ -1555,7 +1579,7 @@ export class NewChatWidget extends Disposable {
 		const workspaceTrigger: IWorkspacePickerTrigger = {
 			label: selectsRepository ? localize('newSessionWorkspacePicker.repository', "Select Repository") : localize('newSessionWorkspacePicker.workspace', "Workspace"),
 			ariaLabel: selectsRepository ? localize('newSessionWorkspacePicker.repositoryAriaLabel', "Choose a repository for the new session") : localize('newSessionWorkspacePicker.workspaceAriaLabel', "Choose a workspace for the new session"),
-			tooltip: localize('newSessionWorkspacePicker.workspaceTooltip', "Choose where the new session runs"),
+			tooltip: localize('newSessionWorkspacePicker.workspaceTooltip', "Project for the agent to work on"),
 			focusCommand: {
 				id: FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID,
 				when: FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN,
@@ -1635,7 +1659,8 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private async _selectEnvironment(environment: ISessionCreationEnvironment): Promise<void> {
-		if (environment.id === this._environment.get()?.id) {
+		const previousEnvironment = this._environment.get();
+		if (environment.id === previousEnvironment?.id) {
 			return;
 		}
 		this._newChatInput.saveState();
@@ -1645,7 +1670,14 @@ export class NewChatWidget extends Disposable {
 		this.newSessionComposerService.notifyUserWorkspaceSelection();
 		const session = this._session.get();
 		const selectedFolderUri = this._workspacePicker.selectedFolderUri;
-		const workspace = selectedFolderUri && this._workspacePicker.getEnvironmentWorkspace(environment);
+		if (previousEnvironment) {
+			if (selectedFolderUri) {
+				this._environmentWorkspaces.set(previousEnvironment.id, selectedFolderUri);
+			} else {
+				this._environmentWorkspaces.delete(previousEnvironment.id);
+			}
+		}
+		const workspace = this._workspacePicker.getEnvironmentWorkspace(environment, undefined, this._environmentWorkspaces.get(environment.id));
 		const folderUri = workspace?.workspace.folders[0]?.root;
 		this._pickedEnvironment.set(environment, undefined);
 		if (!folderUri || !workspace) {
@@ -1679,6 +1711,7 @@ export class NewChatWidget extends Disposable {
 			} catch (error) {
 				this.logService.error('Failed to connect to the selected environment', error);
 				this.notificationService.error(localize('environmentPicker.connectionFailed', "Failed to connect to {0}: {1}", environment.label, toErrorMessage(error)));
+				return;
 			}
 		}
 		if (this._pickedEnvironment.get() === environment) {
@@ -1844,14 +1877,12 @@ export class NewChatWidget extends Disposable {
 			chatWidgetContent.classList.remove('no-agent-host');
 			dom.clearNode(pickerSlot);
 			stateDisposables.value = this._renderWorkspacePicker(pickerSlot);
-			this._renderChatTip();
 		};
 
 		const showEmptyState = () => {
 			chatWidgetContent.classList.add('no-agent-host');
 			dom.clearNode(pickerSlot);
 			stateDisposables.value = this._renderEmptyState(pickerSlot);
-			this._clearChatTip();
 		};
 
 		const filter = this.agentHostFilterService;

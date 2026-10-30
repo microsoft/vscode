@@ -50,6 +50,7 @@ import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledI
 import { IMcpWorkbenchService, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
 import { CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource, RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
 import { AICustomizationManagementSection, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
+import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
 import { isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
@@ -1624,7 +1625,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	}
 
 	private getFilteredInstalledItems(): readonly IInstalledDiscoveryItem[] {
-		const text = normalizedName(this.query.text);
+		const text = this.query.text;
 		const items = [...this.installedItems, ...this.providerPlugins];
 		const marketplaceInstallations = this.installService.installations.get();
 		return items
@@ -1640,7 +1641,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				const sourceId = marketplace?.sourceId ?? (pluginMarketplaceReference ? getPluginCustomizationMarketplaceSourceId(pluginMarketplaceReference) : undefined);
 				return sourceId === this.selectedSourceId;
 			})
-			.filter(item => !text || [item.name, item.description, item.sourceLabel, getTypeLabel(item.type)].some(value => value && normalizedName(value).includes(text)))
+			.filter(item => customizationSearchMatchesAny(text, [item.name, item.description, item.sourceLabel, getTypeLabel(item.type)]))
 			.sort((a, b) => a.name.localeCompare(b.name));
 	}
 
@@ -2220,13 +2221,13 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				}
 			}
 		}
-		const query = normalizedName(this.query.text);
+		const query = this.query.text;
 		const matching = this.deduplicateMarketplaceResources([...resources.values()].filter(resource => {
 			const type = getCatalogType(resource);
 			return !!type
 				&& this.matchesMarketplaceResource(resource)
 				&& (!this.selectedSourceId || resource.sourceId === this.selectedSourceId)
-				&& (!query || [resource.displayName, resource.description, getTypeLabel(type), this.getMarketplaceSourceLabel(resource.sourceId)].some(value => normalizedName(value).includes(query)));
+				&& customizationSearchMatchesAny(query, [resource.displayName, resource.description, getTypeLabel(type), this.getMarketplaceSourceLabel(resource.sourceId)]);
 		}));
 		return this.isBlankCanvasBrowse()
 			? matching

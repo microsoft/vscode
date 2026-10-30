@@ -128,8 +128,8 @@ suite('Sessions - Changes Activity Contribution', () => {
 				sessionSummary.set(undefined, tx);
 				changes.set(value, tx);
 			}),
-			showChangesEditor: (where: 'main' | 'auxiliaryWindow' | undefined) => {
-				visibleEditorPanes = where ? [upcastPartial<IVisibleEditorPane>({ input: changesEditor, group: where === 'main' ? mainGroup : auxiliaryWindowGroup })] : [];
+			showChangesEditor: (where: 'main' | 'auxiliaryWindow' | undefined, withoutInput = false) => {
+				visibleEditorPanes = where ? [upcastPartial<IVisibleEditorPane>({ input: withoutInput ? undefined : changesEditor, group: where === 'main' ? mainGroup : auxiliaryWindowGroup })] : [];
 				onDidVisibleEditorsChange.fire();
 			},
 			setSidePaneVisible: (visible: boolean) => {
@@ -175,5 +175,14 @@ suite('Sessions - Changes Activity Contribution', () => {
 		harness.resolveSummary([fileChange(4)]);
 
 		assert.deepStrictEqual({ whileOnlySummaryKnown, afterFilesLoaded: harness.badge() }, { whileOnlySummaryKnown: false, afterFilesLoaded: false });
+	});
+
+	test('treats a visible pane without an input as not viewing the changes', () => {
+		const harness = createHarness();
+
+		harness.showChangesEditor('main', true);
+		harness.setChanges([fileChange(1)]);
+
+		assert.strictEqual(harness.badge(), true);
 	});
 });

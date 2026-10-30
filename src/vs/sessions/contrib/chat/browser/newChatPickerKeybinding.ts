@@ -16,7 +16,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { IsNewChatSessionContext, SessionEnvironmentPickerVisibleContext, SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext, SessionBranchPickerVisibleContext, SessionWorktreePickerVisibleContext, SessionSyncActionVisibleContext } from '../../../common/contextkeys.js';
+import { IsNewChatSessionContext, NewSessionComposerFocusContext, SessionEnvironmentPickerVisibleContext, SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext, SessionBranchPickerVisibleContext, SessionWorktreePickerVisibleContext, SessionSyncActionVisibleContext } from '../../../common/contextkeys.js';
 
 export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_KEYBINDING = KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyF);
 export const FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_KEYBINDING = KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyE);
@@ -29,7 +29,7 @@ export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsNewChatSessionContext,
 	ChatContextKeys.enabled,
-	ChatContextKeys.inputHasFocus,
+	ContextKeyExpr.or(ChatContextKeys.inputHasFocus, NewSessionComposerFocusContext),
 	SessionWorkspacePickerVisibleContext,
 )!;
 
@@ -37,7 +37,7 @@ export const FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsNewChatSessionContext,
 	ChatContextKeys.enabled,
-	ChatContextKeys.inputHasFocus,
+	ContextKeyExpr.or(ChatContextKeys.inputHasFocus, NewSessionComposerFocusContext),
 	SessionEnvironmentPickerVisibleContext,
 )!;
 
@@ -45,7 +45,7 @@ export const FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsNewChatSessionContext,
 	ChatContextKeys.enabled,
-	ChatContextKeys.inputHasFocus,
+	ContextKeyExpr.or(ChatContextKeys.inputHasFocus, NewSessionComposerFocusContext),
 	SessionHarnessPickerVisibleContext,
 )!;
 
@@ -53,7 +53,7 @@ export const FOCUS_NEW_SESSION_BRANCH_PICKER_WHEN = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsNewChatSessionContext,
 	ChatContextKeys.enabled,
-	ChatContextKeys.inputHasFocus,
+	ContextKeyExpr.or(ChatContextKeys.inputHasFocus, NewSessionComposerFocusContext),
 	SessionBranchPickerVisibleContext,
 )!;
 
@@ -61,7 +61,7 @@ export const FOCUS_NEW_SESSION_WORKTREE_PICKER_WHEN = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsNewChatSessionContext,
 	ChatContextKeys.enabled,
-	ChatContextKeys.inputHasFocus,
+	ContextKeyExpr.or(ChatContextKeys.inputHasFocus, NewSessionComposerFocusContext),
 	SessionWorktreePickerVisibleContext,
 )!;
 
@@ -69,7 +69,7 @@ export const FOCUS_SESSION_SYNC_ACTION_WHEN = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsNewChatSessionContext,
 	ChatContextKeys.enabled,
-	ChatContextKeys.inputHasFocus,
+	ContextKeyExpr.or(ChatContextKeys.inputHasFocus, NewSessionComposerFocusContext),
 	SessionSyncActionVisibleContext,
 )!;
 
