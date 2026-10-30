@@ -5896,7 +5896,7 @@ suite('Sessions - SessionsList', () => {
 	suite('search', () => {
 		const perfGroup: ISessionGroup = { id: 'perf', name: 'Perf work', createdAt: 1 };
 
-		function createChat(title: string): IChat {
+		function createChat(title: string, isArchived = false): IChat {
 			return upcastPartial<IChat>({
 				resource: URI.parse(`test-chat://${title.replaceAll(' ', '-')}`),
 				createdAt: new Date(0),
@@ -5905,7 +5905,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt: constObservable(new Date(0)),
 				status: constObservable(SessionStatus.Completed),
 				description: constObservable(undefined),
-				isArchived: constObservable(false),
+				isArchived: constObservable(isArchived),
 				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
@@ -5913,33 +5913,45 @@ suite('Sessions - SessionsList', () => {
 			});
 		}
 
-		/** A session in `vscode`, on `branch` with `pullRequest`, and with nested `chats`. */
-		function createSession(title: string, options: { readonly branch?: string; readonly pullRequest?: { readonly number: number; readonly title: string }; readonly chats?: readonly string[]; readonly test?: ITestSessionOptions } = {}): ISession {
+		interface ISearchSessionOptions {
+			readonly branch?: string;
+			/** Pull requests of a repository of `microsoft`. */
+			readonly pullRequests?: readonly { readonly repo: string; readonly number: number; readonly title: string }[];
+			/** Nested chats. */
+			readonly chats?: readonly string[];
+			/** Done chats, which the Done section lists as rows of their own while the session is not done. */
+			readonly doneChats?: readonly string[];
+			readonly test?: ITestSessionOptions;
+		}
+
+		/** A session in `vscode`, on `branch` with `pullRequests`, and with nested `chats` and `doneChats`. */
+		function createSession(title: string, options: ISearchSessionOptions = {}): ISession {
 			const session = createTestSession(title, { workspaceLabel: 'vscode', ...options.test }).session;
 			const root = URI.file(`/workspace/${title}`);
 			const folder: ISessionFolder = {
 				root,
 				workingDirectory: root,
-				name: 'vscode',
+				name: options.test?.workspaceLabel ?? 'vscode',
 				description: undefined,
 				gitRepository: {
 					uri: root,
 					workTreeUri: undefined,
 					branchName: options.branch,
 					baseBranchName: 'main',
-					gitHubInfo: constObservable(options.pullRequest && {
+					gitHubInfo: constObservable(options.pullRequests && {
 						owner: 'microsoft',
 						repo: 'vscode',
-						pullRequests: [{ owner: 'microsoft', repo: 'vscode', number: options.pullRequest.number, uri: URI.parse(`https://github.com/microsoft/vscode/pull/${options.pullRequest.number}`), title: options.pullRequest.title }],
+						pullRequests: options.pullRequests.map(({ repo, number, title }) => ({ owner: 'microsoft', repo, number, uri: URI.parse(`https://github.com/microsoft/${repo}/pull/${number}`), title })),
 					}),
 				},
 			};
 			const main = createChat(`${title} main`);
+			const chats = [...(options.chats ?? []).map(chat => createChat(chat)), ...(options.doneChats ?? []).map(chat => createChat(chat, true))];
 			return {
 				...session,
 				workspace: constObservable({ ...session.workspace.get()!, folders: [folder] }),
-				...(options.chats ? {
-					chats: constObservable([main, ...options.chats.map(createChat)]),
+				...(chats.length > 0 ? {
+					chats: constObservable([main, ...chats]),
 					mainChat: constObservable(main),
 					capabilities: constObservable({ supportsMultipleChats: true }),
 				} : {}),
@@ -5964,18 +5976,22 @@ suite('Sessions - SessionsList', () => {
 			return text;
 		}
 
-		function renderSearch(sessions: ISession[], options: IListHarnessOptions | ((instantiationService: TestInstantiationService) => void) = {}, grouping = SessionsGrouping.Date) {
+		function renderSearch(sessions: ISession[], options: IListHarnessOptions | ((instantiationService: TestInstantiationService) => void) = {}, grouping = SessionsGrouping.Date, compact = false) {
 			const harness = createListHarness(disposables, sessions, options);
 			const container = harness.createContainer(300, 800);
 			const findWidgetContainer = mainWindow.document.createElement('div');
 			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
 				grouping: () => grouping,
 				sorting: () => SessionsSorting.Created,
+				compact: () => compact,
 				findWidgetContainer,
 				onSessionOpen: () => { },
 			}));
 			list.layout(800, 300);
-			/** Rows top to bottom: sections, their sessions indented with the hint of a search, and the sessions' chats. */
+			/**
+			 * Rows top to bottom: sections, their sessions indented with the hint of a search, in `[]` in their details row
+			 * or in `{}` next to their title, and the sessions' chats.
+			 */
 			const rows = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
 				.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top))
 				.map(row => {
@@ -5987,8 +6003,10 @@ suite('Sessions - SessionsList', () => {
 					if (chat !== undefined) {
 						return `    ${chat}`;
 					}
-					const hint = markHighlights(row.querySelector('.session-search-hint-label'));
-					return `  ${markHighlights(row.querySelector('.session-title'))}${hint ? ` [${hint}]` : ''}`;
+					const title = markHighlights(row.querySelector('.session-title'));
+					const detailsHint = markHighlights(row.querySelector('.session-details-row .session-search-hint-label'));
+					const titleHint = markHighlights(row.querySelector('.session-search-hint-title.visible .session-search-hint-label'));
+					return `  ${title}${detailsHint ? ` [${detailsHint}]` : ''}${titleHint ? ` {${titleHint}}` : ''}`;
 				});
 			const search = (pattern: string) => {
 				list.openFind();
@@ -6030,7 +6048,7 @@ suite('Sessions - SessionsList', () => {
 			const tuning = createSession('Tune the startup');
 			const { search, closeSearch } = renderSearch([
 				createSession('Refactor transport', { branch: 'alex/terminal-flake' }),
-				createSession('Update README', { pullRequest: { number: 4242, title: 'Fix the release notes' } }),
+				createSession('Update README', { pullRequests: [{ repo: 'vscode', number: 4242, title: 'Fix the release notes' }] }),
 				createSession('Investigate crash', { chats: ['Review the crash dump', 'Unrelated'] }),
 				tuning,
 			], { groups: [perfGroup], memberships: new Map([[tuning.sessionId, perfGroup.id]]) });
@@ -6078,6 +6096,71 @@ suite('Sessions - SessionsList', () => {
 				after: ['Pinned (collapsed)', 'Recent', '  Recent work', 'Archived (collapsed)'],
 				persisted: undefined,
 			});
+		});
+
+		test('keeps the titles of pull requests that share a number in different repositories', async () => {
+			const { search, closeSearch } = renderSearch([
+				createSession('Cross-repo work', { pullRequests: [{ repo: 'alpha', number: 42, title: 'Fix crash' }, { repo: 'beta', number: 42, title: 'Update documentation' }] }),
+			]);
+			try {
+				assert.deepStrictEqual({
+					first: search('crash'),
+					second: search('documentation'),
+				}, {
+					first: ['Recent', '  Cross-repo work [#42 Fix «crash»]'],
+					second: ['Recent', '  Cross-repo work [#42 Update «documentation»]'],
+				});
+			} finally {
+				await closeSearch();
+			}
+		});
+
+		test('names the field a session matched in while it is running, and next to the title of single-line rows', async () => {
+			const running = renderSearch([createSession('Refactor transport', { branch: 'alex/terminal-flake', test: { status: SessionStatus.InProgress } })]);
+			const compact = renderSearch([createSession('Refactor transport', { branch: 'alex/terminal-flake' })], {}, SessionsGrouping.Date, true);
+			try {
+				assert.deepStrictEqual({
+					running: running.search('flake'),
+					compact: compact.search('flake'),
+				}, {
+					running: ['Recent', '  Refactor transport [alex/terminal-«flake»]'],
+					compact: ['Recent', '  Refactor transport {alex/terminal-«flake»}'],
+				});
+			} finally {
+				await Promise.all([running.closeSearch(), compact.closeSearch()]);
+			}
+		});
+
+		test('matches the custom group that a session\'s folder section is placed in', async () => {
+			const { search, closeSearch } = renderSearch([
+				createSession('Tune the startup'),
+				createSession('Hello world sample', { test: { workspaceLabel: 'copilot-sdk' } }),
+			], { groups: [perfGroup], sectionMemberships: new Map([['workspace:vscode', perfGroup.id]]) }, SessionsGrouping.Workspace);
+			try {
+				assert.deepStrictEqual(search('perf'), ['Perf work', 'vscode', '  Tune the startup']);
+			} finally {
+				await closeSearch();
+			}
+		});
+
+		test('matches a done chat on its own row by its title and its session\'s folder only', async () => {
+			const { list, search, closeSearch } = renderSearch([
+				createSession('Investigate crash', { branch: 'alex/flake', doneChats: ['Old repro notes'] }),
+			]);
+			list.setExcludeArchived(false);
+			try {
+				assert.deepStrictEqual({
+					chatTitle: search('repro'),
+					folder: search('vscode'),
+					sessionBranch: search('flake'),
+				}, {
+					chatTitle: ['Archived', '    Old «repro» notes'],
+					folder: ['Recent', '  Investigate crash', 'Archived', '    Old repro notes'],
+					sessionBranch: ['Recent', '  Investigate crash [alex/«flake»]'],
+				});
+			} finally {
+				await closeSearch();
+			}
 		});
 
 		test('reopening the search shows the results of its last query', async () => {

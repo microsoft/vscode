@@ -536,21 +536,26 @@ function getSessionListItemId(element: SessionListItem): string {
 
 /** The pull requests of a session, as `#number` followed by the title when it is known. */
 function getSessionPullRequestSearchTexts(session: ISession): string[] {
-	const pullRequests = new Map<number, string | undefined>();
+	// Pull request numbers are only unique within a repository.
+	const pullRequests = new Map<string, { readonly number: number; readonly title: string | undefined }>();
+	const add = (owner: string, repo: string, number: number, title: string | undefined) => {
+		const key = `${owner}/${repo}#${number}`.toLowerCase();
+		pullRequests.set(key, { number, title: pullRequests.get(key)?.title ?? title });
+	};
 	for (const folder of session.workspace.get()?.folders ?? []) {
 		for (const pullRequest of getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.get())) {
-			pullRequests.set(pullRequest.number, pullRequests.get(pullRequest.number) ?? pullRequest.title);
+			add(pullRequest.owner, pullRequest.repo, pullRequest.number, pullRequest.title);
 		}
 	}
 	for (const artifact of session.artifacts?.get() ?? []) {
 		const pullRequest = artifact.kind === SessionArtifactKind.PullRequest && artifact.isGitHub !== false && artifact.link
 			? parseGitHubPullRequestUrl(artifact.link.toString(true))
 			: undefined;
-		if (pullRequest && !pullRequests.has(pullRequest.number)) {
-			pullRequests.set(pullRequest.number, undefined);
+		if (pullRequest) {
+			add(pullRequest.owner, pullRequest.repo, pullRequest.number, undefined);
 		}
 	}
-	return [...pullRequests].map(([number, title]) => title ? `#${number} ${title}` : `#${number}`);
+	return [...pullRequests.values()].map(({ number, title }) => title ? `#${number} ${title}` : `#${number}`);
 }
 
 function getSearchHintIcon(hint: ISessionSearchHint): ThemeIcon {
@@ -573,6 +578,12 @@ function getSearchHintAriaLabel(hint: ISessionSearchHint): string {
 		case 'host':
 			return localize('sessionSearchHintHostAria', "host {0}", hint.text);
 	}
+}
+
+/** Renders the icon of the field a search hint names, and the field's text with the searched words highlighted. */
+function renderSearchHint(container: HTMLElement, hint: ISessionSearchHint, store: DisposableStore): void {
+	DOM.append(DOM.append(container, $('span.session-details-icon')), $(`span${ThemeIcon.asCSSSelector(getSearchHintIcon(hint))}`));
+	store.add(new HighlightedLabel(DOM.append(container, $('span.session-search-hint-label')))).set(hint.text, [...hint.matches]);
 }
 
 /**
@@ -615,10 +626,14 @@ class SessionsListSearchFilter implements IFindFilter<SessionListItem> {
 		}
 		let match = this.matches.get(element);
 		if (match === undefined) {
-			const document = isSessionChatItem(element)
-				// A done chat listed on its own row matches with its session's location, but not its title or other chats.
-				? { ...this.getDocument(element.session), title: getChatTitle(element.chat), chatTitles: [] }
-				: this.getDocument(element);
+			let document: ISessionSearchDocument;
+			if (isSessionChatItem(element)) {
+				// A done chat listed on its own row matches by its own title and its session's location only.
+				const sessionDocument = this.getDocument(element.session);
+				document = { title: getChatTitle(element.chat), chatTitles: [], fields: sessionDocument.fields.filter(field => field.kind === 'location') };
+			} else {
+				document = this.getDocument(element);
+			}
 			match = matchSessionSearch(this.query, document) ?? null;
 			this.matches.set(element, match);
 		}
@@ -1505,6 +1520,8 @@ interface ISessionItemTemplate {
 	readonly titleContainer: HTMLElement;
 	readonly externalApplicationBadge: HTMLElement;
 	readonly externalApplicationBadgeLabel: HTMLElement;
+	/** While searching, the search hint of a row without a details row. */
+	readonly titleSearchHint: HTMLElement;
 	readonly titleInputContainer: HTMLElement;
 	readonly compactHoverDescription: HTMLElement;
 	readonly titleToolbar: MenuWorkbenchToolBar | undefined;
@@ -1657,6 +1674,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		disposables.add(DOM.addDisposableListener(externalApplicationBadge, DOM.EventType.MOUSE_LEAVE, () => {
 			externalApplicationBadge.closest('.monaco-list-row')?.classList.remove(SESSION_EXTERNAL_APPLICATION_BADGE_HOVERED_CLASS);
 		}));
+		// The row's ARIA label names the search hint.
+		const titleSearchHint = DOM.append(titleRow, $('span.session-search-hint.session-search-hint-title', { 'aria-hidden': 'true' }));
 		const titleInputContainer = DOM.append(titleRow, $('.session-title-input.session-inline-rename-input'));
 		for (const eventType of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
 			disposables.add(DOM.addDisposableListener(titleInputContainer, eventType, e => e.stopPropagation()));
@@ -1738,7 +1757,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}));
 		}
 
-		return { container, statusIcon, title, titleRow, titleContainer, externalApplicationBadge, externalApplicationBadgeLabel, titleInputContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, comparisonAttemptStatus, comparisonAttemptStatusLabel, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, inputNeededRow, inputNeededLabel, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, isQuickChatContext, supportsMultipleChatsContext, supportsDeleteContext, disposables, elementDisposables };
+		return { container, statusIcon, title, titleRow, titleContainer, externalApplicationBadge, externalApplicationBadgeLabel, titleSearchHint, titleInputContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, comparisonAttemptStatus, comparisonAttemptStatusLabel, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, inputNeededRow, inputNeededLabel, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, isQuickChatContext, supportsMultipleChatsContext, supportsDeleteContext, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -2028,6 +2047,16 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			// Clear and rebuild details row
 			DOM.clearNode(template.detailsRow);
 			DOM.clearNode(template.compactHoverDescription);
+			DOM.clearNode(template.titleSearchHint);
+
+			// While searching, name the field the session matched that its row does not otherwise show: in the
+			// details row, also while the session is active, or next to the title when the row has no details row.
+			const searchHint = this.options.getSearchHint?.(element);
+			const hasDetailsRow = comparisonAttemptLabel === undefined && !(isQuickChat && this.options.useCompactQuickChatRows) && !this.options.compact();
+			template.titleSearchHint.classList.toggle('visible', !!searchHint && !hasDetailsRow);
+			if (searchHint && !hasDetailsRow) {
+				renderSearchHint(template.titleSearchHint, searchHint, reader.store);
+			}
 
 			// Compact quick chats have no details row.
 			if (comparisonAttemptLabel !== undefined || (isQuickChat && this.options.useCompactQuickChatRows)) {
@@ -2099,18 +2128,15 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 					badgeEl.textContent = badgeLabel;
 					parts.push(badgeEl);
 				}
+			}
 
-				// While searching, name the field the session matched that its row does not otherwise show.
-				const searchHint = this.options.getSearchHint?.(element);
-				if (searchHint) {
-					if (parts.length > 0) {
-						DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-					}
-					const hintEl = DOM.append(template.detailsRow, $('span.session-search-hint'));
-					DOM.append(DOM.append(hintEl, $('span.session-details-icon')), $(`span${ThemeIcon.asCSSSelector(getSearchHintIcon(searchHint))}`));
-					reader.store.add(new HighlightedLabel(DOM.append(hintEl, $('span.session-search-hint-label')))).set(searchHint.text, [...searchHint.matches]);
-					parts.push(hintEl);
+			if (searchHint) {
+				if (parts.length > 0) {
+					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
 				}
+				const hintEl = DOM.append(template.detailsRow, $('span.session-search-hint'));
+				renderSearchHint(hintEl, searchHint, reader.store);
+				parts.push(hintEl);
 			}
 
 			// Diff stats
@@ -8505,14 +8531,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (repository) {
 			add('location', `${repository.owner}/${repository.name}`);
 		}
-		const groupIds = new Set<string>();
-		for (let groupId = this._sessionGroupsService.getGroupOfSession(session.sessionId); groupId !== undefined && !groupIds.has(groupId);) {
-			groupIds.add(groupId);
-			const group = this._sessionGroupsService.getGroup(groupId);
-			add('group', group?.name);
-			groupId = group?.parentId;
+		for (const name of this.getSessionGroupSearchNames(session)) {
+			add('group', name);
 		}
-		add('group', this.sessionComparisonService.getComparisonForSession(session.resource)?.title);
 		for (const folder of workspace?.folders ?? []) {
 			add('branch', folder.gitRepository?.branchName);
 		}
@@ -8528,6 +8549,33 @@ export class SessionsList extends Disposable implements ISessionsList {
 			chatTitles: this.getRenderedSessionListChats(session).map(chat => getChatTitle(chat)),
 			fields,
 		};
+	}
+
+	/**
+	 * The names of the custom groups and comparison that the session's row is in, innermost first. Like
+	 * {@link getRowGroupDepth}, that is the group the session is a member of, or else the group that its workspace,
+	 * repository, or environment section is placed in, and their parents.
+	 */
+	private getSessionGroupSearchNames(session: ISession): string[] {
+		let groupId = this.getRenderedSessionGroup(session)?.id;
+		if (groupId === undefined && !session.isArchived.get() && !this.isSessionPinned(session)) {
+			const [sectionId] = this.getUngroupedSectionIds(session);
+			groupId = sectionId === undefined ? undefined : this.getSectionParentId(sectionId);
+		}
+		const names: string[] = [];
+		const visited = new Set<string>();
+		while (groupId !== undefined && !visited.has(groupId)) {
+			visited.add(groupId);
+			const group = this._sessionGroupsService.getGroup(groupId);
+			if (!group) {
+				break;
+			}
+			// A comparison's header shows its title rather than its group's name.
+			names.push(this.sessionComparisonService.comparisons.get().find(comparison => comparison.groupId === group.id)?.title ?? group.name);
+			const comparisonSectionId = this.comparisonSectionIds.get(group.id);
+			groupId = group.parentId ?? (comparisonSectionId === undefined ? undefined : this.getSectionParentId(comparisonSectionId));
+		}
+		return names;
 	}
 
 	/** How many sessions and standalone chats the search shows, and how many of them matched beyond their title. */

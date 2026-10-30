@@ -69,6 +69,29 @@ suite('Sessions - SessionsListSearch', () => {
 		});
 	});
 
+	test('folds composed and decomposed accents alike, keeping the characters of other scripts whole', () => {
+		const decomposed = 'Re\u0301sume\u0301 work';
+		assert.deepStrictEqual({
+			decomposedTitle: match('resume', decomposed)?.title,
+			decomposedQuery: match('re\u0301sume\u0301', 'R\u00e9sum\u00e9 work')?.title,
+			composedQuery: match('r\u00e9sum\u00e9', decomposed)?.title,
+			// Japanese voicing marks and Hangul jamo are not accents: \u304b does not match \u304c.
+			kana: match('\u304b', '\u304c\u3044'),
+			decomposedKana: match('\u304c', '\u304b\u3099\u3044')?.title,
+			decomposedHangul: match('\ud55c', '\u1112\u1161\u11ab\uad6d')?.title,
+			onlyAnAccent: new SessionsListSearchQuery('\u0301').isEmpty,
+		}, {
+			// Highlights cover the original characters, accents included.
+			decomposedTitle: ['Re\u0301sume\u0301'],
+			decomposedQuery: ['R\u00e9sum\u00e9'],
+			composedQuery: ['Re\u0301sume\u0301'],
+			kana: undefined,
+			decomposedKana: ['\u304b\u3099'],
+			decomposedHangul: ['\u1112\u1161\u11ab'],
+			onlyAnAccent: true,
+		});
+	});
+
 	test('encodes highlights as the filter data that rows render', () => {
 		const matches = findSearchWords(['ab', 'bc', 'd', 'x'], 'abcd x ab');
 		assert.deepStrictEqual({
