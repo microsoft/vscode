@@ -1671,7 +1671,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostCopilotPolicyHelperSettingId]: {
 			type: ['object', 'null'],
-			markdownDescription: nls.localize('chat.agentHost.copilot.policyHelper', "Policy helper executable for the Copilot runtime, as an object with an absolute `path` and optional `args`. Device and server policies take precedence. Changes apply only after you quit VS Code fully and relaunch it. **Developer: Reload Window** does not restart the Agent Host process."),
+			markdownDescription: nls.localize('chat.agentHost.copilot.policyHelper', "Policy helper executable for the Copilot runtime, as an object with an absolute `path` and optional `args`. Device and server policies take precedence. This setting is hidden in the Settings editor by default. Search for its full ID or show advanced settings to find it. Settings JSON suggestions omit it, but you can still enter it manually. Changes apply only after you quit VS Code fully and relaunch it. **Developer: Reload Window** does not restart the Agent Host process."),
 			properties: {
 				path: { type: 'string' },
 				args: { type: 'array', items: { type: 'string' } },
@@ -1682,6 +1682,7 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			ignoreSync: true,
 			tags: ['experimental', 'advanced'],
+			doNotSuggest: true,
 			agentHost: {
 				key: CopilotCliConfigKey.PolicyHelper,
 				transform: normalizeCopilotPolicyHelperConfig,
