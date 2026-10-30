@@ -31,6 +31,7 @@ import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory, 
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
+import { FileOnDiskFileSystemProvider } from './fileOnDiskFileSystemProvider.js';
 
 /**
  * Stored file specific working copy model factory.
@@ -1151,6 +1152,10 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		if (fileOperationError.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
 			message = localize('staleSaveError', "Failed to save '{0}': The content of the file is newer. Do you want to overwrite the file with your changes?", this.name);
 
+			const fileOnDiskResource = FileOnDiskFileSystemProvider.toFileOnDisk(this.resource);
+			if (this.fileService.hasProvider(fileOnDiskResource)) {
+				primaryActions.push(toAction({ id: 'fileWorkingCopy.compare', label: localize('compareChanges', "Compare"), run: () => this.compareWithFileOnDisk(fileOnDiskResource, error, options) }));
+			}
 			primaryActions.push(toAction({ id: 'fileWorkingCopy.overwrite', label: localize('overwrite', "Overwrite"), run: () => this.save({ ...options, ignoreModifiedSince: true, reason: SaveReason.EXPLICIT }) }));
 			primaryActions.push(toAction({ id: 'fileWorkingCopy.revert', label: localize('revert', "Revert"), run: () => this.revert() }));
 		}
@@ -1232,6 +1237,21 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		// Remove automatically when we get saved/reverted
 		const listener = this._register(Event.once(Event.any(this.onDidSave, this.onDidRevert))(() => handle.close()));
 		this._register(Event.once(handle.onDidClose)(() => listener.dispose()));
+	}
+
+	private async compareWithFileOnDisk(fileOnDiskResource: URI, error: Error, options: IStoredFileWorkingCopySaveAsOptions): Promise<void> {
+		const editorId = this.workingCopyEditorService.findEditor(this)?.editor.editorId;
+		await this.editorService.openEditor({
+			original: { resource: fileOnDiskResource },
+			modified: { resource: this.resource },
+			label: localize('saveConflictDiffLabel', "{0} (in file) ↔ {1} - Resolve save conflict", this.name, this.name),
+			options: editorId ? { pinned: true, override: editorId } : { pinned: true }
+		});
+
+		// Keep the choice to overwrite or revert available next to the diff
+		if (this.inConflictMode) {
+			this.doHandleSaveError(error, options);
+		}
 	}
 
 	private updateLastResolvedFileStat(newFileStat: IFileStatWithMetadata): void {

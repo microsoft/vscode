@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { Event, Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { StoredFileWorkingCopy, StoredFileWorkingCopyState, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, isStoredFileWorkingCopySaveEvent, IStoredFileWorkingCopySaveEvent } from '../../common/storedFileWorkingCopy.js';
@@ -14,13 +15,15 @@ import { getLastResolvedFileStat, TestServiceAccessor, workbenchInstantiationSer
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, IFileStatWithMetadata, IWriteFileOptions, NotModifiedSinceFileOperationError } from '../../../../../platform/files/common/files.js';
-import { SaveReason, SaveSourceRegistry } from '../../../../common/editor.js';
+import { SaveReason, SaveSourceRegistry, IResourceDiffEditorInput } from '../../../../common/editor.js';
 import { Promises, timeout } from '../../../../../base/common/async.js';
 import { consumeReadable, consumeStream, isReadableStream } from '../../../../../base/common/stream.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { SnapshotContext } from '../../common/fileWorkingCopy.js';
 import { assertReturnsDefined } from '../../../../../base/common/types.js';
+import { INotification, NoOpNotification } from '../../../../../platform/notification/common/notification.js';
+import { FileOnDiskFileSystemProvider } from '../../common/fileOnDiskFileSystemProvider.js';
 
 export class TestStoredFileWorkingCopyModel extends Disposable implements IStoredFileWorkingCopyModel {
 
@@ -271,6 +274,7 @@ suite('StoredFileWorkingCopy', function () {
 		}
 
 		disposables.clear();
+		sinon.restore();
 	});
 
 	test('registers with working copy service', async () => {
@@ -867,6 +871,46 @@ suite('StoredFileWorkingCopy', function () {
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE), false);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.CONFLICT), false);
 		assert.strictEqual(workingCopy.isDirty(), false);
+	});
+
+	test('save (errors, conflict offers to compare with the file on disk)', async () => {
+		const notifications: INotification[] = [];
+		sinon.stub(accessor.notificationService, 'notify').callsFake(notification => {
+			notifications.push(notification);
+			return new NoOpNotification();
+		});
+		const openEditor = sinon.stub(accessor.editorService, 'openEditor').resolves(undefined);
+
+		const saveWithConflict = async () => {
+			workingCopy.model?.updateContents(`hello conflict ${notifications.length}`);
+			try {
+				accessor.fileService.writeShouldThrowError = new FileOperationError('write error conflict', FileOperationResult.FILE_MODIFIED_SINCE);
+				await workingCopy.save();
+			} finally {
+				accessor.fileService.writeShouldThrowError = undefined;
+			}
+			return notifications[notifications.length - 1].actions?.primary ?? [];
+		};
+
+		await workingCopy.resolve();
+
+		// nothing to compare with unless the file on disk can be read
+		assert.deepStrictEqual((await saveWithConflict()).map(action => action.id), ['fileWorkingCopy.overwrite', 'fileWorkingCopy.revert']);
+
+		disposables.add(accessor.fileService.registerProvider(FileOnDiskFileSystemProvider.SCHEME, new FileOnDiskFileSystemProvider(accessor.fileService)));
+		const actions = await saveWithConflict();
+		assert.deepStrictEqual(actions.map(action => action.id), ['fileWorkingCopy.compare', 'fileWorkingCopy.overwrite', 'fileWorkingCopy.revert']);
+
+		const notificationCount = notifications.length;
+		await actions[0].run();
+
+		const diff = openEditor.firstCall.args[0] as IResourceDiffEditorInput;
+		assert.deepStrictEqual(
+			{ original: diff.original.resource?.toString(), modified: diff.modified.resource?.toString(), options: diff.options },
+			{ original: FileOnDiskFileSystemProvider.toFileOnDisk(resource).toString(), modified: resource.toString(), options: { pinned: true } }
+		);
+		assert.strictEqual(notifications.length, notificationCount + 1);
+		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.CONFLICT), true);
 	});
 
 	test('save (errors, bubbles up with `ignoreErrorHandler`)', async () => {
