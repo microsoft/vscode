@@ -9,7 +9,9 @@ import { constObservable, observableValue } from '../../../../../../base/common/
 import { URI } from '../../../../../../base/common/uri.js';
 import { mockObject, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { getSingletonServiceDescriptors } from '../../../../../../platform/instantiation/common/extensions.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IAgentHostPolicyContinuationPresenter } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostPolicyContinuation.js';
 import { IChatWidget } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatViewModel } from '../../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
@@ -25,6 +27,13 @@ suite('Sessions Agent Host policy continuation presenter', () => {
 	const sourceResource = URI.parse('agent-host-claude:/source');
 	const target = URI.parse('agent-host-copilotcli:/copy');
 	const other = URI.parse('agent-host-copilotcli:/other');
+
+	test('registers the presenter without the desktop-only local agent host contribution', () => {
+		const registrations = getSingletonServiceDescriptors().filter(([id, descriptor]) =>
+			id === IAgentHostPolicyContinuationPresenter && descriptor.ctor === SessionsAgentHostPolicyContinuationPresenter
+		);
+		assert.deepStrictEqual(registrations.map(([, descriptor]) => descriptor.supportsDelayedInstantiation), [true]);
+	});
 
 	function setup() {
 		const services = store.add(new TestInstantiationService());

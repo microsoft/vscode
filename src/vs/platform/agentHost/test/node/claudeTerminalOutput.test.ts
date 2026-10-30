@@ -8,9 +8,9 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileService } from '../../../files/common/fileService.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { IFileService } from '../../../files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
@@ -39,8 +39,7 @@ const NOTICE = [
 ].join('\n');
 
 function createHarness(disposables: Pick<DisposableStore, 'add'>, database = new TestSessionDatabase(), sessionDataService = createSessionDataService(database), logService = new NullLogService()) {
-	const fileService = disposables.add(new FileService(new NullLogService()));
-	disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+	const fileService = createInMemoryFileService(disposables, Schemas.file);
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IFileService, fileService],

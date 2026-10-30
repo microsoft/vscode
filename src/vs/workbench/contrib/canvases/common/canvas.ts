@@ -120,7 +120,7 @@ export interface ICanvasWorkingSetState {
 export interface ICanvasWorkingSets {
 	readonly state: IObservable<ICanvasWorkingSetState>;
 	/** Keeps a live canvas alive while a presentation-only layout change hides the editor area. */
-	registerEditorToRetain(input: CanvasInput): IDisposable;
+	registerEditorToRetain(input: EditorInput): IDisposable;
 	/** Prevents reopening a canvas that a restore could not reconstruct from revealing a hidden editor area. */
 	suppressEditorPartAutoVisibility(): IDisposable;
 }
@@ -327,14 +327,19 @@ export class CanvasInput extends EditorInput {
 	override get editorId(): string { return CanvasInput.EDITOR_ID; }
 	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.ForceReveal; }
 	override getName(): string { return this.canvas.get()?.title ?? localize('canvas.editorName', "Canvas"); }
-	override getDescription(): string {
+	override getDescription(): undefined { return undefined; }
+	override getIcon(): ThemeIcon { return Codicon.preview; }
+	override getTitle(verbosity?: Verbosity): string {
+		const name = this.getName();
+		return verbosity === Verbosity.LONG ? `${name} - ${this.getReopenInstructions()}` : name;
+	}
+
+	private getReopenInstructions(): string {
 		// Only the Agents window offers an Add Tab menu.
 		return this.environmentService.isSessionsWindow
 			? localize('canvas.editorDescription', "Closing this tab hides the canvas. Reopen it from the Canvas submenu in Add Tab, use its canvas pill, or ask the agent to open it again.")
 			: localize('canvas.editorDescriptionEditorWindow', "Closing this tab hides the canvas. Reopen it from its canvas pill or ask the agent to open it again.");
 	}
-	override getIcon(): ThemeIcon { return Codicon.preview; }
-	override getTitle(_verbosity?: Verbosity): string { return this.getName(); }
 	override canReopen(): boolean { return false; }
 
 	override canMove(_sourceGroup: GroupIdentifier, targetGroup: GroupIdentifier): true | string {

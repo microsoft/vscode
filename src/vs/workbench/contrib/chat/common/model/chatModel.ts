@@ -433,6 +433,12 @@ export interface IChatRequestModelParameters {
 	modelId?: string;
 	modelConfiguration?: IStringDictionary<unknown>;
 	restoredId?: string;
+	/**
+	 * Initial {@link ChatRequestModel.version}. A request that replaces an earlier model with the same id
+	 * must start above that model's version so views keyed on the version re-render it.
+	 * Values that are not non-negative safe integers fall back to 0.
+	 */
+	version?: number;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	userSelectedTools?: UserSelectedTools;
 	isSystemInitiated?: boolean;
@@ -559,6 +565,8 @@ export class ChatRequestModel implements IChatRequestModel {
 		this._modelId = params.modelId;
 		this.modelConfiguration = params.modelConfiguration;
 		this.id = params.restoredId ?? 'request_' + generateUuid();
+		const version = params.version;
+		this._version = version !== undefined && Number.isSafeInteger(version) && version >= 0 ? version : 0;
 		this._editedFileEvents = params.editedFileEvents;
 		this.userSelectedTools = params.userSelectedTools;
 		this.isSystemInitiated = params.isSystemInitiated;
@@ -2667,7 +2675,13 @@ export const enum ChatRequestRemovalReason {
 	/**
 	 * Remove because the request is moving to another model
 	 */
-	Adoption
+	Adoption,
+
+	/**
+	 * Removed because the provider replaced a request without billed usage with a
+	 * newer one. The provider's billing is unchanged, so the session cost is kept.
+	 */
+	Replacement,
 }
 
 export interface IChatRemoveRequestEvent {
@@ -2921,12 +2935,13 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	/**
-	 * @internal Used by ChatService to dequeue all consecutive steering requests at the front of the queue.
+	 * @internal Used by ChatService to dequeue the consecutive steering requests at the front of the queue that share the first one's initiator.
 	 * Returns an empty array if the first pending request is not a steering request.
 	 */
-	dequeueAllSteeringRequests(): IChatPendingRequest[] {
+	dequeueSteeringBatch(): IChatPendingRequest[] {
+		const isSystemInitiated = !!this._pendingRequests.at(0)?.sendOptions.isSystemInitiated;
 		const steeringRequests: IChatPendingRequest[] = [];
-		while (this._pendingRequests.at(0)?.kind === ChatRequestQueueKind.Steering) {
+		while (this._pendingRequests.at(0)?.kind === ChatRequestQueueKind.Steering && !!this._pendingRequests[0].sendOptions.isSystemInitiated === isSystemInitiated) {
 			steeringRequests.push(this._pendingRequests.shift()!);
 		}
 		if (steeringRequests.length > 0) {
@@ -3717,7 +3732,9 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if (index !== -1) {
 			this._requests.splice(index, 1);
-			this._resetSessionCost();
+			if (reason !== ChatRequestRemovalReason.Replacement) {
+				this._resetSessionCost();
+			}
 			this._onDidChange.fire({ kind: 'removeRequest', requestId: request.id, responseId: request.response?.id, reason });
 			request.response?.dispose();
 		}

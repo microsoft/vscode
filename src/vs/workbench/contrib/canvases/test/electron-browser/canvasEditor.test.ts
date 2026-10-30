@@ -15,6 +15,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAccessibleViewService, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IBrowserViewBounds } from '../../../../../platform/browserView/common/browserView.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
@@ -38,6 +39,7 @@ suite('CanvasEditor', () => {
 		const visible: boolean[] = [];
 		const attached: (IBrowserViewModel | undefined)[] = [];
 		const log: string[] = [];
+		const nativeBounds: IBrowserViewBounds[] = [];
 		const errors: string[] = [];
 		let pendingLayouts: DeferredPromise<void>[] | undefined;
 		let disposed = 0;
@@ -57,6 +59,7 @@ suite('CanvasEditor', () => {
 			onWillDispose: Event.None,
 			layout: bounds => {
 				log.push(`model.layout:${bounds.width}x${bounds.height}`);
+				nativeBounds.push(bounds);
 				if (!pendingLayouts) {
 					return Promise.resolve();
 				}
@@ -113,7 +116,7 @@ suite('CanvasEditor', () => {
 			resource: URI.parse('canvas:/preview'), instanceId: 'preview', title: 'Preview', source: URI.parse('https://example.test'),
 		}));
 		return {
-			editor, input, model, visible, attached, ownerVisible, openExternal, opened, modelAttached, openerCalled, warningLogged, parent, log, errors,
+			editor, input, model, visible, attached, ownerVisible, openExternal, opened, modelAttached, openerCalled, warningLogged, parent, log, nativeBounds, errors,
 			get disposed() { return disposed; },
 			get created() { return created; },
 			setView: (value: Promise<IBrowserViewModel>) => view = value,
@@ -233,6 +236,29 @@ suite('CanvasEditor', () => {
 		assert.deepStrictEqual({ pending, applied: harness.log.slice(resizeStart + pending.length) }, {
 			pending: ['model.layout:300x200'],
 			applied: ['host.layout', 'host.visible:true'],
+		});
+	});
+
+	test('fits the native view to the container shape a host frame gives it', async () => {
+		const harness = createHarness();
+		await harness.show();
+		await harness.open();
+		await harness.modelAttached.p;
+		await timeout(0);
+		const shape = () => {
+			const bounds = harness.nativeBounds[harness.nativeBounds.length - 1];
+			const pane = harness.parent.getBoundingClientRect();
+			return { left: bounds.x - pane.left, top: bounds.y - pane.top, width: bounds.width, height: bounds.height, cornerRadius: bounds.cornerRadius };
+		};
+		const unframed = shape();
+		// Mirrors a host frame overlay drawn on the pane's left, right and bottom edges.
+		const wrapper = harness.parent.querySelector<HTMLElement>('.browser-container-wrapper')!;
+		wrapper.style.margin = '0 1px 1px';
+		wrapper.querySelector<HTMLElement>('.browser-container')!.style.borderRadius = '6px';
+		harness.editor.layout();
+		assert.deepStrictEqual({ unframed, framed: shape() }, {
+			unframed: { left: 0, top: 0, width: 400, height: 200, cornerRadius: 0 },
+			framed: { left: 1, top: 0, width: 398, height: 199, cornerRadius: 6 },
 		});
 	});
 

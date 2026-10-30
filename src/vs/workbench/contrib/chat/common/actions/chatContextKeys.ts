@@ -50,6 +50,7 @@ export namespace ChatContextKeys {
 	export const inputHasSendableContent = new RawContextKey<boolean>('chatInputHasSendableContent', false, { type: 'boolean', description: localize('interactiveInputHasSendableContent', "True when the chat input has text or file attachments that can be sent.") });
 	export const inputHasFocus = new RawContextKey<boolean>('chatInputHasFocus', false, { type: 'boolean', description: localize('interactiveInputHasFocus', "True when the chat input has focus.") });
 	export const inChatInput = new RawContextKey<boolean>('inChatInput', false, { type: 'boolean', description: localize('inInteractiveInput', "True when focus is in the chat input, false otherwise.") });
+	export const inputInlineAttachmentActive = new RawContextKey<boolean>('chatInputInlineAttachmentActive', false, { type: 'boolean', description: localize('chatInputInlineAttachmentActive', "True when the cursor in the chat input is right after an attachment shown inline with the prompt, which Enter opens.") });
 	export const inChatSessionWorkingSet = new RawContextKey<boolean>('inChatSessionWorkingSet', false, { type: 'boolean', description: localize('inChatSessionWorkingSet', "True when focus is in the session working set, false otherwise.") });
 	export const sessionWorkingSetKeepEnabled = new RawContextKey<boolean>('chatSessionWorkingSetKeepEnabled', false, { type: 'boolean', description: localize('chatSessionWorkingSetKeepEnabled', "True when the session working set can keep changes now, false otherwise.") });
 	export const sessionWorkingSetReviewEnabled = new RawContextKey<boolean>('chatSessionWorkingSetReviewEnabled', true, { type: 'boolean', description: localize('chatSessionWorkingSetReviewEnabled', "Whether Keep and Undo are shown in the session working set.") });
@@ -72,6 +73,7 @@ export namespace ChatContextKeys {
 	export const chatModeKind = new RawContextKey<ChatModeKind>('chatAgentKind', ChatModeKind.Ask, { type: 'string', description: localize('agentKind', "The 'kind' of the current agent.") });
 	export const chatPermissionLevel = new RawContextKey<ChatPermissionLevel>('chatPermissionLevel', ChatPermissionLevel.Default, { type: 'string', description: localize('chatPermissionLevel', "The current permission level for tool auto-approval.") });
 	export const chatModeName = new RawContextKey<string>('chatModeName', '', { type: 'string', description: localize('chatModeName', "The name of the current chat mode (e.g. 'Plan' for custom modes).") });
+	export const agentPickerInAttachContext = new RawContextKey<boolean>('chatAgentPickerInAttachContext', false, { type: 'boolean', description: localize('agentPickerInAttachContext', "True when the default Agent picker is in Add Context instead of the toolbar.") });
 	export const chatModelId = new RawContextKey<string>('chatModelId', '', { type: 'string', description: localize('chatModelId', "The short id of the currently selected chat model (for example 'gpt-4.1').") });
 	export const speechToTextRecording = new RawContextKey<boolean>('chatSpeechToTextRecording', false, { type: 'boolean', description: localize('chatSpeechToTextRecording', "True while the chat input is recording audio for speech-to-text transcription.") });
 	export const speechToTextConfigured = new RawContextKey<boolean>('chatSpeechToTextConfigured', false, { type: 'boolean', description: localize('chatSpeechToTextConfigured', "True when speech-to-text is available for dictating into the chat input.") });
@@ -147,8 +149,6 @@ export namespace ChatContextKeys {
 	export const hasRemoteCodingAgent = new RawContextKey<boolean>('hasRemoteCodingAgent', false, localize('hasRemoteCodingAgent', "Whether any remote coding agent is available"));
 	export const hasCanDelegateProviders = new RawContextKey<boolean>('chatHasCanDelegateProviders', false, { type: 'boolean', description: localize('chatHasCanDelegateProviders', "True when there are chat session providers with delegation support available.") });
 	export const enableRemoteCodingAgentPromptFileOverlay = new RawContextKey<boolean>('enableRemoteCodingAgentPromptFileOverlay', false, localize('enableRemoteCodingAgentPromptFileOverlay', "Whether the remote coding agent prompt file overlay feature is enabled"));
-	/** Used by the extension to skip the quit confirmation when #new wants to open a new folder */
-	export const skipChatRequestInProgressMessage = new RawContextKey<boolean>('chatSkipRequestInProgressMessage', false, { type: 'boolean', description: localize('chatSkipRequestInProgressMessage', "True when the chat request in progress message should be skipped.") });
 
 	// Re-exported from chat entitlement service
 	export const Setup = ChatEntitlementContextKeys.Setup;
@@ -182,6 +182,7 @@ export namespace ChatContextKeys {
 	export const hasCreatedSessionInAgentsWindow = new RawContextKey<boolean>('chatHasCreatedSessionInAgentsWindow', false, { type: 'boolean', description: localize('chatHasCreatedSessionInAgentsWindow', "True when the user has created at least one session in the Agents Window.") });
 	export const agentSessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('agentSessionType', "The type of the current agent session item.") });
 	export const isAgentSessionChild = new RawContextKey<boolean>('agentSessionIsChild', false, { type: 'boolean', description: localize('agentSessionIsChild', "True when the current agent session item is a child chat.") });
+	export const agentSessionChildCanArchive = new RawContextKey<boolean>('agentSessionChildCanArchive', false);
 	/**
 	 * Whether the agent session item has an associated pull request. Tri-state, so gate with
 	 * `chatSessionPullRequest != 'none'` to keep contributions visible when the state is unknown.

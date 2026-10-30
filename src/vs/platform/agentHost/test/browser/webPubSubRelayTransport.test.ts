@@ -18,6 +18,7 @@ import { JsonRpcRequest, ProtocolMessage } from '../../common/state/sessionProto
 import { ChunkEnvelope, DEFAULT_MAX_CHUNK_BYTES, DEFAULT_MAX_SEGMENTS_PER_GROUP, chunk } from '../../common/webPubSub/chunking.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 
@@ -921,8 +922,7 @@ suite('WebPubSubRelayTransport', () => {
 	});
 
 	test('redacts sealed authentication from the WPS transcript without changing wire messages', async () => {
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		const logger = store.add(new AhpJsonlLogger(
 			{ logsHome: URI.file('/logs'), logId: 'relay', connectionId: 'client', transport: 'webpubsub' },
 			fileService, new NullLogService(),

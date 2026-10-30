@@ -59,11 +59,12 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { hookUpResourceContextMenu } from '../../attachments/chatAttachmentWidgets.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
 import { IChatImageCarouselService } from '../../chatImageCarouselService.js';
+import { createChatImageCopyActions } from '../../chatImageActions.js';
 import { IChatOutputRendererService, type RenderedOutputPart } from '../../chatOutputItemRenderer.js';
 import { allowedChatMarkdownHtmlTags } from '../chatContentMarkdownRenderer.js';
 import { IMarkdownDiffBlockData, MarkdownDiffBlockPart, parseUnifiedDiff } from './chatDiffBlockPart.js';
 import { ChatEditingActionContext } from '../../chatEditing/chatEditingActions.js';
-import { ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRenderer.js';
+import { ChatInlineAttachmentRenderer, ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRenderer.js';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from './codeBlockPart.js';
 import './media/chatCodeBlockPill.css';
 import { IDisposableReference } from './chatCollections.js';
@@ -89,6 +90,13 @@ export interface IChatMarkdownContentPartOptions {
 		 * */
 		statusMessage?: string;
 	};
+	/**
+	 * Creates the resize observer that re-measures math and table scrollbars when the part resizes.
+	 * Defaults to the window's `ResizeObserver`; tests pass a fake to trigger resizes.
+	 */
+	readonly resizeObserverCtor?: typeof ResizeObserver;
+	/** Renders the attachments of a request that are shown as pills inline with its text. */
+	readonly renderInlineAttachment?: ChatInlineAttachmentRenderer;
 }
 
 interface IMarkdownPartCodeBlockInfo extends IChatCodeBlockInfo {
@@ -422,11 +430,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				}));
 			}
 
-			store.add(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(this.markdown, result.element));
-			store.add(this.hookUpFileImages(result.element, fileImages, element.sessionResource, element.id));
+			store.add(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(this.markdown, result.element, this.rendererOptions.renderInlineAttachment));
+			store.add(this.hookUpImages(result.element, fileImages, element.sessionResource, element.id));
 
 			const layoutParticipants = new Lazy(() => {
-				const observer = store.add(new dom.DisposableResizeObserver('ChatMarkdownContentPart.mathLayout', () => this.mathLayoutParticipants.forEach(layout => layout())));
+				const observer = store.add(new dom.DisposableResizeObserver('ChatMarkdownContentPart.mathLayout', () => this.mathLayoutParticipants.forEach(layout => layout()), undefined, { resizeObserverCtor: this.rendererOptions.resizeObserverCtor }));
 				store.add(observer.observe(this.domNode));
 				return this.mathLayoutParticipants;
 			});
@@ -484,20 +492,24 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	}
 
 	/**
-	 * Makes the file images of a response work like its file links: they open in the chat's image
-	 * carousel, drag into chat as attachments, and offer the resource context menu.
+	 * Adds image copy menus and makes file images open, drag, and offer actions like file links.
 	 */
-	private hookUpFileImages(element: HTMLElement, fileImages: ResourceSet, sessionResource: URI, responseId: string): IDisposable {
+	private hookUpImages(element: HTMLElement, fileImages: ResourceSet, sessionResource: URI, responseId: string): IDisposable {
 		const store = new DisposableStore();
 		// eslint-disable-next-line no-restricted-syntax
 		for (const image of element.querySelectorAll('img')) {
 			const source = image.dataset.src;
 			const resource = source ? URI.parse(source) : undefined;
+			const fileResource = resource && fileImages.has(resource) ? resource : undefined;
+			image.tabIndex = 0;
+			if (!image.alt) {
+				image.setAttribute('aria-label', localize('chat.markdownImage.label', "Image"));
+			}
+			store.add(this.instantiationService.invokeFunction(accessor => hookUpResourceContextMenu(accessor, image, fileResource, MenuId.ChatImageContext, createChatImageCopyActions(accessor, image, fileResource))));
 			if (!resource || !fileImages.has(resource) || image.closest('a')) {
 				continue;
 			}
 
-			image.tabIndex = 0;
 			image.style.cursor = 'pointer';
 			image.setAttribute('role', 'button');
 			image.setAttribute('aria-label', localize('chat.markdownImage.open', "Open image {0}", image.alt || basename(resource)));
@@ -513,7 +525,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				e.dataTransfer?.clearData();
 				this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, [resource], e));
 			}));
-			store.add(this.instantiationService.invokeFunction(accessor => hookUpResourceContextMenu(accessor, image, resource, MenuId.ChatInlineResourceAnchorContext)));
 		}
 		return store;
 	}

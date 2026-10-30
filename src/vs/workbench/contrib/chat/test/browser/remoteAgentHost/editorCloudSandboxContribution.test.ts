@@ -4,19 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { DeferredPromise, raceCancellationError, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { AgentSession, IAgentConnection, IAgentHostService, IAgentResolveSessionConfigParams, IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
-import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { InitializeResult, ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolutionPolicy } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { agentHostAuthority, createAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -26,7 +29,7 @@ import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress, CloudSandboxAuthenti
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, INotification, NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { createChatState, createDefaultChatSummary, createSessionState, MessageKind, RootState, SessionModelInfo, SessionStatus, TurnState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatOriginKind, createChatState, createDefaultChatSummary, createSessionState, MessageKind, RootState, SessionModelInfo, SessionStatus, TurnState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IReplayedTaskHistory } from '../../../../../../platform/agentHost/common/taskEventReplay.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -38,6 +41,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
 import { IPathService } from '../../../../../../platform/path/common/pathService.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -176,6 +180,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly enabled?: boolean;
 	readonly draftModels?: readonly SessionModelInfo[];
 	readonly hostModels?: readonly SessionModelInfo[];
+	readonly initializeResult?: InitializeResult;
 	readonly earlyPreparation?: boolean;
 	readonly reserveSession?: (request: ICloudSandboxReserveSessionRequest) => Promise<ICloudSandboxReservedSession>;
 	readonly sessionFeedEnabled?: boolean;
@@ -279,7 +284,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		override readonly clientId = 'editor-client';
 		override readonly rootState = upcastPartial<IAgentSubscription<RootState>>({ value: rootState, onDidChange: Event.None });
 		override readonly onDidNotification = notifications.event;
-		override readonly initializeResult = constObservable(undefined);
+		override readonly initializeResult = constObservable(options?.initializeResult);
 		override readonly resourceUris = createAgentHostResourceUriMapper(authority);
 		override async listSessions(): Promise<IAgentSessionMetadata[]> { return state.hostSessions; }
 		override async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -847,6 +852,66 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 	});
 
+	test('archives and restores a connected sandbox side chat through its advertised host URI', async () => {
+		const h = createHarness(store, {
+			workspaceFolders: [],
+			initializeResult: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+		});
+		const main = URI.parse('host-chat:/opaque/main');
+		const side = URI.parse('host-chat:/opaque/side');
+		const sibling = URI.parse('host-chat:/opaque/sibling');
+		const chats: NonNullable<IAgentSessionMetadata['chats']> = [
+			{ chat: main, kind: 'default', summary: 'Main', status: SessionStatus.Idle },
+			{ chat: side, kind: 'peer', summary: 'Side', status: SessionStatus.Idle, origin: { kind: ChatOriginKind.SideChat, chat: main.toString(), turnId: 'turn' } },
+			{ chat: sibling, kind: 'peer', summary: 'Sibling', status: SessionStatus.Idle },
+		];
+		h.state.hostSessions[0] = { ...h.state.hostSessions[0], status: SessionStatus.Idle, chats };
+		h.state.online = true;
+		await h.refresh();
+		await h.contribution.activate();
+		await h.whenConnected;
+		const controller = h.controllers.get(sessionType)!;
+		await controller.refresh(CancellationToken.None);
+		const sideItem = h.items()[0].children![0];
+		const update = (archived: boolean) => h.notifications.fire({
+			type: NotificationType.SessionSummaryChanged, channel: 'ahp-root://', session: backendSession.toString(),
+			changes: {
+				chats: chats.map(chat => ({
+					resource: chat.chat.toString(), title: chat.summary!, origin: chat.origin,
+					status: isEqual(chat.chat, side) && archived ? SessionStatus.Idle | SessionStatus.IsArchived : SessionStatus.Idle,
+				})),
+			},
+		});
+		const flags = () => h.items().map(item => ({ archived: item.archived, children: item.children?.map(child => [child.label, child.archived]) }));
+
+		controller.setChatSessionItemArchived!(sideItem.resource, true);
+		await timeout(0);
+		update(true);
+		const archived = flags();
+		controller.setChatSessionItemArchived!(sideItem.resource, false);
+		await timeout(0);
+		update(false);
+
+		assert.deepStrictEqual({
+			canArchive: sideItem.canArchive,
+			dispatched: h.calls.dispatched,
+			archivedTasks: h.calls.archivedTasks,
+			notifications: h.errorNotifications,
+			archived,
+			restored: flags(),
+		}, {
+			canArchive: true,
+			dispatched: [
+				[side.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }],
+				[side.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: false }],
+			],
+			archivedTasks: [],
+			notifications: [],
+			archived: [{ archived: false, children: [['Side', true], ['Sibling', false]] }],
+			restored: [{ archived: false, children: [['Side', false], ['Sibling', false]] }],
+		});
+	});
+
 	test('reconciles remote task archive state while connected and after disconnection', async () => {
 		const h = createHarness(store);
 		await h.refresh();
@@ -1025,11 +1090,25 @@ suite('Editor cloud sandbox discovery', () => {
 		assert.deepStrictEqual({ scans: h.calls.discovered, items: h.items().map(item => item.label) }, { scans: 1, items: [discovered.name] });
 	});
 
-	test('does not install a second sandbox adapter in the Agents Window', () => {
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
-		assert.doesNotThrow(() => store.add(instantiationService.createInstance(EditorCloudSandboxContribution)));
-	});
+	for (const { name, embedderIdentifier, isSessionsWindow, expected } of [
+		{ name: 'the regular workbench', embedderIdentifier: undefined, isSessionsWindow: false, expected: true },
+		{ name: 'vscode.dev', embedderIdentifier: 'vscode.dev', isSessionsWindow: false, expected: true },
+		{ name: 'the server distro', embedderIdentifier: 'server-distro', isSessionsWindow: false, expected: !isWeb },
+		{ name: 'the Agents Window', embedderIdentifier: undefined, isSessionsWindow: true, expected: false },
+	]) {
+		test(`only installs the editor sandbox adapter when supported in ${name}`, () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow });
+			instantiationService.stub(IProductService, { embedderIdentifier });
+			instantiationService.stubInstance(EditorCloudSandboxSessionContribution, Disposable.None);
+			const createInstance = sinon.spy(instantiationService, 'createInstance');
+			store.add(toDisposable(() => createInstance.restore()));
+
+			store.add(instantiationService.createInstance(EditorCloudSandboxContribution));
+
+			assert.strictEqual(createInstance.calledWith(EditorCloudSandboxSessionContribution), expected);
+		});
+	}
 
 	test('offers one creation target in the picker and keeps discovered environments hidden', async () => {
 		const h = createHarness(store);
@@ -1054,6 +1133,16 @@ suite('Editor cloud sandbox discovery', () => {
 			repositoryOptions: [],
 			created: 0,
 		});
+	});
+
+	test('discovered Cloud sessions advertise image attachments without local file attachments', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		const capabilities = h.contributions.get(sessionType)?.capabilities;
+		assert.deepStrictEqual({
+			files: capabilities?.supportsFileAttachments,
+			images: capabilities?.supportsImageAttachments,
+		}, { files: undefined, images: true });
 	});
 
 	test('a fork tracks its origin only, so the picker never asks which remote to clone', async () => {

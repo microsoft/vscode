@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserViewChangeEvent, BrowserViewEventData, BrowserViewCommandId, BrowserViewPresentation, BrowserViewSessionSelector, BrowserViewStorageScope, getBrowserViewSessionNetwork, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewNetwork, IBrowserViewOwner, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName, reviveBrowserViewInfo, IBrowserViewSessionOptions, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewChangeEvent, BrowserViewEventData, BrowserViewCommandId, BrowserViewPresentation, BrowserViewSessionSelector, BrowserViewStorageScope, getBrowserViewSessionAffinity, getBrowserViewSessionNetwork, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewNetwork, IBrowserViewOwner, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName, reviveBrowserViewInfo, IBrowserViewSessionOptions, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
 import { matchesBrowserViewSandboxSession } from '../../../../platform/browserView/common/browserViewGroup.js';
-import { BrowserViewEventEmitters, createBrowserViewEventEmitters, BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewNetworkProxyProvider, IBrowserViewNetworkResolver, IBrowserViewSessionRequest } from '../common/browserView.js';
+import { BrowserRemoteProxyEnabledSettingId, BrowserViewEventEmitters, createBrowserViewEventEmitters, BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewNetworkProxyProvider, IBrowserViewNetworkResolver, IBrowserViewNetworkStatus, IBrowserViewSessionRequest } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -48,13 +48,16 @@ import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 
 export const BrowserMaxHistoryEntriesSettingId = 'workbench.browser.maxHistoryEntries';
-export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';
 export const BrowserNewTabPlacementSettingId = 'workbench.browser.newTabPlacement';
 const OPEN_BROWSER_NAVIGATION_TIMEOUT_MS = 30_000;
 /** How long creation waits for the local extension host to provide network proxies. */
 const NETWORK_PROXY_PROVIDER_TIMEOUT_MS = 30_000;
+
+/** How long creation waits for a network's host to report whether it supports proxying. */
+const NETWORK_SUPPORT_TIMEOUT_MS = 10_000;
 
 /** A network in use, and its proxy once started. */
 interface INetworkProxyEntry {
@@ -97,6 +100,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	private readonly _browserViewsReady = new DeferredPromise<void>();
 
 	private _networkResolver: IBrowserViewNetworkResolver | undefined;
+	private readonly _onDidChangeNetworkStatus = this._register(new Emitter<void>());
+	readonly onDidChangeNetworkStatus: Event<void> = this._onDidChangeNetworkStatus.event;
 	private _networkProxyProvider: IBrowserViewNetworkProxyProvider | undefined;
 	private readonly _onDidRegisterNetworkProxyProvider = this._register(new Emitter<void>());
 	/** Proxies of the remote networks in use, keyed by authority. */
@@ -155,6 +160,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ILabelService private readonly labelService: ILabelService,
 	) {
 		super();
 		const channel = mainProcessService.getChannel(ipcBrowserViewChannelName);
@@ -241,6 +247,10 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		if (!this._isNetworkProxyEnabled()) {
 			return undefined;
 		}
+		return this._resolveNetwork(owner);
+	}
+
+	private _resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | undefined {
 		if (this._networkResolver) {
 			return this._networkResolver.resolveNetwork(owner);
 		}
@@ -248,14 +258,25 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return remoteAuthority ? { authority: remoteAuthority } : undefined;
 	}
 
-	async acquireNetwork(network: IBrowserViewNetwork): Promise<IDisposable> {
+	async acquireNetwork(network: IBrowserViewNetwork): Promise<IReference<IBrowserViewNetwork | undefined>> {
+		if (!await this._isNetworkSupported(network)) {
+			return { object: undefined, dispose: () => { } };
+		}
 		const reference = this._acquireNetworkReference(network.authority);
 		try {
 			await this._whenNetworkProxyReady(reference.object);
 		} catch (error) {
 			this.logService.error(`[BrowserViewWorkbenchService] Failed to start proxy for network ${network.authority}.`, error);
 		}
-		return reference;
+		return { object: network, dispose: () => reference.dispose() };
+	}
+
+	getNetworkStatus(network: IBrowserViewNetwork): IBrowserViewNetworkStatus {
+		if (network.authority === this.environmentService.remoteAuthority) {
+			// The window's remote connection always supports proxying.
+			return { label: this.labelService.getHostLabel(Schemas.vscodeRemote, network.authority) || network.authority, connected: true, proxySupported: true };
+		}
+		return this._networkResolver?.getNetworkStatus(network) ?? { label: network.authority, connected: false, proxySupported: undefined };
 	}
 
 	registerNetworkResolver(resolver: IBrowserViewNetworkResolver): IDisposable {
@@ -263,9 +284,13 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			throw new Error('A browser network resolver is already registered');
 		}
 		this._networkResolver = resolver;
+		const statusListener = resolver.onDidChangeNetworkStatus(() => this._onDidChangeNetworkStatus.fire());
+		this._onDidChangeNetworkStatus.fire();
 		return toDisposable(() => {
+			statusListener.dispose();
 			if (this._networkResolver === resolver) {
 				this._networkResolver = undefined;
+				this._onDidChangeNetworkStatus.fire();
 			}
 		});
 	}
@@ -445,17 +470,18 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return input;
 	}
 
-	async createExternalBrowserView(initialUrl: string, openSource?: IBrowserViewWorkbenchCreateOptions['openSource'], networkOwner?: IBrowserViewOwner): Promise<IBrowserViewModel> {
+	async createExternalBrowserView(initialUrl: string, openSource?: IBrowserViewWorkbenchCreateOptions['openSource'], networkOwner?: IBrowserViewOwner, requireResolvedNetwork = false): Promise<IBrowserViewModel> {
 		await this.workspaceTrustManagementService.workspaceTrustInitialized;
 		await this._updateWindowConfiguration();
 		if (this._store.isDisposed) {
 			throw new CancellationError();
 		}
-		const { session, network } = await this._resolveViewSession({
+		const network = networkOwner && (requireResolvedNetwork ? this._resolveNetwork(networkOwner) : this.resolveNetwork(networkOwner));
+		const { session, network: resolvedNetwork } = await this._resolveViewSession({
 			scope: BrowserViewStorageScope.Ephemeral,
-			network: networkOwner && this.resolveNetwork(networkOwner),
-		});
-		const hold = network && await this._holdNetworkProxy(network, this._disposeToken);
+			network,
+		}, requireResolvedNetwork);
+		const hold = resolvedNetwork && await this._holdNetworkProxy(resolvedNetwork, this._disposeToken);
 		let model: IBrowserViewModel;
 		try {
 			const info = await this._browserViewService.getOrCreateBrowserView(generateUuid(), {
@@ -563,13 +589,17 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return toBrowserViewSessionOptions(scope, request.affinity, request.network);
 	}
 
-	/** Apply workspace trust, proxy availability, and workspace storage isolation to a requested session. */
-	private async _resolveViewSession(requested: BrowserViewSessionSelector): Promise<{ session: BrowserViewSessionSelector; network: IBrowserViewNetwork | undefined }> {
+	/** Apply workspace trust, proxy availability (including hosts that cannot proxy browsers), and workspace storage isolation to a requested session. */
+	private async _resolveViewSession(requested: BrowserViewSessionSelector, requireResolvedNetwork = false): Promise<{ session: BrowserViewSessionSelector; network: IBrowserViewNetwork | undefined }> {
 		if (typeof requested === 'string') {
 			return { session: requested, network: undefined };
 		}
-		const network = this._isNetworkProxyEnabled() ? getBrowserViewSessionNetwork(requested) : undefined;
-		let affinity = requested.scope === BrowserViewStorageScope.Workspace || requested.scope === BrowserViewStorageScope.Agent ? requested.affinity : undefined;
+		const requestedNetwork = getBrowserViewSessionNetwork(requested);
+		const network = requestedNetwork && this._isNetworkProxyEnabled() && await this._isNetworkSupported(requestedNetwork) ? requestedNetwork : undefined;
+		if (requireResolvedNetwork && requestedNetwork && !network) {
+			throw new Error(localize('browser.requiredNetworkUnavailable', "The required remote network is unavailable."));
+		}
+		let affinity = getBrowserViewSessionAffinity(requested);
 		let scope = requested.scope;
 		if (scope === BrowserViewStorageScope.Global || scope === BrowserViewStorageScope.Workspace) {
 			await this.workspaceTrustManagementService.workspaceTrustInitialized;
@@ -585,6 +615,28 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			}
 		}
 		return { session: toBrowserViewSessionOptions(scope, affinity, network), network };
+	}
+
+	/**
+	 * Whether a network's host can proxy browsers. Hosts known not to support
+	 * it use the local network; hosts whose support is not yet known (for
+	 * example, still connecting) are given time to report it, and are
+	 * otherwise used, so a view never silently uses the local network.
+	 */
+	private async _isNetworkSupported(network: IBrowserViewNetwork): Promise<boolean> {
+		if (!this._networkResolver && network.authority !== this.environmentService.remoteAuthority) {
+			// Without a resolver, the window's remote is the only network it can reach, and nothing would report on others.
+			throw new Error(localize('browser.unknownNetwork', "This page was opened for another remote ({0}). Open it again from a window connected to that remote.", network.authority));
+		}
+		if (this.getNetworkStatus(network).proxySupported === undefined) {
+			const reported = Event.toPromise(Event.filter(this.onDidChangeNetworkStatus, () => this.getNetworkStatus(network).proxySupported !== undefined));
+			try {
+				await raceTimeout(reported, NETWORK_SUPPORT_TIMEOUT_MS);
+			} finally {
+				reported.cancel();
+			}
+		}
+		return this.getNetworkStatus(network).proxySupported !== false;
 	}
 
 	private _isNetworkProxyEnabled(): boolean {

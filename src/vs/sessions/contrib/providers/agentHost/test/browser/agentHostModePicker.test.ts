@@ -689,7 +689,7 @@ suite('AgentHostModePicker', () => {
 			config.values.availableApprovalModes = ['default', 'assisted', 'autoApprove'];
 			configChanged.fire('test-session');
 			const description = policyRestricted && !isWeb
-				? '$(briefcase) Disabled by policy'
+				? '$(briefcase) Disabled by your organization'
 				: 'Unavailable';
 
 			assert.deepStrictEqual({ levels, openBeforeRemoval, openAfterRemoval: actionWidget.isVisible, writes }, {

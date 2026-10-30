@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { FileService } from '../../../files/common/fileService.js';
 import { FileSystemProviderCapabilities } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../agentHost/common/state/protocol/state.js';
@@ -34,6 +35,7 @@ import {
 	toParsedAgent,
 	toParsedSkill,
 	parsePlugin,
+	readAgentComponents,
 	readSkills,
 	PluginFormat,
 } from '../../common/pluginParsers.js';
@@ -383,13 +385,39 @@ suite('pluginParsers', () => {
 		});
 	});
 
+	suite('readAgentComponents', () => {
+		const store = new DisposableStore();
+		let fileService: FileService;
+
+		setup(() => {
+			fileService = createInMemoryFileService(store, Schemas.inMemory);
+		});
+		teardown(() => store.clear());
+
+		for (const sameFilename of [true, false]) {
+			test(`deduplicates ${sameFilename ? 'file-derived' : 'authored'} names unless the caller opts out`, async () => {
+				const root = URI.from({ scheme: Schemas.inMemory, path: '/plugin' });
+				const resources = ['first', 'second'].map(name => URI.joinPath(root, name, sameFilename ? 'reviewer.agent.md' : `${name}.agent.md`));
+				await Promise.all(resources.map(resource => fileService.writeFile(resource, VSBuffer.fromString(sameFilename ? 'Review code.' : '---\nname: Reviewer\n---\nReview code.'))));
+				const defaults = await readAgentComponents(resources, fileService);
+				const allAgents = await readAgentComponents([...resources, resources[0]], fileService, { deduplicateByName: false });
+				assert.deepStrictEqual({
+					defaultNames: defaults.map(agent => agent.name),
+					allAgents: allAgents.map(agent => ({ name: agent.name, uri: agent.uri.toString() })),
+				}, {
+					defaultNames: [sameFilename ? 'reviewer' : 'Reviewer'],
+					allAgents: resources.map(resource => ({ name: sameFilename ? 'reviewer' : 'Reviewer', uri: resource.toString() })),
+				});
+			});
+		}
+	});
+
 	suite('readSkills', () => {
 		const store = new DisposableStore();
 		let fileService: FileService;
 
 		setup(() => {
-			fileService = store.add(new FileService(new NullLogService()));
-			store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+			fileService = createInMemoryFileService(store, Schemas.inMemory);
 		});
 		teardown(() => store.clear());
 
@@ -552,8 +580,7 @@ suite('pluginParsers', () => {
 			let fileService: FileService;
 
 			setup(() => {
-				fileService = store.add(new FileService(new NullLogService()));
-				store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+				fileService = createInMemoryFileService(store, Schemas.inMemory);
 			});
 
 			teardown(() => store.clear());

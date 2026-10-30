@@ -11,16 +11,19 @@ import { getMediaMime } from '../../../../base/common/mime.js';
 import { matchesSomeScheme, Schemas } from '../../../../base/common/network.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
+import { isMacintosh, isWeb, isWindows } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { toAction } from '../../../../base/common/actions.js';
-import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, fromAgentHostUri, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { ArtifactIntegrationsSettingId } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { WebFileSystemAccess } from '../../../../platform/files/browser/webFileSystemAccess.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { GitHubCommit } from '../../../../platform/github/common/githubQueryService.js';
 import { parseGitHubCommitTarget, type IGitHubCommitTarget } from '../../../../platform/github/common/githubUrls.js';
@@ -33,8 +36,9 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
-import { chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillLocationHover, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
+import { chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillLocationHover, type IChatPillAction, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
 import { downloadFile } from '../../../../workbench/browser/download.js';
+import { FileDownload } from '../../../../workbench/contrib/files/browser/fileImportExport.js';
 import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { IChatImageCarouselService } from '../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
 import { getChatImageResourceComparisonKey, getGeneratedImageResources } from '../../../../workbench/contrib/chat/common/chatImageExtraction.js';
@@ -48,11 +52,13 @@ import { IWorkbenchGitHubService } from '../../../../workbench/services/github/c
 import { linkKey } from '../../../common/sessionLinks.js';
 import { getChatSessionArtifacts, getSessionArtifactKey, SessionArtifactKind, type IChat, type ISessionArtifact } from '../../../services/sessions/common/session.js';
 import { ArtifactIntegrationPresentation, IArtifactDetailsHost } from './artifactIntegrationPresentation.js';
+import { collapseArtifactIntegrationAliases, getArtifactIntegrationAliasCandidate, getArtifactIntegrationGroupId } from './artifactIntegrationPillSources.js';
 import { ISessionsManagementService, type IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
 import { ISessionGitHubReferences, parseGitHubArtifactLink } from '../../github/common/sessionGitHubReferences.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { IGitHubService as ISessionsGitHubService } from '../../github/browser/githubService.js';
 
 /** Action id of the references pill. */
@@ -83,6 +89,10 @@ export interface ISessionArtifactActions {
 	openResource(uri: URI): void;
 	openImages(images: readonly ISessionArtifactImage[], startIndex: number): void;
 	downloadImage(uri: URI, name: string): Promise<void>;
+	/** Reveals a file or folder on this device in the OS file manager; absent where that is unsupported. */
+	revealInOS?(uri: URI): void;
+	/** Downloads a remote file or folder to this device. */
+	downloadResource?(uri: URI, name: string): Promise<void>;
 	copy(text: string): void;
 	/**
 	 * Deletes the session's record of an artifact or reference by its stable id.
@@ -101,6 +111,8 @@ export interface ISessionArtifactImage {
 
 interface ISessionArtifactPresentation extends ISessionArtifact {
 	readonly generatedImageMimeType?: string;
+	/** An integration presents the record, whose entry alone reaches its details, so a browser showing its page never replaces it. */
+	readonly integrated?: boolean;
 }
 
 function artifactValueKey(artifact: ISessionArtifact): string {
@@ -145,9 +157,64 @@ export function sessionArtifactLocation(location: string, label: string): Pick<I
 	};
 }
 
+/** Downloads ask where to save, so the label ends with an ellipsis. */
+const downloadLabel = localize('sessionArtifacts.download', "Download...");
+
+const revealInOSLabel = isWindows
+	? localize('sessionArtifacts.revealInWindows', "Reveal in File Explorer")
+	: isMacintosh
+		? localize('sessionArtifacts.revealInMac', "Reveal in Finder")
+		: localize('sessionArtifacts.openContainer', "Open Containing Folder");
+
+/**
+ * The file on this device an artifact points at, if any. The local agent host
+ * wraps its files in agent host URIs, which still name files on this device.
+ */
+function toLocalFileUri(uri: URI): URI | undefined {
+	const resource = uri.scheme === AGENT_HOST_SCHEME && uri.authority === LOCAL_AGENT_HOST_AUTHORITY ? fromAgentHostUri(uri) : uri;
+	return resource.scheme === Schemas.file ? resource : undefined;
+}
+
+/** Whether an artifact points at a file on another device, such as over SSH, a dev tunnel or a remote agent host. */
+function isRemoteFileUri(uri: URI): boolean {
+	return matchesSomeScheme(uri, AGENT_HOST_SCHEME, Schemas.vscodeRemote) && !toLocalFileUri(uri);
+}
+
+/**
+ * The action that takes a file or folder artifact into the OS: revealing it
+ * when it is on this device, or downloading it when it lives on a remote one.
+ */
+function getFileLocationAction(artifact: ISessionArtifact, uri: URI, name: string, actions: ISessionArtifactActions): IChatPillAction | undefined {
+	const localUri = toLocalFileUri(uri);
+	const revealInOS = actions.revealInOS;
+	if (localUri && revealInOS) {
+		return toAction({
+			id: `sessions.artifacts.revealInOS.${artifact.id}`,
+			label: revealInOSLabel,
+			class: ThemeIcon.asClassName(Codicon.folderOpened),
+			run: () => revealInOS(localUri),
+		});
+	}
+	const downloadResource = actions.downloadResource;
+	if (downloadResource && isRemoteFileUri(uri)) {
+		return toAction({
+			id: `sessions.artifacts.download.${artifact.id}`,
+			label: downloadLabel,
+			class: ThemeIcon.asClassName(Codicon.cloudDownload),
+			run: () => downloadResource(uri, name),
+		});
+	}
+	return undefined;
+}
+
 function getImageMimeType(uri: URI): string | undefined {
 	const mimeType = getMediaMime(uri.path);
 	return mimeType?.startsWith('image/') ? mimeType : undefined;
+}
+
+function getVideoMimeType(uri: URI): string | undefined {
+	const mimeType = getMediaMime(uri.path);
+	return mimeType?.startsWith('video/') ? mimeType : undefined;
 }
 
 /**
@@ -211,11 +278,14 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 		const label = basename(uri);
 		const fullPath = labelService.getUriLabel(uri, { noPrefix: true });
 		const relativePath = labelService.getUriLabel(uri, { relative: true, noPrefix: true });
+		const locationAction = getFileLocationAction(artifact, uri, label, actions);
+		const videoMimeType = getVideoMimeType(uri);
 		return withRemoveAction(artifact, {
 			id: artifact.id,
 			label,
 			resource: uri,
-			toolbarActions: [toAction({
+			...(videoMimeType ? { videoPreview: { resource: uri, mimeType: videoMimeType } } : {}),
+			toolbarActions: [...(locationAction ? [locationAction] : []), toAction({
 				id: `sessions.artifacts.copyFilePath.${artifact.id}`,
 				label: localize('sessionArtifacts.copyFilePath', "Copy Path"),
 				class: ThemeIcon.asClassName(Codicon.copy),
@@ -280,11 +350,12 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			return undefined;
 		}
 		const uri = artifact.uri;
+		const locationAction = getFileLocationAction(artifact, uri, basename(uri) || artifact.label, actions);
 		return withRemoveAction(artifact, {
 			id: artifact.id,
 			label: artifact.label,
 			icon,
-			toolbarActions: [withChatPillHoverLabel(toAction({
+			toolbarActions: [...(locationAction ? [locationAction] : []), withChatPillHoverLabel(toAction({
 				id: `sessions.artifacts.copyResourceUri.${artifact.id}`,
 				label: localize('sessionArtifacts.copyResourceUri', "Copy URI"),
 				class: ThemeIcon.asClassName(Codicon.copy),
@@ -353,7 +424,8 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
  * the artifacts pill and the references pill each build their own. Entries keep
  * the order they arrive in, which is newest first, so each section opens on
  * what the session recorded last. Websites the browsers pill already lists are
- * left out, so the same page is offered once across the pills.
+ * left out, so the same page is offered once across the pills, unless an
+ * integration presents them.
  */
 export function buildSessionArtifactSections(artifacts: readonly ISessionArtifactPresentation[], actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>, commits: ReadonlyMap<string, GitHubCommit> = new Map(), gitHubResolver?: GitHubResourceDetailsResolver, reader?: IReader, commitHoverCache?: ChatPillHoverCache): readonly IChatPillSection[] {
 	const entriesByKind = new Map<SessionArtifactKind, IChatPillEntry[]>();
@@ -371,7 +443,7 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 	}
 
 	for (const artifact of artifacts) {
-		if (artifact.kind === SessionArtifactKind.Website && isShownInBrowser(artifact.link, browserKeys)) {
+		if (artifact.kind === SessionArtifactKind.Website && !artifact.integrated && isShownInBrowser(artifact.link, browserKeys)) {
 			continue;
 		}
 		const generatedImage = generatedImages.get(artifactValueKey(artifact));
@@ -401,13 +473,15 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 			for (const [index, { artifact, uri, mimeType, name: label }] of images.entries()) {
 				const fullPath = labelService.getUriLabel(uri, { noPrefix: true });
 				const relativePath = labelService.getUriLabel(uri, { relative: true, noPrefix: true });
+				// Images on this device are revealed like other files; anywhere else they download, including web and generated images.
+				const localImageAction = toLocalFileUri(uri) ? getFileLocationAction(artifact, uri, label, actions) : undefined;
 				const entry = withRemoveAction(artifact, {
 					id: artifact.id,
 					label,
 					resource: uri,
-					toolbarActions: [toAction({
+					toolbarActions: [localImageAction ?? toAction({
 						id: `sessions.artifacts.downloadImage.${artifact.id}`,
-						label: localize('sessionArtifacts.downloadImage', "Download Image"),
+						label: downloadLabel,
 						class: ThemeIcon.asClassName(Codicon.cloudDownload),
 						run: () => actions.downloadImage(uri, label),
 					}), toAction({
@@ -422,7 +496,7 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 						class: ThemeIcon.asClassName(Codicon.copy),
 						run: () => actions.copy(relativePath),
 					})],
-					...(!artifact.isArtifact ? { imagePreview: { resource: uri, mimeType } } : {}),
+					imagePreview: { resource: uri, mimeType },
 					...sessionArtifactLocation(sessionArtifactLocationText(uri, labelService), label),
 					...(imageCarouselEnabled
 						? {
@@ -528,7 +602,10 @@ export class SessionArtifacts extends Disposable {
 	readonly sections: IObservable<readonly IChatPillSection[]>;
 	/** Sections for the references pill: what the session points the user at. */
 	readonly referenceSections: IObservable<readonly IChatPillSection[]>;
-	/** Undecorated entries of the artifacts and references an integration presents; see {@link getPresentation}. */
+	/**
+	 * Undecorated entries of the artifacts and references an integration presents in pills of their own, because their
+	 * main integration assigns them a group ID; see {@link getPresentation}. The sections list the other integrated records.
+	 */
 	readonly integratedEntries: IObservable<readonly IChatPillEntry[]>;
 
 	constructor(
@@ -546,7 +623,7 @@ export class SessionArtifacts extends Disposable {
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@ISessionsGitHubService gitHubService: ISessionsGitHubService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkbenchGitHubService workbenchGitHubService: IWorkbenchGitHubService,
 		@ILogService logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -555,6 +632,7 @@ export class SessionArtifacts extends Disposable {
 		@IFileService private readonly _fileService: IFileService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 
@@ -624,7 +702,7 @@ export class SessionArtifacts extends Disposable {
 					if (lifetime.isDisposed) {
 						return;
 					}
-					const presentation = lifetime.add(instantiationService.createInstance(ArtifactIntegrationPresentation, reference.object, reader => {
+					const presentation = lifetime.add(this._instantiationService.createInstance(ArtifactIntegrationPresentation, reference.object, reader => {
 						const invokingChat = chat.read(reader);
 						return session.read(reader) === current ? invokingChat?.resource.toString() : undefined;
 					}, detailsHost));
@@ -713,13 +791,25 @@ export class SessionArtifacts extends Disposable {
 			locationFormatting.read(reader);
 			const actions = this._actions(current, chat.read(reader)?.resource ?? current.resource, reader);
 			return chatArtifacts.read(reader).flatMap(artifact => {
-				if (!this.hasIntegration(artifact.id, reader)) {
+				if (!this.hasOwnPill(artifact.id, reader)) {
 					return [];
 				}
 				const target = artifact.kind === SessionArtifactKind.Commit && artifact.link ? parseGitHubCommitTarget(artifact.link) : undefined;
 				const entry = toEntry(artifact, actions, this._labelService, target ? commitResolver.get(target).read(reader) : undefined);
 				return entry ? [entry] : [];
 			});
+		});
+
+		// Integrated records listed in the pills for their kind show once per resource, like those in pills of their own.
+		const hiddenAliases = derived(this, reader => {
+			const integrated = presentations.read(reader);
+			const candidates = chatArtifacts.read(reader).flatMap(artifact => {
+				const snapshot = integrated.get(artifact.id)?.snapshot.read(reader);
+				return snapshot && snapshot.contributions.length > 0 && getArtifactIntegrationGroupId(snapshot) === undefined
+					? [{ id: artifact.id, isArtifact: artifact.isArtifact, ...getArtifactIntegrationAliasCandidate(snapshot) }] : [];
+			});
+			const kept = new Set(collapseArtifactIntegrationAliases(candidates).map(candidate => candidate.id));
+			return new Set(candidates.filter(candidate => !kept.has(candidate.id)).map(candidate => candidate.id));
 		});
 
 		const sectionsFor = (isArtifact: boolean) => derived(this, reader => {
@@ -738,12 +828,15 @@ export class SessionArtifacts extends Disposable {
 				...gitHubReferences?.pullRequests ?? [],
 				...gitHubReferences?.issues ?? [],
 			].map(ref => linkKey(ref.uri.toString())));
+			const hidden = hiddenAliases.read(reader);
+			const integrated = presentations.read(reader);
 			const artifacts: ISessionArtifactPresentation[] = chatArtifacts.read(reader).filter(artifact =>
 				artifact.isArtifact === isArtifact
 				&& !surfacedIds.has(artifact.id)
-				&& !this.hasIntegration(artifact.id, reader)
+				&& !this.hasOwnPill(artifact.id, reader)
+				&& !hidden.has(artifact.id)
 				&& !(artifact.link && parseGitHubArtifactLink(artifact) && surfacedLinks.has(linkKey(artifact.link.toString())))
-			);
+			).map(artifact => (integrated.get(artifact.id)?.snapshot.read(reader).contributions.length ?? 0) > 0 ? { ...artifact, integrated: true } : artifact);
 			if (isArtifact) {
 				artifacts.push(...generatedImages.read(reader));
 			}
@@ -752,7 +845,6 @@ export class SessionArtifacts extends Disposable {
 				const commit = target ? commitResolver.get(target).read(reader) : undefined;
 				return commit ? [[artifact.id, commit] as const] : [];
 			}));
-			const integrated = presentations.read(reader);
 			return buildSessionArtifactSections(
 				artifacts,
 				this._actions(current, chat.read(reader)?.resource ?? current.resource, reader),
@@ -770,7 +862,7 @@ export class SessionArtifacts extends Disposable {
 		this.referenceSections = sectionsFor(false);
 	}
 
-	decorateEntry(entry: IChatPillEntry, reader: IReader): IChatPillEntry {
+	decorateEntry<T extends IChatPillEntry>(entry: T, reader: IReader): T {
 		return this.presentations.read(reader).get(entry.id)?.decorate(entry, reader) ?? entry;
 	}
 
@@ -778,8 +870,10 @@ export class SessionArtifacts extends Disposable {
 		return this.presentations.read(reader).get(id);
 	}
 
-	hasIntegration(id: string, reader: IReader): boolean {
-		return (this.presentations.read(reader).get(id)?.snapshot.read(reader).contributions.length ?? 0) > 0;
+	/** Whether an integration presents the record in a pill of its own, rather than in the pill for its kind. */
+	hasOwnPill(id: string, reader: IReader): boolean {
+		const snapshot = this.presentations.read(reader).get(id)?.snapshot.read(reader);
+		return !!snapshot && getArtifactIntegrationGroupId(snapshot) !== undefined;
 	}
 
 	private _actions(session: IActiveSession, chatResource: URI, reader: IReader): ISessionArtifactActions {
@@ -809,6 +903,23 @@ export class SessionArtifacts extends Disposable {
 					await downloadFile(uri, name, this._fileService, this._fileDialogService, this._webContentExtractorService);
 				} catch (error) {
 					this._notificationService.error(localize('sessionArtifacts.downloadImageFailed', "Failed to download {0}: {1}", name, toErrorMessage(error)));
+				}
+			},
+			// The OS file manager is only reachable from the desktop app.
+			...(!isWeb ? {
+				revealInOS: (uri: URI) => { void this._commandService.executeCommand('revealFileInOS', uri); },
+			} : {}),
+			downloadResource: async (uri, name) => {
+				try {
+					const stat = await this._fileService.resolve(uri);
+					// Browsers can only save a folder through the File System Access API; without it the download would silently do nothing.
+					if (isWeb && stat.isDirectory && !WebFileSystemAccess.supported(getActiveWindow())) {
+						this._notificationService.error(localize('sessionArtifacts.downloadFolderUnsupported', "Could not download {0}: this browser does not support downloading folders.", name));
+						return;
+					}
+					await this._instantiationService.createInstance(FileDownload).download([{ resource: stat.resource, name: stat.name, isDirectory: stat.isDirectory }]);
+				} catch (error) {
+					this._notificationService.error(localize('sessionArtifacts.downloadFailed', "Failed to download {0}: {1}", name, toErrorMessage(error)));
 				}
 			},
 			copy: text => { void this._clipboardService.writeText(text); },

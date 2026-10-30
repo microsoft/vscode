@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Limiter, raceCancellationError, timeout } from '../../../../../base/common/async.js';
+import { Limiter, MAX_TIMEOUT_DELAY, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
@@ -11,6 +11,7 @@ import { CancellationError, isCancellationError } from '../../../../../base/comm
 import { Emitter } from '../../../../../base/common/event.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { equals } from '../../../../../base/common/objects.js';
 import { localize } from '../../../../../nls.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { clearMarks, mark } from '../../../../../base/common/performance.js';
@@ -35,6 +36,7 @@ import {
 	ICloudSandboxReserveSessionRequest,
 	ICloudSandboxDiscoveredSession,
 	ICloudSandboxDiscoveryResult,
+	ICloudSandboxDiscoveryOptions,
 	ICloudSandboxEnvironment,
 	ICloudSandboxAuthenticationTarget,
 	ICloudSandboxIdentityToken,
@@ -60,7 +62,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
 import { asText, IRequestService } from '../../../../../platform/request/common/request.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
-import { getCloudSandboxTaskCreationPath, ICloudSandboxTelemetryService, requestOutcomeForStatus, type CloudSandboxRequestAction } from './cloudSandboxTelemetry.js';
+import { getCloudSandboxTaskCreationPath, ICloudSandboxTelemetryService, requestOutcomeForStatus, type CloudSandboxRequestAction, type ICloudSandboxDiscoveryTelemetryData } from './cloudSandboxTelemetry.js';
 import { type CloudSandboxLifecycleFailurePoint, type CloudSandboxLifecycleOperation } from './cloudSandboxLifecycleTelemetry.js';
 import { CloudSandboxHistoryCache } from './cloudSandboxHistoryCache.js';
 import { createCloudSandboxContextTierSchema } from './cloudSandboxSessionConfig.js';
@@ -124,11 +126,6 @@ interface ICachedSandboxTask {
 	/** An unattributed default-titled task whose recorded conversation may be an abandoned draft. */
 	readonly emptySessionSince?: number;
 	readonly hasEmptyHistory?: boolean;
-}
-
-interface ISandboxDiscoveryOptions {
-	readonly incremental?: boolean;
-	readonly taskIds?: readonly string[];
 }
 
 const LOG_PREFIX = '[CloudSandboxApi]';
@@ -465,9 +462,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		} catch {
 			throw new Error('Mission Control returned an invalid session feed URL');
 		}
-		const reconnectAt = Date.parse(connection.reconnect_after);
+		const now = Date.now();
+		const reconnectIn = connection.reconnect_in ?? Date.parse(connection.reconnect_after) - now;
+		const expiresIn = connection.expires_in ?? Date.parse(connection.expires_at) - now;
 		if (url.protocol !== 'wss:' || !url.hostname || url.username || url.password || url.hash
-			|| reconnectAt <= Date.now() || reconnectAt >= Date.parse(connection.expires_at)) {
+			|| (connection.reconnect_in === undefined) !== (connection.expires_in === undefined)
+			|| reconnectIn <= 0 || reconnectIn >= expiresIn || reconnectIn > MAX_TIMEOUT_DELAY) {
 			throw new Error('Mission Control returned invalid session feed connection metadata');
 		}
 		if (token.isCancellationRequested) {
@@ -579,23 +579,57 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	/** Incremental scans preserve absent tasks; full scans also find tasks without environment-kind metadata. */
-	async listSessions(token: CancellationToken, options?: ISandboxDiscoveryOptions): Promise<ICloudSandboxDiscoveryResult> {
+	async listSessions(token: CancellationToken, options?: ICloudSandboxDiscoveryOptions): Promise<ICloudSandboxDiscoveryResult> {
+		const stopwatch = StopWatch.create();
+		const requestedMode = options?.taskIds !== undefined ? 'targeted' : options?.incremental ? 'incremental' : 'full';
+		const telemetry: ICloudSandboxDiscoveryTelemetryData = {
+			trigger: options?.trigger ?? 'unknown', requestedMode, mode: requestedMode, outcome: 'failed',
+			durationMs: 0, pageCount: 0, listRequestCount: 0, taskCount: 0,
+			sandboxTaskCount: 0, changedSandboxTaskCount: 0, checkpointAdvanced: false,
+		};
 		const updates = new Map<string, ICachedSandboxTask | undefined>();
 		this._activeDiscoveryReads.add(updates);
 		try {
-			return await this._listSessions(token, options, updates);
+			const result = await this._listSessions(token, options, updates, telemetry);
+			telemetry.outcome = result.kind;
+			return result;
+		} catch (error) {
+			telemetry.outcome = isCancellationError(error) || token.isCancellationRequested ? 'cancelled' : 'failed';
+			throw error;
 		} finally {
 			this._activeDiscoveryReads.delete(updates);
+			telemetry.durationMs = stopwatch.elapsed();
+			this._telemetry.reportDiscovery(telemetry);
 		}
 	}
 
-	private async _listSessions(token: CancellationToken, options: ISandboxDiscoveryOptions | undefined, updates: ReadonlyMap<string, ICachedSandboxTask | undefined>): Promise<ICloudSandboxDiscoveryResult> {
+	private async _listSessions(token: CancellationToken, options: ICloudSandboxDiscoveryOptions | undefined, updates: ReadonlyMap<string, ICachedSandboxTask | undefined>, telemetry: ICloudSandboxDiscoveryTelemetryData): Promise<ICloudSandboxDiscoveryResult> {
 		const generation = this._discoveryGeneration;
 		const targeted = options?.taskIds !== undefined;
 		const since = !targeted && options?.incremental ? this._discoverySince : undefined;
+		telemetry.mode = targeted ? 'targeted' : since ? 'incremental' : 'full';
 		const tasks = new Map<string, IScannedTask>();
 		const details = new Map<string, ITaskDetail>();
 		const cache = new Map(this._discoveredTasks);
+		const returnedSandboxTasks = new Set<string>();
+		const changedSandboxTasks = new Set<string>();
+		const recordTask = (task: IScannedTask) => {
+			tasks.set(task.id, task);
+			if (isCloudSandboxTask(task)) {
+				returnedSandboxTasks.add(task.id);
+				if (!equals(task, cache.get(task.id)?.summary)) {
+					changedSandboxTasks.add(task.id);
+				} else {
+					changedSandboxTasks.delete(task.id);
+				}
+			} else {
+				returnedSandboxTasks.delete(task.id);
+				changedSandboxTasks.delete(task.id);
+			}
+			telemetry.taskCount = tasks.size;
+			telemetry.sandboxTaskCount = returnedSandboxTasks.size;
+			telemetry.changedSandboxTaskCount = changedSandboxTasks.size;
+		};
 		const removedTaskIds: string[] = [];
 		const failedTaskIds = new Set<string>();
 		let truncated = false;
@@ -611,7 +645,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						if (!task || task.id !== id) {
 							throw new Error('getTask returned an invalid task');
 						}
-						tasks.set(id, { ...task, hasRepository: (task.repository?.id ?? 0) > 0 });
+						recordTask({ ...task, hasRepository: (task.repository?.id ?? 0) > 0 });
 						details.set(id, task);
 					} catch (error) {
 						if (isCancellationError(error) || token.isCancellationRequested) {
@@ -650,18 +684,19 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					...(since ? { since, include_environment_kinds: 'managed-sandbox' } : {}),
 				};
 				try {
-					const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks${toQuery(query)}`, 'list', token);
+					const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks${toQuery(query)}`, 'list', token, () => telemetry.listRequestCount++);
 					const response = await this._readJson<{ tasks?: readonly ITaskSummary[] }>(context);
 					if (!Array.isArray(response?.tasks)) {
 						throw new Error('listTasks returned no tasks array');
 					}
+					telemetry.pageCount++;
 					const date = context.res.headers?.date;
 					const serverTime = typeof date === 'string' ? Date.parse(date) : Number.NaN;
 					if (!Number.isNaN(serverTime)) {
 						checkpoint = Math.min(checkpoint ?? serverTime, serverTime);
 					}
 					for (const task of response.tasks) {
-						tasks.set(task.id, { ...task, hasRepository: withRepository });
+						recordTask({ ...task, hasRepository: withRepository });
 						const updatedAt = task.updated_at ? Date.parse(task.updated_at) : Number.NaN;
 						if (!Number.isNaN(updatedAt)) {
 							latestUpdate = Math.max(latestUpdate ?? updatedAt, updatedAt);
@@ -839,7 +874,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			// Browsers may not expose Date through CORS; task timestamps also use the server's clock.
 			const nextCheckpoint = checkpoint ?? latestUpdate;
 			if (nextCheckpoint !== undefined) {
-				this._discoverySince = new Date(nextCheckpoint - DISCOVERY_OVERLAP_MS).toISOString();
+				const nextSince = new Date(nextCheckpoint - DISCOVERY_OVERLAP_MS).toISOString();
+				telemetry.checkpointAdvanced = this._discoverySince === undefined || Date.parse(nextSince) > Date.parse(this._discoverySince);
+				this._discoverySince = nextSince;
 			}
 			if (!since) {
 				for (const id of cache.keys()) {
@@ -1357,11 +1394,11 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	/** Issue a task API request, throwing on a non-success status. */
-	private async _sendTask(url: string, action: 'list' | 'get', token: CancellationToken): Promise<IRequestContext> {
+	private async _sendTask(url: string, action: 'list' | 'get', token: CancellationToken, onRequest?: () => void): Promise<IRequestContext> {
 		const context = await this._retryWhileRateLimited(`task ${action}`, token, () => this._request(url, `mc.taskClient.${action}`, action === 'list' ? 'listTasks' : 'getTask', {
 			'Accept': 'application/json',
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
-		}, token, DISCOVERY_TIMEOUT_MS));
+		}, token, DISCOVERY_TIMEOUT_MS, undefined, undefined, onRequest));
 		if (!isSuccess(context)) {
 			await this._throwForStatus(`task ${action}`, context);
 		}

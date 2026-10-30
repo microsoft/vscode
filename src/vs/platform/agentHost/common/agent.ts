@@ -18,12 +18,13 @@ import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
 import type { IAgentHostProcessExitEvent } from './agentHostProcessExit.js';
 import type { CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
+import type { IChatSurfaceMeta } from './meta/agentChatSurfaceMeta.js';
 import type { IAgentChatUsage } from './meta/agentUsageMeta.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import type { AuthenticateTarget, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { CanvasState } from './state/protocol/channels-canvas/state.js';
 import { subagentChatUri, type ChatUriFormat } from './agentHostChatMinting.js';
-import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
+import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type SessionOrigin, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction, ProgressParams } from './state/sessionActions.js';
 import { AHP_CHAT_SCHEME, ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
@@ -203,6 +204,8 @@ export interface IAgentSessionChatMetadata {
 	readonly kind: 'default' | 'peer';
 	readonly origin?: ChatOrigin;
 	readonly interactivity?: ChatInteractivity;
+	/** The chat's own agent when it differs from its session's; absence means the session's agent. */
+	readonly provider?: string;
 	readonly archived?: boolean;
 	/** Exact chat read state when known; absence means the provider did not supply it. */
 	readonly isRead?: boolean;
@@ -223,6 +226,7 @@ export interface IAgentSessionMetadata extends Omit<IAgentChatMetadata, 'chat'> 
 	readonly session: URI;
 	/** Host-advertised agent identity; older cached metadata may omit it. */
 	readonly provider?: string;
+	readonly origin?: SessionOrigin;
 	readonly chats?: readonly IAgentSessionChatMetadata[];
 }
 
@@ -865,6 +869,12 @@ export interface IAgentChatContext {
 	readonly sendStageRecorder?: IAgentProviderSendStageRecorder;
 	/** Whether the current turn is an automated Agent Merge repair turn. */
 	readonly agentMergeTurn?: boolean;
+	/**
+	 * The VS Code chat surface the owning session was created for, from its surface
+	 * metadata. Supplied at each operation, so a runtime that replaces the chat's
+	 * keeps the surface's behavior. Absent for sessions no such surface created.
+	 */
+	readonly chatSurface?: IChatSurfaceMeta['surface'];
 }
 
 export type AgentChatOperationContext = URI | IAgentChatContext;
@@ -944,6 +954,11 @@ export interface IAgentCreateChatOptions {
 	 */
 	readonly hasScopedEditSurface?: boolean;
 	/**
+	 * Whether the owning chat surface is an inline chat (editor or terminal), where
+	 * latency matters more than routing depth, so Copilot Fusion runs at its fast tier.
+	 */
+	readonly isInlineChatSurface?: boolean;
+	/**
 	 * Authoritative initial title supplied to host creation. When present, it
 	 * takes precedence over a generated fork placeholder; explicit provenance
 	 * determines whether automatic title replacement is allowed.
@@ -974,6 +989,14 @@ export interface IAgentCreateChatOptions {
 	readonly fork?: IAgentCreateChatForkSource;
 }
 
+/** The surface-scoped {@link IAgentCreateChatOptions} for a chat whose owning session `surface` created. */
+export function getChatSurfaceOptions(surface: IChatSurfaceMeta['surface'] | undefined): Pick<IAgentCreateChatOptions, 'hasScopedEditSurface' | 'isInlineChatSurface'> {
+	return {
+		...(surface === 'editorInline' ? { hasScopedEditSurface: true } : {}),
+		...(surface === 'editorInline' || surface === 'terminal' ? { isInlineChatSurface: true } : {}),
+	};
+}
+
 /**
  * Host-facing chat creation options. Providers receive the resolved
  * {@link IAgentCreateChatOptions} and never receive side-chat provenance.
@@ -992,6 +1015,13 @@ export interface IAgentCreateChatRequestOptions extends IAgentCreateChatOptions 
 	 * the provider, while retaining the side-chat provenance itself.
 	 */
 	readonly sideChat?: IAgentCreateChatSideChatSource;
+	/**
+	 * The agent requested for the new chat (`CreateChatParams.provider`). The
+	 * host resolves and validates it and creates the chat in that agent;
+	 * absent means the source chat's agent for a fork or side chat, else the
+	 * session's. Never passed to providers.
+	 */
+	readonly provider?: AgentProvider;
 	/**
 	 * Host-owned workspace requested for a new peer chat. The host prepares it
 	 * (adding the folder to the session, creating a worktree or a scratch
@@ -1564,6 +1594,14 @@ export namespace AgentSession {
 	export function provider(session: URI | string): AgentProvider | undefined {
 		const parsed = typeof session === 'string' ? URI.parse(session) : session;
 		return parsed.scheme === 'ahp-session' ? undefined : parsed.scheme || undefined;
+	}
+
+	/**
+	 * Whether a session URI has the shape {@link uri} mints: no authority, query or fragment.
+	 * Session storage is keyed by {@link id} alone, so any other shape must not be resolved to it.
+	 */
+	export function isCanonical(session: URI): boolean {
+		return !session.authority && !session.query && !session.fragment;
 	}
 }
 

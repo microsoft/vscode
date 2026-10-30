@@ -7,7 +7,7 @@ import assert from 'assert';
 import { convertHtmlToMarkdown } from '../../../../../../base/browser/htmlToMarkdown.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { sanitizeChatClipboardFragment, toPortableMarkdown } from '../../../browser/widget/chatClipboard.js';
+import { cloneVisibleSelection, sanitizeChatClipboardFragment, toPortableMarkdown } from '../../../browser/widget/chatClipboard.js';
 
 function toFragment(html: string): DocumentFragment {
 	const template = document.createElement('template');
@@ -112,6 +112,59 @@ suite('ChatClipboard', () => {
 		assert.strictEqual(
 			convertHtmlToMarkdown(copied),
 			'This is **inherited** from the `FooBar` class. See [the docs](https://example.com/docs).');
+	});
+
+	test('copies a selection across a hidden file changes summary without its UI, stylesheet, or toolbar', () => {
+		const container = document.createElement('div');
+		container.innerHTML = '<div class="value">'
+			+ '<p id="first">Updated <a href="" data-href="file:///repo/src/a.ts">a.ts</a> as <strong>requested</strong>.</p>'
+			+ '<div class="checkpoint-file-changes-summary" style="display: none"><details><summary>0 files changed<span>+0</span><span>-0</span></summary>'
+			+ '<div class="chat-summary-list"><div class="monaco-list list_id_109"><style>.monaco-list.list_id_109:focus .monaco-list-row.focused { background-color: red; }</style></div></div></details></div>'
+			+ '<p id="last">Done.</p>'
+			+ '</div>'
+			+ '<div class="chat-footer-toolbar"><ul class="actions-container" role="toolbar"><li class="action-item chat-copy-action" aria-label="Copy"></li></ul></div>'
+			+ '<p id="next">Next</p>';
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		const range = document.createRange();
+		range.setStart(container.querySelector('#first')!.firstChild!, 0);
+		range.setEnd(container.querySelector('#next')!.firstChild!, 4);
+		const fragment = cloneVisibleSelection(range, container);
+		sanitizeChatClipboardFragment(fragment);
+		const holder = document.createElement('div');
+		holder.appendChild(fragment);
+
+		assert.deepStrictEqual({
+			markdown: convertHtmlToMarkdown(holder.innerHTML),
+			liveMarkers: container.querySelectorAll('[data-chat-clipboard-hidden]').length,
+		}, {
+			markdown: 'Updated `a.ts` as **requested**.\n\nDone.\n\nNext',
+			liveMarkers: 0,
+		});
+	});
+
+	test('copies text inside display: contents wrappers but not bodies collapsed with visibility or opacity', () => {
+		const container = document.createElement('div');
+		container.innerHTML = '<div class="value">'
+			+ '<p id="first">See <a href="" data-href="file:///repo/src/a.ts">a.ts</a>.</p>'
+			+ '<div style="display: contents"><p>Wrapped</p></div>'
+			+ '<div class="chat-collapsible-content-animation" style="visibility: hidden"><p>Collapsed thinking</p></div>'
+			+ '<div style="opacity: 0"><p>Faded out</p></div>'
+			+ '<p id="last">Done.</p>'
+			+ '</div>';
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		const range = document.createRange();
+		range.setStart(container.querySelector('#first')!.firstChild!, 0);
+		range.setEnd(container.querySelector('#last')!.firstChild!, 5);
+		const fragment = cloneVisibleSelection(range, container);
+		sanitizeChatClipboardFragment(fragment);
+		const holder = document.createElement('div');
+		holder.appendChild(fragment);
+
+		assert.strictEqual(convertHtmlToMarkdown(holder.innerHTML), 'See `a.ts`.\n\nWrapped\n\nDone.');
 	});
 
 	suite('toPortableMarkdown', () => {

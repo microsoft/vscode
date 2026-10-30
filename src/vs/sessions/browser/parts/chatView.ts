@@ -32,6 +32,11 @@ export type ChatViewKind = 'newSession' | 'newChatInSession' | 'chat';
 export interface IChatViewOptions {
 	/** Visibility of the owning session slot, preserved across composer/preparation/transcript handoffs. */
 	readonly hostVisible?: IObservable<boolean>;
+	/** Keep the custom view hosting this composer visible while preparing its draft. */
+	readonly preserveCustomView?: boolean;
+	readonly renderChatPet?: boolean;
+	/** Host only the composer, without transcript content, input interactions, or transcript view-state persistence. */
+	readonly inputOnly?: boolean;
 }
 
 export interface ISelectWorkspaceOptions {
@@ -70,6 +75,9 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 
 	private readonly _onDidChange = this._register(new Emitter<IViewSize | undefined>());
 	readonly onDidChange: Event<IViewSize | undefined> = this._onDidChange.event;
+
+	/** A user request accepted for sending or queuing from this view, identified by its originating chat. */
+	readonly onDidSubmitRequest: Event<URI> = Event.None;
 
 	/**
 	 * Lazily-created progress indicator scoped to this leaf. Mirrors how each

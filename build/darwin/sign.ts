@@ -31,33 +31,52 @@ function getEntitlementsForFile(filePath: string): string {
 	return path.join(baseDir, 'azure-pipelines', 'darwin', 'app-entitlements.plist');
 }
 
-async function retrySignOnKeychainError<T>(fn: () => Promise<T>, maxRetries: number = 3): Promise<T> {
-	let lastError: Error | undefined;
+function getKeychainPath(tempDir: string): string {
+	return path.join(tempDir, 'buildagent.keychain');
+}
 
-	for (let attempt = 1; attempt <= maxRetries; attempt++) {
+/**
+ * Usage descriptions shown by macOS when the app requests access to protected resources.
+ */
+const infoPlistUsageDescriptions: Record<string, string> = {
+	NSAppleEventsUsageDescription: 'An application in Visual Studio Code wants to use AppleScript.',
+	NSMicrophoneUsageDescription: 'An application in Visual Studio Code wants to use the Microphone.',
+	NSCameraUsageDescription: 'An application in Visual Studio Code wants to use the Camera.',
+	NSAudioCaptureUsageDescription: 'An application in Visual Studio Code wants to use Audio Capture.',
+	NSLocalNetworkUsageDescription: 'The app uses your local network for DNS resolution and to connect to locally running services.',
+};
+
+/**
+ * `codesign` errors caused by short-lived problems on the build agent (keychain access)
+ * or in Apple's timestamp service, which usually clear up within seconds.
+ */
+const transientSignErrors = [
+	'The specified item could not be found in the keychain.',
+	'A timestamp was expected but was not found.',
+	'The timestamp service is not available.',
+];
+
+/**
+ * Runs `fn`, retrying with exponential backoff when it fails with one of the
+ * {@link transientSignErrors}. Signing the app again is safe because every file
+ * is signed with `codesign --force`, which replaces existing signatures.
+ */
+export async function retryOnTransientSignError<T>(fn: () => Promise<T>, maxAttempts = 5, initialDelayMs = 10_000): Promise<T> {
+	for (let attempt = 1; ; attempt++) {
 		try {
 			return await fn();
 		} catch (error) {
-			lastError = error as Error;
-
-			// Check if this is the specific keychain error we want to retry
-			const errorMessage = error instanceof Error ? error.message : String(error);
-			const isKeychainError = errorMessage.includes('The specified item could not be found in the keychain.');
-
-			if (!isKeychainError || attempt === maxRetries) {
+			const message = error instanceof Error ? error.message : String(error);
+			if (attempt >= maxAttempts || !transientSignErrors.some(transientError => message.includes(transientError))) {
 				throw error;
 			}
 
-			console.log(`Signing attempt ${attempt} failed with keychain error, retrying...`);
-			console.log(`Error: ${errorMessage}`);
-
-			const delay = 1000 * Math.pow(2, attempt - 1);
-			console.log(`Waiting ${Math.round(delay)}ms before retry ${attempt}/${maxRetries}...`);
-			await new Promise(resolve => setTimeout(resolve, delay));
+			const delayMs = initialDelayMs * 2 ** (attempt - 1);
+			console.log(`Signing attempt ${attempt}/${maxAttempts} failed with a transient error, retrying in ${delayMs / 1000}s...`);
+			console.log(`Error: ${message}`);
+			await new Promise(resolve => setTimeout(resolve, delayMs));
 		}
 	}
-
-	throw lastError;
 }
 
 async function main(buildDir?: string): Promise<void> {
@@ -73,6 +92,10 @@ async function main(buildDir?: string): Promise<void> {
 		throw new Error('$AGENT_TEMPDIRECTORY not set');
 	}
 
+	if (!arch) {
+		throw new Error('$VSCODE_ARCH not set');
+	}
+
 	const appRoot = path.join(buildDir, `VSCode-darwin-${arch}`);
 	const appName = product.nameLong + '.app';
 	const infoPlistPath = path.resolve(appRoot, appName, 'Contents', 'Info.plist');
@@ -86,7 +109,7 @@ async function main(buildDir?: string): Promise<void> {
 		}),
 		preAutoEntitlements: false,
 		preEmbedProvisioningProfile: false,
-		keychain: path.join(tempDir, 'buildagent.keychain'),
+		keychain: getKeychainPath(tempDir),
 		version: getElectronVersion(),
 		identity,
 	};
@@ -94,57 +117,36 @@ async function main(buildDir?: string): Promise<void> {
 	// Only overwrite plist entries for x64 and arm64 builds,
 	// universal will get its copy from the x64 build.
 	if (arch !== 'universal') {
-		await spawn('plutil', [
-			'-insert',
-			'NSAppleEventsUsageDescription',
-			'-string',
-			'An application in Visual Studio Code wants to use AppleScript.',
-			`${infoPlistPath}`
-		]);
-		await spawn('plutil', [
-			'-replace',
-			'NSMicrophoneUsageDescription',
-			'-string',
-			'An application in Visual Studio Code wants to use the Microphone.',
-			`${infoPlistPath}`
-		]);
-		await spawn('plutil', [
-			'-replace',
-			'NSCameraUsageDescription',
-			'-string',
-			'An application in Visual Studio Code wants to use the Camera.',
-			`${infoPlistPath}`
-		]);
-		await spawn('plutil', [
-			'-replace',
-			'NSAudioCaptureUsageDescription',
-			'-string',
-			'An application in Visual Studio Code wants to use Audio Capture.',
-			`${infoPlistPath}`
-		]);
-		await spawn('plutil', [
-			'-insert',
-			'NSLocalNetworkUsageDescription',
-			'-string',
-			'The app uses your local network for DNS resolution and to connect to locally running services.',
-			`${infoPlistPath}`
-		]);
+		// `-replace` adds missing keys and overwrites existing ones, so signing the same app again does not fail
+		for (const [key, value] of Object.entries(infoPlistUsageDescriptions)) {
+			await spawn('plutil', ['-replace', key, '-string', value, infoPlistPath]);
+		}
 	}
 
-	await retrySignOnKeychainError(() => sign(appOpts));
+	await retryOnTransientSignError(() => sign(appOpts));
+}
+
+async function printKeychainDiagnostics(): Promise<void> {
+	const tempDir = process.env['AGENT_TEMPDIRECTORY'];
+	if (!tempDir) {
+		return;
+	}
+
+	const keychain = getKeychainPath(tempDir);
+	try {
+		const identities = await spawn('security', ['find-identity', '-p', 'codesigning', '-v', keychain]);
+		console.error(`Available identities:\n${identities}`);
+		const dump = await spawn('security', ['dump-keychain', keychain]);
+		console.error(`Keychain dump:\n${dump}`);
+	} catch (err) {
+		console.error('Failed to collect keychain diagnostics:', err);
+	}
 }
 
 if (import.meta.main) {
 	main(process.argv[2]).catch(async err => {
 		console.error(err);
-		const tempDir = process.env['AGENT_TEMPDIRECTORY'];
-		if (tempDir) {
-			const keychain = path.join(tempDir, 'buildagent.keychain');
-			const identities = await spawn('security', ['find-identity', '-p', 'codesigning', '-v', keychain]);
-			console.error(`Available identities:\n${identities}`);
-			const dump = await spawn('security', ['dump-keychain', keychain]);
-			console.error(`Keychain dump:\n${dump}`);
-		}
+		await printKeychainDiagnostics();
 		process.exit(1);
 	});
 }
