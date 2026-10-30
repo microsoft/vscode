@@ -18,6 +18,7 @@ import { KeyCode } from '../../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { disposableTimeout } from '../../../../../../../base/common/async.js';
 import { autorun, IObservable } from '../../../../../../../base/common/observable.js';
+import { MicrotaskDelay } from '../../../../../../../base/common/symbols.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
 import { IActionListHeaderLink } from '../../../../../../../platform/actionWidget/browser/actionList.js';
@@ -277,8 +278,11 @@ export class ModelPickerWidget extends Disposable {
 		// Also refresh the label when the per-editor config layer (if any) reports
 		// a change. The global service path is already covered above via
 		// `onDidChangeLanguageModels` which fires from `setModelConfiguration`.
+		// The layer reports each model on its own, and switching chats reports
+		// every model at once, so render once per burst rather than measuring the
+		// label for each model. The microtask still runs before the next paint.
 		if (this._delegate.modelConfiguration?.onDidChange) {
-			this._register(this._delegate.modelConfiguration.onDidChange(() => {
+			this._register(Event.debounce(this._delegate.modelConfiguration.onDidChange, () => undefined, MicrotaskDelay)(() => {
 				this._renderLabel();
 			}));
 		}

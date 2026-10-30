@@ -8,6 +8,8 @@ import { $, append } from '../../../../../../../../base/browser/dom.js';
 import { isManagedHoverTooltipMarkdownString } from '../../../../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../../../../base/browser/window.js';
 import { IAction } from '../../../../../../../../base/common/actions.js';
+import { timeout } from '../../../../../../../../base/common/async.js';
+import { IStringDictionary } from '../../../../../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../../../../../base/common/event.js';
 import { isMarkdownString } from '../../../../../../../../base/common/htmlContent.js';
 import { ResolvedKeybinding } from '../../../../../../../../base/common/keybindings.js';
@@ -35,7 +37,7 @@ import { TestChatEntitlementService, TestWorkspaceTrustManagementService } from 
 import { ModelPickerActionItem, IModelPickerDelegate } from '../../../../../browser/widget/input/modelPicker/modelPickerActionItem.js';
 import { ModelPickerWidget } from '../../../../../browser/widget/input/modelPicker/modelPickerWidget.js';
 import { IModelPickerComparison, IModelPickerComparisonState } from '../../../../../browser/widget/input/modelPicker/modelPickerComparison.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelConfigurationAccess } from '../../../../../common/languageModels.js';
 import { SessionType } from '../../../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../../../common/constants.js';
 import { NullLanguageModelsService } from '../../../../common/languageModels.js';
@@ -71,7 +73,7 @@ suite('ModelPickerActionItem', () => {
 	 * name followed by its thinking effort / context size readout. By default the
 	 * name has no icon, so it keeps its label even when the picker is compact.
 	 */
-	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly minimal?: boolean; readonly comparison?: IModelPickerComparison; readonly comparisonBusy?: IObservable<boolean>; readonly comparisonKeybindingLabel?: string; readonly itemWidth?: number; readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[]; readonly showModelIcon?: boolean; readonly configurationService?: TestConfigurationService } = {}) {
+	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly minimal?: boolean; readonly comparison?: IModelPickerComparison; readonly comparisonBusy?: IObservable<boolean>; readonly comparisonKeybindingLabel?: string; readonly itemWidth?: number; readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[]; readonly showModelIcon?: boolean; readonly configurationService?: TestConfigurationService; readonly modelConfiguration?: IModelConfigurationAccess } = {}) {
 		const models = options.models ? [...options.models] : [model];
 		let modelReads = 0;
 		const modelsChanged = disposables.add(new Emitter<string>());
@@ -112,6 +114,7 @@ suite('ModelPickerActionItem', () => {
 				showAutoModel: true,
 				showModelIcon: options.showModelIcon ?? false,
 			}),
+			modelConfiguration: options.modelConfiguration,
 		};
 		const item = disposables.add(new ModelPickerActionItem(
 			action,
@@ -213,6 +216,38 @@ suite('ModelPickerActionItem', () => {
 			});
 		});
 	}
+
+	test('renders the label once for a burst of model configuration changes', async () => {
+		const models = ['First', 'Second', 'Third'].map(createModel);
+		const configurations = new Map<string, IStringDictionary<unknown>>();
+		const changed = disposables.add(new Emitter<string>());
+		const { getModelReadCount, domNode } = renderPicker(models[0], {
+			models,
+			modelConfiguration: {
+				getModelConfiguration: modelId => configurations.get(modelId),
+				setModelConfiguration: async () => { },
+				getModelConfigurationActions: () => [],
+				onDidChange: changed.event,
+			},
+		});
+		// Let the picker finish its initial renders, such as the one once workspace trust is known.
+		await timeout(0);
+		const beforeBurst = getModelReadCount();
+		// Switching chats reports every model's configuration at once.
+		configurations.set(models[0].identifier, { reasoningEffort: 'medium' });
+		for (const changedModel of models) {
+			changed.fire(changedModel.identifier);
+		}
+		// A microtask later, so the label is up to date before the next paint.
+		await Promise.resolve();
+		assert.deepStrictEqual({
+			renders: getModelReadCount() - beforeBurst,
+			readout: domNode.querySelector('.model-picker-config')?.textContent,
+		}, {
+			renders: 1,
+			readout: 'Medium · 256K',
+		});
+	});
 
 	test('refreshes the rendered organization default when models arrive and disappear', () => {
 		const first = createModel('First');
