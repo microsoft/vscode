@@ -15,7 +15,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICustomizationMarketplaceInstallService } from '../common/customizationMarketplaceInstallService.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { dirname, joinPath } from '../../../../base/common/resources.js';
+import { dirname, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { ContributionEnablementState, IEnablementModel, isContributionDisabled, isContributionEnabled } from '../common/enablement.js';
 import { IAgentPlugin, IAgentPluginService, setAgentPluginEnablement } from '../common/plugins/agentPluginService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
@@ -137,6 +137,11 @@ export function isPluginPolicyBlocked(plugin: IAgentPlugin): boolean {
 /** Whether the plugin is required by enterprise policy and cannot be disabled or uninstalled by the user. */
 export function isPluginRequiredByPolicy(plugin: IAgentPlugin, reader?: IReader): boolean {
 	return getPluginPolicyEnablement(plugin, reader) === true;
+}
+
+/** Whether the installed plugin at `uri`, or containing `uri`, is required by enterprise policy. */
+export function isPluginUriRequiredByPolicy(agentPluginService: Pick<IAgentPluginService, 'plugins'>, uri: URI): boolean {
+	return agentPluginService.plugins.get().some(plugin => isEqualOrParent(uri, plugin.uri) && isPluginRequiredByPolicy(plugin));
 }
 
 /** Explains that a plugin's state is controlled by the user's organization. */

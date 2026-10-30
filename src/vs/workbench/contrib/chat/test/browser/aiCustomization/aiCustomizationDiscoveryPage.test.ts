@@ -2328,6 +2328,43 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
+	test('customizations contributed by an organization-required plugin keep a disabled Uninstall', async () => {
+		const removals: string[] = [];
+		const plugin = createRequiredPlugin(constObservable(true), removals);
+		const fixture = createPage(['agentFinder'], [AICustomizationManagementSection.Skills], [plugin]);
+		fixture.setInstalledSkills([
+			{ id: 'plugin-skill', uri: URI.joinPath(plugin.uri, 'skills', 'triage', 'SKILL.md'), name: 'handy-commands:triage', filename: 'SKILL.md', description: 'Contributed', source: 'plugin', pluginUri: plugin.uri, promptType: PromptsType.skill, disabled: false },
+			{ id: 'nested-skill', uri: URI.joinPath(plugin.uri, 'skills', 'review', 'SKILL.md'), name: 'handy-commands:review', filename: 'SKILL.md', description: 'Contributed without a recorded plugin', source: 'plugin', promptType: PromptsType.skill, disabled: false },
+			{ id: 'local-skill', uri: URI.file('/workspace/.github/skills/handy/SKILL.md'), name: 'handy-local', filename: 'SKILL.md', description: 'Local', source: 'local', promptType: PromptsType.skill, disabled: false },
+		]);
+		fixture.page.setSearchQuery('@installed handy');
+		fixture.page.setVisible(true);
+		await timeout(0);
+		const buttons = [...fixture.container.querySelectorAll<HTMLButtonElement>('.customization-discovery-results .monaco-list-row .monaco-button')];
+		const rows = buttons.map(button => ({ disabled: button.getAttribute('aria-disabled'), ariaLabel: button.getAttribute('aria-label') }));
+		for (const button of buttons) {
+			button.click();
+		}
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			rows,
+			deletedUris: fixture.commands.filter(command => command.id === DELETE_AI_CUSTOMIZATION_ID).map(command => (command.args[0] as { uri: URI }).uri.path),
+			removals,
+		}, {
+			rows: [
+				{ disabled: 'true', ariaLabel: 'Uninstall handy-commands:review. This plugin is managed by your organization.' },
+				{ disabled: 'true', ariaLabel: 'Uninstall handy-commands:triage. This plugin is managed by your organization.' },
+				{ disabled: 'false', ariaLabel: 'Uninstall handy-local' },
+			],
+			deletedUris: ['/workspace/.github/skills/handy/SKILL.md'],
+			removals: [],
+		});
+		for (const deletion of fixture.deletions) {
+			await deletion.complete();
+		}
+	});
+
 	test('organization-required plugin search rows never offer Retry Uninstall', async () => {
 		const removals: string[] = [];
 		const plugin = createRequiredPlugin(constObservable(true), removals);

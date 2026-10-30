@@ -28,7 +28,7 @@ import { defaultButtonStyles, getButtonStyles } from '../../../../../platform/th
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IAgentPlugin, IAgentPluginService, setAgentPluginEnablement } from '../../common/plugins/agentPluginService.js';
-import { createPolicyManagedEnablementAction, createUninstallPluginAction, getPluginPolicyEnablement, isPluginPolicyBlocked, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
+import { createPolicyManagedEnablementAction, createUninstallPluginAction, getPluginPolicyEnablement, isPluginPolicyBlocked, isPluginRequiredByPolicy, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
@@ -473,6 +473,10 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	}
 
 	private renderEnablementSplitButton(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Installed }>): void {
+		// The disabled Uninstall action already explains that the organization requires this plugin.
+		if (isPluginRequiredByPolicy(item.plugin)) {
+			return;
+		}
 		const policyAction = createPolicyManagedEnablementAction(item.plugin, this.notificationService);
 		if (policyAction) {
 			const policyLabel = localize('pluginManagedByOrganization', "Managed by Organization");

@@ -67,7 +67,7 @@ import { IMcpServerCustomizationMigrationCandidate } from '../../common/promptSy
 import { getAvailableCustomizationMarketplaceInstallTelemetryContext, runCustomizationMarketplaceInstallWithTelemetry } from '../../common/customizationMarketplaceInstallTelemetry.js';
 import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
 import { getCustomizationDisabledReason, getCustomizationEnablementDecision, getCustomizationScopeEnablement, type CustomizationDisabledReason } from '../../../../../platform/agentHost/common/customizationEnablement.js';
-import { createAgentHostEnablePluginAction, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
+import { createAgentHostEnablePluginAction, getPluginManagedByOrganizationMessage, isPluginRequiredByPolicy, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { getErrorMessage, isCancellationError } from '../../../../../base/common/errors.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
@@ -3776,11 +3776,12 @@ export class McpListWidget extends Disposable {
 						this._onDidRequestShowPlugin.fire(createInstalledPluginItem(plugin));
 					}
 				)));
-				actions.push(disposables.add(new Action(
+				const requiredByOrganization = isPluginRequiredByPolicy(plugin);
+				const uninstallPluginAction = disposables.add(new Action(
 					'mcpServer.uninstallPlugin',
 					localize('uninstallPlugin', "Uninstall Plugin"),
 					undefined,
-					true,
+					!requiredByOrganization,
 					async () => {
 						const result = await this.dialogService.confirm({
 							message: localize('confirmUninstallPluginMcp', "This MCP server is provided by the plugin '{0}'", plugin.label),
@@ -3792,7 +3793,11 @@ export class McpListWidget extends Disposable {
 							await removePluginWithMarketplaceOwnership(plugin, this.marketplaceInstallService);
 						}
 					}
-				)));
+				));
+				if (requiredByOrganization) {
+					uninstallPluginAction.tooltip = getPluginManagedByOrganizationMessage();
+				}
+				actions.push(uninstallPluginAction);
 			}
 			return actions;
 		}

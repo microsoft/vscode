@@ -5387,7 +5387,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	EmbeddedPluginDetailRequiredByOrganization: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The organization-required plugin detail shows a disabled Uninstall action next to Managed by Organization.'],
+		expectedVisualDescriptions: ['The organization-required plugin detail shows only a disabled Uninstall action, with no Managed by Organization button.'],
 		render: ctx => renderEmbeddedPluginDetail(ctx, makeInstalledPluginItem('Handy Commands', 'Commands required by your organization', ContributionEnablementState.EnabledProfile, false, undefined, true)),
 	}),
 

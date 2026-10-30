@@ -22,7 +22,7 @@ import { structuralEquals } from '../../../../../base/common/equals.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derivedOpts } from '../../../../../base/common/observable.js';
-import { basename, isEqual } from '../../../../../base/common/resources.js';
+import { basename, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -49,7 +49,7 @@ import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/
 import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
 import { IMcpWorkbenchService, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
 import { CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource, RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
-import { AICustomizationManagementSection, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, AICustomizationSources, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
 import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
 import { isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
@@ -111,10 +111,6 @@ interface IMarketplaceLoadProgress {
 	readonly completed: number;
 	readonly total: number;
 	readonly cached: number;
-}
-
-function setsEqual(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
-	return a.size === b.size && [...a].every(value => b.has(value));
 }
 
 function formatCompactCount(count: number): string {
@@ -949,15 +945,10 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private readonly pendingInstalls = new Set<string>();
 	private readonly pendingUninstalls = new Set<string>();
 	private readonly pendingDirectUninstalls = new Set<string>();
-	private readonly requiredPluginUris = derivedOpts<ReadonlySet<string>>({ owner: this, equalsFn: setsEqual }, reader => {
-		const uris = new Set<string>();
-		for (const plugin of this.pluginService.plugins.read(reader)) {
-			if (isPluginRequiredByPolicy(plugin, reader)) {
-				uris.add(plugin.uri.toString());
-			}
-		}
-		return uris;
-	});
+	private readonly requiredPluginUris = derivedOpts<readonly URI[]>(
+		{ owner: this, equalsFn: (a, b) => equals(a, b, isEqual) },
+		reader => this.pluginService.plugins.read(reader).filter(plugin => isPluginRequiredByPolicy(plugin, reader)).map(plugin => plugin.uri),
+	);
 	private readonly expandedAlternatives = new Set<string>();
 	private forceMarketplaceRefresh = false;
 	private clearMarketplaceResults = false;
@@ -1184,7 +1175,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.pluginService.plugins.read(reader);
 			this.refreshInstalledItems();
 		}));
-		// Only organizations that require plugins populate this set; it stays empty, and never re-renders, otherwise.
+		// Only organizations that require plugins populate this list; it stays empty, and never re-renders, otherwise.
 		let renderedRequiredPluginUris = this.requiredPluginUris.get();
 		this._register(autorun(reader => {
 			const uris = this.requiredPluginUris.read(reader);
@@ -2818,14 +2809,23 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}
 	}
 
-	/** Explains why a plugin the organization requires cannot be uninstalled, or `undefined` when it can. */
-	private getRequiredPluginMessage(uri: URI | undefined): string | undefined {
-		return uri && this.requiredPluginUris.get().has(uri.toString()) ? getPluginManagedByOrganizationMessage() : undefined;
+	/**
+	 * Explains why a plugin the organization requires cannot be uninstalled, or `undefined` when it can.
+	 * With `includeContents`, `uri` may also be a file inside the plugin.
+	 */
+	private getRequiredPluginMessage(uri: URI | undefined, includeContents = false): string | undefined {
+		const required = this.requiredPluginUris.get();
+		return uri && required.length && required.some(plugin => includeContents ? isEqualOrParent(uri, plugin) : isEqual(uri, plugin))
+			? getPluginManagedByOrganizationMessage()
+			: undefined;
 	}
 
 	private getUninstallBlockedMessage(item: IInstalledDiscoveryItem): string | undefined {
 		if (item.type !== 'plugin') {
-			return undefined;
+			// Uninstalling a customization that a plugin contributes uninstalls the whole plugin.
+			return item.promptDetail?.source === AICustomizationSources.plugin
+				? this.getRequiredPluginMessage(item.promptDetail.pluginUri ?? item.promptDetail.uri, true)
+				: undefined;
 		}
 		if (item.pluginDetail?.kind === AgentPluginItemKind.Installed) {
 			return this.getRequiredPluginMessage(item.pluginDetail.plugin.uri);
