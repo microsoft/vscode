@@ -19,6 +19,7 @@ import { NativeParsedArgs } from '../../../environment/common/argv.js';
 import { IEnvironmentMainService } from '../../../environment/electron-main/environmentMainService.js';
 import { ILifecycleMainService, ShutdownEvent, ShutdownReason } from '../../../lifecycle/electron-main/lifecycleMainService.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { ThermalState } from '../../../native/common/native.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { IStateService } from '../../../state/node/state.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
@@ -117,6 +118,7 @@ suite('UnattendedRestartScheduler', () => {
 		const onDidSuspend = store.add(new Emitter<void>());
 		const onDidResume = store.add(new Emitter<void>());
 		const onDidSwitchToBattery = store.add(new Emitter<void>());
+		const onDidChangeThermalState = store.add(new Emitter<ThermalState>());
 		const onDidBlurWindow = store.add(new Emitter<void>());
 		const onWillShutdown = store.add(new Emitter<ShutdownEvent>());
 
@@ -152,18 +154,21 @@ suite('UnattendedRestartScheduler', () => {
 		});
 
 		let isLocked = false;
+		let lockTimer: ReturnType<typeof setTimeout> | undefined;
 		let onBattery = options.onBattery ?? false;
+		let thermalState: ThermalState = 'nominal';
 		const host: IUnattendedRestartHost = {
 			onDidLockScreen: onDidLockScreen.event,
 			onDidUnlockScreen: onDidUnlockScreen.event,
 			onDidSuspend: onDidSuspend.event,
 			onDidResume: onDidResume.event,
 			onDidSwitchToBattery: onDidSwitchToBattery.event,
+			onDidChangeThermalState: onDidChangeThermalState.event,
 			onDidBlurWindow: onDidBlurWindow.event,
 			isWindowFocused: () => options.focusedWhenLocked !== false,
 			getIdleState: () => isLocked ? 'locked' : 'active',
 			isOnBatteryPower: () => onBattery,
-			getThermalState: () => 'nominal',
+			getThermalState: () => thermalState,
 			preventSleep: () => {
 				log.push('keepAwake');
 				return toDisposable(() => log.push('allowSleep'));
@@ -200,10 +205,12 @@ suite('UnattendedRestartScheduler', () => {
 			log,
 			messages: logService.messages,
 			lock: () => {
-				isLocked = true;
+				// Like macOS, which reports the screen as locked only shortly after the lock event
+				lockTimer = setTimeout(() => isLocked = true, SECOND);
 				onDidLockScreen.fire();
 			},
 			unlock: () => {
+				clearTimeout(lockTimer);
 				isLocked = false;
 				onDidUnlockScreen.fire();
 			},
@@ -213,6 +220,10 @@ suite('UnattendedRestartScheduler', () => {
 			switchToBattery: () => {
 				onBattery = true;
 				onDidSwitchToBattery.fire();
+			},
+			changeThermalState: (state: ThermalState) => {
+				thermalState = state;
+				onDidChangeThermalState.fire(state);
 			},
 			setUpdateReady: () => {
 				state = State.Ready(readyUpdate, false, false);
@@ -339,6 +350,25 @@ suite('UnattendedRestartScheduler', () => {
 		assert.deepStrictEqual({ onBattery: onBattery.log, unplugged: unplugged.log }, {
 			onBattery: [outcome('blocked', 2, 1, 'system.onBatteryPower')],
 			unplugged: ['keepAwake', 'allowSleep', outcome('blocked', 2, 1, 'system.onBatteryPower')],
+		});
+	}));
+
+	test('lets the machine sleep as soon as it is under thermal pressure, and does not restart then', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createFixture();
+
+		fixture.lock();
+		await timeout(20 * SECOND);
+		fixture.changeThermalState('fair');
+		const whenFair = [...fixture.log];
+		fixture.changeThermalState('serious');
+		const whenSerious = [...fixture.log];
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION);
+		fixture.unlock();
+
+		assert.deepStrictEqual({ whenFair, whenSerious, log: fixture.log }, {
+			whenFair: ['keepAwake'],
+			whenSerious: ['keepAwake', 'allowSleep'],
+			log: ['keepAwake', 'allowSleep', outcome('blocked', 2, 1, 'system.thermalPressure')],
 		});
 	}));
 

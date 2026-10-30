@@ -85,8 +85,13 @@ export interface IUnattendedRestartHost {
 	readonly onDidSuspend: Event<void>;
 	readonly onDidResume: Event<void>;
 	readonly onDidSwitchToBattery: Event<void>;
+	readonly onDidChangeThermalState: Event<ThermalState>;
 	readonly onDidBlurWindow: Event<void>;
 	isWindowFocused(): boolean;
+
+	/**
+	 * On macOS, reports the screen as locked only shortly after the lock event.
+	 */
 	getIdleState(): SystemIdleState;
 	isOnBatteryPower(): boolean;
 	getThermalState(): ThermalState;
@@ -107,6 +112,7 @@ function createElectronHost(): IUnattendedRestartHost {
 		onDidSuspend: Event.fromNodeEventEmitter<void>(powerMonitor, 'suspend'),
 		onDidResume: Event.fromNodeEventEmitter<void>(powerMonitor, 'resume'),
 		onDidSwitchToBattery: Event.fromNodeEventEmitter<void>(powerMonitor, 'on-battery'),
+		onDidChangeThermalState: Event.map(Event.fromNodeEventEmitter<{ state: ThermalState }>(powerMonitor, 'thermal-state-change'), e => e.state),
 		onDidBlurWindow: Event.fromNodeEventEmitter<void>(app, 'browser-window-blur'),
 		isWindowFocused: () => !!BrowserWindow.getFocusedWindow(),
 		getIdleState: () => powerMonitor.getSystemIdleState(60),
@@ -124,6 +130,10 @@ export interface IUnattendedRestartSchedulerOptions {
 	readonly host?: IUnattendedRestartHost;
 	readonly os?: OperatingSystem;
 	readonly argv?: readonly string[];
+}
+
+function isUnderThermalPressure(state: ThermalState): boolean {
+	return state === 'serious' || state === 'critical';
 }
 
 /**
@@ -311,6 +321,11 @@ export class UnattendedRestartScheduler extends Disposable {
 		this._register(this.host.onDidSuspend(() => this.onDidSuspend()));
 		this._register(this.host.onDidResume(() => this.onDidResume()));
 		this._register(this.host.onDidSwitchToBattery(() => this.allowSleep('the machine runs on battery')));
+		this._register(this.host.onDidChangeThermalState(state => {
+			if (isUnderThermalPressure(state)) {
+				this.allowSleep('the machine is under thermal pressure');
+			}
+		}));
 		this._register(updateService.onStateChange(state => {
 			if (state.type !== StateType.Ready) {
 				if (state.type !== StateType.Restarting) {
@@ -485,7 +500,7 @@ export class UnattendedRestartScheduler extends Disposable {
 			this.hasCheckedSinceLock = true;
 			this.hasBeenDue ||= isDue;
 			const inBackground = !this.activeWhenLocked;
-			const { blockers, details, enabled } = await this.getBlockers(inBackground);
+			const { blockers, details, enabled } = await this.getBlockers(inBackground, isDue);
 			if (this.lockedSince !== lockedSince || !this.hasUpdateState(StateType.Ready)) {
 				return; // unlocked or update changed while checking
 			}
@@ -544,7 +559,7 @@ export class UnattendedRestartScheduler extends Disposable {
 		return this.configurationService.getValue<boolean>(RESTART_WHEN_IDLE_SETTING) === true;
 	}
 
-	private async getBlockers(inBackground: boolean): Promise<{ readonly blockers: string[]; readonly details: ReadonlyMap<string, string>; readonly enabled: boolean }> {
+	private async getBlockers(inBackground: boolean, isDue: boolean): Promise<{ readonly blockers: string[]; readonly details: ReadonlyMap<string, string>; readonly enabled: boolean }> {
 		const windows = this.windowsMainService.getWindows();
 		const blockers = new Set(getWindowBlockers(windows, this.auxiliaryWindowsMainService.getWindows(), this.os, inBackground));
 		if (this.dialogMainService.hasOpenDialogs()) {
@@ -554,14 +569,14 @@ export class UnattendedRestartScheduler extends Disposable {
 		if (state.type === StateType.Ready && state.update.version === this.failedUpdateVersion) {
 			blockers.add('update.installFailed');
 		}
-		if (this.host.getIdleState() !== 'locked') {
+		// The check right after the lock event relies on that event: the idle state reports the lock only shortly after it
+		if (isDue && this.host.getIdleState() !== 'locked') {
 			blockers.add('system.notLocked');
 		}
 		if (this.host.isOnBatteryPower()) {
 			blockers.add('system.onBatteryPower');
 		}
-		const thermalState = this.host.getThermalState();
-		if (thermalState === 'serious' || thermalState === 'critical') {
+		if (isUnderThermalPressure(this.host.getThermalState())) {
 			blockers.add('system.thermalPressure');
 		}
 		if (hasArgumentsLostOnRelaunch(this.environmentMainService.args, this.argv, this.os)) {
