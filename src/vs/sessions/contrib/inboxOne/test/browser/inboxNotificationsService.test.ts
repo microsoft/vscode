@@ -29,7 +29,7 @@ import { ISessionsProvider } from '../../../../services/sessions/common/sessions
 import { IChat, ISessionArtifact, ISessionChangeset, ISessionChangesetOperation, SessionArtifactKind, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, type IGitHubInfo, type ISession, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { cleanPreviewText, InboxNotificationsService, parseDetailSummary } from '../../browser/inboxNotificationsService.js';
-import { getInboxPullRequestMergeOperation, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, type IInboxNotificationItem } from '../../common/inboxNotificationsService.js';
+import { getInboxPullRequestMergeOperation, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, InboxTab, type IInboxNotificationItem } from '../../common/inboxNotificationsService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/models/githubPullRequestReviewThreadsModel.js';
@@ -45,6 +45,10 @@ import { CHAT_INBOX_ENABLED_SETTING } from '../../browser/inboxNotificationsCons
 suite('InboxNotificationsService', () => {
 	const dismissedStorageKey = 'sessions.inboxNotifications.dismissedIds';
 	const disposables = new DisposableStore();
+	const passingChecks: readonly IGitHubCICheck[] = [{
+		id: 1, name: 'CI', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Success,
+		startedAt: undefined, completedAt: undefined, detailsUrl: undefined,
+	}];
 
 	teardown(() => {
 		disposables.clear();
@@ -579,7 +583,7 @@ suite('InboxNotificationsService', () => {
 		assert.deepStrictEqual(fixture.telemetryEvents, []);
 	});
 
-	test('preview input includes answered questions as context but never the pending question', () => {
+	test('action title input includes the pending question with answered questions as context', () => {
 		const chatResource = URI.parse('test:///chat/context-preview');
 		const chatService = new TestChatService();
 		const fixture = createFixture([
@@ -607,10 +611,8 @@ suite('InboxNotificationsService', () => {
 		// The recently answered questions ARE first-class context and must appear...
 		assert.ok(input.includes('Favorite color family?') && input.includes('Blue'), `expected answered Q&A in preview input, got: ${input}`);
 		assert.ok(input.includes('Tomato and Egg Stir-Fry'), `expected earlier answer in preview input, got: ${input}`);
-		// ...while the current pending question and the turn's ask prose must not, so the preview
-		// summarizes the situation rather than restating the ask.
-		assert.ok(!input.includes('periwinkle-ish shades'), `did not expect the pending question in preview input, got: ${input}`);
-		assert.ok(!input.includes('Which pale blue shade?'), `did not expect the pending message in preview input, got: ${input}`);
+		assert.ok(input.includes('periwinkle-ish shades'), `expected the pending question in action input, got: ${input}`);
+		assert.ok(input.includes('Which pale blue shade?'), `expected the pending message in action input, got: ${input}`);
 		assert.ok(!input.includes('Am I right?'), `did not expect the pending turn prose in preview input, got: ${input}`);
 	});
 
@@ -927,6 +929,28 @@ suite('InboxNotificationsService', () => {
 			purposes: ['inboxDetailSummary'], recorded: true, notification: true,
 			summary: { status: 'One test failed.', decisions: [], evidence: [{ text: 'Focus restoration failed.', artifact: { kind: 'command', label: 'Terminal output: npm test', uri } }] },
 		});
+	});
+
+	test('session-row interpretations use the session title rather than the fallback action as their source', async () => {
+		const requests: IChatUtilityModelRequest[] = [];
+		const session = createSession({ id: 'session-source', title: 'Favorite chocolate', status: SessionStatus.Completed, updatedAt: 200 });
+		const chatService = new TestChatService();
+		chatService.setCompletedResponse(session.mainChat.get().resource, { requestId: 'response', markdown: 'Listed the workspace files.' });
+		const fixture = createFixture([session], undefined, undefined, chatService, undefined, true, [], true, {
+			utilityRequest: async request => {
+				requests.push(request);
+				return '{"status":"Listed files.","decisions":[],"evidence":[{"text":"Listed the workspace files.","artifact":"A0"}]}';
+			},
+		});
+		const row = fixture.service.sessionRows.get()[0];
+		fixture.service.requestDetailSummary(row);
+		await waitForState(fixture.service.isLoading, loading => !loading);
+		const input = requests[0].messages[1].content.filter(part => part.type === 'text').map(part => part.value).join('\n');
+		assert.deepStrictEqual({
+			sessionTitle: input.includes('Session: Favorite chocolate\n'),
+			actionAsTitle: input.includes(`Session: ${row.title}\n`),
+			sources: fixture.service.detailSummaries.get().get(row.id)?.evidence.map(evidence => evidence.artifact),
+		}, { sessionTitle: true, actionAsTitle: false, sources: [{ kind: 'session', label: 'Favorite chocolate' }] });
 	});
 
 	for (const withTranscript of [false, true]) {
@@ -1412,6 +1436,10 @@ suite('InboxNotificationsService', () => {
 		const fixture = createFixture([session], undefined, undefined, chatService);
 		const data: NonNullable<IChatToolInvocation['toolSpecificData']>[] = [
 			{ kind: 'terminal', commandLine: { original: 'npm test', toolEdited: 'npm test -- --run regression', forDisplay: 'A harmless description' }, language: 'sh' },
+			{ kind: 'input', rawInput: { input: 'echo test' }, editable: false },
+			{ kind: 'input', rawInput: { input: 'echo test' }, editable: true },
+			{ kind: 'input', rawInput: { input: 'echo test' }, editable: false, imageGeneration: {} },
+			{ kind: 'input', rawInput: { input: 'echo test' }, editable: false, mcpAppData: { kind: 'local', resourceUri: 'ui://test/app', serverDefinitionId: 'test', collectionId: 'test' } },
 			...(['input', 'modifiedFilesConfirmation', 'agentFeedbackReviewConfirmation', 'extensions'] as const).map(kind =>
 				upcastPartial<NonNullable<IChatToolInvocation['toolSpecificData']>>({ kind })),
 		];
@@ -1428,12 +1456,13 @@ suite('InboxNotificationsService', () => {
 			});
 			const part = fixture.service.notifications.get()[0].needsInputPart;
 			assert.ok(part?.kind === 'toolConfirmation');
-			return { kind: toolSpecificData.kind, command: part.commandLine, disclaimer: part.disclaimer, origin: part.originMessage, buttons: part.buttons.length };
+			return { kind: toolSpecificData.kind, command: part.commandLine, input: part.toolInput, disclaimer: part.disclaimer, origin: part.originMessage, buttons: part.buttons.length };
 		});
-		assert.deepStrictEqual(results, data.map(toolSpecificData => ({
+		assert.deepStrictEqual(results, data.map((toolSpecificData, index) => ({
 			kind: toolSpecificData.kind,
 			command: toolSpecificData.kind === 'terminal' ? 'npm test -- --run regression' : undefined,
-			disclaimer: 'Runs outside the sandbox', origin: 'Shell tool', buttons: toolSpecificData.kind === 'terminal' ? 2 : 0,
+			input: index === 1 ? '{\n "input": "echo test"\n}' : undefined,
+			disclaimer: 'Runs outside the sandbox', origin: 'Shell tool', buttons: index < 2 ? 2 : 0,
 		})));
 	});
 
@@ -1600,7 +1629,7 @@ suite('InboxNotificationsService', () => {
 			pullRequests: [{ owner: 'owner', repo: 'repo', number: 77, createdByThisSession: false }],
 		})], undefined, gitHubService);
 		gitHubService.setPullRequest('owner', 'repo', 77, openPullRequest(77, 'sha77'));
-		gitHubService.setCIStatus('owner', 'repo', 77, 'sha77', GitHubCIOverallStatus.Success, []);
+		gitHubService.setCIStatus('owner', 'repo', 77, 'sha77', GitHubCIOverallStatus.Success, passingChecks);
 		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.kind), [InboxNotificationKind.Completed]);
 
 		gitHubService.setPullRequest('owner', 'repo', 77, openPullRequest(77, 'sha77', { state: GitHubPullRequestState.Merged }));
@@ -1688,7 +1717,7 @@ suite('InboxNotificationsService', () => {
 		}));
 		const fixture = createFixture(sessions, undefined, gitHubService);
 		gitHubService.setPullRequest('owner', 'repo', 77, openPullRequest(77, 'sha77'));
-		gitHubService.setCIStatus('owner', 'repo', 77, 'sha77', GitHubCIOverallStatus.Success, []);
+		gitHubService.setCIStatus('owner', 'repo', 77, 'sha77', GitHubCIOverallStatus.Success, passingChecks);
 		const passing = fixture.service.notifications.get().filter(item => item.kind === InboxNotificationKind.PassingCI).map(item => item.sessionResource?.path);
 		gitHubService.setPullRequest('owner', 'repo', 77, openPullRequest(77, 'sha77', { state: GitHubPullRequestState.Merged }));
 		const merged = fixture.service.notifications.get().filter(item => item.kind === InboxNotificationKind.PullRequestMerged).map(item => item.sessionResource?.path).sort();
@@ -1838,7 +1867,7 @@ suite('InboxNotificationsService', () => {
 				pullRequest: { owner: 'owner', repo: 'repo', number: 46 },
 			})], undefined, gitHubService);
 			gitHubService.setPullRequest('owner', 'repo', 46, openPullRequest(46, 'sha46'));
-			gitHubService.setCIStatus('owner', 'repo', 46, 'sha46', ciStatus, []);
+			gitHubService.setCIStatus('owner', 'repo', 46, 'sha46', ciStatus, ciStatus === GitHubCIOverallStatus.Success ? passingChecks : []);
 			gitHubService.setReviewThreads('owner', 'repo', 46, [{
 				id: 'copilot-thread', isResolved: false, path: 'test.ts', startLine: 1, line: 1,
 				comments: [{
@@ -1927,7 +1956,9 @@ suite('InboxNotificationsService', () => {
 			detailsUrl: undefined,
 		}]);
 
-		assert.deepStrictEqual(fixture.service.notifications.get(), []);
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.actions.map(action => action.kind)), [
+			[InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
+		]);
 	});
 
 	test('offers real PR merge only while the main chat advertises an enabled changeset merge operation', () => {
@@ -1942,7 +1973,7 @@ suite('InboxNotificationsService', () => {
 		const gitHubService = new TestGitHubService();
 		const fixture = createFixture([session], undefined, gitHubService);
 		gitHubService.setPullRequest('owner', 'repo', 44, openPullRequest(44, 'sha44'));
-		gitHubService.setCIStatus('owner', 'repo', 44, 'sha44', GitHubCIOverallStatus.Success, []);
+		gitHubService.setCIStatus('owner', 'repo', 44, 'sha44', GitHubCIOverallStatus.Success, passingChecks);
 		const snapshot = () => fixture.service.notifications.get().map(item => ({
 			kind: item.kind, hasMerge: item.actions.some(action => action.kind === InboxNotificationActionKind.AgentMergeMergePullRequest),
 		}));
@@ -1959,7 +1990,7 @@ suite('InboxNotificationsService', () => {
 		operations.set([{ ...operation, status: SessionChangesetOperationStatus.Disabled }], undefined);
 		const disabledOperation = snapshot();
 		operations.set([operation], undefined);
-		const completed = [{ kind: InboxNotificationKind.Completed, hasMerge: false }];
+		const completed = [{ kind: InboxNotificationKind.PassingCI, hasMerge: false }];
 		const mergeReady = [{ kind: InboxNotificationKind.PassingCI, hasMerge: true }];
 		assert.deepStrictEqual({ initial, available, running, disabledChangeset, disabledOperation, restored: snapshot() }, {
 			initial: completed, available: mergeReady, running: completed,
@@ -2014,7 +2045,9 @@ suite('InboxNotificationsService', () => {
 			detailsUrl: undefined,
 		}]);
 
-		assert.deepStrictEqual(fixture.service.notifications.get(), []);
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.actions.map(action => action.kind)), [
+			[InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
+		]);
 	});
 
 	test('offers CI fixes for cloud sessions without an unrelated Agent Merge provider', () => {
@@ -2075,7 +2108,65 @@ suite('InboxNotificationsService', () => {
 			detailsUrl: undefined,
 		}]);
 
-		assert.deepStrictEqual(fixture.service.notifications.get(), []);
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.actions.map(action => action.kind)), [
+			[InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
+		]);
+	});
+
+	test('workflow rows distinguish completion reads from actionable asks and preserve hold across reloads', () => {
+		const completed = createSession({ id: 'completed-row', status: SessionStatus.Completed, updatedAt: 100 });
+		const pending = createSession({ id: 'pending-row', status: SessionStatus.NeedsInput, updatedAt: 200 });
+		const working = createSession({ id: 'working-row', status: SessionStatus.InProgress, updatedAt: 300 });
+		const fixture = createFixture([completed, pending, working]);
+		const snapshot = () => Object.fromEntries(fixture.service.sessionRows.get().map(row => [row.sessionTitle, row.tab]));
+		const initial = snapshot();
+		(completed.isRead as ISettableObservable<boolean>).set(true, undefined);
+		(pending.isRead as ISettableObservable<boolean>).set(true, undefined);
+		const opened = snapshot();
+		const pendingRow = fixture.service.sessionRows.get().find(row => row.sessionTitle === 'pending-row')!;
+		fixture.service.setSessionOnHold(pendingRow, true);
+		const restored = createFixture([completed, pending, working], fixture.storageService);
+		const held = restored.service.sessionRows.get().find(row => row.sessionTitle === 'pending-row')!;
+		(pending.updatedAt as ISettableObservable<Date>).set(new Date(400), undefined);
+		const stillHeld = restored.service.sessionRows.get().find(row => row.id === held.id)!.tab;
+		restored.service.setSessionOnHold(held, false);
+		assert.deepStrictEqual({ initial, opened, held: held.tab, stillHeld, resumed: restored.service.sessionRows.get().find(row => row.id === held.id)!.tab }, {
+			initial: { 'working-row': InboxTab.Working, 'pending-row': InboxTab.ReadyForYou, 'completed-row': InboxTab.ReadyForYou },
+			opened: { 'working-row': InboxTab.Working, 'pending-row': InboxTab.ReadyForYou, 'completed-row': InboxTab.Done },
+			held: InboxTab.OnHold, stillHeld: InboxTab.OnHold, resumed: InboxTab.ReadyForYou,
+		});
+	});
+
+	test('Done is occurrence-scoped while dismiss only removes the individual notification', () => {
+		const session = createSession({ id: 'workflow-done', status: SessionStatus.Completed, updatedAt: 100 });
+		const fixture = createFixture([session]);
+		const row = fixture.service.sessionRows.get()[0];
+		fixture.service.dismissNotification(row.notifications[0].id);
+		const dismissed = fixture.service.sessionRows.get()[0].tab;
+		fixture.service.markSessionDone(fixture.service.sessionRows.get()[0]);
+		const done = fixture.service.sessionRows.get()[0].tab;
+		(session.lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(200), undefined);
+		assert.deepStrictEqual({ dismissed, done, newWork: fixture.service.sessionRows.get()[0].tab }, {
+			dismissed: InboxTab.ReadyForYou, done: InboxTab.Done, newWork: InboxTab.ReadyForYou,
+		});
+	});
+
+	test('merge readiness requires real checks independently of a merge action and combines review asks', () => {
+		const session = createSession({ id: 'workflow-ci', status: SessionStatus.Completed, updatedAt: 100,
+			pullRequest: { owner: 'owner', repo: 'repo', number: 44 } });
+		const fixture = createFixture([session]);
+		fixture.gitHubService.setPullRequest('owner', 'repo', 44, openPullRequest(44, 'sha44'));
+		fixture.gitHubService.setCIStatus('owner', 'repo', 44, 'sha44', GitHubCIOverallStatus.Success, []);
+		const noChecks = fixture.service.sessionRows.get()[0].tab;
+		fixture.gitHubService.setCIStatus('owner', 'repo', 44, 'sha44', GitHubCIOverallStatus.Success, passingChecks);
+		const ready = fixture.service.sessionRows.get()[0];
+		fixture.service.publishExternalNotification({ id: 'review', title: 'Review request', description: 'Check the changes', sessionResource: session.resource });
+		const rows = fixture.service.sessionRows.get();
+		assert.deepStrictEqual({ noChecks, ready: ready.tab, canMerge: ready.notifications.some(item => item.actions.some(action => action.kind === InboxNotificationActionKind.AgentMergeMergePullRequest)),
+			combined: rows.map(row => ({ tab: row.tab, count: row.notifications.length })) }, {
+			noChecks: InboxTab.ReadyForYou, ready: InboxTab.ReadyToMerge, canMerge: false,
+			combined: [{ tab: InboxTab.ReadyForYou, count: 2 }],
+		});
 	});
 
 	test('persists dismissed notifications across instances', () => {
@@ -2090,6 +2181,42 @@ suite('InboxNotificationsService', () => {
 		const second = createFixture(sessions, storageService);
 		assert.deepStrictEqual(second.service.notifications.get().map(item => item.id), []);
 
+	});
+
+	test('a partially merged session stays active and all open owned PRs must have passing checks', () => {
+		const session = createSession({ id: 'multi-pr-workflow', status: SessionStatus.Completed, updatedAt: 100,
+			pullRequests: [{ owner: 'owner', repo: 'repo', number: 44 }, { owner: 'owner', repo: 'repo', number: 45 }],
+		});
+		const fixture = createFixture([session]);
+		const github = fixture.gitHubService;
+		github.setPullRequest('owner', 'repo', 44, openPullRequest(44, 'sha44'));
+		github.setCIStatus('owner', 'repo', 44, 'sha44', GitHubCIOverallStatus.Success, passingChecks);
+		const unknownSibling = fixture.service.sessionRows.get()[0].tab;
+		github.setPullRequest('owner', 'repo', 45, openPullRequest(45, 'sha45'));
+		github.setCIStatus('owner', 'repo', 45, 'sha45', GitHubCIOverallStatus.Success, passingChecks);
+		const allPassing = fixture.service.sessionRows.get()[0].tab;
+		github.setPullRequest('owner', 'repo', 44, { ...openPullRequest(44, 'sha44'), state: GitHubPullRequestState.Merged });
+		const partialMerge = fixture.service.sessionRows.get()[0].tab;
+		github.setPullRequest('owner', 'repo', 45, { ...openPullRequest(45, 'sha45'), state: GitHubPullRequestState.Merged });
+		assert.deepStrictEqual({ unknownSibling, allPassing, partialMerge, allMerged: fixture.service.sessionRows.get()[0].tab }, {
+			unknownSibling: InboxTab.ReadyForYou, allPassing: InboxTab.ReadyToMerge, partialMerge: InboxTab.ReadyForYou, allMerged: InboxTab.Done,
+		});
+	});
+
+	test('drafts stay out of tabs and image badges follow recorded evidence without fetching images', () => {
+		const session = createSession({ id: 'visual-row', status: SessionStatus.Completed, updatedAt: 100 });
+		const fixture = createFixture([session, createSession({ id: 'draft', status: SessionStatus.Untitled, updatedAt: 200 })]);
+		const initial = fixture.service.sessionRows.get().map(row => ({ title: row.sessionTitle, visual: row.hasImages }));
+		(session.artifacts as ISettableObservable<readonly ISessionArtifact[]>).set([
+			{ id: 'image', kind: SessionArtifactKind.File, label: 'Preview', uri: URI.file('/workspace/preview.png'), isArtifact: true },
+		], undefined);
+		const local = fixture.service.sessionRows.get()[0].hasImages;
+		(session.artifacts as ISettableObservable<readonly ISessionArtifact[]>).set([
+			{ id: 'remote', kind: SessionArtifactKind.File, label: 'Remote', uri: URI.parse('https://example.com/preview.png'), isArtifact: true },
+		], undefined);
+		assert.deepStrictEqual({ initial, local, remote: fixture.service.sessionRows.get()[0].hasImages }, {
+			initial: [{ title: 'visual-row', visual: false }], local: true, remote: false,
+		});
 	});
 
 	test('bounds persisted dismissals to the most recent entries', () => {

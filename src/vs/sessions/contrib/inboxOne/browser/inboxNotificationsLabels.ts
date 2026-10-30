@@ -4,7 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { InboxNotificationKind, InboxNotificationPriority } from '../common/inboxNotificationsService.js';
+import { InboxNotificationKind, InboxNotificationPriority, InboxTab } from '../common/inboxNotificationsService.js';
+
+export function getInboxTabLabel(tab: InboxTab): string {
+	switch (tab) {
+		case InboxTab.ReadyForYou: return localize('inbox.tab.readyForYou', "Ready for you");
+		case InboxTab.Working: return localize('inbox.tab.working', "Working");
+		case InboxTab.ReadyToMerge: return localize('inbox.tab.readyToMerge', "Ready to merge");
+		case InboxTab.OnHold: return localize('inbox.tab.onHold', "On hold");
+		case InboxTab.Done: return localize('inbox.tab.done', "Done");
+	}
+}
 
 export function getInboxNotificationKindLabel(kind: InboxNotificationKind): string {
 	switch (kind) {

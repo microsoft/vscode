@@ -12,6 +12,65 @@
 	color: var(--vscode-foreground);
 	font-size: var(--vscode-fontSize-body1);
 	line-height: 1.5;
+	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size240);
+}
+
+.inbox-notifications-header {
+	flex: none;
+	padding-bottom: var(--vscode-spacing-size120);
+}
+
+.inbox-notifications-greeting {
+	margin: 0 0 var(--vscode-spacing-size120);
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.inbox-notifications-tabs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size40);
+}
+
+.inbox-notifications-tabs .monaco-button {
+	width: auto;
+}
+
+.inbox-notifications-view .inbox-notifications-toolbar .inbox-notifications-tabs .monaco-button.active {
+	background: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-foreground);
+	border-color: var(--vscode-contrastActiveBorder, transparent);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.inbox-notifications-search {
+	margin-inline-start: auto;
+	width: 160px;
+	min-width: 80px;
+}
+
+.inbox-notifications-composer {
+	flex: 0 0 auto;
+	height: 200px;
+	max-height: 45%;
+	width: 100%;
+	max-width: 760px;
+	align-self: center;
+	min-height: 100px;
+	display: flex;
+	flex-direction: column;
+	padding-top: var(--vscode-spacing-size120);
+	box-sizing: border-box;
+}
+
+.inbox-notifications-composer-label {
+	flex: none;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	padding-inline: var(--vscode-spacing-size120);
 }
 
 .inbox-notifications-content {
@@ -25,8 +84,8 @@
 
 .inbox-notifications-new-session {
 	display: none;
-	height: 240px;
-	flex: none;
+	flex: 1 1 0;
+	min-height: 0;
 }
 
 .inbox-notifications-new-session.visible {
@@ -56,7 +115,7 @@
 	min-width: 0;
 	height: 100%;
 	box-sizing: border-box;
-	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size240);
+	padding: 0 var(--vscode-spacing-size120) 0 0;
 	overflow: hidden;
 }
 
@@ -109,13 +168,13 @@
 
 .inbox-notifications-detail-chat {
 	display: none;
-	height: 200px;
+	flex: 1 1 0;
 	min-width: 0;
 	min-height: 0;
 	overflow: hidden;
 }
 
-.inbox-notifications-detail-pane.has-chat .inbox-notifications-detail-chat {
+.inbox-notifications-detail-chat.visible {
 	display: flex;
 }
 
@@ -563,7 +622,7 @@
 .inbox-notifications-list {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size160);
+	gap: 0;
 	padding: var(--vscode-spacing-size20);
 }
 
@@ -576,18 +635,123 @@
 .inbox-notifications-section-cards {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size40);
+	gap: 0;
 }
 
 .inbox-notifications-item {
 	display: flex;
-	flex-direction: column;
-	gap: var(--vscode-spacing-size60);
-	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-widget-border, transparent));
+	align-items: center;
+	gap: var(--vscode-spacing-size100);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-bottom-color: var(--vscode-widget-border, transparent);
 	border-radius: var(--vscode-cornerRadius-small);
-	padding: var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
 	background-color: transparent;
 	cursor: pointer;
+}
+
+.inbox-notifications-row-icon {
+	flex: none;
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-descriptionForeground);
+}
+
+.inbox-notifications-row-titles {
+	flex: 1;
+	min-width: 0;
+}
+
+.inbox-notifications-row-titles > *,
+.inbox-notifications-row-repository {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.inbox-notifications-session-title {
+	font-size: var(--vscode-fontSize-label2);
+	color: var(--vscode-descriptionForeground);
+}
+
+.inbox-notifications-row-metadata {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	max-width: 25%;
+	min-width: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.inbox-notifications-visual {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	flex: none;
+}
+
+.inbox-notifications-visual .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.inbox-notifications-row-trailing {
+	display: grid;
+	align-items: center;
+	justify-items: end;
+	flex: none;
+	width: 60px;
+}
+
+.inbox-notifications-row-trailing > * {
+	grid-area: 1 / 1;
+}
+
+.inbox-notifications-row-actions {
+	display: flex;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.inbox-notifications-item:is(:hover, .hovered, :focus-within) .inbox-notifications-row-actions {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.inbox-notifications-item.has-actions:is(:hover, .hovered, :focus-within) .inbox-notifications-item-time {
+	opacity: 0;
+	pointer-events: none;
+}
+
+.inbox-notifications-row-actions .monaco-button {
+	width: auto;
+	padding: var(--vscode-spacing-size40);
+}
+
+.inbox-notifications-notification {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+}
+
+.inbox-notifications-evidence-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.inbox-notifications-evidence-header h3 {
+	flex: 1;
+	min-width: 0;
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.inbox-notifications-evidence-header .monaco-button {
+	width: auto;
+	flex: none;
 }
 
 .inbox-notifications-item:is(:hover, .hovered):not(.selected) {

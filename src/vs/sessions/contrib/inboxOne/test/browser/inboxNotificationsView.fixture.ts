@@ -30,7 +30,7 @@ import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedb
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { InboxNotificationsView } from '../../browser/inboxNotificationsView.js';
 import { IInboxCanvasHostService, UnsupportedInboxCanvasHostService } from '../../browser/inboxCanvasHost.js';
-import { IInboxDetailSummary, IInboxNotificationItem, IInboxNotificationsService, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode } from '../../common/inboxNotificationsService.js';
+import { IInboxDetailSummary, IInboxNotificationItem, IInboxNotificationsService, IInboxSessionRow, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, InboxTab } from '../../common/inboxNotificationsService.js';
 
 const actions = [
 	{ id: 'open', label: 'Open Session', kind: InboxNotificationActionKind.OpenSession },
@@ -70,6 +70,13 @@ const items: readonly IInboxNotificationItem[] = [
 ];
 
 export default defineThemedFixtureGroup({ path: 'sessions/inbox/' }, {
+	Collapsed: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: ctx => renderInbox(ctx, 1100, 'collapsed') }),
+	Hovered: defineComponentFixture({ render: ctx => renderInbox(ctx, 1100, 'hovered') }),
+	Working: defineComponentFixture({ render: ctx => renderInbox(ctx, 1100, InboxTab.Working) }),
+	ReadyToMerge: defineComponentFixture({ render: ctx => renderInbox(ctx, 1100, InboxTab.ReadyToMerge) }),
+	OnHold: defineComponentFixture({ render: ctx => renderInbox(ctx, 1100, InboxTab.OnHold) }),
+	Done: defineComponentFixture({ render: ctx => renderInbox(ctx, 1100, InboxTab.Done) }),
+	Short: defineComponentFixture({ render: ctx => renderInbox(ctx, 900, 'short') }),
 	Questions: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: ctx => renderInbox(ctx, 1100) }),
 	Narrow: defineComponentFixture({ render: ctx => renderInbox(ctx, 420) }),
 	LongTitle: defineComponentFixture({ render: ctx => renderInbox(ctx, 360, 'longTitle') }),
@@ -82,7 +89,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/inbox/' }, {
 	MergedPullRequestsExpanded: defineComponentFixture({ render: ctx => renderInbox(ctx, 560, 'mergedExpanded') }),
 });
 
-async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 'longTitle' | 'confirmation' | 'empty' | 'evidence' | 'merged' | 'mergedExpanded'): Promise<void> {
+async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 'longTitle' | 'confirmation' | 'empty' | 'evidence' | 'merged' | 'mergedExpanded' | 'collapsed' | 'hovered' | 'short' | InboxTab): Promise<void> {
 	const merged = state === 'merged' || state === 'mergedExpanded';
 	const chat = upcastPartial<IChat>({
 		resource: URI.parse('fixture:///search'),
@@ -93,10 +100,10 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 		title: constObservable('Session with merged pull requests'), workspace: constObservable(undefined),
 		mainChat: constObservable(chat), chats: constObservable([chat]),
 		capabilities: constObservable({ supportsMultipleChats: false }),
-		artifacts: constObservable([
+		artifacts: constObservable(state === 'evidence' ? [
 			{ id: 'wide', kind: SessionArtifactKind.File, label: 'Landscape sample (fixture)', uri: URI.file('/fixture/wide.png'), isArtifact: true },
 			{ id: 'portrait', kind: SessionArtifactKind.File, label: 'Portrait sample (fixture)', uri: URI.file('/fixture/portrait.png'), isArtifact: true },
-		]),
+		] : []),
 	});
 	const command: IChatToolInvocationSerialized = {
 		kind: 'toolInvocationSerialized', toolId: 'terminal', toolCallId: 'verification', source: undefined, presentation: undefined,
@@ -164,8 +171,27 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 		}],
 		['completed', { status: items[2].description, decisions: [], evidence: [] }],
 	]);
+	const rows = observableValue<readonly IInboxSessionRow[]>('fixture.rows', [
+		...notifications.get().map((item, index) => ({
+			...item, tab: InboxTab.ReadyForYou, sessionTitle: item.title, occurrence: item.id, notifications: [item],
+			title: ['Choose how search results should open', 'Address two review comments', 'Review the keyboard navigation changes'][index] ?? item.title,
+			hasImages: index === 0,
+		})),
+		...(state === 'empty' || merged ? [] : ([InboxTab.Working, InboxTab.ReadyToMerge, InboxTab.OnHold, InboxTab.Done] as const).map((tab): IInboxSessionRow => ({
+			id: tab, tab, title: { working: 'Implementing search results', readyToMerge: 'Merge the search improvements', onHold: 'Resume the accessibility review', done: 'Keyboard navigation reviewed' }[tab],
+			kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later, description: '',
+			sessionTitle: 'Improve workspace search', occurrence: tab, notifications: [], hasImages: false, timestamp: Date.now(), actions: [],
+		}))),
+	]);
 	const service = new class extends mock<IInboxNotificationsService>() {
 		override readonly notifications = notifications;
+		override readonly sessionRows = rows;
+		override setSessionOnHold(row: IInboxSessionRow, hold: boolean): void {
+			rows.set(rows.get().map(candidate => candidate.id === row.id ? { ...candidate, tab: hold ? InboxTab.OnHold : InboxTab.ReadyForYou } : candidate), undefined);
+		}
+		override markSessionDone(row: IInboxSessionRow): void {
+			rows.set(rows.get().map(candidate => candidate.id === row.id ? { ...candidate, tab: InboxTab.Done } : candidate), undefined);
+		}
 		override readonly dismissedNotifications = constObservable([]);
 		override readonly previews = constObservable(new Map<string, string>());
 		override readonly detailSummaries = constObservable(summaries);
@@ -192,7 +218,7 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 			reg.defineInstance(IEditorService, new class extends mock<IEditorService>() { }());
 			reg.define(IInboxCanvasHostService, UnsupportedInboxCanvasHostService);
 			reg.defineInstance(IChatImageCarouselService, new class extends mock<IChatImageCarouselService>() { override async openCarouselAtResource(): Promise<void> { } }());
-			if (state === 'evidence') {
+			if (state === 'evidence' || merged) {
 				reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 					override async readFile(resource: URI): Promise<IFileContent> {
 						const value = imageBytes.get(resource.path);
@@ -205,6 +231,7 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 			}
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly navigationRequest = constObservable(undefined);
+				override async openNewSession() { return { session: undefined, trustDeclined: false }; }
 			}());
 			reg.defineInstance(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
 				override isVisible(): boolean { return false; }
@@ -212,10 +239,18 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override getSession() { return state === 'evidence' || merged ? session : undefined; }
 			}());
-			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() { }());
+			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() { override getProvider() { return undefined; } }());
 			reg.defineInstance(IGitHubService, new class extends mock<IGitHubService>() { }());
 			reg.defineInstance(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() { }());
 			reg.defineInstance(IChatViewFactory, new class extends mock<IChatViewFactory>() {
+				override createNewChatView(): AbstractChatView {
+					const view = this.createChatView();
+					const input = view.element.querySelector('textarea')!;
+					input.value = '';
+					input.placeholder = 'Describe a new task';
+					input.setAttribute('aria-label', 'Fixture new session input');
+					return view;
+				}
 				override createChatView(): AbstractChatView {
 					return new class extends AbstractChatView {
 						readonly kind = 'chat';
@@ -239,18 +274,27 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 
 	ctx.container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 	ctx.container.style.width = `${width}px`;
-	ctx.container.style.height = '820px';
+	const height = state === 'short' ? 360 : 820;
+	ctx.container.style.height = `${height}px`;
 	const view = ctx.disposableStore.add(instantiationService.createInstance(InboxNotificationsView, undefined, undefined));
 	view.render(ctx.container);
-	view.layout(width, 820);
-	if (!merged) {
+	view.layout(width, height);
+	await view.openNewSession();
+	const workflowTab = [InboxTab.Working, InboxTab.ReadyToMerge, InboxTab.OnHold, InboxTab.Done].find(tab => tab === state);
+	if (workflowTab) {
+		const index = [InboxTab.ReadyForYou, InboxTab.Working, InboxTab.ReadyToMerge, InboxTab.OnHold, InboxTab.Done].indexOf(workflowTab);
+		ctx.container.querySelectorAll<HTMLElement>('[role="tab"]')[index].click();
+	} else if (state !== 'collapsed' && state !== 'hovered') {
 		ctx.container.querySelector<HTMLElement>('.inbox-notifications-item')?.click();
+	}
+	if (state === 'hovered') {
+		ctx.container.querySelector('.inbox-notifications-item')?.classList.add('hovered');
 	}
 	if (state === 'mergedExpanded') {
 		ctx.container.querySelector<HTMLElement>('.inbox-notifications-item-pr-toggle')!.click();
 	}
 	if (state === 'evidence') {
-		await waitForFixtureCondition(() => !!ctx.container.querySelector('.inbox-notifications-detail-body > .inbox-notifications-detail-evidence:first-child:not([hidden])'), 'Expected agent interpretation at the top of the detail pane');
+		await waitForFixtureCondition(() => !!ctx.container.querySelector('.inbox-notifications-detail-evidence:not([hidden])'), 'Expected agent interpretation in the detail pane');
 		await waitForFixtureCondition(() => [...ctx.container.querySelectorAll<HTMLImageElement>('.inbox-evidence img')].filter(image => !!image.src).length === 2, 'Expected both recorded image previews');
 		await Promise.all([...ctx.container.querySelectorAll<HTMLImageElement>('.inbox-evidence img')].map(image => image.decode()));
 		await waitForFixtureCondition(() => !ctx.container.querySelector('.inbox-notifications-toolbar-spinner:not(.hidden)'), 'Expected Inbox startup state to settle');

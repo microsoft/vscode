@@ -6,6 +6,7 @@
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatQuestion, IChatToolInvocation } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -15,6 +16,14 @@ import { getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, IGitHub
 import { getSessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
 
 export const IInboxNotificationsService = createDecorator<IInboxNotificationsService>('sessionsInboxNotificationsService');
+
+export const enum InboxTab {
+	ReadyForYou = 'readyForYou',
+	Working = 'working',
+	ReadyToMerge = 'readyToMerge',
+	OnHold = 'onHold',
+	Done = 'done',
+}
 
 export const enum InboxNotificationPriority {
 	Now = 0,
@@ -104,6 +113,7 @@ export interface IInboxNotificationToolConfirmationPart {
 	readonly title: string | IMarkdownString;
 	readonly message: string | IMarkdownString;
 	readonly commandLine?: string;
+	readonly toolInput?: string;
 	readonly disclaimer?: string | IMarkdownString;
 	readonly originMessage?: string | IMarkdownString;
 	readonly buttons: readonly IInboxNotificationToolConfirmationButton[];
@@ -119,12 +129,24 @@ export function getInboxToolConfirmationDetails(invocation: IChatToolInvocation)
 	const commandLine = terminal ? terminal.commandLine.userEdited ?? terminal.commandLine.toolEdited ?? terminal.commandLine.original : undefined;
 	const hasParameters = state.parameters !== undefined && state.parameters !== null
 		&& (typeof state.parameters !== 'object' || Object.keys(state.parameters).length > 0);
+	const input = data?.kind === 'input' && data.editable === false && !data.mcpAppData && !data.imageGeneration ? data : undefined;
+	let toolInput: string | undefined;
+	let inputMatchesParameters = false;
+	if (input) {
+		try {
+			toolInput = JSON.stringify(input.rawInput ?? {}, null, 1);
+			inputMatchesParameters = !hasParameters || JSON.stringify(state.parameters, null, 1) === toolInput;
+		} catch (error) {
+			onUnexpectedError(error);
+		}
+	}
 	return {
 		commandLine,
+		toolInput,
 		disclaimer: state.confirmationMessages?.disclaimer,
 		originMessage: invocation.originMessage,
 		requiresSession: !!state.confirmationMessages?.terminalCustomActions?.length
-			|| (terminal ? !commandLine : !!data || hasParameters),
+			|| (terminal ? !commandLine : input ? toolInput === undefined || !inputMatchesParameters : !!data || hasParameters),
 	};
 }
 
@@ -152,6 +174,7 @@ export interface IInboxNotificationItem {
 	readonly previewSignature?: string;
 	/** The text fed to the utility model to generate this item's preview. */
 	readonly previewInputText?: string;
+	readonly previewFallbackText?: string;
 }
 
 export interface IExternalInboxNotification {
@@ -166,10 +189,21 @@ export interface IExternalInboxNotification {
 	readonly actions?: readonly IInboxNotificationAction[];
 }
 
+export interface IInboxSessionRow extends IInboxNotificationItem {
+	readonly tab: InboxTab;
+	readonly sessionTitle: string;
+	readonly notifications: readonly IInboxNotificationItem[];
+	readonly hasImages: boolean;
+	readonly occurrence: string;
+}
+
 export interface IInboxNotificationsService {
 	readonly _serviceBrand: undefined;
 
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
+	readonly sessionRows: IObservable<readonly IInboxSessionRow[]>;
+	setSessionOnHold(row: IInboxSessionRow, onHold: boolean): void;
+	markSessionDone(row: IInboxSessionRow): void;
 	readonly dismissedNotifications: IObservable<readonly IInboxNotificationItem[]>;
 	readonly sortMode: IObservable<InboxNotificationsSortMode>;
 	readonly isLoading: IObservable<boolean>;
