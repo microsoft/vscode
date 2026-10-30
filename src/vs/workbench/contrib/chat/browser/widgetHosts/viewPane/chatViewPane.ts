@@ -61,7 +61,7 @@ import { IChatSessionsService, localChatSessionType } from '../../../common/chat
 import { AICustomizationManagementCommands, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { IChatOpen, IChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { LocalChatSessionUri, getChatSessionType, getNewChatSessionResource, isUntitledChatSession } from '../../../common/model/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, managedPolicyRequiresAgentHostMessage, SessionTypeSelectionReason } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, isLocalAgentHostSessionTypeDisabledByPolicy, managedPolicyRequiresAgentHostMessage, SessionTypeSelectionReason } from '../../../common/constants.js';
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget, layoutChatWidgetForInputHeight } from '../../widget/chatWidget.js';
@@ -1352,7 +1352,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			};
 		}
 
-		if (this.shouldSkipRestoredLocalSession(sessionResource, modelRef.object)) {
+		if (this.shouldSkipRestoredSession(sessionResource, modelRef.object)) {
 			modelRef.dispose();
 			return { modelRef: undefined };
 		}
@@ -1360,12 +1360,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		return { modelRef };
 	}
 
-	private shouldSkipRestoredLocalSession(sessionResource: URI, model: IChatModel): boolean {
+	private shouldSkipRestoredSession(sessionResource: URI, model: IChatModel): boolean {
+		if (model.hasRequests) {
+			return false;
+		}
+		const sessionType = getChatSessionType(sessionResource);
+		// An empty draft of a harness that policy disables can only show the read-only banner.
+		if (isUntitledChatSession(sessionResource) && isLocalAgentHostSessionTypeDisabledByPolicy(sessionType, this.configurationService)) {
+			return true;
+		}
 		const workspace = this.workspaceContextService.getWorkspace();
 		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService));
 		return defaultType !== localChatSessionType
-			&& getChatSessionType(sessionResource) === localChatSessionType
-			&& !model.hasRequests;
+			&& sessionType === localChatSessionType;
 	}
 
 	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true, ignoreTransferredSession = false, inputBeforeLoad?: string, localFallbackSelectionReason?: SessionTypeSelectionReason): Promise<IChatModel | undefined> {
