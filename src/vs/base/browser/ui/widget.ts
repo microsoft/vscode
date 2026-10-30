@@ -5,7 +5,7 @@
 
 import * as dom from '../dom.js';
 import { IKeyboardEvent, StandardKeyboardEvent } from '../keyboardEvent.js';
-import { IMouseEvent, StandardMouseEvent } from '../mouseEvent.js';
+import { IMouseEvent, IMouseWheelEvent, StandardMouseEvent, StandardWheelEvent } from '../mouseEvent.js';
 import { Gesture } from '../touch.js';
 import { Disposable, IDisposable } from '../../common/lifecycle.js';
 
@@ -25,6 +25,10 @@ export abstract class Widget extends Disposable {
 
 	protected onmouseleave(domNode: HTMLElement, listener: (e: IMouseEvent) => void): void {
 		this._register(dom.addDisposableListener(domNode, dom.EventType.MOUSE_LEAVE, (e: MouseEvent) => listener(new StandardMouseEvent(dom.getWindow(domNode), e))));
+	}
+
+	protected onmousewheel(domNode: HTMLElement, listener: (e: IMouseWheelEvent) => void): void {
+		this._register(dom.addDisposableListener(domNode, dom.EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => listener((new StandardWheelEvent(e).browserEvent as IMouseWheelEvent))));
 	}
 
 	protected onkeydown(domNode: HTMLElement, listener: (e: IKeyboardEvent) => void): void {
