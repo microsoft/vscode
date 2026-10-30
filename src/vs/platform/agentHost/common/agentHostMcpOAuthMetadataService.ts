@@ -34,6 +34,7 @@ export class AgentHostMcpOAuthMetadataService implements IAgentHostMcpOAuthMetad
 	async fetch(authorizationServer: string): Promise<IAgentHostMcpOAuthMetadata> {
 		const { metadata, discoveryUrl } = await fetchAuthorizationServerMetadata(authorizationServer, {
 			fetch: (url, init) => this.request(url, init),
+			validateIssuer: true,
 		});
 		for (const endpoint of [metadata.authorization_endpoint, metadata.token_endpoint]) {
 			if (!endpoint || !new URL(endpoint).host) {

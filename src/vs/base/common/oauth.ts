@@ -1299,6 +1299,10 @@ export interface IFetchAuthorizationServerMetadataOptions {
 	 * Optional custom fetch implementation (defaults to global fetch)
 	 */
 	fetch?: IFetcher;
+	/**
+	 * Require the metadata issuer to match the requested authorization server.
+	 */
+	validateIssuer?: boolean;
 }
 
 /** Compares metadata issuers, including the tenant-independent Entra discovery aliases. */
@@ -1368,7 +1372,8 @@ export async function fetchAuthorizationServerMetadata(
 ): Promise<{ metadata: IAuthorizationServerMetadata; discoveryUrl: string; errors: Error[] }> {
 	const {
 		additionalHeaders = {},
-		fetch: fetchImpl = fetch
+		fetch: fetchImpl = fetch,
+		validateIssuer = false
 	} = options;
 
 	const authorizationServerUrl = new URL(authorizationServer);
@@ -1387,7 +1392,7 @@ export async function fetchAuthorizationServerMetadata(
 			});
 			const metadata = await tryParseAuthServerMetadata(rawResponse);
 			if (metadata) {
-				if (!isMatchingAuthorizationServerIssuer(authorizationServerUrl, metadata.issuer)) {
+				if (validateIssuer && !isMatchingAuthorizationServerIssuer(authorizationServerUrl, metadata.issuer)) {
 					errors.push(new Error('Authorization server metadata issuer does not match the requested authorization server (RFC 8414 section 3)'));
 					return undefined;
 				}

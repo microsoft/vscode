@@ -117,7 +117,8 @@ async function exchangeMarketplaceResourceToken(requestService: IRequestService,
 	}
 	try {
 		const { metadata } = await fetchAuthorizationServerMetadata(protectedResource.authorizationServer, {
-			fetch: createRequestFetcher(requestService, 'extensionGalleryAccountService.exchangeMarketplaceResourceToken')
+			fetch: createRequestFetcher(requestService, 'extensionGalleryAccountService.exchangeMarketplaceResourceToken'),
+			validateIssuer: true,
 		});
 		const tokenEndpoint = metadata.token_endpoint;
 		if (!tokenEndpoint || !isSameSecureOrigin(tokenEndpoint, serviceIndexUrl)) {

@@ -2226,7 +2226,7 @@ suite('OAuth', () => {
 				statusText: 'OK'
 			});
 
-			await assert.rejects(() => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub }));
+			await assert.rejects(() => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub, validateIssuer: true }));
 			assert.strictEqual(fetchStub.callCount, 3);
 		});
 
@@ -2251,7 +2251,14 @@ suite('OAuth', () => {
 			assert.strictEqual(headers['Accept'], 'application/json');
 		});
 
-		test('should reject metadata whose issuer does not match the requested authorization server (RFC 8414 §3)', async () => {
+		test('accepts a different issuer by default', async () => {
+			const metadata: IAuthorizationServerMetadata = { issuer: 'https://identity.example.com/tenant', response_types_supported: ['code'] };
+			fetchStub.resolves({ status: 200, json: async () => metadata, text: async () => JSON.stringify(metadata), statusText: 'OK' });
+			const result = await fetchAuthorizationServerMetadata('https://mcp.example.com', { fetch: fetchStub });
+			assert.deepStrictEqual({ metadata: result.metadata, calls: fetchStub.callCount }, { metadata, calls: 1 });
+		});
+
+		test('should reject metadata whose issuer does not match the requested authorization server when opted in (RFC 8414 §3)', async () => {
 			const authorizationServer = 'https://auth.example.com/tenant';
 			// A well-known endpoint that serves metadata bound to a different issuer must not be
 			// trusted, even when the JSON is otherwise a valid authorization-server metadata document.
@@ -2270,7 +2277,7 @@ suite('OAuth', () => {
 			});
 
 			await assert.rejects(
-				async () => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub }),
+				async () => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub, validateIssuer: true }),
 				(error: any) => {
 					assert.ok(error instanceof AggregateError, 'Should be an AggregateError');
 					assert.ok(
@@ -2300,7 +2307,7 @@ suite('OAuth', () => {
 			test(`accepts URL-normalized issuers with ${name}`, async () => {
 				const metadata: IAuthorizationServerMetadata = { issuer, response_types_supported: ['code'] };
 				fetchStub.resolves({ status: 200, json: async () => metadata, text: async () => JSON.stringify(metadata), statusText: 'OK' });
-				assert.deepStrictEqual((await fetchAuthorizationServerMetadata(authority, { fetch: fetchStub })).metadata, metadata);
+				assert.deepStrictEqual((await fetchAuthorizationServerMetadata(authority, { fetch: fetchStub, validateIssuer: true })).metadata, metadata);
 			});
 		}
 
@@ -2308,7 +2315,7 @@ suite('OAuth', () => {
 			const issuer = `${entraOrigin}/organizations/v2.0`;
 			const metadata: IAuthorizationServerMetadata = { issuer, response_types_supported: ['code'] };
 			fetchStub.resolves({ status: 200, json: async () => metadata, text: async () => JSON.stringify(metadata), statusText: 'OK' });
-			assert.deepStrictEqual((await fetchAuthorizationServerMetadata(issuer, { fetch: fetchStub })).metadata, metadata);
+			assert.deepStrictEqual((await fetchAuthorizationServerMetadata(issuer, { fetch: fetchStub, validateIssuer: true })).metadata, metadata);
 		});
 
 		for (const [tenant, issuer] of [
@@ -2321,7 +2328,7 @@ suite('OAuth', () => {
 				test(`accepts Entra issuer ${issuer} for ${tenant}${slash}`, async () => {
 					const metadata: IAuthorizationServerMetadata = { issuer, response_types_supported: ['code'] };
 					fetchStub.resolves({ status: 200, json: async () => metadata, text: async () => JSON.stringify(metadata), statusText: 'OK' });
-					const result = await fetchAuthorizationServerMetadata(`${entraOrigin}/${tenant}/v2.0${slash}`, { fetch: fetchStub });
+					const result = await fetchAuthorizationServerMetadata(`${entraOrigin}/${tenant}/v2.0${slash}`, { fetch: fetchStub, validateIssuer: true });
 					assert.deepStrictEqual(result.metadata, metadata);
 				});
 			}
@@ -2350,10 +2357,10 @@ suite('OAuth', () => {
 			['matching userinfo', 'https://user@login.microsoftonline.com/common/v2.0', 'https://user@login.microsoftonline.com/common/v2.0'],
 			['non-Entra mismatch', 'https://auth.example.com/tenant', 'https://evil.example.com/tenant'],
 		]) {
-			test(`rejects ${name} by default`, async () => {
+			test(`rejects ${name} when validating the issuer`, async () => {
 				const metadata: IAuthorizationServerMetadata = { issuer, response_types_supported: ['code'] };
 				fetchStub.resolves({ status: 200, json: async () => metadata, text: async () => JSON.stringify(metadata), statusText: 'OK' });
-				await assert.rejects(() => fetchAuthorizationServerMetadata(authority, { fetch: fetchStub }));
+				await assert.rejects(() => fetchAuthorizationServerMetadata(authority, { fetch: fetchStub, validateIssuer: true }));
 			});
 		}
 
@@ -2364,7 +2371,7 @@ suite('OAuth', () => {
 			});
 			fetchStub.onFirstCall().resolves(response('https://evil.example.com/tenant'));
 			fetchStub.onSecondCall().resolves(response(authority));
-			const result = await fetchAuthorizationServerMetadata(authority, { fetch: fetchStub });
+			const result = await fetchAuthorizationServerMetadata(authority, { fetch: fetchStub, validateIssuer: true });
 			assert.deepStrictEqual({ issuer: result.metadata.issuer, errors: result.errors.length, calls: fetchStub.callCount }, { issuer: authority, errors: 1, calls: 2 });
 		});
 
@@ -2383,7 +2390,7 @@ suite('OAuth', () => {
 			});
 
 			await assert.rejects(
-				async () => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub }),
+				async () => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub, validateIssuer: true }),
 				(error: any) => error instanceof AggregateError && error.errors.some((err: Error) => /does not match the requested authorization server/.test(err.message))
 			);
 			assert.strictEqual(fetchStub.callCount, 3);
