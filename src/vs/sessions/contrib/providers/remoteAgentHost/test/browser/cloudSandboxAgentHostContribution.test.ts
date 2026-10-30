@@ -38,6 +38,7 @@ import {
 	type ICloudSandboxPreparedReservation,
 	type ICloudSandboxDiscoveredSession,
 	type ICloudSandboxDiscoveryResult,
+	type ICloudSandboxDiscoveryOptions,
 	type ICloudSandboxSessionFeedConnection,
 } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -223,7 +224,11 @@ class TestCloudSandboxContribution extends CloudSandboxAgentHostContribution {
 	}
 
 	refreshTasks(taskIds: readonly string[]): Promise<void> {
-		return this._discoverAndSeed(true, true, taskIds);
+		return this._refreshFromFeed({ reason: 'change', taskIds });
+	}
+
+	refreshFeed(reason: 'renewal' | 'reconnect'): Promise<void> {
+		return this._refreshFromFeed({ reason });
 	}
 
 	ensureProvider(env: ICloudSandboxSessionEnvironment): void {
@@ -302,7 +307,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	readonly draftPreparation?: ICloudSandboxDraftPreparationService;
 	/** Task Mission Control returns from `createSession`, or a rejection. */
 	readonly createSession?: () => Promise<ICloudSandboxCreatedSession>;
-	readonly listSessions?: (token: CancellationToken, options?: { readonly incremental?: boolean; readonly taskIds?: readonly string[] }) => Promise<ICloudSandboxDiscoveryResult>;
+	readonly listSessions?: (token: CancellationToken, options?: ICloudSandboxDiscoveryOptions) => Promise<ICloudSandboxDiscoveryResult>;
 	readonly connectSessionFeed?: (token: CancellationToken) => Promise<ICloudSandboxSessionFeedConnection | undefined>;
 	readonly sessionFeed?: Partial<CloudSandboxSessionFeed>;
 	readonly deleteTask?: (taskId: string, token: CancellationToken) => Promise<void>;
@@ -426,7 +431,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 			return { taskId: 'task-new', sessionId: 'sess-new', environmentId: 'env-new', reservationExpiresAt: Date.UTC(2100, 0, 1) };
 		}
 		override async connectSessionFeed(token: CancellationToken) { return options?.connectSessionFeed?.(token); }
-		override async listSessions(token: CancellationToken, discoveryOptions?: { readonly incremental?: boolean; readonly taskIds?: readonly string[] }): Promise<ICloudSandboxDiscoveryResult> {
+		override async listSessions(token: CancellationToken, discoveryOptions?: ICloudSandboxDiscoveryOptions): Promise<ICloudSandboxDiscoveryResult> {
 			discoveryModes.push(discoveryOptions?.incremental === true);
 			if (options?.listSessions) {
 				return options.listSessions(token, discoveryOptions);
@@ -2358,6 +2363,75 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 
 suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('renewals catch up incrementally while periodic and reconnect scans remain authoritative', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
+		let sessions = [discoveredSession()];
+		const harness = await createContribution(store, sessions, {
+			sessionFeed: { connected: true, start: async () => { }, dispose: () => { } },
+			listSessions: async (_token, options) => {
+				requests.push(options);
+				return options?.incremental
+					? { kind: 'incremental', sessions: [], removedTaskIds: [] }
+					: { kind: 'complete', sessions };
+			},
+		});
+		harness.setFocused(false);
+		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
+		sessions = [];
+		await timeout(8 * 60_000);
+		await harness.contribution.refreshFeed('renewal');
+		const retainedAfterRenewal = !provider.disposed;
+		await timeout(8 * 60_000);
+		await harness.contribution.refreshFeed('renewal');
+		const removedAfterPeriodicFullScan = provider.disposed;
+		await harness.contribution.refreshFeed('reconnect');
+		assert.deepStrictEqual({ requests, retainedAfterRenewal, removedAfterPeriodicFullScan }, {
+			requests: [
+				{ incremental: false, trigger: 'startup' },
+				{ incremental: true, trigger: 'feedRenewal' },
+				{ incremental: false, trigger: 'feedRenewal' },
+				{ incremental: false, trigger: 'feedReconnect' },
+			],
+			retainedAfterRenewal: true,
+			removedAfterPeriodicFullScan: true,
+		});
+	}));
+
+	for (const manual of [false, true]) {
+		test(`coalesced renewals preserve incremental intent unless a manual full scan is queued (manual=${manual})`, async () => {
+			const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
+			const entered = new DeferredPromise<void>();
+			let hold = false;
+			const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
+			const harness = await createContribution(store, [], {
+				listSessions: async (_token, options) => {
+					requests.push(options);
+					if (hold) {
+						await entered.complete();
+						return pending.p;
+					}
+					return options?.incremental
+						? { kind: 'incremental', sessions: [], removedTaskIds: [] }
+						: { kind: 'complete', sessions: [] };
+				},
+			});
+			hold = true;
+			const first = harness.contribution.refreshFeed('renewal');
+			await entered.p;
+			const queued = harness.contribution.refreshFeed('renewal');
+			const queuedAgain = harness.contribution.refreshFeed('renewal');
+			const full = manual ? harness.runDiscovery() : Promise.resolve();
+			hold = false;
+			await pending.complete({ kind: 'incremental', sessions: [], removedTaskIds: [] });
+			await Promise.all([first, queued, queuedAgain, full]);
+			assert.deepStrictEqual(requests, [
+				{ incremental: false, trigger: 'startup' },
+				{ incremental: true, trigger: 'feedRenewal' },
+				{ incremental: !manual, trigger: manual ? 'manual' : 'feedRenewal' },
+			]);
+		});
+	}
 
 	for (const failure of ['invalidated', 'partial', 'persistent'] as const) {
 		test(`retries a ${failure} task refresh once without losing successful tasks`, async () => {

@@ -13,6 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { FileType, IFileDeleteOptions, IFileWriteOptions, createFileSystemProviderError, FileSystemProviderErrorCode } from '../../../../../../platform/files/common/files.js';
+import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
@@ -616,9 +617,7 @@ suite('customizationMigration', () => {
 			[PromptsType.instructions, new Map([[PromptsStorage.user, userInstructionsRoot]])],
 		]);
 
-		const fileService = store.add(new FileService(new NullLogService()));
-		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
-		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		await fileService.writeFile(customizations[0].uri, VSBuffer.fromString(['---', 'name: "Review Prompt"', 'mode: code', '---', 'Review body'].join('\n')));
 		await fileService.writeFile(customizations[1].uri, VSBuffer.fromString('---\ndescription: Plan work\n---\nPlan.'));
 		await fileService.writeFile(customizations[2].uri, VSBuffer.fromString('---\ndescription: Use tabs\n---\nUse tabs.'));
@@ -684,9 +683,7 @@ suite('customizationMigration', () => {
 		const targetFolders: CustomizationMigrationTargetFolders = new Map([
 			[PromptsType.skill, new Map([[PromptsStorage.local, targetRoot]])],
 		]);
-		const fileService = store.add(new FileService(new NullLogService()));
-		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
-		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		await fileService.writeFile(prompt.uri, VSBuffer.fromString('---\ndescription: Migrated content\n---\nMigrate me.'));
 		const existingTargetUri = createSkillFileUri(targetRoot.uri, 'existing-target-test');
 		await fileService.writeFile(existingTargetUri, VSBuffer.fromString('Existing content'));
@@ -733,9 +730,7 @@ suite('customizationMigration', () => {
 		const targetFolders: CustomizationMigrationTargetFolders = new Map([
 			[PromptsType.skill, new Map([[PromptsStorage.local, targetRoot]])],
 		]);
-		const fileService = store.add(new FileService(new NullLogService()));
-		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
-		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		await fileService.writeFile(skill.uri, VSBuffer.fromString('---\nname: release\n---\nRelease safely.'));
 		await fileService.writeFile(URI.joinPath(dirname(skill.uri), 'references', 'release.md'), VSBuffer.fromString('Release reference'));
 		await fileService.writeFile(URI.joinPath(dirname(skill.uri), 'scripts', 'release.sh'), VSBuffer.fromString('#!/bin/sh'));
@@ -839,9 +834,7 @@ suite('customizationMigration', () => {
 			[PromptsType.skill, new Map([[PromptsStorage.local, workspaceSkillRoot], [PromptsStorage.user, userSkillRoot]])],
 		]);
 
-		const fileService = store.add(new FileService(new NullLogService()));
-		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
-		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('---\nname: Shared\n---\nShared body'));
 
 		const result = await migrateCustomizations(customizations, targetFolders, fileService);
@@ -889,9 +882,7 @@ suite('customizationMigration', () => {
 			[PromptsType.skill, new Map([[PromptsStorage.local, workspaceSkillRoot], [PromptsStorage.user, userSkillRoot]])],
 		]);
 
-		const fileService = store.add(new FileService(new NullLogService()));
-		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
-		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('---\nname: Shared\n---\nShared body'));
 		const workspaceSkillUri = createSkillFileUri(workspaceSkillRoot.uri, 'shared');
 		const userSkillUri = createSkillFileUri(userSkillRoot.uri, 'shared');
@@ -1160,9 +1151,7 @@ suite('customizationMigration', () => {
 		};
 		const instructionsRoot: ICustomizationSourceFolder = { uri: URI.file('/home/test/.copilot/instructions'), label: '~/.copilot/instructions', source: PromptsStorage.user };
 
-		const fileService = store.add(new FileService(new NullLogService()));
-		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
-		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		await fileService.writeFile(customization.uri, VSBuffer.fromString('Use tabs.'));
 
 		const result = await migrateCustomizations(
@@ -1201,9 +1190,7 @@ suite('customizationMigration', () => {
 			{ uri: URI.file('/workspace-b/.github/skills'), label: '.github/skills', source: PromptsStorage.local, workspaceGroupId: 'workspace-b' },
 		];
 
-		const fileService = store.add(new FileService(new NullLogService()));
-		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
-		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		await fileService.writeFile(customization.uri, VSBuffer.fromString('Review the change.'));
 
 		const result = await migrateCustomizations(

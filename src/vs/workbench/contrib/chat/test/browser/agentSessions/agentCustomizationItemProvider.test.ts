@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
@@ -16,8 +17,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
@@ -430,8 +430,7 @@ suite('AgentCustomizationItemProvider', () => {
 		const workspaceAgentUri = URI.file('/workspace/.github/agents/reviewer.agent.md');
 		const workspaceSkillUri = URI.file('/workspace/.github/skills/review/SKILL.md');
 		const workspaceInstructionsUri = URI.file('/workspace/.github/instructions/review.instructions.md');
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(SYNCED_CUSTOMIZATION_SCHEME, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, SYNCED_CUSTOMIZATION_SCHEME);
 		await fileService.writeFile(URI.joinPath(bundleUri, 'agents', 'reviewer.agent.md'), VSBuffer.fromString('---\nname: Reviewer\ndescription: Reviews changes\n---\nReview carefully.'));
 		await fileService.writeFile(URI.joinPath(bundleUri, 'skills', 'review', 'SKILL.md'), VSBuffer.fromString('---\nname: Review Skill\ndescription: Reviews code\n---\nReview code.'));
 		await fileService.writeFile(URI.joinPath(bundleUri, 'rules', 'review.instructions.md'), VSBuffer.fromString('---\nname: Review Instructions\ndescription: Review rules\n---\nFollow review rules.'));
@@ -666,10 +665,86 @@ suite('AgentCustomizationItemProvider', () => {
 		const first = await provider.provideSourceFolders(sessionResource, PromptsType.agent, CancellationToken.None);
 		const second = await provider.provideSourceFolders(sessionResource, PromptsType.instructions, CancellationToken.None);
 
-		assert.deepStrictEqual({ first, second, readinessCalls: customizationService.readinessCalls }, {
+		assert.deepStrictEqual({ first, second, readiness: provider.getSourceFolderReadiness(sessionResource), readinessCalls: customizationService.readinessCalls }, {
 			first: [],
 			second: [],
+			readiness: 'loading',
 			readinessCalls: 1,
+		});
+	});
+
+	test('updates source folder readiness after a bounded wait completes', async () => {
+		const readiness = new DeferredPromise<boolean>();
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override whenCustomizationsReady(): Promise<boolean> {
+				return readiness.p;
+			}
+		}
+		class TestAgentCustomizationItemProvider extends AgentCustomizationItemProvider {
+			protected override readonly _sourceFolderReadinessTimeoutMs = 1;
+		}
+
+		const provider = disposables.add(new TestAgentCustomizationItemProvider(
+			'local',
+			undefined,
+			undefined,
+			upcastPartial<IFileService>({}),
+			new NullLogService(),
+			new TestCustomizationService(),
+			makePromptsService(),
+			labelService,
+		));
+		const sessionResource = URI.parse('agent-host-copilotcli:///session');
+
+		await provider.provideSourceFolders(sessionResource, PromptsType.agent, CancellationToken.None);
+		const whileLoading = provider.getSourceFolderReadiness(sessionResource);
+		readiness.complete(true);
+		await readiness.p;
+
+		assert.deepStrictEqual({
+			whileLoading,
+			afterSnapshot: provider.getSourceFolderReadiness(sessionResource),
+		}, {
+			whileLoading: 'loading',
+			afterSnapshot: 'ready',
+		});
+	});
+
+	test('retries source folder readiness after an unavailable result', async () => {
+		const results = [false, true];
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			readinessCalls = 0;
+
+			override whenCustomizationsReady(): Promise<boolean> {
+				return Promise.resolve(results[this.readinessCalls++]);
+			}
+		}
+
+		const customizationService = new TestCustomizationService();
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'local',
+			undefined,
+			undefined,
+			upcastPartial<IFileService>({}),
+			new NullLogService(),
+			customizationService,
+			makePromptsService(),
+			labelService,
+		));
+		const sessionResource = URI.parse('agent-host-copilotcli:///session');
+
+		await provider.provideSourceFolders(sessionResource, PromptsType.agent, CancellationToken.None);
+		const first = provider.getSourceFolderReadiness(sessionResource);
+		await provider.provideSourceFolders(sessionResource, PromptsType.agent, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			first,
+			second: provider.getSourceFolderReadiness(sessionResource),
+			readinessCalls: customizationService.readinessCalls,
+		}, {
+			first: 'unavailable',
+			second: 'ready',
+			readinessCalls: 2,
 		});
 	});
 
@@ -730,8 +805,7 @@ suite('AgentCustomizationItemProvider', () => {
 		const bundleUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/bundle' });
 		const bundledSkillUri = URI.joinPath(bundleUri, 'skills', 'create-pr', 'SKILL.md');
 		const builtinSkillUri = URI.file('/builtin/create-pr/SKILL.md');
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(SYNCED_CUSTOMIZATION_SCHEME, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, SYNCED_CUSTOMIZATION_SCHEME);
 		await fileService.writeFile(bundledSkillUri, VSBuffer.fromString('---\nname: create-pr\ndescription: Create a pull request.\n---\nCreate it.'));
 		const promptsService = upcastPartial<IPromptsService>({
 			onDidChangeSkills: Event.None,

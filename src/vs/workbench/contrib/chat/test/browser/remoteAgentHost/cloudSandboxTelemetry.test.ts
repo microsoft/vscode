@@ -20,12 +20,14 @@ import { TelemetryService } from '../../../../../../platform/telemetry/common/te
 import {
 	CloudSandboxConnectionHealthClassification,
 	CloudSandboxConnectionOutcomeClassification,
+	CloudSandboxDiscoveryClassification,
 	CloudSandboxFirstSessionRequestClassification,
 	CloudSandboxProvisioningOutcomeClassification,
 	CloudSandboxTelemetryService,
 	UserLocalRelaySessionOpenClassification,
 	getCloudSandboxConnectionSurface,
 	requestOutcomeForStatus,
+	type ICloudSandboxDiscoveryTelemetryData,
 } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 
 interface ICapturedEvent {
@@ -69,6 +71,39 @@ class TestTelemetryService implements ITelemetryService {
 suite('cloudSandbox telemetry', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('discovery reports only classified fields and measures every number and boolean', () => {
+		type ClassifiedSample = {
+			[K in keyof Omit<CloudSandboxDiscoveryClassification, 'owner' | 'comment'>]:
+			CloudSandboxDiscoveryClassification[K] extends { isMeasurement: true } ? number | boolean : string
+		};
+		const data = {
+			trigger: 'feedRenewal', requestedMode: 'incremental', mode: 'full', outcome: 'partial',
+			durationMs: 150, pageCount: 4, listRequestCount: 5, taskCount: 30, sandboxTaskCount: 2,
+			changedSandboxTaskCount: 1, checkpointAdvanced: false,
+		} satisfies ICloudSandboxDiscoveryTelemetryData;
+		const classified: ClassifiedSample = data;
+		const telemetry = new TestTelemetryService();
+		const service = store.add(new CloudSandboxTelemetryService(telemetry));
+		service.reportDiscovery({ ...data, ...{ taskId: 'private-task', cursor: 'private-cursor', repository: 'private-repo' } });
+		assert.deepStrictEqual(telemetry.events, [{ eventName: 'cloudSandboxDiscovery', data: classified }]);
+	});
+
+	test('discovery attribution cannot upload arbitrary supplied categories', () => {
+		const data: ICloudSandboxDiscoveryTelemetryData = {
+			trigger: 'manual', requestedMode: 'full', mode: 'full', outcome: 'complete',
+			durationMs: 0, pageCount: 0, listRequestCount: 0, taskCount: 0, sandboxTaskCount: 0,
+			changedSandboxTaskCount: 0, checkpointAdvanced: false,
+		};
+		Object.assign(data, { trigger: 'private-trigger', requestedMode: 'private-mode', mode: 'private-mode', outcome: 'private-outcome' });
+		const telemetry = new TestTelemetryService();
+		const service = store.add(new CloudSandboxTelemetryService(telemetry));
+		service.reportDiscovery(data);
+		assert.deepStrictEqual(telemetry.events, [{
+			eventName: 'cloudSandboxDiscovery',
+			data: { ...data, trigger: 'unknown', requestedMode: 'unknown', mode: 'unknown', outcome: 'unknown' },
+		}]);
+	});
 
 	test('uses the actual window and runtime rather than assuming every sandbox client is the Editor', () => {
 		assert.deepStrictEqual([

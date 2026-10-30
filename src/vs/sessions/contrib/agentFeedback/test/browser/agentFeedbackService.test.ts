@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -605,6 +606,22 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 			scopeAfterDispose: sessionS1.toString(),
 			scopeChanges: 2,
 		});
+	});
+
+	test('a terminal or the output shown as an editor is in no session\'s scope, even when visible: only files fall back to the active session', () => {
+		setActiveSession(sessions.get(sessionS1.toString())!);
+		const terminal = URI.from({ scheme: Schemas.vscodeTerminal, path: '/1' });
+		const output = URI.from({ scheme: Schemas.outputChannel, path: '/tasks' });
+		setVisibleEditors([pane(terminal), pane(output)]);
+
+		assert.deepStrictEqual([fileA, terminal, output].map(resource => ({
+			session: service.getSessionForFile(resource)?.resource.toString(),
+			scope: service.getFeedbackSessionResource(resource)?.toString(),
+		})), [
+			{ session: sessionS1.toString(), scope: sessionS1.toString() },
+			{ session: undefined, scope: undefined },
+			{ session: undefined, scope: undefined },
+		]);
 	});
 
 	test('untracked file falls back to the active session', () => {

@@ -728,6 +728,7 @@ suite('ChatWidget', () => {
 			input: {
 				value: {
 					inputEditor: { getValue: () => currentInput },
+					getPromptText: () => currentInput,
 					attachmentModel: { getAttachmentIDs: () => new Set(currentAttachmentIds) },
 					focus: () => focusCount++,
 				}
@@ -903,6 +904,8 @@ suite('ChatWidget', () => {
 				getValue: () => 'original request', getModel: () => null, focus: () => { },
 				onDidChangeModelContent: Event.None, onDidChangeCursorSelection: Event.None,
 			}),
+			getPromptText: () => 'original request',
+			inlineAttachments: undefined,
 			attachmentModel: upcastPartial<ChatInputPart['attachmentModel']>({
 				attachments: [], getAttachmentIDs: () => new Set(), addContext: () => { },
 				updateContext: () => { counts.updateContext++; },
@@ -2332,6 +2335,9 @@ suite('ChatWidget - acceptInput submission', () => {
 		const original = createSession(URI.parse('agent-host-copilot:/existing-a'));
 		const widgetStore = store.add(new DisposableStore());
 		const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
+		const onDidAcceptRequest = store.add(new Emitter<URI>());
+		const acceptedRequests: URI[] = [];
+		store.add(onDidAcceptRequest.event(resource => acceptedRequests.push(resource)));
 		const attachments = new ChatRequestVariableSet();
 		const contribs: IChatWidget['contribs'][number][] = [];
 		const parts: IParsedChatRequest['parts'][number][] = [];
@@ -2340,6 +2346,8 @@ suite('ChatWidget - acceptInput submission', () => {
 		const contextKeyService = store.add(new MockContextKeyService());
 		const input = mockObject<ChatInputPart>()({
 			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({ getValue: () => parsedInput.text }),
+			getPromptText: () => parsedInput.text,
+			inlineAttachments: undefined,
 			currentModeKind: ChatModeKind.Ask,
 			currentModeInfo: upcastPartial<ChatInputPart['currentModeInfo']>({ kind: ChatModeKind.Ask, isBuiltin: true }),
 			currentLanguageModel: undefined,
@@ -2398,6 +2406,7 @@ suite('ChatWidget - acceptInput submission', () => {
 			_viewModel: { value: original.viewModel, writable: true },
 			_location: { value: { location: ChatAgentLocation.Chat } },
 			_onDidAcceptInput: { value: store.add(new Emitter<void>()) },
+			_onDidAcceptRequest: { value: onDidAcceptRequest },
 			_onDidSubmitAgent: { value: store.add(new Emitter<void>()) },
 			onDidChangeViewModel: { value: onDidChangeViewModel.event },
 			onDidHide: { value: Event.None },
@@ -2427,10 +2436,44 @@ suite('ChatWidget - acceptInput submission', () => {
 			telemetryService: { value: NullTelemetryService },
 			listWidget: { value: { domNode: dom.$('div'), setScrollLock: () => { }, updateRendererOptions: () => { }, rerender: () => { } } },
 			updateChatViewVisibility: { value: () => { } },
+			_maybeStartGoalSummary: { value: () => { } },
 		});
 		const options: IChatAcceptInputOptions = { preserveInput: true };
-		return { widget, viewOptions, options, original, input, editorService, chatService, chatWidgetService, chatSessionsService, parser, parts, policyRequiresAgentHost, contextKeyService, attachments, contribs, response, sent };
+		return { widget, viewOptions, options, original, input, editorService, chatService, chatWidgetService, chatSessionsService, parser, parts, policyRequiresAgentHost, contextKeyService, attachments, contribs, response, sent, acceptedRequests };
 	}
+
+	for (const kind of ['sent', 'queued', 'rejected'] as const) {
+		test(`reports ${kind} acceptance from the originating widget chat even if its model changes`, async () => {
+			const fixture = createSubmissionWidget();
+			const sendResult = new DeferredPromise<ChatSendResult>();
+			const queued = new DeferredPromise<ChatSendResult>();
+			fixture.chatService.sendRequest.returns(sendResult.p);
+			const submitting = fixture.widget.acceptInput('Follow up');
+			await timeout(0);
+			Object.defineProperty(fixture.widget, '_viewModel', { value: createSession(URI.parse('agent-host-copilot:/other')).viewModel });
+			await sendResult.complete(kind === 'sent' ? fixture.sent
+				: kind === 'queued' ? { kind, deferred: queued.p } : { kind, reason: 'Rejected' });
+			await timeout(0);
+			assert.deepStrictEqual(fixture.acceptedRequests, kind === 'rejected' ? [] : [fixture.original.model.sessionResource]);
+			if (kind === 'queued') {
+				await queued.complete(fixture.sent);
+			}
+			await submitting;
+		});
+	}
+
+	test('does not report preserved-input background requests as user submissions', async () => {
+		const fixture = createSubmissionWidget();
+		await fixture.widget.acceptInput('Background continuation', { preserveInput: true });
+		assert.deepStrictEqual(fixture.acceptedRequests, []);
+	});
+
+	test('a failed send does not report an accepted request', async () => {
+		const fixture = createSubmissionWidget();
+		fixture.chatService.sendRequest.rejects(new Error('Send failed'));
+		await assert.rejects(fixture.widget.acceptInput('Follow up'), /Send failed/);
+		assert.deepStrictEqual(fixture.acceptedRequests, []);
+	});
 
 	for (const waitingForApproval of [false, true]) {
 		test(`cancelCurrentRequest waits before a preserved-input continuation when waitingForApproval=${waitingForApproval}`, async () => {

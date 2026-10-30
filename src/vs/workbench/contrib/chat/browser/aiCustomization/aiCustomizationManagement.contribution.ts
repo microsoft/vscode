@@ -789,10 +789,7 @@ registerAction2(class extends Action2 {
 		if (migration && pane instanceof AICustomizationManagementEditor) {
 			await pane.startCustomizationMigration(migrationCategory, migrationHint?.migrationFlowId);
 		} else if (showDiscover && pane instanceof AICustomizationManagementEditor) {
-			pane.showWelcomePage();
-			if (searchQuery !== undefined) {
-				pane.setSearchQuery(searchQuery);
-			}
+			pane.showDiscover(searchQuery);
 		} else if (section && pane instanceof AICustomizationManagementEditor) {
 			if (pane.selectSectionById(section)) {
 				if (searchQuery !== undefined) {

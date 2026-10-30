@@ -378,10 +378,18 @@ export interface ICustomizationItemProvider {
 	provideSourceFolders?(sessionResource: URI, type: PromptsType, token: CancellationToken): Promise<readonly ICustomizationSourceFolder[] | undefined>;
 
 	/**
+	 * Returns the readiness of the most recent source-folder discovery for this session.
+	 * Providers that do not expose this treat a completed empty result as authoritative.
+	 */
+	getSourceFolderReadiness?(sessionResource: URI): CustomizationSourceFolderReadiness;
+
+	/**
 	 * Returns the opaque workspace group containing a customization.
 	 */
 	getWorkspaceGroupId?(sessionResource: URI, resource: URI): string | undefined;
 }
+
+export type CustomizationSourceFolderReadiness = 'loading' | 'ready' | 'unavailable';
 
 /**
  * A directory where new customization files of a given type can be created.

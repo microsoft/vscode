@@ -16,7 +16,7 @@ import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../configuration/common/configuration.js';
 import { FileService } from '../../../files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { McpResourceScannerService } from '../../common/mcpResourceScannerService.js';
 import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
@@ -1435,8 +1435,7 @@ suite('McpResourceManagementService', () => {
 	}
 
 	setup(async () => {
-		fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		uriIdentityService = disposables.add(new UriIdentityService(fileService));
 		scannerService = disposables.add(new McpResourceScannerService(fileService, uriIdentityService));
 		service = disposables.add(new TestMcpResourceManagementService(mcpResource, fileService, uriIdentityService, scannerService));
@@ -1633,8 +1632,7 @@ suite('McpResourceManagementService - install policy enforcement', () => {
 	}
 
 	setup(() => {
-		fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		uriIdentityService = disposables.add(new UriIdentityService(fileService));
 		scannerService = disposables.add(new McpResourceScannerService(fileService, uriIdentityService));
 	});

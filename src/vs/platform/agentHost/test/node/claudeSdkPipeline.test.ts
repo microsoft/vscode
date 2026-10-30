@@ -6,14 +6,15 @@
 import type { Query, SDKControlInterruptResponse, SDKMessage, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileService } from '../../../files/common/fileService.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { IFileService } from '../../../files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -196,9 +197,7 @@ function createPipeline(
 ): IPipelineHarness {
 	const controller = new AbortController();
 	const warm = typeof warmOrFactory === 'function' ? warmOrFactory(controller.signal) : warmOrFactory;
-	const fileService = disposables.add(new FileService(new NullLogService()));
-	const fs = disposables.add(new InMemoryFileSystemProvider());
-	disposables.add(fileService.registerProvider('file', fs));
+	const fileService = createInMemoryFileService(disposables, Schemas.file);
 
 	const db = new TestSessionDatabase();
 	const dbRef: IReference<ISessionDatabase> = { object: db, dispose: () => { } };
@@ -257,6 +256,8 @@ suite('ClaudeSdkPipeline', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	teardown(() => sinon.restore());
+
 	suite('reloadPlugins', () => {
 
 		test('forwards to the SDK Query', async () => {
@@ -272,9 +273,7 @@ suite('ClaudeSdkPipeline', () => {
 			}
 			const controller = new AbortController();
 			const warm = new WarmWithReload();
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			const fs = disposables.add(new InMemoryFileSystemProvider());
-			disposables.add(fileService.registerProvider('file', fs));
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
 			const db = new TestSessionDatabase();
 			const dbRef: IReference<ISessionDatabase> = { object: db, dispose: () => { } };
 			const services = new ServiceCollection(
@@ -345,6 +344,23 @@ suite('ClaudeSdkPipeline', () => {
 	});
 
 	suite('rematerializer wiring', () => {
+
+		test('rebind moves the queue abort subscription to the new controller', async () => {
+			const { pipeline, controller } = createPipeline(disposables);
+			const replacement = new AbortController();
+			const oldRemoved = sinon.spy(controller.signal, 'removeEventListener');
+			const newAdded = sinon.spy(replacement.signal, 'addEventListener');
+			const newRemoved = sinon.spy(replacement.signal, 'removeEventListener');
+			pipeline.attachRematerializer(async () => ({ warm: new FakeWarmQuery(), abortController: replacement }));
+			await pipeline.rebindForRestart();
+			const afterRebind = { oldRemoved: oldRemoved.callCount, newAdded: newAdded.callCount, newRemoved: newRemoved.callCount };
+			pipeline.dispose();
+			assert.deepStrictEqual({ afterRebind, newRemoved: newRemoved.callCount, aborted: replacement.signal.aborted }, {
+				afterRebind: { oldRemoved: 1, newAdded: 1, newRemoved: 0 },
+				newRemoved: 1,
+				aborted: true,
+			});
+		});
 
 		test('after abort, send invokes the attached rematerializer in "recover" mode and clears the rebind flag', async () => {
 			const { pipeline } = createPipeline(disposables);

@@ -20,7 +20,7 @@ import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, ty
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
-import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider, ICustomizationSourceFolder, type IAgentFileToolInventoryEntry } from '../../../common/customizationHarnessService.js';
+import { type CustomizationSourceFolderReadiness, ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider, ICustomizationSourceFolder, type IAgentFileToolInventoryEntry } from '../../../common/customizationHarnessService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -53,7 +53,10 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 
 	/** Cache: pluginUri → last expansion (keyed by nonce and label so we re-fetch on content or display-name changes). */
 	private readonly _expansionCache = new ResourceMap<{ nonce: string | undefined; pluginLabel: string | undefined; children: readonly ICustomizationItem[] }>();
-	private readonly _sourceFolderReadiness = new ResourceMap<Promise<boolean | undefined>>();
+	private readonly _sourceFolderReadiness = new ResourceMap<{
+		readonly bounded: Promise<boolean | undefined>;
+		status: CustomizationSourceFolderReadiness;
+	}>();
 	private readonly _contentExpander: AgentCustomizationContentExpander;
 	protected readonly _sourceFolderReadinessTimeoutMs: number = SOURCE_FOLDER_CUSTOMIZATION_READINESS_TIMEOUT_MS;
 	private _draftCustomAgents: IObservable<readonly AgentCustomization[]> | undefined;
@@ -228,15 +231,24 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		// One-shot callers (the migration hint) must not read the empty
 		// placeholder a still-loading session reports, or they conclude there is
 		// nothing to migrate.
-		let readiness = this._sourceFolderReadiness.get(sessionResource);
-		if (!readiness) {
-			readiness = raceTimeout(
-				this._customAgentsService.whenCustomizationsReady(sessionResource),
-				this._sourceFolderReadinessTimeoutMs,
+		let readinessEntry = this._sourceFolderReadiness.get(sessionResource);
+		if (!readinessEntry || readinessEntry.status === 'unavailable') {
+			const readiness = this._customAgentsService.whenCustomizationsReady(sessionResource);
+			const entry = {
+				bounded: raceTimeout(readiness, this._sourceFolderReadinessTimeoutMs),
+				status: 'loading' as CustomizationSourceFolderReadiness,
+			};
+			readinessEntry = entry;
+			this._sourceFolderReadiness.set(sessionResource, entry);
+			void readiness.then(
+				ready => entry.status = ready ? 'ready' : 'unavailable',
+				() => entry.status = 'unavailable',
 			);
-			this._sourceFolderReadiness.set(sessionResource, readiness);
 		}
-		await raceCancellation(readiness, token);
+		const ready = await raceCancellation(readinessEntry.bounded, token);
+		if (ready !== undefined) {
+			readinessEntry.status = ready ? 'ready' : 'unavailable';
+		}
 		const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
 		const clientWorkingDirectories = this._customAgentsService.getClientWorkingDirectoryUris(sessionResource);
 
@@ -259,6 +271,10 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			});
 		}
 		return folders;
+	}
+
+	getSourceFolderReadiness(sessionResource: URI): CustomizationSourceFolderReadiness {
+		return this._sourceFolderReadiness.get(sessionResource)?.status ?? 'loading';
 	}
 
 	getWorkspaceGroupId(sessionResource: URI, resource: URI): string | undefined {

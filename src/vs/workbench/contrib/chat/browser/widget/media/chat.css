@@ -2731,6 +2731,21 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 0 6px 0 4px;
 }
 
+/* An attachment shown as a pill inline with the text of a request, see `chat.inlineAttachments.enabled`. */
+.interactive-session .interactive-item-container.interactive-request .value .rendered-markdown .chat-attached-context.chat-request-inline-attachment {
+	display: inline-flex;
+	vertical-align: middle;
+	max-width: 100%;
+	width: auto;
+	margin: 0;
+	padding: 0;
+}
+
+/* Codicons in the text of a request are moved down to its baseline, while those of a pill are centered in it. */
+.interactive-session .interactive-item-container.interactive-request .value .rendered-markdown .chat-request-inline-attachment .codicon {
+	top: 0;
+}
+
 .interactive-session-followups {
 	display: flex;
 	flex-direction: column;

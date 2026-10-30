@@ -21,6 +21,7 @@ import { Link } from '../../../../platform/opener/browser/link.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ISessionInputPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { NewSessionBannerPriority, NewSessionBanners } from '../../chat/common/newSessionBanners.js';
 import { WorktreeSuggestionVariant } from '../common/worktreeSuggestion.js';
 import { getInlineHintMessage, getShowChangesLabel, getUseWorktreeLabel } from './worktreeSuggestionPresentation.js';
 import { IWorktreeSuggestion, IWorktreeSuggestionService, worktreeSuggestionEquals, WorktreeSpotlightChoice } from './worktreeSuggestionService.js';
@@ -40,6 +41,8 @@ export interface IWorktreeSuggestionComposer {
 	readonly revealIsolationPicker: () => void;
 	/** Opens the isolation picker with New Worktree focused, showing it first when the session options are collapsed. */
 	readonly openIsolationPicker: () => void;
+	/** The banners below the input, which show one at a time. The inline hint is one of them. */
+	readonly banners: NewSessionBanners;
 }
 
 let messageIdPool = 0;
@@ -61,7 +64,6 @@ export class WorktreeSuggestionController extends Disposable {
 	private readonly _sessionsWithIsolationPicker = observableValue<ReadonlySet<string>>(this, new Set());
 	private _inlineSuggestion: IWorktreeSuggestion | undefined;
 	private _announcedSessionId: string | undefined;
-	private _inlineElement: HTMLElement | undefined;
 
 	constructor(
 		container: HTMLElement,
@@ -124,7 +126,7 @@ export class WorktreeSuggestionController extends Disposable {
 	// --- Inline hint ---
 
 	private _renderInlineSuggestion(container: HTMLElement): void {
-		const element = this._inlineElement = dom.append(container, dom.$('.new-session-worktree-suggestion', {
+		const element = dom.append(container, dom.$('.new-session-worktree-suggestion', {
 			role: 'group',
 			'aria-label': localize('worktreeSuggestion.inline.ariaLabel', "Worktree suggestion"),
 		}));
@@ -178,7 +180,7 @@ export class WorktreeSuggestionController extends Disposable {
 		}));
 
 		// Appears once the user starts describing a task, the moment the choice of isolation matters.
-		const visibleSuggestion = derived(this, reader => {
+		const hintSuggestion = derived(this, reader => {
 			if (this._service.variant.read(reader) !== WorktreeSuggestionVariant.InlineHint || this._service.isHintClosed(reader)) {
 				return undefined;
 			}
@@ -188,9 +190,14 @@ export class WorktreeSuggestionController extends Disposable {
 			}
 			return suggestion;
 		});
+		// A developer preview shows the hint even before the user started enough sessions for banners.
+		const banner = this._register(this._composer.banners.register(NewSessionBannerPriority.WorktreeSuggestion, derived(this, reader => !!hintSuggestion.read(reader)), { isDeveloperPreview: this._service.isPreviewing }));
 		this._register(autorun(reader => {
-			const suggestion = visibleSuggestion.read(reader);
+			const suggestion = banner.isShowing.read(reader) ? hintSuggestion.read(reader) : undefined;
 			this._inlineSuggestion = suggestion;
+			if (!suggestion && dom.isAncestorOfActiveElement(element)) {
+				this._composer.focusInput();
+			}
 			dom.setVisibility(!!suggestion, element);
 			if (!suggestion) {
 				return;
@@ -208,20 +215,16 @@ export class WorktreeSuggestionController extends Disposable {
 		}));
 	}
 
-	/** Hides the inline hint for good, or for the session only. */
+	/** Hides the inline hint for good, or for the session only. Focus inside it returns to the input. */
 	private _hideInlineSuggestion(forGood: boolean): void {
 		const suggestion = this._inlineSuggestion;
 		if (!suggestion) {
 			return;
 		}
-		const focusWasInside = !!this._inlineElement && dom.isAncestorOfActiveElement(this._inlineElement);
 		if (forGood) {
 			this._service.closeHint(suggestion);
 		} else {
 			this._service.decline(WorktreeSuggestionVariant.InlineHint, suggestion);
-		}
-		if (focusWasInside) {
-			this._composer.focusInput();
 		}
 	}
 }
