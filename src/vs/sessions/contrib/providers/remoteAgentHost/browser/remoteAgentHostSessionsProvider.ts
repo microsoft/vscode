@@ -812,6 +812,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		return {
 			readOnly: this._readOnly,
 			allowOfflineDrafts: this._allowOfflineDrafts,
+			supportsCanvasPresentation: (agentProvider: string) => !this.isWebPlatform && agentProvider === 'copilotcli',
 			defaultChangesetKind: this._defaultChangesetKind,
 			useSessionTitleForDefaultChat: agentProvider === 'copilot',
 			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {

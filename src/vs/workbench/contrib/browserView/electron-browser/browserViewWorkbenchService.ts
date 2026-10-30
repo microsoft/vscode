@@ -247,6 +247,10 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		if (!this._isNetworkProxyEnabled()) {
 			return undefined;
 		}
+		return this._resolveNetwork(owner);
+	}
+
+	private _resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | undefined {
 		if (this._networkResolver) {
 			return this._networkResolver.resolveNetwork(owner);
 		}
@@ -466,17 +470,18 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return input;
 	}
 
-	async createExternalBrowserView(initialUrl: string, openSource?: IBrowserViewWorkbenchCreateOptions['openSource'], networkOwner?: IBrowserViewOwner): Promise<IBrowserViewModel> {
+	async createExternalBrowserView(initialUrl: string, openSource?: IBrowserViewWorkbenchCreateOptions['openSource'], networkOwner?: IBrowserViewOwner, requireResolvedNetwork = false): Promise<IBrowserViewModel> {
 		await this.workspaceTrustManagementService.workspaceTrustInitialized;
 		await this._updateWindowConfiguration();
 		if (this._store.isDisposed) {
 			throw new CancellationError();
 		}
-		const { session, network } = await this._resolveViewSession({
+		const network = networkOwner && (requireResolvedNetwork ? this._resolveNetwork(networkOwner) : this.resolveNetwork(networkOwner));
+		const { session, network: resolvedNetwork } = await this._resolveViewSession({
 			scope: BrowserViewStorageScope.Ephemeral,
-			network: networkOwner && this.resolveNetwork(networkOwner),
-		});
-		const hold = network && await this._holdNetworkProxy(network, this._disposeToken);
+			network,
+		}, requireResolvedNetwork);
+		const hold = resolvedNetwork && await this._holdNetworkProxy(resolvedNetwork, this._disposeToken);
 		let model: IBrowserViewModel;
 		try {
 			const info = await this._browserViewService.getOrCreateBrowserView(generateUuid(), {
@@ -585,12 +590,15 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	}
 
 	/** Apply workspace trust, proxy availability (including hosts that cannot proxy browsers), and workspace storage isolation to a requested session. */
-	private async _resolveViewSession(requested: BrowserViewSessionSelector): Promise<{ session: BrowserViewSessionSelector; network: IBrowserViewNetwork | undefined }> {
+	private async _resolveViewSession(requested: BrowserViewSessionSelector, requireResolvedNetwork = false): Promise<{ session: BrowserViewSessionSelector; network: IBrowserViewNetwork | undefined }> {
 		if (typeof requested === 'string') {
 			return { session: requested, network: undefined };
 		}
 		const requestedNetwork = getBrowserViewSessionNetwork(requested);
 		const network = requestedNetwork && this._isNetworkProxyEnabled() && await this._isNetworkSupported(requestedNetwork) ? requestedNetwork : undefined;
+		if (requireResolvedNetwork && requestedNetwork && !network) {
+			throw new Error(localize('browser.requiredNetworkUnavailable', "The required remote network is unavailable."));
+		}
 		let affinity = getBrowserViewSessionAffinity(requested);
 		let scope = requested.scope;
 		if (scope === BrowserViewStorageScope.Global || scope === BrowserViewStorageScope.Workspace) {

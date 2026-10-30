@@ -104,6 +104,8 @@ Transport-specific callers own discovery, on-demand staging, credentials, and co
 
 The provider exposes connection state through `IAgentHostSessionsProvider` and delegates protocol operations to the live connection. Disconnecting clears live state without manufacturing successful operation results.
 
+Durable remote Copilot sessions expose live canvases when the host publishes their channels. Presentation resolves the BrowserView network from the owning session and chat through the Agents-window network resolver rather than from the workspace remote or canvas URL. The canvas requires that resolved network, so a disconnected host, unsupported TCP forwarding, or disabled remote proxy cannot fall back to local networking. The BrowserView keeps its selected network for its lifetime and the proxy follows ordinary connection recovery without recreating the canvas.
+
 Hosts may publish execution-platform, CPU, and memory-capacity metadata in the root state's namespaced metadata. Remote delegation consumes these host-reported facts alongside the host-wide running-session count. Missing facts remain unknown, including when connecting to an older host; they must not satisfy explicit resource requirements. The execution environment is authoritative, so a Linux container or WSL instance reports Linux regardless of the client operating system.
 
 Hosts explicitly advertise support for preserving remote-session origins. Creation tools require that capability rather than using resource metadata or build versions as a proxy. The origin and cumulative spawn depth are included in initial publication and persisted by the host before creation succeeds; listing and restoration rehydrate them independently of provider-owned metadata.
