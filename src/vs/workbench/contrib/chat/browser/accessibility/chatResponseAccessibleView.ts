@@ -412,6 +412,13 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 				}
 				break;
 			}
+			case 'confirmation': {
+				const text = `${part.title}\n${renderChatMessageAsPlaintext(part.message)}`;
+				if (text.trim()) {
+					contentParts.push({ partIndex, text });
+				}
+				break;
+			}
 			case 'warning': {
 				const text = renderChatMessageAsPlaintext(part.content).trim();
 				if (text) {

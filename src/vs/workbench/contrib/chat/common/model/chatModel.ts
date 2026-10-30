@@ -760,7 +760,7 @@ class AbstractResponse implements IResponse {
 					// Skip individual edit groups to avoid duplication
 					continue;
 				case 'confirmation':
-					if (part.message instanceof MarkdownString) {
+					if (isMarkdownString(part.message)) {
 						segment = { text: `${part.title}\n${part.message.value}`, isBlock: true };
 						break;
 					}

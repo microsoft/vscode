@@ -545,7 +545,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			...(status === 'completed' || status === 'failed' ? { completedAt: task.updated_at } : {}),
 			...(status === 'failed' ? { errorMessage: task.status || task.state } : {}),
 			...(task.state === 'cancelled' || (task.state as string) === 'canceled' ? { statusDescription: localize('cloudAutomations.cancelled', "Cancelled") } : {}),
-			...(task.state === 'waiting_for_user' ? { needsInput: true, statusDescription: localize('cloudAutomations.needsInput', "Needs input on GitHub") } : {}),
+			...(task.state === 'waiting_for_user' ? { needsInput: true, statusDescription: localize('cloudAutomations.needsInput', "Needs input") } : {}),
 			externalResource: URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${entry.repository.owner}/${entry.repository.repo}/tasks/${task.id}` }),
 			sessionResource: URI.from({ scheme: AgentSessionProviders.Cloud, path: `/task/${task.id}` }),
 		};

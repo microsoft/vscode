@@ -1108,8 +1108,8 @@ suite('CloudAutomationStore', () => {
 		assert.deepStrictEqual(await provider.runAutomation(automation.id), { kind: 'accepted' });
 		await provider.refresh();
 		const run = provider.runs.get()[0];
-		assert.deepStrictEqual({ status: run.status, trigger: run.trigger, needsInput: run.needsInput, session: run.sessionResource?.toString(), url: run.externalResource?.toString() },
-			{ status: 'running', trigger: 'external', needsInput: true, session: 'copilot-cloud-agent:/task/task', url: 'https://github.com/owner/private/tasks/task' });
+		assert.deepStrictEqual({ status: run.status, trigger: run.trigger, needsInput: run.needsInput, description: run.statusDescription, session: run.sessionResource?.toString(), url: run.externalResource?.toString() },
+			{ status: 'running', trigger: 'external', needsInput: true, description: 'Needs input', session: 'copilot-cloud-agent:/task/task', url: 'https://github.com/owner/private/tasks/task' });
 	});
 
 	test('local follow-ups restart bounded discovery even when the task is not yet in history', async () => {

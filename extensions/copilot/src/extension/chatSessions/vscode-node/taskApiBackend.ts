@@ -361,14 +361,20 @@ export class TaskApiBackend implements CloudAgentBackend {
 		}
 	}
 
-	async fetchTaskEvents(taskId: string): Promise<readonly AgentTaskSessionEvent[]> {
+	async fetchTaskEvents(taskId: string, options?: { readonly requireComplete: boolean }): Promise<readonly AgentTaskSessionEvent[]> {
 		const perPage = 100;
 		const events: AgentTaskSessionEvent[] = [];
 		try {
 			for (let page = 1; ; page++) {
 				const response = await this._taskApiClient.getTaskEvents(taskId, { per_page: perPage, page });
+				if (options?.requireComplete && (!Number.isSafeInteger(response.total) || response.total < 0)) {
+					throw new Error(l10n.t('The cloud task event history is incomplete.'));
+				}
 				const batch = response.events;
 				events.push(...batch);
+				if (options?.requireComplete && batch.length < perPage && events.length < response.total) {
+					throw new Error(l10n.t('The cloud task event history is incomplete.'));
+				}
 				if (batch.length === 0 || batch.length < perPage || (typeof response.total === 'number' && events.length >= response.total)) {
 					break;
 				}
@@ -377,6 +383,9 @@ export class TaskApiBackend implements CloudAgentBackend {
 		} catch (e) {
 			this._logService.warn(`Failed to fetch events for task ${taskId}: ${e}`);
 			this._instrumentation.operationFailed('fetchEvents', e);
+			if (options?.requireComplete) {
+				throw e;
+			}
 			return events;
 		}
 	}
@@ -424,6 +433,13 @@ export class TaskApiBackend implements CloudAgentBackend {
 			this._instrumentation.followUp('failure', e);
 			return false;
 		}
+	}
+
+	async sendPermissionResponse(taskId: string, requestId: string, approved: boolean): Promise<void> {
+		await this._taskApiClient.steerTask(taskId, {
+			type: 'permission_response',
+			content: JSON.stringify({ promptId: requestId, approved, scope: 'once' }),
+		});
 	}
 
 	async createPullRequestForTask(task: AgentTaskGetResponse): Promise<AgentTaskCreatePullRequestResponse> {
