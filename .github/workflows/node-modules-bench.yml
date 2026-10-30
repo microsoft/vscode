@@ -1,0 +1,168 @@
+name: node_modules restore benchmark
+
+# Throwaway benchmark of ways to restore the node_modules cache on the runners of the PR checks.
+# Each job downloads the same node_modules cache as the PR jobs of its platform, without extracting
+# it, and runs .github/workflows/node_modules_bench/bench.ts, which writes a table to the job summary.
+on:
+  push:
+    branches:
+      - agents/optimize-node-modules-performance
+    paths:
+      - .github/workflows/node-modules-bench.yml
+      - .github/workflows/node_modules_bench/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Windows
+    runs-on: vscode-large-runners-windows-8-core
+    timeout-minutes: 180
+    steps:
+      # Same as in pr-win32-test.yml
+      - name: Move the workspace to a Dev Drive
+        shell: pwsh
+        working-directory: ${{ runner.temp }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $workspace = $env:GITHUB_WORKSPACE
+          $mount = Split-Path $workspace -Parent
+          $vhd = Join-Path $env:RUNNER_TEMP 'workspace.vhdx'
+          try {
+            if (Get-ChildItem -Force $workspace) { throw "$workspace is not empty" }
+            @(
+              "create vdisk file=`"$vhd`" maximum=204800 type=expandable"
+              "select vdisk file=`"$vhd`""
+              'attach vdisk'
+              'create partition primary'
+              'assign letter=W'
+            ) | Set-Content diskpart.txt
+            diskpart /s diskpart.txt | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw "diskpart exited with $LASTEXITCODE" }
+            Format-Volume -DriveLetter W -DevDrive -Confirm:$false -Force | Out-Host
+            Remove-Item $workspace
+            if (Get-ChildItem -Force $mount) { throw "$mount holds more than the workspace" }
+            Add-PartitionAccessPath -DriveLetter W -AccessPath "$mount\"
+            # Without a drive letter, the native realpath of the workspace files stays under $mount.
+            Remove-PartitionAccessPath -DriveLetter W -AccessPath 'W:\'
+            New-Item -ItemType Directory -Path $workspace | Out-Null
+            fsutil devdrv query $mount | Out-Host
+          } catch {
+            Write-Output "::warning::The workspace stays on the OS disk: $_"
+            New-Item -ItemType Directory -Path $workspace -Force | Out-Null
+          }
+          exit 0
+
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Compute the node_modules cache key
+        shell: pwsh
+        run: |
+          mkdir .build -ea 0
+          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 x64 $(node -p process.arch) > .build/packagelockhash
+
+      - name: Download the node_modules cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: .build/node_modules_cache
+          key: "node_modules-windows-${{ hashFiles('.build/packagelockhash') }}"
+          fail-on-cache-miss: true
+
+      - name: Benchmark
+        shell: pwsh
+        run: node .github/workflows/node_modules_bench/bench.ts
+
+      - name: Upload the results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: node-modules-bench-windows
+          path: .build/nmb/results.*
+          if-no-files-found: ignore
+
+  linux:
+    name: Linux
+    runs-on: vscode-large-runners-ubuntu-8-core
+    timeout-minutes: 120
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install the file system image tools
+        continue-on-error: true
+        run: |
+          set -e
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y squashfs-tools erofs-utils
+
+      - name: Compute the node_modules cache key
+        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux x64 $(node -p process.arch) > .build/packagelockhash
+
+      - name: Download the node_modules cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: .build/node_modules_cache
+          key: "node_modules-linux-${{ hashFiles('.build/packagelockhash') }}"
+          fail-on-cache-miss: true
+
+      - name: Benchmark
+        run: node .github/workflows/node_modules_bench/bench.ts
+
+      - name: Upload the results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: node-modules-bench-linux
+          path: .build/nmb/results.*
+          if-no-files-found: ignore
+
+  macos:
+    name: macOS
+    runs-on: vscode-large-runners-macos-5-core-0
+    timeout-minutes: 180
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Compute the node_modules cache key
+        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin arm64 $(node -p process.arch) > .build/packagelockhash
+
+      - name: Download the node_modules cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: .build/node_modules_cache
+          key: "node_modules-macos-${{ hashFiles('.build/packagelockhash') }}"
+          fail-on-cache-miss: true
+
+      - name: Benchmark
+        run: node .github/workflows/node_modules_bench/bench.ts
+
+      - name: Upload the results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: node-modules-bench-macos
+          path: .build/nmb/results.*
+          if-no-files-found: ignore
