@@ -209,6 +209,8 @@ class StubProvider extends mock<CloudSandboxSessionsProvider>() {
 
 class TestCloudSandboxContribution extends CloudSandboxAgentHostContribution {
 	readonly stubProviders = new Map<string, StubProvider>();
+	/** Jitter applied to automatic polls; deterministic so timing assertions hold. */
+	pollJitter = 0;
 
 	/**
 	 * Drives the async activation the chat service performs on open. Called directly rather than
@@ -233,6 +235,10 @@ class TestCloudSandboxContribution extends CloudSandboxAgentHostContribution {
 
 	ensureProvider(env: ICloudSandboxSessionEnvironment): void {
 		this._ensureProvider(env);
+	}
+
+	protected override _pollJitter(): number {
+		return this.pollJitter;
 	}
 
 	protected override _instantiateProvider(config: IRemoteAgentHostSessionsProviderConfig): CloudSandboxSessionsProvider {
@@ -2636,7 +2642,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		const fresh = harness.discoveryModes.length;
 
 		harness.setFocused(false);
-		await timeout(60_000);
+		await timeout(5 * 60_000);
 		harness.selectSandboxHost();
 		await harness.contribution.checkForUpdates();
 		const blurred = harness.discoveryModes.length;
@@ -2645,7 +2651,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		await harness.contribution.checkForUpdates();
 		harness.selectSandboxHost();
 		await harness.contribution.checkForUpdates();
-		await timeout(60_000);
+		await timeout(5 * 60_000);
 		harness.selectSandboxHost();
 		await harness.contribution.checkForUpdates();
 
@@ -2662,16 +2668,16 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 				: { kind: 'complete', sessions },
 		});
 		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
-		await timeout(60_000);
+		await timeout(5 * 60_000);
 		await harness.contribution.checkForUpdates();
 		const retainedAfterIncremental = !provider.disposed;
 		sessions = [];
-		await timeout(14 * 60_000);
+		await timeout(10 * 60_000);
 		await harness.contribution.checkForUpdates();
 
 		assert.deepStrictEqual({
 			modes: harness.discoveryModes, retainedAfterIncremental, removedAfterFull: provider.disposed,
-		}, { modes: [false, ...Array.from({ length: 14 }, () => true), false], retainedAfterIncremental: true, removedAfterFull: true });
+		}, { modes: [false, true, true, false], retainedAfterIncremental: true, removedAfterFull: true });
 	}));
 
 	test('subscribes before the initial task read, without connecting a sandbox', async () => {
@@ -2696,7 +2702,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 				},
 			});
 			harness.discovered = [discoveredSession()];
-			await timeout(60_001);
+			await timeout(5 * 60_000 + 1);
 			await harness.contribution.checkForUpdates();
 			const afterPoll = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))?.seeded.map(session => session.summary);
 			await timeout(10 * 60_000);
@@ -2712,13 +2718,13 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		}));
 	}
 
-	test('polling-only discovery never negotiates a feed and retains the normal refresh interval', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('polling-only discovery never negotiates a feed and polls on the normal interval', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		let negotiations = 0;
 		const harness = await createContribution(store, [discoveredSession()], {
 			sessionFeedEnabled: false,
 			connectSessionFeed: async () => { negotiations++; return undefined; },
 		});
-		await timeout(60_001);
+		await timeout(5 * 60_000 + 1);
 		await harness.contribution.checkForUpdates();
 		assert.deepStrictEqual({ negotiations, modes: harness.discoveryModes }, { negotiations: 0, modes: [false, true] });
 	}));
@@ -2772,12 +2778,12 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
 		await harness.setSessionFeedEnabled(false);
 		await harness.runDiscovery();
-		await timeout(60_001);
+		await timeout(5 * 60_000 + 1);
 		await harness.contribution.checkForUpdates();
 		const polling = { starts, disposals, modes: [...harness.discoveryModes] };
 		await harness.setSessionFeedEnabled(true);
 		await harness.runDiscovery();
-		await timeout(60_001);
+		await timeout(5 * 60_000 + 1);
 		await harness.contribution.checkForUpdates();
 		assert.deepStrictEqual({
 			polling,
@@ -2787,7 +2793,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 			disconnected: harness.disconnectedFrom,
 		}, {
 			polling: { starts: 1, disposals: 1, modes: [false, false, true] },
-			starts: 2, disposals: 1, modes: [false, false, true, false],
+			starts: 2, disposals: 1, modes: [false, false, true, false, true],
 			sameProvider: true, providerDisposed: false, disconnected: [],
 		});
 	}));
@@ -2824,7 +2830,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		assert.deepStrictEqual({ negotiations, modes: harness.discoveryModes }, { negotiations: 0, modes: [] });
 	});
 
-	test('uses a slow safety poll with a healthy feed and resumes faster polling on disconnect', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('polls on the same jittered interval with or without a connected feed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		let connected = true;
 		let disposed = false;
 		const harness = await createContribution(store, [discoveredSession()], {
@@ -2834,17 +2840,20 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 				dispose: () => { disposed = true; },
 			},
 		});
+		harness.contribution.pollJitter = 30_000;
 		await timeout(5 * 60_000 - 1);
-		const beforeSafetyPoll = harness.discoveryModes.length;
+		const beforePoll = harness.discoveryModes.length;
 		await timeout(2);
-		const afterSafetyPoll = harness.discoveryModes.length;
+		const afterPoll = harness.discoveryModes.length;
 		connected = false;
-		await timeout(60_000);
-		const afterDisconnect = harness.discoveryModes.length;
+		await timeout(5 * 60_000 + 30_000 - 2);
+		const beforeJitteredPoll = harness.discoveryModes.length;
+		await timeout(2);
+		const afterJitteredPoll = harness.discoveryModes.length;
 		await harness.setEnabled(false);
-		await timeout(5 * 60_000);
-		assert.deepStrictEqual({ beforeSafetyPoll, afterSafetyPoll, afterDisconnect, afterDisable: harness.discoveryModes.length, disposed }, {
-			beforeSafetyPoll: 1, afterSafetyPoll: 2, afterDisconnect: 3, afterDisable: 3, disposed: true,
+		await timeout(10 * 60_000);
+		assert.deepStrictEqual({ beforePoll, afterPoll, beforeJitteredPoll, afterJitteredPoll, afterDisable: harness.discoveryModes.length, disposed }, {
+			beforePoll: 1, afterPoll: 2, beforeJitteredPoll: 2, afterJitteredPoll: 3, afterDisable: 3, disposed: true,
 		});
 	}));
 
@@ -2872,17 +2881,17 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 				? { kind: 'failed', reason: 'temporarily unavailable' }
 				: { kind: 'complete', sessions: [] },
 		});
-		await timeout(60_000);
+		await timeout(5 * 60_000);
 		await harness.contribution.checkForUpdates();
-		await timeout(60_000);
+		await timeout(5 * 60_000);
 		await harness.contribution.checkForUpdates();
 		const duringBackoff = harness.discoveryModes.length;
-		await timeout(60_000);
+		await timeout(5 * 60_000);
 		await harness.contribution.checkForUpdates();
 		await harness.runDiscovery();
 
 		assert.deepStrictEqual({ duringBackoff, modes: harness.discoveryModes }, {
-			duringBackoff: 2, modes: [false, true, true, false],
+			duringBackoff: 2, modes: [false, true, false, false],
 		});
 	}));
 
@@ -2891,7 +2900,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		const harness = await createContribution(store, [], {
 			listSessions: async (_token, options) => options?.incremental ? pending.p : { kind: 'complete', sessions: [] },
 		});
-		await timeout(60_000);
+		await timeout(5 * 60_000);
 		const automatic = harness.contribution.checkForUpdates();
 		const manual = harness.runDiscovery();
 		const anotherManual = harness.runDiscovery();

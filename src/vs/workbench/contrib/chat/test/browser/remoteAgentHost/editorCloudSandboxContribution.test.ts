@@ -134,6 +134,9 @@ class TestEditorCloudSandboxContribution extends EditorCloudSandboxSessionContri
 	activate(): Promise<boolean> {
 		return this._waitForActivation(sessionType);
 	}
+	protected override _pollJitter(): number {
+		return 0;
+	}
 	protected override _pickRepository(): Promise<string | undefined> {
 		return this.pickRepository();
 	}
@@ -2753,7 +2756,7 @@ suite('Editor cloud sandbox discovery', () => {
 		const h = createHarness(store);
 		await h.refresh();
 		h.state.result = { kind: 'incremental', sessions: [], removedTaskIds: [] };
-		await timeout(61_000);
+		await timeout(5 * 60_000 + 1_000);
 		h.focusChanged.fire(true);
 		await timeout(0);
 		assert.deepStrictEqual({ modes: h.discoveryModes, items: h.items().map(item => item.resource.toString()) }, {

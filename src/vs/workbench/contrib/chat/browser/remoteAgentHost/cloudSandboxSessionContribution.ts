@@ -65,10 +65,10 @@ import { CloudSandboxSessionFeed, type CloudSandboxSessionFeedRefresh } from './
 import { CloudSandboxStartupError } from './cloudSandboxStartupError.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
-const DISCOVERY_STALE_AFTER_MS = 60_000;
-const DISCOVERY_SAFETY_POLL_MS = 5 * 60_000;
+const DISCOVERY_POLL_INTERVAL_MS = 5 * 60_000;
+const DISCOVERY_POLL_JITTER_MS = 60_000;
 const FULL_DISCOVERY_INTERVAL_MS = 15 * 60_000;
-const MAX_DISCOVERY_RETRY_INTERVAL_MS = 5 * 60_000;
+const MAX_DISCOVERY_RETRY_INTERVAL_MS = 15 * 60_000;
 const INVENTORY_STORAGE_PREFIX = 'sessions.cloudSandbox.inventory.';
 
 interface ICloudSandboxDiscoveryRequest extends ICloudSandboxDiscoveryOptions {
@@ -198,14 +198,14 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	private _discoveryIncremental = false;
 	private _lastDiscoveryAttempt: number | undefined;
 	private _lastFullDiscovery: number | undefined;
-	private _discoveryRetryInterval = DISCOVERY_STALE_AFTER_MS;
+	private _discoveryRetryInterval = DISCOVERY_POLL_INTERVAL_MS;
 	private _accountKey: string | undefined;
 	private readonly _deletedTaskIds = new Set<string>();
 	private readonly _sessionFeed = this._register(new MutableDisposable<CloudSandboxSessionFeed>());
 	private readonly _discoveryPoll = this._register(new RunOnceScheduler(() => {
 		void this._refreshIfStale();
-		this._discoveryPoll.schedule();
-	}, DISCOVERY_STALE_AFTER_MS));
+		this._discoveryPoll.schedule(this._nextPollDelay());
+	}, DISCOVERY_POLL_INTERVAL_MS));
 
 	constructor(
 		@ICloudSandboxAgentHostService private readonly _cloudSandboxService: ICloudSandboxAgentHostService,
@@ -309,11 +309,20 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			await (this._discoveryQueued ?? this._discoveryInFlight);
 			return;
 		}
-		const interval = this._sessionFeed.value?.connected ? Math.max(DISCOVERY_SAFETY_POLL_MS, this._discoveryRetryInterval) : this._discoveryRetryInterval;
-		if (!this._hostService.hasFocus || (this._lastDiscoveryAttempt !== undefined && Date.now() - this._lastDiscoveryAttempt < interval)) {
+		if (!this._hostService.hasFocus || (this._lastDiscoveryAttempt !== undefined && Date.now() - this._lastDiscoveryAttempt < this._discoveryRetryInterval)) {
 			return;
 		}
 		await this._discoverAndSeed({ incremental: true, trigger });
+	}
+
+	/** Time until the current interval elapses since the latest inventory pass, spread so windows do not poll in lockstep. */
+	private _nextPollDelay(): number {
+		const due = this._lastDiscoveryAttempt === undefined ? 0 : this._lastDiscoveryAttempt + this._discoveryRetryInterval - Date.now();
+		return (due > 0 ? due : this._discoveryRetryInterval) + this._pollJitter();
+	}
+
+	protected _pollJitter(): number {
+		return Math.floor(Math.random() * DISCOVERY_POLL_JITTER_MS);
 	}
 
 	/** Inventory scans are serialized; feed task reads use an independent coalescing lane. */
@@ -427,7 +436,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 				return;
 			}
 			if (!this._discoveryPoll.isScheduled()) {
-				this._discoveryPoll.schedule();
+				this._discoveryPoll.schedule(this._nextPollDelay());
 			}
 			result = await this._apiService.listSessions(token, { incremental, trigger, ...(taskIds ? { taskIds } : {}) });
 			const retryTaskIds = taskIds && (result.kind === 'failed' ? taskIds : result.kind === 'partial' ? result.failedTaskIds : undefined);
@@ -456,7 +465,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}
 		this._discoveryRetryInterval = result.kind === 'failed' || result.kind === 'partial'
 			? Math.min(this._discoveryRetryInterval * 2, MAX_DISCOVERY_RETRY_INTERVAL_MS)
-			: DISCOVERY_STALE_AFTER_MS;
+			: DISCOVERY_POLL_INTERVAL_MS;
 		if (result.kind === 'failed') {
 			this._logService.warn(`${LOG_PREFIX} Discovery failed: ${result.reason}`);
 			return;
@@ -804,7 +813,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		this._enabledCts = new CancellationTokenSource();
 		this._lastDiscoveryAttempt = undefined;
 		this._lastFullDiscovery = undefined;
-		this._discoveryRetryInterval = DISCOVERY_STALE_AFTER_MS;
+		this._discoveryRetryInterval = DISCOVERY_POLL_INTERVAL_MS;
 		this._accountKey = undefined;
 		this._deletedTaskIds.clear();
 		this._persistedInventory.clear();
