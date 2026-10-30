@@ -63,6 +63,12 @@
 	padding-right: 6px;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item .monaco-icon-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 /* breadcrumbs-picker-style */
 
 .monaco-workbench .monaco-breadcrumbs-picker .arrow {
