@@ -340,7 +340,7 @@ export class AutoIndentOnPasteCommand implements ICommand {
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		for (const edit of this._edits) {
-			builder.addEditOperation(Range.lift(edit.range), edit.text);
+			builder.addTrackedEditOperation(Range.lift(edit.range), edit.text);
 		}
 
 		let selectionIsSet = false;
