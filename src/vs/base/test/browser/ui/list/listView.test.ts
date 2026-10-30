@@ -492,6 +492,81 @@ suite('ListView', function () {
 		});
 	}
 
+	test('renders bottom-anchored content that replaces every row only at its final position', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const rendered: number[] = [];
+		const disposed: number[] = [];
+		const delegate: IListVirtualDelegate<number> = {
+			getHeight: () => 20,
+			getTemplateId: () => 'template',
+			hasDynamicHeight: () => true,
+			getDynamicHeight: () => 20,
+		};
+		const renderer: IListRenderer<number, HTMLElement> = {
+			templateId: 'template',
+			renderTemplate: container => container,
+			renderElement(element, _index, container) {
+				rendered.push(element);
+				container.textContent = String(element);
+			},
+			disposeElement(element) {
+				disposed.push(element);
+			},
+			disposeTemplate() { },
+		};
+		const list = store.add(new ListView(container, delegate, [renderer], { supportDynamicHeights: true }));
+		const takeSnapshot = () => ({
+			rendered: rendered.splice(0).sort((a, b) => a - b),
+			disposed: disposed.splice(0).sort((a, b) => a - b),
+			rows: range(list.length).filter(index => list.domElement(index)).map(index => list.element(index)),
+			scrollTop: list.scrollTop,
+		});
+		try {
+			list.layout(100, 200);
+			list.withScrollAnchorAtBottom(() => list.splice(0, 0, range(50)));
+			const opened = takeSnapshot();
+			list.withScrollAnchorAtBottom(() => list.splice(50, 0, [50, 51]));
+			const appended = takeSnapshot();
+			list.withScrollAnchorAtBottom(() => list.splice(0, 52, range(100, 160)));
+			const replaced = takeSnapshot();
+			assert.deepStrictEqual({ opened, appended, replaced }, {
+				opened: { rendered: [45, 46, 47, 48, 49], disposed: [], rows: [45, 46, 47, 48, 49], scrollTop: 900 },
+				// Rows that stay in view keep their rendering.
+				appended: { rendered: [50, 51], disposed: [45, 46], rows: [47, 48, 49, 50, 51], scrollTop: 940 },
+				replaced: { rendered: [155, 156, 157, 158, 159], disposed: [47, 48, 49, 50, 51], rows: [155, 156, 157, 158, 159], scrollTop: 1100 },
+			});
+		} finally {
+			container.remove();
+		}
+	});
+
+	test('keeps a list without dynamic heights rendered at its scroll position while anchored', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const renderer: IListRenderer<number, HTMLElement> = {
+			templateId: 'template',
+			renderTemplate: container => container,
+			renderElement(element, _index, container) { container.textContent = String(element); },
+			disposeTemplate() { },
+		};
+		const list = store.add(new ListView<number>(container, { getHeight: () => 20, getTemplateId: () => 'template' }, [renderer]));
+		try {
+			list.layout(100, 200);
+			list.splice(0, 0, range(50));
+			list.scrollTop = list.scrollHeight;
+			// Growing the padding emits a synchronous scroll event; only lists with dynamic heights re-anchor afterwards.
+			list.withScrollAnchorAtBottom(() => list.updateOptions({ paddingBottom: 20 }));
+			assert.deepStrictEqual({
+				scrollTop: list.scrollTop,
+				rowsTop: container.querySelector<HTMLElement>('.monaco-list-rows')?.style.top,
+				firstVisibleIndex: list.firstVisibleIndex,
+			}, { scrollTop: 900, rowsTop: '-900px', firstVisibleIndex: 45 });
+		} finally {
+			container.remove();
+		}
+	});
+
 	test('reuses a bounded row pool while measuring appended rows', function () {
 		const container = document.createElement('div');
 		document.body.appendChild(container);

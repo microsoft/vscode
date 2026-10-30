@@ -613,7 +613,7 @@ export class ListView<T> implements IListView<T> {
 		}
 
 		const renderTop = this.scrollAnchorAtBottom
-			? Math.max(0, this.contentHeight + this.paddingBottom + (this.horizontalScrolling ? 10 : 0) - this.lastRenderHeight)
+			? this.getBottomScrollTop(this.lastRenderHeight)
 			: Math.max(0, this.lastRenderTop + heightDiff);
 		this.render(lastRenderRange, renderTop, this.lastRenderHeight, undefined, undefined, true);
 		this.setScrollTop(this.lastRenderTop);
@@ -700,9 +700,10 @@ export class ListView<T> implements IListView<T> {
 		}));
 
 		let deleted: IItem<T>[];
+		const replacesAll = start === 0 && deleteCount >= this.items.length;
 
 		// TODO@joao: improve this optimization to catch even more cases
-		if (start === 0 && deleteCount >= this.items.length) {
+		if (replacesAll) {
 			this.rangeMap = this.createRangeMap(this.rangeMap.paddingTop);
 			this.rangeMap.splice(0, 0, inserted);
 			deleted = this.items;
@@ -713,9 +714,18 @@ export class ListView<T> implements IListView<T> {
 		}
 
 		const delta = elements.length - deleteCount;
-		const renderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+		// Content that replaces every row while anchored at the bottom has no rows to keep in place: render it at its
+		// bottom position directly, instead of rendering rows at the stale position only to discard them when re-anchoring.
+		const renderTop = this.supportDynamicHeights && this.scrollAnchorAtBottom && replacesAll ? this.getBottomScrollTop(this.lastRenderHeight) : this.lastRenderTop;
+		const renderTopChanged = renderTop !== this.lastRenderTop;
+		const renderRange = this.getRenderRange(renderTop, this.lastRenderHeight);
 		const renderedRestRange = shift(previousRenderedRestRange, delta);
 		const updateRange = Range.intersect(renderRange, renderedRestRange);
+
+		if (renderTopChanged) {
+			this.rowsContainer.style.top = `-${renderTop}px`;
+			this.lastRenderTop = renderTop;
+		}
 
 		for (let i = updateRange.start; i < updateRange.end; i++) {
 			if (this.items[i].row) {
@@ -764,7 +774,7 @@ export class ListView<T> implements IListView<T> {
 		this.eventuallyUpdateScrollDimensions();
 
 		if (this.supportDynamicHeights) {
-			this._rerender(this.scrollTop, this.renderHeight);
+			this._rerender(renderTopChanged ? renderTop : this.scrollTop, this.renderHeight);
 		}
 
 		return deleted.map(i => i.element);
@@ -846,6 +856,11 @@ export class ListView<T> implements IListView<T> {
 		} finally {
 			this.scrollAnchorAtBottom = previous;
 		}
+	}
+
+	/** The scroll position that aligns the bottom of the content, including bottom padding, with the bottom of the viewport. */
+	private getBottomScrollTop(renderHeight: number): number {
+		return Math.max(0, this.contentHeight + this.paddingBottom + (this.horizontalScrolling ? 10 : 0) - renderHeight);
 	}
 
 	get length(): number {
@@ -1243,11 +1258,14 @@ export class ListView<T> implements IListView<T> {
 
 	private onScroll(e: ScrollEvent): void {
 		try {
+			// An anchored list with dynamic heights re-anchors to its bottom right after rendering (see `_rerender`), and applying a
+			// deferred scroll height reports the stale scroll position: render the bottom directly instead of rows it would discard.
+			const renderTop = this.supportDynamicHeights && this.scrollAnchorAtBottom ? this.getBottomScrollTop(e.height) : e.scrollTop;
 			const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
-			this.render(previousRenderRange, e.scrollTop, e.height, e.scrollLeft, e.scrollWidth, undefined, true);
+			this.render(previousRenderRange, renderTop, e.height, e.scrollLeft, e.scrollWidth, undefined, true);
 
 			if (this.supportDynamicHeights) {
-				this._rerender(e.scrollTop, e.height, e.inSmoothScrolling);
+				this._rerender(renderTop, e.height, e.inSmoothScrolling);
 			}
 		} catch (err) {
 			console.error('Got bad scroll event:', e);
@@ -1698,7 +1716,7 @@ export class ListView<T> implements IListView<T> {
 				}
 
 				if (anchorAtBottom) {
-					const bottom = Math.max(0, this.contentHeight + this.paddingBottom + (this.horizontalScrolling ? 10 : 0) - renderHeight);
+					const bottom = this.getBottomScrollTop(renderHeight);
 					didChange ||= bottom !== renderTop;
 					renderTop = bottom;
 				}
