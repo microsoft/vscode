@@ -12,7 +12,7 @@ import { basename, dirname, isEqualOrParent, joinPath, relativePath } from '../.
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { type AgentHostUriMapper, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { type AgentHostUriMapper, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostContentUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { affectsAgentHostProviderPreference, getPolicyUnavailableLocalAgentHostProviders, isLocalAgentHostProviderDisabledByPolicy, IAgentConnection, IAgentHostService, shouldSurfaceLocalAgentHostProvider } from '../../../../../platform/agentHost/common/agentService.js';
@@ -392,7 +392,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 	protected override _diffUriMapper(): AgentHostUriMapper {
 		return (uri, options) => options?.contentRef
 			? toAgentHostContentUri(uri, LOCAL_AGENT_HOST_AUTHORITY, options.fileUri)
-			: toAgentHostUri(uri, LOCAL_AGENT_HOST_AUTHORITY);
+			: this.mapWorkingDirectoryUri(uri);
 	}
 
 	// -- Workspaces ----------------------------------------------------------

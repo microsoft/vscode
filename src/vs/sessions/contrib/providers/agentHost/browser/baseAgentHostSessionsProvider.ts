@@ -429,6 +429,7 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 			}
 		}
 		if (raw.github && raw.workingDirectory) {
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- migrates a cached legacy wrapped working-directory key without a live connection
 			_meta = withMigratedSessionGitHubState(_meta, fromAgentHostUri(URI.parse(raw.workingDirectory)).toString(), raw.github);
 		}
 		if (raw.createdBySession) {
@@ -645,6 +646,7 @@ function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullReq
 
 /** The host keys folder state by backend working directory; client folders carry mapped URIs. */
 function toFolderGitHubKey(meta: SessionMeta | undefined, workingDirectory: URI): string {
+	// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): folder GitHub keys need the owning mapper for editor-remote working directories
 	const backendWorkingDirectory = fromAgentHostUri(workingDirectory).toString();
 	return readWorkingDirectoryKey(meta, backendWorkingDirectory);
 }
@@ -670,6 +672,7 @@ function readCompatibleFolderGitHubState(meta: SessionMeta | undefined, workingD
 	if (state) {
 		return state;
 	}
+	// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): compatible GitHub-state lookup needs the owning mapper for editor-remote folder keys
 	const backendWorkingDirectory = fromAgentHostUri(workingDirectory).toString();
 	// A key the host published is authoritative: a folder differing only in case is another folder.
 	if (readWorkingDirectoryKeys(meta).has(backendWorkingDirectory)) {
@@ -3097,6 +3100,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// The session workspace changes whenever its working directories do.
 		this.workspace.read(reader);
 		const defaultChatWorkingDirectory = this._defaultChatWorkingDirectories.read(reader)?.[0];
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): fallback session folder keys still unwrap without the owning connection mapper
 		return defaultChatWorkingDirectory ?? (this._workingDirectories?.[0] ? fromAgentHostUri(this._workingDirectories[0]).toString() : undefined);
 	}
 
@@ -3110,6 +3114,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const meta = reader ? this._metaObs.read(reader) : this._metaObs.get();
 		const sessionWorkingDirectory = reader
 			? this._getSessionFolderWorkingDirectory(reader)
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): non-observable Agent Merge folder fallback still bypasses the owning mapper
 			: this._defaultChatWorkingDirectories.get()?.[0] ?? (this._workingDirectories?.[0] ? fromAgentHostUri(this._workingDirectories[0]).toString() : undefined);
 		const sessionFolderKey = sessionWorkingDirectory ? readWorkingDirectoryKey(meta, sessionWorkingDirectory) : undefined;
 		if (!chat || isEqual(chat, this._defaultChat.resource)) {
@@ -3121,6 +3126,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		if (!folder) {
 			return undefined;
 		}
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): peer-chat Agent Merge working directories need the owning connection mapper
 		const workingDirectory = fromAgentHostUri(folder.workingDirectory).toString();
 		return { folderKey: readWorkingDirectoryKey(meta, workingDirectory), sessionFolderKey, workingDirectory };
 	}
@@ -4072,7 +4078,7 @@ class NewSession extends Disposable {
 				}
 				this._backendUri = backendUri;
 				this._connection = connection;
-				const activeClient = this._activeClientScope.activeClient(connection.clientId).get();
+				const activeClient = this._activeClientScope.activeClient(connection.clientId, connection.resourceUris).get();
 				createdWithActiveClient = activeClient;
 				const createdSession = await connection.createSession({
 					provider: this.agentProvider,
@@ -4087,7 +4093,7 @@ class NewSession extends Disposable {
 					// materialization). The host echoes this token on each
 					// `progress` frame so `_handleProgress` can correlate it.
 					progressToken: generateUuid(),
-					...(this._selectedAgent ? { agent: { uri: this._selectedAgent.uri } } : {}),
+					...(this._selectedAgent ? { agent: { uri: connection.resourceUris.toAgentHost(URI.parse(this._selectedAgent.uri)).toString() } } : {}),
 					activeClient,
 				});
 				if (!isEqual(createdSession, backendUri)) {
@@ -4172,7 +4178,7 @@ class NewSession extends Disposable {
 				if (!this._activeClientScope.isResolved.read(reader)) {
 					return;
 				}
-				const activeClient = this._activeClientScope.activeClient(connection.clientId).read(reader);
+				const activeClient = this._activeClientScope.activeClient(connection.clientId, connection.resourceUris).read(reader);
 				const state = ref.object.value;
 				const existing = state instanceof Error ? undefined : state?.activeClients.find(client => client.clientId === activeClient.clientId);
 				if (equals(existing, activeClient) || equals(lastPublished, activeClient)) {
@@ -5253,8 +5259,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** Optional event fired when the underlying connection is lost; used to short-circuit `_waitForNewSession`. */
 	protected get onConnectionLost(): Event<void> { return Event.None; }
 
-	/** Maps a working-directory URI from the session summary to a local URI. Default identity; remote overrides to `toAgentHostUri`. */
-	protected mapWorkingDirectoryUri(uri: URI): URI { return uri; }
+	/** Maps a host working-directory URI into the owning connection's client space. */
+	protected mapWorkingDirectoryUri(uri: URI): URI { return this.connection?.resourceUris.fromAgentHost(uri) ?? uri; }
 
 	/** Maps a project URI from the session summary to a local URI. Default identity; remote overrides for `file:` paths. */
 	protected mapProjectUri(uri: URI): URI { return uri; }
@@ -5322,7 +5328,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		let activeClient: SessionActiveClient;
 		try {
 			activeClient = composeSessionActiveClient(
-				scope.activeClient(connection.clientId).get(),
+				scope.activeClient(connection.clientId, connection.resourceUris).get(),
 				sessionTools.object.get(),
 				this._mcpAppToolsService.getToolDefinitions(cached.resource).get(),
 			);
@@ -6975,6 +6981,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return value instanceof Error ? undefined : value;
 	}
 
+	getClientId(): string | undefined {
+		return this.connection?.clientId;
+	}
+
 	mapAgentHostResource(uri: URI): URI {
 		return this.mapWorkingDirectoryUri(uri);
 	}
@@ -7273,18 +7283,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				disabledReason: getCustomizationDisabledReason(server, plugin),
 				status: server.state.kind,
 				state: server.state,
-				setEnabled: (enabled: boolean) => {
-					this._assertSessionAvailable(sessionId);
-					const connection = this.connection;
-					if (!connection) {
-						return;
-					}
-					connection.dispatch(sessionUri.toString(), {
-						type: ActionType.SessionCustomizationToggled,
-						id: server.id,
-						enablement: withCustomizationEnablement(server.enablement, CustomizationEnablementKind.Session, { kind: CustomizationEnablementKind.Session, enabled }),
-					});
-				},
+				setEnabled: (enabled: boolean) => this.setCustomizationEnablement(sessionId, server.id,
+					withCustomizationEnablement(server.enablement, CustomizationEnablementKind.Session, { kind: CustomizationEnablementKind.Session, enabled })),
 				start: async () => {
 					this._assertSessionAvailable(sessionId);
 					const connection = this.connection;
@@ -7333,7 +7333,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		connection.dispatch(sessionUri.toString(), {
 			type: ActionType.SessionCustomizationToggled,
 			id: customizationId,
-			enablement: [...enablement],
+			enablement: enablement.map(entry => entry.kind === CustomizationEnablementKind.Workspace
+				? { ...entry, uri: connection.resourceUris.toAgentHost(URI.parse(entry.uri)).toString() }
+				: entry),
 		});
 	}
 
@@ -7548,6 +7550,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		for (const worktree of worktrees) {
 			try {
+				// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): worktree existence sends a client resource without connection.resourceUris.toAgentHost
 				await raceCancellationError(connection.resourceResolve({ channel: 'ahp-root://', uri: fromAgentHostUri(worktree).toString(), followSymlinks: false }), token);
 				return true;
 			} catch (error) {
@@ -7584,7 +7587,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			...this.recentWorkspacesService.getRecentWorkspaces().filter(recent => recent.providerId === this.id).map(recent => recent.workspace),
 		];
 		const repositories = new ResourceSet([
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): known repository roots need this.connection.resourceUris before host-side worktree listing
 			...knownRepositories.map(repository => fromAgentHostUri(repository)),
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): workspace repository roots need this.connection.resourceUris before host-side worktree listing
 			...workspaces.flatMap(workspace => workspace.folders.flatMap(folder => folder.gitRepository ? [fromAgentHostUri(folder.gitRepository.uri)] : [])),
 		].filter(repository => repository.scheme === Schemas.file));
 		const worktrees = await this.connection?.listManagedWorktrees?.([...repositories]) ?? [];
@@ -7600,6 +7605,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!connection?.cleanupManagedWorktree) {
 			throw new Error(localize('managedWorktreeCleanupUnavailable', "Connect to this worktree's host to clean it up."));
 		}
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): managed-worktree cleanup bypasses the available connection.resourceUris mapper
 		await connection.cleanupManagedWorktree(fromAgentHostUri(URI.parse(worktree.repository)), fromAgentHostUri(URI.parse(worktree.worktree)), worktree.branch, force);
 	}
 
@@ -7609,6 +7615,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return undefined;
 		}
 		try {
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): managed-worktree existence bypasses the available connection.resourceUris mapper
 			await connection.resourceResolve({ channel: 'ahp-root://', uri: fromAgentHostUri(URI.parse(worktree.worktree)).toString(), followSymlinks: false });
 			return true;
 		} catch (error) {
@@ -7938,6 +7945,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const origin = recorded?.origin?.chat ?? state?.defaultChat;
 			const chat = state && session.chats.read(reader).find(chat => getSessionChatResource(state, chat.resource.fragment || DEFAULT_CHAT_ID, state.defaultChat) === origin);
 			const folder = chat?.workspace.read(reader)?.folders[0];
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): artifact integration workspace context needs the owning connection mapper
 			return folder && origin ? { chat: origin, workingDirectory: fromAgentHostUri(folder.workingDirectory).toString(), resource: folder.root } : undefined;
 		});
 		const reference = await integrations.acquireArtifact(session.backendUri.toString(), artifactId, workspace);
@@ -9115,7 +9123,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				const chatState = chatRef.object.value;
 				const agentUri = chatState && !(chatState instanceof Error) ? chatState.draft?.agent?.uri : undefined;
 				if (agentUri) {
-					cached.hydrateSelectedAgent(agentUri);
+					cached.hydrateSelectedAgent(connection.resourceUris.fromAgentHost(URI.parse(agentUri)).toString());
 				}
 			}
 			if (cached.mode.get() !== undefined) {

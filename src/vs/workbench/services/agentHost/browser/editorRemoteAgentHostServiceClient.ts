@@ -37,9 +37,8 @@ import type { InitializeResult } from '../../../../platform/agentHost/common/sta
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../../../platform/agentHost/common/agentHostClientInfo.js';
-import { agentHostAuthority, agentHostLabelFormatter, fromAgentHostUri, identityAgentHostResourceUriMapper } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, agentHostLabelFormatter, createEditorRemoteAgentHostResourceUriMapper, identityAgentHostResourceUriMapper } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentHostFileSystemService } from '../common/agentHostFileSystemService.js';
-import { EditorRemoteAgentHostTransport } from '../common/editorRemoteAgentHostTransport.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IRequestService } from '../../../../platform/request/common/request.js';
 import { getRemoteName } from '../../../../platform/remote/common/remoteHosts.js';
@@ -116,32 +115,30 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		// Create the protocol client eagerly so consumers can subscribe to
 		// rootState etc. before the AHP handshake completes. The transport's
 		// `connect()` will be awaited by `_connect()` below.
-		const createTransport = () => new EditorRemoteAgentHostTransport(
-			new AgentHostIpcChannelTransport(
-				connection.getChannel(AgentHostIpcChannels.RemoteProxy),
-				undefined,
-				AgentHostClientConnectionKind.RemoteExtensionHost,
-				async () => {
-					this._useHostProxy = (await this._remoteAgentService.getRawEnvironment())?.useHostProxy === true;
-					let resolverResult: ResolverResult;
-					try {
-						resolverResult = await remoteAuthorityResolverService.resolveAuthority(connection.remoteAuthority);
-					} catch {
-						this._logService.warn(`${LOG_PREFIX} Unable to resolve the remote environment; connecting without environment overrides.`);
-						return undefined;
-					}
-					return {
-						env: resolverResult.options?.extensionHostEnv ?? {},
-						debugEnv: environmentService.debugExtensionHost.env,
-					};
-				},
-			),
-			connection.remoteAuthority,
+		const createTransport = () => new AgentHostIpcChannelTransport(
+			connection.getChannel(AgentHostIpcChannels.RemoteProxy),
+			undefined,
+			AgentHostClientConnectionKind.RemoteExtensionHost,
+			async () => {
+				this._useHostProxy = (await this._remoteAgentService.getRawEnvironment())?.useHostProxy === true;
+				let resolverResult: ResolverResult;
+				try {
+					resolverResult = await remoteAuthorityResolverService.resolveAuthority(connection.remoteAuthority);
+				} catch {
+					this._logService.warn(`${LOG_PREFIX} Unable to resolve the remote environment; connecting without environment overrides.`);
+					return undefined;
+				}
+				return {
+					env: resolverResult.options?.extensionHostEnv ?? {},
+					debugEnv: environmentService.debugExtensionHost.env,
+				};
+			},
 		);
 		const address = `vscode-remote://${connection.remoteAuthority}`;
 		const clientInfo = environmentService.isSessionsWindow ? agentsWindowAgentHostClientInfo : editorWindowAgentHostClientInfo;
 		this._protocolClient = this._register(instantiationService.createInstance(AgentHostProtocolClient, address, createTransport, {
 			clientInfo,
+			resourceUris: createEditorRemoteAgentHostResourceUriMapper(connection.remoteAuthority, agentHostAuthority(address)),
 			clientCertificates: {
 				isEnabled: () => this._useHostProxy
 					&& ['wsl', 'dev-container', 'attached-container'].includes(getRemoteName(connection.remoteAuthority))
@@ -334,14 +331,8 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().readDebugLogsChunk(resource, position);
 	}
 
-	/** Unwraps the shared client's resource URIs to retain the translated remote workspace identities. */
-	async listSessions(): Promise<IAgentSessionMetadata[]> {
-		const sessions = await this._requireClient().listSessions();
-		return sessions.map(session => ({
-			...session,
-			workingDirectory: session.workingDirectory ? fromAgentHostUri(session.workingDirectory) : undefined,
-			workingDirectories: session.workingDirectories?.map(fromAgentHostUri),
-		}));
+	listSessions(): Promise<IAgentSessionMetadata[]> {
+		return this._requireClient().listSessions();
 	}
 
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI> {

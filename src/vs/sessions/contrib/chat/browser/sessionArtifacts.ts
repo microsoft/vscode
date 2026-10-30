@@ -168,6 +168,7 @@ const revealInOSLabel = isWindows
  * wraps its files in agent host URIs, which still name files on this device.
  */
 function toLocalFileUri(uri: URI): URI | undefined {
+	// eslint-disable-next-line local/code-agent-host-uri-mapping -- unwraps only legacy local artifact filesystem URIs for OS reveal actions
 	const resource = uri.scheme === AGENT_HOST_SCHEME && uri.authority === LOCAL_AGENT_HOST_AUTHORITY ? fromAgentHostUri(uri) : uri;
 	return resource.scheme === Schemas.file ? resource : undefined;
 }

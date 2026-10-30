@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
@@ -23,6 +24,7 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { createAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentCustomizationItemProvider } from '../../../browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
@@ -49,6 +51,60 @@ const labelService = upcastPartial<ILabelService>({ getUriLabel: resource => res
 suite('AgentCustomizationItemProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const kind of agentHostConnectionKinds) {
+		test(`maps host children of own and foreign plugins while preserving own client containers (${kind.name})`, async () => {
+			const session = URI.parse('agent-host-copilot:/remote');
+			const hostAgent: AgentCustomization = { type: CustomizationType.Agent, id: 'host-agent', uri: 'file:///workspace/agents/host.agent.md', name: 'Host' };
+			const ownAgent: AgentCustomization = { type: CustomizationType.Agent, id: 'own-agent', uri: 'file:///cache/own/agents/own.agent.md', name: 'Own', _meta: { 'vscode.sourceUri': 'vscode-agent-host-file:///workspace/plugins/own/agents/own.agent.md' } };
+			const foreignAgent: AgentCustomization = { type: CustomizationType.Agent, id: 'foreign-agent', uri: 'file:///cache/foreign/agents/foreign.agent.md', name: 'Foreign' };
+			const hostPlugin: PluginCustomization = { type: CustomizationType.Plugin, id: 'host-plugin', uri: 'file:///plugins/host', name: 'Host Plugin', load: { kind: CustomizationLoadStatus.Loaded } };
+			const ownPlugin: PluginCustomization = { type: CustomizationType.Plugin, id: 'own-plugin', uri: 'vscode-agent-host-file:///workspace/plugins/own', name: 'Own Plugin', clientId: 'vscode', children: [ownAgent], load: { kind: CustomizationLoadStatus.Loaded } };
+			const foreignPlugin: PluginCustomization = { type: CustomizationType.Plugin, id: 'foreign-plugin', uri: 'file:///foreign/plugins/foreign', name: 'Foreign Plugin', clientId: 'other-window', children: [foreignAgent], load: { kind: CustomizationLoadStatus.Loaded } };
+			class TestCustomizationService extends NullAgentHostCustomizationService {
+				override getCustomAgents() { return [hostAgent, ownAgent, foreignAgent]; }
+				override getWorkingDirectories() { return ['file:///workspace']; }
+				override getClientWorkingDirectoryUris() { return [kind.toClient(URI.file('/workspace'))]; }
+				override getCustomizations(): readonly Customization[] {
+					return [
+						{ type: CustomizationType.Directory, id: 'host', uri: 'file:///workspace/agents', name: 'Host Agents', contents: CustomizationType.Agent, enabled: true, writable: true, children: [hostAgent] },
+						hostPlugin, ownPlugin, foreignPlugin,
+					];
+				}
+			}
+			const filesystemRequests: string[] = [];
+			const originRequests: string[] = [];
+			const provider = disposables.add(new AgentCustomizationItemProvider({
+				clientId: 'vscode', resourceUris: kind.resourceUris,
+			}, undefined, uri => { originRequests.push(uri.toString()); return undefined; }, upcastPartial<IFileService>({
+				canHandleResource: async uri => { filesystemRequests.push(uri.toString()); return false; },
+			}), new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService));
+			const agents = await provider.provideCustomAgents(session, CancellationToken.None);
+			const items = await provider.provideChatSessionCustomizations(session, CancellationToken.None);
+			const folders = await provider.provideSourceFolders(session, PromptsType.agent, CancellationToken.None);
+			assert.deepStrictEqual({
+				agents: agents.map(agent => ({ id: agent.id, uri: agent.uri.toString(), source: agent.source.label })),
+				plugins: items.filter(item => item.type === 'plugin').map(item => ({ key: item.itemKey, name: item.name, uri: item.uri.toString(), group: item.groupKey, status: item.status, actions: item.actions?.length })),
+				folders: folders.map(folder => ({ uri: folder.uri.toString(), source: folder.source })),
+				filesystemRequests,
+				ownSource: originRequests.includes(kind.toClient(URI.file('/workspace/plugins/own/agents/own.agent.md')).toString()),
+			}, {
+				agents: [
+					{ id: kind.toClient(URI.file('/workspace/agents/host.agent.md')).toString(), uri: kind.toClient(URI.file('/workspace/agents/host.agent.md')).toString(), source: 'Workspace' },
+					{ id: kind.toClient(URI.file('/cache/own/agents/own.agent.md')).toString(), uri: kind.toClient(URI.file('/cache/own/agents/own.agent.md')).toString(), source: 'Plugin: Own Plugin' },
+					{ id: kind.toClient(URI.file('/cache/foreign/agents/foreign.agent.md')).toString(), uri: kind.toClient(URI.file('/cache/foreign/agents/foreign.agent.md')).toString(), source: 'Plugin: Foreign Plugin' },
+				],
+				plugins: [
+					{ key: 'host-plugin', name: 'Host Plugin', uri: kind.toClient(URI.file('/plugins/host')).toString(), group: 'remote-host', status: 'loaded', actions: 3 },
+					{ key: 'own-plugin::vscode', name: 'Own Plugin', uri: kind.toClient(URI.file('/workspace/plugins/own')).toString(), group: 'remote-client', status: 'loaded', actions: 0 },
+					{ key: 'foreign-plugin::other-window', name: 'Foreign Plugin', uri: foreignPlugin.uri, group: 'remote-client', status: 'loaded', actions: 0 },
+				],
+				folders: [{ uri: kind.toClient(URI.file('/workspace/agents')).toString(), source: 'local' }],
+				filesystemRequests: [kind.toClient(URI.file('/plugins/host')).toString(), kind.toClient(URI.file('/workspace/plugins/own')).toString()],
+				ownSource: true,
+			});
+		});
+	}
+
 	test('shows discovery errors even when no hook actions could be loaded', async () => {
 		class TestCustomizationService extends NullAgentHostCustomizationService {
 			override getCustomizations(): readonly Customization[] {
@@ -60,7 +116,7 @@ suite('AgentCustomizationItemProvider', () => {
 			}
 		}
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'remote', undefined, undefined, upcastPartial<IFileService>({}),
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}),
 			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
 		));
 		const items = await provider.provideChatSessionCustomizations(URI.parse('other-host:/opaque/session'), CancellationToken.None);
@@ -85,7 +141,7 @@ suite('AgentCustomizationItemProvider', () => {
 			}
 		}
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'remote', undefined, undefined, fileService,
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, fileService,
 			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
 		));
 		const items = await provider.provideChatSessionCustomizations(URI.parse('other-host:/opaque/session'), CancellationToken.None);
@@ -117,13 +173,13 @@ suite('AgentCustomizationItemProvider', () => {
 			}
 		}
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'remote', undefined, undefined, upcastPartial<IFileService>({}), new NullLogService(),
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}), new NullLogService(),
 			new TestCustomizationService(), makePromptsService(), labelService,
 		));
 		const result = await provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None);
 		assert.deepStrictEqual(result.map(agent => ({ id: agent.id, source: agent.source.label })), [
-			{ id: agents[0].uri, source: 'Plugin: source-0' },
-			{ id: agents[1].uri, source: 'Plugin: source-1' },
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[0].uri)).toString(), source: 'Plugin: source-0' },
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[1].uri)).toString(), source: 'Plugin: source-1' },
 		]);
 	});
 
@@ -135,7 +191,7 @@ suite('AgentCustomizationItemProvider', () => {
 			override getCustomAgents() { return agents; }
 		}
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'remote', undefined, undefined, upcastPartial<IFileService>({}), new NullLogService(),
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}), new NullLogService(),
 			new TestCustomizationService(), makePromptsService(), labelService,
 		));
 		provider.setDraftCustomAgents(observableValue<readonly AgentCustomization[]>('draft', [agents[0]]));
@@ -152,7 +208,7 @@ suite('AgentCustomizationItemProvider', () => {
 		prompts.listPromptFilesForStorage = async () => { throw new Error('Extension discovery failed'); };
 		const log = new TestLogService();
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'local', undefined, undefined, upcastPartial<IFileService>({}), log,
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') }, undefined, undefined, upcastPartial<IFileService>({}), log,
 			new NullAgentHostCustomizationService(), prompts, labelService,
 		));
 		provider.setDraftCustomAgents(observableValue<readonly AgentCustomization[]>('draft', [
@@ -166,7 +222,7 @@ suite('AgentCustomizationItemProvider', () => {
 		const prompts = makePromptsService();
 		prompts.listPromptFilesForStorage = async () => { throw new CancellationError(); };
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'local', undefined, undefined, upcastPartial<IFileService>({}), new NullLogService(),
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') }, undefined, undefined, upcastPartial<IFileService>({}), new NullLogService(),
 			new NullAgentHostCustomizationService(), prompts, labelService,
 		));
 		await assert.rejects(() => provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None), isCancellationError);
@@ -192,11 +248,11 @@ suite('AgentCustomizationItemProvider', () => {
 		class TestCustomizationService extends NullAgentHostCustomizationService {
 			override getCustomAgents() { return agents; }
 			override getCustomizations(): readonly Customization[] {
-				return [{ type: CustomizationType.Plugin, id: 'bundle', uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/bundle`, name: 'VS Code Synced Data', children: agents }];
+				return [{ type: CustomizationType.Plugin, id: 'bundle', uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/bundle`, name: 'VS Code Synced Data', clientId: 'vscode', children: agents }];
 			}
 		}
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'remote', undefined,
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined,
 			uri => {
 				const index = sources.findIndex(source => isEqual(source, uri));
 				return index < 0 ? undefined : { uri: files[index].uri, source: AICustomizationSources.extension, extensionId: files[index].extension.identifier.value.toUpperCase() };
@@ -205,15 +261,15 @@ suite('AgentCustomizationItemProvider', () => {
 		));
 		const result = await provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None);
 		assert.deepStrictEqual(result.map(agent => ({ id: agent.id, name: agent.name, source: agent.source.label })), [
-			{ id: agents[0].uri, name: 'Reviewer', source: 'Extension: First Extension' },
-			{ id: agents[1].uri, name: 'Reviewer', source: 'Extension: second' },
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[0].uri)).toString(), name: 'Reviewer', source: 'Extension: First Extension' },
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[1].uri)).toString(), name: 'Reviewer', source: 'Extension: second' },
 		]);
 	});
 
 	test('labels original draft extension agents without host source metadata', async () => {
 		const file = extensionFile('draft', 'Draft Extension');
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'local', undefined, undefined, upcastPartial<IFileService>({}), new NullLogService(),
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') }, undefined, undefined, upcastPartial<IFileService>({}), new NullLogService(),
 			new NullAgentHostCustomizationService(), makePromptsService([file]), labelService,
 		));
 		provider.setDraftCustomAgents(observableValue<readonly AgentCustomization[]>('draftAgents', [
@@ -232,23 +288,23 @@ suite('AgentCustomizationItemProvider', () => {
 			class TestCustomizationService extends NullAgentHostCustomizationService {
 				override getCustomAgents() { return agents; }
 				override getCustomizations(): readonly Customization[] {
-					return [{ type: CustomizationType.Plugin, id: 'bundle', uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/bundle`, name: 'VS Code Synced Data', children: agents }];
+					return [{ type: CustomizationType.Plugin, id: 'bundle', uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/bundle`, name: 'VS Code Synced Data', clientId: 'vscode', children: agents }];
 				}
 			}
 			const provider = disposables.add(new AgentCustomizationItemProvider(
-				'remote', undefined, () => undefined, upcastPartial<IFileService>({}), new NullLogService(),
+				{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, () => undefined, upcastPartial<IFileService>({}), new NullLogService(),
 				new TestCustomizationService(), makePromptsService([extensionFile('unrelated', 'Unrelated Extension')]), labelService,
 			));
 			const result = await provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None);
 			assert.deepStrictEqual(result.map(agent => ({ id: agent.id, source: agent.source.label })), [
-				{ id: agents[0].uri, source: 'VS Code' },
+				{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[0].uri)).toString(), source: 'VS Code' },
 			]);
 		});
 	}
 
 	test('labels declared draft plugin sources before host children are available', async () => {
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'local', undefined, undefined, upcastPartial<IFileService>({}),
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') }, undefined, undefined, upcastPartial<IFileService>({}),
 			new NullLogService(), new NullAgentHostCustomizationService(), makePromptsService(), labelService,
 		));
 		provider.setDraftCustomAgents(observableValue<readonly AgentCustomization[]>('draftAgents', [
@@ -273,19 +329,19 @@ suite('AgentCustomizationItemProvider', () => {
 			override getCustomizations(): readonly Customization[] {
 				return [
 					{ type: CustomizationType.Plugin, id: 'disabled', uri: 'other-host:/disabled', name: 'Wrong source', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }], children: [agents[0]] },
-					{ type: CustomizationType.Plugin, id: 'bundle', uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/bundle`, name: 'VS Code Synced Data', children: [agents[0]] },
+					{ type: CustomizationType.Plugin, id: 'bundle', uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/bundle`, name: 'VS Code Synced Data', clientId: 'vscode', children: [agents[0]] },
 					{ type: CustomizationType.Plugin, id: 'native', uri: 'other-host:/declared/plugin', name: 'review-tools', children: [agents[1]] },
 				];
 			}
 		}
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'remote', undefined, undefined, upcastPartial<IFileService>({}),
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}),
 			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
 		));
 		const result = await provider.provideCustomAgents(URI.parse('remote-agent-host-test-copilot:/session'), CancellationToken.None);
 		assert.deepStrictEqual(result.map(agent => ({ id: agent.id, name: agent.name, source: agent.source.label })), [
-			{ id: agents[0].uri, name: 'Reviewer', source: 'VS Code' },
-			{ id: agents[1].uri, name: 'Reviewer', source: 'Plugin: review-tools' },
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[0].uri)).toString(), name: 'Reviewer', source: 'VS Code' },
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[1].uri)).toString(), name: 'Reviewer', source: 'Plugin: review-tools' },
 		]);
 	});
 
@@ -300,7 +356,7 @@ suite('AgentCustomizationItemProvider', () => {
 			}
 		}
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'remote', undefined, undefined, upcastPartial<IFileService>({}),
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}),
 			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
 		));
 		const result = await provider.provideCustomAgents(URI.parse('remote-agent-host-test-copilot:/session'), CancellationToken.None);
@@ -322,7 +378,7 @@ suite('AgentCustomizationItemProvider', () => {
 				}
 			}
 			const provider = disposables.add(new AgentCustomizationItemProvider(
-				'remote', undefined, undefined, upcastPartial<IFileService>({}),
+				{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}),
 				new NullLogService(), new TestCustomizationService(), makePromptsService(),
 				upcastPartial<ILabelService>({
 					getUriLabel: resource => pathStyle === 'windows' ? `C:${resource.path.replaceAll('/', '\\')}` : resource.path,
@@ -339,16 +395,17 @@ suite('AgentCustomizationItemProvider', () => {
 
 	test('uses original locations to distinguish same-named bundled extension agents', async () => {
 		const agents: AgentCustomization[] = ['first', 'second'].map(name => ({
-			type: CustomizationType.Agent, id: name, uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/bundle/agents/${name}/reviewer.agent.md`, name: 'Reviewer',
+			type: CustomizationType.Agent, id: name, uri: `file:///cache/bundle/agents/${name}/reviewer.agent.md`, name: 'Reviewer',
+			_meta: { 'vscode.sourceUri': `${SYNCED_CUSTOMIZATION_SCHEME}:/bundle/agents/${name}/reviewer.agent.md` },
 		}));
 		class TestCustomizationService extends NullAgentHostCustomizationService {
 			override getCustomAgents() { return agents; }
 			override getCustomizations(): readonly Customization[] {
-				return [{ type: CustomizationType.Plugin, id: 'bundle', uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/bundle`, name: 'VS Code Synced Data', children: agents }];
+				return [{ type: CustomizationType.Plugin, id: 'bundle', uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/bundle`, name: 'VS Code Synced Data', clientId: 'vscode', children: agents }];
 			}
 		}
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'local', undefined,
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') }, undefined,
 			resource => ({
 				uri: URI.parse(`file:///extensions/${resource.path.includes('/first/') ? 'first' : 'second'}/reviewer.agent.md`),
 				source: AICustomizationSources.extension,
@@ -374,7 +431,7 @@ suite('AgentCustomizationItemProvider', () => {
 			}
 		}
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'remote', undefined, undefined, upcastPartial<IFileService>({}),
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}),
 			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
 		));
 
@@ -407,7 +464,7 @@ suite('AgentCustomizationItemProvider', () => {
 			}
 		}
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'remote', undefined, undefined, upcastPartial<IFileService>({}),
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}),
 			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
 		));
 		const modes = (await provider.provideCustomAgents(URI.parse('remote-agent-host-test-copilot:/session'), CancellationToken.None)).map(agent => new CustomChatMode(agent));
@@ -420,9 +477,9 @@ suite('AgentCustomizationItemProvider', () => {
 			storage: mode.source.storage,
 			isBuiltin: mode.isBuiltin,
 		})), [
-			{ id: agents[0].uri, kind: 'ask', label: 'Ask', icon: ChatMode.Ask.icon.get(), storage: PromptsStorage.builtIn, isBuiltin: false },
-			{ id: agents[1].uri, kind: 'agent', label: 'Ask', icon: undefined, storage: PromptsStorage.local, isBuiltin: false },
-			{ id: agents[2].uri, kind: 'agent', label: 'Ask', icon: undefined, storage: PromptsStorage.local, isBuiltin: false },
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[0].uri)).toString(), kind: 'ask', label: 'Ask', icon: ChatMode.Ask.icon.get(), storage: PromptsStorage.builtIn, isBuiltin: false },
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[1].uri)).toString(), kind: 'agent', label: 'Ask', icon: undefined, storage: PromptsStorage.local, isBuiltin: false },
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[2].uri)).toString(), kind: 'agent', label: 'Ask', icon: undefined, storage: PromptsStorage.local, isBuiltin: false },
 		]);
 	});
 
@@ -452,7 +509,7 @@ suite('AgentCustomizationItemProvider', () => {
 			[URI.joinPath(bundleUri, 'rules', 'review.instructions.md').toString(), workspaceInstructionsUri],
 		]);
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'local',
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') },
 			undefined,
 			syncedUri => {
 				const uri = origins.get(syncedUri.toString());
@@ -509,7 +566,7 @@ suite('AgentCustomizationItemProvider', () => {
 		}
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'local',
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') },
 			undefined,
 			undefined,
 			upcastPartial<IFileService>({}),
@@ -561,7 +618,7 @@ suite('AgentCustomizationItemProvider', () => {
 		}
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'local',
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') },
 			undefined,
 			undefined,
 			upcastPartial<IFileService>({}),
@@ -619,7 +676,7 @@ suite('AgentCustomizationItemProvider', () => {
 		}
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'local',
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') },
 			undefined,
 			undefined,
 			upcastPartial<IFileService>({}),
@@ -654,7 +711,7 @@ suite('AgentCustomizationItemProvider', () => {
 
 		const customizationService = new TestCustomizationService();
 		const provider = disposables.add(new TestAgentCustomizationItemProvider(
-			'local',
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') },
 			undefined,
 			undefined,
 			upcastPartial<IFileService>({}),
@@ -687,7 +744,7 @@ suite('AgentCustomizationItemProvider', () => {
 		}
 
 		const provider = disposables.add(new TestAgentCustomizationItemProvider(
-			'local',
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') },
 			undefined,
 			undefined,
 			upcastPartial<IFileService>({}),
@@ -724,7 +781,7 @@ suite('AgentCustomizationItemProvider', () => {
 
 		const customizationService = new TestCustomizationService();
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'local',
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') },
 			undefined,
 			undefined,
 			upcastPartial<IFileService>({}),
@@ -779,7 +836,7 @@ suite('AgentCustomizationItemProvider', () => {
 		}
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'local',
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') },
 			undefined,
 			undefined,
 			upcastPartial<IFileService>({}),
@@ -822,7 +879,7 @@ suite('AgentCustomizationItemProvider', () => {
 			} as IPromptPath],
 		});
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'local',
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') },
 			undefined,
 			syncedUri => syncedUri.toString() === bundledSkillUri.toString()
 				? { uri: builtinSkillUri, source: AICustomizationSources.builtin }
@@ -881,7 +938,7 @@ suite('AgentCustomizationItemProvider', () => {
 		}
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'local',
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') },
 			undefined,
 			undefined,
 			upcastPartial<IFileService>({}),
@@ -921,7 +978,7 @@ suite('AgentCustomizationItemProvider', () => {
 				: [],
 		});
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'local',
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') },
 			undefined,
 			undefined,
 			upcastPartial<IFileService>({}),

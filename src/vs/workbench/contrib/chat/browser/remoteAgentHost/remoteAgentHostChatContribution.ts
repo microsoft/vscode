@@ -481,7 +481,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const ambientScope = agentStore.add(this._activeClientService.acquireScope(sessionType, []));
 
 		const itemProvider = agentStore.add(this._instantiationService.createInstance(AgentCustomizationItemProvider,
-			sanitized,
+			connection,
 			(customization, clientId) => {
 				if (clientId !== undefined) {
 					// Customization came from the client; we don't allow actions on these since they're read-only reflections of client state.

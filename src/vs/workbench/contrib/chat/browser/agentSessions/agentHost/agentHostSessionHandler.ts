@@ -129,7 +129,7 @@ import { IChatSessionReviewPreferencesService } from '../../../common/editing/ch
 import { HIDE_AUTO_EXPLAINABILITY_TREATMENT } from '../../../common/chatAutoModeExplainability.js';
 import { AUTO_RAW_MODEL_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../common/languageModelSourcePresentation.js';
-import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
+import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestModeInstructions, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
@@ -1143,13 +1143,13 @@ class ActiveClientEntry extends Disposable {
 		private readonly _scope: IAgentCustomizationScope,
 		sessionTools: IReference<IObservable<readonly ToolDefinition[]>>,
 		appTools: IObservable<readonly ToolDefinition[]>,
-		clientId: string,
+		connection: Pick<IAgentConnection, 'clientId' | 'resourceUris'>,
 		debounceDelay: number,
 		private readonly _getSessionState: (backendSession: URI) => SessionState | undefined,
 		private readonly _dispatch: (backendSession: URI, action: ClientSessionAction) => void,
 	) {
 		super();
-		const scopedActiveClient = _scope.activeClient(clientId);
+		const scopedActiveClient = _scope.activeClient(connection.clientId, connection.resourceUris);
 		this._baseToolNames = derived(this, reader => new Set([
 			...scopedActiveClient.read(reader).tools,
 			...sessionTools.object.read(reader),
@@ -1690,7 +1690,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return this._createCompletionItem(raw, text, { kind: 'text' }, attachment.label !== raw.insertText ? attachment.label : undefined);
 			}
 			case MessageAttachmentKind.Resource: {
-				const uri = typeof attachment.uri === 'string' ? URI.parse(attachment.uri) : URI.from(attachment.uri);
+				const uri = this._config.connection.resourceUris.fromAgentHost(typeof attachment.uri === 'string' ? URI.parse(attachment.uri) : URI.from(attachment.uri));
 				return this._createCompletionItem(raw, text, {
 					kind: 'resource',
 					uri,
@@ -1860,7 +1860,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								modelId: lookup.toLanguageModelId(sessionState.activeTurn.message.model?.id ?? activeRawModelId),
 								...(sessionState.activeTurn.message.model?.config ? { modelConfiguration: sessionState.activeTurn.message.model.config } : {}),
 								timestamp: parseTimestamp(sessionState.activeTurn.startedAt),
-								variableData: messageToVariableData(sessionState.activeTurn.message, this._config.connectionAuthority),
+								variableData: messageToVariableData(sessionState.activeTurn.message, this._config.connectionAuthority, this._config.connection.resourceUris),
 								...(isMessageHiddenFromTranscript(sessionState.activeTurn.message) ? { isHidden: true } : {}),
 								...(isMessageRequestHiddenFromTranscript(sessionState.activeTurn.message) ? { isRequestHidden: true } : {}),
 								isSystemInitiated: sessionState.activeTurn.message.origin.kind === MessageKind.SystemNotification,
@@ -2485,6 +2485,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	// ---- Pending message sync -----------------------------------------------
 
+	/** Maps a selected mode's client-space agent to the host URI carried by turn and pending messages. */
+	private _toHostAgentUri(modeInstructions: IChatRequestModeInstructions | undefined): string | undefined {
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- unwraps a legacy local agent wrapper before applying the owning connection mapper
+		return modeInstructions?.uri ? this._config.connection.resourceUris.toAgentHost(fromAgentHostUri(modeInstructions.uri)).toString() : undefined;
+	}
+
 	/**
 	 * Diffs the chat model's pending requests against the protocol state in
 	 * `_clientState` and dispatches Set/Removed/Reordered actions as needed.
@@ -2519,12 +2525,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const isSystemInitiated = p.request.isSystemInitiated ?? p.sendOptions.isSystemInitiated;
 			const metadata = p.sendOptions.metadata ?? previousMessage?._meta;
 			const roundTripMetadata = previousMessage && previousMessage.text !== p.request.message.text ? withoutAgentMessageDelegationMeta(metadata) : metadata;
+			// Requests projected from another client carry no mode, so they keep the agent the host already has.
+			const modeInfo = p.request.modeInfo ?? p.sendOptions.modeInfo;
+			const agentUri = modeInfo ? this._toHostAgentUri(modeInfo.modeInstructions) : previousMessage?.agent?.uri;
 			const snapshot = {
 				id: p.request.id,
 				kind: p.kind === ChatRequestQueueKind.Steering ? PendingMessageKind.Steering : PendingMessageKind.Queued,
 				message: {
 					...requestMessage(p.request.message.text, attachments, roundTripMetadata, isSystemInitiated, previousMessage?.origin ?? p.sendOptions.agentHostMessageOrigin),
 					...(model ? { model } : {}),
+					...(agentUri ? { agent: { uri: agentUri } } : {}),
 				},
 			};
 			current.push(snapshot);
@@ -2608,7 +2618,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			id: pending.id,
 			kind,
 			message: pending.message.text,
-			variableData: messageToVariableData(pending.message, this._config.connectionAuthority),
+			variableData: messageToVariableData(pending.message, this._config.connectionAuthority, this._config.connection.resourceUris),
 			modelId: this._toLanguageModelId(sessionResource, pending.message.model?.id),
 			modelConfiguration: pending.message.model?.config,
 			agentHostMessageOrigin: pending.message.origin,
@@ -2798,7 +2808,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			scope,
 			this._activeClientService.acquireSessionTools(sessionResource),
 			this._mcpAppToolsService.getToolDefinitions(sessionResource),
-			this._config.connection.clientId,
+			this._config.connection,
 			AgentHostSessionHandler.ACTIVE_CLIENT_RECONCILIATION_DEBOUNCE_MS,
 			backendSession => this._getSessionState(backendSession.toString()),
 			// Reconciliation republishes customizations, so it needs the same gate.
@@ -2989,7 +2999,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			chatSession.startServerRequest(
 				activeTurn.id,
 				activeTurn.message.text,
-				messageToVariableData(activeTurn.message, this._config.connectionAuthority),
+				messageToVariableData(activeTurn.message, this._config.connectionAuthority, this._config.connection.resourceUris),
 				{
 					modelId: this._toLanguageModelId(sessionResource, activeTurn.message.model?.id),
 					metadata: readAgentMessageRoundTripMetadata(activeTurn.message),
@@ -3657,9 +3667,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// actions. The host applies the selection carried by the message before
 		// sending the turn to the agent backend.
 		const selectedModel = this._createModelSelection(request.userSelectedModelId, request.modelConfiguration);
-		const requestedAgentUri = request.modeInstructions?.uri ? fromAgentHostUri(request.modeInstructions.uri).toString() : undefined;
+		const requestedAgentUri = this._toHostAgentUri(request.modeInstructions);
 		if (this._configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) === false) {
-			const agent = this._customizationService.getCustomAgents(request.sessionResource).find(agent => agent.uri === requestedAgentUri);
+			const agent = this._customizationService.getCustomAgents(request.sessionResource).find(agent => URI.parse(agent.uri).toString() === requestedAgentUri);
 			if (!agent || readAgentCustomizationMeta(agent)['vscode.chatMode'] !== 'ask') {
 				throw new Error(localize('agentHost.askUnavailable', "Agent mode is disabled and this host does not provide the selected read-only Ask agent."));
 			}
@@ -7291,7 +7301,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return undefined;
 		}
 		const model = this._createModelSelection(state.selectedModel?.identifier, state.modelConfiguration);
-		const agentUri = [ChatMode.Agent.id, ChatMode.Ask.id, ChatMode.Edit.id].includes(state.mode.id) ? undefined : state.mode.id;
+		const agentUri = [ChatMode.Agent.id, ChatMode.Ask.id, ChatMode.Edit.id].includes(state.mode.id) ? undefined : this._config.connection.resourceUris.toAgentHost(URI.parse(state.mode.id)).toString();
 		const attachments = this._variableEntriesToAttachments(state.attachments, sessionResource, state.inputText, false);
 		if (!state.inputText && !model && !agentUri && attachments.length === 0) {
 			return undefined;
@@ -7348,15 +7358,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		const modelId = this._toLanguageModelId(sessionResource, draft.model?.id);
 		const metadata = modelId ? this._languageModelsService.lookupLanguageModel(modelId) : undefined;
-		const variableData = messageAttachmentsToVariableData(draft.attachments, this._config.connectionAuthority, draft.text);
+		const variableData = messageAttachmentsToVariableData(draft.attachments, this._config.connectionAuthority, draft.text, this._config.connection.resourceUris);
 		const cursor = offsetToPosition(draft.text, draft.text.length);
-		const agent = draft.agent && this._customizationService.getCustomAgents(sessionResource).find(agent => agent.uri === draft.agent?.uri);
+		const draftAgentUri = draft.agent ? URI.parse(draft.agent.uri) : undefined;
+		const agent = draftAgentUri && this._customizationService.getCustomAgents(sessionResource).find(agent => isEqual(URI.parse(agent.uri), draftAgentUri));
 		return {
 			attachments: variableData?.variables ?? [],
 			contrib: {},
 			inputText: draft.text,
 			mode: {
-				id: draft.agent?.uri ?? ChatMode.Agent.id,
+				id: draft.agent ? this._config.connection.resourceUris.fromAgentHost(URI.parse(draft.agent.uri)).toString() : ChatMode.Agent.id,
 				kind: agent && readAgentCustomizationMeta(agent)['vscode.chatMode'] === 'ask' ? ChatModeKind.Ask : ChatModeKind.Agent,
 			},
 			selectedModel: modelId && metadata ? {
@@ -7811,7 +7822,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		existingKeys.add(outputKey);
 		attachments.push({
 			type: MessageAttachmentKind.Resource,
-			uri: outputUri.toString(),
+			uri: this._config.connection.resourceUris.toAgentHost(outputUri).toString(),
 			label: `${entry.name} output.json`,
 			displayKind: 'document',
 		});
@@ -8120,7 +8131,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _toResourceAttachment(uri: URI, label: string, displayKind: string, sessionResource: URI, _meta: Record<string, unknown> | undefined, range?: MessageAttachment['range']): MessageAttachment | undefined {
-		const attachmentUri = this._rebaseAttachmentUri(uri, sessionResource);
+		const attachmentUri = this._config.connection.resourceUris.toAgentHost(this._rebaseAttachmentUri(uri, sessionResource));
 		const attachment: MessageAttachment = { type: MessageAttachmentKind.Resource, uri: attachmentUri.toString(), label, displayKind };
 		if (range) {
 			attachment.range = range;
@@ -8132,7 +8143,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _toSelectionAttachment(location: Location, label: string, displayKind: string, sessionResource: URI, _meta: Record<string, unknown> | undefined, range?: MessageAttachment['range']): MessageAttachment | undefined {
-		const attachmentUri = this._rebaseAttachmentUri(location.uri, sessionResource);
+		const attachmentUri = this._config.connection.resourceUris.toAgentHost(this._rebaseAttachmentUri(location.uri, sessionResource));
 		const attachment: MessageAttachment = {
 			type: MessageAttachmentKind.Resource,
 			uri: attachmentUri.toString(),
@@ -8203,7 +8214,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const itemMeta = {
 					id: item.id,
 					text: item.text,
-					resourceUri: item.resourceUri.toString(),
+					resourceUri: this._config.connection.resourceUris.toAgentHost(item.resourceUri).toString(),
 					range: this._toTextRange(item.range),
 					...(item.replies?.length ? { replies: [...item.replies] } : {}),
 				};
@@ -8229,7 +8240,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const feedbackItems = v.feedbackItems.map(item => ({
 			id: item.id,
 			text: item.text,
-			resourceUri: item.resourceUri.toString(),
+			resourceUri: this._config.connection.resourceUris.toAgentHost(item.resourceUri).toString(),
 			range: this._toTextRange(item.range),
 			...(item.replies?.length ? { replies: [...item.replies] } : {}),
 		}));
@@ -8299,19 +8310,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		};
 	}
 
-	/**
-	 * Rebase a `file:`-scheme attachment URI from the session's requested
-	 * working directory onto the server-resolved working directory. This
-	 * matters on the first turn of a worktree-isolated session, where the
-	 * provider creates a worktree under a different path than the workspace
-	 * folder the workbench attached the file from. Returns the URI unchanged
-	 * if the requested and resolved directories match, the URI is not under
-	 * the requested directory, or either side is unavailable.
-	 */
+	/** Rebases client-space attachments from the requested workspace onto the host's resolved worktree. */
 	private _rebaseAttachmentUri(uri: URI, sessionResource: URI): URI {
 		const requestedDirectories = this._resolveRequestedWorkingDirectories(sessionResource);
 		const requestedDir = requestedDirectories?.[0];
-		if (!requestedDir || requestedDir.scheme !== 'file') {
+		if (!requestedDir) {
+			return uri;
+		}
+		const hostRequestedDir = this._config.connection.resourceUris.toAgentHost(requestedDir);
+		if (hostRequestedDir.scheme !== Schemas.file) {
 			return uri;
 		}
 		const owningRequestedDirectory = findDeepestContainingWorkingDirectory(uri, requestedDirectories);
@@ -8321,20 +8328,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const backendSession = this._resolveSessionUri(sessionResource);
 		const rawResolvedDir = this._getSessionState(backendSession.toString())?.workingDirectories?.[0];
 		const resolvedDir = typeof rawResolvedDir === 'string' ? URI.parse(rawResolvedDir) : rawResolvedDir;
-		if (!resolvedDir || resolvedDir.scheme !== 'file') {
+		if (!resolvedDir || resolvedDir.scheme !== Schemas.file) {
 			return uri;
 		}
-		if (extUriBiasedIgnorePathCase.isEqual(requestedDir, resolvedDir)) {
+		if (extUriBiasedIgnorePathCase.isEqual(hostRequestedDir, resolvedDir)) {
 			return uri;
 		}
 		const rel = extUriBiasedIgnorePathCase.relativePath(requestedDir, uri);
 		if (rel === undefined) {
 			return uri;
 		}
-		if (rel === '') {
-			return resolvedDir;
-		}
-		return URI.joinPath(resolvedDir, ...rel.split('/'));
+		const rebasedUri = rel === '' ? resolvedDir : URI.joinPath(resolvedDir, ...rel.split('/'));
+		return this._config.connection.resourceUris.fromAgentHost(rebasedUri);
 	}
 
 	// ---- Lifecycle ----------------------------------------------------------

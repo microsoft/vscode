@@ -250,6 +250,8 @@ type ClientState =
 
 /** Optional configuration for an {@link AgentHostProtocolClient}. */
 export interface IAgentHostProtocolClientOptions {
+	/** Maps client and host resource identities for non-local connections. */
+	readonly resourceUris?: IAgentHostResourceUriMapper;
 	/** Seals relay credentials only after independently authenticating the requested recipient key. */
 	readonly sealAuthenticationToken?: (request: IMissionControlCredentialSealingRequest) => Promise<string>;
 	/** Estimator used to suppress watchdog closes while the local event loop is saturated. Defaults to the shared instance. */
@@ -609,7 +611,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._connectionAuthority = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : agentHostAuthority(identity);
 		this.resourceUris = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY
 			? identityAgentHostResourceUriMapper
-			: createAgentHostResourceUriMapper(this._connectionAuthority);
+			: options?.resourceUris ?? createAgentHostResourceUriMapper(this._connectionAuthority);
 		this._loadEstimator = options?.loadEstimator ?? LoadEstimator.getInstance();
 		if (options?.onDidSuspend && options.onDidResume) {
 			this._register(options.onDidSuspend(() => this._suspendReconnectDeadline()));
@@ -1653,7 +1655,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				? uri.scheme === Schemas.file
 				: (uri.scheme === AGENT_HOST_SCHEME && uri.authority === this._connectionAuthority)
 				|| (remoteAuthority !== undefined && uri.scheme === Schemas.vscodeRemote && uri.authority === remoteAuthority))
-			.map(uri => uri.scheme === Schemas.vscodeRemote ? uri.with({ scheme: Schemas.file, authority: '' }) : this.resourceUris.toAgentHost(uri))
+			.map(uri => this.resourceUris.toAgentHost(uri))
 			.filter(uri => uri.scheme === Schemas.file)
 			.map(uri => uri.toString());
 		this._dispatchRootConfig({
@@ -2028,7 +2030,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			channel: session.toString(),
 			_meta: meta,
 			provider,
-			workingDirectories: config?.workingDirectories?.map(d => fromAgentHostUri(d).toString()),
+			workingDirectories: config?.workingDirectories?.map(d => this._toHostUri(d).toString()),
 			config: config?.config,
 			activeClient: config?.activeClient,
 			progressToken: config?.progressToken,
@@ -2085,7 +2087,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			return undefined;
 		}
 		const requestId = generateUuid();
-		const measurement = this._sendExtensionRequest(MeasureWorktreeDiskUsageExtensionMethod, { uri: fromAgentHostUri(root).toString(), requestId, ...(session ? { session: session.toString() } : {}) });
+		const measurement = this._sendExtensionRequest(MeasureWorktreeDiskUsageExtensionMethod, { uri: this._toHostUri(root).toString(), requestId, ...(session ? { session: session.toString() } : {}) });
 		const cancellation = token.onCancellationRequested(() => {
 			void this._sendExtensionRequest(CancelWorktreeDiskUsageExtensionMethod, { requestId })
 				.catch(error => this._logService.warn('[WorktreeDiskUsage] Failed to cancel measurement', error));
@@ -2308,7 +2310,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return this._sendRequest('resolveSessionConfig', {
 			channel: ROOT_STATE_URI,
 			provider: params.provider,
-			workingDirectory: params.workingDirectory ? fromAgentHostUri(params.workingDirectory).toString() : undefined,
+			workingDirectory: params.workingDirectory ? this._toHostUri(params.workingDirectory).toString() : undefined,
 			config: params.config,
 		});
 	}
@@ -2317,7 +2319,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return this._sendRequest('sessionConfigCompletions', {
 			channel: ROOT_STATE_URI,
 			provider: params.provider,
-			workingDirectory: params.workingDirectory ? fromAgentHostUri(params.workingDirectory).toString() : undefined,
+			workingDirectory: params.workingDirectory ? this._toHostUri(params.workingDirectory).toString() : undefined,
 			config: params.config,
 			property: params.property,
 			query: params.query,
@@ -2590,7 +2592,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (resource.scheme !== Schemas.file) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Agent Host returned a non-file session state resource: ${resource.toString()}`);
 		}
-		return toAgentHostUri(resource, this._connectionAuthority);
+		return this.resourceUris.fromAgentHost(resource);
 	}
 
 	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI, progressToken?: string): Promise<IAgentHostDebugLogsArtifact> {
@@ -2696,7 +2698,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			...(options?.provider !== undefined ? { provider: options.provider } : {}),
 			...(initialMessage ? { initialMessage } : {}),
 			...(options?.workingDirectories !== undefined && !options.fork
-				? { workingDirectories: options.workingDirectories.map(directory => fromAgentHostUri(directory).toString()) }
+				? { workingDirectories: options.workingDirectories.map(directory => this._toHostUri(directory).toString()) }
 				: {}),
 			...(options?.fork ? {
 				source: { kind: ChatSourceKind.Fork, chat: options.fork.source.toString(), turnId: options.fork.turnId }
@@ -2710,7 +2712,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				}
 			} : {}),
 			...(workspace ? {
-				_meta: withCreateChatWorkspaceMeta(undefined, workspace.kind === 'folder' ? { ...workspace, folder: fromAgentHostUri(workspace.folder) } : workspace),
+				_meta: withCreateChatWorkspaceMeta(undefined, workspace.kind === 'folder' ? { ...workspace, folder: this._toHostUri(workspace.folder) } : workspace),
 			} : {}),
 		});
 	}
@@ -2721,7 +2723,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 		await this._sendExtensionRequest(SetChatWorkspaceExtensionMethod, {
 			chat: chat.toString(),
-			workspace: serializeChatWorkspace(workspace.kind === 'folder' ? { ...workspace, folder: fromAgentHostUri(workspace.folder) } : workspace),
+			workspace: serializeChatWorkspace(workspace.kind === 'folder' ? { ...workspace, folder: this._toHostUri(workspace.folder) } : workspace),
 		});
 	}
 
@@ -2841,8 +2843,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return normalized ? { ...snapshot, state: normalized } : snapshot;
 	}
 
+	private _toHostUri(uri: URI): URI {
+		// Local API callers can still pass wrapped resources even though the local mapper is identity-only.
+		return this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? fromAgentHostUri(uri) : this.resourceUris.toAgentHost(uri);
+	}
+
 	private _toClientUri(uri: URI): URI {
-		return uri.scheme === Schemas.file ? toAgentHostUri(uri, this._connectionAuthority) : uri;
+		return uri.scheme === Schemas.file ? this.resourceUris.fromAgentHost(uri) : uri;
 	}
 
 	/**

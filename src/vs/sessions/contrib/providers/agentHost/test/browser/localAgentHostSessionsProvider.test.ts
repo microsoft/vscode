@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
+import { identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { resolveSignedOutWindowGate, SignedOutWindowGate } from '../../../../../browser/sessionsAuthGate.js';
@@ -134,6 +136,7 @@ function createVSCodeSessionConfigSchema(overrides: SessionConfigSchema['propert
 }
 
 class MockAgentHostService extends mock<IAgentHostService>() {
+	override resourceUris = identityAgentHostResourceUriMapper;
 	declare readonly _serviceBrand: undefined;
 
 	private _onDidAction = new Emitter<ActionEnvelope>();
@@ -307,7 +310,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 
 	public createdSessionUris: URI[] = [];
-	public createSessionConfigs: { model?: IAgentCreateSessionConfig['model']; config?: Record<string, unknown>; metadata?: Record<string, unknown>; workingDirectory?: URI }[] = [];
+	public createSessionConfigs: { agent?: IAgentCreateSessionConfig['agent']; model?: IAgentCreateSessionConfig['model']; config?: Record<string, unknown>; metadata?: Record<string, unknown>; workingDirectory?: URI }[] = [];
 	/**
 	 * Per-call hook used by tests to interleave operations across the
 	 * `createSession` await — e.g. to verify that no subscription is opened
@@ -324,6 +327,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		const uri = config?.session ?? URI.parse('copilotcli:///auto-' + this._nextSeq);
 		this.createSessionConfigs.push({
+			...(config?.agent ? { agent: config.agent } : {}),
 			...(config?.model ? { model: config.model } : {}),
 			config: config?.config,
 			...(config?._meta ? { metadata: config._meta } : {}),
@@ -3721,6 +3725,38 @@ suite('LocalAgentHostSessionsProvider', () => {
 			unrelated: undefined,
 		});
 	});
+
+	for (const kind of agentHostConnectionKinds) {
+		test(`projects host roots and draft agents into client-space session state (${kind.name})`, () => {
+			agentHost.resourceUris = kind.resourceUris;
+			class TestProvider extends LocalAgentHostSessionsProvider {
+				mapDiff(uri: URI): URI { return this._diffUriMapper()(uri); }
+			}
+			const provider = createProvider(disposables, agentHost, undefined, { providerCtor: TestProvider }) as TestProvider;
+			fireSessionAdded(agentHost, 'remote-state', { title: 'Remote State', workingDirectory: 'file:///workspace' });
+			const session = provider.getSessions().find(session => session.title.get() === 'Remote State')!;
+			const initial = session.workspace.get()?.folders.map(folder => folder.workingDirectory.toString());
+			provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+			const defaultChat = buildDefaultChatUri(AgentSession.uri('copilotcli', 'remote-state'));
+			agentHost.setSessionState('remote-state', 'copilotcli', {
+				provider: 'copilotcli', title: 'Remote State', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [],
+				workingDirectories: ['file:///workspace/updated'], defaultChat,
+				chats: [{ resource: defaultChat, title: 'Remote State', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), workingDirectories: ['file:///workspace/updated'] }],
+			});
+			agentHost.setChatState(defaultChat, {
+				resource: defaultChat, title: 'Remote State', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), turns: [],
+				draft: { text: '', origin: { kind: MessageKind.User }, agent: { uri: 'file:///workspace/ask.agent.md' } },
+			});
+			provider.setCustomizationEnablement(session.sessionId, 'server', [{ kind: CustomizationEnablementKind.Workspace, uri: kind.toClient(URI.file('/workspace')).toString(), enabled: false }]);
+			assert.deepStrictEqual({ initial, toggle: agentHost.dispatchedActions.at(-1)?.action, updated: session.workspace.get()?.folders.map(folder => folder.workingDirectory.toString()), mode: session.mode.get(), diff: provider.mapDiff(URI.file('/workspace/file.ts')).toString() }, {
+				initial: [kind.toClient(URI.file('/workspace')).toString()],
+				toggle: { type: ActionType.SessionCustomizationToggled, id: 'server', enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: false }] },
+				updated: [kind.toClient(URI.file('/workspace/updated')).toString()],
+				mode: { id: kind.toClient(URI.file('/workspace/ask.agent.md')).toString(), kind: 'agent' },
+				diff: kind.toClient(URI.file('/workspace/file.ts')).toString(),
+			});
+		});
+	}
 
 	test('restores the selected agent from the default chat draft on resume', () => {
 		const provider = createProvider(disposables, agentHost);
@@ -8819,6 +8855,20 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}), /selected session permissions could not be applied/);
 			await timeout(0);
 			assert.deepStrictEqual({ created: agentHost.createSessionConfigs.length, sends }, { created: 0, sends: 0 });
+		});
+	}
+
+	// The local provider resolves only `file:` workspaces, so only connections that accept them as client resources can back it.
+	for (const kind of agentHostConnectionKinds.filter(kind => kind.name === 'local' || kind.name === 'editor remote')) {
+		test(`sends a draft agent in host space when creating the session (${kind.name})`, async () => {
+			agentHost.resourceUris = kind.resourceUris;
+			const provider = createProvider(disposables, agentHost);
+			const draft = provider.createNewSession(URI.file('/workspace'), provider.sessionTypes[0].id, {
+				automationConfiguration: { sessionTemplate: { agent: { uri: kind.toClient(URI.file('/agents/reviewer.agent.md')).toString() } } },
+			});
+			await provider.getAutomationSessionConfiguration(draft.sessionId);
+			await timeout(0);
+			assert.deepStrictEqual(agentHost.createSessionConfigs.map(config => config.agent), [{ uri: 'file:///agents/reviewer.agent.md' }]);
 		});
 	}
 

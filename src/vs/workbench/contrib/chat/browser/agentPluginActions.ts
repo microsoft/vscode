@@ -15,7 +15,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICustomizationMarketplaceInstallService } from '../common/customizationMarketplaceInstallService.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { dirname, joinPath } from '../../../../base/common/resources.js';
+import { dirname, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { ContributionEnablementState, IEnablementModel, isContributionDisabled, isContributionEnabled } from '../common/enablement.js';
 import { IAgentPlugin, IAgentPluginService, setAgentPluginEnablement } from '../common/plugins/agentPluginService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
@@ -222,7 +222,8 @@ export async function setAgentHostPluginEnablement(agentHostCustomizations: IAge
 		if (agentPluginService === undefined) {
 			throw new Error('A client-published plugin requires its client enablement service');
 		}
-		const installed = agentPluginService.plugins.get().find(candidate => candidate.uri.toString() === plugin.uri);
+		const clientUri = agentHostCustomizations.getClientPluginUri(sessionResource, plugin);
+		const installed = clientUri && agentPluginService.plugins.get().find(candidate => isEqual(candidate.uri, clientUri));
 		if (!installed) {
 			throw new Error(localize('pluginNotAvailable', "Plugin '{0}' is no longer available.", plugin.uri));
 		}

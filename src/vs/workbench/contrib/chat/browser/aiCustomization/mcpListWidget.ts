@@ -1258,14 +1258,12 @@ function getMcpEntrySource(element: IMcpInstalledEntry, labelService: ILabelServ
  * Resolves a server's source like the MCP Servers page: its plugin's details when the plugin is
  * installed on this client, otherwise its plugin name or config file, opened at the server's definition.
  */
-export function getAgentHostMcpServerSource(server: AgentHostMcpServer, plugin: { readonly name: string; readonly uri: string } | undefined, labelService: ILabelService, agentPluginService: IAgentPluginService, openPlugin?: (plugin: IAgentPlugin) => void, openFile?: (source: NonNullable<IMcpServerDetailInput['source']>) => void): ReturnType<typeof getMcpEntrySource> {
+export function getAgentHostMcpServerSource(server: AgentHostMcpServer, plugin: { readonly name: string; readonly uri: string } | undefined, labelService: ILabelService, agentPluginService: IAgentPluginService, openPlugin?: (plugin: IAgentPlugin) => void, openFile?: (source: NonNullable<IMcpServerDetailInput['source']>) => void, clientPluginUri?: URI): ReturnType<typeof getMcpEntrySource> {
 	const entry: IMcpSessionServerItemEntry = { type: 'session-server-item', server };
 	const fileSource = createInstalledMcpServerDetailInput(entry).source;
 	const openFileSource = fileSource && openFile ? () => openFile(fileSource) : undefined;
 	if (plugin) {
-		// Client-published plugins carry the client plugin's URI.
-		const pluginUri = URI.parse(plugin.uri);
-		const clientPlugin = agentPluginService.plugins.get().find(candidate => isEqual(candidate.uri, pluginUri));
+		const clientPlugin = clientPluginUri && agentPluginService.plugins.get().find(candidate => isEqual(candidate.uri, clientPluginUri));
 		if (clientPlugin && openPlugin) {
 			return {
 				label: clientPlugin.label,
@@ -1563,7 +1561,7 @@ const agentHostMcpServerEnablementActionInfo = {
 export function getAgentHostMcpServerEnablementActions(agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService, sessionResource: URI, server: AgentHostMcpServer, scopes: readonly AgentHostMcpServerEnablementScope[] = ['global', 'workspace', 'session']): IAction[] {
 	if (server.disabledReason?.source === 'plugin') {
 		const decision = server.disabledReason.plugin.enablement?.[0];
-		if (!decision) {
+		if (!decision || (decision.kind === CustomizationEnablementKind.Global && server.disabledReason.plugin.clientId !== undefined && !agentHostCustomizations.getClientPluginUri(sessionResource, server.disabledReason.plugin))) {
 			return [];
 		}
 		const action = createAgentHostEnablePluginAction(agentHostCustomizations, agentPluginService, sessionResource, server.disabledReason.plugin, decision.kind);
