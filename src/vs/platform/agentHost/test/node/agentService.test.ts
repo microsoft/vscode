@@ -35814,78 +35814,78 @@ suite('AgentService (node dispatcher)', () => {
 			test(delivery === 'consumed'
 				? 'send_message keeps the agent a steered turn runs with, not the agent selected for the steering'
 				: 'send_message keeps the agent selected for steering that the agent hands back to run as a fresh turn', async () => {
-				class ServerToolAgent extends MockAgent {
-					serverToolHost: IAgentServerToolHost | undefined;
+					class ServerToolAgent extends MockAgent {
+						serverToolHost: IAgentServerToolHost | undefined;
 
-					setServerToolHost(host: IAgentServerToolHost): void {
-						this.serverToolHost = host;
+						setServerToolHost(host: IAgentServerToolHost): void {
+							this.serverToolHost = host;
+						}
 					}
-				}
 
-				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-				const agent = disposables.add(new ServerToolAgent('copilot'));
-				registerTestAgentProvider(localService, agent);
-				const handedToAgent = new DeferredPromise<void>();
-				const handBack = new DeferredPromise<boolean>();
-				if (delivery === 'handedBack') {
-					agent.sendSteeringMessage = () => {
-						handedToAgent.complete();
-						return handBack.p;
-					};
-				}
-				const sourceChat = buildDefaultChatUri(await localService.createSession({ legacyChatUris: true, provider: 'copilot' }));
-				const targetSession = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
-				const targetChat = buildDefaultChatUri(targetSession);
-				const stateManager = getStateManager(localService);
-				const reviewer = { uri: 'file:///agents/reviewer.agent.md' };
-				const coder = { uri: 'file:///agents/coder.agent.md' };
-				const waitForPrompt = (prompt: string) => waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.some(call => call.prompt === prompt), `Expected '${prompt}' to start a turn`);
-				const completeTargetTurn = () => agent.fireProgress({
-					kind: 'action', resource: URI.parse(targetChat),
-					action: { type: ActionType.ChatTurnComplete, turnId: stateManager.getActiveTurnId(targetChat)!, duration: 1 },
-				});
-				localService.dispatchAction(sourceChat, {
-					type: ActionType.ChatTurnStarted, turnId: 'source-turn', startedAt: new Date().toISOString(),
-					message: { text: 'delegate this', origin: { kind: MessageKind.User } },
-				}, 'test-client', 1);
-				localService.dispatchAction(targetChat, {
-					type: ActionType.ChatTurnStarted, turnId: 'user-turn', startedAt: new Date().toISOString(),
-					message: { text: 'review this', origin: { kind: MessageKind.User }, agent: reviewer },
-				}, 'test-client', 2);
-				await waitForPrompt('review this');
-
-				// The user selects Coder, then steers the turn Reviewer is running.
-				const steering = { text: 'focus on tests', origin: { kind: MessageKind.User }, agent: coder };
-				const accepted = Event.toPromise(Event.filter(localService.onDidAction, envelope =>
-					envelope.action.type === ActionType.ChatPendingMessageSet && envelope.action.id === 'steer'));
-				localService.dispatchAction(targetChat, { type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Steering, id: 'steer', message: steering }, 'test-client', 3);
-				await accepted;
-				if (delivery === 'consumed') {
-					// Like Copilot and Codex, the agent shows the steering as its own turn while Reviewer keeps running.
-					completeTargetTurn();
-					agent.fireProgress({
+					const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+					const agent = disposables.add(new ServerToolAgent('copilot'));
+					registerTestAgentProvider(localService, agent);
+					const handedToAgent = new DeferredPromise<void>();
+					const handBack = new DeferredPromise<boolean>();
+					if (delivery === 'handedBack') {
+						agent.sendSteeringMessage = () => {
+							handedToAgent.complete();
+							return handBack.p;
+						};
+					}
+					const sourceChat = buildDefaultChatUri(await localService.createSession({ legacyChatUris: true, provider: 'copilot' }));
+					const targetSession = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+					const targetChat = buildDefaultChatUri(targetSession);
+					const stateManager = getStateManager(localService);
+					const reviewer = { uri: 'file:///agents/reviewer.agent.md' };
+					const coder = { uri: 'file:///agents/coder.agent.md' };
+					const waitForPrompt = (prompt: string) => waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.some(call => call.prompt === prompt), `Expected '${prompt}' to start a turn`);
+					const completeTargetTurn = () => agent.fireProgress({
 						kind: 'action', resource: URI.parse(targetChat),
-						action: { type: ActionType.ChatTurnStarted, turnId: 'steering-turn', startedAt: new Date().toISOString(), message: steering, queuedMessageId: 'steer' },
+						action: { type: ActionType.ChatTurnComplete, turnId: stateManager.getActiveTurnId(targetChat)!, duration: 1 },
 					});
-				} else {
-					// The turn ends before the agent sends the steering, so the steering starts a turn of its own.
-					await handedToAgent.p;
-					completeTargetTurn();
-					handBack.complete(false);
-					await waitForPrompt('focus on tests');
-				}
-				const steeringTurnAgent = stateManager.getChatState(targetChat)?.activeTurn?.message.agent;
-				completeTargetTurn();
-				await agent.serverToolHost!.executeTool(sourceChat, SessionServerToolName.SendMessage, { session: targetSession.toString(), message: 'sent while idle' });
-				await waitForPrompt('sent while idle');
+					localService.dispatchAction(sourceChat, {
+						type: ActionType.ChatTurnStarted, turnId: 'source-turn', startedAt: new Date().toISOString(),
+						message: { text: 'delegate this', origin: { kind: MessageKind.User } },
+					}, 'test-client', 1);
+					localService.dispatchAction(targetChat, {
+						type: ActionType.ChatTurnStarted, turnId: 'user-turn', startedAt: new Date().toISOString(),
+						message: { text: 'review this', origin: { kind: MessageKind.User }, agent: reviewer },
+					}, 'test-client', 2);
+					await waitForPrompt('review this');
 
-				assert.deepStrictEqual({
-					steeringTurnAgent,
-					changeAgent: agent.changeAgentCalls.filter(call => call.session.toString() === targetSession.toString()).map(call => call.agent),
-				}, delivery === 'consumed'
-					? { steeringTurnAgent: reviewer, changeAgent: [reviewer, reviewer] }
-					: { steeringTurnAgent: coder, changeAgent: [reviewer, coder, coder] });
-			});
+					// The user selects Coder, then steers the turn Reviewer is running.
+					const steering = { text: 'focus on tests', origin: { kind: MessageKind.User }, agent: coder };
+					const accepted = Event.toPromise(Event.filter(localService.onDidAction, envelope =>
+						envelope.action.type === ActionType.ChatPendingMessageSet && envelope.action.id === 'steer'));
+					localService.dispatchAction(targetChat, { type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Steering, id: 'steer', message: steering }, 'test-client', 3);
+					await accepted;
+					if (delivery === 'consumed') {
+						// Like Copilot and Codex, the agent shows the steering as its own turn while Reviewer keeps running.
+						completeTargetTurn();
+						agent.fireProgress({
+							kind: 'action', resource: URI.parse(targetChat),
+							action: { type: ActionType.ChatTurnStarted, turnId: 'steering-turn', startedAt: new Date().toISOString(), message: steering, queuedMessageId: 'steer' },
+						});
+					} else {
+						// The turn ends before the agent sends the steering, so the steering starts a turn of its own.
+						await handedToAgent.p;
+						completeTargetTurn();
+						handBack.complete(false);
+						await waitForPrompt('focus on tests');
+					}
+					const steeringTurnAgent = stateManager.getChatState(targetChat)?.activeTurn?.message.agent;
+					completeTargetTurn();
+					await agent.serverToolHost!.executeTool(sourceChat, SessionServerToolName.SendMessage, { session: targetSession.toString(), message: 'sent while idle' });
+					await waitForPrompt('sent while idle');
+
+					assert.deepStrictEqual({
+						steeringTurnAgent,
+						changeAgent: agent.changeAgentCalls.filter(call => call.session.toString() === targetSession.toString()).map(call => call.agent),
+					}, delivery === 'consumed'
+						? { steeringTurnAgent: reviewer, changeAgent: [reviewer, reviewer] }
+						: { steeringTurnAgent: coder, changeAgent: [reviewer, coder, coder] });
+				});
 		}
 
 		test('createChat resolves a restored peer fork source before creating the fork', async () => {
