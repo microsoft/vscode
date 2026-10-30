@@ -68,6 +68,18 @@ suite('InboxNotificationsAccessibility', () => {
 		assert.deepStrictEqual(['npm test', 'Runs outside the sandbox', 'Open the session to review the full request and respond.'].map(text => content.includes(text)), [true, true, true]);
 	});
 
+	test('describes a synthetic Working row by its workflow rather than Completed', () => {
+		const content = buildInboxNotificationsAccessibleContent([{
+			kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+			title: 'Working on search', description: 'Implementing search',
+			sessionTitle: 'Search', tab: InboxTab.Working, notifications: [],
+		}]);
+		assert.deepStrictEqual({
+			working: content.includes('Type: Working'),
+			completed: content.includes('Completed'),
+		}, { working: true, completed: false });
+	});
+
 	test('builds numbered accessible content for notifications', () => {
 		assert.strictEqual(
 			buildInboxNotificationsAccessibleContent([

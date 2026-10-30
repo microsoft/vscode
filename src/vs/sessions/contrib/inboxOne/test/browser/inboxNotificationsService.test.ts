@@ -285,7 +285,7 @@ suite('InboxNotificationsService', () => {
 			{
 				kind: InboxNotificationKind.Completed,
 				priority: InboxNotificationPriority.Later,
-				description: 'Review this completed session or mark it done.',
+				description: '',
 				actionKinds: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
 			},
 		]);
@@ -839,6 +839,77 @@ suite('InboxNotificationsService', () => {
 			preview: 'Generated preview', summary: 'Generated summary',
 		});
 	});
+
+	for (const change of ['request', 'tool', 'command', 'arguments', 'conversation'] as const) {
+		test(`regenerates row previews and interpretations when approval ${change} changes with identical labels and timestamps`, async () => {
+			const session = createSession({ id: 'approval-cache', status: SessionStatus.NeedsInput, updatedAt: 200 });
+			const chatService = new TestChatService();
+			let previews = 0;
+			let summaries = 0;
+			const fixture = createFixture([session], undefined, undefined, chatService, undefined, true, [], true, {
+				telemetryLevel: TelemetryLevel.NONE,
+				utilityRequest: async request => request.purpose === 'inboxPreview'
+					? `Action ${++previews}`
+					: JSON.stringify({ status: `Interpretation ${++summaries}`, decisions: [], evidence: [] }),
+			});
+			const install = (changed: boolean) => {
+				const resource = changed && change === 'conversation' ? URI.parse('test:///chat/replacement') : session.mainChat.get().resource;
+				chatService.setPendingParts(resource, {
+					requestId: changed && change === 'request' ? 'next-request' : 'request',
+					startedWaitingAt: 10,
+					parts: [
+						{ kind: 'markdownContent', content: { value: 'Check the requested operation.' } },
+						upcastPartial<IChatToolInvocation>({
+							kind: 'toolInvocation',
+							toolCallId: changed && change === 'tool' ? 'next-tool' : 'tool',
+							state: observableValue<IChatToolInvocation.State>('toolState', {
+								type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+								confirmationMessages: { title: 'Run tool?', message: 'Approve the operation' },
+								parameters: undefined,
+								confirm: () => { },
+							}),
+							toolSpecificData: change === 'arguments'
+								? { kind: 'input', editable: false, rawInput: { path: changed ? '/next' : '/first' } }
+								: { kind: 'terminal', language: 'shell', commandLine: { original: `echo ${'x'.repeat(2100)} ${changed && change === 'command' ? 'next' : 'first'}` } },
+						}),
+					],
+				});
+				if (changed && change === 'conversation') {
+					const chat = { ...session.mainChat.get(), resource };
+					transaction(tx => {
+						(session.mainChat as ISettableObservable<IChat>).set(chat, tx);
+						(session.chats as ISettableObservable<readonly IChat[]>).set([chat], tx);
+					});
+				}
+			};
+			install(false);
+			const first = fixture.service.sessionRows.get()[0];
+			fixture.service.requestPreview(first);
+			fixture.service.requestDetailSummary(first);
+			await waitForState(fixture.service.isLoading, loading => !loading);
+			install(true);
+			const second = fixture.service.sessionRows.get()[0];
+			fixture.service.requestPreview(second);
+			fixture.service.requestDetailSummary(second);
+			const staleSummary = fixture.service.detailSummaries.get().get(second.id);
+			await waitForState(fixture.service.isLoading, loading => !loading);
+			assert.deepStrictEqual({
+				sameRow: first.id === second.id,
+				sameTimestamp: first.timestamp === second.timestamp,
+				sameLabel: first.title === second.title,
+				newNotificationSignature: first.notifications[0].previewSignature !== second.notifications[0].previewSignature,
+				newRowSignature: first.previewSignature !== second.previewSignature,
+				staleSummary,
+				previews, summaries,
+				preview: fixture.service.previews.get().get(second.previewSignature!),
+				summary: fixture.service.detailSummaries.get().get(second.id)?.status,
+			}, {
+				sameRow: true, sameTimestamp: true, sameLabel: true,
+				newNotificationSignature: true, newRowSignature: true, staleSummary: undefined,
+				previews: 2, summaries: 2, preview: 'Action 2', summary: 'Interpretation 2',
+			});
+		});
+	}
 
 	for (const stalledStage of ['discovery', 'request'] as const) {
 		test(`settles previews after 10 seconds of stalled ${stalledStage} and ignores late results`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -1883,7 +1954,7 @@ suite('InboxNotificationsService', () => {
 		assert.deepStrictEqual(fixture.service.notifications.get()[0].actions.map(action => [action.kind, action.ariaLabel ?? action.label]), [
 			[InboxNotificationActionKind.OpenSession, 'Open Session'],
 			[InboxNotificationActionKind.ArchiveSession, 'Archive Session'],
-			[InboxNotificationActionKind.MarkDone, 'Mark Notification as Done'],
+			[InboxNotificationActionKind.MarkDone, 'Mark Session as Done'],
 		]);
 	});
 
@@ -2180,6 +2251,32 @@ suite('InboxNotificationsService', () => {
 		});
 	});
 
+	test('groups notifications by equivalent session URIs without losing unowned or dismissed items', () => {
+		const sessions = ['first', 'second'].map(id => createSession({ id, status: SessionStatus.InProgress, updatedAt: 100 }));
+		const fixture = createFixture(sessions);
+		for (const session of sessions) {
+			for (const suffix of ['visible', 'dismissed']) {
+				fixture.service.publishExternalNotification({
+					id: `${session.sessionId}-${suffix}`, title: suffix, description: '',
+					sessionResource: URI.parse(session.resource.toString()),
+				});
+			}
+		}
+		fixture.service.publishExternalNotification({ id: 'unowned', title: 'Unowned', description: '' });
+		const before = fixture.service.sessionRows.get();
+		for (const row of before.filter(row => row.sessionResource)) {
+			fixture.service.dismissNotification(row.notifications.find(item => item.title === 'dismissed')!.id);
+		}
+		const after = fixture.service.sessionRows.get();
+		assert.deepStrictEqual({
+			groups: after.map(row => ({ title: row.sessionTitle, notifications: row.notifications.map(item => item.title) })).sort((a, b) => a.title.localeCompare(b.title)),
+			occurrencesUnchanged: after.every(row => before.find(previous => previous.id === row.id)?.occurrence === row.occurrence),
+		}, {
+			groups: [{ title: 'first', notifications: ['visible'] }, { title: 'second', notifications: ['visible'] }, { title: 'Unowned', notifications: ['Unowned'] }],
+			occurrencesUnchanged: true,
+		});
+	});
+
 	test('merge readiness requires real checks independently of a merge action and combines review asks', () => {
 		const session = createSession({
 			id: 'workflow-ci', status: SessionStatus.Completed, updatedAt: 100,
@@ -2287,6 +2384,36 @@ suite('InboxNotificationsService', () => {
 			initial: [{ title: 'visual-row', visual: false }], local: true, remote: false,
 		});
 	});
+
+	for (const imageTurn of ['pending', 'latest'] as const) {
+		test(`image badges follow the pending turn when only the ${imageTurn} turn has an image`, () => {
+			const session = createSession({ id: 'pending-image', status: SessionStatus.NeedsInput, updatedAt: 100 });
+			const resource = session.mainChat.get().resource;
+			const chatService = new TestChatService();
+			const image: IChatResponseModel['response']['value'][number] = {
+				kind: 'toolInvocationSerialized', toolCallId: 'image', toolId: 'screenshot', invocationMessage: 'Screenshot',
+				originMessage: undefined, pastTenseMessage: undefined, presentation: undefined, source: undefined,
+				isConfirmed: true, isComplete: true,
+				resultDetails: { input: '', output: [{ type: 'ref', uri: URI.file('/workspace/screenshot.png'), mimeType: 'image/png' }] },
+			};
+			chatService.setPendingParts(resource, {
+				requestId: 'pending', startedWaitingAt: 10,
+				parts: [
+					{ kind: 'questionCarousel', resolveId: 'question', allowSkip: true, questions: [{ id: 'q', type: 'text', title: 'Continue?', required: true }], isUsed: false },
+					...(imageTurn === 'pending' ? [image] : []),
+				],
+			});
+			const pending = chatService.getSession(resource)!.getRequests()[0];
+			chatService.setCompletedResponse(resource, { requestId: 'latest', markdown: '', parts: imageTurn === 'latest' ? [image] : [] });
+			const latest = chatService.getSession(resource)!.getRequests()[0];
+			chatService.setRequests(resource, [{ ...pending, id: 'pending' }, { ...latest, id: 'latest' }]);
+			const fixture = createFixture([session], undefined, undefined, chatService);
+			const row = fixture.service.sessionRows.get()[0];
+			assert.deepStrictEqual({ request: row.needsInputPart?.requestId, hasImages: row.hasImages }, {
+				request: 'pending', hasImages: imageTurn === 'pending',
+			});
+		});
+	}
 
 	test('bounds persisted dismissals to the most recent entries', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
@@ -2658,6 +2785,11 @@ class TestChatService {
 		readonly parts: IChatResponseModel['response']['value'];
 	}): void {
 		this._chatModels.set(chatResource.toString(), this._createChatModel(options));
+		this._chatModelsObservable.set([...this._chatModels.values()], undefined);
+	}
+
+	setRequests(chatResource: URI, requests: readonly IChatRequestModel[]): void {
+		this._chatModels.set(chatResource.toString(), upcastPartial<IChatModel>({ onDidChange: Event.None, getRequests: () => [...requests] }));
 		this._chatModelsObservable.set([...this._chatModels.values()], undefined);
 	}
 

@@ -50,15 +50,15 @@
 }
 
 .inbox-notifications-composer {
-	flex: 0 0 auto;
-	height: 200px;
+	flex: 0 1 auto;
 	max-height: 45%;
 	width: 100%;
 	max-width: 760px;
 	align-self: center;
-	min-height: 100px;
+	min-height: 0;
 	display: flex;
 	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
 	padding-top: var(--vscode-spacing-size120);
 	box-sizing: border-box;
 }
@@ -77,14 +77,14 @@
 	position: relative;
 	display: flex;
 	flex-direction: row;
-	flex: 1 1 auto;
+	flex: 1 1 0;
 	min-height: 0;
 	width: 100%;
 }
 
 .inbox-notifications-new-session {
 	display: none;
-	flex: 1 1 0;
+	flex: 0 1 auto;
 	min-height: 0;
 }
 
@@ -95,13 +95,17 @@
 .inbox-notifications-new-session .new-chat-widget-container,
 .inbox-notifications-new-session .new-chat-widget-container.revealed {
 	justify-content: flex-start;
+	padding: 0 var(--vscode-spacing-size120);
 	overflow-y: auto;
 	scrollbar-width: thin;
 	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
 }
 
-.inbox-notifications-new-session .new-chat-widget-content {
+.inbox-notifications-new-session .sessions-chat-widget > .new-chat-widget-container > .new-chat-widget-content {
+	/* Ignore the standalone composer's inline attachment-centering offset. */
+	position: static;
 	flex: none;
+	margin-top: auto;
 }
 
 .inbox-notifications-new-session .new-session-welcome-message {
@@ -175,14 +179,25 @@
 
 .inbox-notifications-detail-chat {
 	display: none;
-	flex: 1 1 0;
+	flex: 0 1 auto;
 	min-width: 0;
 	min-height: 0;
-	overflow: hidden;
+	overflow-x: hidden;
+	overflow-y: auto;
+	scrollbar-width: thin;
+	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
 }
 
 .inbox-notifications-detail-chat.visible {
 	display: flex;
+}
+
+.inbox-notifications-detail-chat .interactive-session {
+	justify-content: safe flex-end;
+}
+
+.inbox-notifications-detail-chat .interactive-session .interactive-input-part {
+	padding-block: 0;
 }
 
 .inbox-notifications-detail-chat .interactive-list,
@@ -356,7 +371,6 @@
 }
 
 .inbox-evidence-section > h3,
-.inbox-notifications-detail-evidence h3,
 .inbox-evidence-canvases h3,
 .inbox-evidence-disclosure > summary {
 	margin: 0;
@@ -831,9 +845,14 @@
 }
 
 .inbox-notifications-item-kind-label {
+	flex: 0 1 auto;
+	min-width: 0;
+	max-width: 30%;
 	font-size: var(--vscode-fontSize-label2);
-	font-weight: var(--vscode-fontWeight-semiBold);
+	overflow: hidden;
+	text-overflow: ellipsis;
 	white-space: nowrap;
+	text-align: end;
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -893,6 +912,11 @@
 	flex-wrap: wrap;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
+}
+
+.inbox-notifications-row-metadata:empty,
+.inbox-notifications-item-badges:empty {
+	display: none;
 }
 
 .inbox-notifications-item-badge {

@@ -148,6 +148,8 @@ Explicit session and chat open actions dismiss the active custom view. Reactive 
 
 Custom views may handle an unparameterized New Session action through their descriptor and host the shared new-session composer. Such composers bind to the model's pending draft and prepare it with `preserveCustomView`, retaining workspace trust checks without changing the hidden Sessions grid or navigation. Opening or restoring Inbox does not cancel startup restoration; only an explicit New Session action may cancel it. Workspace and agent selection must not dismiss their host. Parameterized New Session actions, including opening to the side or supplying a prompt, retain normal session navigation.
 
+Content-sized composer hosts measure and observe `AbstractChatView.inputContentElement` rather than querying the hosted widget's DOM structure. The element remains owned by the view and must not be reparented. Input-only chat views retain the editor's intrinsic height limit instead of deriving it from the host's previous content height; full conversation and standalone New Session layouts are unchanged.
+
 ## Part lifecycle
 
 The workbench:

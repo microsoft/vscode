@@ -292,9 +292,11 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 				override createChatView(): AbstractChatView {
 					return new class extends AbstractChatView {
 						readonly kind = 'chat';
+						override get inputContentElement(): HTMLElement { return this.input; }
+						private readonly input = document.createElement('textarea');
 						constructor() {
 							super();
-							const input = document.createElement('textarea');
+							const input = this.input;
 							input.setAttribute('aria-label', 'Fixture reply');
 							input.value = 'Unsent Inbox draft';
 							this.element.appendChild(input);

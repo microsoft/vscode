@@ -10,10 +10,10 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { hash } from '../../../../base/common/hash.js';
-import { LRUCache } from '../../../../base/common/map.js';
+import { LRUCache, ResourceMap } from '../../../../base/common/map.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { basename, isEqual } from '../../../../base/common/resources.js';
+import { basename, getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -635,13 +635,24 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			const allItems = this._allItems.read(reader);
 			const dismissed = this._dismissedIds.read(reader);
 			const workflow = this._workflow.read(reader);
+			const itemsBySession = new ResourceMap<IInboxNotificationItem[]>(getComparisonKey);
+			for (const item of allItems) {
+				if (item.sessionResource) {
+					const items = itemsBySession.get(item.sessionResource);
+					if (items) {
+						items.push(item);
+					} else {
+						itemsBySession.set(item.sessionResource, [item]);
+					}
+				}
+			}
 			const rows: IInboxSessionRow[] = [];
 			for (const session of this.sessionsManagementService.getSessions()) {
 				const status = session.status.read(reader);
 				if (status === SessionStatus.Untitled) {
 					continue;
 				}
-				const source = allItems.filter(item => isEqual(item.sessionResource, session.resource));
+				const source = itemsBySession.get(session.resource) ?? [];
 				const notifications = source.filter(item => !dismissed.has(item.id)).sort(compareInboxNotifications);
 				const sessionTitle = session.title.read(reader);
 				const timestamp = session.lastTurnEnd.read(reader)?.getTime() ?? session.updatedAt.read(reader).getTime();
@@ -677,14 +688,14 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 					repositoryLabel: this.getSessionRepositoryLabel(session, reader),
 					pullRequestStates: [...new Map(notifications.flatMap(item => item.pullRequestStates ?? []).map(state => [state.pullRequestUri?.toString() ?? state.label, state])).values()],
 					actions: this.sessionActions(true),
-					hasImages: !!chat && collectInboxEvidence(session, chat, model, undefined, reader).images.length > 0,
+					hasImages: !!chat && collectInboxEvidence(session, chat, model, lead?.needsInputPart?.requestId, reader).images.length > 0,
 				};
 				const inputText = [
 					`Workflow: ${tab}`, `Session title: ${sessionTitle}`,
 					...notifications.map(item => { const detail = this.describeItemForPreview(item); return `${detail.contextLabel}: ${detail.detailText}`; }),
 					`Fallback action: ${title}`,
 				].join('\n').slice(0, PREVIEW_MAX_INPUT_CHARS);
-				rows.push({ ...row, previewFallbackText: title, previewInputText: inputText, previewSignature: `${PREVIEW_PROMPT_VERSION}:${hash(inputText)}` });
+				rows.push({ ...row, previewFallbackText: title, previewInputText: inputText, previewSignature: `${PREVIEW_PROMPT_VERSION}:${hash([inputText, notifications.map(item => item.previewSignature)])}` });
 			}
 			const represented = new Set(rows.flatMap(row => row.notifications.map(item => item.id)));
 			for (const item of allItems.filter(item => !represented.has(item.id) && !dismissed.has(item.id))) {
@@ -924,7 +935,17 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		if (inputText.length > PREVIEW_MAX_INPUT_CHARS) {
 			inputText = `${inputText.slice(0, PREVIEW_MAX_INPUT_CHARS)}…`;
 		}
-		const previewSignature = `${PREVIEW_PROMPT_VERSION}:${hash(inputText)}`;
+		const part = item.needsInputPart;
+		const chatResource = item.chatResource ?? part?.chatResource;
+		const previewSignature = `${PREVIEW_PROMPT_VERSION}:${hash([
+			inputText,
+			chatResource && getComparisonKey(chatResource),
+			part && this.needsInputPartKey(part),
+			part?.kind === 'toolConfirmation' ? [
+				part.title, part.message, part.commandLine, part.commandLanguage, part.toolInput,
+				part.disclaimer, part.originMessage, part.buttons,
+			] : undefined,
+		])}`;
 		return { ...item, previewSignature, previewInputText: inputText };
 	}
 
@@ -1054,7 +1075,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				case 'toolConfirmation':
 					return {
 						contextLabel: 'tool run waiting for the user to approve',
-						detailText: [toPreviewPlainText(part.title), toPreviewPlainText(part.message)].filter(Boolean).join(' — '),
+						detailText: [toPreviewPlainText(part.title), toPreviewPlainText(part.message), part.commandLine, part.toolInput].filter(Boolean).join(' — '),
 					};
 				case 'confirmation':
 					return {
@@ -1955,7 +1976,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		actions.push({
 			id: 'mark-done',
 			label: '$(check)',
-			ariaLabel: localize('inboxNotifications.action.markDone', "Mark Notification as Done"),
+			ariaLabel: localize('inboxNotifications.action.markDone', "Mark Session as Done"),
 			kind: InboxNotificationActionKind.MarkDone,
 		});
 		return actions;
@@ -1965,7 +1986,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		return [{
 			id: 'mark-done',
 			label: '$(check)',
-			ariaLabel: localize('inboxNotifications.action.markDone', "Mark Notification as Done"),
+			ariaLabel: localize('inboxNotifications.action.markDone', "Mark Session as Done"),
 			kind: InboxNotificationActionKind.MarkDone,
 		}];
 	}
@@ -2178,7 +2199,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	private getCompletedSessionDescription(session: ISession, reader: IReader): string {
 		const description = session.description.read(reader);
 		const descriptionText = description ? this.normalizeResponsePreviewText(renderAsPlaintext(description, { useLinkFormatter: true })) : undefined;
-		return descriptionText || localize('inboxNotifications.completed.description', "Review this completed session or mark it done.");
+		return descriptionText ?? '';
 	}
 
 	private normalizeResponsePreviewText(text: string): string | undefined {

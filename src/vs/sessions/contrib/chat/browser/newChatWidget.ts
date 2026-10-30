@@ -149,6 +149,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _usage: AgentsWindowUsage;
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _newChatInput: SharedChatInputComposer;
+	private _inputContentElement: HTMLElement | undefined;
 	private readonly _preserveCustomView: boolean;
 	private readonly _backgroundSend: boolean;
 	private readonly _backgroundSendStatus = observableValue<string | undefined>(this, undefined);
@@ -731,6 +732,10 @@ export class NewChatWidget extends Disposable {
 
 	// --- Rendering ---
 
+	get inputContentElement(): HTMLElement | undefined {
+		return this._inputContentElement;
+	}
+
 	render(parent: HTMLElement): void {
 		const element = dom.append(parent, dom.$('.sessions-chat-widget'));
 		const composerFocus = NewSessionComposerFocusContext.bindTo(this.contextKeyService);
@@ -739,7 +744,7 @@ export class NewChatWidget extends Disposable {
 		this._register(focusTracker.onDidBlur(() => composerFocus.set(false)));
 		this._register(toDisposable(() => composerFocus.reset()));
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
-		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
+		const chatWidgetContent = this._inputContentElement = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
 		const welcomeMessage = dom.append(chatWidgetContent, dom.$('.new-session-welcome-message'));
 		const welcomeMessageTitle = dom.append(welcomeMessage, dom.$('h2.new-session-welcome-message-title'));
 		this._welcomeMessageTitle = welcomeMessageTitle;

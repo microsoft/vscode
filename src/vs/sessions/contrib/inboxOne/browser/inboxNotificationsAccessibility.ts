@@ -17,7 +17,7 @@ import { Parts } from '../../../../workbench/services/layout/browser/layoutServi
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { InboxCanvasFocusContext } from '../../../common/contextkeys.js';
 import { IInboxNotificationItem, IInboxNotificationsService, IInboxSessionRow } from '../common/inboxNotificationsService.js';
-import { getInboxNotificationKindLabel, getInboxNotificationPriorityLabel, getInboxTabLabel } from './inboxNotificationsLabels.js';
+import { getInboxNotificationLabel, getInboxNotificationPriorityLabel, getInboxTabLabel } from './inboxNotificationsLabels.js';
 import { InboxNotificationsView } from './inboxNotificationsView.js';
 
 class InboxNotificationsAccessibilityHelp implements IAccessibleViewImplementation {
@@ -34,14 +34,14 @@ class InboxNotificationsAccessibilityHelp implements IAccessibleViewImplementati
 			localize('inboxNotifications.help.canvases', "Extension canvases lists only canvases already opened in the selected conversation, not available extension suggestions. Choose one to interact with it in the detail pane. Hide canvas releases its Inbox presentation without closing the provider's canvas. Read canvas opens a plain-text accessible snapshot. Within a canvas, Tab moves through page controls; use <keybinding:workbench.action.focusNextPart> to leave the page."),
 			localize('inboxNotifications.help.repository', "Cards include repository badges when a notification is associated with a repository."),
 			localize('inboxNotifications.help.pullRequestStates', "Pull request notifications show links with pull request icons so you can quickly scan checks, comments, and merge readiness. Multiple pull requests appear in a list. When there are more than three, activate the pull request count to expand or collapse the list. Tab through the links and activate one to open that pull request."),
-			localize('inboxNotifications.help.navigation', "Use Left and Right Arrow, Home, and End in the tab list. Use Up and Down Arrow between session rows. Enter or Space selects a row and focuses evidence. Tab reaches row actions, evidence controls, and the composer. Escape outside an input closes evidence and returns focus to the row."),
+			localize('inboxNotifications.help.navigation', "Use Left and Right Arrow, Home, and End in the tab list. Use Up and Down Arrow between session rows. Enter or Space selects a row and focuses evidence. Tab reaches row actions, evidence controls, and the composer. Escape outside an input closes evidence and returns focus to the row, or to the new-session composer if the row is filtered out."),
 			localize('inboxNotifications.help.chat', "One composer stays at the bottom, outside evidence. Its label identifies the selected conversation. Working sessions show their latest response live in evidence. Standard Chat shortcuts and accessibility help apply inside the composer. Escape there retains its normal Chat behavior."),
 			localize('inboxNotifications.help.newSession', "New Session, its command or keybinding, deselecting a row, and closing evidence return the bottom composer to new-session mode. Drafts are preserved when changing targets. Sending a new session starts it in the background without leaving Inbox."),
 			localize('inboxNotifications.help.tabs', "Ready for you contains outstanding asks and unread completed work. Working contains active sessions without outstanding asks. Ready to merge requires passing CI on an open, non-draft pull request. On hold contains sessions you explicitly held until you resume them, even across reloads. Done contains explicitly completed, archived, merged, or read completed sessions. Tab counts count combined session rows."),
 			localize('inboxNotifications.help.sorting', "Use the Priority and Recent toggle buttons to switch sorting order. Priority is the default; the pressed button is the active sort."),
 			localize('inboxNotifications.help.filter', "Search and the priority filter apply within the selected tab without changing its count."),
 			localize('inboxNotifications.help.feedback', "Use the Inbox Was Useful button in the toolbar to send quick positive feedback."),
-			localize('inboxNotifications.help.actions', "Hold or Resume and Done replace the timestamp when hovering or focusing a row. These actions are keyboard accessible. Hold changes Inbox organization; it does not stop the agent. Done does not archive a session. Evidence offers supported CI, review, merge, and cleanup actions. Dismiss affects only one notification, not the entire session."),
+			localize('inboxNotifications.help.actions', "Hold or Resume and Mark Session as Done replace the timestamp when hovering or focusing a row. These actions are keyboard accessible. Hold changes Inbox organization; it does not stop the agent. Mark Session as Done is also available in the evidence header and moves the selected session to Done without archiving it. Evidence offers supported CI, review, merge, and cleanup actions."),
 			localize('inboxNotifications.help.completion', "Opening the full session dismisses its completion notification, but does not answer questions, approve requests, or dismiss CI and review issues. Failed or canceled actions remain pending. If an action moves your selected session to another tab, evidence closes and the composer returns to New Session. A completed background action never clears a newer selection."),
 			localize('inboxNotifications.help.liveUpdates', "New notifications appear automatically. While your focus is inside inline input controls, list updates pause and a banner lets you show new notifications when you are ready."),
 			localize('inboxNotifications.help.toolApprovals', "Approvals in evidence use the same cards as chat and show the terminal command or read-only tool input and any disclaimer. Use the approval or skip buttons to respond; additional approval scopes are in the adjacent dropdown. When available, Explain opens a side chat without approving the command. Tool results and requests requiring editable inputs or richer confirmation controls must be reviewed using Open Session."),
@@ -98,7 +98,7 @@ function createFocusRestorer(layoutService: IAgentWorkbenchLayoutService): () =>
 	};
 }
 
-export function buildInboxNotificationsAccessibleContent(items: readonly (Pick<IInboxNotificationItem, 'kind' | 'priority' | 'title' | 'description' | 'repositoryLabel' | 'pullRequestStates' | 'needsInputPart'> & Partial<Pick<IInboxSessionRow, 'tab' | 'sessionTitle' | 'hasImages' | 'timestamp'>>)[]): string {
+export function buildInboxNotificationsAccessibleContent(items: readonly (Pick<IInboxNotificationItem, 'kind' | 'priority' | 'title' | 'description' | 'repositoryLabel' | 'pullRequestStates' | 'needsInputPart'> & Partial<Pick<IInboxSessionRow, 'tab' | 'sessionTitle' | 'hasImages' | 'timestamp' | 'notifications'>>)[]): string {
 	if (items.length === 0) {
 		return localize('inboxNotifications.accessibleView.empty', "No active notifications.");
 	}
@@ -122,7 +122,7 @@ export function buildInboxNotificationsAccessibleContent(items: readonly (Pick<I
 			'inboxNotifications.accessibleView.itemMeta',
 			"   Priority: {0}. Type: {1}",
 			getInboxNotificationPriorityLabel(item.priority),
-			getInboxNotificationKindLabel(item.kind),
+			getInboxNotificationLabel(item),
 		));
 		if (item.repositoryLabel) {
 			lines.push(localize('inboxNotifications.accessibleView.itemRepository', "   Repository: {0}", item.repositoryLabel));

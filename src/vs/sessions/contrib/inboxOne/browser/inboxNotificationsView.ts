@@ -94,7 +94,7 @@ import {
 	getInboxPullRequestRefs,
 	getInboxToolConfirmationDetails,
 } from '../common/inboxNotificationsService.js';
-import { getInboxNotificationKindLabel, getInboxNotificationPriorityLabel, getInboxTabLabel } from './inboxNotificationsLabels.js';
+import { getInboxNotificationLabel, getInboxNotificationPriorityLabel, getInboxTabLabel } from './inboxNotificationsLabels.js';
 import { createInboxEvidenceSection, InboxEvidenceWidget } from './inboxEvidenceWidget.js';
 import { InboxCanvases } from './inboxCanvases.js';
 
@@ -395,6 +395,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	private readonly searchText = observableValue(this, '');
 	private readonly composerElement = $('div.inbox-notifications-composer');
 	private readonly composerLabel = $('div.inbox-notifications-composer-label');
+	private readonly resizeObserver: DisposableResizeObserver;
+	private readonly composerContentObservation = this._register(new MutableDisposable());
+	private observedComposerContent: HTMLElement | undefined;
 	private composerInitialization: Promise<void> | undefined;
 	private selectedRowTab: InboxTab | undefined;
 	private readonly newSessionElement = $('div.inbox-notifications-new-session');
@@ -492,10 +495,10 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		this._register(addDisposableListener(this.detailContentElement, EventType.SCROLL, () => {
 			this.detailScrollableElement.setScrollPosition({ scrollTop: this.detailContentElement.scrollTop });
 		}));
-		const resizeObserver = this._register(new DisposableResizeObserver('InboxNotificationsView.scroll', () => {
+		const resizeObserver = this.resizeObserver = this._register(new DisposableResizeObserver('InboxNotificationsView.scroll', () => {
 			this.scrollableElement.scanDomNode();
 			this.detailScrollableElement.scanDomNode();
-			this.layoutDetailChat();
+			this.layoutComposer();
 		}, getWindow(this.listElement), { resizeObserverCtor }));
 		this._register(resizeObserver.observe(this.listElement));
 		this._register(resizeObserver.observe(this.scrollableContentElement));
@@ -1147,7 +1150,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			const parsed = JSON.parse(raw);
 			if (Array.isArray(parsed)) {
 				const categories = parsed.filter((value): value is InboxFilterCategory => FILTER_CATEGORIES.includes(value as InboxFilterCategory));
-				this.visibleCategories.set(new Set(categories), undefined);
+				this.visibleCategories.set(new Set(categories.length === 0 && parsed.includes('completed') ? DEFAULT_VISIBLE_CATEGORIES : categories), undefined);
 			}
 		} catch (error) {
 			onUnexpectedError(error);
@@ -1220,13 +1223,14 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		const row = this.getRow(item.id);
 		const notificationKind = item.needsInputPart && item.needsInputPart.kind !== 'questionCarousel'
 			? InboxNotificationKind.ConfirmationRequested : item.kind;
+		const kindLabel = getInboxNotificationLabel({ ...(row ?? item), kind: notificationKind });
 		const icon = card.appendChild(renderIcon(row?.tab === InboxTab.Working ? Codicon.loading
 			: this.getNotificationIcon(notificationKind)));
 		icon.classList.add('inbox-notifications-row-icon');
 		icon.classList.toggle('codicon-modifier-spin', row?.tab === InboxTab.Working);
 		icon.setAttribute('aria-hidden', 'true');
 		store.add(this.hoverService.setupDelayedHover(icon, {
-			content: this.kindLabel(notificationKind), appearance: { showPointer: true },
+			content: kindLabel, appearance: { showPointer: true },
 		}, { groupId: 'inbox-notification-kind' }));
 		const titles = card.appendChild($('.inbox-notifications-row-titles'));
 		const title = titles.appendChild($('.inbox-notifications-item-title'));
@@ -1237,7 +1241,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			const generated = item.previewSignature ? this.inboxNotificationsService.previews.read(reader).get(item.previewSignature) : undefined;
 			title.textContent = generated || item.title;
 			card.setAttribute('aria-label', [
-				generated || item.title, row?.sessionTitle, this.kindLabel(notificationKind), row && getInboxTabLabel(row.tab),
+				generated || item.title, row?.sessionTitle, kindLabel, row && getInboxTabLabel(row.tab),
 				row?.hasImages ? localize('inbox.visual.aria', "Visual evidence available") : undefined,
 				fromNowByDay(item.timestamp, true, true),
 			].filter(Boolean).join('. '));
@@ -1259,6 +1263,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 				content: item.pullRequestStates.map(state => `${state.label}: ${state.statusLabel}`).join('\n'),
 			}));
 		}
+		const state = card.appendChild($('.inbox-notifications-item-kind-label', undefined, kindLabel));
+		state.classList.add(`priority-${item.priority}`);
+		store.add(this.hoverService.setupDelayedHover(state, { content: kindLabel }));
 		const trailing = card.appendChild($('.inbox-notifications-row-trailing'));
 		const timestamp = trailing.appendChild($('.inbox-notifications-item-time', undefined, fromNowByDay(item.timestamp, true, true)));
 		store.add(this.hoverService.setupDelayedHover(timestamp, { content: new Date(item.timestamp).toLocaleString() }));
@@ -1271,7 +1278,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			}));
 			hold.label = row.tab === InboxTab.OnHold ? '$(play)' : '$(history)';
 			store.add(hold.onDidClick(() => this.inboxNotificationsService.setSessionOnHold(row, row.tab !== InboxTab.OnHold)));
-			this.renderActionButton(actions, row, { id: 'done', label: '$(check)', ariaLabel: localize('inbox.done', "Mark as Done"), kind: InboxNotificationActionKind.MarkDone }, store);
+			this.renderActionButton(actions, row, { id: 'done', label: '$(check)', ariaLabel: localize('inbox.done', "Mark Session as Done"), kind: InboxNotificationActionKind.MarkDone }, store);
 		}
 		if (row) {
 			store.add(addDisposableListener(card, EventType.CONTEXT_MENU, event => {
@@ -1288,7 +1295,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 								id: 'hold', label: row.tab === InboxTab.OnHold ? localize('inbox.resume', "Resume") : localize('inbox.hold', "Put on Hold"),
 								run: () => this.inboxNotificationsService.setSessionOnHold(row, row.tab !== InboxTab.OnHold)
 							}),
-							toAction({ id: 'done', label: localize('inbox.done', "Mark as Done"), run: () => this.inboxNotificationsService.markSessionDone(row) }),
+							toAction({ id: 'done', label: localize('inbox.done', "Mark Session as Done"), run: () => this.inboxNotificationsService.markSessionDone(row) }),
 						] : []),
 					],
 				});
@@ -1306,8 +1313,8 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		}
 		const primaryActions = item.actions.filter(action =>
 			action.kind !== InboxNotificationActionKind.OpenSession
-			&& action.kind !== InboxNotificationActionKind.MarkDone);
-		primaryActions.push({ id: 'dismiss', label: localize('inbox.dismiss', "Dismiss Notification"), kind: InboxNotificationActionKind.Dismiss });
+			&& action.kind !== InboxNotificationActionKind.MarkDone
+			&& action.kind !== InboxNotificationActionKind.Dismiss);
 		const headerActions: IInboxNotificationAction[] = [];
 		let footerActions: HTMLElement | undefined;
 		if (primaryActions.length || headerActions.length) {
@@ -1322,9 +1329,10 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			}
 		}
 
+		if (!titleGroup.childElementCount && !primaryActions.length) {
+			heading.remove();
+		}
 		const badges = card.appendChild($('.inbox-notifications-item-badges'));
-		const kindLabel = badges.appendChild($('.inbox-notifications-item-kind-label', undefined, this.kindLabel(item.kind)));
-		kindLabel.classList.add(`priority-${item.priority}`);
 		if (item.repositoryLabel) {
 			badges.appendChild($('.inbox-notifications-item-badge.repository', undefined, item.repositoryLabel));
 		}
@@ -1833,10 +1841,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			return;
 		}
 
-		if (!this.focusSelectedCard()) {
-			return;
-		}
-
+		this.focusSelectedCard();
 		event.preventDefault();
 		event.stopPropagation();
 		this.clearSelectedItem('escape');
@@ -1886,10 +1891,6 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		return this.renderedCards;
 	}
 
-	private kindLabel(kind: IInboxNotificationItem['kind']): string {
-		return getInboxNotificationKindLabel(kind);
-	}
-
 	private getNotificationIcon(kind: InboxNotificationKind) {
 		switch (kind) {
 			case InboxNotificationKind.ConfirmationRequested: return Codicon.shield;
@@ -1910,7 +1911,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	private getCardAriaLabel(item: IInboxNotificationItem, description = item.description): string {
 		const segments = [
 			localize('inboxNotifications.itemAriaLabel.priority', "Priority {0}", this.priorityLabel(item.priority)),
-			this.kindLabel(item.kind),
+			getInboxNotificationLabel(item),
 		];
 		if (item.repositoryLabel) {
 			segments.push(localize('inboxNotifications.itemAriaLabel.repository', "Repository {0}", item.repositoryLabel));
@@ -2002,6 +2003,8 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 						this.maybeTriggerConfetti(sourceElement);
 						this.inboxNotificationsService.markSessionDone(row);
 					}
+				} else if (action.kind === InboxNotificationActionKind.Dismiss) {
+					this.inboxNotificationsService.dismissNotification(item.id, item);
 				} else if (action.kind !== InboxNotificationActionKind.OpenSession) {
 					await this.markDone(item, undefined);
 				}
@@ -2519,7 +2522,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		this.detailSash?.layout();
 		this.scrollableElement.scanDomNode();
 		this.detailScrollableElement.scanDomNode();
-		this.layoutDetailChat();
+		this.layoutComposer();
 	}
 
 	private loadListPaneWidth(): void {
@@ -2725,14 +2728,30 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		}
 		this.detailPaneElement.classList.add('has-chat');
 		this.updateComposerMode();
-		this.layoutDetailChat();
 	}
 
-	private layoutDetailChat(): void {
-		const width = this.detailChatElement.clientWidth;
-		const height = this.detailChatElement.clientHeight;
+	private layoutComposer(): void {
+		const newSession = this.newSessionElement.classList.contains('visible');
+		const element = newSession ? this.newSessionElement : this.detailChatElement;
+		const view = newSession ? this.newSessionView : this.detailChat.value;
+		if (!view || !element.classList.contains('visible')) {
+			this.composerContentObservation.clear();
+			this.observedComposerContent = undefined;
+			return;
+		}
+		const content = view.inputContentElement;
+		if (content !== this.observedComposerContent) {
+			this.observedComposerContent = content;
+			this.composerContentObservation.value = content ? this.resizeObserver.observe(content) : undefined;
+		}
+		if (content) {
+			// Size the footer from the native input, not the previously allocated view height.
+			element.style.height = `${content.offsetHeight}px`;
+		}
+		const width = element.clientWidth;
+		const height = element.clientHeight;
 		if (width > 0 && height > 0) {
-			this.detailChat.value?.layout(width, height, 0, 0);
+			view.layout(width, height, 0, 0);
 		}
 	}
 
@@ -2778,9 +2797,13 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		if (item.sessionResource) {
 			this.renderActionButton(header, item, { id: 'open', label: localize('inbox.openSession', "Open Session"), kind: InboxNotificationActionKind.OpenSession }, this.detailDisposables);
 		}
+		if (row && row.tab !== InboxTab.Done) {
+			this.renderActionButton(header, row, { id: 'done', label: localize('inbox.done', "Mark Session as Done"), kind: InboxNotificationActionKind.MarkDone }, this.detailDisposables);
+		}
+		const closeLabel = localize('inbox.closeEvidence', "Close Evidence");
 		const close = this.detailDisposables.add(new Button(header, {
 			...inboxButtonStyles, secondary: true, small: true, supportIcons: true,
-			ariaLabel: localize('inbox.closeEvidence', "Close Evidence")
+			ariaLabel: closeLabel, title: closeLabel,
 		}));
 		close.label = '$(close)';
 		this.detailDisposables.add(close.onDidClick(() => {
@@ -2960,7 +2983,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 
 	private renderDetailSummary(body: HTMLElement, item: IInboxNotificationItem): void {
 		const section = body.appendChild($('section.inbox-notifications-detail-evidence.inbox-evidence-section'));
-		section.appendChild($('h3', undefined, localize('inboxNotifications.detail.interpretation', "Agent interpretation")));
+		section.setAttribute('aria-label', localize('inboxNotifications.detail.interpretation', "Agent interpretation"));
 		const container = section.appendChild($('.inbox-notifications-interpretation-content'));
 		const content = container.appendChild($('div'));
 		const runStore = this.detailDisposables.add(new DisposableStore());
@@ -3070,9 +3093,6 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	}
 
 	layout(width: number, _height: number): void {
-		if (this.newSessionView && this.newSessionElement.classList.contains('visible')) {
-			this.newSessionView.layout(this.newSessionElement.clientWidth, this.newSessionElement.clientHeight, 0, 0);
-		}
 		this.layoutWidth = width;
 		if (!this.hasCustomListPaneWidth) {
 			this.listPaneWidth = this.getDefaultListPaneWidth();
@@ -3134,10 +3154,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		this.newSessionView?.setVisible(this.visible.get() && newSession);
 		this.detailChat.value?.setActive(this.visible.get() && replying);
 		this.detailChat.value?.setVisible(this.visible.get() && replying);
-		this.layoutDetailChat();
-		if (newSession) {
-			this.newSessionView?.layout(this.newSessionElement.clientWidth, this.newSessionElement.clientHeight, 0, 0);
-		}
+		this.layoutComposer();
 	}
 
 	private async ensureNewSessionComposer(): Promise<void> {

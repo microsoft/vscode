@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { InboxNotificationKind, InboxNotificationPriority, InboxTab } from '../common/inboxNotificationsService.js';
+import { IInboxNotificationItem, IInboxSessionRow, InboxNotificationKind, InboxNotificationPriority, InboxTab } from '../common/inboxNotificationsService.js';
 
 export function getInboxTabLabel(tab: InboxTab): string {
 	switch (tab) {
@@ -36,6 +36,10 @@ export function getInboxNotificationKindLabel(kind: InboxNotificationKind): stri
 		default:
 			return localize('inboxNotifications.kind.external', "Event");
 	}
+}
+
+export function getInboxNotificationLabel(item: Pick<IInboxNotificationItem, 'kind'> & Partial<Pick<IInboxSessionRow, 'tab' | 'notifications'>>): string {
+	return item.tab && item.notifications?.length === 0 ? getInboxTabLabel(item.tab) : getInboxNotificationKindLabel(item.kind);
 }
 
 export function getInboxNotificationPriorityLabel(priority: InboxNotificationPriority): string {
