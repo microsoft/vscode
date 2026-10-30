@@ -206,10 +206,13 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 			return {};
 		}
 		const protectedResource = await this.discoverProtectedResource(serviceIndexUrl);
+		this.protectedResource = protectedResource;
 		if (!protectedResource) {
 			return {};
 		}
-		this.protectedResource = protectedResource;
+		if (!this.hasResourceScopes(protectedResource.scopes)) {
+			return { requiresScopeConfiguration: true };
+		}
 		return { accessToken: (await this.getResourceSession(session, protectedResource))?.accessToken };
 	}
 
@@ -247,6 +250,12 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 		return session;
 	}
 
+	private hasResourceScopes(scopes: readonly string[]): boolean {
+		// Microsoft authentication turns OIDC-only requests into Graph token requests.
+		return scopes.every(scope => !scope.startsWith('VSCODE_'))
+			&& scopes.some(scope => !['openid', 'email', 'profile', 'offline_access'].includes(scope));
+	}
+
 	/**
 	 * Requests the resource-scoped session (RFC 8707) for the already-chosen account. The
 	 * marketplace names its own authorization server, so it is the authentication provider that
@@ -254,7 +263,7 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 	 * treated here as simply having no session.
 	 */
 	private async getResourceSession(session: AuthenticationSession, protectedResource: IMarketplaceProtectedResource): Promise<AuthenticationSession | undefined> {
-		if (protectedResource.scopes.length === 0) {
+		if (!this.hasResourceScopes(protectedResource.scopes)) {
 			return undefined;
 		}
 		try {
@@ -285,7 +294,9 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 			if (!authorizationServer) {
 				return undefined;
 			}
-			return { authorizationServer, scopes: metadata.scopes_supported ?? [] };
+			const scopes = metadata.scopes_supported ?? [];
+			const validScopes = scopes.every(scope => typeof scope === 'string' && scope.length > 0 && !/\s/.test(scope));
+			return { authorizationServer, scopes: validScopes ? scopes : [] };
 		} catch {
 			return undefined;
 		}
@@ -357,7 +368,7 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 	 */
 	private async consentToProtectedResource(session: AuthenticationSession): Promise<void> {
 		const protectedResource = this.protectedResource;
-		if (!protectedResource || protectedResource.scopes.length === 0) {
+		if (!protectedResource || !this.hasResourceScopes(protectedResource.scopes)) {
 			return;
 		}
 		if (await this.getResourceSession(session, protectedResource)) {

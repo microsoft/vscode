@@ -9,6 +9,8 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 /** `accessToken` is only carried when the provider authenticates with a bearer. */
 export interface IExtensionGalleryAccount {
 	readonly accessToken?: string;
+	/** Discovered marketplace metadata does not advertise usable resource scopes. */
+	readonly requiresScopeConfiguration?: boolean;
 }
 
 export const enum ExtensionGalleryAccountStatus {

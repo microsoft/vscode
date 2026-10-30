@@ -2130,6 +2130,7 @@ registerAction2(class ExtensionsGallerySignInAction extends Action2 {
 		super({
 			id: 'workbench.extensions.actions.gallery.signIn',
 			title: localize2('signInToMarketplace', 'Sign in to access Extensions Marketplace'),
+			precondition: CONTEXT_EXTENSIONS_GALLERY_STATUS.notEqualsTo(ExtensionGalleryManifestStatus.RequiresConfiguration),
 			menu: {
 				id: MenuId.AccountsContext,
 				when: ContextKeyExpr.or(
@@ -2140,6 +2141,9 @@ registerAction2(class ExtensionsGallerySignInAction extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
+		if (accessor.get(IExtensionGalleryManifestService).extensionGalleryManifestStatus === ExtensionGalleryManifestStatus.RequiresConfiguration) {
+			return;
+		}
 		await accessor.get(IExtensionGalleryAccountService).signIn();
 	}
 });

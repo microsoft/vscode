@@ -178,6 +178,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		}());
 
 		instantiationService.stub(ISharedProcessService, new class extends mock<ISharedProcessService>() {
+			override registerChannel(): void { }
 			override getChannel(_channelName: string): any {
 				return {
 					call: () => {
@@ -1037,7 +1038,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	 * Answers the marketplace's protected resource metadata, and gates the index on the
 	 * resource-scoped bearer so a test fails if the sign-in token is presented instead.
 	 */
-	function gatedMarketplace(resourceToken: string, metadata?: object): (options: IRequestOptions) => IRequestContext {
+	function gatedMarketplace(resourceToken: string, metadata?: object, statusCode = 401): (options: IRequestOptions) => IRequestContext {
 		return options => {
 			if (options.url?.includes('/.well-known/oauth-protected-resource')) {
 				return metadata
@@ -1046,7 +1047,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 			}
 			return options.headers?.Authorization === `Bearer ${resourceToken}`
 				? mockResponse(200, createGalleryManifest())
-				: mockResponse(401, { message: 'authentication required' });
+				: mockResponse(statusCode, { message: 'authentication required' });
 		};
 	}
 
@@ -1055,10 +1056,10 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	const PROTECTED_RESOURCE_METADATA = {
 		resource: 'https://marketplace.example.com',
 		authorization_servers: ['https://login.example.com/common'],
-		scopes_supported: ['api://marketplace.example.com/.default'],
+		scopes_supported: ['api://11111111-2222-4333-8444-555555555555/access_as_user'],
 	};
 	/** Mints `resource-token` only for the advertised resource scopes and authorization server. */
-	function stubResourceScopedAuthentication() {
+	function stubResourceScopedAuthentication(resourceScopes: readonly string[] = PROTECTED_RESOURCE_METADATA.scopes_supported) {
 		const resourceRequests: (readonly string[] | IAuthenticationWwwAuthenticateRequest | undefined)[] = [];
 		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
@@ -1071,11 +1072,11 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 				}
 				resourceRequests.push(scopes);
 				if (options.authorizationServer.toString(true) !== PROTECTED_RESOURCE_METADATA.authorization_servers[0]
-					|| scopes?.length !== 1 || scopes[0] !== PROTECTED_RESOURCE_METADATA.scopes_supported[0]) {
+					|| scopes?.length !== resourceScopes.length || !scopes.every((scope, index) => scope === resourceScopes[index])) {
 					return microsoftSessions;
 				}
 				const session = microsoftSessions.find(session => session.account.id === options.account?.id);
-				return session ? [{ ...session, accessToken: 'resource-token', scopes: [...PROTECTED_RESOURCE_METADATA.scopes_supported] }] : [];
+				return session ? [{ ...session, accessToken: 'resource-token', scopes: [...resourceScopes] }] : [];
 			}
 			override async getAccounts() {
 				return microsoftSessions.map(session => session.account);
@@ -1107,11 +1108,13 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		const sharedChannel = createChannel('shared');
 		const remoteChannel = createChannel('remote');
 		instantiationService.stub(ISharedProcessService, new class extends mock<ISharedProcessService>() {
+			override registerChannel(): void { }
 			override getChannel<T extends IChannel>(): T {
 				return sharedChannel as T;
 			}
 		}());
 		const remoteConnection = disposableStore.add(new class extends mock<IRemoteAgentConnection>() {
+			override registerChannel(): void { }
 			override getChannel<T extends IChannel>(): T {
 				return remoteChannel as T;
 			}
@@ -1125,8 +1128,13 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		return { calls, published };
 	}
 
-	async function assertAnonymousMarketplace(metadata: object | undefined, gated: boolean): Promise<void> {
-		const marketplace = gatedMarketplace('resource-token', metadata);
+	async function assertAnonymousMarketplace(
+		metadata: object | undefined,
+		gated: boolean,
+		expectedStatus = gated ? ExtensionGalleryManifestStatus.RequiresSignIn : ExtensionGalleryManifestStatus.Available,
+		statusCode = 401,
+	): Promise<void> {
+		const marketplace = gatedMarketplace('resource-token', metadata, statusCode);
 		requestHandler = options => !gated && options.url === MARKETPLACE_URL
 			? mockResponse(200, createGalleryManifest())
 			: marketplace(options);
@@ -1141,7 +1149,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 			channelCalls: calls,
 			accessToken: await authorizationService.getAccessToken(MARKETPLACE_URL),
 		}, {
-			status: gated ? ExtensionGalleryManifestStatus.RequiresSignIn : ExtensionGalleryManifestStatus.Available,
+			status: expectedStatus,
 			requests: [
 				{ url: `${MARKETPLACE_URL}/.well-known/oauth-protected-resource`, authorization: undefined },
 				{ url: MARKETPLACE_URL, authorization: undefined },
@@ -1155,35 +1163,41 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		});
 	}
 
-	test('Microsoft — gated index resolves a resource-scoped token and becomes Available', async () => {
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
-		microsoftSessions = [createMicrosoftSession('signin-token')];
-		stubResourceScopedAuthentication();
-		// The sign-in token identifies the user but is not minted for the marketplace, so the index
-		// rejects it; only the token acquired against the advertised authorization server is accepted.
-		requestHandler = gatedMarketplace('resource-token', PROTECTED_RESOURCE_METADATA);
-		const { calls, published } = recordManifestChannels();
+	for (const resourceScopes of [
+		PROTECTED_RESOURCE_METADATA.scopes_supported,
+		['api://11111111-2222-4333-8444-555555555555/.default'],
+		['openid', 'api://11111111-2222-4333-8444-555555555555/access_as_user', 'offline_access'],
+	]) {
+		test(`Microsoft - gated index resolves advertised scopes ${resourceScopes.join(', ')} without inferring the resource`, async () => {
+			configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+			microsoftSessions = [createMicrosoftSession('signin-token')];
+			const resourceRequests = stubResourceScopedAuthentication(resourceScopes);
+			requestHandler = gatedMarketplace('resource-token', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: resourceScopes });
+			const { calls, published } = recordManifestChannels();
 
-		const service = createService();
-		const manifest = await service.getExtensionGalleryManifest();
-		await published;
+			const service = createService();
+			const manifest = await service.getExtensionGalleryManifest();
+			await published;
 
-		assert.deepStrictEqual({
-			status: service.extensionGalleryManifestStatus,
-			requestAuthorizations: marketplaceRequests.map(request => request.headers?.Authorization),
-			channelCalls: calls,
-			accessToken: await authorizationService.getAccessToken(MARKETPLACE_URL),
-		}, {
-			status: ExtensionGalleryManifestStatus.Available,
-			requestAuthorizations: [undefined, 'Bearer resource-token'],
-			channelCalls: ['shared', 'remote'].map(target => ({
-				target,
-				command: 'setExtensionGalleryManifest',
-				args: [manifest, 'resource-token', MARKETPLACE_URL],
-			})),
-			accessToken: 'resource-token',
+			assert.deepStrictEqual({
+				status: service.extensionGalleryManifestStatus,
+				resourceRequests,
+				requestAuthorizations: marketplaceRequests.map(request => request.headers?.Authorization),
+				channelCalls: calls,
+				accessToken: await authorizationService.getAccessToken(MARKETPLACE_URL),
+			}, {
+				status: ExtensionGalleryManifestStatus.Available,
+				resourceRequests: [resourceScopes],
+				requestAuthorizations: [undefined, 'Bearer resource-token'],
+				channelCalls: ['shared', 'remote'].map(target => ({
+					target,
+					command: 'setExtensionGalleryManifest',
+					args: [manifest, 'resource-token', MARKETPLACE_URL],
+				})),
+				accessToken: 'resource-token',
+			});
 		});
-	});
+	}
 
 	test('Microsoft — an index without protected resource metadata uses anonymous requests', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
@@ -1199,12 +1213,17 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		await assertAnonymousMarketplace(undefined, true);
 	});
 
-	for (const [scenario, metadata] of [
-		['malformed metadata', { authorization_servers: PROTECTED_RESOURCE_METADATA.authorization_servers }],
-		['malformed scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: 'openid' }],
-		['no authorization server', { ...PROTECTED_RESOURCE_METADATA, authorization_servers: [] }],
-		['missing resource scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: undefined }],
-		['empty resource scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: [] }],
+	for (const [scenario, metadata, requiresConfiguration] of [
+		['malformed metadata', { authorization_servers: PROTECTED_RESOURCE_METADATA.authorization_servers }, false],
+		['malformed scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: 'openid' }, false],
+		['no authorization server', { ...PROTECTED_RESOURCE_METADATA, authorization_servers: [] }, false],
+		['missing resource scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: undefined }, true],
+		['empty resource scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: [] }, true],
+		['blank resource scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: [' '] }, true],
+		['invalid scope entries', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: [42] }, true],
+		['mixed invalid resource scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: [...PROTECTED_RESOURCE_METADATA.scopes_supported, ''] }, true],
+		['identity-only scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: ['openid', 'profile', 'email', 'offline_access'] }, true],
+		['internal authentication scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: ['VSCODE_CLIENT_ID:11111111-2222-4333-8444-555555555555'] }, true],
 	] as const) {
 		for (const gated of [false, true]) {
 			test(`Microsoft - ${gated ? 'gated' : 'open'} index with ${scenario} never uses identity credentials`, async () => {
@@ -1212,12 +1231,177 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 				microsoftSessions = [createMicrosoftSession('signin-token')];
 				const resourceRequests = stubResourceScopedAuthentication();
 
-				await assertAnonymousMarketplace(metadata, gated);
+				const status = gated
+					? requiresConfiguration ? ExtensionGalleryManifestStatus.RequiresConfiguration : ExtensionGalleryManifestStatus.RequiresSignIn
+					: ExtensionGalleryManifestStatus.Available;
+				await assertAnonymousMarketplace(metadata, gated, status);
 				await accountService.signIn();
 
 				assert.deepStrictEqual(resourceRequests, []);
 			});
 		}
+	}
+
+	for (const statusCode of [400, 401, 500]) {
+		test(`Microsoft - missing scopes diagnose only an authentication gate (${statusCode})`, async () => {
+			configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+			microsoftSessions = [createMicrosoftSession('signin-token')];
+			const resourceRequests = stubResourceScopedAuthentication();
+
+			await assertAnonymousMarketplace({ ...PROTECTED_RESOURCE_METADATA, scopes_supported: [] }, true,
+				statusCode === 401 ? ExtensionGalleryManifestStatus.RequiresConfiguration : ExtensionGalleryManifestStatus.AccessDenied,
+				statusCode);
+
+			assert.deepStrictEqual(resourceRequests, []);
+		});
+	}
+
+	test('Microsoft - a 403 does not diagnose missing scopes or expose identity credentials', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession('signin-token')];
+		const resourceRequests = stubResourceScopedAuthentication();
+		requestHandler = gatedMarketplace('resource-token', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: [] }, 403);
+		const { calls, published } = recordManifestChannels();
+		const service = createService();
+		const manifest = await service.getExtensionGalleryManifest();
+		await published;
+
+		assert.deepStrictEqual({
+			requiresConfiguration: service.extensionGalleryManifestStatus === ExtensionGalleryManifestStatus.RequiresConfiguration,
+			manifest,
+			resourceRequests,
+			requestAuthorizations: marketplaceRequests.map(request => request.headers?.Authorization),
+			channelCalls: calls,
+			accessToken: await service.getAccessToken(MARKETPLACE_URL),
+		}, {
+			requiresConfiguration: false,
+			manifest: null,
+			resourceRequests: [],
+			requestAuthorizations: [undefined, undefined],
+			channelCalls: ['shared', 'remote'].map(target => ({
+				target,
+				command: 'setExtensionGalleryManifest',
+				args: [null, undefined, undefined],
+			})),
+			accessToken: undefined,
+		});
+	});
+
+	for (const failure of ['not found', 'unavailable', 'malformed', 'network'] as const) {
+		test(`Microsoft - ${failure} metadata stays retryable without diagnosing missing scopes`, async () => {
+			configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+			microsoftSessions = [createMicrosoftSession('signin-token')];
+			const resourceRequests = stubResourceScopedAuthentication();
+			requestHandler = options => {
+				if (options.url?.includes('/.well-known/oauth-protected-resource')) {
+					if (failure === 'network') {
+						throw new Error('network unavailable');
+					}
+					return mockResponse(failure === 'not found' ? 404 : failure === 'unavailable' ? 503 : 200, {});
+				}
+				return mockResponse(401, { message: 'authentication required' });
+			};
+			const { calls, published } = recordManifestChannels();
+			const service = createService();
+			await service.getExtensionGalleryManifest();
+			await published;
+
+			assert.deepStrictEqual({
+				status: service.extensionGalleryManifestStatus,
+				resourceRequests,
+				requestAuthorizations: marketplaceRequests.map(request => request.headers?.Authorization),
+				channelCalls: calls,
+			}, {
+				status: ExtensionGalleryManifestStatus.RequiresSignIn,
+				resourceRequests: [],
+				requestAuthorizations: [undefined, undefined],
+				channelCalls: ['shared', 'remote'].map(target => ({
+					target,
+					command: 'setExtensionGalleryManifest',
+					args: [null, undefined, undefined],
+				})),
+			});
+		});
+	}
+
+	test('Microsoft - reloading after corrected metadata clears the configuration diagnosis and publishes only the resource token', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession('signin-token')];
+		const resourceRequests = stubResourceScopedAuthentication();
+		requestHandler = gatedMarketplace('resource-token', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: [] });
+		const { calls, published } = recordManifestChannels();
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		await published;
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresConfiguration);
+
+		requestHandler = gatedMarketplace('resource-token', PROTECTED_RESOURCE_METADATA);
+		const available = Event.toPromise(Event.filter(service.onDidChangeExtensionGalleryManifestStatus, status => status === ExtensionGalleryManifestStatus.Available));
+		accountService.setAccountProvider(disposableStore.add(instantiationService.createInstance(MicrosoftGalleryAccountProvider)));
+		await available;
+		const manifest = await service.getExtensionGalleryManifest();
+
+		assert.deepStrictEqual({
+			status: service.extensionGalleryManifestStatus,
+			resourceRequests,
+			requestAuthorizations: marketplaceRequests.map(request => request.headers?.Authorization),
+			channelCalls: calls,
+			accessToken: await service.getAccessToken(MARKETPLACE_URL),
+		}, {
+			status: ExtensionGalleryManifestStatus.Available,
+			resourceRequests: [PROTECTED_RESOURCE_METADATA.scopes_supported],
+			requestAuthorizations: [undefined, undefined, undefined, 'Bearer resource-token'],
+			channelCalls: [
+				...['shared', 'remote'].map(target => ({ target, command: 'setExtensionGalleryManifest', args: [null, undefined, undefined] })),
+				...['shared', 'remote'].map(target => ({ target, command: 'setExtensionGalleryManifest', args: [manifest, 'resource-token', MARKETPLACE_URL] })),
+			],
+			accessToken: 'resource-token',
+		});
+	});
+
+	for (const recovery of ['open marketplace', 'unavailable metadata'] as const) {
+		test(`Microsoft - reloading with ${recovery} does not retain a previous missing-scope diagnosis`, async () => {
+			configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+			microsoftSessions = [createMicrosoftSession('signin-token')];
+			const resourceRequests = stubResourceScopedAuthentication();
+			const metadata = { ...PROTECTED_RESOURCE_METADATA, scopes_supported: [] };
+			requestHandler = gatedMarketplace('resource-token', metadata);
+			const { calls, published } = recordManifestChannels();
+			const service = createService();
+			await service.getExtensionGalleryManifest();
+			await published;
+			assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresConfiguration);
+
+			const open = recovery === 'open marketplace';
+			requestHandler = options => {
+				if (options.url?.includes('/.well-known/oauth-protected-resource')) {
+					return open ? mockResponse(200, metadata) : mockResponse(503, {});
+				}
+				return open ? mockResponse(200, createGalleryManifest()) : mockResponse(401, {});
+			};
+			const expectedStatus = open ? ExtensionGalleryManifestStatus.Available : ExtensionGalleryManifestStatus.RequiresSignIn;
+			const updated = Event.toPromise(Event.filter(service.onDidChangeExtensionGalleryManifestStatus, status => status === expectedStatus));
+			accountService.setAccountProvider(disposableStore.add(instantiationService.createInstance(MicrosoftGalleryAccountProvider)));
+			await updated;
+			const manifest = await service.getExtensionGalleryManifest();
+
+			assert.deepStrictEqual({
+				status: service.extensionGalleryManifestStatus,
+				resourceRequests,
+				requestAuthorizations: marketplaceRequests.map(request => request.headers?.Authorization),
+				channelCalls: calls,
+				accessToken: await service.getAccessToken(MARKETPLACE_URL),
+			}, {
+				status: expectedStatus,
+				resourceRequests: [],
+				requestAuthorizations: [undefined, undefined, undefined, undefined],
+				channelCalls: [
+					...['shared', 'remote'].map(target => ({ target, command: 'setExtensionGalleryManifest', args: [null, undefined, undefined] })),
+					...(open ? ['shared', 'remote'].map(target => ({ target, command: 'setExtensionGalleryManifest', args: [manifest, undefined, MARKETPLACE_URL] })) : []),
+				],
+				accessToken: undefined,
+			});
+		});
 	}
 
 	for (const lookup of ['empty', 'throwing', 'unsupported'] as const) {
@@ -1293,40 +1477,46 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		});
 	});
 
-	test('Microsoft — interactive sign-in consents to the discovered marketplace resource', async () => {
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
-		microsoftSessions = [createMicrosoftSession('signin-token')];
-		const createdSessions: { readonly scopes: readonly string[]; readonly authorizationServer: string | undefined }[] = [];
-		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
-			override readonly onDidChangeSessions = onDidChangeSessions.event;
-			override async getSessions(providerId: string, _scopes?: readonly string[], options?: IAuthenticationGetSessionsOptions) {
-				if (providerId !== 'microsoft' || options?.authorizationServer) {
-					return [];
+	for (const resourceScopes of [
+		PROTECTED_RESOURCE_METADATA.scopes_supported,
+		['api://11111111-2222-4333-8444-555555555555/.default'],
+	]) {
+		test(`Microsoft - interactive sign-in consents to advertised scopes ${resourceScopes.join(', ')}`, async () => {
+			configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+			microsoftSessions = [createMicrosoftSession('signin-token')];
+			const createdSessions: { readonly scopes: readonly string[]; readonly authorizationServer: string | undefined; readonly accountId: string | undefined }[] = [];
+			instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
+				override readonly onDidChangeSessions = onDidChangeSessions.event;
+				override async getSessions(providerId: string, _scopes?: readonly string[], options?: IAuthenticationGetSessionsOptions) {
+					if (providerId !== 'microsoft' || options?.authorizationServer) {
+						return [];
+					}
+					return microsoftSessions;
 				}
-				return microsoftSessions;
-			}
-			override async getAccounts() {
-				return microsoftSessions.map(session => session.account);
-			}
-			override async createSession(_providerId: string, scopeListOrRequest: readonly string[] | IAuthenticationWwwAuthenticateRequest, options?: IAuthenticationCreateSessionOptions) {
-				createdSessions.push({
-					scopes: Array.isArray(scopeListOrRequest) ? scopeListOrRequest : [],
-					authorizationServer: options?.authorizationServer?.toString(true)
-				});
-				return createMicrosoftSession(options?.authorizationServer ? 'resource-token' : 'signin-token');
-			}
-		}());
-		requestHandler = gatedMarketplace('resource-token', PROTECTED_RESOURCE_METADATA);
+				override async getAccounts() {
+					return microsoftSessions.map(session => session.account);
+				}
+				override async createSession(_providerId: string, scopeListOrRequest: readonly string[] | IAuthenticationWwwAuthenticateRequest, options?: IAuthenticationCreateSessionOptions) {
+					createdSessions.push({
+						scopes: Array.isArray(scopeListOrRequest) ? scopeListOrRequest : [],
+						authorizationServer: options?.authorizationServer?.toString(true),
+						accountId: options?.account?.id
+					});
+					return createMicrosoftSession(options?.authorizationServer ? 'resource-token' : 'signin-token');
+				}
+			}());
+			requestHandler = gatedMarketplace('resource-token', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: resourceScopes });
 
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-		await accountService.signIn();
+			const service = createService();
+			await service.getExtensionGalleryManifest();
+			await accountService.signIn();
 
-		assert.deepStrictEqual(createdSessions, [
-			{ scopes: ['openid', 'profile', 'email', 'offline_access'], authorizationServer: undefined },
-			{ scopes: ['api://marketplace.example.com/.default'], authorizationServer: 'https://login.example.com/common' },
-		]);
-	});
+			assert.deepStrictEqual(createdSessions, [
+				{ scopes: ['openid', 'profile', 'email', 'offline_access'], authorizationServer: undefined, accountId: 'ms-account-1' },
+				{ scopes: resourceScopes, authorizationServer: 'https://login.example.com/common', accountId: 'ms-account-1' },
+			]);
+		});
+	}
 
 	test('Microsoft — sign-out retracts the published marketplace token', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
