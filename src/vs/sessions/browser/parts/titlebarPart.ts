@@ -39,6 +39,24 @@ const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
 const DEFAULT_SESSIONS_TITLEBAR_HEIGHT = 44;
 
 /**
+ * Whether the window hosting the title bar is in full screen, where the
+ * traffic lights are hidden. The full-screen state of an auxiliary window is
+ * only trusted when the window also covers its whole screen, so that a wrong
+ * state never removes the space reserved for visible traffic lights.
+ */
+function isTitlebarWindowFullscreen(targetWindow: CodeWindow): boolean {
+	if (!isFullscreen(targetWindow)) {
+		return false;
+	}
+
+	if (targetWindow === mainWindow) {
+		return true;
+	}
+
+	return targetWindow.outerWidth >= targetWindow.screen.width && targetWindow.outerHeight >= targetWindow.screen.height;
+}
+
+/**
  * Simplified agent sessions titlebar part.
  *
  * Three sections driven entirely by menus:
@@ -158,13 +176,24 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		// Track fullscreen of the window hosting this part (main or auxiliary)
 		const targetWindow = getWindow(parent);
 		const targetWindowId = getWindowId(targetWindow);
-		const updateFullscreenClass = () => parent.classList.toggle('titlebar-fullscreen', isFullscreen(targetWindow));
-		updateFullscreenClass();
+		let trafficLightSpacer: HTMLElement | undefined;
+		const updateFullscreen = () => {
+			const fullscreen = isTitlebarWindowFullscreen(targetWindow);
+			parent.classList.toggle('titlebar-fullscreen', fullscreen);
+			if (trafficLightSpacer) {
+				trafficLightSpacer.style.display = fullscreen ? 'none' : '';
+				this.leftSpacerWidth = fullscreen ? 0 : 70;
+			}
+		};
+		updateFullscreen();
 		this._register(onDidChangeFullscreen(windowId => {
 			if (windowId === targetWindowId) {
-				updateFullscreenClass();
+				updateFullscreen();
 			}
 		}));
+		if (targetWindow !== mainWindow) {
+			this._register(addDisposableListener(targetWindow, EventType.RESIZE, () => updateFullscreen()));
+		}
 		// Measure in the render phase so DOM reads do not force layout during startup.
 		this.titleBarToolBarOverflowScheduler = this._register(new AnimationFrameScheduler(this.rootContainer, () => this.updateTitleBarToolBarOverflow()));
 
@@ -189,22 +218,11 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			if (isMacintosh && isNative && primaryWindowControlsLocation === 'left') {
 				// macOS native: traffic lights are rendered by the OS at the top-left corner.
 				// Add a fixed-width spacer to push content past the traffic lights.
-				const spacer = append(this.leftContent, $('div.window-controls-container'));
-
-				// Hide spacer in fullscreen (traffic lights are not shown)
-				const updateSpacerVisibility = () => {
-					const fullscreen = isFullscreen(targetWindow);
-					spacer.style.display = fullscreen ? 'none' : '';
-					this.leftSpacerWidth = fullscreen ? 0 : 70;
-				};
-				updateSpacerVisibility();
+				// The spacer is hidden in fullscreen, where traffic lights are not shown.
+				const spacer = trafficLightSpacer = append(this.leftContent, $('div.window-controls-container'));
+				updateFullscreen();
 				spacer.style.width = `${this.leftSpacerWidth}px`;
 				spacer.style.flexShrink = '0';
-				this._register(onDidChangeFullscreen(windowId => {
-					if (windowId === targetWindowId) {
-						updateSpacerVisibility();
-					}
-				}));
 			} else if (getWindowControlsStyle(this.configurationService) === WindowControlsStyle.HIDDEN) {
 				// controls explicitly disabled
 			} else {

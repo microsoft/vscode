@@ -357,12 +357,17 @@ suite('Sessions - Titlebar Part', () => {
 		assert.deepStrictEqual({ initial, fullscreen, restored: parent.classList.contains('titlebar-fullscreen') }, { initial: false, fullscreen: true, restored: false });
 	});
 
-	test('tracks fullscreen of an auxiliary window independently of the main window', () => {
+	function createAuxiliaryTitlebar() {
 		const iframe = mainWindow.document.body.appendChild(mainWindow.document.createElement('iframe'));
 		store.add(toDisposable(() => iframe.remove()));
 		const auxiliaryWindow = iframe.contentWindow!;
 		ensureCodeWindow(auxiliaryWindow, mainWindow.vscodeWindowId + 1000);
 		store.add(registerWindow(auxiliaryWindow));
+		const screen = { width: 1440, height: 900 };
+		const size = { width: 800, height: 640 };
+		Object.defineProperty(auxiliaryWindow, 'screen', { configurable: true, get: () => screen });
+		Object.defineProperty(auxiliaryWindow, 'outerWidth', { configurable: true, get: () => size.width });
+		Object.defineProperty(auxiliaryWindow, 'outerHeight', { configurable: true, get: () => size.height });
 		const { part } = createTitlebar();
 		const parent = auxiliaryWindow.document.body.appendChild(auxiliaryWindow.document.createElement('div'));
 		(part as unknown as { createContentArea(parent: HTMLElement): HTMLElement }).createContentArea(parent);
@@ -370,18 +375,50 @@ suite('Sessions - Titlebar Part', () => {
 			setFullscreen(false, mainWindow);
 			setFullscreen(false, auxiliaryWindow);
 		}));
-		const read = () => parent.classList.contains('titlebar-fullscreen');
+		const coverScreen = () => {
+			size.width = screen.width;
+			size.height = screen.height;
+		};
+		const read = () => {
+			const spacer = parent.querySelector<HTMLElement>('.titlebar-left > .window-controls-container');
+			return { fullscreenClass: parent.classList.contains('titlebar-fullscreen'), spacer: spacer ? spacer.style.display : 'absent' };
+		};
+		return { auxiliaryWindow, coverScreen, read };
+	}
+
+	test('tracks fullscreen of an auxiliary window independently of the main window', () => {
+		const { auxiliaryWindow, coverScreen, read } = createAuxiliaryTitlebar();
+		coverScreen();
 
 		setFullscreen(true, mainWindow);
-		const mainFullscreen = read();
+		const mainFullscreen = read().fullscreenClass;
 		setFullscreen(false, mainWindow);
 		setFullscreen(true, auxiliaryWindow);
-		const auxiliaryFullscreen = read();
+		const auxiliaryFullscreen = read().fullscreenClass;
 		setFullscreen(true, mainWindow);
 		setFullscreen(false, auxiliaryWindow);
-		const auxiliaryRestoredWhileMainFullscreen = read();
+		const auxiliaryRestoredWhileMainFullscreen = read().fullscreenClass;
 
 		assert.deepStrictEqual({ mainFullscreen, auxiliaryFullscreen, auxiliaryRestoredWhileMainFullscreen }, { mainFullscreen: false, auxiliaryFullscreen: true, auxiliaryRestoredWhileMainFullscreen: false });
+	});
+
+	test('keeps the traffic-light inset for an auxiliary window flagged fullscreen that does not cover its screen', () => {
+		const { auxiliaryWindow, coverScreen, read } = createAuxiliaryTitlebar();
+		const reserved = read();
+
+		setFullscreen(true, auxiliaryWindow);
+		const flaggedButWindowed = read();
+		coverScreen();
+		auxiliaryWindow.dispatchEvent(new UIEvent('resize'));
+		const fullscreen = read();
+
+		// The spacer only exists for native macOS traffic lights.
+		const hasSpacer = reserved.spacer !== 'absent';
+		assert.deepStrictEqual({ reserved, flaggedButWindowed, fullscreen }, {
+			reserved: { fullscreenClass: false, spacer: hasSpacer ? '' : 'absent' },
+			flaggedButWindowed: { fullscreenClass: false, spacer: hasSpacer ? '' : 'absent' },
+			fullscreen: { fullscreenClass: true, spacer: hasSpacer ? 'none' : 'absent' },
+		});
 	});
 
 	test('hides optional toolbar groups when a titlebar section overflows', () => {
