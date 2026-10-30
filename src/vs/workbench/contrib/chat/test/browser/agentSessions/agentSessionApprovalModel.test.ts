@@ -663,6 +663,28 @@ suite('AgentSessionApprovalModel', () => {
 		}, { historyReads: 0, first: 'approval', stableApproval: true, updated: 'updated command' });
 	});
 
+	test('does not revisit earlier responses on each streamed update', () => {
+		const approvalModel = createModel();
+		const chatModel = addLiveChatModel();
+		const history: IChatResponseModel[] = [];
+		for (let i = 0; i < 50; i++) {
+			const response = chatModel.addRequest({ text: `Turn ${i}`, parts: [] }, { variables: [] }, 0).response!;
+			response.complete();
+			history.push(response);
+		}
+		const streaming = chatModel.addRequest({ text: 'Stream', parts: [] }, { variables: [] }, 0).response!;
+		const historyReads = history.map(response => sinon.spy(response, 'isCanceled', ['get']).get);
+		for (let i = 0; i < 100; i++) {
+			streaming.updateContent({ kind: 'markdownContent', content: new MarkdownString('token ') });
+		}
+		streaming.updateContent(pendingSubagentTool('approval'));
+
+		assert.deepStrictEqual({
+			historyReads: historyReads.reduce((sum, spy) => sum + spy.callCount, 0),
+			approval: getApproval(approvalModel, chatModel)?.label,
+		}, { historyReads: 0, approval: 'approval' });
+	});
+
 	test('handles model added after approval model is created', () => {
 		const approvalModel = createModel();
 
