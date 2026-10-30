@@ -116,7 +116,12 @@ export function validate(allowStylesheet: boolean = true): boolean {
 	return true;
 }
 
-export function getMappingForIncludedLanguages(): Record<string, string> {
+/**
+ * Gets the mapping of languages to their parent Emmet languages
+ * Supports both single string mappings and array mappings for one-to-many relationships
+ * @returns Record mapping language identifiers to their target Emmet language(s)
+ */
+export function getMappingForIncludedLanguages(): Record<string, string | string[]> {
 	// Explicitly map languages that have built-in grammar in VS Code to their parent language
 	// to get emmet completion support
 	// For other languages, users will have to use `emmet.includeLanguages` or
@@ -126,12 +131,22 @@ export function getMappingForIncludedLanguages(): Record<string, string> {
 		'php': 'html'
 	};
 
-	const finalMappedModes: Record<string, string> = {};
-	const includeLanguagesConfig = vscode.workspace.getConfiguration('emmet').get<Record<string, string>>('includeLanguages');
-	const includeLanguages = Object.assign({}, MAPPED_MODES, includeLanguagesConfig ?? {});
+	const finalMappedModes: Record<string, string | string[]> = {};
+	const includeLanguagesConfig = vscode.workspace.getConfiguration('emmet').get<Record<string, string | string[]>>('includeLanguages');
+	const includeLanguages: Record<string, string | string[]> = Object.assign({}, MAPPED_MODES, includeLanguagesConfig ?? {});
 	Object.keys(includeLanguages).forEach(syntax => {
-		if (typeof includeLanguages[syntax] === 'string' && LANGUAGE_MODES[includeLanguages[syntax]]) {
-			finalMappedModes[syntax] = includeLanguages[syntax];
+		const value = includeLanguages[syntax];
+		if (typeof value === 'string') {
+			// Handle single string mapping (backward compatibility)
+			if (LANGUAGE_MODES[value]) {
+				finalMappedModes[syntax] = value;
+			}
+		} else if (Array.isArray(value)) {
+			// Handle array of languages (new feature)
+			const validLanguages = value.filter((lang): lang is string => typeof lang === 'string' && !!LANGUAGE_MODES[lang]);
+			if (validLanguages.length > 0) {
+				finalMappedModes[syntax] = validLanguages;
+			}
 		}
 	});
 	return finalMappedModes;
@@ -145,7 +160,14 @@ export function getMappingForIncludedLanguages(): Record<string, string> {
 *
 * @param excludedLanguages Array of language ids that user has chosen to exclude for emmet
 */
-export function getEmmetMode(language: string, mappedModes: Record<string, string>, excludedLanguages: string[]): string | undefined {
+/**
+ * Gets the Emmet mode for a given language
+ * @param language The language identifier to get the Emmet mode for
+ * @param mappedModes Mapping of languages to their target Emmet language(s)
+ * @param excludedLanguages Array of excluded language identifiers
+ * @returns The Emmet mode string or undefined if not applicable
+ */
+export function getEmmetMode(language: string, mappedModes: Record<string, string | string[]>, excludedLanguages: string[]): string | undefined {
 	if (!language || excludedLanguages.includes(language)) {
 		return;
 	}
@@ -155,16 +177,21 @@ export function getEmmetMode(language: string, mappedModes: Record<string, strin
 	}
 
 	if (mappedModes[language]) {
-		language = mappedModes[language];
+		const mapping = mappedModes[language];
+		if (typeof mapping === 'string') {
+			language = mapping;
+		} else if (Array.isArray(mapping)) {
+			// For array mappings, use the first language as the primary mode
+			// The caller will handle trying multiple languages if needed
+			language = mapping[0];
+		}
 	}
 
 	if (/\b(typescriptreact|javascriptreact|jsx-tags)\b/.test(language)) { // treat tsx like jsx
 		language = 'jsx';
-	}
-	else if (language === 'sass-indented') { // map sass-indented to sass
+	} else if (language === 'sass-indented') { // map sass-indented to sass
 		language = 'sass';
-	}
-	else if (language === 'jade' || language === 'pug') {
+	} else if (language === 'jade' || language === 'pug') {
 		language = 'pug';
 	}
 
