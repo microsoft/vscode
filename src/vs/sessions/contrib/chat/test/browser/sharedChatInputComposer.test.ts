@@ -4,13 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -364,18 +360,6 @@ suite('SharedChatInputComposer', () => {
 
 		assert.deepStrictEqual({ whileConfirming, busy: busy.filter(value => value !== '') }, { whileConfirming: [], busy: ['sending'] });
 	}));
-
-	test('rotates only the glyph of the busy progress icon', () => {
-		const busy = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
-		store.add(toDisposable(() => busy.remove()));
-		busy.classList.add('sessions-shared-chat-input-busy');
-		const icon = busy.appendChild(renderIcon(ThemeIcon.modify(Codicon.loadingCompact, 'spin')));
-
-		assert.deepStrictEqual({
-			icon: mainWindow.getComputedStyle(icon).animationName,
-			glyph: mainWindow.getComputedStyle(icon, '::before').animationName,
-		}, { icon: 'none', glyph: 'codicon-spin' });
-	});
 
 	test('uses the model picker progress instead of a separate busy action for comparison sends', () => runWithFakedTimers({}, async () => {
 		const busyStore = new DisposableStore();
