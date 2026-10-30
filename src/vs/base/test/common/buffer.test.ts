@@ -458,6 +458,13 @@ suite('Buffer', () => {
 		const value = 'Hello World';
 		const buff = VSBuffer.fromString(value);
 		assert.strictEqual(buff.toString(), value);
+
+		// Large string with surrogate pair straddling the 64 KiB chunk boundary
+		const large = 'a'.repeat(65535) + '🚀' + '你好'.repeat(1000);
+		const fromNode = VSBuffer.fromString(large, { dontUseNodeBuffer: false });
+		const fromTextEncoder = VSBuffer.fromString(large, { dontUseNodeBuffer: true });
+		assert.strictEqual(new TextDecoder().decode(fromTextEncoder.buffer), large);
+		assert.strictEqual(fromTextEncoder.equals(fromNode), true);
 	});
 
 	test('fromByteArray', () => {
@@ -605,6 +612,12 @@ suite('Buffer', () => {
 						assert.deepStrictEqual(new Uint8Array(decodeBase64(encoded).buffer), new Uint8Array(slice.buffer));
 					}
 				}
+			}
+		});
+
+		test('byteLength matches fromString byteLength', () => {
+			for (const str of ['', 'hello', '你好世界', '🚀🎉a\u00e9', 'a'.repeat(1024)]) {
+				assert.strictEqual(VSBuffer.byteLength(str), VSBuffer.fromString(str).byteLength);
 			}
 		});
 
