@@ -530,7 +530,7 @@ suite('ChatMcpAuthenticationContentPart', () => {
 		});
 	});
 
-	test('spins the authenticating icon, also in a persistent progress response', async () => {
+	test('spins the authenticating icon, also in a persistent progress response, unless motion is reduced', async () => {
 		const authentication = new DeferredPromise<boolean>();
 		const { part } = createPart(
 			[{ id: 'mcp', name: 'MCP', resource: 'https://example.com/mcp' }],
@@ -549,10 +549,12 @@ suite('ChatMcpAuthenticationContentPart', () => {
 		const standalone = animation();
 		row.classList.add('interactive-item-container', 'chat-persistent-progress');
 		const persistent = animation();
+		row.classList.add('monaco-reduce-motion');
+		const reducedMotion = animation();
 		authentication.complete(true);
 		await timeout(0);
 
-		assert.deepStrictEqual({ standalone, persistent }, { standalone: 'codicon-spin', persistent: 'codicon-spin' });
+		assert.deepStrictEqual({ standalone, persistent, reducedMotion }, { standalone: 'codicon-spin', persistent: 'codicon-spin', reducedMotion: 'none' });
 	});
 
 	test('hasSameContent matches only the same kind', () => {

@@ -16,3 +16,7 @@
 .chat-mcp-servers-icon {
 	font-size: var(--vscode-codiconFontSize-compact);
 }
+
+.monaco-reduce-motion .chat-mcp-servers-interaction .chat-mcp-servers-icon.codicon-modifier-spin {
+	animation: none;
+}
