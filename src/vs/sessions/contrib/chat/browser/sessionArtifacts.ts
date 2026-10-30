@@ -50,7 +50,8 @@ import { getGitHubResourcePresentation, GitHubResourceDetailsResolver } from '..
 import { ChatPillHoverCache, createChatPillHover } from '../../../../workbench/browser/chatPillHover.js';
 import { IWorkbenchGitHubService } from '../../../../workbench/services/github/common/githubService.js';
 import { linkKey } from '../../../common/sessionLinks.js';
-import { getChatSessionArtifacts, getSessionArtifactKey, SessionArtifactKind, type IChat, type ISessionArtifact } from '../../../services/sessions/common/session.js';
+import { getChatSessionArtifacts, getSessionArtifactKey, SessionArtifactKind, type IChat, type IGitHubPullRequestRef, type ISessionArtifact } from '../../../services/sessions/common/session.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ArtifactIntegrationPresentation, IArtifactDetailsHost } from './artifactIntegrationPresentation.js';
 import { collapseArtifactIntegrationAliases, getArtifactIntegrationAliasCandidate, getArtifactIntegrationGroupId } from './artifactIntegrationPillSources.js';
 import { ISessionsManagementService, type IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
@@ -60,6 +61,7 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { IGitHubService as ISessionsGitHubService } from '../../github/browser/githubService.js';
+import { OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../github/common/types.js';
 
 /** Action id of the references pill. */
 export const SESSION_REFERENCES_PILL_ID = 'sessions.chatPills.references';
@@ -94,6 +96,8 @@ export interface ISessionArtifactActions {
 	/** Downloads a remote file or folder to this device. */
 	downloadResource?(uri: URI, name: string): Promise<void>;
 	copy(text: string): void;
+	/** Opens a GitHub pull request's changes in a multi-file diff editor. */
+	openPullRequestChanges(pullRequest: IGitHubPullRequestRef): void;
 	/**
 	 * Deletes the session's record of an artifact or reference by its stable id.
 	 * Never mutates or deletes the underlying file, resource, PR, issue or other
@@ -269,6 +273,16 @@ function openArtifact(artifact: ISessionArtifact, actions: ISessionArtifactActio
 	actions.recordOpen(artifact);
 }
 
+/** The row action opening a pull request's changes, shared by the pull requests pill and recorded pull request rows. */
+export function createOpenPullRequestChangesAction(pullRequest: Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>, run: () => unknown): IChatPillAction {
+	return withChatPillHoverLabel(toAction({
+		id: `sessionChatPills.openPullRequestChanges.${pullRequest.owner.toLowerCase()}.${pullRequest.repo.toLowerCase()}.${pullRequest.number}`,
+		label: localize('sessionChatPills.openPullRequestChanges', "Open Pull Request Changes"),
+		class: ThemeIcon.asClassName(Codicon.diffMultiple),
+		run,
+	}), localize('sessionChatPills.openChanges', "Open Changes"));
+}
+
 function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, commit?: GitHubCommit, gitHubResolver?: GitHubResourceDetailsResolver, reader?: IReader, commitHoverCache?: ChatPillHoverCache): IChatPillEntry | undefined {
 	if (artifact.kind === SessionArtifactKind.File) {
 		if (!artifact.uri) {
@@ -407,11 +421,20 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			? getGitHubResourcePresentation(link, gitHubKind, undefined, artifact.label)
 			: undefined;
 	const displayLabel = gitHubPresentation?.label ?? artifact.label;
+	const pullRequest = artifact.kind === SessionArtifactKind.PullRequest ? parseGitHubArtifactLink(artifact) : undefined;
+	const pullRequestChangesAction = pullRequest
+		? [createOpenPullRequestChangesAction(pullRequest, () => actions.openPullRequestChanges({
+			...pullRequest,
+			uri: link,
+			...(artifact.label ? { title: artifact.label } : {}),
+			recordedReferenceId: artifact.id,
+		}))]
+		: [];
 	return withRemoveAction(artifact, {
 		id: artifact.id,
 		label: displayLabel,
 		icon,
-		toolbarActions: copyLinkAction,
+		toolbarActions: [...pullRequestChangesAction, ...copyLinkAction],
 		...sessionArtifactLocation(sessionArtifactLocationText(link, labelService), displayLabel),
 		...gitHubPresentation,
 		...gitHubDetails?.hover,
@@ -633,6 +656,7 @@ export class SessionArtifacts extends Disposable {
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
 
@@ -923,6 +947,10 @@ export class SessionArtifacts extends Disposable {
 				}
 			},
 			copy: text => { void this._clipboardService.writeText(text); },
+			openPullRequestChanges: pullRequest => {
+				this._sessionsService.setActive(session);
+				void this._commandService.executeCommand(OPEN_PULL_REQUEST_CHANGES_ACTION_ID, { pullRequest });
+			},
 			...(session.capabilities.read(reader).supportsRemoveArtifacts ? {
 				remove: async (id: string, label: string) => {
 					try {
