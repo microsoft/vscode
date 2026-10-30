@@ -5,6 +5,7 @@
 
 import { generateUuid } from '../../../../base/common/uuid.js';
 import type { URI } from '../../../../base/common/uri.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentModelCallCompletedSignal } from '../../common/agent.js';
 import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
@@ -347,7 +348,7 @@ export function codexImageGenerationResult(item: ImageGenerationItem): { readonl
 	if (item.status !== 'completed') {
 		return { success: false, content: undefined };
 	}
-	if ('result' in item) {
+	if (hasKey(item, { result: true })) {
 		const success = item.result.length > 0;
 		return {
 			success,
