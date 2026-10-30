@@ -2086,7 +2086,7 @@ suite('ChatThinkingContentPart', () => {
 			});
 		});
 
-		test('uses recorded reasoning duration in the generic title', async () => {
+		test('shows individual run durations instead of a grouped total', async () => {
 			const first = createThinkingPart('Consider how to update the progress renderer.', 'first');
 			first.reasoningStartedAt = 1000;
 			first.reasoningDurationMs = 1200;
@@ -2098,10 +2098,16 @@ suite('ChatThinkingContentPart', () => {
 
 			part.finalizeTitleIfDefault();
 			await timeout(0);
+			part.expandContent();
 
-			assert.deepStrictEqual({ title: snapshot(part).title, ariaLabel: snapshot(part).ariaLabel }, {
-				title: 'Thought for 3s',
-				ariaLabel: 'Thought for 3s',
+			assert.deepStrictEqual({
+				title: snapshot(part).title,
+				ariaLabel: snapshot(part).ariaLabel,
+				runs: Array.from(part.domNode.querySelectorAll('.chat-thinking-run-duration'), label => label.textContent),
+			}, {
+				title: 'Finished thinking',
+				ariaLabel: 'Finished thinking',
+				runs: ['Thought for 1s', 'Thought for 2s'],
 			});
 		});
 	});
@@ -2419,21 +2425,21 @@ suite('ChatThinkingContentPart', () => {
 			});
 		});
 
-		test('split array reasoning counts each source duration once', () => {
+		test('split array reasoning does not combine distinct source durations', () => {
 			const cases: Record<string, { parts: IChatThinkingPart[]; title: string }> = {
 				equalDurations: {
 					parts: [
 						{ kind: 'thinking', value: ['First', 'Second'], reasoningDurationMs: 1200 },
 						{ kind: 'thinking', value: ['Third', 'Fourth'], reasoningDurationMs: 1200 },
 					],
-					title: 'Thought for 2s',
+					title: 'Finished thinking',
 				},
 				knownSpan: {
 					parts: [
 						{ kind: 'thinking', value: ['First', 'Second'], reasoningStartedAt: 1000, reasoningDurationMs: 1200 },
 						{ kind: 'thinking', value: ['Third', 'Fourth'], reasoningStartedAt: 5000, reasoningDurationMs: 1200 },
 					],
-					title: 'Thought for 2s',
+					title: 'Finished thinking',
 				},
 				unknownTiming: {
 					parts: [

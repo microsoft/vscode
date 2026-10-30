@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Event } from '../../../base/common/event.js';
 import { getLargeFileConfirmationLimit } from '../../files/common/files.js';
-import type { FileEditKind, Message } from './state/sessionState.js';
+import type { FileEditKind, MarkdownResponsePart, Message, ReasoningResponsePart, ResponsePartKind } from './state/sessionState.js';
 
 export const ISessionDataService = createDecorator<ISessionDataService>('sessionDataService');
 
@@ -98,11 +98,8 @@ export interface IReviewedFileRecord {
 
 // ---- Session database ---------------------------------------------------
 
-/** A producer-measured reasoning interval, keyed by its durable provider response id. */
-export interface IReasoningTiming {
-	readonly startedAt: string;
-	readonly duration: number;
-}
+/** Ordered response text with stable reasoning-run identities and references to provider-owned tool results. */
+export type StoredAssistantResponsePart = MarkdownResponsePart | ReasoningResponsePart | { readonly kind: ResponsePartKind.ToolCall; readonly toolCallId: string };
 
 /** A host-persisted turn that is absent from the provider transcript. */
 export interface IPersistedTurnRecord {
@@ -272,11 +269,11 @@ export interface ISessionDatabase extends IDisposable {
 	 */
 	getTurnUsages(): Promise<Map<string, string>>;
 
-	/** Records completed reasoning timing with the owning turn's pruning lifecycle. */
-	setReasoningTiming(turnId: string, responseId: string, timing: IReasoningTiming): Promise<void>;
+	/** Records a response's observed part ordering and reasoning timings with the owning turn's pruning lifecycle. */
+	setAssistantResponseParts(turnId: string, responseId: string, parts: readonly StoredAssistantResponsePart[]): Promise<void>;
 
-	/** Reads recorded reasoning timings after all previously submitted writes. */
-	getReasoningTimings(): Promise<Map<string, IReasoningTiming>>;
+	/** Reads recorded parts keyed by durable provider response id, after all previously submitted writes. */
+	getAssistantResponseParts(): Promise<Map<string, readonly StoredAssistantResponsePart[]>>;
 
 	/**
 	 * Persists the JSON-serialized delegation metadata for an agent-authored turn.

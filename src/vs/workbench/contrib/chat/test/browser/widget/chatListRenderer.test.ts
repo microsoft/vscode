@@ -10312,6 +10312,69 @@ suite('ChatListRenderer', () => {
 		renderer.renderElement(node, 0, template);
 	});
 
+	for (const progressVerbosity of [ChatProgressVerbosity.Compact, ChatProgressVerbosity.Verbose, ChatProgressVerbosity.Conversation]) {
+		for (const boundary of ['markdown', 'tool'] as const) {
+			test(`reasoning run durations survive reload independently (${progressVerbosity}, ${boundary})`, async () => {
+				const setup = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, progressVerbosity });
+				setup.configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
+				const diagnostics: string[] = [];
+				const snapshot = async (current: ReturnType<typeof createPersistentProgressRenderer>) => {
+					current.renderer.renderElement(current.node, 0, current.template);
+					if (current.response.renderData) {
+						await Event.toPromise(Event.filter(current.renderer.onDidChangeItemHeight, () => !current.response.renderData));
+					}
+					const thinkingParts = [...new Set(current.template.renderedParts)].filter(part => part instanceof ChatThinkingContentPart);
+					await Promise.all(thinkingParts.map(part => part.getPendingCollapseAnimation()));
+					for (const part of thinkingParts) {
+						part.expandContent();
+					}
+					diagnostics.push(JSON.stringify({
+						pending: current.renderer.hasPendingProgressContent(current.response),
+						sections: thinkingParts.map(part => ({ active: part.getIsActive(), activeTiming: part.hasActiveReasoningTiming(), connected: part.domNode.isConnected, text: part.domNode.textContent })),
+					}));
+					return {
+						labels: Array.from(current.template.value.querySelectorAll('.chat-used-context-label .monaco-button, .chat-thinking-run-duration'), label => label.textContent?.trim())
+							.filter(label => label?.startsWith('Thought for ')),
+						runs: current.request.response?.entireResponse.value.flatMap(part => part.kind === 'thinking' && part.value
+							? [{ value: part.value, duration: part.reasoningDurationMs }] : []),
+					};
+				};
+				setup.model.acceptResponseProgress(setup.request, { kind: 'thinking', id: 'first', value: 'First run', reasoningStartedAt: 1000 });
+				setup.renderer.renderElement(setup.node, 0, setup.template);
+				setup.model.acceptResponseProgress(setup.request, { kind: 'thinking', id: 'first', value: '', reasoningDurationMs: 5000 });
+				if (boundary === 'markdown') {
+					setup.model.acceptResponseProgress(setup.request, { kind: 'markdownContent', content: new MarkdownString('Between') });
+				} else {
+					const tool = new ChatToolInvocation(
+						{ invocationMessage: 'Reading a file', pastTenseMessage: 'Read a file' },
+						{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+						'tool', undefined, {},
+					);
+					setup.model.acceptResponseProgress(setup.request, tool);
+					await tool.didExecuteTool(undefined);
+				}
+				setup.model.acceptResponseProgress(setup.request, { kind: 'thinking', id: 'second', value: 'Second run', reasoningStartedAt: 26_000 });
+				setup.renderer.renderElement(setup.node, 0, setup.template);
+				setup.model.acceptResponseProgress(setup.request, { kind: 'thinking', id: 'second', value: '', reasoningDurationMs: 12_000 });
+				setup.model.acceptResponseProgress(setup.request, { kind: 'markdownContent', content: new MarkdownString('Done') });
+				setup.request.response?.complete();
+				const before = await snapshot(setup);
+				const value: unknown = revive(JSON.parse(JSON.stringify(setup.model.toJSON())));
+				assert.ok(isSerializableSessionData(value));
+				setup.disposables.dispose();
+
+				const restored = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, progressVerbosity, initialData: { value, serializer: new ChatSessionOperationLog() } });
+				restored.configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
+				const expected = {
+					labels: ['Thought for 5s', 'Thought for 12s'],
+					runs: [{ value: 'First run', duration: 5000 }, { value: 'Second run', duration: 12_000 }],
+				};
+				assert.deepStrictEqual({ before, after: await snapshot(restored) }, { before: expected, after: expected }, diagnostics.join('\n'));
+				restored.disposables.dispose();
+			});
+		}
+	}
+
 	test('conversation progress collapses reasoning and tool calls into one section with its extracted heading', async () => {
 		const clock = sinon.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
 		try {
@@ -14106,7 +14169,7 @@ suite('ChatListRenderer', () => {
 		});
 
 		for (const values of [['First', 'Second'], ['', 'First', 'Second']]) {
-			test(`restored array reasoning preserves all text with the Finished thinking fallback (${JSON.stringify(values)})`, async () => {
+			test(`restored array reasoning preserves all text and its single-run duration (${JSON.stringify(values)})`, async () => {
 				const seed = createPersistentProgressRenderer();
 				seed.model.acceptResponseProgress(seed.request, { kind: 'markdownContent', content: new MarkdownString('Done') });
 				seed.request.response!.complete();
@@ -14137,11 +14200,11 @@ suite('ChatListRenderer', () => {
 					title: button?.textContent,
 					first: text?.includes('First'),
 					second: text?.includes('Second'),
-				}, { title: 'Finished thinking', first: true, second: true });
+				}, { title: 'Thought for 1s', first: true, second: true });
 			});
 		}
 
-		test('array reasoning keeps the Finished thinking fallback when timing arrives later', () => runWithFakedTimers({ useFakeTimers: true, startTime: 1000 }, async () => {
+		test('array reasoning shows its single-run duration when timing arrives later', () => runWithFakedTimers({ useFakeTimers: true, startTime: 1000 }, async () => {
 			const { disposables, model, request, renderer, template, node } = createPersistentProgressRenderer({
 				persistentProgress: ChatProgressAnimation.Off,
 				thinkingStyle: ThinkingDisplayMode.Collapsed,
@@ -14154,7 +14217,7 @@ suite('ChatListRenderer', () => {
 				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Done') });
 				request.response!.complete();
 				renderer.renderElement(node, 0, template);
-				assert.strictEqual(template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button')?.textContent, 'Finished thinking');
+				assert.strictEqual(template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button')?.textContent, 'Thought for 2s');
 			} finally {
 				disposables.dispose();
 			}

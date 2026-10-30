@@ -1019,6 +1019,24 @@ suite('ChatModel', () => {
 		}
 	});
 
+	test('managed reasoning remains one run across notifications and SDK completion markers', () => {
+		const response = testDisposables.add(new Response([]));
+		response.updateContent({ kind: 'thinking', id: 'run', value: 'First', reasoningStartedAt: 1000 });
+		response.updateContent({ kind: 'systemNotification', content: new MarkdownString('Background work completed') });
+		response.updateContent({ kind: 'thinking', value: '' });
+		response.updateContent({ kind: 'thinking', id: 'run', value: 'Second', reasoningStartedAt: 1000 });
+		response.updateContent({ kind: 'thinking', id: 'run', value: [''], reasoningDurationMs: 5000 });
+		response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Between') });
+		response.updateContent({ kind: 'thinking', id: 'next', value: 'Next', reasoningStartedAt: 8000, reasoningDurationMs: 12_000 });
+
+		assert.deepStrictEqual(response.value, [
+			{ kind: 'thinking', id: 'run', value: 'FirstSecond', reasoningStartedAt: 1000, reasoningDurationMs: 5000 },
+			{ kind: 'systemNotification', content: new MarkdownString('Background work completed') },
+			{ kind: 'markdownContent', content: new MarkdownString('Between') },
+			{ kind: 'thinking', id: 'next', value: 'Next', reasoningStartedAt: 8000, reasoningDurationMs: 12_000 },
+		]);
+	});
+
 	test('keeps consecutive reasoning ids and zero durations distinct', () => {
 		const response = testDisposables.add(new Response([]));
 		response.updateContent({ kind: 'thinking', id: 'first', value: 'First', reasoningDurationMs: 45_000 });

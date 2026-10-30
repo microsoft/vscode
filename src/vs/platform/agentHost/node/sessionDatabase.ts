@@ -6,10 +6,10 @@
 import * as fs from 'fs';
 import { Sequencer, SequencerByKey } from '../../../base/common/async.js';
 import type { Database, RunResult } from '@vscode/sqlite3';
-import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReasoningTiming, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionRowsWatermark, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord } from '../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionRowsWatermark, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord, type StoredAssistantResponsePart } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
-import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type Message } from '../common/state/sessionState.js';
+import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, ResponsePartKind, type Message } from '../common/state/sessionState.js';
 import { configureSqliteJournal } from './agentHostSqliteJournal.js';
 
 /**
@@ -270,7 +270,31 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			duration     INTEGER NOT NULL CHECK(duration >= 0)
 		)`,
 	},
+	{
+		version: 18,
+		sql: `CREATE TABLE IF NOT EXISTS assistant_response_parts (
+			response_id TEXT PRIMARY KEY NOT NULL,
+			turn_id      TEXT NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+			parts        TEXT NOT NULL
+		)`,
+	},
 ];
+
+function isStoredAssistantResponsePart(part: unknown): part is StoredAssistantResponsePart {
+	if (!part || typeof part !== 'object' || !('kind' in part)) {
+		return false;
+	}
+	if (part.kind === ResponsePartKind.ToolCall) {
+		return 'toolCallId' in part && typeof part.toolCallId === 'string';
+	}
+	if ((part.kind !== ResponsePartKind.Markdown && part.kind !== ResponsePartKind.Reasoning)
+		|| !('id' in part) || typeof part.id !== 'string' || !('content' in part) || typeof part.content !== 'string') {
+		return false;
+	}
+	return part.kind === ResponsePartKind.Markdown
+		|| ((!('startedAt' in part) || part.startedAt === undefined || (typeof part.startedAt === 'string' && Number.isFinite(Date.parse(part.startedAt))))
+			&& (!('duration' in part) || part.duration === undefined || (typeof part.duration === 'number' && Number.isSafeInteger(part.duration) && part.duration >= 0)));
+}
 
 // ---- Promise wrappers around callback-based @vscode/sqlite3 API -----------
 
@@ -773,28 +797,33 @@ export class SessionDatabase implements ISessionDatabase {
 		});
 	}
 
-	setReasoningTiming(turnId: string, responseId: string, timing: IReasoningTiming): Promise<void> {
+	setAssistantResponseParts(turnId: string, responseId: string, parts: readonly StoredAssistantResponsePart[]): Promise<void> {
+		const valid = parts.every(isStoredAssistantResponsePart);
+		const serialized = JSON.stringify(parts);
 		return this._mutate(async db => {
-			if (!Number.isFinite(Date.parse(timing.startedAt)) || !Number.isSafeInteger(timing.duration) || timing.duration < 0) {
-				throw new Error('Invalid reasoning timing');
+			if (!valid) {
+				throw new Error('Invalid assistant response parts');
 			}
 			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [turnId]);
-			await dbRun(db, 'INSERT OR REPLACE INTO reasoning_timing (response_id, turn_id, started_at, duration) VALUES (?, ?, ?, ?)',
-				[responseId, turnId, timing.startedAt, timing.duration]);
+			await dbRun(db, 'INSERT OR REPLACE INTO assistant_response_parts (response_id, turn_id, parts) VALUES (?, ?, ?)',
+				[responseId, turnId, serialized]);
 		});
 	}
 
-	async getReasoningTimings(): Promise<Map<string, IReasoningTiming>> {
+	async getAssistantResponseParts(): Promise<Map<string, readonly StoredAssistantResponsePart[]>> {
 		await this.whenIdle();
 		const db = await this._ensureDb();
-		const rows = await dbAll(db, 'SELECT response_id, started_at, duration FROM reasoning_timing', []);
-		const result = new Map<string, IReasoningTiming>();
+		const rows = await dbAll(db, 'SELECT response_id, parts FROM assistant_response_parts', []);
+		const result = new Map<string, readonly StoredAssistantResponsePart[]>();
 		for (const row of rows) {
-			if (typeof row.response_id !== 'string' || typeof row.started_at !== 'string' || !Number.isFinite(Date.parse(row.started_at))
-				|| typeof row.duration !== 'number' || !Number.isSafeInteger(row.duration) || row.duration < 0) {
-				throw new Error('Invalid persisted reasoning timing');
+			if (typeof row.response_id !== 'string' || typeof row.parts !== 'string') {
+				throw new Error('Invalid persisted assistant response parts');
 			}
-			result.set(row.response_id, { startedAt: row.started_at, duration: row.duration });
+			const parts: unknown = JSON.parse(row.parts);
+			if (!Array.isArray(parts) || !parts.every(isStoredAssistantResponsePart)) {
+				throw new Error(`Invalid persisted assistant response parts for ${row.response_id}`);
+			}
+			result.set(row.response_id, parts);
 		}
 		return result;
 	}
@@ -1643,6 +1672,7 @@ export class SessionDatabase implements ISessionDatabase {
 			for (const [oldId, newId] of mapping) {
 				await dbRun(db, 'UPDATE turn_usage SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE reasoning_timing SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+				await dbRun(db, 'UPDATE assistant_response_parts SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE turn_delegation SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE turn_workspace_transition SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 			}

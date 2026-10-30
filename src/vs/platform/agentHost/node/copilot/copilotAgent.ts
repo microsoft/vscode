@@ -7654,6 +7654,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			try {
 				const backing = this._chatBackings.get(context.chatKey);
 				const result = await mapSessionEvents(context.resource, reference.object, events, context.chat, context.ownerSession, {
+					logService: this._logService,
 					workingDirectory: metadata.workingDirectory,
 					clientToolNames: new Set(this._activeClients.get(context.ownerSession)?.toolSet.merged().map(tool => tool.name) ?? []),
 					model: backing?.model ?? metadata.model,

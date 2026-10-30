@@ -11,133 +11,235 @@ import { join } from '../../../../base/common/path.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import type { IReasoningTiming } from '../../common/sessionDataService.js';
-import { ActionType, type ChatReasoningAction } from '../../common/state/sessionActions.js';
+import type { StoredAssistantResponsePart } from '../../common/sessionDataService.js';
+import type { ChatReasoningAction } from '../../common/state/sessionActions.js';
 import { ResponsePartKind } from '../../common/state/sessionState.js';
 import { CopilotReasoningTiming } from '../../node/copilot/copilotReasoningTiming.js';
 import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { toSessionEvents } from './copilotTestEvents.js';
+import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 
 suite('CopilotReasoningTiming', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	let elapsed = 0;
+	let clock: ReturnType<typeof sinon.useFakeTimers>;
 
 	setup(() => {
-		elapsed = 0;
-		sinon.useFakeTimers({ now: 1000, toFake: ['Date'] });
-		sinon.stub(StopWatch.prototype, 'elapsed').callsFake(() => elapsed);
+		clock = sinon.useFakeTimers({ now: 1000, toFake: ['Date'] });
+		sinon.stub(StopWatch, 'create').callsFake(() => new StopWatch(false));
 	});
 
 	teardown(() => sinon.restore());
 
 	function createTiming() {
 		const actions: { action: ChatReasoningAction; parentToolCallId: string | undefined }[] = [];
-		const recorded: { turnId: string; responseId: string; timing: IReasoningTiming }[] = [];
+		const recorded = new Map<string, readonly StoredAssistantResponsePart[]>();
 		const timing = store.add(new CopilotReasoningTiming(
 			(action, parentToolCallId) => actions.push({ action, parentToolCallId }),
-			(turnId, responseId, value) => recorded.push({ turnId, responseId, timing: value }),
+			(_turnId, responseId, parts) => recorded.set(responseId, parts),
 		));
 		return { timing, actions, recorded };
 	}
 
-	test('records 45 seconds against the durable assistant message without a reasoning completion event', () => {
+	test('keeps 5s and 12s runs separate within one SDK message', () => {
 		const { timing, actions, recorded } = createTiming();
-		timing.start('turn', 'sdk-reasoning', 'part', undefined);
-		timing.append('Thinking', undefined);
-		elapsed = 45_000;
-		timing.completeMessage('assistant-event', 'Thinking', undefined);
-		timing.finish(undefined);
-
-		assert.deepStrictEqual({ actions, recorded }, {
-			actions: [{ parentToolCallId: undefined, action: { type: ActionType.ChatReasoning, turnId: 'turn', partId: 'part', content: '', startedAt: '1970-01-01T00:00:01.000Z', duration: 45_000 } }],
-			recorded: [{ turnId: 'turn', responseId: 'assistant-event', timing: { startedAt: '1970-01-01T00:00:01.000Z', duration: 45_000 } }],
-		});
-	});
-
-	test('sums split reasoning fragments without including the gaps or timing another chat', () => {
-		const { timing, actions, recorded } = createTiming();
-		timing.start('turn', 'reasoning-1', 'first', undefined);
+		timing.start('turn', 'first', undefined);
 		timing.append('First', undefined);
-		timing.start('turn', 'child-reasoning', 'child', 'tool');
-		timing.append('Child', 'tool');
-		elapsed = 30_000;
-		timing.finish(undefined);
-		elapsed = 1500;
-		timing.completeMessage('child-message', 'Child', 'tool');
-		timing.start('turn', 'reasoning-2', 'second', undefined);
-		timing.append(' second', undefined);
-		elapsed = 15_000;
-		timing.completeMessage('parent-message', 'First second', undefined);
+		clock.tick(5000);
+		timing.markdown('turn', 'between', 'Between', undefined);
+		clock.tick(20_000);
+		timing.start('turn', 'second', undefined);
+		timing.append('Second', undefined);
+		clock.tick(12_000);
+		timing.markdown('turn', 'answer', 'Done', undefined);
+		timing.completeMessage('message', 'FirstSecond', 'BetweenDone', undefined);
 
 		assert.deepStrictEqual({
-			fragments: actions.map(({ action, parentToolCallId }) => ({ part: action.partId, duration: action.duration, parentToolCallId })),
-			totals: recorded.map(record => ({ response: record.responseId, duration: record.timing.duration })),
+			durations: actions.map(({ action }) => ({ id: action.partId, duration: action.duration })),
+			parts: recorded.get('message'),
 		}, {
-			fragments: [
-				{ part: 'first', duration: 30_000, parentToolCallId: undefined },
-				{ part: 'child', duration: 1500, parentToolCallId: 'tool' },
-				{ part: 'second', duration: 15_000, parentToolCallId: undefined },
+			durations: [{ id: 'first', duration: 5000 }, { id: 'second', duration: 12_000 }],
+			parts: [
+				{ kind: ResponsePartKind.Reasoning, id: 'first', content: 'First', startedAt: '1970-01-01T00:00:01.000Z', duration: 5000 },
+				{ kind: ResponsePartKind.Markdown, id: 'between', content: 'Between' },
+				{ kind: ResponsePartKind.Reasoning, id: 'second', content: 'Second', startedAt: '1970-01-01T00:00:26.000Z', duration: 12_000 },
+				{ kind: ResponsePartKind.Markdown, id: 'answer', content: 'Done' },
 			],
-			totals: [{ response: 'child-message', duration: 1500 }, { response: 'parent-message', duration: 45_000 }],
 		});
 	});
 
-	test('preserves zero but does not invent timing for unobserved, mismatched, or interrupted reasoning', () => {
+	test('SDK messages do not end a run and completed timing updates earlier message fragments', () => {
+		const { timing, actions, recorded } = createTiming();
+		timing.start('turn', 'run', undefined);
+		timing.append('First', undefined);
+		clock.tick(5000);
+		timing.completeMessage('message-1', 'First', '', undefined);
+		const unfinished = recorded.get('message-1');
+		const actionCountAtMessageBoundary = actions.length;
+		clock.tick(7000);
+		timing.append('Second', undefined);
+		clock.tick(12_000);
+		timing.markdown('turn', 'answer', 'Done', undefined);
+		timing.completeMessage('message-2', 'Second', 'Done', undefined);
+
+		assert.deepStrictEqual({
+			actionCountAtMessageBoundary,
+			unfinished,
+			durations: actions.map(({ action }) => action.duration),
+			parts: [...recorded.values()].flat().filter(part => part.kind === ResponsePartKind.Reasoning),
+		}, {
+			actionCountAtMessageBoundary: 0,
+			unfinished: [{ kind: ResponsePartKind.Reasoning, id: 'run', content: 'First', startedAt: '1970-01-01T00:00:01.000Z' }],
+			durations: [24_000],
+			parts: [
+				{ kind: ResponsePartKind.Reasoning, id: 'run', content: 'First', startedAt: '1970-01-01T00:00:01.000Z', duration: 24_000 },
+				{ kind: ResponsePartKind.Reasoning, id: 'run', content: 'Second', startedAt: '1970-01-01T00:00:01.000Z', duration: 24_000 },
+			],
+		});
+	});
+
+	test('parent and subagent runs stop independently', () => {
+		const { timing, actions } = createTiming();
+		timing.start('turn', 'parent', undefined);
+		timing.append('Parent', undefined);
+		clock.tick(1000);
+		timing.start('turn', 'child', 'tool');
+		timing.append('Child', 'tool');
+		clock.tick(2000);
+		timing.completeMessage('child-message', 'Child', '', 'tool');
+		clock.tick(3000);
+		timing.markdown('turn', 'parent-answer', 'Done', undefined);
+		clock.tick(4000);
+		timing.toolCall('turn', 'child-tool', 'tool');
+
+		assert.deepStrictEqual(actions.map(({ action, parentToolCallId }) => ({ id: action.partId, duration: action.duration, parentToolCallId })), [
+			{ id: 'parent', duration: 6000, parentToolCallId: undefined },
+			{ id: 'child', duration: 9000, parentToolCallId: 'tool' },
+		]);
+	});
+
+	test('preserves zero and leaves interrupted or mismatched recordings untimed', () => {
 		const { timing, recorded } = createTiming();
-		const unobserved = timing.completeMessage('unobserved', 'Thinking', undefined);
-		timing.start('turn', 'sdk', 'part', undefined);
-		timing.append('Thinking', undefined);
-		const zero = timing.completeMessage('zero', 'Thinking', undefined);
-		timing.start('turn', 'sdk-next', 'next', undefined);
-		timing.append('Observed prefix', undefined);
-		const mismatched = timing.completeMessage('mismatch', 'Different full response', undefined);
-		timing.start('turn', 'sdk-interrupted', 'interrupted', undefined);
+		timing.start('turn', 'zero', undefined);
+		timing.append('Immediate', undefined);
+		timing.markdown('turn', 'answer', 'Done', undefined);
+		timing.completeMessage('zero-message', 'Immediate', 'Done', undefined);
+		timing.start('turn', 'interrupted', undefined);
 		timing.append('Partial', undefined);
+		timing.completeMessage('partial-message', 'Partial', '', undefined);
 		timing.clear(undefined);
-		const interrupted = timing.completeMessage('interrupted', 'Partial', undefined);
+		clock.tick(60_000);
+		const unobserved = timing.completeMessage('old-message', 'Old history', '', undefined);
+		timing.start('turn', 'mismatch', undefined);
+		timing.append('Observed prefix', undefined);
+		const mismatch = timing.completeMessage('mismatch-message', 'Different content', '', undefined);
+		timing.append('Tail', undefined);
+		timing.markdown('turn', 'tail-answer', 'Done', undefined);
+		timing.completeMessage('tail-message', 'Tail', 'Done', undefined);
 
-		assert.deepStrictEqual({ unobserved, zero, mismatched, interrupted, recorded }, {
-			unobserved: false, zero: true, mismatched: false, interrupted: false,
-			recorded: [{ turnId: 'turn', responseId: 'zero', timing: { startedAt: '1970-01-01T00:00:01.000Z', duration: 0 } }],
+		assert.deepStrictEqual({
+			unobserved, mismatch,
+			recorded: [...recorded].map(([id, parts]) => ({ id, durations: parts.flatMap(part => part.kind === ResponsePartKind.Reasoning ? [part.duration] : []) })),
+		}, {
+			unobserved: false, mismatch: false,
+			recorded: [
+				{ id: 'zero-message', durations: [0] },
+				{ id: 'partial-message', durations: [undefined] },
+				{ id: 'tail-message', durations: [undefined] },
+			],
 		});
 	});
 
-	test('restores timing after closing and reopening the database without timing identical historical text', async () => {
-		const directory = await fs.mkdtemp(join(tmpdir(), 'copilot-reasoning-timing-'));
-		const path = join(directory, 'session.db');
-		const database = store.add(await SessionDatabase.open(path));
-		let restored: SessionDatabase | undefined;
+	for (const boundary of ['markdown', 'tool'] as const) {
+		test(`restores separate 5s and 12s runs and their ${boundary} boundary after a database restart`, async () => {
+			const directory = await fs.mkdtemp(join(tmpdir(), 'copilot-reasoning-runs-'));
+			const path = join(directory, 'session.db');
+			const database = store.add(await SessionDatabase.open(path));
+			let restored: SessionDatabase | undefined;
+			try {
+				const writes: Promise<void>[] = [];
+				const timing = store.add(new CopilotReasoningTiming(
+					() => { },
+					(turnId, responseId, parts) => writes.push(database.setAssistantResponseParts(turnId, responseId, parts)),
+				));
+				timing.start('host-turn', 'first', undefined);
+				timing.append('First', undefined);
+				clock.tick(5000);
+				if (boundary === 'markdown') {
+					timing.markdown('host-turn', 'between', 'Between', undefined);
+				} else {
+					timing.toolCall('host-turn', 'tool', undefined);
+				}
+				clock.tick(20_000);
+				timing.start('host-turn', 'second', undefined);
+				timing.append('Second', undefined);
+				clock.tick(12_000);
+				timing.markdown('host-turn', 'answer', 'Done', undefined);
+				timing.completeMessage('assistant-event', 'FirstSecond', boundary === 'markdown' ? 'BetweenDone' : 'Done', undefined);
+				await Promise.all(writes);
+				await database.close();
+				restored = store.add(await SessionDatabase.open(path));
+				const session = URI.parse('ahp-session:/opaque-session');
+				const events: ISessionEvent[] = [
+					{ type: 'user.message', id: 'user', data: { content: 'Request' } },
+					{ type: 'assistant.message', id: 'assistant-event', data: { content: boundary === 'markdown' ? 'BetweenDone' : 'Done', reasoningText: 'FirstSecond' } },
+				];
+				if (boundary === 'tool') {
+					events.push(
+						{ type: 'tool.execution_start', data: { toolCallId: 'tool', toolName: 'read_file', arguments: { path: '/test/file.ts' } } },
+						{ type: 'tool.execution_complete', data: { toolCallId: 'tool', success: true, result: { content: 'Tool result' } } },
+					);
+				}
+				const result = await mapSessionEvents(session, restored, toSessionEvents(events), URI.parse('ahp-chat:/opaque-chat'), session);
+
+				assert.deepStrictEqual(result.turns[0].responseParts.map(part => part.kind === ResponsePartKind.ToolCall
+					? { kind: part.kind, id: part.toolCall.toolCallId }
+					: part.kind === ResponsePartKind.Reasoning
+						? { kind: part.kind, id: part.id, content: part.content, duration: part.duration }
+						: part.kind === ResponsePartKind.Markdown ? { kind: part.kind, id: part.id, content: part.content } : { kind: part.kind }), [
+					{ kind: ResponsePartKind.Reasoning, id: 'first', content: 'First', duration: 5000 },
+					boundary === 'markdown' ? { kind: ResponsePartKind.Markdown, id: 'between', content: 'Between' } : { kind: ResponsePartKind.ToolCall, id: 'tool' },
+					{ kind: ResponsePartKind.Reasoning, id: 'second', content: 'Second', duration: 12_000 },
+					{ kind: ResponsePartKind.Markdown, id: 'answer', content: 'Done' },
+				]);
+			} finally {
+				await restored?.close();
+				await database.close();
+				await fs.rm(directory, { recursive: true, force: true });
+			}
+		});
+	}
+
+	test('replay combines fragments of one run across SDK messages without summing their duration', async () => {
+		const database = store.add(await SessionDatabase.open(':memory:'));
 		try {
 			const writes: Promise<void>[] = [];
 			const timing = store.add(new CopilotReasoningTiming(
 				() => { },
-				(turnId, responseId, value) => writes.push(database.setReasoningTiming(turnId, responseId, value)),
+				(turnId, responseId, parts) => writes.push(database.setAssistantResponseParts(turnId, responseId, parts)),
 			));
-			timing.start('host-turn', 'sdk-reasoning', 'live-part', undefined);
-			timing.append('Thinking', undefined);
-			elapsed = 45_000;
-			timing.completeMessage('assistant-timed', 'Thinking', undefined);
+			timing.start('host-turn', 'run', undefined);
+			timing.append('First', undefined);
+			clock.tick(5000);
+			timing.completeMessage('first-message', 'First', '', undefined);
+			clock.tick(7000);
+			timing.append('Second', undefined);
+			clock.tick(12_000);
+			timing.markdown('host-turn', 'answer', 'Done', undefined);
+			timing.completeMessage('second-message', 'Second', 'Done', undefined);
 			await Promise.all(writes);
-			await database.close();
-			restored = store.add(await SessionDatabase.open(path));
-			const session = URI.parse('ahp-session:/opaque-session');
-			const result = await mapSessionEvents(session, restored, toSessionEvents([
-				{ type: 'user.message', id: 'user-timed', data: { content: 'First request' } },
-				{ type: 'assistant.message', id: 'assistant-timed', data: { content: 'Done', reasoningText: 'Thinking' } },
-				{ type: 'user.message', id: 'user-older', data: { content: 'Older request' } },
-				{ type: 'assistant.message', id: 'assistant-older', data: { content: 'Done', reasoningText: 'Thinking' } },
-			]), URI.parse('ahp-chat:/opaque-chat'), session);
+			const session = URI.parse('ahp-session:/session');
+			const result = await mapSessionEvents(session, database, toSessionEvents([
+				{ type: 'user.message', id: 'user', data: { content: 'Request' } },
+				{ type: 'assistant.message', id: 'first-message', data: { reasoningText: 'First', content: '' } },
+				{ type: 'assistant.message', id: 'second-message', data: { reasoningText: 'Second', content: 'Done' } },
+			]), URI.parse('ahp-chat:/chat'), session);
 
-			assert.deepStrictEqual(result.turns.flatMap(turn => turn.responseParts.flatMap(part => part.kind === ResponsePartKind.Reasoning
-				? [{ content: part.content, startedAt: part.startedAt, duration: part.duration }] : [])), [
-				{ content: 'Thinking', startedAt: '1970-01-01T00:00:01.000Z', duration: 45_000 },
-				{ content: 'Thinking', startedAt: undefined, duration: undefined },
+			assert.deepStrictEqual(result.turns[0].responseParts, [
+				{ kind: ResponsePartKind.Reasoning, id: 'run', content: 'FirstSecond', startedAt: '1970-01-01T00:00:01.000Z', duration: 24_000 },
+				{ kind: ResponsePartKind.Markdown, id: 'answer', content: 'Done' },
 			]);
 		} finally {
-			await restored?.close();
 			await database.close();
-			await fs.rm(directory, { recursive: true, force: true });
 		}
 	});
 });

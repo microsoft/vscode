@@ -1056,6 +1056,7 @@ export class Response extends AbstractResponse implements IDisposable {
 			}
 			this._contentChanged(quiet);
 		} else if (progress.kind === 'thinking') {
+			const currText = Array.isArray(progress.value) ? progress.value.join('') : (progress.value ?? '');
 			const hasTiming = progress.reasoningStartedAt !== undefined || progress.reasoningDurationMs !== undefined;
 			const timing = {
 				...(progress.reasoningStartedAt !== undefined ? { reasoningStartedAt: progress.reasoningStartedAt } : {}),
@@ -1064,12 +1065,26 @@ export class Response extends AbstractResponse implements IDisposable {
 			if (hasTiming && this._activeReasoning?.part.id === progress.id) {
 				this._activeReasoning = undefined;
 			}
-			if (hasTiming && progress.id !== undefined && !progress.value?.length) {
-				const index = this._responseParts.findIndex(part => part.kind === 'thinking' && part.id === progress.id);
+			if (hasTiming && progress.id !== undefined) {
+				const index = this._responseParts.findLastIndex(part => part.kind === 'thinking' && part.id === progress.id);
 				const part = this._responseParts[index];
-				if (part?.kind === 'thinking') {
-					Object.assign(part, timing);
+				const crossedBoundary = this._responseParts.slice(index + 1).some(part => !isNestedSubagentResponsePart(part)
+					&& (part.kind === 'markdownContent' || part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized'));
+				if (part?.kind === 'thinking' && (!currText || !crossedBoundary)) {
+					if (currText) {
+						const previous = Array.isArray(part.value) ? part.value.join('') : (part.value ?? '');
+						this._responseParts[index] = { ...part, ...timing, value: appendMarkdownString(new MarkdownString(previous), new MarkdownString(currText)).value };
+					} else {
+						Object.assign(part, timing);
+					}
 					this._contentChanged(quiet);
+					return;
+				}
+			}
+			if (!currText && progress.id === undefined && !hasTiming) {
+				const lastOutput = this._responseParts.findLast(part => !isNestedSubagentResponsePart(part)
+					&& (part.kind === 'thinking' || part.kind === 'markdownContent' || part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized'));
+				if (lastOutput?.kind === 'thinking' && (lastOutput.reasoningStartedAt !== undefined || lastOutput.reasoningDurationMs !== undefined)) {
 					return;
 				}
 			}
@@ -1083,7 +1098,6 @@ export class Response extends AbstractResponse implements IDisposable {
 			const lastText = lastResponsePart && lastResponsePart.kind === 'thinking'
 				? (Array.isArray(lastResponsePart.value) ? lastResponsePart.value.join('') : (lastResponsePart.value || ''))
 				: '';
-			const currText = Array.isArray(progress.value) ? progress.value.join('') : (progress.value || '');
 			const differentId = lastResponsePart?.kind === 'thinking' && progress.id !== undefined && lastResponsePart.id !== undefined && progress.id !== lastResponsePart.id;
 			if (differentId) {
 				this.finalizeReasoningDuration();

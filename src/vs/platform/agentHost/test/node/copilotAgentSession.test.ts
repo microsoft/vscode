@@ -9783,7 +9783,7 @@ suite('CopilotAgentSession', () => {
 	});
 
 	for (const phase of ['commentary', 'final_answer']) {
-		test(`marks only an empty final answer as a section boundary without claiming the markdown scope (${phase})`, async () => {
+		test(`retains empty final-answer notices without reusing reasoning across markdown (${phase})`, async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-parent');
 			mockSession.fire('assistant.turn_start', { turnId: 'sdk-parent' });
@@ -9804,11 +9804,12 @@ suite('CopilotAgentSession', () => {
 					}
 					return [{ kind: part.kind, content: part.kind === ResponsePartKind.Markdown || part.kind === ResponsePartKind.Reasoning ? part.content : undefined }];
 				}
-				return action.type === ActionType.ChatDelta || action.type === ActionType.ChatReasoning ? [{ kind: action.type, content: action.content }] : [];
+				return action.type === ActionType.ChatDelta || (action.type === ActionType.ChatReasoning && action.content) ? [{ kind: action.type, content: action.content }] : [];
 			});
 
 			assert.deepStrictEqual({
 				parts,
+				timingUpdates: getActions(signals).filter(action => action.type === ActionType.ChatReasoning && action.duration !== undefined).length,
 				parentCompleted: getActions(signals).some(action => action.type === ActionType.ChatTurnComplete),
 				childCompleted: signals.some(signal => signal.kind === 'subagent_completed'),
 			}, {
@@ -9822,8 +9823,9 @@ suite('CopilotAgentSession', () => {
 					: [
 						{ kind: ResponsePartKind.Reasoning, content: 'Assessing' },
 						{ kind: ResponsePartKind.Markdown, content: 'Later text' },
-						{ kind: ActionType.ChatReasoning, content: 'Later reasoning' },
+						{ kind: ResponsePartKind.Reasoning, content: 'Later reasoning' },
 					],
+				timingUpdates: 1,
 				parentCompleted: false,
 				childCompleted: false,
 			});
@@ -16663,7 +16665,7 @@ Use the attached image as context.
 			]);
 		});
 
-		test('completion notifications split parent reasoning without splitting running subagent reasoning', async () => {
+		test('completion notifications do not split contiguous parent or child reasoning', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-active');
 			mockSession.fire('subagent.started', {
@@ -16705,12 +16707,12 @@ Use the attached image as context.
 					{ kind: ResponsePartKind.Reasoning, scope: 'parent', content: 'Before notification' },
 					{ kind: ResponsePartKind.Reasoning, scope: 'task-running', content: 'Child reasoning' },
 					{ kind: ResponsePartKind.SystemNotification, scope: 'parent', content: 'Background agent `Completed reviewer` is complete' },
-					{ kind: ResponsePartKind.Reasoning, scope: 'parent', content: 'After notification' },
+					{ kind: 'delta', scope: 'parent', content: 'After notification' },
 					{ kind: 'delta', scope: 'parent', content: ' continued' },
 					{ kind: 'delta', scope: 'task-running', content: ' still running' },
 				],
-				parentReasoningParts: 2,
-				timingScopes: ['parent'],
+				parentReasoningParts: 1,
+				timingScopes: [],
 			});
 		});
 
@@ -23683,15 +23685,16 @@ Use the attached image as context.
 				const finalTiming = actions.flatMap(action => action.type === ActionType.ChatReasoning && action.duration !== undefined ? [action] : [])[0];
 				const timingIndex = actions.indexOf(finalTiming);
 				const answerIndex = actions.findIndex(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Markdown);
-				const recorded = await database.getReasoningTimings();
+				const recorded = await database.getAssistantResponseParts();
+				const recordedReasoning = recorded.get('durable-response')?.find(part => part.kind === ResponsePartKind.Reasoning);
 
 				assert.deepStrictEqual({
 					duration: finalTiming?.duration,
 					partIdMatches: finalTiming?.partId === reasoning?.id,
 					publishedBeforeAnswer: timingIndex >= 0 && timingIndex < answerIndex,
 					recorded: [...recorded.keys()],
-					recordedDuration: recorded.get('durable-response')?.duration,
-					startMatches: recorded.get('durable-response')?.startedAt === reasoning?.startedAt,
+					recordedDuration: recordedReasoning?.duration,
+					startMatches: recordedReasoning?.startedAt === reasoning?.startedAt,
 				}, {
 					duration: 45_000,
 					partIdMatches: true,
@@ -23699,6 +23702,43 @@ Use the attached image as context.
 					recorded: ['durable-response'],
 					recordedDuration: 45_000,
 					startMatches: true,
+				});
+			} finally {
+				elapsed.restore();
+			}
+		});
+
+		test('SDK reasoning and message completion do not end contiguous thinking output', async () => {
+			const database = new TestSessionDatabase();
+			const { session, mockSession, signals } = await createAgentSession(disposables, { sessionDatabase: database });
+			const elapsed = stub(StopWatch.prototype, 'elapsed').returns(45_000);
+			try {
+				session.resetTurnState('host-turn');
+				mockSession.fire('assistant.reasoning_delta', { reasoningId: 'sdk-first', deltaContent: 'First' });
+				mockSession.fire('assistant.reasoning', { reasoningId: 'sdk-first', content: 'First' });
+				mockSession.fire('assistant.message', { messageId: 'message-first', content: '', reasoningText: 'First' }, { id: 'durable-first' });
+				mockSession.fire('assistant.reasoning_delta', { reasoningId: 'sdk-second', deltaContent: 'Second' });
+				mockSession.fire('assistant.reasoning', { reasoningId: 'sdk-second', content: 'Second' });
+				mockSession.fire('assistant.message', { messageId: 'message-second', content: '', reasoningText: 'Second' }, { id: 'durable-second' });
+				const beforeBoundary = signals.filter(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatReasoning && signal.action.duration !== undefined).length;
+				mockSession.fire('assistant.message_delta', { messageId: 'answer', deltaContent: 'Done' });
+				const parts = signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.Reasoning ? [signal.action.part] : []);
+				const durations = signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatReasoning && signal.action.duration !== undefined ? [signal.action.duration] : []);
+				const recorded = await database.getAssistantResponseParts();
+
+				assert.deepStrictEqual({
+					beforeBoundary,
+					reasoningParts: parts.length,
+					durations,
+					recorded: [...recorded].map(([responseId, value]) => ({ responseId, runs: value.flatMap(part => part.kind === ResponsePartKind.Reasoning ? [{ sameRun: part.id === parts[0].id, duration: part.duration }] : []) })),
+				}, {
+					beforeBoundary: 0,
+					reasoningParts: 1,
+					durations: [45_000],
+					recorded: [
+						{ responseId: 'durable-first', runs: [{ sameRun: true, duration: 45_000 }] },
+						{ responseId: 'durable-second', runs: [{ sameRun: true, duration: 45_000 }] },
+					],
 				});
 			} finally {
 				elapsed.restore();

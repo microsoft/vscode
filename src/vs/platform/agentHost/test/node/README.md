@@ -14,11 +14,13 @@ The protocol and E2E folders contain their own running and authoring instruction
 
 ## Reasoning timing
 
-AHP reasoning parts carry optional producer-owned `startedAt` and `duration` fields. Timing-only `chat/reasoning` updates finish a live interval before subsequent response content or the turn's terminal action. Clients retain those values across snapshots and history replay rather than measuring replay or comparing the host's clock with their own.
+AHP reasoning parts carry optional producer-owned `startedAt` and `duration` fields for one contiguous run of thinking output. A run starts at its first nonempty reasoning text and ends at the next markdown or tool-call part, or at turn termination. SDK reasoning IDs, reasoning-complete events, full-message boundaries, and sideband notifications do not split a run. Timing-only `chat/reasoning` updates finish the run before publishing the following content or terminal action.
 
-Copilot measures streamed reasoning with a monotonic clock and stores its total against the durable assistant-message event id in the session database's `reasoning_timing` table. Split fragments contribute only their observed reasoning time; tool execution and gaps between fragments are excluded. Writes follow the owning turn through fork remapping and pruning. Restored provider responses without a complete recorded interval remain untimed; this does not retroactively estimate older sessions or add timing capture to other providers.
+Copilot measures runs with a monotonic clock and stores the observed ordering of reasoning, markdown, and tool references against durable assistant-message event IDs in `assistant_response_parts`. A run may span SDK messages; its fragments share one ID and are updated with the same final duration, then reassembled without summing it during replay. Conversely, two runs separated by markdown or a tool retain separate IDs and durations even when the SDK saves one message containing both. Native tool results are retained and placed at the recorded boundaries. The projection is used only when its text still matches the provider transcript.
 
-`copilotReasoningTiming.test.ts` covers fragment measurement and a real database close/reopen followed by provider history reconstruction. `copilotAgentSession.test.ts`, `sessionDatabase.test.ts`, and the workbench chat adapter/model/thinking-content tests cover producer wiring, storage, reconnects, serialization, and the visible and accessible "Thought for 45s" label.
+Recorded parts follow turn remapping and pruning. The earlier draft's aggregate `reasoning_timing` rows are not reinterpreted as per-run timings. Unknown history and unfinished runs remain untimed rather than counting time while the host is stopped. This does not add capture to other providers or estimate older history.
+
+Single-run thinking headers use labels such as "Thought for 5s". Conversation grouping remains available, but its expanded reasoning rows show their individual durations instead of a group-wide sum. `copilotReasoningTiming.test.ts` covers 5s/12s markdown/tool boundaries through a real database restart and a single run spanning SDK messages. The provider, model, database, and renderer tests cover live boundaries, identity, migration, serialization, grouped display, and accessible text.
 
 ## Mission Control session configuration
 

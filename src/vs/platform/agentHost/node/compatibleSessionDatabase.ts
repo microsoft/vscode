@@ -72,12 +72,12 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 		return result;
 	}
 
-	async setReasoningTiming(...args: Parameters<ISessionDatabase['setReasoningTiming']>): ReturnType<ISessionDatabase['setReasoningTiming']> {
-		return this.raw.setReasoningTiming(...args);
+	async setAssistantResponseParts(...args: Parameters<ISessionDatabase['setAssistantResponseParts']>): ReturnType<ISessionDatabase['setAssistantResponseParts']> {
+		return this.raw.setAssistantResponseParts(...args);
 	}
 
-	async getReasoningTimings(): ReturnType<ISessionDatabase['getReasoningTimings']> {
-		return this.raw.getReasoningTimings();
+	async getAssistantResponseParts(): ReturnType<ISessionDatabase['getAssistantResponseParts']> {
+		return this.raw.getAssistantResponseParts();
 	}
 
 	async getTurnDelegations(...[]: Parameters<ISessionDatabase['getTurnDelegations']>): ReturnType<ISessionDatabase['getTurnDelegations']> {

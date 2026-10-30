@@ -10,6 +10,7 @@ import { basename, isAbsolute, join } from '../../../../base/common/path.js';
 import { basename as resourceBasename } from '../../../../base/common/resources.js';
 import { hasKey, isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
+import { restoreRecordedResponseParts, type IRecordedResponseParts } from './copilotReasoningTiming.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID } from '../../common/agent.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
@@ -342,6 +343,7 @@ interface ITurnBuilder {
 	waitingStartedAt: string | undefined;
 	waitingDuration: number;
 	readonly responseParts: ResponsePart[];
+	readonly recordedResponses: IRecordedResponseParts[];
 	imageGenerationSdkTurnId?: string;
 	usage: UsageInfo | undefined;
 	/** Tool starts seen but not yet completed in this turn, keyed by toolCallId. */
@@ -349,6 +351,7 @@ interface ITurnBuilder {
 }
 
 export interface IMapSessionEventsOptions {
+	readonly logService?: ILogService;
 	readonly workingDirectory?: URI;
 	/** Known client tool implementations, used to distinguish their inputs from native SDK tools. */
 	readonly clientToolNames?: ReadonlySet<string>;
@@ -365,7 +368,7 @@ function newTurnBuilder(id: string, text: string, options?: { attachments?: Mess
 		...(options?.model ? { model: options.model } : {}),
 		...(options?.agent ? { agent: options.agent } : {}),
 	};
-	return { id, message, startedAt: options?.startedAt, lastEventAt: options?.startedAt, waitingStartedAt: undefined, waitingDuration: 0, responseParts: [], usage: undefined, pendingTools: new Map() };
+	return { id, message, startedAt: options?.startedAt, lastEventAt: options?.startedAt, waitingStartedAt: undefined, waitingDuration: 0, responseParts: [], recordedResponses: [], usage: undefined, pendingTools: new Map() };
 }
 
 /** Reads the SDK envelope's ISO 8601 `timestamp`, or `undefined` when missing or unparseable. */
@@ -438,7 +441,7 @@ function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCa
 }
 
 /** Seals a turn builder into a {@link Turn}, deriving `duration` from its first and last event timestamps. */
-function finalizeTurn(builder: ITurnBuilder, state: TurnState): Turn {
+function finalizeTurn(builder: ITurnBuilder, state: TurnState, logService?: ILogService): Turn {
 	const startedAtMs = builder.startedAt === undefined ? undefined : Date.parse(builder.startedAt);
 	const endedAtMs = builder.lastEventAt === undefined ? undefined : Date.parse(builder.lastEventAt);
 	const duration = startedAtMs !== undefined && endedAtMs !== undefined && Number.isFinite(startedAtMs) && Number.isFinite(endedAtMs)
@@ -449,7 +452,7 @@ function finalizeTurn(builder: ITurnBuilder, state: TurnState): Turn {
 		...(builder.startedAt !== undefined ? { startedAt: builder.startedAt } : {}),
 		...(duration !== undefined ? { duration } : {}),
 		message: builder.message,
-		responseParts: builder.responseParts,
+		responseParts: restoreRecordedResponseParts(builder.responseParts, builder.recordedResponses, logService),
 		usage: builder.usage,
 		state,
 	};
@@ -481,7 +484,7 @@ export async function mapSessionEvents(
 	const workingDirectory = options?.workingDirectory;
 	let currentModel = options?.model;
 	let currentAgent = options?.agent;
-	const reasoningTimings = await db?.getReasoningTimings();
+	const recordedResponses = await db?.getAssistantResponseParts();
 	// First pass: collect tool-arg info and identify edit tool calls so we
 	// can batch-load their stored file edits before the second pass needs
 	// them at `tool.execution_complete` time. We also build the
@@ -677,7 +680,7 @@ export async function mapSessionEvents(
 		if (!parentBuilder) {
 			return;
 		}
-		turns.push(finalizeTurn(parentBuilder, parentTurnState));
+		turns.push(finalizeTurn(parentBuilder, parentTurnState, options?.logService));
 		parentBuilder = undefined;
 		parentTurnState = TurnState.Cancelled;
 		parentTurnTerminated = false;
@@ -698,7 +701,7 @@ export async function mapSessionEvents(
 			return;
 		}
 		const list = subagentTurns.get(parentToolCallId) ?? [];
-		list.push(finalizeTurn(builder, state));
+		list.push(finalizeTurn(builder, state, options?.logService));
 		subagentTurns.set(parentToolCallId, list);
 	};
 
@@ -932,20 +935,31 @@ export async function mapSessionEvents(
 					pendingSkillBuilder = undefined;
 					touch(builder);
 				}
+				const original: ResponsePart[] = [];
 				if (reasoningText) {
-					builder.responseParts.push({
+					original.push({
 						kind: ResponsePartKind.Reasoning,
 						id: generateUuid(),
 						content: reasoningText,
-						...reasoningTimings?.get(e.id),
 					});
 				}
 				if (content) {
-					builder.responseParts.push({
+					original.push({
 						kind: ResponsePartKind.Markdown,
 						id: generateUuid(),
 						content,
 					});
+				}
+				builder.responseParts.push(...original);
+				const recorded = recordedResponses?.get(e.id);
+				if (recorded) {
+					const matches = recorded.filter(part => part.kind === ResponsePartKind.Reasoning).map(part => part.content).join('') === (reasoningText ?? '')
+						&& recorded.filter(part => part.kind === ResponsePartKind.Markdown).map(part => part.content).join('') === content;
+					if (matches && original.length) {
+						builder.recordedResponses.push({ responseId: e.id, original, recorded });
+					} else {
+						options?.logService?.warn(`[Copilot] Recorded response parts no longer match assistant message ${e.id}`);
+					}
 				}
 				if (!parentToolCallId && builder === parentBuilder && !parentTurnTerminated) {
 					parentTurnState = hasToolRequests ? TurnState.Cancelled : TurnState.Complete;
@@ -1141,7 +1155,7 @@ export async function mapSessionEvents(
 	}
 	flushParent();
 	if (pendingSkillBuilder) {
-		turns.push(finalizeTurn(pendingSkillBuilder, TurnState.Cancelled));
+		turns.push(finalizeTurn(pendingSkillBuilder, TurnState.Cancelled, options?.logService));
 	}
 	for (const parentToolCallId of [...subagentBuilders.keys()]) {
 		flushSubagent(parentToolCallId);
