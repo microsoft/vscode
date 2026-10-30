@@ -5,13 +5,14 @@
 
 import '../media/sessionsList.css';
 import { SessionGroupAppearancePicker } from './sessionGroupAppearancePicker.js';
+import { findSearchWords, ISessionSearchDocument, ISessionSearchField, ISessionSearchHint, ISessionSearchMatch, matchSessionSearch, SessionsListFindController, SessionsListSearchQuery, SessionsListSearchTelemetry, SessionSearchFieldKind, toSearchFilterData } from './sessionsListSearch.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { Gesture } from '../../../../../base/browser/touch.js';
 import { IListRenderer, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
-import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from '../../../../../base/browser/ui/tree/tree.js';
-import { LabelFuzzyScore, RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
+import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble, TreeFilterResult, TreeVisibility } from '../../../../../base/browser/ui/tree/tree.js';
+import { IFindFilter, RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { groupByMap } from '../../../../../base/common/collections.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -47,7 +48,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { getGitHubRepositoryId, parseGitHubPullRequestUrl } from '../../../../../platform/github/common/githubUrls.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
-import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultToggleStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { chartsOrange } from '../../../../../platform/theme/common/colors/chartsColors.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -513,33 +514,138 @@ function isSessionItem(item: SessionListItem): item is ISession {
 	return !isSessionChatItem(item) && !isSessionGroupItem(item) && !isSessionSection(item) && !isSessionShowMore(item) && !isSessionPlaceholder(item);
 }
 
-function getSessionKeyboardNavigationLabels(session: ISession): string[] {
-	const labels = [session.title.get()];
+/** The identity of a row, which keeps its state, such as whether it is collapsed, while the list renders again. */
+function getSessionListItemId(element: SessionListItem): string {
+	if (isSessionGroupItem(element)) {
+		return getSessionGroupSectionId(element.group.id);
+	}
+	if (isSessionSection(element)) {
+		return `section:${element.id}`;
+	}
+	if (isSessionShowMore(element)) {
+		return `show-more:${element.kind}:${element.mode}:${element.sectionId}`;
+	}
+	if (isSessionPlaceholder(element)) {
+		return `placeholder:${element.sectionId}`;
+	}
+	if (isSessionChatItem(element)) {
+		return `chat:${element.session.sessionId}:${element.chat.resource.toString()}`;
+	}
+	return element.resource.toString();
+}
+
+/** The pull requests of a session, as `#number` followed by the title when it is known. */
+function getSessionPullRequestSearchTexts(session: ISession): string[] {
+	const pullRequests = new Map<number, string | undefined>();
 	for (const folder of session.workspace.get()?.folders ?? []) {
 		for (const pullRequest of getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.get())) {
-			labels.push(`#${pullRequest.number}`);
+			pullRequests.set(pullRequest.number, pullRequests.get(pullRequest.number) ?? pullRequest.title);
 		}
 	}
 	for (const artifact of session.artifacts?.get() ?? []) {
 		const pullRequest = artifact.kind === SessionArtifactKind.PullRequest && artifact.isGitHub !== false && artifact.link
 			? parseGitHubPullRequestUrl(artifact.link.toString(true))
 			: undefined;
-		if (pullRequest) {
-			labels.push(`#${pullRequest.number}`);
+		if (pullRequest && !pullRequests.has(pullRequest.number)) {
+			pullRequests.set(pullRequest.number, undefined);
 		}
 	}
-	return labels;
+	return [...pullRequests].map(([number, title]) => title ? `#${number} ${title}` : `#${number}`);
 }
 
-function getSessionTitleMatches(session: ISession, filterData: FuzzyScore | LabelFuzzyScore | undefined): IMatch[] | undefined {
-	if (!filterData) {
-		return undefined;
+function getSearchHintIcon(hint: ISessionSearchHint): ThemeIcon {
+	switch (hint.kind) {
+		case 'branch':
+			return Codicon.gitBranchCompact;
+		case 'pullRequest':
+			return Codicon.gitPullRequest;
+		case 'host':
+			return Codicon.remoteCompact;
 	}
-	if (Array.isArray(filterData)) {
-		return createMatches(filterData);
-	}
-	return filterData.label === session.title.get() ? createMatches(filterData.score) : undefined;
 }
+
+function getSearchHintAriaLabel(hint: ISessionSearchHint): string {
+	switch (hint.kind) {
+		case 'branch':
+			return localize('sessionSearchHintBranchAria', "branch {0}", hint.text);
+		case 'pullRequest':
+			return localize('sessionSearchHintPullRequestAria', "pull request {0}", hint.text);
+		case 'host':
+			return localize('sessionSearchHintHostAria', "host {0}", hint.text);
+	}
+}
+
+/**
+ * Filters the Sessions list by its search. A session shows when its title, the titles of its chats, or its other text
+ * (see {@link ISessionSearchDocument}) contain each word of the query, and its chats show when their title contains
+ * one of them. Sections and groups show while they contain a session or chat that shows.
+ */
+class SessionsListSearchFilter implements IFindFilter<SessionListItem> {
+
+	private query = SessionsListSearchQuery.empty;
+	/** The match of each session and standalone chat that the current query has matched, or `null` for a mismatch. */
+	private readonly matches = new Map<ISession | ISessionChatItem, ISessionSearchMatch | null>();
+
+	constructor(
+		private readonly getDocument: (session: ISession) => ISessionSearchDocument,
+	) { }
+
+	set pattern(pattern: string) {
+		this.query = new SessionsListSearchQuery(pattern);
+		this.matches.clear();
+	}
+
+	get isSearching(): boolean {
+		return !this.query.isEmpty;
+	}
+
+	get wordCount(): number {
+		return this.query.words.length;
+	}
+
+	/** Forgets the matches of the current query, as the text of sessions may have changed since. */
+	invalidate(): void {
+		this.matches.clear();
+	}
+
+	/** How a session or a standalone chat matches the search, or `undefined` when it does not or there is none. */
+	getMatch(element: ISession | ISessionChatItem): ISessionSearchMatch | undefined {
+		if (this.query.isEmpty) {
+			return undefined;
+		}
+		let match = this.matches.get(element);
+		if (match === undefined) {
+			const document = isSessionChatItem(element)
+				// A done chat listed on its own row matches with its session's location, but not its title or other chats.
+				? { ...this.getDocument(element.session), title: getChatTitle(element.chat), chatTitles: [] }
+				: this.getDocument(element);
+			match = matchSessionSearch(this.query, document) ?? null;
+			this.matches.set(element, match);
+		}
+		return match ?? undefined;
+	}
+
+	filter(element: SessionListItem): TreeFilterResult<FuzzyScore> {
+		if (this.query.isEmpty) {
+			return TreeVisibility.Visible;
+		}
+		if (isSessionChatItem(element) && !element.standalone) {
+			if (!this.getMatch(element.session)) {
+				return TreeVisibility.Hidden;
+			}
+			const titleMatches = findSearchWords(this.query.words, getChatTitle(element.chat));
+			return titleMatches.length > 0 ? { data: toSearchFilterData(titleMatches), visibility: TreeVisibility.Visible } : TreeVisibility.Hidden;
+		}
+		if (isSessionItem(element) || isSessionChatItem(element)) {
+			const match = this.getMatch(element);
+			return match ? { data: toSearchFilterData(match.titleMatches), visibility: TreeVisibility.Visible } : TreeVisibility.Hidden;
+		}
+		return isSessionSection(element) || isSessionGroupItem(element) ? TreeVisibility.Recurse : TreeVisibility.Hidden;
+	}
+}
+
+/** Whether the search of the Sessions list is open, so that Escape in the list closes it. */
+export const SessionsListSearchOpenContext = new RawContextKey<boolean>('sessionsListSearchOpen', false, localize('sessionsListSearchOpen', "Whether the search of the Sessions list is open."));
 
 const SHOW_MORE_FOLDERS_LABEL = '__more_folders__';
 const FOUR_DAYS_MS = 4 * 24 * 60 * 60 * 1000;
@@ -1460,7 +1566,7 @@ export interface ISessionCIFixModel {
 	fixCI(session: ISession): void;
 }
 
-class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore | LabelFuzzyScore, ISessionItemTemplate> {
+class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionItemTemplate> {
 	static readonly TEMPLATE_ID = 'session-item';
 	readonly templateId = SessionItemRenderer.TEMPLATE_ID;
 	readonly rowClassName = 'session-list-inset-row';
@@ -1507,6 +1613,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			externalApplicationBadgeShowFrom?: IObservable<boolean>;
 			reportExternalApplicationBadgeModeExperimentTrigger?: () => void;
 			reportExternalApplicationBadgeShowFromExperimentTrigger?: () => void;
+			/** While searching, the field the session matched in that its row does not otherwise show. */
+			getSearchHint?: (session: ISession) => ISessionSearchHint | undefined;
 		},
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly ciFixModel: ISessionCIFixModel | undefined,
@@ -1633,12 +1741,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 		return { container, statusIcon, title, titleRow, titleContainer, externalApplicationBadge, externalApplicationBadgeLabel, titleInputContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, comparisonAttemptStatus, comparisonAttemptStatusLabel, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, inputNeededRow, inputNeededLabel, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, isQuickChatContext, supportsMultipleChatsContext, supportsDeleteContext, disposables, elementDisposables };
 	}
 
-	renderElement(node: ITreeNode<SessionListItem, FuzzyScore | LabelFuzzyScore>, _index: number, template: ISessionItemTemplate): void {
+	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
 		const element = node.element;
 		if (!isSessionItem(element)) {
 			return;
 		}
-		this.renderSession(element, template, getSessionTitleMatches(element, node.filterData));
+		this.renderSession(element, template, node.filterData && createMatches(node.filterData));
 	}
 
 	renderTwistie(element: SessionListItem, twistieElement: HTMLElement): boolean {
@@ -1991,6 +2099,18 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 					badgeEl.textContent = badgeLabel;
 					parts.push(badgeEl);
 				}
+
+				// While searching, name the field the session matched that its row does not otherwise show.
+				const searchHint = this.options.getSearchHint?.(element);
+				if (searchHint) {
+					if (parts.length > 0) {
+						DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
+					}
+					const hintEl = DOM.append(template.detailsRow, $('span.session-search-hint'));
+					DOM.append(DOM.append(hintEl, $('span.session-details-icon')), $(`span${ThemeIcon.asCSSSelector(getSearchHintIcon(searchHint))}`));
+					reader.store.add(new HighlightedLabel(DOM.append(hintEl, $('span.session-search-hint-label')))).set(searchHint.text, [...searchHint.matches]);
+					parts.push(hintEl);
+				}
 			}
 
 			// Diff stats
@@ -2228,7 +2348,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 		return target?.capabilities.get().supportsRename ? target : undefined;
 	}
 
-	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore | LabelFuzzyScore>, _index: number, template: ISessionItemTemplate): void {
+	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
 		if (isSessionItem(node.element) && this.renameState && isEqual(this.renameState.session.resource, node.element.resource) && !this.resolveRenameTarget(node.element)) {
 			this.editingSession.set(undefined, undefined);
 			this.renameState = undefined;
@@ -3200,6 +3320,8 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly getCompletedStatusMessage?: (session: ISession, reader: IReader | undefined) => string | undefined;
 	/** The harness label of a nested chat whose harness differs from its session's. */
 	readonly getChatHarnessLabel?: (session: ISession, chat: IChat, reader: IReader | undefined) => string | undefined;
+	/** While searching, the field a session matched in that its row does not otherwise show. */
+	readonly getSearchHint?: (session: ISession) => ISessionSearchHint | undefined;
 }
 
 class SessionsAccessibilityProvider {
@@ -3412,6 +3534,10 @@ class SessionsAccessibilityProvider {
 				locationLabel
 			) {
 				label = localize('sessionItemWorkspaceAria', "{0}, in {1}", label, locationLabel);
+			}
+			const searchHint = this.options?.getSearchHint?.(element);
+			if (searchHint) {
+				label = localize('sessionItemSearchHintAria', "{0}, matches {1}", label, getSearchHintAriaLabel(searchHint));
 			}
 			return label;
 		});
@@ -4346,9 +4472,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 	/** The grouping sections that capping currently hides behind the "+N more" row. */
 	private hiddenGroupingSections: readonly ISessionSection[] = [];
 	private openWindowSourceFolder: URI | undefined;
+	/** Whether the search is open with a query that has words to search for. */
 	private hasFindPattern = false;
 	private suspendCollapseStatePersistence = false;
 	private readonly findOpen = observableValue(this, false);
+	private readonly searchFilter: SessionsListSearchFilter;
+	private readonly findController: SessionsListFindController<SessionListItem | null>;
+	/**
+	 * While searching, the collapse state of the rows from before the search expanded them. A search expands the rows
+	 * that hold its results without persisting that, and restores this state once it ends.
+	 */
+	private searchCollapseSnapshot: Map<string, boolean> | undefined;
+	/** Whether the next {@link update} expands the rows for a search that just started. */
+	private expandForSearch = false;
+	/** The collapse state that the next {@link update} restores, as a search just ended. */
+	private collapseStateToRestore: Map<string, boolean> | undefined;
 
 	/** The group whose header is currently showing its inline name editor. */
 	private _editingGroupId: string | undefined;
@@ -4494,6 +4632,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const externalApplicationBadgeShowFrom = observableConfigValue(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, false, this.configurationService);
 		const reportExternalApplicationBadgeModeExperimentTrigger = () => logDefaultSettingExperimentTrigger(this.configurationService, this.telemetryService, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING);
 		const reportExternalApplicationBadgeShowFromExperimentTrigger = () => logDefaultSettingExperimentTrigger(this.configurationService, this.telemetryService, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING);
+		this.searchFilter = new SessionsListSearchFilter(session => this.getSessionSearchDocument(session));
+		const getSearchHint = (session: ISession) => this.searchFilter.getMatch(session)?.hint;
 		const sessionRenderer = new SessionItemRenderer(
 			{
 				grouping: this.options.grouping,
@@ -4527,6 +4667,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				collapsedSessionIds: this.collapsedSessionIds,
 				onboardingTarget: this.onboardingTarget,
 				getGroupDepth: session => this.getRowGroupDepth(session),
+				getSearchHint,
 			},
 			approvalModel,
 			undefined,
@@ -4752,6 +4893,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					externalApplicationBadgeMode,
 					reportExternalApplicationBadgeModeExperimentTrigger,
 					reportExternalApplicationBadgeShowFromExperimentTrigger,
+					getSearchHint,
 				}),
 				dnd: this._register(new SessionsListDragAndDrop({
 					getRowPlacement: session => this.getRowPlacement(session),
@@ -4785,24 +4927,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					},
 				})),
 				identityProvider: {
-					getId: (element: SessionListItem) => {
-						if (isSessionGroupItem(element)) {
-							return getSessionGroupSectionId(element.group.id);
-						}
-						if (isSessionSection(element)) {
-							return `section:${element.id}`;
-						}
-						if (isSessionShowMore(element)) {
-							return `show-more:${element.kind}:${element.mode}:${element.sectionId}`;
-						}
-						if (isSessionPlaceholder(element)) {
-							return `placeholder:${element.sectionId}`;
-						}
-						if (isSessionChatItem(element)) {
-							return `chat:${element.session.sessionId}:${element.chat.resource.toString()}`;
-						}
-						return element.resource.toString();
-					},
+					getId: getSessionListItemId,
 					getGroupId: (element: SessionListItem) => {
 						if (isSessionGroupItem(element)) {
 							return NotSelectableGroupId;
@@ -4832,16 +4957,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				allowNonCollapsibleParents: true,
 				enableStickyScroll: true,
 				expandOnlyOnTwistieClick: element => isSessionItem(element) || (isSessionGroupItem(element) && element.comparison !== undefined),
-				findWidgetEnabled: true,
-				defaultFindMode: TreeFindMode.Filter,
-				findWidgetContainer: this.options.findWidgetContainer,
-				findWidgetStyles: {
-					...defaultFindWidgetStyles,
-					toggleStyles: {
-						...defaultToggleStyles,
-						inputActiveOptionBorder: 'transparent',
-					},
-				},
+				// The list's own find widget searches with `searchFilter` instead of fuzzy matching row labels.
+				findWidgetEnabled: false,
+				filter: this.searchFilter,
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: (element: SessionListItem) => {
 						if (isSessionGroupItem(element)) {
@@ -4859,7 +4977,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 						if (isSessionChatItem(element)) {
 							return getChatTitle(element.chat);
 						}
-						return getSessionKeyboardNavigationLabels(element);
+						return element.title.get();
 					}
 				},
 				overrideStyles: this.options.overrideStyles,
@@ -4875,6 +4993,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 				},
 			}
 		));
+		this.findController = this._register(new SessionsListFindController(this.tree, this.searchFilter, this.contextViewService, {
+			isSearching: () => this.searchFilter.isSearching,
+			getResultCount: () => this.getSearchResultCounts().results,
+		}, {
+			findWidgetContainer: this.options.findWidgetContainer,
+			styles: defaultFindWidgetStyles,
+		}));
 		const focusedChatItemContext = SessionsListFocusedChatItemContext.bindTo(this.tree.contextKeyService);
 		this.focusedChatCanMoveUpContext = SessionChatItemCanMoveUpContext.bindTo(this.tree.contextKeyService);
 		this.focusedChatCanMoveDownContext = SessionChatItemCanMoveDownContext.bindTo(this.tree.contextKeyService);
@@ -5061,48 +5186,54 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const element = e.node.element;
 			if (element && isSessionGroupItem(element)) {
 				this._groupRenderer.updateCollapseState(element, e.node.collapsed);
-				if (!this.suspendCollapseStatePersistence) {
+				if (this.persistsCollapseState()) {
 					this.saveSectionCollapseState(getSessionGroupSectionId(element.group.id), e.node.collapsed);
 				}
 			} else if (element && isSessionSection(element)) {
 				sectionRenderer.updateCollapseState(element, e.node.collapsed);
-				if (!this.suspendCollapseStatePersistence) {
+				if (this.persistsCollapseState()) {
 					this.saveSectionCollapseState(element.collapseStateId ?? element.id, e.node.collapsed);
 				}
 			} else if (element && isSessionItem(element)) {
 				this.syncCollapsedSessionIds();
-				if (!this.suspendCollapseStatePersistence) {
+				if (this.persistsCollapseState()) {
 					this.saveSessionCollapseState(element, e.node.collapsed);
 				}
 			}
 			this.updateStickyShowMore();
 		}));
 
-		let isFindOpen = false;
-		let findPattern = '';
-		const updateFindPatternState = () => {
-			const hasFindPattern = isFindOpen && findPattern.length > 0;
+		const updateFindPatternState = (hasFindPattern: boolean) => {
 			if (hasFindPattern !== this.hasFindPattern) {
 				this.hasFindPattern = hasFindPattern;
+				if (hasFindPattern) {
+					this.searchCollapseSnapshot = this.captureCollapseState();
+					this.expandForSearch = true;
+				} else {
+					this.collapseStateToRestore = this.searchCollapseSnapshot;
+					this.searchCollapseSnapshot = undefined;
+				}
 				this.update();
 			}
 		};
 
-		this._register(this.tree.onDidChangeFindOpenState(open => {
-			isFindOpen = open;
+		const searchOpenContext = SessionsListSearchOpenContext.bindTo(this.tree.contextKeyService);
+		this._register(this.findController.onDidChangeOpenState(open => {
+			searchOpenContext.set(open);
 			this.findOpen.set(open, undefined);
 			this._onDidChangeFindOpenState.fire(open);
-			updateFindPatternState();
 		}));
 
 		// Only treat the find as "active" for layout purposes (bypassing workspace
-		// capping and per-group limits) once the user has actually typed a pattern
-		// and the find widget is open. Opening the empty find widget should not
-		// reorder the list, and closing find should restore the capped layout.
-		this._register(this.tree.onDidChangeFindPattern(pattern => {
-			findPattern = pattern;
-			updateFindPatternState();
-		}));
+		// capping and per-group limits, expanding the rows with results) once the
+		// user has actually typed a word. Opening the empty find widget should not
+		// reorder the list, and closing find, which clears its pattern, should
+		// restore the capped layout. Reopening it restores its last pattern.
+		this._register(this.findController.onDidChangePattern(pattern => updateFindPatternState(!new SessionsListSearchQuery(pattern).isEmpty)));
+
+		const searchTelemetry = new SessionsListSearchTelemetry(this.telemetryService);
+		this._register(this.findController.onDidSearch(resultCount => searchTelemetry.queryChanged(this.searchFilter.wordCount, resultCount, resultCount > 0 ? this.getSearchResultCounts().beyondTitle : 0)));
+		this._register(this.onDidOpenSession(() => searchTelemetry.resultOpened()));
 
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
 			if (this.visible) {
@@ -5575,6 +5706,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const sessionGroupLimit = this.sessionGroupLimit.get();
 		const sessionGroupExpansion = this.loadSessionGroupExpansion();
 
+		// A search expands the rows that hold its results, and the rows return to how they were once it ends.
+		const expandForSearch = this.expandForSearch;
+		const collapseStateToRestore = this.collapseStateToRestore;
+		this.expandForSearch = false;
+		this.collapseStateToRestore = undefined;
+		const resolveCollapsed = (element: SessionListItem, collapsed: boolean | ObjectTreeElementCollapseState): boolean | ObjectTreeElementCollapseState => {
+			if (this.hasFindPattern) {
+				return expandForSearch ? ObjectTreeElementCollapseState.Expanded : ObjectTreeElementCollapseState.PreserveOrExpanded;
+			}
+			return collapseStateToRestore?.get(getSessionListItemId(element)) ?? collapsed;
+		};
+
 		const toSessionChildren = (sessions: readonly ISession[]): IObjectTreeElement<SessionListItem>[] =>
 			sessions.map(session => {
 				const chats = sortSessionListChats(this.getRenderedSessionListChats(session), sorting);
@@ -5584,13 +5727,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return {
 					element: session as SessionListItem,
 					collapsible: chats.length > 0,
-					collapsed: wasNested
+					collapsed: resolveCollapsed(session, wasNested
 						? persistedCollapsed
 							? ObjectTreeElementCollapseState.PreserveOrCollapsed
 							: ObjectTreeElementCollapseState.PreserveOrExpanded
 						: persistedCollapsed
 							? ObjectTreeElementCollapseState.Collapsed
-							: ObjectTreeElementCollapseState.Expanded,
+							: ObjectTreeElementCollapseState.Expanded),
 					children: chats.length > 0
 						? chats.map((chat, index) => ({ element: new SessionChatItem(session, chat, index === chats.length - 1) }))
 						: undefined,
@@ -5666,7 +5809,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return {
 				element: section as SessionListItem,
 				collapsible: true,
-				collapsed: this.getSavedCollapseState(section.collapseStateId ?? section.id, section.collapseStateId ? section.id : undefined) ?? defaultCollapsed,
+				collapsed: resolveCollapsed(section, this.getSavedCollapseState(section.collapseStateId ?? section.id, section.collapseStateId ? section.id : undefined) ?? defaultCollapsed),
 				children: sectionChildren,
 			};
 		};
@@ -5715,7 +5858,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return {
 				element: groupItem,
 				collapsible: true,
-				collapsed: this.getSavedCollapseState(sectionId) ?? ObjectTreeElementCollapseState.PreserveOrExpanded,
+				collapsed: resolveCollapsed(groupItem, this.getSavedCollapseState(sectionId) ?? ObjectTreeElementCollapseState.PreserveOrExpanded),
 				children: [...subgroupChildren, ...(comparisonChildren.length > 0 ? this.sortComparisonChildren([...comparisonChildren, ...sessionChildren]) : sessionChildren)],
 			};
 		};
@@ -5867,6 +6010,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			children.push(renderSection(archivedSection));
 		}
 
+		// Match sessions again: their text may have changed since the last update.
+		this.searchFilter.invalidate();
 		this.tree.setChildren(null, children);
 		this.nestedSessionResources = nextNestedSessionResources;
 		this.syncCollapsedSessionIds();
@@ -6370,11 +6515,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	openFind(): void {
-		this.tree.openFind();
+		this.findController.open();
 	}
 
 	closeFind(): void {
-		this.tree.closeFind();
+		this.findController.close();
 	}
 
 	// -- Drag and drop --
@@ -6605,7 +6750,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 			const activeElement = DOM.getActiveElement();
 			const hadFocus = DOM.isAncestorOfActiveElement(this.listContainer);
-			this.tree.closeFind();
+			this.findController.close();
 			if (!hadFocus && DOM.isHTMLElement(activeElement)) {
 				activeElement.focus();
 			}
@@ -8336,6 +8481,97 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.suspendCollapseStatePersistence = false;
 		}
 		this.saveBulkCollapseState(true);
+	}
+
+	// -- Search --
+
+	/**
+	 * The text of a session that searching the list matches: what its row and its section headers show, and the
+	 * branches, pull requests, and remote host that its hover shows.
+	 */
+	private getSessionSearchDocument(session: ISession): ISessionSearchDocument {
+		const fields: ISessionSearchField[] = [];
+		const add = (kind: SessionSearchFieldKind, text: string | undefined) => {
+			if (text) {
+				fields.push({ kind, text });
+			}
+		};
+		const workspace = session.workspace.get();
+		add('location', workspace?.label);
+		for (const folder of workspace?.folders ?? []) {
+			add('location', folder.name);
+		}
+		const repository = getSessionRepository(session);
+		if (repository) {
+			add('location', `${repository.owner}/${repository.name}`);
+		}
+		const groupIds = new Set<string>();
+		for (let groupId = this._sessionGroupsService.getGroupOfSession(session.sessionId); groupId !== undefined && !groupIds.has(groupId);) {
+			groupIds.add(groupId);
+			const group = this._sessionGroupsService.getGroup(groupId);
+			add('group', group?.name);
+			groupId = group?.parentId;
+		}
+		add('group', this.sessionComparisonService.getComparisonForSession(session.resource)?.title);
+		for (const folder of workspace?.folders ?? []) {
+			add('branch', folder.gitRepository?.branchName);
+		}
+		add('branch', session.branch?.get());
+		for (const pullRequest of getSessionPullRequestSearchTexts(session)) {
+			add('pullRequest', pullRequest);
+		}
+		if (session.environment !== 'local' && session.environment !== 'cloud') {
+			add('host', this._sessionsProvidersService.getProvider(session.providerId)?.environment.label);
+		}
+		return {
+			title: this.renderedComparisonAttemptLabels.get(session.sessionId) ?? session.title.get(),
+			chatTitles: this.getRenderedSessionListChats(session).map(chat => getChatTitle(chat)),
+			fields,
+		};
+	}
+
+	/** How many sessions and standalone chats the search shows, and how many of them matched beyond their title. */
+	private getSearchResultCounts(): { readonly results: number; readonly beyondTitle: number } {
+		let results = 0;
+		let beyondTitle = 0;
+		const visit = (node: ITreeNode<SessionListItem | null, FuzzyScore | undefined>): void => {
+			for (const child of node.children) {
+				const element = child.element;
+				if (!child.visible || !element) {
+					continue;
+				}
+				const match = isSessionItem(element) || (isSessionChatItem(element) && element.standalone) ? this.searchFilter.getMatch(element) : undefined;
+				if (match) {
+					results++;
+					if (match.matchesBeyondTitle) {
+						beyondTitle++;
+					}
+				}
+				visit(child);
+			}
+		};
+		visit(this.tree.getNode(null));
+		return { results, beyondTitle };
+	}
+
+	/** The collapse state of the rows that can collapse, by row identity. */
+	private captureCollapseState(): Map<string, boolean> {
+		const state = new Map<string, boolean>();
+		const visit = (node: ITreeNode<SessionListItem | null, FuzzyScore | undefined>): void => {
+			for (const child of node.children) {
+				if (child.element && child.collapsible) {
+					state.set(getSessionListItemId(child.element), child.collapsed);
+				}
+				visit(child);
+			}
+		};
+		visit(this.tree.getNode(null));
+		return state;
+	}
+
+	/** Whether a change of a row's collapse state is the user's to persist, rather than a search's or a reveal's. */
+	private persistsCollapseState(): boolean {
+		return !this.suspendCollapseStatePersistence && !this.searchCollapseSnapshot;
 	}
 
 	// -- Section collapse persistence --

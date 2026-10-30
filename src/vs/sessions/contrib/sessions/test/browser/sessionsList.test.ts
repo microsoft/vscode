@@ -54,6 +54,7 @@ import { IOpenerService, OpenExternalOptions, OpenInternalOptions } from '../../
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -5889,6 +5890,234 @@ suite('Sessions - SessionsList', () => {
 				afterRestart: 'false',
 				persisted: { 'workspace:file:///elsewhere': false, [`group:${group.id}`]: true, recent: true },
 			});
+		});
+	});
+
+	suite('search', () => {
+		const perfGroup: ISessionGroup = { id: 'perf', name: 'Perf work', createdAt: 1 };
+
+		function createChat(title: string): IChat {
+			return upcastPartial<IChat>({
+				resource: URI.parse(`test-chat://${title.replaceAll(' ', '-')}`),
+				createdAt: new Date(0),
+				workspace: constObservable(undefined),
+				title: constObservable(title),
+				updatedAt: constObservable(new Date(0)),
+				status: constObservable(SessionStatus.Completed),
+				description: constObservable(undefined),
+				isArchived: constObservable(false),
+				isRead: constObservable(true),
+				changes: constObservable([]),
+				changesets: constObservable([]),
+				interactivity: constObservable(ChatInteractivity.Full),
+			});
+		}
+
+		/** A session in `vscode`, on `branch` with `pullRequest`, and with nested `chats`. */
+		function createSession(title: string, options: { readonly branch?: string; readonly pullRequest?: { readonly number: number; readonly title: string }; readonly chats?: readonly string[]; readonly test?: ITestSessionOptions } = {}): ISession {
+			const session = createTestSession(title, { workspaceLabel: 'vscode', ...options.test }).session;
+			const root = URI.file(`/workspace/${title}`);
+			const folder: ISessionFolder = {
+				root,
+				workingDirectory: root,
+				name: 'vscode',
+				description: undefined,
+				gitRepository: {
+					uri: root,
+					workTreeUri: undefined,
+					branchName: options.branch,
+					baseBranchName: 'main',
+					gitHubInfo: constObservable(options.pullRequest && {
+						owner: 'microsoft',
+						repo: 'vscode',
+						pullRequests: [{ owner: 'microsoft', repo: 'vscode', number: options.pullRequest.number, uri: URI.parse(`https://github.com/microsoft/vscode/pull/${options.pullRequest.number}`), title: options.pullRequest.title }],
+					}),
+				},
+			};
+			const main = createChat(`${title} main`);
+			return {
+				...session,
+				workspace: constObservable({ ...session.workspace.get()!, folders: [folder] }),
+				...(options.chats ? {
+					chats: constObservable([main, ...options.chats.map(createChat)]),
+					mainChat: constObservable(main),
+					capabilities: constObservable({ supportsMultipleChats: true }),
+				} : {}),
+			};
+		}
+
+		/** Text of an element, its highlighted parts in `«»`. */
+		function markHighlights(element: Element | null): string | undefined {
+			if (!element) {
+				return undefined;
+			}
+			let text = '';
+			for (const node of element.childNodes) {
+				if (node instanceof mainWindow.HTMLElement && node.classList.contains('highlight')) {
+					text += `«${node.textContent}»`;
+				} else if (node instanceof mainWindow.HTMLElement) {
+					text += markHighlights(node) ?? '';
+				} else {
+					text += node.textContent ?? '';
+				}
+			}
+			return text;
+		}
+
+		function renderSearch(sessions: ISession[], options: IListHarnessOptions | ((instantiationService: TestInstantiationService) => void) = {}, grouping = SessionsGrouping.Date) {
+			const harness = createListHarness(disposables, sessions, options);
+			const container = harness.createContainer(300, 800);
+			const findWidgetContainer = mainWindow.document.createElement('div');
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => grouping,
+				sorting: () => SessionsSorting.Created,
+				findWidgetContainer,
+				onSessionOpen: () => { },
+			}));
+			list.layout(800, 300);
+			/** Rows top to bottom: sections, their sessions indented with the hint of a search, and the sessions' chats. */
+			const rows = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+				.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top))
+				.map(row => {
+					const section = row.querySelector('.session-section-label')?.textContent;
+					if (section) {
+						return `${section}${row.getAttribute('aria-expanded') === 'false' ? ' (collapsed)' : ''}`;
+					}
+					const chat = markHighlights(row.querySelector('.session-chat-title'));
+					if (chat !== undefined) {
+						return `    ${chat}`;
+					}
+					const hint = markHighlights(row.querySelector('.session-search-hint-label'));
+					return `  ${markHighlights(row.querySelector('.session-title'))}${hint ? ` [${hint}]` : ''}`;
+				});
+			const search = (pattern: string) => {
+				list.openFind();
+				const input = findWidgetContainer.querySelector<HTMLInputElement>('input')!;
+				input.value = pattern;
+				input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+				return rows();
+			};
+			/** Closes the find widget, which disposes itself after its closing animation. */
+			const closeSearch = async () => {
+				list.closeFind();
+				await timeout(350);
+			};
+			return { harness, list, rows, search, closeSearch };
+		}
+
+		test('matches every word in any order, not scattered letters', async () => {
+			const { search, closeSearch } = renderSearch([
+				createSession('hello world'),
+				createSession('Explain how the session list grouping works'),
+				createSession('Fix flaky terminal tests on macOS'),
+			]);
+			try {
+				assert.deepStrictEqual({
+					scatteredLetters: search('hlow'),
+					anyOrder: search('macos TERMINAL'),
+					accents: search('héllo'),
+				}, {
+					scatteredLetters: [],
+					anyOrder: ['Recent', '  Fix flaky «terminal» tests on «macOS»'],
+					accents: ['Recent', '  «hello» world'],
+				});
+			} finally {
+				await closeSearch();
+			}
+		});
+
+		test('matches the chats, group, branch, and pull requests of a session, naming what its row does not show', async () => {
+			const tuning = createSession('Tune the startup');
+			const { search, closeSearch } = renderSearch([
+				createSession('Refactor transport', { branch: 'alex/terminal-flake' }),
+				createSession('Update README', { pullRequest: { number: 4242, title: 'Fix the release notes' } }),
+				createSession('Investigate crash', { chats: ['Review the crash dump', 'Unrelated'] }),
+				tuning,
+			], { groups: [perfGroup], memberships: new Map([[tuning.sessionId, perfGroup.id]]) });
+			try {
+				assert.deepStrictEqual({
+					branch: search('flake'),
+					pullRequestTitle: search('release notes'),
+					pullRequestNumber: search('#4242'),
+					chatTitle: search('crash review'),
+					group: search('perf'),
+				}, {
+					branch: ['Recent', '  Refactor transport [alex/terminal-«flake»]'],
+					pullRequestTitle: ['Recent', '  Update README [#4242 Fix the «release» «notes»]'],
+					pullRequestNumber: ['Recent', '  Update README [«#4242» Fix the release notes]'],
+					// Only the chats whose title has a word show under their session.
+					chatTitle: ['Recent', '  Investigate «crash»', '    «Review» the «crash» dump'],
+					group: ['Perf work', '  Tune the startup'],
+				});
+			} finally {
+				await closeSearch();
+			}
+		});
+
+		test('shows results in collapsed sections, then restores them without persisting the expansion', async () => {
+			const pinned = createSession('Pinned telemetry');
+			const { harness, list, rows, search, closeSearch } = renderSearch([
+				pinned,
+				createSession('Recent work'),
+				createSession('Archived telemetry', { test: { isArchived: true } }),
+			], { pinnedSessionIds: new Set([pinned.sessionId]) });
+			list.setExcludeArchived(false);
+			const storageService = harness.instantiationService.get(IStorageService);
+			const persisted = () => storageService.get('sessionsListControl.sectionCollapseState', StorageScope.PROFILE);
+			const before = rows();
+			let during: string[];
+			try {
+				during = search('telemetry');
+			} finally {
+				await closeSearch();
+			}
+
+			assert.deepStrictEqual({ before, during, after: rows(), persisted: persisted() }, {
+				before: ['Pinned (collapsed)', 'Recent', '  Recent work', 'Archived (collapsed)'],
+				during: ['Pinned', '  Pinned «telemetry»', 'Archived', '  Archived «telemetry»'],
+				after: ['Pinned (collapsed)', 'Recent', '  Recent work', 'Archived (collapsed)'],
+				persisted: undefined,
+			});
+		});
+
+		test('reopening the search shows the results of its last query', async () => {
+			const pinned = createSession('Pinned telemetry');
+			const { list, rows, search, closeSearch } = renderSearch([pinned, createSession('Recent work')], { pinnedSessionIds: new Set([pinned.sessionId]) });
+			search('telemetry');
+			await closeSearch();
+			list.openFind();
+			let reopened: string[];
+			try {
+				reopened = rows();
+			} finally {
+				await closeSearch();
+			}
+
+			assert.deepStrictEqual({ reopened, closed: rows() }, {
+				reopened: ['Pinned', '  Pinned «telemetry»'],
+				closed: ['Pinned (collapsed)', 'Recent', '  Recent work'],
+			});
+		});
+
+		test('logs how a search ends, without its query', async () => {
+			const events: object[] = [];
+			const { search, closeSearch } = renderSearch([
+				createSession('hello world'),
+				createSession('Refactor transport', { branch: 'hello-branch' }),
+			], instantiationService => instantiationService.stub(ITelemetryService, new class extends NullTelemetryServiceShape {
+				override publicLog2(eventName?: string, data?: object): void {
+					if (eventName === 'agents/sessionsListSearch' && data) {
+						events.push(data);
+					}
+				}
+			}));
+			search('hel');
+			search('hello');
+			await closeSearch();
+
+			assert.deepStrictEqual(events.map(event => ({ ...event, durationMs: typeof Reflect.get(event, 'durationMs') })), [
+				{ wordCount: 1, resultCount: 2, beyondTitleResultCount: 1, queryChangeCount: 2, openCount: 0, durationMs: 'number' },
+			]);
 		});
 	});
 

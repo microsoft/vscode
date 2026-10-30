@@ -504,6 +504,22 @@
 			text-overflow: ellipsis;
 		}
 
+		/* While searching: the field a session matched that its row does not otherwise show. */
+		.session-search-hint {
+			display: flex;
+			align-items: center;
+			gap: 4px;
+			min-width: 0;
+			overflow: hidden;
+
+			.session-search-hint-label {
+				min-width: 0;
+				overflow: hidden;
+				white-space: nowrap;
+				text-overflow: ellipsis;
+			}
+		}
+
 		.session-separator {
 			display: none;
 
