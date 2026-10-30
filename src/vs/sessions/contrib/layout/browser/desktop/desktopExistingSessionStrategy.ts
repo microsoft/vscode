@@ -223,7 +223,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 					const state = this._resolveComposition(activeSession, ownerKey);
 					if (perChatLayout && ownerKey) {
 						pendingComposition = { ownerKey, state, reveal: revealSavedComposition || this._layoutService.isSidePaneVisible() };
-						if (restoringWorkingSet) {
+						if (restoringWorkingSet && activeSession.activeChat.read(reader).status.read(reader) !== SessionStatus.Untitled) {
 							this._ctx.withSessionLayoutRestore(() => this._apply({ editorVisible: false, auxiliaryBarVisible: false }));
 						}
 					} else {
@@ -396,7 +396,10 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	}
 
 	private _apply(state: { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean }, revealOnly = false, revealSavedComposition = false): void {
+		const draftDetailsOnly = !state.editorVisible && state.auxiliaryBarVisible
+			&& this._sessionsService.activeSession.get()?.activeChat.get().status.get() === SessionStatus.Untitled;
 		if (this._ctx.chatLayoutActive() && !this._ctx.sharedChatLayout
+			&& !draftDetailsOnly
 			&& (!state.editorVisible || !this._editorGroupsService.mainPart.groups.some(group => group.editors.some(editor => !(editor instanceof DockedEditorInput))))) {
 			state = { editorVisible: false, auxiliaryBarVisible: false };
 		}

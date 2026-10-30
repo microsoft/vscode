@@ -1307,6 +1307,11 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		await settle();
 		setVisible(false, true);
 		await settle();
+		setActiveChat(session, main);
+		await settle();
+		setActiveChat(session, nested);
+		await settle();
+		const draftReopened = visible();
 		const beforeSubmit = visible();
 		status.set(SessionStatus.Completed, undefined);
 		await settle();
@@ -1315,10 +1320,55 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		await settle();
 		setActiveChat(session, nested);
 		await settle();
-		assert.deepStrictEqual({ beforeSubmit, afterSubmit, reopened: visible() }, {
+		assert.deepStrictEqual({ draftReopened, beforeSubmit, afterSubmit, reopened: visible() }, {
+			draftReopened: { editor: false, auxiliaryBar: true },
 			beforeSubmit: { editor: false, auxiliaryBar: true },
 			afterSubmit: { editor: false, auxiliaryBar: true },
 			reopened: { editor: false, auxiliaryBar: false },
+		});
+	});
+
+	for (const auxiliaryBarVisible of [false, true]) {
+		test(`chat: a nested draft does not reveal an empty Editor from Existing defaults (Details=${auxiliaryBarVisible})`, async () => {
+			createDesktopController({
+				chatLayoutMode: 'chat', activateAux: true,
+				sidePaneVisibilityState: { editorVisible: true, auxiliaryBarVisible },
+			});
+			const session = makeSession(URI.parse('session:nested-empty-defaults'));
+			const nested = addPeerChat(session, URI.parse('chat:nested-empty-defaults'), { status: observableValue('nestedStatus', SessionStatus.Untitled) });
+			harness.activeSessionObs.set(session, undefined);
+			await settle();
+			setActiveChat(session, nested);
+			await settle();
+			assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false });
+		});
+	}
+
+	test('chat: a nested draft keeps its saved docked-only pane while workspace restoration is pending', async () => {
+		createDesktopController({ chatLayoutMode: 'chat', activateAux: true });
+		const session = makeSession(URI.parse('session:nested-pending'));
+		const main = session.mainChat.get();
+		const nested = addPeerChat(session, URI.parse('chat:nested-pending'), { status: observableValue('nestedStatus', SessionStatus.Untitled) });
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+		setActiveChat(session, nested);
+		await settle();
+		setVisible(false, true);
+		await settle();
+		setActiveChat(session, main);
+		await settle();
+		setVisible(false, true);
+		harness.workspaceFolders = [];
+		harness.onDidChangeWorkspaceFolders.fire();
+		setActiveChat(session, nested);
+		await settle();
+		const whilePending = visible();
+		harness.workspaceFolders = [{ uri: URI.file('/repo') }];
+		harness.onDidChangeWorkspaceFolders.fire();
+		await settle();
+		assert.deepStrictEqual({ whilePending, restored: visible() }, {
+			whilePending: { editor: false, auxiliaryBar: true },
+			restored: { editor: false, auxiliaryBar: true },
 		});
 	});
 
