@@ -266,6 +266,18 @@ function getKerberosPrincipalProxyUrl(spn: string): string | undefined {
 	return host ? `http://${host}` : undefined;
 }
 
+/**
+ * The SDK's `kerberosAuth` client option, declared here so that SDK versions without it compile and ignore it at
+ * runtime, while SDK versions with it register the callback.
+ */
+export interface ICopilotClientKerberosAuthOptions {
+	readonly kerberosAuth?: {
+		readonly mode: 'fallback' | 'always';
+		readonly scope?: 'connection' | 'runtime';
+		readonly callback: (request: { readonly spn: string }, signal: AbortSignal) => Promise<string | undefined>;
+	};
+}
+
 async function validateCopilotRuntimePath(runtimePath: string): Promise<void> {
 	if (!isAbsolute(runtimePath)) {
 		throw new Error(`Invalid chat.agentHost.copilot.runtimePath: expected an absolute path, got '${runtimePath}'`);
@@ -4464,14 +4476,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 			}
 
-			const clientOptions: CopilotClientOptions = {
+			const clientOptions: CopilotClientOptions & ICopilotClientKerberosAuthOptions = {
 				// The runtime tries its own tickets first. A client sharing this agent host's network, such as the Windows
 				// client of a WSL agent host, can then supply its own, as for a remote extension host using the local proxy
 				// configuration. The runtime process belongs to this agent host, so its shared background traffic may use them too.
 				kerberosAuth: {
 					mode: 'fallback',
 					scope: 'runtime',
-					callback: ({ spn }) => this._lookupClientKerberosToken(spn),
+					callback: (request: { readonly spn: string }) => this._lookupClientKerberosToken(request.spn),
 				},
 				useLoggedInUser: false,
 				gitHubToken,
