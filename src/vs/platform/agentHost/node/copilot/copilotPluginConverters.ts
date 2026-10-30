@@ -29,6 +29,7 @@ type PostToolUseHookResult = Exclude<PostToolUseHookOutput, void>;
 type PostToolUseFailureHookInput = Parameters<NonNullable<SessionHooks['onPostToolUseFailure']>>[0];
 type PostToolUseFailureHookOutput = Exclude<Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUseFailure']>>>, void>;
 type UserPromptSubmittedHookInput = Parameters<NonNullable<SessionHooks['onUserPromptSubmitted']>>[0];
+type UserPromptTransformedHookInput = Parameters<NonNullable<SessionHooks['onUserPromptTransformed']>>[0];
 type SessionStartHookInput = Parameters<NonNullable<SessionHooks['onSessionStart']>>[0];
 type SessionEndHookInput = Parameters<NonNullable<SessionHooks['onSessionEnd']>>[0];
 type ErrorOccurredHookInput = Parameters<NonNullable<SessionHooks['onErrorOccurred']>>[0];
@@ -453,6 +454,7 @@ const HOOK_TYPE_TO_SDK_KEY: Record<string, keyof SessionHooks> = {
 	'PreToolUse': 'onPreToolUse',
 	'PostToolUse': 'onPostToolUse',
 	'UserPromptSubmit': 'onUserPromptSubmitted',
+	'UserPromptTransformed': 'onUserPromptTransformed',
 	'SessionStart': 'onSessionStart',
 	'SessionEnd': 'onSessionEnd',
 	'ErrorOccurred': 'onErrorOccurred',
@@ -552,6 +554,28 @@ export function toSdkHooks(
 				}
 			}
 			return editTrackingHooks?.onUserPromptSubmitted?.();
+		};
+	}
+
+	// Each hook sees the preceding hook's transformed prompt, while the
+	// original user prompt remains unchanged.
+	const transformedPromptCommands = commandsByKey.get('onUserPromptTransformed');
+	if (transformedPromptCommands?.length) {
+		hooks.onUserPromptTransformed = async (input: UserPromptTransformedHookInput) => {
+			let modifiedTransformedPrompt: string | undefined;
+
+			for (const command of transformedPromptCommands) {
+				const output: { modifiedTransformedPrompt?: unknown } | undefined = await runHookCommands([command], {
+					...input,
+					transformedPrompt: modifiedTransformedPrompt ?? input.transformedPrompt,
+				});
+
+				if (typeof output?.modifiedTransformedPrompt === 'string') {
+					modifiedTransformedPrompt = output.modifiedTransformedPrompt;
+				}
+			}
+
+			return modifiedTransformedPrompt === undefined ? undefined : { modifiedTransformedPrompt };
 		};
 	}
 

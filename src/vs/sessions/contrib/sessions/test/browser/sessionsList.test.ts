@@ -55,7 +55,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -175,6 +175,8 @@ suite('Sessions - SessionsList', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const noHeaderStatusTrigger = { pending: constObservable(false), includeExpanded: constObservable(false), report: () => { } };
 	const noKeybindingService = new class extends mock<IKeybindingService>() { };
+	const automationDefinition = (id: string, ownership: IAutomationDescriptor['ownership'] = 'user'): IAutomationDescriptor =>
+		upcastPartial<IAutomationDescriptor>({ id, ownership });
 
 	suite('catalogue refresh scheduling', () => {
 		async function nextFrame(): Promise<void> {
@@ -370,6 +372,7 @@ suite('Sessions - SessionsList', () => {
 			});
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 			const automationService = new class extends mock<IAutomationService>() {
+				override readonly automations = constObservable<readonly IAutomationDescriptor[]>([]);
 				override readonly runs = constObservable<readonly IAutomationRun[]>([]);
 			};
 			const selectedSections: ISessionSection[] = [];
@@ -418,6 +421,7 @@ suite('Sessions - SessionsList', () => {
 			});
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 			const automationService = new class extends mock<IAutomationService>() {
+				override readonly automations = constObservable<readonly IAutomationDescriptor[]>([]);
 				override readonly runs = constObservable<readonly IAutomationRun[]>([]);
 			};
 			let hoverOptions: Parameters<IHoverService['setupDelayedHover']>[1] | undefined;
@@ -489,6 +493,7 @@ suite('Sessions - SessionsList', () => {
 			});
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 			const automationService = new class extends mock<IAutomationService>() {
+				override readonly automations = constObservable<readonly IAutomationDescriptor[]>([]);
 				override readonly runs = constObservable<readonly IAutomationRun[]>([]);
 			};
 			let hoverOptions: Parameters<IHoverService['setupDelayedHover']>[1] | undefined;
@@ -575,6 +580,7 @@ suite('Sessions - SessionsList', () => {
 			instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() { });
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 			const automationService = new class extends mock<IAutomationService>() {
+				override readonly automations = constObservable([automationDefinition('automation')]);
 				override readonly runs = constObservable<readonly IAutomationRun[]>([{
 					id: 'pending',
 					automationId: 'automation',
@@ -646,6 +652,7 @@ suite('Sessions - SessionsList', () => {
 				NullHoverService,
 				contextKeyService,
 				new class extends mock<IAutomationService>() {
+					override readonly automations = constObservable<readonly IAutomationDescriptor[]>([]);
 					override readonly runs = constObservable<readonly IAutomationRun[]>([]);
 				},
 				constObservable([]),
@@ -1450,6 +1457,60 @@ suite('Sessions - SessionsList', () => {
 			await timeout(350);
 		});
 
+		test('reports in-progress status only for known personal automation runs', () => {
+			const personal = automationDefinition('personal');
+			const shared = automationDefinition('shared', 'repository');
+			const automations = observableValue<readonly IAutomationDescriptor[]>('automationDefinitions', []);
+			const runs = observableValue<readonly IAutomationRun[]>('automationRuns', []);
+			const automationService = new class extends mock<IAutomationService>() {
+				override readonly automations = automations;
+				override readonly runs = runs;
+			};
+			const renderer = new SessionSectionRenderer(
+				true,
+				() => { },
+				constObservable(true),
+				constObservable(new Set<string>()),
+				noHeaderStatusTrigger,
+				new class extends mock<IInstantiationService>() { },
+				NullHoverService,
+				new class extends mock<IContextKeyService>() { },
+				automationService,
+				constObservable([]),
+				new class extends mock<IUriIdentityService>() { override readonly extUri = new ExtUri(() => false); },
+				new class extends mock<ICustomViewService>() { },
+				new class extends mock<IMenuService>() { },
+				noKeybindingService,
+				constObservable(false),
+			);
+			const run = (id: string, automationId: string): IAutomationRun => ({
+				id,
+				automationId,
+				status: 'running',
+				trigger: 'schedule',
+				startedAt: '2026-10-29T00:00:00.000Z',
+			});
+
+			runs.set([run('unknown-run', 'unknown')], undefined);
+			const unknownStatus = renderer.automationStatus.get();
+			automations.set([personal], undefined);
+			runs.set([run('personal-run', personal.id)], undefined);
+			const personalStatus = renderer.automationStatus.get();
+			automations.set([shared], undefined);
+			runs.set([run('shared-run', shared.id)], undefined);
+			const sharedStatus = renderer.automationStatus.get();
+			automations.set([personal, shared], undefined);
+			runs.set([run('personal-run', personal.id), run('shared-run', shared.id)], undefined);
+			const mixedStatus = renderer.automationStatus.get();
+
+			assert.deepStrictEqual({ unknownStatus, personalStatus, sharedStatus, mixedStatus }, {
+				unknownStatus: undefined,
+				personalStatus: SessionStatus.InProgress,
+				sharedStatus: undefined,
+				mixedStatus: SessionStatus.InProgress,
+			});
+		});
+
 		test('derives terminal automation status from the supplied session snapshot', () => {
 			const session = createSession('automation', {
 				isRead: false,
@@ -1471,6 +1532,7 @@ suite('Sessions - SessionsList', () => {
 			managementCalls.length = 0;
 			const runs = observableValue<readonly IAutomationRun[]>('automationRuns', []);
 			const automationService = new class extends mock<IAutomationService>() {
+				override readonly automations = constObservable([automationDefinition('automation')]);
 				override readonly runs = runs;
 			};
 			const uriIdentityService = new class extends mock<IUriIdentityService>() {
@@ -1551,6 +1613,7 @@ suite('Sessions - SessionsList', () => {
 			needsInputStatus.set(SessionStatus.InProgress, undefined);
 			const runs = observableValue<readonly IAutomationRun[]>('automationRuns', []);
 			const automationService = new class extends mock<IAutomationService>() {
+				override readonly automations = constObservable([automationDefinition('automation')]);
 				override readonly runs = runs;
 			};
 			const uriIdentityService = new class extends mock<IUriIdentityService>() {
@@ -1618,7 +1681,10 @@ suite('Sessions - SessionsList', () => {
 				new class extends mock<IInstantiationService>() { },
 				NullHoverService,
 				new class extends mock<IContextKeyService>() { },
-				new class extends mock<IAutomationService>() { override readonly runs = runs; },
+				new class extends mock<IAutomationService>() {
+					override readonly automations = constObservable([automationDefinition('automation')]);
+					override readonly runs = runs;
+				},
 				constObservable([needsInput, unread]),
 				new class extends mock<IUriIdentityService>() { override readonly extUri = new ExtUri(() => false); },
 				new class extends mock<ICustomViewService>() { },

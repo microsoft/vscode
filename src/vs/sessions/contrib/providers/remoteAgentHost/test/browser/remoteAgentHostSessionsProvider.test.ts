@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
+import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { withSessionInitiator } from '../../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
@@ -38,7 +40,7 @@ import { ResourceType, type ResolveSessionConfigResult } from '../../../../../..
 import { ChatOriginKind, ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, SessionOriginKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildDefaultChatUri, createActiveTurn, createChatState, isAhpAutomationCatalogChannel, readSessionWorkspaceless, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionExternal, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { RootStateSubscription, type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatConfiguration } from '../../../../../../workbench/contrib/chat/common/constants.js';
@@ -524,9 +526,67 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	teardown(() => {
 		disposables.clear();
+		sinon.restore();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('clones a repository through the selected host and returns its ready directory', async () => {
+		const root = disposables.add(new RootStateSubscription('test', () => { }));
+		const repository = URI.parse('https://github.com/microsoft/vscode');
+		const project = { id: 'opaque-project-id', path: '/srv/projects/custom-checkout', git: true, status: 'cloning', remoteUrl: repository.toString() };
+		const update = (projects: readonly object[], sequence: number) => root.handleSnapshot({
+			agents: [],
+			_meta: { 'copilot.projectManagement': { available: true } },
+			config: { schema: { type: 'object', properties: {} }, values: { copilot: { projects } } },
+		}, sequence);
+		update([], 0);
+		const protocol = sinon.createStubInstance(AgentHostProtocolClient);
+		protocol.traceRepositoryPreparation.callsFake((_phase, operation) => operation());
+		protocol.sendHostExtensionRequest.callsFake(async () => {
+			update([project], 1);
+			return { project };
+		});
+		Object.defineProperties(protocol, {
+			rootState: { value: root },
+			onDidClose: { value: Event.None },
+		});
+		const provider = createProvider(disposables, connection, {
+			noConnection: true,
+			ctor: class extends RemoteAgentHostSessionsProvider {
+				protected override get connection(): IAgentConnection { return protocol as IAgentConnection; }
+			},
+		});
+		let resolved = false;
+		const cloning = provider.cloneRepository(repository, CancellationToken.None).then(workspace => {
+			resolved = true;
+			return workspace;
+		});
+		await timeout(0);
+		assert.strictEqual(resolved, false);
+		update([{ ...project, status: 'ready' }], 2);
+		const workspace = await cloning;
+		const reused = await provider.cloneRepository(repository, CancellationToken.None);
+		assert.deepStrictEqual({
+			requests: protocol.sendHostExtensionRequest.args,
+			root: workspace.folders[0].root.toString(),
+			reused: reused.folders[0].root.toString(),
+			claimed: provider.resolveWorkspace(workspace.folders[0].root)?.uri.toString(),
+		}, {
+			requests: [['extensions/cloneProject', { url: repository.toString(), depth: 1 }]],
+			root: toAgentHostUri(URI.file(project.path), agentHostAuthority('localhost:4321')).toString(),
+			reused: workspace.folders[0].root.toString(),
+			claimed: workspace.uri.toString(),
+		});
+	});
+
+	test('rejects cloning on disconnected or unsupported hosts', async () => {
+		const repository = URI.parse('https://github.com/microsoft/vscode');
+		const disconnected = createProvider(disposables, connection, { noConnection: true });
+		await assert.rejects(disconnected.cloneRepository(repository, CancellationToken.None), /Connect to Test Host before cloning/);
+		const unsupported = createProvider(disposables, connection);
+		await assert.rejects(unsupported.cloneRepository(repository, CancellationToken.None), /Repository cloning is not supported/);
+	});
 
 	for (const host of [
 		{ address: 'localhost:4321', preferenceKey: 'ssh:build' },

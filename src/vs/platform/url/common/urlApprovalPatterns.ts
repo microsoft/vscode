@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../../../base/common/uri.js';
-import { isURLSafeForTrust, normalizeURLForTrust, normalizeURLPattern, serializeURLPattern } from '../../../../../../platform/url/common/trustedDomains.js';
-import { testUrlMatchesGlob } from '../../../../../../platform/url/common/urlGlob.js';
+import { URI } from '../../../base/common/uri.js';
+import { isURLSafeForTrust, normalizeURLForTrust, normalizeURLPattern, serializeURLPattern } from './trustedDomains.js';
+import { testUrlMatchesGlob } from './urlGlob.js';
 
 /**
  * Approval settings for a URL pattern
