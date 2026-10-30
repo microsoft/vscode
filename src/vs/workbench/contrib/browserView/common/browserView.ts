@@ -277,9 +277,11 @@ export interface IBrowserViewNetworkResolver {
 	/**
 	 * Called synchronously when a browser view is created, before any
 	 * asynchronous work, so the network reflects the context the view was
-	 * opened from. Returns `undefined` for the local network.
+	 * opened from. Returns `undefined` for the local network, or `null` when
+	 * the owner is unknown (e.g. its session is gone): tabs then use the local
+	 * network, while embedded views, which require their owner's network, fail.
 	 */
-	resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | undefined;
+	resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | null | undefined;
 	/**
 	 * Selects shared workspace storage on another network (e.g. by agent host
 	 * and folder roots), or in-memory storage when absent.

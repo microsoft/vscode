@@ -794,7 +794,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		toLanguageModelId: (rawModelId: string) => string | undefined,
 		sessionSubscription: IAgentSubscription<SessionState> | undefined,
 		chatSubscription: IAgentSubscription<ChatState> | undefined,
-		canvasProvider: AgentHostCanvasCollection | undefined,
+		canvases: { readonly provider: AgentHostCanvasCollection; readonly available: IObservable<boolean> } | undefined,
 		private readonly _promptCacheNotification: AgentHostPromptCacheNotification | undefined,
 		refreshChat: (() => Promise<void>) | undefined,
 		private readonly _forkSession: NonNullable<IChatSession['forkSession']>,
@@ -845,7 +845,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 				|| isChatReadOnly(chat?.interactivity, sessionArchived);
 		});
 		this.setStateSubscriptions(sessionSubscription, chatSubscription);
-		if (canvasProvider) {
+		if (canvases) {
 			const presentationChat = derived(this, reader => this._disposed.read(reader) ? undefined : this._chatState.read(reader).read(reader));
 			const references = derived<readonly CanvasReference[] | undefined>(this, reader => {
 				const chat = presentationChat.read(reader);
@@ -854,13 +854,13 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			const owner = derivedOpts<ICanvasOwner | undefined>({ owner: this, equalsFn: (first, second) => first === second || (!!first && !!second && isCanvasOwner(first, second)) }, reader => {
 				const session = this._sessionState.read(reader).read(reader);
 				const chat = this._chatState.read(reader).read(reader);
-				return !this._disposed.read(reader) && session?.lifecycle === SessionLifecycle.Ready && chat
-					? { providerId: canvasProvider.providerId, session: backendSession, chat: URI.parse(chat.resource, true) }
+				return !this._disposed.read(reader) && canvases.available.read(reader) && session?.lifecycle === SessionLifecycle.Ready && chat
+					? { providerId: canvases.provider.providerId, session: backendSession, chat: URI.parse(chat.resource, true) }
 					: undefined;
 			});
 			this.canvasContext = derived(this, reader => {
 				const reference = owner.read(reader);
-				return reference ? canvasProvider.createContext(reference, references, presentationChat, this._onDidChangeCanvasDefinitions.event) : undefined;
+				return reference ? canvases.provider.createContext(reference, references, presentationChat, this._onDidChangeCanvasDefinitions.event) : undefined;
 			});
 		}
 
@@ -1026,7 +1026,11 @@ export interface IAgentHostSessionHandlerConfig {
 	readonly connection: IAgentConnection;
 	/** Sanitized connection authority for constructing vscode-agent-host:// URIs. */
 	readonly connectionAuthority: string;
-	readonly supportsCanvasPresentation?: boolean;
+	/**
+	 * Whether sessions can present canvases, or `undefined` when they never can.
+	 * Observable because availability can change, e.g. with remote browser proxying.
+	 */
+	readonly supportsCanvasPresentation?: IObservable<boolean>;
 	/**
 	 * Whether a managed plugin preparation failure offers a Retry link. Only the
 	 * local Agent Host management connection can retry, so other hosts show the
@@ -1369,7 +1373,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _lifetime = new CancellationTokenSource();
 	private readonly _turnStopWatches = new Map<string, StopWatch>();
 	private readonly _config: IAgentHostSessionHandlerConfig;
-	private readonly _canvasProvider: AgentHostCanvasCollection | undefined;
+	private readonly _canvases: { readonly provider: AgentHostCanvasCollection; readonly available: IObservable<boolean> } | undefined;
 
 	/** Active session subscriptions, keyed by backend session URI string. */
 	private readonly _sessionSubscriptions = new Map<string, IReference<IAgentSubscription<SessionState>>>();
@@ -1483,7 +1487,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}));
 		if (config.supportsCanvasPresentation && config.provider === COPILOT_CLI_AGENT_PROVIDER_ID) {
-			this._canvasProvider = this._register(this._instantiationService.createInstance(AgentHostCanvasCollection, `${config.connectionAuthority}/${config.provider}`, config.connection));
+			const provider = this._register(this._instantiationService.createInstance(AgentHostCanvasCollection, `${config.connectionAuthority}/${config.provider}`, config.connection));
+			this._canvases = { provider, available: config.supportsCanvasPresentation };
 		}
 		this._localModels = this._register(this._instantiationService.createInstance(AgentHostLocalModelSupport, config.connection, config.sessionType));
 
@@ -1953,7 +1958,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				rawModelId => this._toLanguageModelId(sessionResource, rawModelId),
 				sessionSubscription,
 				chatSubscription,
-				this._canvasProvider,
+				this._canvases,
 				this._config.promptCacheNotification,
 				this._config.connection.refreshSubscription
 					? () => {

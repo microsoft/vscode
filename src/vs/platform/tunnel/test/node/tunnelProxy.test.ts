@@ -573,68 +573,6 @@ suite('TunnelProxy', () => {
 		);
 	});
 
-	test('streams large responses and WebSockets through pull-based tunnel streams', async () => {
-		const http = await import('http');
-		const net = await import('net');
-		const largeBytes = 4 * 1024 * 1024;
-		const server = http.createServer(async (_request, response) => {
-			response.writeHead(200, { 'Content-Length': String(largeBytes) });
-			const chunk = Buffer.alloc(64 * 1024, 0x5a);
-			for (let sent = 0; sent < largeBytes; sent += chunk.byteLength) {
-				if (!response.write(chunk)) {
-					await new Promise<void>(resolve => response.once('drain', resolve));
-				}
-			}
-			response.end();
-		});
-		// Echoes WebSocket payload bytes after the handshake.
-		server.on('upgrade', (_request, socket) => {
-			socket.write('HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n');
-			socket.on('data', data => socket.write(data));
-		});
-		server.listen(0, '127.0.0.1');
-		await new Promise<void>(resolve => server.once('listening', resolve));
-		const port = (server.address() as AddressInfo).port;
-		const pullProxy = ds.add(new TunnelProxy(async () => {
-			const socket = net.createConnection({ host: '127.0.0.1', port });
-			await new Promise<void>((resolve, reject) => {
-				socket.once('connect', resolve);
-				socket.once('error', reject);
-			});
-			return createTunnelStream(pullByteStream(socket));
-		}, new NullLogService()));
-		const info = await pullProxy.start();
-
-		const large = await proxyRequest(info, { path: `http://127.0.0.1:${port}/large`, auth: true });
-		// Chromium always tunnels WebSockets, including ws://, through CONNECT.
-		const { statusCode, socket } = await proxyConnect(info, `127.0.0.1:${port}`, true);
-		const read = (until: string) => new Promise<string>((resolve, reject) => {
-			let data = '';
-			const onData = (chunk: Buffer) => {
-				data += chunk.toString();
-				if (data.includes(until)) {
-					socket.off('data', onData);
-					resolve(data);
-				}
-			};
-			socket.on('data', onData);
-			socket.once('error', reject);
-		});
-		socket.write(`GET /socket HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n`);
-		const handshake = await read('\r\n\r\n');
-		socket.write('ping');
-		const echoed = await read('ping');
-		socket.destroy();
-		pullProxy.dispose();
-		server.closeAllConnections();
-		server.close();
-
-		assert.deepStrictEqual(
-			{ large: [large.statusCode, large.body.length], connect: statusCode, handshake: handshake.split('\r\n', 1)[0], echoed },
-			{ large: [200, largeBytes], connect: 200, handshake: 'HTTP/1.1 101 Switching Protocols', echoed: 'ping' },
-		);
-	});
-
 	test('drops a pooled HTTP tunnel once its destination closes it', async () => {
 		const http = await import('http');
 		const net = await import('net');

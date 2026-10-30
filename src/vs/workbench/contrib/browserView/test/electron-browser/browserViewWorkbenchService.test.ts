@@ -373,6 +373,30 @@ suite('BrowserViewWorkbenchService', () => {
 		});
 	});
 
+	test('embedded views use the network their owner had when requested, and fail for unknown owners', async () => {
+		const { service, events, creationOptions, publishing } = createService();
+		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+		registerProxyProvider(service, []);
+		let ownerNetwork: IBrowserViewNetwork | null | undefined = { authority: 'host' };
+		store.add(service.registerNetworkResolver({ resolveNetwork: () => ownerNetwork, ...hostStatuses({ host: true }) }));
+
+		// The owner goes away while the window configuration is still being published.
+		const published = new DeferredPromise<void>();
+		publishing.value = published.p;
+		const created = service.createExternalBrowserView('http://127.0.0.1:3000/', 'canvas', { type: 'agent', sessionId: 'chat' });
+		ownerNetwork = null;
+		published.complete();
+		(await created).dispose();
+		publishing.value = undefined;
+		const unknownOwner = await service.createExternalBrowserView('http://127.0.0.1:3000/', 'canvas', { type: 'agent', sessionId: 'gone' })
+			.then(() => 'created', (error: Error) => error.message);
+
+		assert.deepStrictEqual({ sessions: creationOptions.map(options => options.session), unknownOwner }, {
+			sessions: [{ scope: BrowserViewStorageScope.Ephemeral, network: { authority: 'host' } }],
+			unknownOwner: 'The required remote network is unavailable.',
+		});
+	});
+
 	test('applies current restrictions without changing the saved session request', async () => {
 		const requested = { scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'host' } } as const;
 		for (const scenario of [
