@@ -75,6 +75,7 @@ suite('CanvasEditor', () => {
 		instantiationService.stub(ICanvasService, {
 			enabled: observableValue('enabled', true),
 			isOwnerPresentable: (_reference, reader) => ownerVisible.read(reader),
+			isPresentable: (_reference, reader) => ownerVisible.read(reader),
 			resolveCanvasModel: async () => { created++; return { model: await view, reused: false }; },
 		});
 		instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });

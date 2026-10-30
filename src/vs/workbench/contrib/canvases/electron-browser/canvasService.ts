@@ -30,6 +30,8 @@ interface ICanvasPresentation {
 	admitted: boolean;
 	opened: boolean;
 	restoreActive: boolean;
+	/** Created only to retain the model of a canvas that another surface presents, not as an editor. */
+	external: boolean;
 	requestId: string | undefined;
 	canvas: ICanvas | undefined;
 	model: IBrowserViewModel | undefined;
@@ -174,6 +176,10 @@ export class CanvasService extends Disposable implements ICanvasService {
 						.catch(error => this.reportError('Failed to reveal canvas', error));
 				}
 			}
+			if (enabled) {
+				// After inputs are reconciled, so a presentation adopted as an editor is kept.
+				this.releaseExternalPresentations(reader);
+			}
 			for (const [key, dismissed] of this.dismissed) {
 				if (knownOwners.has(canvasOwnerKey(dismissed.reference)) && !liveKeys.has(key)) {
 					this.deleteDismissed(key);
@@ -200,6 +206,13 @@ export class CanvasService extends Disposable implements ICanvasService {
 
 	isOwnerPresentable(reference: ICanvasReference, reader?: IReader): boolean {
 		return this.enabled.read(reader) && this.contextService.isOwnerVisible(reference, reader);
+	}
+
+	isPresentable(reference: ICanvasReference, reader?: IReader): boolean {
+		return this.enabled.read(reader) && (
+			this.contextService.isOwnerVisible(reference, reader)
+			|| this.contextService.isPresentedElsewhere?.(reference, reader) === true
+		);
 	}
 
 	async revealCanvas(reference: ICanvasReference): Promise<void> {
@@ -257,17 +270,23 @@ export class CanvasService extends Disposable implements ICanvasService {
 		return input;
 	}
 
-	resolveCanvasModel(reference: ICanvasReference, source: URI): Promise<ICanvasModelResolution> {
+	async resolveCanvasModel(reference: ICanvasReference, source: URI): Promise<ICanvasModelResolution> {
 		const key = getCanvasReferenceKey(reference);
-		const presentation = this.presentations.get(key);
+		if (!isEqual(this.presentations.get(key)?.canvas?.source, source)) {
+			// A view outside the editor working set, such as a pinned canvas page, observes the canvas
+			// itself and can see an update before this service reconciles the same update. That
+			// reconciliation completes synchronously, so judge the source only once the update settled.
+			await Promise.resolve();
+		}
+		const presentation = this.presentations.get(key) ?? this.createExternalPresentation(reference, source);
 		if (this._store.isDisposed || !presentation || !isEqual(presentation.canvas?.source, source)) {
-			return Promise.reject(new CancellationError());
+			throw new CancellationError();
 		}
 		if (presentation.model && isEqual(presentation.modelSource, source)) {
-			return Promise.resolve({ model: presentation.model, reused: true });
+			return { model: presentation.model, reused: true };
 		}
 		if (presentation.modelPromise && isEqual(presentation.modelPromise.source, source)) {
-			return presentation.modelPromise.value.then(model => ({ model, reused: true }));
+			return { model: await presentation.modelPromise.value, reused: true };
 		}
 		this.disposePresentationModel(presentation);
 		const generation = ++presentation.modelGeneration;
@@ -297,7 +316,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 			}
 		});
 		presentation.modelPromise = { source, value };
-		return value.then(model => ({ model, reused: false }));
+		return { model: await value, reused: false };
 	}
 
 	private async waitForWorkingSetRestore(): Promise<boolean> {
@@ -353,6 +372,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 				throw new Error(localize('canvas.openFailed', "Canvas editor failed to open"));
 			}
 			presentation.admitted = true;
+			presentation.external = false;
 			presentation.opened = true;
 			presentation.restoreActive = false;
 			presentation.requestId = this.requests.get(key);
@@ -395,18 +415,24 @@ export class CanvasService extends Disposable implements ICanvasService {
 		lifetime.add(Event.once(input.onWillDispose)(() => {
 			const isCurrentInput = this.inputs.get(key) === input;
 			const workingSetSuspension = this.workingSetSuspensions.delete(input);
+			if (isCurrentInput) {
+				// First, so nothing that reacts to the presentation changing below still finds this closing editor.
+				this.inputs.deleteAndLeak(key);
+			}
 			if (isCurrentInput && !this._store.isDisposed && !this.programmaticCloses.has(input)) {
 				const presentation = this.presentations.get(key);
 				if (!workingSetSuspension) {
 					this.rememberDismissed(key, reference);
-					this.deletePresentation(key);
+					if (presentation && this.contextService.isPresentedElsewhere?.(reference) === true) {
+						// Another surface, such as a pinned canvas page, shows the canvas: only the editor goes away.
+						this.retainExternally(presentation);
+					} else {
+						this.deletePresentation(key);
+					}
 				} else if (presentation?.admitted) {
 					presentation.opened = false;
 					this.presentationsChanged.trigger(undefined);
 				}
-			}
-			if (isCurrentInput) {
-				this.inputs.deleteAndLeak(key);
 			}
 			if (this.inputLifetimes.get(key) === lifetime) {
 				this.inputLifetimes.deleteAndLeak(key);
@@ -431,6 +457,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 			admitted: false,
 			opened: false,
 			restoreActive: false,
+			external: false,
 			requestId: undefined,
 			canvas,
 			model: undefined,
@@ -497,13 +524,59 @@ export class CanvasService extends Disposable implements ICanvasService {
 
 	private lookupCanvas(reference: ICanvasReference, reader?: IReader): ICanvasLookup | undefined {
 		const canvases = this.contextService.getContext(reference, reader)?.canvases;
-		if (!canvases) {
+		const current = canvases?.read(reader);
+		if (current !== undefined) {
+			return { known: true, canvas: current.find(candidate => isEqual(candidate.resource, reference.canvas)) };
+		}
+		// A tracked canvas is live on its own while the membership of its owner is unknown.
+		const tracked = this.contextService.getTrackedCanvas?.(reference, reader);
+		if (tracked) {
+			return { known: true, canvas: tracked };
+		}
+		return canvases ? { known: false, canvas: undefined } : undefined;
+	}
+
+	/**
+	 * Retains the model of a canvas that another surface presents outside its owner's
+	 * editor working set. Such a presentation is never opened as an editor.
+	 */
+	private createExternalPresentation(reference: ICanvasReference, source: URI): ICanvasPresentation | undefined {
+		if (this._store.isDisposed || !this.isPresentable(reference) || this.contextService.isPresentedElsewhere?.(reference) !== true) {
 			return undefined;
 		}
-		const current = canvases.read(reader);
-		return current === undefined
-			? { known: false, canvas: undefined }
-			: { known: true, canvas: current.find(candidate => isEqual(candidate.resource, reference.canvas)) };
+		const canvas = this.lookupCanvas(reference)?.canvas;
+		if (!canvas || !isEqual(canvas.source, source)) {
+			return undefined;
+		}
+		const presentation = this.getOrCreatePresentation(reference, canvas);
+		presentation.external = !presentation.admitted && !this.inputs.has(getCanvasReferenceKey(reference));
+		// Track the new presentation so it is released once nothing presents or tracks it.
+		this.presentationsChanged.trigger(undefined);
+		return presentation;
+	}
+
+	/** Disposes retained models of canvases that no editor, other surface or tracker keeps anymore. */
+	private releaseExternalPresentations(reader: IReader): void {
+		for (const [key, presentation] of this.presentations) {
+			if (presentation.external
+				&& !this.inputs.has(key)
+				&& this.contextService.isCanvasTracked?.(presentation.reference, reader) !== true
+				&& this.contextService.isPresentedElsewhere?.(presentation.reference, reader) !== true) {
+				this.deletePresentation(key);
+			}
+		}
+	}
+
+	/**
+	 * Keeps the model of a canvas whose editor the user closed while another surface shows it.
+	 * The canvas is no longer an editor, so a working-set restore does not bring it back.
+	 */
+	private retainExternally(presentation: ICanvasPresentation): void {
+		presentation.admitted = false;
+		presentation.opened = false;
+		presentation.restoreActive = false;
+		presentation.external = true;
+		this.presentationsChanged.trigger(undefined);
 	}
 
 	private removeOwner(owner: ICanvasOwner): void {

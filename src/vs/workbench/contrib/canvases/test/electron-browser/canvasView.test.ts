@@ -37,7 +37,7 @@ suite('CanvasView', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(ICanvasService, {
 			enabled: constObservable(true),
-			isOwnerPresentable: () => true,
+			isPresentable: () => true,
 			resolveCanvasModel: async () => ({ model, reused: true }),
 		});
 		instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
