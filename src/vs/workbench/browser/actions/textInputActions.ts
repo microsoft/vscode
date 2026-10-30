@@ -39,7 +39,13 @@ export function createTextInputActions(clipboardService: IClipboardService, logS
 			label: localize('paste', "Paste"),
 			run: async (element: unknown) => {
 				logService.trace('TextInputActionsProvider#paste');
-				const clipboardText = await clipboardService.readText();
+				let clipboardText: string;
+				try {
+					clipboardText = await clipboardService.readText();
+				} catch (error) {
+					logService.trace('TextInputActionsProvider#paste: reading the clipboard failed', error);
+					return;
+				}
 				if (!clipboardText) {
 					return; // nothing to paste, or the clipboard could not be read
 				}

@@ -360,11 +360,13 @@ export class ContextView extends Disposable {
 					height: '0'
 				});
 				if (isPopover) {
+					// Attached to the owner only while shown, see showPopover
 					this.preparePopoverElement(this.shadowRootHostElement);
 					this.shadowRootHostElement.style.width = '0';
 					this.shadowRootHostElement.style.height = '0';
+				} else {
+					this.container.appendChild(this.shadowRootHostElement);
 				}
-				this.container.appendChild(this.shadowRootHostElement);
 				this.shadowRoot = this.shadowRootHostElement.attachShadow({ mode: 'open' });
 				const style = document.createElement('style');
 				style.textContent = SHADOW_ROOT_CSS;
@@ -373,9 +375,11 @@ export class ContextView extends Disposable {
 				this.shadowRoot.appendChild(DOM.$('slot'));
 			} else {
 				if (isPopover) {
+					// Attached to the owner only while shown, see showPopover
 					this.preparePopoverElement(this.view);
+				} else {
+					this.container.appendChild(this.view);
 				}
-				this.container.appendChild(this.view);
 			}
 
 			const toDisposeOnSetContainer = new DisposableStore();
@@ -446,8 +450,14 @@ export class ContextView extends Disposable {
 		// Layout
 		this.doLayout();
 
+		// Layout hides the view when its popover owner is hidden or removed,
+		// for example by rendering; do not move focus into a hidden view
+		if (this.delegate !== delegate) {
+			return;
+		}
+
 		// Focus
-		this.delegate.focus?.();
+		delegate.focus?.();
 	}
 
 	getViewElement(): HTMLElement {
@@ -489,24 +499,24 @@ export class ContextView extends Disposable {
 			return;
 		}
 
+		// Fall back to a fixed position without the Popover API or a connected
+		// owner; only report a failure to show a popover that should have shown
 		const popoverElement = this.getPopoverElement();
-		let error: unknown;
-		if (typeof popoverElement.showPopover !== 'function') {
-			error = new Error('ContextView: popovers are not supported, falling back to a fixed position');
-		} else if (!owner.isConnected) {
-			error = new Error('ContextView: popover owner is not connected, falling back to a fixed position');
-		} else {
+		if (typeof popoverElement.showPopover === 'function' && owner.isConnected) {
 			try {
+				if (popoverElement.parentElement !== owner) {
+					owner.appendChild(popoverElement);
+				}
 				if (!popoverElement.matches(':popover-open')) {
 					popoverElement.showPopover();
 				}
 				return;
 			} catch (e) {
-				error = e;
+				onUnexpectedError(e);
 			}
 		}
 
-		onUnexpectedError(error);
+		popoverElement.remove();
 		const fallbackContainer = this.options.getFallbackContainer?.(owner) ?? DOM.getWindow(owner).document.body;
 		this.setContainer(fallbackContainer, this.domPosition === ContextViewDOMPosition.POPOVER_SHADOW ? ContextViewDOMPosition.FIXED_SHADOW : ContextViewDOMPosition.FIXED);
 	}
@@ -574,6 +584,9 @@ export class ContextView extends Disposable {
 		if (popoverElement.hasAttribute('popover') && popoverElement.matches(':popover-open')) {
 			popoverElement.hidePopover();
 		}
+
+		// Leave nothing behind in the owner, which may be an arbitrary element such as an input's parent
+		popoverElement.remove();
 	}
 
 	layout(): void {
@@ -672,11 +685,11 @@ export class ContextView extends Disposable {
 			return;
 		}
 
-		toDispose.dispose();
 		DOM.hide(this.view);
 		if (isPopover) {
 			this.hidePopover();
 		}
+		toDispose.dispose();
 	}
 
 	private isVisible(): boolean {
@@ -695,12 +708,12 @@ export class ContextView extends Disposable {
 		this.view.style.removeProperty(CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE);
 		this.view.style.removeProperty(CONTEXT_VIEW_MENU_MOTION_CLOSE_START_OPACITY_VARIABLE);
 		this.view.style.removeProperty(CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE);
-		hidingContextView.toDispose.dispose();
 		DOM.hide(this.view);
 		this.view.inert = false;
 		if (isPopoverDOMPosition(this.domPosition)) {
 			this.hidePopover();
 		}
+		hidingContextView.toDispose.dispose();
 	}
 
 	private prepareMenuCloseAnimation(): void {

@@ -10,6 +10,7 @@ import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTIO
 import { mainWindow } from '../../../../browser/window.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../common/errors.js';
 import { DeferredPromise, timeout } from '../../../../common/async.js';
+import { toDisposable } from '../../../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('ContextView', () => {
@@ -507,7 +508,7 @@ suite('ContextView', () => {
 				hostInBody: !!host && host.shadowRoot === contextView.getViewElement().getRootNode(),
 				hostPopover: host?.hasAttribute('popover')
 			}, {
-				errors: 1,
+				errors: 0,
 				context: [{ domPosition: ContextViewDOMPosition.FIXED_SHADOW }],
 				hostInBody: true,
 				hostPopover: false
@@ -705,6 +706,334 @@ suite('ContextView', () => {
 			assert.deepStrictEqual({ during, after }, {
 				during: { focusRestored: true, open: true, inert: true },
 				after: { open: false, inert: false }
+			});
+		});
+
+		test('falls back to a fixed position in the fallback container without the Popover API, without reporting an error', () => {
+			const { owner, input } = createOwner();
+			const fallback = $('.fallback');
+			mainWindow.document.body.appendChild(fallback);
+			disposables.push(() => fallback.remove());
+			const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER, fallback);
+			const { delegate, contexts, item } = createDelegate();
+			sinon.stub(HTMLElement.prototype, 'showPopover').value(undefined);
+			input.focus();
+
+			contextView.show(delegate);
+
+			const view = contextView.getViewElement();
+			const itemRect = item().getBoundingClientRect();
+			const shown = {
+				errors: unexpectedErrors.length,
+				context: contexts,
+				effectivePosition: contextView.getEffectiveDOMPosition(),
+				inFallback: fallback.contains(view),
+				inOwner: owner.contains(view),
+				popover: view.hasAttribute('popover'),
+				position: view.style.position,
+				itemHittable: mainWindow.document.elementFromPoint(itemRect.left + 2, itemRect.top + 2) === item(),
+				focus: mainWindow.document.activeElement === input
+			};
+			contextView.hide();
+
+			assert.deepStrictEqual({ shown, ownerChildren: Array.from(owner.children).map(c => c.tagName) }, {
+				shown: {
+					errors: 0,
+					context: [{ domPosition: ContextViewDOMPosition.FIXED }],
+					effectivePosition: ContextViewDOMPosition.FIXED,
+					inFallback: true,
+					inOwner: false,
+					popover: false,
+					position: 'fixed',
+					itemHittable: true,
+					focus: true
+				},
+				ownerChildren: ['INPUT']
+			});
+		});
+
+		test('attaches the view to its owner only while shown, for an immediate hide, a completed close animation and a reopen', async () => {
+			for (const position of [ContextViewDOMPosition.POPOVER, ContextViewDOMPosition.POPOVER_SHADOW]) {
+				const { owner } = createOwner();
+				const contextView = createContextView(owner, position);
+				const view = contextView.getViewElement();
+				const root = () => position === ContextViewDOMPosition.POPOVER ? view : (view.getRootNode() as ShadowRoot).host as HTMLElement;
+				const ownerChildren = () => Array.from(owner.children).map(c => c.tagName);
+				const beforeShow = ownerChildren();
+
+				contextView.show(createDelegate().delegate);
+				const shown = { inOwner: root().parentElement === owner, last: owner.lastElementChild === root(), open: isOpen(root()) };
+				contextView.hide();
+				const afterImmediateHide = { connected: root().isConnected, open: isOpen(root()), ownerChildren: ownerChildren() };
+
+				contextView.show(createDelegate({ closeAnimation: { className: 'closing', duration: 50 } }).delegate);
+				contextView.hide();
+				const duringAnimation = { inOwner: root().parentElement === owner, open: isOpen(root()) };
+				await timeout(100);
+				const afterAnimation = { connected: root().isConnected, open: isOpen(root()), ownerChildren: ownerChildren() };
+
+				contextView.show(createDelegate().delegate);
+				const reopened = { inOwner: root().parentElement === owner, open: isOpen(root()) };
+				contextView.hide();
+
+				assert.deepStrictEqual({ beforeShow, shown, afterImmediateHide, duringAnimation, afterAnimation, reopened, ownerChildren: ownerChildren() }, {
+					beforeShow: ['INPUT'],
+					shown: { inOwner: true, last: true, open: true },
+					afterImmediateHide: { connected: false, open: false, ownerChildren: ['INPUT'] },
+					duringAnimation: { inOwner: true, open: true },
+					afterAnimation: { connected: false, open: false, ownerChildren: ['INPUT'] },
+					reopened: { inOwner: true, open: true },
+					ownerChildren: ['INPUT']
+				}, `position ${position}`);
+			}
+		});
+
+		for (const animated of [false, true]) {
+			test(`hides in order: onHide, focus restore, ${animated ? 'close animation, ' : ''}then closing and detaching the popover before disposing the rendering`, async () => {
+				const { owner, input } = createOwner();
+				const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER);
+				const view = contextView.getViewElement();
+				const events: string[] = [];
+				const state = () => `open=${isOpen(view)},connected=${view.isConnected},inert=${view.inert}`;
+				const { delegate, item } = createDelegate({
+					focus: () => item().focus(),
+					onHide: () => events.push(`onHide:${state()}`),
+					closeAnimation: animated ? { className: 'closing', duration: 50 } : undefined
+				});
+				const render = delegate.render;
+				delegate.render = (container, context) => {
+					render(container, context);
+					return toDisposable(() => events.push(`dispose:${state()}`));
+				};
+				input.focus();
+				contextView.show(delegate);
+				const focus = input.focus.bind(input);
+				input.focus = () => { events.push(`focus:${state()}`); focus(); };
+
+				contextView.hide();
+				events.push(`hidden:${state()}`);
+				await timeout(100);
+
+				assert.deepStrictEqual(events, animated ? [
+					'onHide:open=true,connected=true,inert=false',
+					'focus:open=true,connected=true,inert=false',
+					'hidden:open=true,connected=true,inert=true',
+					'dispose:open=false,connected=false,inert=false',
+				] : [
+					'onHide:open=true,connected=true,inert=false',
+					'focus:open=true,connected=true,inert=false',
+					'dispose:open=false,connected=false,inert=false',
+					'hidden:open=false,connected=false,inert=false',
+				]);
+			});
+		}
+
+		test('reopening during the close animation completes the previous hide first', async () => {
+			const { owner } = createOwner();
+			const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER);
+			const view = contextView.getViewElement();
+			const first = createDelegate({ closeAnimation: { className: 'closing', duration: 50 } });
+			const disposed: string[] = [];
+			const render = first.delegate.render;
+			first.delegate.render = (container, context) => {
+				render(container, context);
+				return toDisposable(() => disposed.push('first'));
+			};
+			contextView.show(first.delegate);
+			contextView.hide();
+
+			const second = createDelegate();
+			contextView.show(second.delegate);
+			const reopened = {
+				disposed: [...disposed],
+				firstHides: first.hides.length,
+				open: isOpen(view),
+				inert: view.inert,
+				closing: view.classList.contains('closing'),
+				items: view.querySelectorAll('.item').length,
+				current: view.contains(second.item())
+			};
+			await timeout(100);
+			const afterFirstAnimationWouldEnd = { open: isOpen(view), secondHides: second.hides.length };
+			contextView.hide();
+
+			assert.deepStrictEqual({ reopened, afterFirstAnimationWouldEnd }, {
+				reopened: { disposed: ['first'], firstHides: 1, open: true, inert: false, closing: false, items: 1, current: true },
+				afterFirstAnimationWouldEnd: { open: true, secondHides: 0 }
+			});
+		});
+
+		test('an owner hidden before show closes the popover without moving focus or throwing, and leaves no tracking behind', () => {
+			const { owner, input, outside } = createOwner('display: none');
+			const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER);
+			let focusCalls = 0;
+			const { delegate, hides } = createDelegate({ focus: () => focusCalls++ });
+			outside.focus();
+
+			contextView.show(delegate);
+			const view = contextView.getViewElement();
+			const afterShow = { focusCalls, hides: hides.length, open: isOpen(view), connected: view.isConnected, focus: mainWindow.document.activeElement === outside };
+
+			outside.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true }));
+			contextView.layout();
+			contextView.hide();
+
+			assert.deepStrictEqual({ afterShow, hides: hides.length, input: mainWindow.document.activeElement === input }, {
+				afterShow: { focusCalls: 0, hides: 1, open: false, connected: false, focus: true },
+				hides: 1,
+				input: false
+			});
+		});
+
+		for (const lose of ['removed', 'hidden'] as const) {
+			test(`an owner ${lose} while rendering closes the popover without moving focus or throwing, and leaves no tracking behind`, async () => {
+				const { owner, outside } = createOwner();
+				const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER);
+				let focusCalls = 0;
+				const { delegate, hides } = createDelegate({ focus: () => focusCalls++ });
+				const render = delegate.render;
+				delegate.render = (container, context) => {
+					const result = render(container, context);
+					if (lose === 'removed') {
+						owner.remove();
+					} else {
+						owner.style.display = 'none';
+					}
+					return result;
+				};
+				outside.focus();
+
+				contextView.show(delegate);
+				const view = contextView.getViewElement();
+				const afterShow = { focusCalls, hides: hides.length, open: isOpen(view), attached: !!view.parentElement, focus: mainWindow.document.activeElement === outside };
+
+				outside.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true }));
+				owner.style.display = '';
+				owner.style.width = '50px';
+				await timeout(50);
+				contextView.layout();
+
+				assert.deepStrictEqual({ afterShow, hides: hides.length }, {
+					afterShow: { focusCalls: 0, hides: 1, open: false, attached: false, focus: true },
+					hides: 1
+				});
+			});
+		}
+
+		test('flips above the anchor near the bottom of the viewport and stays inside it', () => {
+			const { owner } = createOwner();
+			const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER);
+			const result: Record<string, { anchorPosition: string; side: string; inViewport: boolean }> = {};
+			for (const [name, y] of [['top', 100], ['bottom', mainWindow.innerHeight - 10]] as const) {
+				const { delegate } = createDelegate({
+					getAnchor: () => ({ x: 30, y }),
+					render: container => {
+						const item = container.appendChild($('button.item'));
+						item.style.cssText = 'display: block; height: 100px; width: 80px;';
+						return null;
+					}
+				});
+				contextView.show(delegate);
+				const view = contextView.getViewElement();
+				const rect = view.getBoundingClientRect();
+				result[name] = {
+					anchorPosition: view.classList.contains('top') ? 'above' : 'below',
+					side: rect.top >= y ? 'below' : rect.bottom <= y ? 'above' : 'overlapping',
+					inViewport: rect.top >= 0 && rect.bottom <= mainWindow.innerHeight
+				};
+				contextView.hide();
+			}
+
+			assert.deepStrictEqual(result, {
+				top: { anchorPosition: 'below', side: 'below', inViewport: true },
+				bottom: { anchorPosition: 'above', side: 'above', inViewport: true }
+			});
+		});
+
+		test('relayout follows a moved anchor, as on resize or scroll, and keeps the popover open', () => {
+			const { owner } = createOwner();
+			const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER);
+			let anchor = { x: 30, y: 100 };
+			let delegateLayouts = 0;
+			const { delegate, hides } = createDelegate({ getAnchor: () => anchor, layout: () => delegateLayouts++ });
+			contextView.show(delegate);
+			const view = contextView.getViewElement();
+			const position = () => { const rect = view.getBoundingClientRect(); return { left: Math.round(rect.left), top: Math.round(rect.top) }; };
+			const before = position();
+
+			anchor = { x: 60, y: 150 };
+			contextView.layout();
+			const after = position();
+
+			assert.deepStrictEqual({ moved: { left: after.left - before.left, top: after.top - before.top }, delegateLayouts, hides: hides.length, open: isOpen(view) }, {
+				moved: { left: 30, top: 50 },
+				delegateLayouts: 1,
+				hides: 0,
+				open: true
+			});
+			contextView.hide();
+		});
+
+		test('hosts the popover in the owner\'s document when the owner lives in another window', async () => {
+			const iframe = mainWindow.document.createElement('iframe');
+			iframe.style.cssText = 'position: absolute; top: 0; left: 0; width: 400px; height: 400px; border: 0;';
+			mainWindow.document.body.appendChild(iframe);
+			disposables.push(() => iframe.remove());
+			const otherDocument = iframe.contentDocument!;
+			otherDocument.body.style.margin = '0';
+			const owner = otherDocument.createElement('div');
+			owner.style.cssText = 'position: absolute; top: 20px; left: 20px; width: 200px; height: 40px; overflow: hidden; transform: scale(0.97);';
+			const input = owner.appendChild(otherDocument.createElement('input'));
+			const outside = otherDocument.body.appendChild(otherDocument.createElement('button'));
+			otherDocument.body.appendChild(owner);
+			const contextView = createContextView(owner, ContextViewDOMPosition.POPOVER);
+			const { delegate, hides, item } = createDelegate({ focus: () => item().focus() });
+			input.focus();
+
+			contextView.show(delegate);
+			const view = contextView.getViewElement();
+			const itemRect = item().getBoundingClientRect();
+			const shown = {
+				ownerDocument: view.ownerDocument === otherDocument,
+				inOwner: view.parentElement === owner,
+				open: isOpen(view),
+				itemBelowOwner: itemRect.top >= owner.getBoundingClientRect().bottom,
+				itemHittable: otherDocument.elementFromPoint(itemRect.left + 2, itemRect.top + 2) === item(),
+				focusInOwner: owner.contains(otherDocument.activeElement),
+				errors: unexpectedErrors.length
+			};
+			outside.dispatchEvent(new (getWindow(outside) as Window & typeof globalThis).PointerEvent('pointerdown', { bubbles: true, composed: true }));
+
+			assert.deepStrictEqual({ shown, hides: hides.length, open: isOpen(view), connected: view.isConnected }, {
+				shown: { ownerDocument: true, inOwner: true, open: true, itemBelowOwner: true, itemHittable: true, focusInOwner: true, errors: 0 },
+				hides: 1,
+				open: false,
+				connected: false
+			});
+		});
+
+		test('a popover opened from inside another popover is stacked above it and closes without closing it', () => {
+			const { owner } = createOwner();
+			const outer = createContextView(owner, ContextViewDOMPosition.POPOVER);
+			const outerDelegate = createDelegate();
+			outer.show(outerDelegate.delegate);
+			const outerView = outer.getViewElement();
+			const inner = createContextView(outerView, ContextViewDOMPosition.POPOVER);
+			const innerDelegate = createDelegate();
+			inner.show(innerDelegate.delegate);
+			const innerView = inner.getViewElement();
+
+			const rect = outerDelegate.item().getBoundingClientRect();
+			const hit = () => mainWindow.document.elementFromPoint(rect.left + 2, rect.top + 2);
+			innerDelegate.item().dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true }));
+			const bothOpen = { outerOpen: isOpen(outerView), innerOpen: isOpen(innerView), innerInOuter: innerView.parentElement === outerView, top: hit() === innerDelegate.item(), outerHides: outerDelegate.hides.length };
+			inner.hide();
+			const innerClosed = { outerOpen: isOpen(outerView), innerOpen: isOpen(innerView), top: hit() === outerDelegate.item(), outerHides: outerDelegate.hides.length };
+			outer.hide();
+
+			assert.deepStrictEqual({ bothOpen, innerClosed }, {
+				bothOpen: { outerOpen: true, innerOpen: true, innerInOuter: true, top: true, outerHides: 0 },
+				innerClosed: { outerOpen: true, innerOpen: false, top: true, outerHides: 0 }
 			});
 		});
 

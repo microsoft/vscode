@@ -96,19 +96,30 @@ suite('Text input actions', () => {
 			open,
 			afterHide: {
 				popoverOpen: !!host?.matches(':popover-open'),
-				ownerChildren: Array.from(owner.children).filter(child => child !== host).map(child => child.tagName),
+				hostConnected: !!host?.isConnected,
+				ownerChildren: Array.from(owner.children).map(child => child.tagName),
 				value: input.value,
 				focus: mainWindow.document.activeElement === input
 			}
 		}, {
 			open: { hostInOwner: true, popoverOpen: true, block: false },
-			afterHide: { popoverOpen: false, ownerChildren: ['INPUT'], value: '', focus: true }
+			afterHide: { popoverOpen: false, hostConnected: false, ownerChildren: ['INPUT'], value: '', focus: true }
 		});
+
+		// Reopening attaches the menu to the owner again
+		handler.showContextMenu(delegates[0]);
+		const reopened = { inOwner: host?.parentElement === owner, popoverOpen: !!host?.matches(':popover-open') };
+		contextViewService.hideContextView();
+		assert.deepStrictEqual({ reopened, ownerChildren: Array.from(owner.children).map(child => child.tagName) }, { reopened: { inOwner: true, popoverOpen: true }, ownerChildren: ['INPUT'] });
 	});
 
-	async function paste(clipboardText: string) {
+	async function paste(clipboardText: string | Error) {
 		const clipboardService = new TestClipboardService();
-		await clipboardService.writeText(clipboardText);
+		if (typeof clipboardText === 'string') {
+			await clipboardService.writeText(clipboardText);
+		} else {
+			clipboardService.readText = () => Promise.reject(clipboardText);
+		}
 		const input = appendToBody(mainWindow.document.createElement('input'));
 		input.value = 'harmless';
 		input.setSelectionRange(2, 5);
@@ -123,7 +134,11 @@ suite('Text input actions', () => {
 		assert.deepStrictEqual(await paste('XY'), { value: 'haXYess', selection: [4, 4], inputEvents: 1 });
 	});
 
-	test('paste keeps the value and selection when the clipboard is empty or cannot be read', async () => {
+	test('paste keeps the value and selection when the clipboard is empty', async () => {
 		assert.deepStrictEqual(await paste(''), { value: 'harmless', selection: [2, 5], inputEvents: 0 });
+	});
+
+	test('paste keeps the value and selection when reading the clipboard is denied', async () => {
+		assert.deepStrictEqual(await paste(new DOMException('Read permission denied.', 'NotAllowedError')), { value: 'harmless', selection: [2, 5], inputEvents: 0 });
 	});
 });

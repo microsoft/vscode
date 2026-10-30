@@ -122,7 +122,7 @@ suite('ContextViewService', () => {
 		]);
 	});
 
-	test('falls back to the layout container of the owner window when the popover cannot be shown', () => {
+	test('falls back to the layout container of the owner window without reporting an error when the owner is disconnected', () => {
 		const { windowContainer, service } = createWindowContainer();
 		const errors: unknown[] = [];
 		const previousHandler = errorHandler.getUnexpectedErrorHandler();
@@ -143,7 +143,7 @@ suite('ContextViewService', () => {
 			domPosition: ContextViewDOMPosition.FIXED,
 			parent: true,
 			popover: false,
-			errors: 1
+			errors: 0
 		});
 		service.hideContextView();
 	});
