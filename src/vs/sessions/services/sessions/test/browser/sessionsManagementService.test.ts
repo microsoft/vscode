@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import assert from 'assert';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -314,6 +315,7 @@ class TestSessionsPartService extends mock<ISessionsPartService>() {
 		super();
 	}
 	override readonly onDidToggleMaximizeSession = Event.None;
+	override readonly onDidFocusWindowSession = Event.None;
 	override get onDidInteractWithGrid() { return this.part?.onDidInteractWithGrid ?? Event.None; }
 	override getGridLayout() { return this.part?.getGridLayout(); }
 	override getSessionAtPosition(index: number) { return this.part?.getSessionAtPosition(index); }
@@ -364,8 +366,17 @@ function createView(
 	instantiationService.stub(ICustomViewService, customViewService);
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(ISessionOpenTelemetryService, openTelemetryService);
-	return disposables.add(instantiationService.createInstance(SessionsService));
+	const onDidChangeActiveWindow = disposables.add(new Emitter<number>());
+	instantiationService.stub(IHostService, new class extends mock<IHostService>() {
+		override readonly onDidChangeActiveWindow = onDidChangeActiveWindow.event;
+	}());
+	const view = disposables.add(instantiationService.createInstance(SessionsService));
+	activeWindowChanges.set(view, onDidChangeActiveWindow);
+	return view;
 }
+
+/** Makes a window the active one, for the {@link SessionsService} {@link createView} built. */
+const activeWindowChanges = new WeakMap<SessionsService, Emitter<number>>();
 
 suite('SessionsManagementService', () => {
 
@@ -1406,6 +1417,83 @@ suite('SessionsManagementService', () => {
 				before: { active: 'target', mounted: 'target', focused: true, progress: 'Waiting for agent host connection...' },
 				after: 'target',
 			});
+		});
+
+		test('activating another object of the active session records no navigation when no window shows it', async () => {
+			const [first, second] = ['first', 'second'].map(created);
+			const { view } = harness([first, second]);
+			await view.openSessionsInGrid([first, second]);
+			view.setActive(view.visibleSessions.get().find(session => session?.sessionId === second.sessionId));
+			const navigation = view.navigationRequest.get();
+			const active = view.activeSession.get();
+			view.setActive(second as IActiveSession);
+			assert.deepStrictEqual({ active: view.activeSession.get()?.sessionId, sameWrapper: view.activeSession.get() === active, preservedNavigation: view.navigationRequest.get() === navigation }, {
+				active: 'second', sameWrapper: true, preservedNavigation: true,
+			});
+		});
+
+		test('without sessions shown in other windows, the main window follows the active session', async () => {
+			const [first, second, third] = ['first', 'second', 'third'].map(created);
+			const { view } = harness([first, second, third]);
+			const steps: { active: string | undefined; mainWindow: string | undefined; same: boolean; windows: number }[] = [];
+			const record = () => steps.push({
+				active: view.activeSession.get()?.sessionId,
+				mainWindow: view.mainWindowActiveSession.get()?.sessionId,
+				same: view.mainWindowActiveSession.get() === view.activeSession.get(),
+				windows: view.windowSessions.get().length,
+			});
+			await view.openSession(first.resource);
+			record();
+			await view.openSessionsInGrid([first, second]);
+			view.setActive(view.visibleSessions.get().find(session => session?.sessionId === second.sessionId));
+			record();
+			await view.openSession(third.resource);
+			record();
+			view.closeSession(view.activeSession.get());
+			record();
+			assert.deepStrictEqual(steps, [
+				{ active: 'first', mainWindow: 'first', same: true, windows: 0 },
+				{ active: 'second', mainWindow: 'second', same: true, windows: 0 },
+				{ active: 'third', mainWindow: 'third', same: true, windows: 0 },
+				{ active: 'first', mainWindow: 'first', same: true, windows: 0 },
+			]);
+		});
+
+		test('a session shown in another window stays active only while that window has focus, without moving focus in the main window', async () => {
+			const [first, second] = ['first', 'second'].map(created);
+			const { view, sessionsPartService } = harness([first, second]);
+			await view.openSession(first.resource);
+			const windowSession = view.showSessionInWindow(second, { chatResource: second.mainChat.get().resource });
+			view.setActive(windowSession);
+			const read = () => ({ active: view.activeSession.get()?.sessionId, mainWindow: view.mainWindowActiveSession.get()?.sessionId, windowActive: view.activeSession.get() === windowSession });
+			const focusRequests = sessionsPartService.focusedSessions.length;
+			const inWindow = read();
+			activeWindowChanges.get(view)!.fire(mainWindow.vscodeWindowId + 1);
+			const anotherWindow = read();
+			activeWindowChanges.get(view)!.fire(mainWindow.vscodeWindowId);
+			assert.deepStrictEqual({ inWindow, anotherWindow, mainWindowActive: read(), focusMoves: sessionsPartService.focusedSessions.length - focusRequests }, {
+				inWindow: { active: 'second', mainWindow: 'first', windowActive: true },
+				anotherWindow: { active: 'second', mainWindow: 'first', windowActive: true },
+				mainWindowActive: { active: 'first', mainWindow: 'first', windowActive: false },
+				focusMoves: 0,
+			});
+		});
+
+		test('closing the session of another window leaves alone what the main window is opening', async () => {
+			const [first, second] = ['first', 'second'].map(created);
+			const loading = observableValue('loading', true);
+			const mainChat: IChat = { ...stubChat, resource: URI.parse('test:///third/chat'), status: constObservable(SessionStatus.Completed) };
+			const otherChat: IChat = { ...stubChat, resource: URI.parse('test:///third/other'), status: constObservable(SessionStatus.Completed) };
+			const third = stubSession({ sessionId: 'third', providerId: 'test', status: constObservable(SessionStatus.Completed), loading, mainChat: constObservable(mainChat), chats: constObservable([mainChat, otherChat]) });
+			const { view } = harness([first, second, third]);
+			await view.openSession(first.resource);
+			const windowSession = view.showSessionInWindow(second, { chatResource: second.mainChat.get().resource, activates: false });
+			const opening = view.openChat(third, otherChat.resource);
+			await timeout(0);
+			view.closeSession(windowSession);
+			loading.set(false, undefined);
+			await opening;
+			assert.deepStrictEqual({ active: view.activeSession.get()?.sessionId, chat: view.activeSession.get()?.activeChat.get().resource.toString(), windows: view.windowSessions.get().length }, { active: 'third', chat: otherChat.resource.toString(), windows: 0 });
 		});
 
 		test('explicitly reopening a retained inactive session reaches only its mounted group', async () => {

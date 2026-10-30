@@ -10,25 +10,17 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize2 } from '../../../../../nls.js';
 import { ILocalizedString } from '../../../../../platform/action/common/action.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { bindContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { ChatSendResult, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { bindIsAgentHostSessionContextKey, IsAgentHostSession } from '../../../../services/sessions/browser/sessionScopedContextKeys.js';
 import { ActiveSessionContextKeys, IsolationMode } from '../../../changes/common/changes.js';
 import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
-
-/**
- * True when the active session (in the Sessions window) is provided by an
- * agent-host sessions provider (local or remote). Used to gate the built-in
- * skill toolbar buttons and to suppress the Copilot CLI extension's own
- * buttons for the same sessions.
- */
-export const IsAgentHostSession = new RawContextKey<boolean>('sessions.isAgentHostSession', false);
 
 /**
  * Binds {@link IsAgentHostSession} to the global context key service based on
@@ -46,14 +38,7 @@ export class IsAgentHostSessionContextContribution extends Disposable implements
 	) {
 		super();
 
-		this._register(bindContextKey(IsAgentHostSession, contextKeyService, reader => {
-			const activeSession = sessionsService.activeSession.read(reader);
-			if (!activeSession) {
-				return false;
-			}
-			const provider = sessionsProvidersService.getProvider(activeSession.providerId);
-			return provider instanceof BaseAgentHostSessionsProvider;
-		}));
+		this._register(bindIsAgentHostSessionContextKey(contextKeyService, sessionsService.activeSession, sessionsProvidersService));
 	}
 }
 

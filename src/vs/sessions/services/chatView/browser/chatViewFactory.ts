@@ -25,7 +25,7 @@ export interface IChatViewFactory {
 	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions, instantiationService?: IInstantiationService): AbstractChatView;
 
 	/**
-	 * Creates a chat view that hosts a chat widget for an active session.
+	 * Creates a chat view that hosts a chat widget for an active session, with the given options for its input.
 	 */
 	createChatView(instantiationService?: IInstantiationService, options?: IChatViewOptions): AbstractChatView;
 }

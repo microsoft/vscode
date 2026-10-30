@@ -170,6 +170,7 @@ suite('Customizations toolbar', () => {
 			enabled,
 			new class extends mock<ISessionsService>() {
 				override readonly activeSession = activeSession;
+				override readonly mainWindowActiveSession = this.activeSession;
 			},
 			itemsModel,
 			mcpServerCountService,
