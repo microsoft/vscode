@@ -5956,6 +5956,36 @@ suite('Sessions - SessionsList', () => {
 				persisted: { 'workspace:file:///elsewhere': false, [`group:${group.id}`]: true, recent: true },
 			});
 		});
+
+		for (const savedPinnedCollapsed of [undefined, true] as const) {
+			test(`first pin ${savedPinnedCollapsed ? 'keeps a user-collapsed' : 'shows an expanded'} Pinned section`, () => {
+				const session = createTestSession('Session', { workspaceLabel: 'vscode' }).session;
+				const harness = createListHarness(disposables, [session], { livePins: true });
+				const storageService = harness.instantiationService.get(IStorageService);
+				if (savedPinnedCollapsed !== undefined) {
+					storageService.store('sessionsListControl.sectionCollapseState', JSON.stringify({ pinned: savedPinnedCollapsed }), StorageScope.PROFILE, StorageTarget.USER);
+				}
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+				const beforePin = list.getItemRow({ section: 'pinned' });
+
+				harness.instantiationService.get(ISessionsListModelService).pinSession(session);
+
+				assert.deepStrictEqual({
+					beforePin,
+					pinnedExpanded: list.getItemRow({ section: 'pinned' })?.getAttribute('aria-expanded'),
+					persisted: JSON.parse(storageService.get('sessionsListControl.sectionCollapseState', StorageScope.PROFILE) ?? '{}'),
+				}, {
+					beforePin: undefined,
+					pinnedExpanded: savedPinnedCollapsed ? 'false' : 'true',
+					persisted: { pinned: savedPinnedCollapsed ?? false },
+				});
+			});
+		}
 	});
 
 	suite('comparison groups', () => {
