@@ -11,7 +11,7 @@ import * as path from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { flakySuite, getRandomTestPath } from '../../../../../base/test/node/testUtils.js';
-import { IFileQuery, IFolderQuery, ISerializedFileMatch, ISerializedSearchProgressItem, isProgressMessage, QueryType } from '../../common/search.js';
+import { IFileQuery, IFileSearchStats, IFolderQuery, ISearchEngineStats, ISerializedFileMatch, ISerializedSearchProgressItem, isProgressMessage, QueryType } from '../../common/search.js';
 import { SearchService } from '../../node/rawSearchService.js';
 
 const TEST_FIXTURES = path.normalize(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath);
@@ -134,6 +134,17 @@ flakySuite('FileSearch-integration', function () {
 		const paths = await getRelativePaths(config, TEST_FIXTURES);
 		assert.deepStrictEqual(paths.filter(p => p.startsWith('examples/')), ['examples/subfolder/anotherfolder/anotherfile.txt']);
 		assert.strictEqual(paths.length, 9);
+	});
+
+	test('File - exclude exception run is reported in the stats', async () => {
+		const complete = await new SearchService().doFileSearch({
+			type: QueryType.File,
+			folderQueries: ROOT_FOLDER_QUERY,
+			excludePattern: { 'examples': true, '!examples/subfolder/anotherfolder': true }
+		}, numThreads, () => { });
+		const stats = (complete.stats as IFileSearchStats).detailStats as ISearchEngineStats;
+
+		assert.deepStrictEqual({ runs: stats.excludeExceptionRuns, hasTime: stats.excludeExceptionTime! > 0 }, { runs: 1, hasTime: true });
 	});
 
 	test('File - exclude exception re-includes a gitignored file', async () => {

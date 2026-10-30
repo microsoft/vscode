@@ -9,7 +9,7 @@ import { isAbsolute } from '../../base/common/path.js';
 import { Emitter } from '../../base/common/event.js';
 import { relativePath } from '../../base/common/resources.js';
 import { Disposable } from '../../base/common/lifecycle.js';
-import { ParsedExpression, IExpression, parse, parseExcludeExpression } from '../../base/common/glob.js';
+import { IExpression, IParsedExcludeExpression, parse, parseExcludeExpression } from '../../base/common/glob.js';
 import { IWorkspaceContextService } from '../../platform/workspace/common/workspace.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../platform/configuration/common/configuration.js';
 import { Schemas } from '../../base/common/network.js';
@@ -28,7 +28,7 @@ export class ResourceGlobMatcher extends Disposable {
 	private readonly _onExpressionChange = this._register(new Emitter<void>());
 	readonly onExpressionChange = this._onExpressionChange.event;
 
-	private readonly mapFolderToParsedExpression = new Map<string | null, ParsedExpression>();
+	private readonly mapFolderToParsedExpression = new Map<string | null, Pick<IParsedExcludeExpression, 'matches' | 'isExcepted'>>();
 	private readonly mapFolderToConfiguredExpression = new Map<string | null, IConfiguredExpression>();
 
 	constructor(
@@ -120,8 +120,8 @@ export class ResourceGlobMatcher extends Disposable {
 		}
 	}
 
-	protected parseExpression(expression: IExpression): ParsedExpression {
-		return parse(expression);
+	protected parseExpression(expression: IExpression): Pick<IParsedExcludeExpression, 'matches' | 'isExcepted'> {
+		return { matches: parse(expression), isExcepted: () => false };
 	}
 
 	private doGetExpression(resource: URI | undefined): IConfiguredExpression | undefined {
@@ -177,7 +177,7 @@ export class ResourceGlobMatcher extends Disposable {
 		}
 
 		const folder = this.contextService.getWorkspaceFolder(resource);
-		let expressionForFolder: ParsedExpression | undefined;
+		let expressionForFolder: Pick<IParsedExcludeExpression, 'matches' | 'isExcepted'> | undefined;
 		let expressionConfigForFolder: IConfiguredExpression | undefined;
 		if (folder && this.mapFolderToParsedExpression.has(folder.uri.toString())) {
 			expressionForFolder = this.mapFolderToParsedExpression.get(folder.uri.toString());
@@ -203,16 +203,16 @@ export class ResourceGlobMatcher extends Disposable {
 			resourcePathToMatch = this.uriToPath(resource);
 		}
 
-		if (typeof resourcePathToMatch === 'string' && !!expressionForFolder(resourcePathToMatch, undefined, hasSibling)) {
+		if (typeof resourcePathToMatch === 'string' && !!expressionForFolder.matches(resourcePathToMatch, undefined, hasSibling)) {
 			return true;
 		}
 
 		// If the configured expression has an absolute path, we also check for absolute paths
 		// to match, otherwise we potentially miss out on matches. We only do that if we previously
-		// matched on the relative path.
+		// matched on the relative path. Exceptions are relative, so they also apply when an absolute pattern matches.
 
 		if (resourcePathToMatch !== this.uriToPath(resource) && expressionConfigForFolder?.hasAbsolutePath) {
-			return !!expressionForFolder(this.uriToPath(resource), undefined, hasSibling);
+			return !!expressionForFolder.matches(this.uriToPath(resource), undefined, hasSibling) && !(typeof resourcePathToMatch === 'string' && expressionForFolder.isExcepted(resourcePathToMatch));
 		}
 
 		return false;
@@ -233,7 +233,7 @@ export class ResourceGlobMatcher extends Disposable {
  */
 export class ExcludeResourceGlobMatcher extends ResourceGlobMatcher {
 
-	protected override parseExpression(expression: IExpression): ParsedExpression {
-		return parseExcludeExpression(expression).matches;
+	protected override parseExpression(expression: IExpression): IParsedExcludeExpression {
+		return parseExcludeExpression(expression);
 	}
 }

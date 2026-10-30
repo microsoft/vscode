@@ -237,6 +237,7 @@ export class TextSearchManager {
 			const excludeExceptions = resolveExcludeExceptionsForProvider(this.query.excludePattern, folderExcludes);
 			if (excludeExceptions.length) {
 				options.excludeExceptions = excludeExceptions;
+				options.nestedFolders = this.query.folderQueries.map(other => resources.relativePath(fq.folder, other.folder)).filter((path): path is string => !!path);
 			}
 		}
 

@@ -184,6 +184,25 @@ flakySuite('TextSearch-integration', function () {
 		return doSearchTest(config, 414);
 	});
 
+	test('Text: exclude exception results only include paths that the exception matches', () => {
+		// ripgrep matches `**.js` at any depth, VS Code only at the top level
+		return doSearchTest({
+			type: QueryType.Text,
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'e' },
+			excludePattern: { 'examples': true, '!**.js': true }
+		}, 391);
+	});
+
+	test('Text: exclude exception results skip folders of the query that are inside the folder', () => {
+		return doSearchTest({
+			type: QueryType.Text,
+			folderQueries: [TEST_ROOT_FOLDER, { folder: URI.file(EXAMPLES_FIXTURES) }],
+			contentPattern: { pattern: 'e' },
+			excludePattern: { 'examples': true, '!**/small.js': true }
+		}, 785);
+	});
+
 	test('Text: exclude exception results that are filtered out do not use up the result limit', () => {
 		const config: ITextQuery = {
 			type: QueryType.Text,

@@ -1364,6 +1364,21 @@ suite('Glob', () => {
 			assert.deepStrictEqual(beneath({ 'a': true }, ['a']), { 'a': false });
 			assert.deepStrictEqual(beneath({ 'a': true, '!{a/b,c}/keep.txt': true }, ['a', 'a/b', 'c']), { 'a': true, 'a/b': true, 'c': true });
 			assert.deepStrictEqual(beneath({ 'a': true, '!a/{b/c,d}/keep': true }, ['a/b', 'a/b/c']), { 'a/b': true, 'a/b/c': true });
+			assert.deepStrictEqual(beneath({ '**': true, '!{**,foo}/keep.txt': true }, ['a', 'a/b']), { 'a': true, 'a/b': true });
+		});
+
+		test('exceptions do not re-include version control folders unless an exception names them', () => {
+			const unnamed = glob.parseExcludeExpression({ '**/.git': true, 'third_party': true, '!third_party/lib': true });
+			const named = glob.parseExcludeExpression({ '**/.git': true, '!.git/hooks': true });
+			assert.deepStrictEqual({
+				unnamed: ['third_party/lib/a.js', 'third_party/lib/.git', 'third_party/lib/.git/config'].map(path => unnamed.isExcepted(path)),
+				named: ['.git/hooks/pre-commit', '.git/config'].map(path => named.isExcepted(path)),
+				gitFolder: glob.evaluateExcludeTreeEntry(unnamed, { path: 'third_party/lib/.git', isDirectory: true, isParentExcluded: false }),
+			}, {
+				unnamed: [true, false, false],
+				named: [true, false],
+				gitFolder: { isExcluded: true, isVisited: false },
+			});
 		});
 
 		test('couldExceptionMatchBeneath skips version control folders unless an exception names them', () => {

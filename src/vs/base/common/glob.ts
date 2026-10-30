@@ -629,7 +629,8 @@ export interface IParsedExcludeExpression {
 	readonly exceptions: readonly string[];
 
 	/**
-	 * Whether the path or one of its parent folders matches an exception.
+	 * Whether the path or one of its parent folders matches an exception. Paths in version
+	 * control folders are not excepted, see {@link getFoldersSkippedByExcludeExceptions}.
 	 */
 	isExcepted(path: string, basename?: string): boolean;
 
@@ -684,8 +685,8 @@ export function getExcludeExceptions(expression: IExpression | undefined): strin
 }
 
 /**
- * Returns the version control folders (such as `.git`) that exclude exceptions do not look into, unless
- * an exception names the folder, because they are large and rarely contain files to re-include.
+ * Returns the version control folders (such as `.git`) that exclude exceptions do not look into or re-include,
+ * unless an exception names the folder, because they are large and rarely contain files to re-include.
  */
 export function getFoldersSkippedByExcludeExceptions(exceptions: readonly string[]): string[] {
 	const namedSegments = new Set(exceptions.flatMap(exception => expandBraces(exception).flatMap(pattern => splitGlobAware(pattern, GLOB_SPLIT))));
@@ -752,9 +753,14 @@ export function parseExcludeExpression(expression: IExpression, options: IGlobOp
 	}
 
 	const matchesException = parse(exceptionExpression, { ...options, trimForExclusions: false });
-	const isExcepted = (path: string, basename?: string) => !!matchesException(path, basename);
 	const exceptionSegments = exceptions.map(exception => parseSegmentMatchers(exception, !!options.ignoreCase));
 	const skippedFolders = new Set(getFoldersSkippedByExcludeExceptions(exceptions));
+	const toSegments = (path: string) => {
+		const trimmed = rtrim(rtrim(path, GLOB_SPLIT), '\\');
+		return trimmed ? trimmed.split(/[/\\]/) : [];
+	};
+	const isInSkippedFolder = (segments: string[]) => segments.some(segment => skippedFolders.has(segment));
+	const isExcepted = (path: string, basename?: string) => !!matchesException(path, basename) && !isInSkippedFolder(toSegments(path));
 
 	const matches: ParsedExpression = (path, basename, hasSibling) => {
 		const result = matchesExclude(path, basename, hasSibling);
@@ -771,13 +777,8 @@ export function parseExcludeExpression(expression: IExpression, options: IGlobOp
 		exceptions,
 		isExcepted,
 		couldExceptionMatchBeneath: folderPath => {
-			const folderSegments = rtrim(rtrim(folderPath, GLOB_SPLIT), '\\');
-			const segments = folderSegments ? folderSegments.split(/[/\\]/) : [];
-			if (segments.some(segment => skippedFolders.has(segment))) {
-				return false;
-			}
-
-			return exceptionSegments.some(matchers => couldMatchBeneath(matchers, segments));
+			const segments = toSegments(folderPath);
+			return !isInSkippedFolder(segments) && exceptionSegments.some(matchers => couldMatchBeneath(matchers, segments));
 		}
 	};
 }
@@ -828,8 +829,8 @@ function parseSegmentMatchers(pattern: string, ignoreCase: boolean): SegmentMatc
 			return GLOBSTAR;
 		}
 
-		if (segment.includes(GLOB_SPLIT)) {
-			return GLOBSTAR; // a brace expansion with a path separator, e.g. `{a/b,c}`, can span any number of segments
+		if (segment.includes(GLOB_SPLIT) || segment.includes(GLOBSTAR)) {
+			return GLOBSTAR; // a brace expansion with a path separator or a globstar, e.g. `{a/b,c}` or `{**,c}`, can span any number of segments
 		}
 
 		try {

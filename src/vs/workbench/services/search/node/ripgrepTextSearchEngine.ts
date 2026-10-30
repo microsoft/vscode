@@ -9,7 +9,9 @@ import { StringDecoder } from 'string_decoder';
 import { coalesce, mapArrayOrNot, asArray } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { groupBy } from '../../../../base/common/collections.js';
-import { getFoldersSkippedByExcludeExceptions, splitGlobAware } from '../../../../base/common/glob.js';
+import { isEqualOrParent } from '../../../../base/common/extpath.js';
+import { getFoldersSkippedByExcludeExceptions, parseExcludeExpression, splitGlobAware } from '../../../../base/common/glob.js';
+import { relativePath } from '../../../../base/common/resources.js';
 import { createRegExp, escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -69,9 +71,17 @@ export class RipgrepTextSearchEngine {
 			return complete;
 		}
 
+		// ripgrep globs can match more than VS Code globs, for example `**.js` matches at any depth, so results are checked
+		// against the exceptions. Folders of the query that are inside this folder are searched on their own and skipped.
+		const ignoreCase = !!options.folderOptions.ignoreGlobCase;
+		const { isExcepted } = parseExcludeExpression(Object.fromEntries(excludeExceptions.map(exception => [`!${exception}`, true])), { ignoreCase });
+		const nestedFolders = options.folderOptions.nestedFolders ?? [];
+		const isReincluded = (path: string) => isExcepted(path) && !nestedFolders.some(folder => isEqualOrParent(path, folder, ignoreCase, true));
+
 		// Results are filtered after ripgrep reports them, so the search manager limits the accepted results instead
 		const exceptionComplete = await this.searchWithRipgrep({ ...query }, { ...options, maxResults: Number.MAX_SAFE_INTEGER }, new Progress<TextSearchResult2>(result => {
-			if (!reportedPaths.has(result.uri.path)) {
+			const path = relativePath(options.folderOptions.folder, result.uri);
+			if (!reportedPaths.has(result.uri.path) && path !== undefined && isReincluded(path)) {
 				progress.report(result);
 			}
 		}), token, excludeExceptions);

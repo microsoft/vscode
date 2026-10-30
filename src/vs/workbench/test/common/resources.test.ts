@@ -89,4 +89,16 @@ suite('ResourceGlobMatcher', () => {
 		});
 	});
 
+	test('Exclude exceptions also apply when an absolute pattern matches', async () => {
+		await configurationService.setUserConfiguration(SETTING, {
+			'C:/testWorkspace/src/**': true,
+			'/testWorkspace/src/**': true,
+			'!src/keep.txt': true
+		});
+		const excludeMatcher = disposables.add(new ExcludeResourceGlobMatcher(() => configurationService.getValue(SETTING), e => e.affectsConfiguration(SETTING), contextService, configurationService));
+		const folder = contextService.getWorkspace().folders[0].uri;
+
+		assert.deepStrictEqual([excludeMatcher.matches(URI.joinPath(folder, 'src', 'keep.txt')), excludeMatcher.matches(URI.joinPath(folder, 'src', 'drop.txt'))], [false, true]);
+	});
+
 });
