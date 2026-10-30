@@ -10,16 +10,17 @@ import { FileAccess } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { editorRuler } from '../../../../../editor/common/core/editorColorRegistry.js';
 import { IExtensionResourceLoaderService } from '../../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
-import { STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_ERROR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ERROR_ITEM_HOVER_FOREGROUND, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND } from '../../../../common/theme.js';
+import { BANNER_BACKGROUND, BANNER_FOREGROUND, BANNER_ICON_FOREGROUND, STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_ERROR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ERROR_ITEM_HOVER_FOREGROUND, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND } from '../../../../common/theme.js';
 import { ColorThemeData } from '../../../../services/themes/common/colorThemeData.js';
 
 suite('Default theme colors', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function loadDefaultTheme(name: string, selector: 'vs' | 'vs-dark'): Promise<ColorThemeData> {
+	async function loadDefaultTheme(name: string, selector: 'vs' | 'vs-dark', extension = 'theme-defaults'): Promise<ColorThemeData> {
 		const theme = ColorThemeData.createUnloadedTheme(selector);
-		theme.location = FileAccess.asFileUri(`vs/../../extensions/theme-defaults/themes/${name}`);
+		theme.location = FileAccess.asFileUri(`vs/../../extensions/${extension}/themes/${name}`);
 		await theme.ensureLoaded(new class extends mock<IExtensionResourceLoaderService>() {
 			override async readExtensionResource(resource: URI): Promise<string> {
 				return fs.promises.readFile(resource.fsPath, 'utf8');
@@ -61,6 +62,34 @@ suite('Default theme colors', () => {
 			textContrast: textContrast.map(result => ({ ...result, readable: true })),
 			linkDistinction: linkDistinction.map(result => ({ ...result, distinctFromText: true })),
 			readableCodeBlockKeyword: true,
+		});
+	});
+
+	test('Light 2026 rulers have at least the contrast of Light Modern', async () => {
+		const themes = await Promise.all([
+			loadDefaultTheme('2026-light.json', 'vs'),
+			loadDefaultTheme('light_modern.json', 'vs'),
+		]);
+		const [contrast, referenceContrast] = themes.map(theme => {
+			const background = theme.getColor('editor.background')!;
+			return theme.getColor(editorRuler)!.makeOpaque(background).getContrastRatio(background);
+		});
+
+		assert.ok(contrast >= referenceContrast, `Light 2026 ruler contrast ${contrast} is below Light Modern's ${referenceContrast}`);
+	});
+
+	test('Quiet Light banner text, links and icon remain readable', async () => {
+		const theme = await loadDefaultTheme('quietlight-color-theme.json', 'vs', 'theme-quietlight');
+		const background = theme.getColor(BANNER_BACKGROUND)!;
+		const foreground = theme.getColor(BANNER_FOREGROUND)!;
+		const icon = theme.getColor(BANNER_ICON_FOREGROUND)!;
+
+		assert.deepStrictEqual({
+			readableTextAndLinks: foreground.makeOpaque(background).getContrastRatio(background) >= 4.5,
+			distinctIcon: icon.makeOpaque(background).getContrastRatio(background) >= 3,
+		}, {
+			readableTextAndLinks: true,
+			distinctIcon: true,
 		});
 	});
 
