@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { AgentChatMoveDestination } from './agentHostChatMove.js';
+import type { IAgentTerminalPath } from './agentTerminalPath.js';
 import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from './agentHostWorktreeCleanup.js';
 import type { CancellationToken } from '../../../base/common/cancellation.js';
 import type { VSBuffer } from '../../../base/common/buffer.js';
@@ -1640,6 +1641,12 @@ export interface IAgentHostService extends IAgentConnection {
 
 	/** Start connecting to the agent host if it has not already started. */
 	startAgentHost(): void;
+
+	/**
+	 * Contributes this window's agent terminal `PATH` entries to the local
+	 * agent host. Available only on the local connection.
+	 */
+	setAgentTerminalPath?(path: IAgentTerminalPath): void;
 
 	/** Restart the agent host process, if this connection owns its lifecycle. */
 	restartAgentHost(): Promise<void>;

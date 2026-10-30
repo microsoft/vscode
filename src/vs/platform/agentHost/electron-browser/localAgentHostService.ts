@@ -34,6 +34,7 @@ import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel, NullAg
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL, AgentHostClientProxyChannel } from '../common/agentHostClientProxyChannel.js';
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
+import { emptyAgentTerminalPath, type IAgentTerminalPath } from '../common/agentTerminalPath.js';
 import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
@@ -197,6 +198,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private readonly _managementConnection = this._register(new LocalAgentHostManagementConnection());
 	private readonly _ahpLogger: AhpJsonlLogger | undefined;
 	private _protocolClient: AgentHostProtocolClient | undefined;
+	private _agentTerminalPath: IAgentTerminalPath = emptyAgentTerminalPath;
 	private _mcpAuthenticationHandler: ((request: IAgentHostMcpAuthenticationRequest) => Promise<boolean>) | undefined;
 	private _connectStarted = false;
 	private _didAcquireInitialMessagePort = false;
@@ -277,6 +279,11 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		this._register(this._otelPolicyReadiness.onDidChange(() => this._forwardOTelPolicy()));
 	}
 
+	setAgentTerminalPath(path: IAgentTerminalPath): void {
+		this._agentTerminalPath = path;
+		this._protocolClient?.setAgentTerminalPath(path);
+	}
+
 	startAgentHost(): void {
 		if (!this._protocolClient) {
 			mark('code/agentHost/willStart');
@@ -293,6 +300,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				() => this._createTransport(),
 				{ clientId: this.clientId, clientInfo: this._clientInfo, reconnectPolicy: LOCAL_RECONNECT_POLICY },
 			));
+			this._protocolClient.setAgentTerminalPath(this._agentTerminalPath);
 			this._register(this._protocolClient.registerMcpAuthenticationHandler(async request => this._mcpAuthenticationHandler?.(request) ?? false));
 			this._onDidAction.input = this._protocolClient.onDidAction;
 			this._onDidNotification.input = this._protocolClient.onDidNotification;

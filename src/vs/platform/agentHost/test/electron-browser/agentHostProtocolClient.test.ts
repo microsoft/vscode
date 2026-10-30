@@ -3502,6 +3502,28 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
+	test('sends the agent terminal PATH to the local host only, on connect and on change', async () => {
+		const sentPaths = (transport: TestProtocolTransport) => transport.sentMessages
+			.filter(message => hasKey(message, { method: true }) && message.method === 'setClientAgentTerminalPath')
+			.map(message => (message as { params: unknown }).params);
+		const local = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
+		const remote = createClient();
+		for (const { client } of [local, remote]) {
+			client.setAgentTerminalPath({ prepend: ['/opt/a'], append: [] });
+		}
+		const beforeConnect = sentPaths(local.transport).length;
+
+		await connectClient(local.client, local.transport);
+		await connectClient(remote.client, remote.transport);
+		local.client.setAgentTerminalPath({ prepend: [], append: ['/opt/b'] });
+
+		assert.deepStrictEqual({ beforeConnect, local: sentPaths(local.transport), remote: sentPaths(remote.transport) }, {
+			beforeConnect: 0,
+			local: [{ path: { prepend: ['/opt/a'], append: [] } }, { path: { prepend: [], append: ['/opt/b'] } }],
+			remote: [],
+		});
+	});
+
 	test('forwards terminal auto-approve rules on connect', async () => {
 		const configurationService = new TestConfigurationService({
 			[TERMINAL_AUTO_APPROVE_SETTING_ID]: {

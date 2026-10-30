@@ -68,7 +68,10 @@ import { readAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.j
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { CopilotSessionApprovalPolicy, fromCopilotPermissionMode, isWithheldClientTool } from './copilotApprovalPolicy.js';
-import { isShellInitScriptList, type IShellInitScript } from '../../common/shellInitScript.js';
+import { isShellInitScriptList, withAgentTerminalPath, type IShellInitScript } from '../../common/shellInitScript.js';
+import { emptyAgentTerminalPath } from '../../common/agentTerminalPath.js';
+import { IAgentTerminalPathService } from '../agentTerminalPathService.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS, streamingToolDisplayText } from '../../common/streamingToolCallDisplay.js';
@@ -2123,6 +2126,7 @@ export class CopilotAgentSession extends Disposable {
 		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
 		@IAgentHostFileEditCoordinator private readonly _fileEditCoordinator: IAgentHostFileEditCoordinator,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentTerminalPathService private readonly _agentTerminalPathService: IAgentTerminalPathService,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -8157,6 +8161,7 @@ export class CopilotAgentSession extends Disposable {
 				void this._syncShellInitScript();
 			}
 		}));
+		this._register(this._agentTerminalPathService.onDidChange(() => void this._syncShellInitScript()));
 	}
 
 	private _isInactiveForBackgroundConfigSync(): boolean {
@@ -8375,7 +8380,13 @@ export class CopilotAgentSession extends Disposable {
 				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring malformed shell init script config`);
 				return;
 			}
-			const scripts = own ?? [];
+			// Agent terminal PATH entries are opted in by extensions and do not
+			// depend on the client script setting. The custom terminal tool
+			// applies them when it spawns its shells instead.
+			const agentTerminalPath = this._sandbox.isCustomTerminalToolEnabled()
+				? emptyAgentTerminalPath
+				: this._agentTerminalPathService.path;
+			const scripts = withAgentTerminalPath(own ?? [], agentTerminalPath, isWindows ? 'powershell' : 'bash');
 			const serialized = JSON.stringify(scripts);
 			if (this._lastAppliedShellInitScripts === serialized) {
 				return;

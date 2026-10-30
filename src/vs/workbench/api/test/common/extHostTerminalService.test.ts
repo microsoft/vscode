@@ -12,9 +12,13 @@ import { IShellLaunchConfigDto } from '../../../../platform/terminal/common/term
 import { MainContext, MainThreadTerminalServiceShape } from '../../common/extHost.protocol.js';
 import { ArgumentProcessor, ExtHostCommands } from '../../common/extHostCommands.js';
 import { WorkerExtHostTerminalService } from '../../common/extHostTerminalService.js';
-import { TerminalExitReason } from '../../common/extHostTypes.js';
+import { TerminalExitReason, EnvironmentVariableMutatorType } from '../../common/extHostTypes.js';
 import { IExtHostInitDataService } from '../../common/extHostInitDataService.js';
 import { TestRPCProtocol } from './testRPCProtocol.js';
+import { timeout } from '../../../../base/common/async.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import type { ISerializableEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
+import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 
 suite('ExtHostTerminalService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -78,6 +82,34 @@ suite('ExtHostTerminalService', () => {
 			{ providerTokenCancelled, firstLinks, linksAfterClose, handledAfterClose },
 			{ providerTokenCancelled: true, firstLinks: [], linksAfterClose: [], handledAfterClose: false }
 		);
+	});
+
+	test('applyToAgentTerminals requires the terminalAgentEnvironment proposal and is synced', async () => {
+		const rpcProtocol = new TestRPCProtocol();
+		const synced: [string, ISerializableEnvironmentVariableCollection | undefined][] = [];
+		rpcProtocol.set(MainContext.MainThreadTerminalService, new class extends mock<MainThreadTerminalServiceShape>() {
+			override $setEnvironmentVariableCollection(extensionIdentifier: string, _persistent: boolean, collection: ISerializableEnvironmentVariableCollection | undefined): void {
+				synced.push([extensionIdentifier, collection]);
+			}
+		});
+		const commands = new class extends mock<ExtHostCommands>() {
+			override registerArgumentProcessor(_processor: ArgumentProcessor): void { }
+		};
+		const initData = new class extends mock<IExtHostInitDataService>() {
+			override readonly remote = { authority: undefined, isRemote: false, connectionData: null };
+		};
+		const service = store.add(new WorkerExtHostTerminalService(commands, rpcProtocol, initData));
+
+		const withoutProposal = service.getEnvironmentVariableCollection({ ...nullExtensionDescription, identifier: new ExtensionIdentifier('without') });
+		assert.throws(() => withoutProposal.prepend('PATH', '/without:', { applyAtProcessCreation: true, applyToAgentTerminals: true }));
+
+		const withProposal = service.getEnvironmentVariableCollection({ ...nullExtensionDescription, identifier: new ExtensionIdentifier('with'), enabledApiProposals: ['terminalAgentEnvironment'] });
+		withProposal.prepend('PATH', '/with:', { applyAtProcessCreation: true, applyToAgentTerminals: true });
+		await timeout(0);
+
+		assert.deepStrictEqual(synced, [
+			['with', [['PATH', { variable: 'PATH', value: '/with:', type: EnvironmentVariableMutatorType.Prepend, options: { applyAtProcessCreation: true, applyAtShellIntegration: false, applyToAgentTerminals: true } }]]],
+		]);
 	});
 
 	test('extension terminal processes are released when terminals close', async () => {
