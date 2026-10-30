@@ -8,22 +8,31 @@ import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
-import { mock } from '../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { GitHubWorkflowJob, GitHubWorkflowLog, GitHubWorkflowRun } from '../../../github/common/githubPullRequestMutationService.js';
+import { IGitHubAccountClient } from '../../../github/common/account/account.js';
+import { IActionsClient, WorkflowJob } from '../../../github/common/core/actions.js';
+import { IChecksClient } from '../../../github/common/core/checks.js';
+import { GitHubWorkflowLog, PullRequestMutationApi } from '../../../github/common/githubPullRequestMutationService.js';
 import { PullRequestCheck, PullRequestRef, PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
-import { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
 import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { GitHubRequestError } from '../../../github/common/githubTransport.js';
+import { PaginationLimitError } from '../../../github/common/client/pagination.js';
+import { RequestFetch } from '../../../github/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { defaultAgentMergeConfiguration } from '../../common/agentMerge.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentMergeCIEvidenceStore, agentMergeCIResponseBytes, ciJsonBytes, readCIRange, readCITail, searchCIEvidence } from '../../node/agentMergeCIEvidence.js';
-import { AgentMergeTools, IAgentMergeTurnContext } from '../../node/agentMergeTools.js';
+import { AgentMergeTools, getWorkflowRuns, IAgentMergeTurnContext } from '../../node/agentMergeTools.js';
+import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
+import { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentMergeCIRequest } from '../../node/shared/agentMergeServerTools.js';
+import { createTestWorkflowJob, createTestWorkflowRun } from './testGitHubService.js';
+import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 
 interface CIResult {
 	readonly items: readonly { kind: string; jobId?: string; evidenceId?: string; complete?: boolean; totalLines?: number | null; jobRunAttempt?: number | null; message?: string }[];
@@ -36,10 +45,132 @@ interface CIResult {
 	readonly terminalLimit: string | null;
 }
 
-const ref: PullRequestRef = { host: 'api.github.com', accountId: 'account', owner: 'owner', repo: 'repo', number: 1 };
+const ref: PullRequestRef = { host: 'api.github.com', accountId: '1', owner: 'owner', repo: 'repo', number: 1 };
 
 suite('Agent Merge CI diagnostics', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createApiClient(fetch: RequestFetch): IGitHubAccountClient {
+		const service = store.add(new AgentHostGitHubService({
+			fetch: (input, init) => new URL(String(input)).pathname === '/user' ? Promise.resolve(Response.json({ id: 1 })) : fetch(input, init),
+		}, new class extends mock<IAgentHostAuthenticationService>() {
+			override readonly onDidChangeAuthToken = Event.None;
+			override getAuthAccount() { return undefined; }
+			override getAuthToken() { return 'repository-token'; }
+		}(), createTestGitHubEndpointService(), new NullLogService(), NullTelemetryService));
+		return store.add(service.acquireRepositoryApiClient(new AbortController().signal));
+	}
+
+	for (const name of [undefined, null, '']) {
+		test(`workflow discovery preserves an unavailable or empty workflow name (${name})`, async () => {
+			const client = createApiClient(async () => Response.json({
+				total_count: 1, workflow_runs: [createTestWorkflowRun(1, { name })],
+			}));
+			const runs = await getWorkflowRuns(client, ref, 'head', new AbortController().signal);
+			assert.deepStrictEqual(runs.map(run => ({ id: run.id, name: run.name, headSha: run.head_sha })), [
+				{ id: 1, name, headSha: 'head' },
+			]);
+		});
+	}
+
+	test('paginates typed runs, attempt jobs and annotations while preserving diagnostic output', async () => {
+		const requests: string[] = [];
+		const client = createApiClient(async input => {
+			const url = new URL(String(input));
+			requests.push(url.pathname + url.search);
+			const page = Number(url.searchParams.get('page') ?? 1);
+			const next = new URL(url);
+			next.searchParams.set('page', '2');
+			const headers = page === 1 ? { Link: `<${next.href}>; rel="next"` } : undefined;
+			if (url.pathname === '/repos/owner/repo/actions/runs') {
+				return Response.json({ total_count: 2, workflow_runs: [createTestWorkflowRun(page)] }, { headers });
+			}
+			if (url.pathname === '/repos/owner/repo/actions/runs/1/attempts/1/jobs') {
+				return Response.json({
+					total_count: 2, jobs: [createTestWorkflowJob(99 + page, {
+						check_run_url: 'https://api.github.com/repos/owner/repo/check-runs/1000',
+						head_sha: page === 1 ? 'head' : 'other-head',
+						run_attempt: undefined,
+					})]
+				}, { headers });
+			}
+			if (url.pathname === '/repos/owner/repo/check-runs/1000/annotations') {
+				return Response.json([{
+					path: `file${page}.ts`, start_line: page, end_line: page + 1, start_column: null, end_column: null,
+					annotation_level: 'failure', message: `Problem ${page}`, title: null, raw_details: null,
+				}], { headers });
+			}
+			throw new GitHubRequestError(`Unexpected test URL ${url.pathname}`, 'validation');
+		});
+		const h = store.add(new CIHarness());
+		h.context = { ...h.context, apiClient: client };
+		const result = await h.read();
+		const check = result.items.find(item => item.kind === 'check');
+		const job = result.items.find(item => item.kind === 'job');
+		assert.deepStrictEqual({
+			items: result.items.length, jobId: job?.jobId, jobRunAttempt: job?.jobRunAttempt,
+			check, downloads: h.mutations.downloads,
+			pages: [...new Set(requests)],
+		}, {
+			items: 2, jobId: '100', jobRunAttempt: null,
+			check: {
+				kind: 'check', id: '1000', name: 'CI 0', status: 'COMPLETED', conclusion: 'FAILURE', runId: '1',
+				annotations: [1, 2].map(page => ({ path: `file${page}.ts`, startLine: page, endLine: page + 1, level: 'failure', message: `Problem ${page}`, title: null })),
+				annotationCount: 2, runAttempt: 1, annotationLimit: null, logAvailability: 'See corresponding job entries.',
+			},
+			downloads: 1,
+			pages: [
+				'/repos/owner/repo/actions/runs?head_sha=head&per_page=100',
+				'/repos/owner/repo/actions/runs?head_sha=head&per_page=100&page=2',
+				'/repos/owner/repo/actions/runs/1/attempts/1/jobs?per_page=100',
+				'/repos/owner/repo/actions/runs/1/attempts/1/jobs?per_page=100&page=2',
+				'/repos/owner/repo/check-runs/1000/annotations?per_page=100',
+				'/repos/owner/repo/check-runs/1000/annotations?per_page=100&page=2',
+			],
+		});
+	});
+
+	for (const phase of ['runs', 'jobs', 'annotations']) {
+		test(`does not publish partial diagnostics if ${phase} pagination fails`, async () => {
+			const client = createApiClient(async input => {
+				const url = new URL(String(input));
+				const current = url.pathname.endsWith('/annotations') ? 'annotations' : url.pathname.endsWith('/jobs') ? 'jobs' : 'runs';
+				if (current === phase && url.searchParams.get('page') === '2') {
+					return Response.json({ message: 'Forbidden' }, { status: 403 });
+				}
+				const next = new URL(url);
+				next.searchParams.set('page', '2');
+				const headers = current === phase ? { Link: `<${next.href}>; rel="next"` } : undefined;
+				return Response.json(current === 'runs' ? { total_count: 1, workflow_runs: [createTestWorkflowRun()] }
+					: current === 'jobs' ? { total_count: 1, jobs: [createTestWorkflowJob()] } : [], { headers });
+			});
+			const h = store.add(new CIHarness());
+			h.context = { ...h.context, apiClient: client };
+			await assert.rejects(h.read(), { kind: 'authorization', statusCode: 403 });
+			assert.strictEqual(h.mutations.downloads, 0);
+		});
+	}
+
+	for (const pages of [100, 101]) {
+		test(`workflow discovery enforces the 100-page bound (${pages} pages)`, async () => {
+			let requests = 0;
+			const client = createApiClient(async input => {
+				requests++;
+				const next = new URL(String(input));
+				next.searchParams.set('page', String(requests + 1));
+				return Response.json({ total_count: pages, workflow_runs: [createTestWorkflowRun(requests)] }, {
+					headers: requests < pages ? { Link: `<${next.href}>; rel="next"` } : undefined,
+				});
+			});
+			const pending = getWorkflowRuns(client, ref, 'head', new AbortController().signal);
+			if (pages === 100) {
+				assert.strictEqual((await pending).length, 100);
+			} else {
+				await assert.rejects(pending, PaginationLimitError);
+			}
+			assert.strictEqual(requests, 100);
+		});
+	}
 
 	test('six long failed jobs have bounded summaries containing failures beyond both old cutoffs', async () => {
 		const h = store.add(new CIHarness(6));
@@ -170,9 +301,9 @@ suite('Agent Merge CI diagnostics', () => {
 		h.context = { ...original, headSha: 'other-head' };
 		await assert.rejects(h.read(request), /head could not be confirmed/);
 		h.context = original;
-		h.mutations.run = { ...h.mutations.run, runAttempt: 2 };
+		h.mutations.run = { ...h.mutations.run, run_attempt: 2 };
 		await assert.rejects(h.read(request), /workflow attempt changed/);
-		h.mutations.run = { ...h.mutations.run, runAttempt: 1 };
+		h.mutations.run = { ...h.mutations.run, run_attempt: 1 };
 		h.context = { ...original, actions: [] };
 		await assert.rejects(h.read(request), /not authorized/);
 	});
@@ -184,10 +315,10 @@ suite('Agent Merge CI diagnostics', () => {
 		h.snapshot.set(makeSnapshot(1, 'new-head'), undefined);
 		await assert.rejects(h.read(request), /head could not be confirmed/);
 		h.snapshot.set(makeSnapshot(1), undefined);
-		h.deferred.add('check-0');
+		h.deferred.add('1000');
 		await assert.rejects(h.read(request), /stale or unauthorized/);
 		h.deferred.clear();
-		h.mutations.jobs[0] = { ...h.mutations.jobs[0], headSha: 'other-head' };
+		h.mutations.jobs[0] = { ...h.mutations.jobs[0], head_sha: 'other-head' };
 		await assert.rejects(h.read(request), /stale or unauthorized/);
 		h.enabled = false;
 		await assert.rejects(h.read(request), /not authorized/);
@@ -196,7 +327,7 @@ suite('Agent Merge CI diagnostics', () => {
 	test('rejects a rerun that starts while validating a cached job', async () => {
 		const h = store.add(new CIHarness());
 		const evidenceId = await h.evidenceId();
-		h.mutations.beforeJobs = () => { h.mutations.run = { ...h.mutations.run, runAttempt: 2 }; };
+		h.mutations.beforeJobs = () => { h.mutations.run = { ...h.mutations.run, run_attempt: 2 }; };
 		await assert.rejects(h.read({ mode: 'tail', evidenceId }), /authorization changed during this read/);
 		assert.strictEqual(h.mutations.downloads, 1);
 	});
@@ -211,28 +342,42 @@ suite('Agent Merge CI diagnostics', () => {
 			secondJobs: second.items.filter(item => item.kind === 'job').length,
 			bounded: ciJsonBytes(second) <= agentMergeCIResponseBytes,
 		}, { first: 12, second: 11, secondJobs: 8, bounded: true });
-		h.mutations.run = { ...h.mutations.run, runAttempt: 2 };
+		h.mutations.run = { ...h.mutations.run, run_attempt: 2 };
 		await assert.rejects(h.read(first.next), /summary cursor is stale/);
 	});
 
 	test('reports unavailable logs explicitly and allows selecting only authorized jobs', async () => {
 		const h = store.add(new CIHarness());
 		h.mutations.beforeDownload = () => { throw new GitHubRequestError('not found', 'notFound'); };
-		const result = await h.read({ jobId: 'job-0' });
+		const result = await h.read({ jobId: '100' });
 		assert.deepStrictEqual({ count: result.items.length, message: result.items[0].message }, { count: 1, message: 'Workflow log unavailable (notFound). No cached log evidence or continuation is available.' });
 		await assert.rejects(h.read({ jobId: 'unrelated' }), /not a failed job authorized/);
 	});
 
-	test('does not invent an attempt or grant pinned evidence when GitHub omits it', async () => {
-		const h = store.add(new CIHarness());
-		h.mutations.run = { ...h.mutations.run, runAttemptKnown: false };
-		const result = await h.read();
-		assert.deepStrictEqual({
-			items: result.items.length, downloads: h.mutations.downloads,
-			unknown: JSON.stringify(result).includes('"runAttempt":null'),
-			unavailable: JSON.stringify(result).includes('workflow attempt is unknown'),
-		}, { items: 1, downloads: 0, unknown: true, unavailable: true });
-	});
+	for (const runAttempt of [undefined, 0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+		test(`does not invent an attempt or grant pinned evidence for ${String(runAttempt)}`, async () => {
+			const h = store.add(new CIHarness());
+			h.mutations.run = { ...h.mutations.run, run_attempt: runAttempt };
+			const result = await h.read();
+			assert.deepStrictEqual({
+				items: result.items.length, downloads: h.mutations.downloads,
+				unknown: JSON.stringify(result).includes('"runAttempt":null'),
+				unavailable: JSON.stringify(result).includes('workflow attempt is unknown'),
+			}, { items: 1, downloads: 0, unknown: true, unavailable: true });
+		});
+	}
+
+	for (const mismatch of [{ run_id: 2 }, { run_attempt: 2 }, { head_sha: 'other-head' }]) {
+		test(`does not download jobs outside the authorized run, attempt or head ${JSON.stringify(mismatch)}`, async () => {
+			const h = store.add(new CIHarness());
+			h.mutations.jobs[0] = { ...h.mutations.jobs[0], ...mismatch };
+			const result = await h.read();
+			assert.deepStrictEqual({
+				jobs: result.items.filter(item => item.kind === 'job').length,
+				downloads: h.mutations.downloads,
+			}, { jobs: 0, downloads: 0 });
+		});
+	}
 
 	test('serializes authorized reads from different sessions without sharing evidence', async () => {
 		const h = store.add(new CIHarness());
@@ -357,15 +502,15 @@ suite('Agent Merge CI diagnostics', () => {
 		await timeout(5 * 60_000 + 1);
 		await assert.rejects(h.read(range.next), /expired/);
 		await assert.rejects(h.read({ mode: 'tail', evidenceId }), /expired/);
-		const selected = await h.read({ jobId: 'job-0' });
-		assert.deepStrictEqual({ items: selected.items.length, job: selected.items[0].jobId, downloads: h.mutations.downloads }, { items: 1, job: 'job-0', downloads: 3 });
+		const selected = await h.read({ jobId: '100' });
+		assert.deepStrictEqual({ items: selected.items.length, job: selected.items[0].jobId, downloads: h.mutations.downloads }, { items: 1, job: '100', downloads: 3 });
 	}));
 
 	test('renews reused evidence so it does not expire during summary construction', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = store.add(new CIHarness());
 		const evidenceId = await h.evidenceId();
 		await timeout(5 * 60_000 - 1_000);
-		h.mutations.jobs.push({ ...h.mutations.jobs[0], id: 'job-1' });
+		h.mutations.jobs.push({ ...h.mutations.jobs[0], id: 101 });
 		h.mutations.beforeDownload = async () => { await timeout(2_000); };
 		const result = await h.read();
 		const ids = result.items.filter(item => item.kind === 'job').map(job => job.evidenceId);
@@ -398,7 +543,7 @@ suite('Agent Merge CI diagnostics', () => {
 	test('seeks search pages in a newline-dense 16 MiB log using bounded cached checkpoints', () => {
 		const evidence = store.add(new AgentMergeCIEvidenceStore());
 		const text = `${'\n'.repeat(16 * 1024 * 1024 - 5)}FAIL\n`;
-		const entry = evidence.tryAdd('scope', 1, { id: 'job', runId: '1', name: 'test' }, { text, truncated: false }, new AbortController().signal)!;
+		const entry = evidence.tryAdd('scope', 1, createTestWorkflowJob(), { text, truncated: false }, new AbortController().signal)!;
 		const checkpointReads: number[] = [];
 		const indexedEntry = {
 			...entry,
@@ -444,7 +589,7 @@ suite('Agent Merge CI diagnostics', () => {
 		const evidence = store.add(new AgentMergeCIEvidenceStore());
 		const prefix = `${'setup\r\n'.repeat(1_023)}\r\n`;
 		const text = `${prefix}FAIL: first\r\n\r\nFAIL: last`;
-		const entry = evidence.tryAdd('scope', 1, { id: 'job', runId: '1', name: 'test' }, { text, truncated: false }, new AbortController().signal)!;
+		const entry = evidence.tryAdd('scope', 1, createTestWorkflowJob(), { text, truncated: false }, new AbortController().signal)!;
 		const expected = [
 			{ line: 1_024, column: 1, text: '' },
 			{ line: 1_025, column: 1, text: 'FAIL: first' },
@@ -467,7 +612,7 @@ suite('Agent Merge CI diagnostics', () => {
 
 	test('empty evidence has no line-index entries or phantom lines', () => {
 		const evidence = store.add(new AgentMergeCIEvidenceStore());
-		const entry = evidence.tryAdd('scope', 1, { id: 'job', runId: '1', name: 'test' }, { text: '', truncated: false }, new AbortController().signal)!;
+		const entry = evidence.tryAdd('scope', 1, createTestWorkflowJob(), { text: '', truncated: false }, new AbortController().signal)!;
 		assert.deepStrictEqual({
 			lineCount: entry.lineCount, indexBytes: entry.lineStartOffsets.byteLength,
 			range: readCIRange(entry, {}).lines, tail: readCITail(entry).lines,
@@ -477,25 +622,25 @@ suite('Agent Merge CI diagnostics', () => {
 
 	test('does not publish a stale attempt or head if it changes during the download', async () => {
 		const h = store.add(new CIHarness());
-		h.mutations.beforeDownload = () => { h.mutations.run = { ...h.mutations.run, runAttempt: 2 }; };
+		h.mutations.beforeDownload = () => { h.mutations.run = { ...h.mutations.run, run_attempt: 2 }; };
 		await assert.rejects(h.read(), /attempt changed/);
 		h.mutations.beforeDownload = () => { h.snapshot.set(makeSnapshot(1, 'new-head'), undefined); };
-		h.mutations.jobs[0] = { ...h.mutations.jobs[0], runAttempt: 2 };
+		h.mutations.jobs[0] = { ...h.mutations.jobs[0], run_attempt: 2 };
 		await assert.rejects(h.read(), /head could not be confirmed/);
 	});
 
 	test('cache eviction, cancellation, cursor isolation and disposal have explicit outcomes', () => {
 		const evidence = store.add(new AgentMergeCIEvidenceStore());
 		const abort = new AbortController();
-		const job: GitHubWorkflowJob = { id: 'job', runId: '1', name: 'test' };
+		const job = createTestWorkflowJob();
 		const first = evidence.tryAdd('scope', 1, job, { text: 'redacted', truncated: false }, abort.signal)!;
 		const cursor = evidence.continue('scope', { request: { mode: 'tail', evidenceId: first.id } });
 		assert.throws(() => evidence.resolve(cursor.cursor, 'other-scope'), /unauthorized/);
 		for (let i = 0; i < 8; i++) {
-			evidence.tryAdd('scope', 1, { ...job, id: String(i) }, { text: '', truncated: false }, abort.signal);
+			evidence.tryAdd('scope', 1, { ...job, id: 200 + i }, { text: '', truncated: false }, abort.signal);
 		}
 		assert.throws(() => evidence.get(first.id, 'scope'), /expired/);
-		const last = evidence.find('scope', '7', '1', 1)!;
+		const last = evidence.find('scope', 207, 1, 1)!;
 		abort.abort();
 		assert.throws(() => evidence.get(last.id, 'scope'), /expired/);
 		evidence.dispose();
@@ -504,7 +649,7 @@ suite('Agent Merge CI diagnostics', () => {
 
 	test('tail, range and search preserve line numbers for CRLF, empty and very long lines', () => {
 		const evidence = store.add(new AgentMergeCIEvidenceStore());
-		const entry = evidence.tryAdd('scope', 1, { id: 'job', runId: '1', name: 'test' }, { text: `one\r\n\r\n${'x'.repeat(10_000)}FAIL`, truncated: false }, new AbortController().signal)!;
+		const entry = evidence.tryAdd('scope', 1, createTestWorkflowJob(), { text: `one\r\n\r\n${'x'.repeat(10_000)}FAIL`, truncated: false }, new AbortController().signal)!;
 		const tail = readCITail(entry, 1);
 		assert.deepStrictEqual({
 			range: readCIRange(entry, { startLine: 1, endLine: 2 }).lines,
@@ -516,20 +661,27 @@ suite('Agent Merge CI diagnostics', () => {
 	});
 });
 
-class CIMutations extends mock<IPullRequestMutations>() {
-	run: GitHubWorkflowRun = { id: '1', name: 'CI', headSha: 'head', runAttempt: 1, status: 'COMPLETED', conclusion: 'FAILURE' };
-	jobs: GitHubWorkflowJob[] = [];
+class CIMutations extends mock<PullRequestMutationApi>() {
+	run = createTestWorkflowRun();
+	jobs: WorkflowJob[] = [];
 	log: GitHubWorkflowLog = { text: '1 failing\nAssertionError: failure', truncated: false };
 	downloads = 0;
 	beforeDownload?: (signal: AbortSignal) => void | Promise<void>;
 	beforeJobs?: () => void;
-	override async listWorkflowRuns() { return [this.run]; }
-	override async listWorkflowJobs(_ref: PullRequestRef, _id: string, _signal: AbortSignal, attempt?: number) {
-		assert.strictEqual(attempt, this.run.runAttempt);
-		this.beforeJobs?.();
-		return this.jobs;
-	}
-	override async listCheckAnnotations() { return [{ path: 'test.ts', startLine: 1, endLine: 1, level: 'failure', message: 'Process completed with exit code 1' }]; }
+	readonly actions = upcastPartial<IActionsClient>({
+		listRuns: async () => ({ total_count: 1, workflow_runs: [this.run] }),
+		listJobsForAttempt: async (_repository, _id, attempt) => {
+			assert.strictEqual(attempt, this.run.run_attempt);
+			this.beforeJobs?.();
+			return { total_count: this.jobs.length, jobs: this.jobs };
+		},
+	});
+	readonly checks = upcastPartial<IChecksClient>({
+		listAnnotations: async () => [{
+			path: 'test.ts', start_line: 1, end_line: 1, start_column: null, end_column: null,
+			annotation_level: 'failure', message: 'Process completed with exit code 1', title: null, raw_details: null,
+		}],
+	});
 	override async downloadWorkflowJobLog(_ref: PullRequestRef, _id: string, signal: AbortSignal) {
 		this.downloads++;
 		await this.beforeDownload?.(signal);
@@ -553,9 +705,9 @@ class CIHarness extends Disposable {
 		this.snapshot = observableValue(this, makeSnapshot(count));
 		const abort = new AbortController();
 		this._register(toDisposable(() => abort.abort()));
-		this.mutations.jobs = Array.from({ length: count }, (_, index) => ({
-			id: `job-${index}`, checkRunId: `check-${index}`, runId: '1', name: `CI ${index}`, conclusion: 'FAILURE',
-			headSha: 'head', runAttempt: 1, steps: [{ number: 1, name: 'Run tests', conclusion: 'FAILURE' }],
+		this.mutations.jobs = Array.from({ length: count }, (_, index) => createTestWorkflowJob(100 + index, {
+			check_run_url: `https://api.github.com/repos/owner/repo/check-runs/${1000 + index}`, name: `CI ${index}`,
+			steps: [{ number: 1, name: 'Run tests', status: 'completed', conclusion: 'failure' }],
 		}));
 		const harness = this;
 		const client = new class extends mock<IGitHubClient>() {
@@ -572,7 +724,8 @@ class CIHarness extends Disposable {
 			}();
 		}();
 		this.context = {
-			client, session: 'session', chat: 'session', folderKey: 'folder', turnId: 'turn', ref, headSha: 'head', actions: ['fixCI'],
+			client, apiClient: upcastPartial<IGitHubAccountClient>({ actions: this.mutations.actions, checks: this.mutations.checks }),
+			session: 'session', chat: 'session', folderKey: 'folder', turnId: 'turn', ref, headSha: 'head', actions: ['fixCI'],
 			configuration: { ...defaultAgentMergeConfiguration, fixCI: true }, snapshot: this.snapshot.get(), signal: abort.signal,
 			commentWatermark: '', deferredCheckIds: this.deferred, initialDeferredCheckIds: new Set(), deferWorkflowRerun: () => false,
 			trackReviewReply: () => { assert.fail('Unexpected review reply in a CI turn'); },
@@ -595,8 +748,8 @@ class CIHarness extends Disposable {
 function makeSnapshot(count: number, headSha = 'head'): PullRequestSnapshot {
 	const missing = { status: 'missing' as const, complete: false };
 	const checks: PullRequestCheck[] = Array.from({ length: count }, (_, index) => ({
-		id: `check-${index}`, type: 'checkRun', name: `CI ${index}`, required: true, status: 'COMPLETED', conclusion: 'FAILURE',
-		detailsUrl: `https://github.com/owner/repo/actions/runs/1/job/job-${index}`,
+		id: String(1000 + index), type: 'checkRun', name: `CI ${index}`, required: true, status: 'COMPLETED', conclusion: 'FAILURE',
+		detailsUrl: `https://github.com/owner/repo/actions/runs/1/job/${100 + index}`,
 	}));
 	return {
 		ref, generation: 1, headGeneration: 1,
@@ -607,6 +760,6 @@ function makeSnapshot(count: number, headSha = 'head'): PullRequestSnapshot {
 			},
 		},
 		checks: { status: 'ready', complete: true, headSha, value: { headSha, requirednessComplete: true, expectedSuitesComplete: true, expectedSuites: [], checks } },
-		topLevelComments: missing, submittedReviews: missing, inlineComments: missing, reviewThreads: missing, mergeability: missing, participants: missing,
+		topLevelComments: missing, submittedReviews: missing, reviewThreads: missing, mergeability: missing,
 	};
 }

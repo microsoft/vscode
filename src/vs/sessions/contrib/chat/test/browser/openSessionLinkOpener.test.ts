@@ -27,7 +27,6 @@ import { ILinkPresentationProvider, ILinkPresentationService } from '../../../..
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpener, IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ISessionSummaryHoverProvider, ISessionSummaryHoverService } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
-import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -121,7 +120,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 		return { service, provider: () => registered };
 	}
 
-	test('opens deep session and chat links in the Agents window', async () => {
+	test('opens deep session and chat links in place or to the side in the Agents window', async () => {
 		let registeredOpener: IOpener | undefined;
 		const openerService = new class extends mock<IOpenerService>() {
 			override registerOpener(opener: IOpener): IDisposable {
@@ -143,6 +142,14 @@ suite('OpenSessionLinkOpenerContribution', () => {
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override async openChat(_session: ISession, resource: URI): Promise<void> {
 				opened.push(`chat:${resource.toString()}`);
+			}
+
+			override async openSessionToSide(_session: ISession, options?: Parameters<ISessionsService['openSessionToSide']>[1]): Promise<void> {
+				opened.push(`sessionSide:${options?.forceMainChat}:${options?.chatResource?.toString()}`);
+			}
+
+			override async openChatToSide(_session: ISession, resource: URI): Promise<void> {
+				opened.push(`chatSide:${resource.toString()}`);
 			}
 		};
 		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
@@ -169,7 +176,6 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			sessionsProvidersService,
 			sessionSummaryHoverService,
 			new class extends mock<ILabelService>() { },
-			new class extends mock<IPreferencesService>() { },
 		));
 
 		if (!registeredOpener) {
@@ -180,13 +186,17 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			results: [
 				await registeredOpener.open(buildOpenSessionLinkUri(sessionResource)),
 				await registeredOpener.open(buildOpenSessionLinkUri(sessionResource, 'chat-2', 'turn-1')),
+				await registeredOpener.open(buildOpenSessionLinkUri(sessionResource), { openToSide: true }),
+				await registeredOpener.open(buildOpenSessionLinkUri(sessionResource, 'chat-2', 'turn-1'), { openToSide: true }),
 			],
 			opened,
 		}, {
-			results: [true, true],
+			results: [true, true, true, true],
 			opened: [
 				'chat:copilotcli:/session-1',
 				'chat:copilotcli:/session-1#chat-2',
+				'sessionSide:true:undefined',
+				'chatSide:copilotcli:/session-1#chat-2',
 			],
 		});
 	});
@@ -241,7 +251,6 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			sessionsProvidersService,
 			sessionSummaryHoverService,
 			new class extends mock<ILabelService>() { },
-			new class extends mock<IPreferencesService>() { },
 		));
 
 		if (!registeredOpener) {
@@ -287,7 +296,6 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				sessionsProvidersService,
 				createSessionSummaryHoverService().service,
 				new class extends mock<ILabelService>() { },
-				new class extends mock<IPreferencesService>() { },
 			));
 			const results = [
 				await registeredOpener!.open(buildOpenSessionLinkUri(sessionResource, defaultId)),
@@ -362,7 +370,6 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			sessionsProvidersService,
 			sessionSummaryHoverService,
 			new class extends mock<ILabelService>() { },
-			new class extends mock<IPreferencesService>() { },
 		));
 
 		const watcher = presentationProvider?.createLinkPresentationWatcher(URI.parse(buildOpenSessionLinkUri(sessionResource, 'chat-2')));
@@ -426,7 +433,6 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			sessionsProvidersService,
 			hover.service,
 			new class extends mock<ILabelService>() { },
-			new class extends mock<IPreferencesService>() { },
 		));
 
 		const provider = hover.provider();
@@ -443,7 +449,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				location: undefined,
 				pullRequests: undefined,
 				createdBy: undefined,
-				externalSession: undefined,
+				application: undefined,
 				providerLabel: 'Local Agent Host',
 			},
 			unknown: undefined,

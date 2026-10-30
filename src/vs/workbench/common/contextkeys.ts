@@ -345,29 +345,37 @@ export class StaticResourceContextKey extends AbstractResourceContextKey { }
 
 //#endregion
 
-export function applyAvailableEditorIds(contextKey: IContextKey<string>, editor: EditorInput | undefined | null, editorResolverService: IEditorResolverService): void {
+export function applyAvailableEditorIds(contextKey: IContextKey<string>, editor: EditorInput | undefined | null, editorResolverService: IEditorResolverService, modelService: IModelService): void {
 	if (!editor) {
 		contextKey.set('');
 		return;
 	}
 
-	const editors = getAvailableEditorIds(editor, editorResolverService);
+	const editors = getAvailableEditorIds(editor, editorResolverService, modelService);
 	contextKey.set(editors.join(','));
 }
 
-function getAvailableEditorIds(editor: EditorInput, editorResolverService: IEditorResolverService): string[] {
-	// Non text editor untitled files cannot be easily serialized between
-	// extensions so instead we disable this context key to prevent common
-	// commands that act on the active editor.
-	if (editor.resource?.scheme === Schemas.untitled && editor.editorId !== DEFAULT_EDITOR_ASSOCIATION.id) {
+/**
+ * Whether the active editor of an untitled file can be switched to another editor type. The
+ * contents of an untitled file can only be handed over to another editor while its text model
+ * still owns them (e.g. in the text editor or a text based custom editor). Other custom editors
+ * take over the contents, which cannot be easily serialized between extensions.
+ */
+export function canSwitchUntitledEditor(editor: EditorInput, modelService: IModelService): boolean {
+	return editor.resource?.scheme !== Schemas.untitled || editor.editorId === DEFAULT_EDITOR_ASSOCIATION.id || !!modelService.getModel(editor.resource);
+}
+
+function getAvailableEditorIds(editor: EditorInput, editorResolverService: IEditorResolverService, modelService: IModelService): string[] {
+	// Disable this context key to prevent common commands that act on the active editor.
+	if (!canSwitchUntitledEditor(editor, modelService)) {
 		return [];
 	}
 
 	// Diff editors. The original and modified resources of a diff editor
 	// *should* be the same, but calculate the set intersection just to be safe.
 	if (isDiffEditorInput(editor)) {
-		const original = getAvailableEditorIds(editor.original, editorResolverService);
-		const modified = new Set(getAvailableEditorIds(editor.modified, editorResolverService));
+		const original = getAvailableEditorIds(editor.original, editorResolverService, modelService);
+		const modified = new Set(getAvailableEditorIds(editor.modified, editorResolverService, modelService));
 		return original.filter(editor => modified.has(editor));
 	}
 

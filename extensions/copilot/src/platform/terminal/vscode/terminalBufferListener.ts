@@ -11,14 +11,6 @@ import { removeAnsiEscapeCodes } from '../../../util/vs/base/common/strings';
 const terminalBuffers: Map<Terminal, string[]> = new Map();
 const terminalCommands: Map<Terminal, TerminalExecutedCommand[]> = new Map();
 
-export function getActiveTerminalBuffer(): string {
-	const activeTerminal = window.activeTerminal;
-	if (activeTerminal === undefined) {
-		return '';
-	}
-	return terminalBuffers.get(activeTerminal)?.join('') || '';
-}
-
 export function getBufferForTerminal(terminal?: Terminal, maxChars: number = 16000): string {
 	if (!terminal) {
 		return '';

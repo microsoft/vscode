@@ -36,8 +36,15 @@ suite('Sessions - Sessions Part', () => {
 
 	const activateCodicon = Reflect.get(SessionsPart.prototype, 'activateCodicon') as (this: ICodiconActivationTestHarness, element: HTMLElement) => void;
 
+	test('positional pane lookup distinguishes the empty composer from an absent pane', () => {
+		const { part } = createSessionsPartTestHarness(store);
+		const session = createTestActiveSession('session');
+		part.updateVisibleSessions([undefined, session], session);
+		assert.deepStrictEqual([part.getSessionAtPosition(0), part.getSessionAtPosition(-1)?.sessionId, part.getSessionAtPosition(2)], [null, session.sessionId, undefined]);
+	});
+
 	test('session gaps omit separators while compact density preserves themed separators', () => {
-		const colors = { [agentsPanelBorder]: '#ff0000', [agentsCardBorder]: '#00ff00' };
+		const colors = { [agentsPanelBorder]: '#ff0000', [agentsCardBorder]: '#00ff00', [contrastBorder]: '#00000000' };
 		const themes = [
 			new TestColorTheme(colors, ColorScheme.DARK),
 			new TestColorTheme({ ...colors, [contrastBorder]: '#ffffff' }, ColorScheme.HIGH_CONTRAST_DARK),
@@ -79,7 +86,7 @@ suite('Sessions - Sessions Part', () => {
 	});
 
 	test('compact session separators preserve contrast borders across theme changes', () => {
-		const colors = { [agentsPanelBorder]: '#ff0000', [agentsCardBorder]: '#00ff00' };
+		const colors = { [agentsPanelBorder]: '#ff0000', [agentsCardBorder]: '#00ff00', [contrastBorder]: '#00000000' };
 		const themes = [
 			new TestColorTheme(colors, ColorScheme.DARK),
 			new TestColorTheme({ ...colors, [contrastBorder]: '#ffffff' }, ColorScheme.HIGH_CONTRAST_DARK),
@@ -389,18 +396,39 @@ suite('Sessions - Sessions Part', () => {
 			initial: [noSessionPickerVisibility, noSessionPickerVisibility],
 			afterInactiveRender: noSessionPickerVisibility,
 			afterActiveRender: {
-				global: { workspace: true, harness: false, isolation: false },
-				first: { workspace: true, harness: false, isolation: false },
-				second: { workspace: false, harness: true, isolation: true },
+				global: { ...noSessionPickerVisibility, workspace: true },
+				first: { ...noSessionPickerVisibility, workspace: true },
+				second: { ...noSessionPickerVisibility, harness: true, isolation: true },
 			},
-			afterSwitch: { workspace: false, harness: true, isolation: true },
-			afterSwitchBack: { workspace: true, harness: true, isolation: false },
+			afterSwitch: { ...noSessionPickerVisibility, harness: true, isolation: true },
+			afterSwitchBack: { ...noSessionPickerVisibility, workspace: true, harness: true },
 			changes: [
-				{ workspace: false, harness: true, isolation: true },
-				{ workspace: true, harness: true, isolation: false },
+				{ ...noSessionPickerVisibility, harness: true, isolation: true },
+				{ ...noSessionPickerVisibility, workspace: true, harness: true },
 			],
 		});
 	});
+
+	for (const picker of ['environment', 'branch', 'worktree', 'sync'] as const) {
+		test(`projects ${picker} availability only from the active composer`, () => {
+			const { part, chatViews, contextKeyService } = createSessionsPartTestHarness(store);
+			const first = createTestActiveSession('first', false);
+			const second = createTestActiveSession('second', false);
+			part.updateVisibleSessions([first, second], first);
+			chatViews[1].inputPickerVisibility.setVisible(picker, true);
+			const inactive = getSessionPickerVisibility(contextKeyService);
+			const secondScope = getSessionPickerVisibility(contextKeyService, part.getSessionView(second.sessionId)!.element);
+			part.updateVisibleSessions([first, second], second);
+			const active = getSessionPickerVisibility(contextKeyService);
+			part.updateVisibleSessions([first, second], first);
+			assert.deepStrictEqual({ inactive, secondScope, active, switchedBack: getSessionPickerVisibility(contextKeyService) }, {
+				inactive: noSessionPickerVisibility,
+				secondScope: { ...noSessionPickerVisibility, [picker]: true },
+				active: { ...noSessionPickerVisibility, [picker]: true },
+				switchedBack: noSessionPickerVisibility,
+			});
+		});
+	}
 
 	test('inactive picker updates and disposal never reset the active view globally', () => {
 		const { part, chatViews, contextKeyService } = createSessionsPartTestHarness(store);
@@ -427,7 +455,7 @@ suite('Sessions - Sessions Part', () => {
 			pickerSnapshots: changes,
 		}, {
 			disposed: true,
-			global: { workspace: true, harness: true, isolation: false },
+			global: { ...noSessionPickerVisibility, workspace: true, harness: true },
 			pickerSnapshots: [],
 		});
 	});
@@ -468,13 +496,13 @@ suite('Sessions - Sessions Part', () => {
 			}, {
 				beforeActivation: noSessionPickerVisibility,
 				active: {
-					global: { workspace: true, harness: false, isolation: false },
+					global: { ...noSessionPickerVisibility, workspace: true },
 					empty: true,
 					existing: false,
 					existingScope: noSessionPickerVisibility,
 				},
 				hidden: [noSessionPickerVisibility, noSessionPickerVisibility],
-				shown: { workspace: true, harness: true, isolation: true },
+				shown: { ...noSessionPickerVisibility, workspace: true, harness: true, isolation: true },
 				hiddenLeaf: noSessionPickerVisibility,
 				disposed: noSessionPickerVisibility,
 			});
@@ -504,7 +532,7 @@ suite('Sessions - Sessions Part', () => {
 		}, {
 			sent: [noSessionPickerVisibility, noSessionPickerVisibility],
 			rebound: noSessionPickerVisibility,
-			rendered: { workspace: true, harness: false, isolation: false },
+			rendered: { ...noSessionPickerVisibility, workspace: true },
 			disposed: noSessionPickerVisibility,
 		});
 	});

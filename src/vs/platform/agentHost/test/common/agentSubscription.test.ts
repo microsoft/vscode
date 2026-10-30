@@ -118,7 +118,8 @@ suite('resolveAgentHostSession', () => {
 			peer: recordedOwner,
 			unknown: undefined,
 			folder: sessionUri,
-			terminal: sessionUri,
+			// A retained terminal link is routed by the chat it names; the session it embeds is for older builds.
+			terminal: recordedOwner,
 			peerChangeset: recordedOwner,
 			unknownChangeset: undefined,
 		});
@@ -317,17 +318,7 @@ suite('CanvasStateSubscription', () => {
 
 suite('RootStateSubscription', () => {
 
-	let disposables: DisposableStore;
-
-	setup(() => {
-		disposables = new DisposableStore();
-	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('value is undefined before snapshot', () => {
 		const sub = disposables.add(new RootStateSubscription('c1', noop));
@@ -470,19 +461,12 @@ suite('RootStateSubscription', () => {
 
 suite('SessionStateSubscription', () => {
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let seq: number;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		seq = 0;
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createSub(uri: string = sessionUri, clientId: string = 'c1'): SessionStateSubscription {
 		return disposables.add(new SessionStateSubscription(uri, clientId, () => ++seq, noop));
@@ -728,19 +712,12 @@ suite('ChatStateSubscription', () => {
 		}
 	});
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let seq: number;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		seq = 0;
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createSub(uri: string = chatUri, clientId: string = 'c1'): ChatStateSubscription {
 		return disposables.add(new ChatStateSubscription(uri, clientId, () => ++seq, noop));
@@ -820,6 +797,45 @@ suite('ChatStateSubscription', () => {
 			error,
 			responseParts: [{ kind: ResponsePartKind.Error, error }],
 			legacyField: undefined,
+		});
+	});
+
+	test('fires snapshot application after replaying buffered canvas changes', () => {
+		const sub = createSub();
+		sub.handleSnapshot(makeChatState(chatUri), 0);
+		const snapshots: ChatState[] = [];
+		disposables.add(sub.onDidApplySnapshot(state => snapshots.push(state)));
+
+		sub.beginSnapshotRefresh();
+		sub.receiveEnvelope(makeEnvelope({
+			type: ActionType.ChatCanvasesChanged,
+			canvases: [{ resource: 'ahp-canvas:/preview' }],
+		}, 2));
+		sub.handleSnapshot(makeChatState(chatUri), 1);
+
+		assert.deepStrictEqual(snapshots.map(snapshot => snapshot.canvases), [[{ resource: 'ahp-canvas:/preview' }]]);
+	});
+
+	test('reports buffered canvas changes replayed after a cancelled snapshot refresh', () => {
+		const sub = createSub();
+		sub.handleSnapshot(makeChatState(chatUri), 0);
+		const replayed: (readonly ActionEnvelope[])[] = [];
+		disposables.add(sub.onDidCancelSnapshotRefresh(envelopes => replayed.push(envelopes)));
+
+		sub.beginSnapshotRefresh();
+		sub.receiveEnvelope(makeEnvelope({
+			type: ActionType.ChatCanvasesChanged,
+			canvases: [{ resource: 'ahp-canvas:/preview' }],
+		}, 2));
+		sub.cancelSnapshotRefresh();
+		const value = sub.value;
+
+		assert.deepStrictEqual({
+			canvases: value instanceof Error ? undefined : value?.canvases,
+			replayed: replayed.map(envelopes => envelopes.map(envelope => envelope.action.type)),
+		}, {
+			canvases: [{ resource: 'ahp-canvas:/preview' }],
+			replayed: [[ActionType.ChatCanvasesChanged]],
 		});
 	});
 
@@ -957,17 +973,7 @@ suite('ChatStateSubscription', () => {
 
 suite('TerminalStateSubscription', () => {
 
-	let disposables: DisposableStore;
-
-	setup(() => {
-		disposables = new DisposableStore();
-	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('accepts terminal actions matching its URI', () => {
 		const sub = disposables.add(new TerminalStateSubscription(terminalUri, 'c1', noop));
@@ -1279,6 +1285,49 @@ suite('AgentSubscriptionManager', () => {
 
 		ref.dispose();
 		assert.ok(unsubscribedResources.includes(sessionUri));
+	});
+
+	test('a subscribe that resolves after its last ref was released is unsubscribed again, unless the resource is held again', async () => {
+		const hostSubscribed = new Set<string>();
+		const pending: { resource: string; resolve: () => void }[] = [];
+		const mgr = disposables.add(new AgentSubscriptionManager('c1', () => ++seq, noop, resource => new Promise<IStateSnapshot>(resolve => {
+			const key = resource.toString();
+			// The host subscribes when it answers, after any unsubscribe that overtook this subscribe on the wire.
+			pending.push({ resource: key, resolve: () => { hostSubscribed.add(key); resolve({ resource: key, state: makeSessionState(key), fromSeq: 0 }); } });
+		}), resource => { hostSubscribed.delete(resource.toString()); }));
+		const released = URI.parse('copilot:/released');
+		const reacquired = URI.parse('copilot:/reacquired');
+
+		mgr.getSubscription<SessionState>(StateComponents.Session, released, 'test').dispose();
+		mgr.getSubscription<SessionState>(StateComponents.Session, reacquired, 'test').dispose();
+		const held = mgr.getSubscription<SessionState>(StateComponents.Session, reacquired, 'test');
+		for (const request of pending) {
+			request.resolve();
+		}
+		await new Promise(r => setTimeout(r, 0));
+
+		assert.deepStrictEqual({ hostSubscribed: [...hostSubscribed].sort(), heldTitle: held.object.value instanceof Error ? undefined : held.object.value?.title !== undefined }, { hostSubscribed: [reacquired.toString()], heldTitle: true });
+		held.dispose();
+	});
+
+	test('a refresh that resolves after its last ref was released is unsubscribed again', async () => {
+		const hostSubscribed = new Set<string>();
+		const pending: (() => void)[] = [];
+		const mgr = disposables.add(new AgentSubscriptionManager('c1', () => ++seq, noop, resource => new Promise<IStateSnapshot>(resolve => {
+			const key = resource.toString();
+			pending.push(() => { hostSubscribed.add(key); resolve({ resource: key, state: makeSessionState(key), fromSeq: 0 }); });
+		}), resource => { hostSubscribed.delete(resource.toString()); }));
+		const resource = URI.parse('copilot:/refreshed');
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, resource, 'test');
+		pending.shift()!();
+		await new Promise(r => setTimeout(r, 0));
+
+		const refresh = mgr.refreshSubscription(resource);
+		ref.dispose();
+		pending.shift()!();
+		await refresh;
+
+		assert.deepStrictEqual([...hostSubscribed], []);
 	});
 
 	test('receiveEnvelope routes to root and all active subscriptions', async () => {

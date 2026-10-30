@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import assert from 'assert';
 import sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -128,7 +130,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			nullGitStateService,
 			createStatusService(status, onDidChangePullRequestStatus),
 			configurationService,
-			createNullSessionDataService(),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), createNullSessionDataService()),
 			new NullLogService(),
 		));
 	}
@@ -162,7 +164,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			nullGitStateService,
 			createStatusService(),
 			new class extends mock<IAgentConfigurationService>() { }(),
-			createSessionDataService(database),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), createSessionDataService(database)),
 			new NullLogService(),
 		));
 
@@ -269,7 +271,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 				override readonly onDidRootConfigChange = Event.None;
 				override getRootValue() { return undefined as never; }
 			}(),
-			createSessionDataService(new TestSessionDatabase()),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), createSessionDataService(new TestSessionDatabase())),
 			new NullLogService(),
 		));
 
@@ -321,7 +323,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 				override readonly onDidRootConfigChange = Event.None;
 				override getRootValue() { return undefined as never; }
 			}(),
-			createSessionDataService(new TestSessionDatabase()),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), createSessionDataService(new TestSessionDatabase())),
 			new NullLogService(),
 		));
 

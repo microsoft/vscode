@@ -128,16 +128,86 @@ for (const [theme, expected] of [
 }
 
 for (const theme of ['DarkHighContrast', 'LightHighContrast']) {
-	test(`connected tab actions retain hover and focus outlines in ${theme}`, async ({ page }) => {
-		await openFixture(page, `editor/tabs/Styles/Connected/${theme}`, '.tabs-container > .tab.active');
-		const action = page.locator('.tab.active .tab-actions .action-label');
+	test(`pill hover and focus strokes have a single owner in ${theme}`, async ({ page }) => {
+		await openFixture(page, `editor/tabs/Styles/Pill/${theme}`, '.tabs-container > .tab.active');
+		const tab = page.locator('.tabs-container > .tab:not(.active):not(.selected):not(.sticky)').first();
+		const fill = tab.locator('.tab-fill');
+		const action = tab.locator('.tab-actions .action-label');
+		const overlay = tab.locator('.tab-actions');
+		const initialBounds = await tab.boundingBox();
 
+		await tab.hover({ position: { x: 30, y: 12 } });
+		await expect(fill).toHaveCSS('border-top-style', 'dashed');
 		await action.hover();
 		await expect(action).toHaveCSS('outline-style', 'dashed');
+		await expect(overlay).toHaveCSS('border-top-color', 'rgba(0, 0, 0, 0)');
+		await expect(overlay).toHaveCSS('border-right-color', 'rgba(0, 0, 0, 0)');
+		await expect(overlay).toHaveCSS('border-bottom-color', 'rgba(0, 0, 0, 0)');
 
-		await expect(action).not.toHaveClass(/\bdisabled\b/);
+		await page.mouse.move(0, 0);
+		await tab.focus();
+		await expect(fill).toHaveCSS('border-top-style', 'solid');
+		const focusColor = await fill.evaluate(element => getComputedStyle(element).borderTopColor);
+		expect(await tab.evaluate(element => element.matches(':focus-visible'))).toBe(true);
 		await action.focus();
+		await expect(fill).toHaveCSS('border-top-style', 'solid');
+		await expect(fill).toHaveCSS('border-top-color', focusColor);
 		await expect(action).toHaveCSS('outline-style', 'solid');
 		await expect(action).toHaveCSS('outline-width', '1px');
+		await expect(overlay).toHaveCSS('border-top-color', 'rgba(0, 0, 0, 0)');
+		await action.hover();
+		await expect(fill).toHaveCSS('border-top-style', 'solid');
+		await expect(fill).toHaveCSS('border-top-color', focusColor);
+		expect(await tab.boundingBox()).toEqual(initialBounds);
+
+		const activeTab = page.locator('.tabs-container > .tab.active');
+		await activeTab.hover();
+		await expect(activeTab.locator('.tab-fill')).toHaveCSS('border-top-style', 'solid');
+		await expect(activeTab.locator('.tab-actions')).toHaveCSS('border-top-color', 'rgba(0, 0, 0, 0)');
 	});
+
+	for (const actionLocation of ['left', 'right']) {
+		test(`multi-selected pill overlays do not repaint HC borders with ${actionLocation} actions in ${theme}`, async ({ page }) => {
+			const fixture = actionLocation === 'left' ? 'PillMultiSelectedActionsOnLeft' : 'PillMultiSelected';
+			await openFixture(page, `editor/tabs/Styles/${fixture}/${theme}`, '.tabs-container > .tab.active.multi-selected');
+			for (const selector of ['.tab.active.multi-selected', '.tab.selected:not(.active)']) {
+				const tab = page.locator(`.tabs-container > ${selector}`).first();
+				const overlay = tab.locator('.tab-actions');
+				const action = overlay.locator('.action-label');
+				const readBorders = () => overlay.evaluate((element, location) => {
+					const style = getComputedStyle(element);
+					return [style.borderTopColor, location === 'left' ? style.borderLeftColor : style.borderRightColor, style.borderBottomColor];
+				}, actionLocation);
+				const transparentBorders = Array(3).fill('rgba(0, 0, 0, 0)');
+
+				await tab.hover({ position: { x: 30, y: 12 } });
+				expect(await readBorders()).toEqual(transparentBorders);
+				await action.hover();
+				expect(await readBorders()).toEqual(transparentBorders);
+				await page.mouse.move(0, 0);
+				await tab.focus();
+				const focusColor = await tab.locator('.tab-fill').evaluate(element => getComputedStyle(element).borderTopColor);
+				await action.focus();
+				await expect(tab.locator('.tab-fill')).toHaveCSS('border-top-color', focusColor);
+				await expect(action).toHaveCSS('outline-style', 'solid');
+				expect(await readBorders()).toEqual(transparentBorders);
+			}
+		});
+	}
+
+	for (const style of ['Connected', 'Legacy']) {
+		test(`${style} tab actions retain hover and focus outlines in ${theme}`, async ({ page }) => {
+			await openFixture(page, `editor/tabs/Styles/${style}/${theme}`, '.tabs-container > .tab.active');
+			const action = page.locator('.tab.active .tab-actions .action-label');
+
+			await action.hover();
+			await expect(action).toHaveCSS('outline-style', 'dashed');
+
+			await expect(action).not.toHaveClass(/\bdisabled\b/);
+			await page.mouse.move(0, 0);
+			await action.focus();
+			await expect(action).toHaveCSS('outline-style', 'solid');
+			await expect(action).toHaveCSS('outline-width', '1px');
+		});
+	}
 }

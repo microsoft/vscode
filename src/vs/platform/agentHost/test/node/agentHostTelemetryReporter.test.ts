@@ -109,22 +109,40 @@ suite('AgentHostTelemetryReporter', () => {
 		})));
 	});
 
+	function createTurnCompletedReport(provider: string): IAgentHostTurnCompletedReport {
+		return {
+			provider, session, owner: session, turnId: 'turn',
+			parentTurnId: undefined, parentToolCallId: undefined, subagentTaskModelSource: undefined,
+			timeToFirstProgress: undefined, timeToFirstSubstantiveProgress: undefined, timeToFirstEditMs: undefined,
+			startedWithSteering: false, receivedSteering: false,
+			totalTime: 100, result: 'success', model: undefined, modelTelemetryKind: undefined, modelSelectionKind: 'default',
+			permissionLevel: undefined, interactionMode: undefined, messageOriginKind: undefined, failure: undefined,
+			isMultiRoot: false, folderCount: 0, billedNanoAiu: undefined, directPromptTokenCount: undefined,
+			directPromptCacheTokenCount: undefined, directCompletionTokenCount: undefined, directBilledNanoAiu: undefined, modelCallCount: 0,
+		};
+	}
+
+	test('reports whether a turn used or discarded a pre-warmed session, and nothing when it found none', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+		const completion = createTurnCompletedReport('copilotcli');
+		reporter.turnCompleted(completion);
+		reporter.turnCompleted({ ...completion, providerTelemetryContext: { usedPrewarmedSession: true } });
+		reporter.turnCompleted({ ...completion, providerTelemetryContext: { prewarmedSessionDiscardReason: 'clientToolsChanged' } });
+		assert.deepStrictEqual(service.standardEvents.filter(event => event.eventName === 'agentHost.turnCompleted').map(event => ({ used: event.data?.usedPrewarmedSession, discardReason: event.data?.prewarmedSessionDiscardReason })), [
+			{ used: undefined, discardReason: undefined },
+			{ used: true, discardReason: undefined },
+			{ used: undefined, discardReason: 'clientToolsChanged' },
+		]);
+	});
+
 	test('limits turn context to schema fields on Codex completion and hang events', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 		const snapshot = getCodexAccountTelemetryContext({ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'plus' }, undefined, undefined);
 		const providerTelemetryContext = { codex: { ...snapshot, email: 'person@example.com', usedPercent: 42.4, resetsAt: 1000 } };
 		for (const provider of ['codex', 'copilot', 'claude']) {
-			const completion: IAgentHostTurnCompletedReport = {
-				provider, session, owner: session, turnId: 'turn',
-				parentTurnId: undefined, parentToolCallId: undefined, subagentTaskModelSource: undefined,
-				timeToFirstProgress: undefined, timeToFirstSubstantiveProgress: undefined, timeToFirstEditMs: undefined,
-				startedWithSteering: false, receivedSteering: false,
-				totalTime: 100, result: 'success', model: undefined, modelTelemetryKind: undefined, modelSelectionKind: 'default',
-				permissionLevel: undefined, interactionMode: undefined, messageOriginKind: undefined, failure: undefined,
-				isMultiRoot: false, folderCount: 0, billedNanoAiu: undefined, directPromptTokenCount: undefined,
-				directPromptCacheTokenCount: undefined, directCompletionTokenCount: undefined, directBilledNanoAiu: undefined, modelCallCount: 0,
-			};
+			const completion = createTurnCompletedReport(provider);
 			const hang: IAgentHostTurnHungReport = {
 				provider, session, owner: session, turnId: 'turn', messageOriginKind: undefined, hangReason: 'noProgress', hadAnyProgress: false,
 				lastActivityKind: 'none', currentStage: 'provider', providerDiagnosticState: 'unsupported', providerDiagnosticSnapshot: undefined,

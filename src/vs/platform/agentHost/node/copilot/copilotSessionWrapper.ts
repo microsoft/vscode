@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, NamedProviderConfig, ProviderModelConfig, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
+import type { CopilotSession, NamedProviderConfig, ProviderModelConfig, SessionConfig, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -17,6 +17,20 @@ export type CopilotModelCallFinishedOutcome = 'success' | 'error' | 'cancelled' 
 
 /** Conversation events emitted by a provisional (not yet committed) Fusion phase. */
 export type CopilotProvisionalFusionEvent = SessionEventPayload<'tool.execution_start'> | SessionEventPayload<'tool.execution_complete'> | SessionEventPayload<'assistant.message'>;
+
+const mcpServerToolsLoadedEventType = 'session.mcp_server_tools_loaded' as SessionEventType;
+
+/**
+ * `session.mcp_server_tools_loaded` marks the current connection's tools loaded, also reflected by
+ * inventory `live.toolsLoaded`. It can precede `connected` when tools come from a cached snapshot.
+ */
+export interface ICopilotMcpServerToolsLoadedEvent {
+	readonly id: string;
+	readonly data: {
+		readonly serverName: string;
+		readonly toolCount: number;
+	};
+}
 
 export interface ICopilotModelCallFinishedEvent {
 	readonly id: string;
@@ -44,6 +58,8 @@ export interface ICopilotByokSessionConfig {
  */
 export class CopilotSessionWrapper extends Disposable {
 
+	private readonly _onEvent = this._register(new Emitter<SessionEvent>());
+	readonly onEvent = this._onEvent.event;
 	private readonly _handledEventTypes = new Set<SessionEventType>();
 	private readonly _onUnhandledEvent = this._register(new Emitter<SessionEvent>());
 	readonly onUnhandledEvent = this._onUnhandledEvent.event;
@@ -68,11 +84,16 @@ export class CopilotSessionWrapper extends Disposable {
 		readonly canvasRuntimeEnabled: boolean,
 		/** BYOK providers and models the SDK session was launched with. */
 		readonly launchByokConfig: ICopilotByokSessionConfig,
+		readonly launchImageGenerationEnabled: boolean,
+		readonly launchImageGenerationWatermark: boolean,
+		/** The trust the SDK session was created with for its working directory; `undefined` for a resume or no grant. */
+		readonly launchWorkingDirectoryTrust: SessionConfig['trustWorkingDirectory'],
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._logService.info(this._lifecycleLogMessage('attached'));
 		const unsubscribeAll = session.on(event => {
+			this._onEvent.fire(event);
 			if (isProvisionalFusionConversationEvent(event)) {
 				if (event.type === 'tool.execution_start' || event.type === 'tool.execution_complete' || event.type === 'assistant.message') {
 					this._onProvisionalFusionEvent.fire(event);
@@ -433,6 +454,13 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onMcpServerStatusChanged: Event<SessionEventPayload<'session.mcp_server_status_changed'>> | undefined;
 	get onMcpServerStatusChanged(): Event<SessionEventPayload<'session.mcp_server_status_changed'>> {
 		return this._onMcpServerStatusChanged ??= this._sdkEvent('session.mcp_server_status_changed');
+	}
+
+	private _onMcpServerToolsLoaded: Event<ICopilotMcpServerToolsLoadedEvent> | undefined;
+	/** Fires once per connection when the server's tools become available. */
+	get onMcpServerToolsLoaded(): Event<ICopilotMcpServerToolsLoadedEvent> {
+		// Newer runtimes emit this before the bundled SDK types know about it.
+		return this._onMcpServerToolsLoaded ??= this._sdkEvent(mcpServerToolsLoadedEventType) as unknown as Event<ICopilotMcpServerToolsLoadedEvent>;
 	}
 
 	private _onMcpOAuthCompleted: Event<SessionEventPayload<'mcp.oauth_completed'>> | undefined;

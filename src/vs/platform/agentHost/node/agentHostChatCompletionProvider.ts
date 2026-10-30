@@ -8,7 +8,7 @@ import { URI } from '../../../base/common/uri.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { ChatInteractivity, ChatOriginKind, MessageAttachmentKind } from '../common/state/protocol/state.js';
 import { isAhpChatChannel } from '../common/state/sessionState.js';
-import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
+import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider, type IAgentHostCompletionContext } from './agentHostCompletions.js';
 import { AgentHostStateManager, resolveChatStateForUri } from './agentHostStateManager.js';
 
 /** Maximum number of chat completion items returned per call. */
@@ -109,7 +109,7 @@ export class AgentHostChatCompletionProvider implements IAgentHostCompletionItem
 		private readonly _stateManager: AgentHostStateManager,
 	) { }
 
-	async provideCompletionItems(params: CompletionsParams, token: CancellationToken): Promise<readonly CompletionItem[]> {
+	async provideCompletionItems(params: CompletionsParams, _context: IAgentHostCompletionContext, token: CancellationToken): Promise<readonly CompletionItem[]> {
 		const chatToken = extractChatToken(params.text, params.offset);
 		if (!chatToken) {
 			return [];

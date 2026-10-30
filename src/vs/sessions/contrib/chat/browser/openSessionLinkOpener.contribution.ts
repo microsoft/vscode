@@ -16,7 +16,6 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ISessionSummaryHoverService } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
-import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -48,11 +47,10 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ISessionSummaryHoverService sessionSummaryHoverService: ISessionSummaryHoverService,
 		@ILabelService labelService: ILabelService,
-		@IPreferencesService preferencesService: IPreferencesService,
 	) {
 		super();
 		this._register(openerService.registerOpener({
-			open: async resource => this._open(resource),
+			open: async (resource, options) => this._open(resource, { openToSide: false, ...options }.openToSide === true),
 		}));
 		this._register(linkPresentationService.registerLinkPresentationProvider({
 			id: 'sessions.agentSessionLinkPresentation',
@@ -73,7 +71,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		this._register(sessionSummaryHoverService.registerProvider({
 			provideSessionSummaryHoverData: async resource => {
 				const session = this._findSessionForLink(resource);
-				return session ? getSessionSummaryHoverData(session, sessionsProvidersService, openerService, labelService, preferencesService) : undefined;
+				return session ? getSessionSummaryHoverData(session, sessionsProvidersService, openerService, labelService) : undefined;
 			},
 		}));
 	}
@@ -91,7 +89,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		return !!resolution && await isDefaultChatLinkId(resolution.connection, resolution.backendSession, chatId);
 	}
 
-	private async _open(resource: URI | string): Promise<boolean> {
+	private async _open(resource: URI | string, openToSide: boolean): Promise<boolean> {
 		const session = this._findSessionForLink(resource);
 		if (!session) {
 			return false;
@@ -99,7 +97,15 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		// An absent chat id means the session's main/default chat, not "no target chat" (see buildOpenSessionLinkUri).
 		const chatId = parseOpenSessionLinkChatId(resource);
 		const chatResource = chatId && !await this._isDefaultChatId(session, chatId) ? session.resource.with({ fragment: chatId }) : session.mainChat.get().resource;
-		await this._sessionsService.openChat(session, chatResource, { source: 'link' });
+		if (openToSide) {
+			if (chatId) {
+				await this._sessionsService.openChatToSide(session, chatResource);
+			} else {
+				await this._sessionsService.openSessionToSide(session, { forceMainChat: true, source: 'link' });
+			}
+		} else {
+			await this._sessionsService.openChat(session, chatResource, { source: 'link' });
+		}
 		return true;
 	}
 }

@@ -20,7 +20,7 @@ jobs:
     pool:
       name: 1es-ubuntu-22.04-x64
       os: linux
-    timeoutInMinutes: 1300
+    timeoutInMinutes: 150
     variables:
       VSCODE_ARCH: x64
     steps:
@@ -113,7 +113,10 @@ jobs:
 
           echo "##vso[task.setvariable variable=MODIFIED_BUILD_FOLDERS]$MODIFIED_BUILD_FOLDERS"
 
-          ATTEMPTS=120
+          # Retry transient feed failures for up to ~50 minutes. Do not wait here for package
+          # versions that are too new: the feed only serves npmjs.com versions that are at
+          # least 7 days old.
+          ATTEMPTS=6
           if [ "$(Build.RequestedFor)" = "dependabot[bot]" ]; then
             ATTEMPTS=3
           fi
@@ -147,6 +150,7 @@ jobs:
           done
 
           echo "giving up after $ATTEMPTS attempts"
+          echo "##vso[task.logissue type=error]npm install failed. If it reports ETARGET or 404 for a package version, that version may be younger than 7 days, which the internal npm feed does not serve yet."
           exit 1
         env:
           npm_command: 'install --ignore-scripts'
@@ -154,7 +158,7 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Install dependencies with retries
-        timeoutInMinutes: 1300
+        timeoutInMinutes: 120
         condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
 
       - script: node build/npm/check-allow-scripts.ts

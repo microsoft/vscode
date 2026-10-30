@@ -28,9 +28,6 @@ export function unionPullRequestInterests(options: Iterable<PullRequestSubscript
 		if (value.conversation?.submittedReviews) {
 			merge(result, 'submittedReviews', { priority: value.priority, includeBodies: value.conversation.includeBodies === true });
 		}
-		if (value.conversation?.inlineComments) {
-			merge(result, 'inlineComments', { priority: value.priority, includeBodies: value.conversation.includeBodies === true });
-		}
 		if (value.conversation?.reviewThreads) {
 			merge(result, 'reviewThreads', { priority: value.priority, includeBodies: value.conversation.includeBodies === true });
 		}
@@ -43,9 +40,6 @@ export function unionPullRequestInterests(options: Iterable<PullRequestSubscript
 		}
 		if (value.mergeability) {
 			merge(result, 'mergeability', { priority: value.priority });
-		}
-		if (value.participants) {
-			merge(result, 'participants', { priority: value.priority });
 		}
 	}
 	return result;
@@ -60,8 +54,6 @@ export function pullRequestOptionsForFragment(
 			return { priority: interest.priority, conversation: { topLevelComments: true, includeBodies: interest.includeBodies } };
 		case 'submittedReviews':
 			return { priority: interest.priority, conversation: { submittedReviews: true, includeBodies: interest.includeBodies } };
-		case 'inlineComments':
-			return { priority: interest.priority, conversation: { inlineComments: true, includeBodies: interest.includeBodies } };
 		case 'reviewThreads':
 			return { priority: interest.priority, conversation: { reviewThreads: true, includeBodies: interest.includeBodies } };
 		case 'checks':
@@ -71,8 +63,6 @@ export function pullRequestOptionsForFragment(
 			};
 		case 'mergeability':
 			return { priority: interest.priority, mergeability: true };
-		case 'participants':
-			return { priority: interest.priority, participants: true };
 		case 'core':
 			return { priority: interest.priority, core: true };
 	}

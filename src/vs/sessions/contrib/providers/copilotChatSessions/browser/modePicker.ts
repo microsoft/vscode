@@ -14,7 +14,7 @@ import { IActionWidgetService } from '../../../../../platform/actionWidget/brows
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ChatMode, IChatMode, IChatModes, IChatModeService } from '../../../../../workbench/contrib/chat/common/chatModes.js';
+import { ChatMode, getChatModeSourceLabel, IChatMode, IChatModes, IChatModeService } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { reportChatModeChange } from '../../../../../workbench/contrib/chat/common/chatModeTelemetry.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { getAgentHostProviderForTelemetry, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -266,6 +266,8 @@ export class ModePicker extends Disposable {
 		const trigger = dom.append(slot, dom.$('a.action-label'));
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
+		trigger.setAttribute('aria-haspopup', 'listbox');
+		trigger.setAttribute('aria-expanded', 'false');
 		this._triggerElement = trigger;
 
 		this._updateTriggerLabel();
@@ -321,10 +323,13 @@ export class ModePicker extends Disposable {
 				}
 			},
 			onHide: () => {
+				triggerElement.setAttribute('aria-expanded', 'false');
 				triggerElement.focus();
 			},
 		};
 
+		// Shows the trigger as expanded, and with it the toolbar's open picker background.
+		triggerElement.setAttribute('aria-expanded', 'true');
 		this.actionWidgetService.show<ModePickerItem>(
 			'localModePicker',
 			false,
@@ -334,7 +339,9 @@ export class ModePicker extends Disposable {
 			undefined,
 			[],
 			{
-				getAriaLabel: (item) => item.label ?? '',
+				getAriaLabel: item => item.ariaDescription
+					? localize('modePicker.sourceAriaLabel', "{0}, {1}", item.label ?? '', item.ariaDescription)
+					: item.label ?? '',
 				getWidgetAriaLabel: () => localize('modePicker.ariaLabel', "Mode Picker"),
 			},
 		);
@@ -359,9 +366,12 @@ export class ModePicker extends Disposable {
 		if (customModes.length > 0) {
 			items.push({ kind: ActionListItemKind.Separator, label: '' });
 			for (const mode of customModes) {
+				const source = getChatModeSourceLabel(mode, modes);
 				items.push({
 					kind: ActionListItemKind.Action,
 					label: mode.label.get(),
+					description: source,
+					ariaDescription: source,
 					group: { title: '', icon: selectedModeId === mode.id ? Codicon.check : Codicon.blank },
 					item: { kind: 'mode', mode },
 				});

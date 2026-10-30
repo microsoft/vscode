@@ -146,6 +146,12 @@ export interface IAgentHostConnectionsService {
 	 */
 	registerSessionResolutionPolicy(authority: string, policy: IAgentHostSessionResolutionPolicy): IDisposable;
 
+	/**
+	 * Runs `fn`, coalescing every {@link onDidChangeSessionResolution} it would fire into a single
+	 * event emitted after the outermost batch completes. Reads inside the batch see the new state.
+	 */
+	batchSessionResolutionChanges<T>(fn: () => T): T;
+
 	/** Records an exact backend identity and adapts only its frontend provider scheme. */
 	registerSessionResource(backendSession: URI, authority?: string, provider?: string): URI;
 

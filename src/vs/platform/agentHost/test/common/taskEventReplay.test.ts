@@ -83,6 +83,25 @@ suite('Task event replay', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('distinguishes recorded default chats from synthesized empty state', () => {
+		const chat = 'ahp-chat:/opaque-default';
+		const results = [
+			[event(SESSION_A, 0, SESSION_A, titleChanged('New task'))],
+			[event(SESSION_A, 0, 'terminal:/opaque', { type: 'terminal/data', data: 'output' })],
+			[
+				event(SESSION_A, 0, SESSION_A, { type: 'session/defaultChatChanged', defaultChat: chat }),
+				event(SESSION_A, 1, chat, { type: 'chat/isReadChanged', isRead: true }),
+			],
+		].map(events => {
+			const session = replayTaskAhpEvents(events)?.sessions[0];
+			return { recorded: session?.hasRecordedDefaultChat, chats: session?.chats.size };
+		});
+
+		assert.deepStrictEqual(results, [
+			{ recorded: false, chats: 1 }, { recorded: false, chats: 1 }, { recorded: true, chats: 1 },
+		]);
+	});
+
 	test('folds session and chat history into state', () => {
 		const chat = defaultChat(SESSION_A);
 		const history = replayTaskAhpEvents([

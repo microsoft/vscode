@@ -44,6 +44,7 @@ import { defineAgentHostE2ETests } from '../suites/agentHostE2ESuites.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, TestProtocolClient, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
+import { agentModelConfigurationReportKey, readAgentModelConfigurationReport } from '../../../../common/agentModelConfiguration.js';
 
 const RECORD_ONLY = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
 const RECORD = RECORD_ONLY || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
@@ -112,13 +113,29 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			kind: 'archive',
 			session: sessionUri,
 		});
+		await client.waitForNotification(notification => {
+			if (!isActionNotification(notification, ActionType.SessionConfigChanged)) {
+				return false;
+			}
+			const envelope = getActionEnvelope(notification);
+			return envelope.channel === sessionUri && envelope.action.type === ActionType.SessionConfigChanged
+				&& readAgentModelConfigurationReport(envelope.action.config, defaultChatChannel(sessionUri))?.current?.id === COPILOT_CONFIG.createSessionModelTarget;
+		});
+		const state = await fetchSessionWithChat(client, sessionUri);
+		const report = readAgentModelConfigurationReport(state.config?.values, defaultChatChannel(sessionUri));
 
 		assert.deepStrictEqual({
 			providerLogsIncluded: debugLogs.providerLogsIncluded,
 			hasEventsLog: debugLogs.entries.some(entry => entry.path === 'events.jsonl'),
+			modelReportReadOnly: state.config?.schema.properties[agentModelConfigurationReportKey]?.readOnly,
+			reportedModel: report?.current?.id,
+			reportedModelReadOnly: report?.models[COPILOT_CONFIG.createSessionModelTarget!]?.readOnly,
 		}, {
 			providerLogsIncluded: true,
 			hasEventsLog: true,
+			modelReportReadOnly: true,
+			reportedModel: COPILOT_CONFIG.createSessionModelTarget,
+			reportedModelReadOnly: [],
 		});
 	});
 

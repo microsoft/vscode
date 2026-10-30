@@ -26,6 +26,9 @@ import { openSession, openSessionByResource, ISessionOpenerParticipant, sessionO
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 suite('AgentSessionsOpener', () => {
@@ -196,6 +199,51 @@ suite('AgentSessionsOpener', () => {
 		assert.strictEqual(handledSession?.resource.toString(), twin.toString());
 	});
 
+	test('a list click opens the session in an editor when chat.agentSessions.openInEditor is enabled, like a file: in the active group, or to the side with a modifier', async () => {
+		const resource = URI.parse('test-session://provider/session');
+		const session = upcastPartial<IAgentSession>({ resource, providerType: 'test-session', label: 'Session', setRead: () => { } });
+		const open = async (openInEditor: boolean, existing: 'none' | 'chatView' | 'editor', sideBySide = false) => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(ILogService, new NullLogService());
+			stubAgentHost(instantiationService);
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.OpenSessionsInEditor]: openInEditor }));
+			instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ error: () => undefined }));
+			instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
+				activateChatSessionItemProvider: async () => undefined,
+				canResolveChatSession: async () => true,
+			}));
+			let opened: { target: unknown; revealIfOpened: boolean | undefined } | undefined;
+			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
+				getWidgetBySessionResource: () => existing === 'none' ? undefined : upcastPartial<IChatWidget>({
+					viewContext: existing === 'chatView' ? { viewId: 'workbench.panel.chat.view.copilot' } : {},
+				}),
+				openSession: async (_resource, target, options) => {
+					opened = { target, revealIfOpened: options?.revealIfOpened };
+					return undefined;
+				},
+			}));
+			await instantiationService.invokeFunction(openSession, session, sideBySide ? { sideBySide } : undefined, /* alreadyResolved */ true);
+			return opened;
+		};
+
+		assert.deepStrictEqual({
+			chatView: await open(false, 'none'),
+			modifierWithoutSetting: await open(false, 'none', true),
+			// No widget: the session is not open, or only as an inactive tab; the editor service looks for that tab.
+			noWidget: await open(true, 'none'),
+			movedFromChatView: await open(true, 'chatView'),
+			revealedEditor: await open(true, 'editor'),
+			toTheSide: await open(true, 'editor', true),
+		}, {
+			chatView: { target: ChatViewPaneTarget, revealIfOpened: true },
+			modifierWithoutSetting: { target: ACTIVE_GROUP, revealIfOpened: true },
+			noWidget: { target: ACTIVE_GROUP, revealIfOpened: true },
+			movedFromChatView: { target: ACTIVE_GROUP, revealIfOpened: false },
+			revealedEditor: { target: ACTIVE_GROUP, revealIfOpened: true },
+			toTheSide: { target: SIDE_GROUP, revealIfOpened: false },
+		});
+	});
+
 	test('reports a migrated session refresh failure without swallowing it', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const events: { name: string; data: unknown }[] = [];
@@ -254,6 +302,7 @@ suite('AgentSessionsOpener', () => {
 			}));
 			const chatSessionsService = disposables.add(instantiationService.createInstance(ChatSessionsService));
 			instantiationService.stub(IChatSessionsService, chatSessionsService);
+			disposables.add(chatSessionsService.registerChatSessionContribution({ type: 'copilotcli', name: 'copilotcli', displayName: 'copilotcli', description: '' }));
 			const provider = 'agent-host-copilotcli';
 			disposables.add(chatSessionsService.registerChatSessionContribution({ type: provider, name: provider, displayName: provider, description: '' }));
 			let refreshCount = 0;
@@ -306,4 +355,41 @@ suite('AgentSessionsOpener', () => {
 			});
 		}));
 	}
+
+	test('opens the fallback agent-host twin when the legacy provider is absent and the twin is not in the model after refresh', async () => {
+		const legacy = URI.parse('copilotcli:/sess-unlisted');
+		const twin = URI.parse('agent-host-copilotcli:/sess-unlisted');
+		const staleCachedLegacy = upcastPartial<IAgentSession>({ resource: legacy, providerType: 'copilotcli' });
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true }));
+		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({ withProgress: (_options, task) => task({ report() { } }) }));
+		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({ ambientConnection: undefined }));
+		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
+			getChatSessionContribution: () => undefined,
+		}));
+		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
+			getSession: resource => resource.toString() === legacy.toString() ? staleCachedLegacy : undefined,
+			model: upcastPartial<IAgentSessionsService['model']>({ resolve: async () => { } }),
+		}));
+
+		let openedSession: IAgentSession | undefined;
+		const registration = sessionOpenerRegistry.registerParticipant({
+			handleOpenSession: async (_accessor, candidate) => {
+				openedSession = candidate;
+				return true;
+			},
+		});
+		try {
+			await instantiationService.invokeFunction(openSessionByResource, legacy);
+		} finally {
+			registration.dispose();
+		}
+
+		assert.deepStrictEqual(
+			{ resource: openedSession?.resource.toString(), providerType: openedSession?.providerType },
+			{ resource: twin.toString(), providerType: 'agent-host-copilotcli' },
+		);
+	});
 });

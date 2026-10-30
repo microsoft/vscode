@@ -30,7 +30,7 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISessionCanvas, ISessionCapabilities } from '../../../../services/sessions/common/session.js';
+import { IChat, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetOwner, SessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
 import { ISessionCanvasRegistryService } from '../../common/sessionCanvas.js';
@@ -41,10 +41,13 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { SessionCanvasContextService } from '../../electron-browser/sessionCanvasService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 
 suite('SessionCanvasService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const emptyRegistryService = upcastPartial<ISessionCanvasRegistryService>({
+		supportsCanvases: constObservable(false),
 		availableCanvases: constObservable([]),
 		openCanvas: async () => { },
 	});
@@ -73,12 +76,25 @@ suite('SessionCanvasService', () => {
 			isArchived,
 		});
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
+		const activeCustomView = observableValue<ICustomViewDescriptor | undefined>('customView', undefined);
 		const sessionsService = upcastPartial<ISessionsService>({ activeSession });
 		const sessionChanges = store.add(new Emitter<ISessionsChangeEvent>());
 		const chatDeleted = store.add(new Emitter<IChatDeletedEvent>());
+		const definition: ISessionCanvasDefinition = {
+			canvasId: 'preview',
+			extensionId: 'user:preview',
+			extensionSource: 'user',
+			extensionName: 'Preview',
+			displayName: 'Preview',
+			description: 'Interactive preview.',
+			requiresInput: false,
+		};
+		const definitionOpens: { canvas: ISessionCanvasDefinition; instanceId: string }[] = [];
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({
 			onDidChangeSessions: sessionChanges.event,
 			onDidDeleteChat: chatDeleted.event,
+			listCanvases: async () => [definition],
+			openCanvas: async (_session, _chat, canvas, instanceId) => { definitionOpens.push({ canvas, instanceId }); },
 		});
 		const opened: CanvasInput[] = [];
 		const openOptions: unknown[] = [];
@@ -127,6 +143,7 @@ suite('SessionCanvasService', () => {
 			editorWorkingSetService,
 			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
 			upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }),
+			upcastPartial<ICustomViewService>({ activeCustomView }),
 		));
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IEditorGroupsService, editorGroupsService);
@@ -153,7 +170,7 @@ suite('SessionCanvasService', () => {
 		const setFindEditorsHandler = (handler: (resource: URI) => readonly IEditorIdentifier[]) => findEditorsHandler = handler;
 		const setCloseEditorsHandler = (handler: () => Promise<void>) => closeEditorsHandler = handler;
 		const setCreateBrowserModelHandler = (handler: (url: string, openSource: string | undefined) => Promise<IBrowserViewModel>) => createBrowserModelHandler = handler;
-		return { activeChat, activeSession, canvas, canvasService, canvases, chat, chatDeleted, chats, closeSettled, editorWorkingSetService, isArchived, opened, openOptions, openSettled, session, sessionChanges, get closeCount() { return closeCount; }, setCanvasesEnabled, setCloseEditorsHandler, setCreateBrowserModelHandler, setFindEditorsHandler, setOpenEditorHandler };
+		return { activeChat, activeCustomView, activeSession, canvas, canvasService, canvases, chat, chatDeleted, chats, closeSettled, contextService, definition, definitionOpens, editorWorkingSetService, isArchived, opened, openOptions, openSettled, session, sessionChanges, get closeCount() { return closeCount; }, setCanvasesEnabled, setCloseEditorsHandler, setCreateBrowserModelHandler, setFindEditorsHandler, setOpenEditorHandler };
 	}
 
 	function owner(session: IActiveSession, chatResource?: URI): ISessionEditorWorkingSetOwner {
@@ -164,6 +181,42 @@ suite('SessionCanvasService', () => {
 		const { openOptions } = createHarness();
 
 		assert.deepStrictEqual(openOptions, [{ pinned: true, revealIfOpened: true, preserveFocus: false }]);
+	});
+
+	test('custom views defer new canvases until the session surface is visible again', () => {
+		const harness = createHarness(true, []);
+		harness.activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: 'test.customView' }), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		const hiddenOpens = harness.opened.length;
+		harness.activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: 'test.otherCustomView' }), undefined);
+		const switchedOpens = harness.opened.length;
+		harness.activeCustomView.set(undefined, undefined);
+		assert.deepStrictEqual({ hiddenOpens, switchedOpens, visibleOpens: harness.opened.length }, { hiddenOpens: 0, switchedOpens: 0, visibleOpens: 1 });
+	});
+
+	test('projects active-chat Canvas definitions through the shared context', async () => {
+		const harness = createHarness();
+		const context = harness.contextService.contexts.get()[0];
+		assert.ok(context.definitionProvider);
+		let changeCount = 0;
+		store.add(context.definitionProvider.onDidChangeDefinitions(() => changeCount++));
+		const definitions = await context.definitionProvider.listCanvases();
+		assert.ok(definitions);
+		await context.definitionProvider.openCanvas(definitions[0], 'preview-instance');
+		const beforeChange = changeCount;
+		harness.canvases.set([], undefined);
+
+		assert.deepStrictEqual({
+			frontendSessionResource: harness.contextService.getFrontendSessionResource(context.owner)?.toString(),
+			definitions,
+			definitionOpens: harness.definitionOpens,
+			definitionsChanged: changeCount > beforeChange,
+		}, {
+			frontendSessionResource: harness.session.resource.toString(),
+			definitions: [harness.definition],
+			definitionOpens: [{ canvas: harness.definition, instanceId: 'preview-instance' }],
+			definitionsChanged: true,
+		});
 	});
 
 	test('registers live canvas inputs for retention across Details-only layout collapse', async () => {
@@ -550,8 +603,8 @@ suite('SessionCanvasService', () => {
 			{ resource: URI.parse('agent-host-canvas:/logs-numbered'), instanceId: undefined, title: 'Logs', source: URI.parse('https://example.test/logs-numbered') },
 			{ resource: URI.parse('agent-host-canvas:/logs-semantic'), instanceId: '1', title: 'Logs', source: URI.parse('https://example.test/logs-semantic') },
 		];
-		const { canvasService, canvases: canvasStates, opened } = createHarness(true, canvases);
-		const registration = store.add(registerSessionCanvasActions(canvasService, emptyRegistryService));
+		const { canvasService, canvases: canvasStates, contextService, opened } = createHarness(true, canvases);
+		const registration = store.add(registerSessionCanvasActions(canvasService, emptyRegistryService, contextService));
 		for (const input of [...opened]) {
 			input.dispose();
 		}
@@ -562,10 +615,20 @@ suite('SessionCanvasService', () => {
 		const getSubmenus = () => MenuRegistry.getMenuItems(Menus.SessionsEditorTabsBarAddTab)
 			.filter(isISubmenuItem)
 			.filter(item => item.submenu === Menus.SessionsEditorTabsBarAddTabCanvas);
+		const getListSubmenus = () => MenuRegistry.getMenuItems(Menus.SessionsEmptyEditorGroupAddTab)
+			.filter(isISubmenuItem)
+			.filter(item => item.submenu === Menus.SessionsEditorTabsBarAddTabCanvas);
+		const getActivityBarSubmenus = () => MenuRegistry.getMenuItems(Menus.SessionActivityBar)
+			.filter(isISubmenuItem)
+			.filter(item => item.submenu === Menus.SessionActivityBarCanvas);
 		const items = getItems();
 		const submenus = getSubmenus();
+		const activityBarSubmenus = getActivityBarSubmenus();
 		const initialCommandIds = items.map(item => item.command.id);
 		const when = submenus[0].when?.serialize() ?? '';
+		const activityBarWhen = activityBarSubmenus[0]?.when?.serialize() ?? '';
+		const listSubmenus = getListSubmenus();
+		const itemWhen = items[0].when?.serialize() ?? '';
 		canvasStates.set(canvases.map((canvas, index) => index === 1 ? { ...canvas, title: 'Preview Updated' } : canvas), undefined);
 		const refreshedItems = getItems();
 		await CommandsRegistry.getCommand(items[1].command.id)!.handler(upcastPartial<ServicesAccessor>({}));
@@ -583,6 +646,12 @@ suite('SessionCanvasService', () => {
 			requiresSessionsWindow: when.includes(IsSessionsWindowContext.key),
 			excludesAuxiliaryWindow: when.includes(`!${IsAuxiliaryWindowContext.key}`),
 			requiresRightPane: when.includes(IsTopRightEditorGroupContext.key),
+			listSubmenuWhenMatchesAddTab: listSubmenus.length === 1 && listSubmenus[0].when?.serialize() === when,
+			activityBarSubmenuTitles: activityBarSubmenus.map(item => typeof item.title === 'string' ? item.title : item.title.value),
+			activityBarRequiresChat: activityBarWhen.includes(ChatContextKeys.enabled.key),
+			activityBarRequiresRightPane: activityBarWhen.includes(IsTopRightEditorGroupContext.key),
+			itemRequiresChat: itemWhen.includes(ChatContextKeys.enabled.key),
+			itemRequiresRightPane: itemWhen.includes(IsTopRightEditorGroupContext.key),
 			reopenedResource: opened.at(-1)?.reference.canvas.toString(),
 			refreshedCommandIds: refreshedItems.map(item => item.command.id),
 			refreshedTitles: refreshedItems.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value),
@@ -590,6 +659,8 @@ suite('SessionCanvasService', () => {
 			initialCommandsRegisteredAfterReopen: staleCommandsRegistered,
 			itemsAfterDispose: getItems().length,
 			submenusAfterDispose: getSubmenus().length,
+			listSubmenusAfterDispose: getListSubmenus().length,
+			activityBarSubmenusAfterDispose: getActivityBarSubmenus().length,
 			remainingCommandsAfterDispose: remainingCommandIds.map(id => CommandsRegistry.getCommand(id) !== undefined),
 		}, {
 			submenuTitles: ['Canvas'],
@@ -599,6 +670,12 @@ suite('SessionCanvasService', () => {
 			requiresSessionsWindow: true,
 			excludesAuxiliaryWindow: true,
 			requiresRightPane: true,
+			listSubmenuWhenMatchesAddTab: true,
+			activityBarSubmenuTitles: ['Canvas'],
+			activityBarRequiresChat: true,
+			activityBarRequiresRightPane: false,
+			itemRequiresChat: true,
+			itemRequiresRightPane: false,
 			reopenedResource: 'agent-host-canvas:/preview-sidebar',
 			refreshedCommandIds: initialCommandIds,
 			refreshedTitles: ['Preview', 'Preview Updated', 'Preview (editor)', 'Dashboard', 'Logs (1)', 'Logs (1, 2)'],
@@ -606,6 +683,8 @@ suite('SessionCanvasService', () => {
 			initialCommandsRegisteredAfterReopen: [true, false, true, true, true, true],
 			itemsAfterDispose: 0,
 			submenusAfterDispose: 0,
+			listSubmenusAfterDispose: 0,
+			activityBarSubmenusAfterDispose: 0,
 			remainingCommandsAfterDispose: [false, false, false, false, false],
 		});
 	});
@@ -654,6 +733,27 @@ suite('SessionCanvasService', () => {
 		const { canvas, canvases, opened } = createHarness();
 		canvases.set([{ ...canvas, title: 'Updated', source: URI.parse('https://example.test/replacement') }], undefined);
 		assert.strictEqual(opened.length, 1);
+	});
+
+	test('recovers an open canvas source after its provider reconnects without reopening it', () => {
+		const { canvas, canvases, opened } = createHarness();
+		const input = opened[0];
+		canvases.set([{ ...canvas, source: undefined }], undefined);
+		const whileDisconnected = input.canvas.get()?.source;
+		const recoveredSource = URI.parse('https://example.test/reconnected');
+		canvases.set([{ ...canvas, source: recoveredSource }], undefined);
+
+		assert.deepStrictEqual({
+			opened: opened.length,
+			sameInput: opened[0] === input,
+			whileDisconnected,
+			recoveredSource: input.canvas.get()?.source?.toString(),
+		}, {
+			opened: 1,
+			sameInput: true,
+			whileDisconnected: undefined,
+			recoveredSource: recoveredSource.toString(),
+		});
 	});
 
 	test('temporary membership and canvas hydration do not forget dismissal', () => {
@@ -864,6 +964,7 @@ suite('SessionCanvasService', () => {
 			new SessionEditorWorkingSetService(),
 			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
 			upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }),
+			upcastPartial<ICustomViewService>({ activeCustomView: constObservable(undefined) }),
 		));
 		const owner = { providerId: 'local-agent-host', session: URI.parse('agent-host-session:/session'), chat: URI.parse('agent-host-chat:/session/main') };
 		const mainWindow = contextService.getEditorGroup(owner, input, false)?.id;

@@ -20,7 +20,7 @@ import { CompletionItemKind, type CompletionsResult, type SubscribeResult } from
 import { McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallContentChangedAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
-import { CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallStatus, ToolResultContentType, type ChangesetState, type SessionState } from '../../../../common/state/sessionState.js';
+import { CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallStatus, ToolResultContentType, type ChangesetState, type ChatState, type SessionState } from '../../../../common/state/sessionState.js';
 import type { TerminalCommandPart, TerminalState } from '../../../../common/state/protocol/channels-terminal/state.js';
 import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveChatTurnToCompletion, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo, resolveGitHubToken, terminalResourceFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { expandShellToolName } from '../harness/shellToolNames.js';
@@ -299,12 +299,17 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-goal-config-slash', '/goal Reply exactly "GOAL_MODE". Do not use tools.', 1);
 		const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 		const state = subscribed.snapshot!.state as SessionState;
+		// Mode is a chat's own setting: the command sets the chat's, not its session's.
+		const chat = await context.client.call<SubscribeResult>('subscribe', { channel: state.defaultChat! });
+		const chatState = chat.snapshot!.state as ChatState;
 
 		assert.deepStrictEqual({
-			mode: state.config?.values['mode'],
+			chatMode: chatState.config?.values['mode'],
+			sessionMode: state.config?.values['mode'],
 			response: result.responseText.trim(),
 		}, {
-			mode: 'plan',
+			chatMode: 'plan',
+			sessionMode: 'interactive',
 			response: 'GOAL_MODE',
 		});
 	});

@@ -83,6 +83,10 @@
 	height: 100%;
 }
 
+.session-header-bar[draggable="true"] {
+	cursor: grab;
+}
+
 /* Status icon column — sits beside the main column, centered on the title line.
 	The compound selector (with .session-header-bar) raises specificity above the
 	base `.codicon { display: inline-block }` rule so the flex centering wins. */
@@ -274,13 +278,23 @@
 	position: absolute;
 	top: 0px;
 	right: 0px;
+	left: 0px;
 	height: 35px;
 	flex-direction: row;
 	align-items: center;
+	justify-content: flex-end;
+	box-sizing: border-box;
+	cursor: grab;
 	padding: 0 4px;
 	border-bottom: none;
 	background: transparent;
 	container-type: unset;
+}
+
+.chat-composite-bar-toolbar-floating > .chat-composite-bar-toolbar {
+	cursor: default;
+	position: relative;
+	z-index: 2;
 }
 
 /* The shared modern editor-tab hooks own tab geometry, typography, and states.
@@ -289,7 +303,7 @@
 	display: flex;
 	align-items: center;
 	position: relative;
-	cursor: pointer;
+	cursor: grab;
 	color: var(--chat-tab-inactive-foreground);
 	user-select: none;
 	flex-shrink: 0;
@@ -312,10 +326,20 @@
 }
 
 .session-chat-tabs-bar .chat-composite-bar-tab-label {
+	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	min-width: 0;
+}
+
+.session-chat-tabs-bar .chat-composite-bar-tabs > .chat-composite-bar-tab.has-description {
+	max-width: min(360px, 70cqi);
+}
+
+.session-header-bar .chat-composite-bar-session-title.has-description .label-description::before,
+.session-chat-tabs-bar .chat-composite-bar-tab.has-description .label-description::before {
+	content: '\00b7';
+	margin-inline-end: 0.5em;
 }
 
 .chat-composite-bar-tab-lock,
@@ -382,11 +406,8 @@
 	padding: 0 4px;
 }
 
-/* Indicator: rendered inline after the label and beneath the overlaid close action.
-	Shows a small blue dot for unread, a yellow dot when input is needed,
-	or a spinner for in-progress.
-	Only one mode is set on the element at a time (mutually exclusive in JS). */
-.chat-composite-bar-tab-indicator {
+/* Status indicators precede the lock and title; close actions remain trailing. */
+.session-chat-tabs-bar .chat-composite-bar-tab-indicator {
 	display: none;
 	width: 16px;
 	height: 16px;
@@ -394,7 +415,7 @@
 	justify-content: center;
 	pointer-events: none;
 	flex-shrink: 0;
-	margin-left: 4px;
+	margin-inline-end: var(--vscode-spacing-size40);
 }
 
 .chat-composite-bar-tab.unread .chat-composite-bar-tab-indicator,
@@ -425,9 +446,6 @@
 	background-color: var(--vscode-list-warningForeground);
 }
 
-/* Include the tab-strip owner to outrank
- * `.monaco-workbench .codicon[class*='codicon-']` and keep the in-progress
- * indicator at the compact 12px size. */
 .session-chat-tabs-bar .chat-composite-bar-tab.in-progress .chat-composite-bar-tab-indicator-icon {
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
@@ -598,7 +616,7 @@
 	overflow: hidden;
 }
 
-.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .session-view > .session-view-content {
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .session-view > .session-view-content:not(.standalone-chat) {
 	/* Keep sticky-scroll and other transcript overlays below the session frame. */
 	isolation: isolate;
 }
@@ -615,7 +633,35 @@
 	z-index: 10;
 }
 
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .session-view.independent-chat-groups::after {
+	content: none;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .chat-groups-view-has-gaps .chat-group-view-surface {
+	border-radius: max(0px, calc(var(--agents-part-corner-radius, var(--vscode-cornerRadius-large)) - var(--vscode-strokeThickness)));
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .chat-groups-view-has-gaps .chat-group-view-content {
+	isolation: isolate;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .chat-groups-view-has-gaps .chat-group-view-surface::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border, var(--part-border-color, transparent));
+	border-width: var(--agents-part-frame-border-width, var(--vscode-strokeThickness));
+	border-radius: inherit;
+	box-sizing: border-box;
+	pointer-events: none;
+	z-index: 10;
+}
+
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .chat-groups-view.single-group .modern-ui-editor-tab-content::after {
+	border: 0;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .chat-groups-view.chat-groups-view-has-gaps .modern-ui-editor-tab-content::after {
 	border: 0;
 }
 

@@ -58,6 +58,7 @@ suite('CanvasEditor telemetry', () => {
 				onDidChangeFocus: Event.None,
 				onDidChangeLoadingState: Event.None,
 				onDidNavigate: Event.None,
+				onDidRequestOpenExternal: Event.None,
 				onWillDispose: onWillDispose.event,
 				layout: async () => { },
 				dispose: () => {

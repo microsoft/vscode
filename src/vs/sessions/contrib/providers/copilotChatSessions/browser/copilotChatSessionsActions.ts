@@ -11,10 +11,9 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../../workbench/common/contributions.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionProviderIdContext, IsNewChatSessionContext } from '../../../../common/contextkeys.js';
-import { COPILOT_PROVIDER_ID } from './copilotChatSessionsProvider.js';
+import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../common/copilotChatSessions.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
-import { CLOUD_SANDBOX_CREATION_PROVIDER_ID } from '../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
 import { AgentHostModePicker } from '../../agentHost/browser/agentHostModePicker.js';
 import { AgentHostPermissionPickerDelegate } from '../../agentHost/browser/agentHostPermissionPickerDelegate.js';
 import { PickerActionViewItem } from '../../agentHost/browser/agentHostSessionConfigPicker.js';

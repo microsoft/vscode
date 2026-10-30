@@ -52,6 +52,23 @@ suite('Terminal chat agent tools configuration', () => {
 		}, { enabled: ['off', 'on'], windows: undefined });
 	});
 
+	test('tags terminal approval and sandbox settings as chat permissions', () => {
+		const expectedSettingIds = [
+			TerminalChatAgentToolsSettingId.EnableAutoApprove,
+			TerminalChatAgentToolsSettingId.AutoApprove,
+			TerminalChatAgentToolsSettingId.AutoApproveWorkspaceNpmScripts,
+			TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules,
+			TerminalChatAgentToolsSettingId.BlockDetectedFileWrites,
+			...Object.keys(terminalChatAgentToolsConfiguration).filter(key => key.startsWith('chat.agent.sandbox.')),
+		];
+		assert.deepStrictEqual(
+			Object.entries(terminalChatAgentToolsConfiguration)
+				.filter(([, setting]) => setting.tags?.includes('chatPermissions'))
+				.map(([key]) => key).sort(),
+			expectedSettingIds.sort(),
+		);
+	});
+
 	test('adds sandbox search keywords and ordering to settings consumed by the Agent Host Copilot sandbox', () => {
 		const settingIds = [
 			[AgentSandboxSettingId.AgentSandboxEnabled, 10],
@@ -105,6 +122,20 @@ suite('Terminal chat agent tools configuration', () => {
 			policy: undefined,
 			presentation: [undefined, false, undefined],
 		})));
+	});
+
+	test('does not register the unimplemented sandbox masked environment variables setting', async () => {
+		const settingId = 'chat.agent.sandbox.maskedEnvironmentVariables';
+		const defaults = await store.add(new DefaultConfiguration(new NullLogService())).initialize();
+		assert.deepStrictEqual({
+			setting: terminalChatAgentToolsConfiguration[settingId],
+			registered: configurationRegistry.getConfigurationProperties()[settingId],
+			default: defaults.getValue(settingId),
+		}, {
+			setting: undefined,
+			registered: undefined,
+			default: undefined,
+		});
 	});
 
 	test('registers Copilot user-configured paths and warns about legacy filesystem settings', () => {
@@ -296,7 +327,7 @@ suite('Terminal chat agent tools configuration', () => {
 			assert.deepStrictEqual({
 				values, type: setting.type, restricted: setting.restricted, tags: setting.tags,
 				placeholder: setting.markdownDescription?.includes('This setting has no effect yet.'),
-			}, { values: [defaultValue, false, true], type: 'boolean', restricted: true, tags: undefined, placeholder: false });
+			}, { values: [defaultValue, false, true], type: 'boolean', restricted: true, tags: ['chatPermissions'], placeholder: false });
 		});
 	}
 

@@ -78,40 +78,7 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 		} finally {
 			ref.dispose();
 		}
-		if (usages.size === 0) {
-			return turns;
-		}
-		return turns.map(turn => {
-			const raw = hasReportedUsage(turn.usage) ? undefined : usages.get(turn.id);
-			if (!raw) {
-				return turn;
-			}
-			try {
-				const parsed: unknown = JSON.parse(raw);
-				// Never spread an untyped payload blind: a corrupted column
-				// holding a string or array would splat index keys onto the
-				// turn's usage and flow that malformed shape to the renderer.
-				if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-					return turn;
-				}
-				const persisted = parsed as UsageInfo;
-				// Merge rather than replace: a turn that ran on Auto already
-				// carries a token-less stub holding `_meta.autoModeResolved`
-				// (see `mapSessionEvents`), which drives the "Auto (model)"
-				// label. Persisted values win; the stub fills what they lack.
-				const meta = { ...turn.usage?._meta, ...persisted._meta };
-				return {
-					...turn,
-					usage: {
-						...turn.usage,
-						...persisted,
-						...(Object.keys(meta).length > 0 ? { _meta: meta } : {}),
-					},
-				};
-			} catch {
-				return turn;
-			}
-		});
+		return applyPersistedTurnUsage(turns, usages);
 	}
 
 	/**
@@ -157,4 +124,42 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 			this._logService.warn(`[AgentSideEffects] Failed to persist turn usage for ${channel}/${action.turnId}`, err);
 		}).finally(() => ref.dispose());
 	}
+}
+
+/** Projects saved usage onto provider turns without installing contribution state. */
+export function applyPersistedTurnUsage(turns: readonly Turn[], usages: ReadonlyMap<string, string>): readonly Turn[] {
+	if (usages.size === 0) {
+		return turns;
+	}
+	return turns.map(turn => {
+		const raw = hasReportedUsage(turn.usage) ? undefined : usages.get(turn.id);
+		if (!raw) {
+			return turn;
+		}
+		try {
+			const parsed: unknown = JSON.parse(raw);
+			// Never spread an untyped payload blind: a corrupted column
+			// holding a string or array would splat index keys onto the
+			// turn's usage and flow that malformed shape to the renderer.
+			if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+				return turn;
+			}
+			const persisted = parsed as UsageInfo;
+			// Merge rather than replace: a turn that ran on Auto already
+			// carries a token-less stub holding `_meta.autoModeResolved`
+			// (see `mapSessionEvents`), which drives the "Auto (model)"
+			// label. Persisted values win; the stub fills what they lack.
+			const meta = { ...turn.usage?._meta, ...persisted._meta };
+			return {
+				...turn,
+				usage: {
+					...turn.usage,
+					...persisted,
+					...(Object.keys(meta).length > 0 ? { _meta: meta } : {}),
+				},
+			};
+		} catch {
+			return turn;
+		}
+	});
 }

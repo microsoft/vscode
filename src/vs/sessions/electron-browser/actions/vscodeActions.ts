@@ -7,6 +7,7 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { getWindowId } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { URI } from '../../../base/common/uri.js';
+import { Schemas } from '../../../base/common/network.js';
 import { ServicesAccessor } from '../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../editor/common/editorContextKeys.js';
 import { localize2 } from '../../../nls.js';
@@ -30,7 +31,8 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { resolveRemoteFolderUri } from '../../browser/openInVSCodeUtils.js';
 import { INativeHostService } from '../../../platform/native/common/native.js';
-import { IOpenedMainWindow } from '../../../platform/window/common/window.js';
+import { IFolderToOpen, IOpenedMainWindow } from '../../../platform/window/common/window.js';
+import { ILabelService, Verbosity } from '../../../platform/label/common/label.js';
 import { OPEN_VSCODE_WINDOW_COMMAND_ID, RETURN_TO_VSCODE_EDITOR_COMMAND_ID, SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../../common/sessionCommands.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 
@@ -57,36 +59,37 @@ export class OpenSessionInVSCodeAction extends Action2 {
 		logSessionsInteraction(telemetryService, 'openInVSCode');
 
 		const sessionsService = accessor.get(ISessionsService);
-		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
-		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
-		const nativeHostService = accessor.get(INativeHostService);
+		const instantiationService = accessor.get(IInstantiationService);
 
-		return openSessionInVSCode(nativeHostService, sessionsService.activeSession.get(), sessionsProvidersService, remoteAgentHostService);
+		return instantiationService.invokeFunction(openSessionInVSCode, sessionsService.activeSession.get());
 	}
 }
 
-export async function openSessionInVSCode(
-	nativeHostService: INativeHostService,
-	session: IActiveSession | undefined,
-	sessionsProvidersService: ISessionsProvidersService,
-	remoteAgentHostService: IRemoteAgentHostService,
-): Promise<void> {
+export async function openSessionInVSCode(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
+	const nativeHostService = accessor.get(INativeHostService);
+	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
+	const labelService = accessor.get(ILabelService);
+
 	const folders = session?.activeChat.get().workspace.get()?.folders;
 	if (!session || !folders?.length) {
 		return nativeHostService.openWindow();
 	}
 
-	const folderUris: URI[] = [];
+	const foldersToOpen: IFolderToOpen[] = [];
 	for (const folder of folders) {
 		const folderUri = resolveRemoteFolderUri(folder.workingDirectory, session.providerId, sessionsProvidersService, remoteAgentHostService);
 		if (!folderUri) {
 			return nativeHostService.openWindow({ remoteAuthority: null });
 		}
-		folderUris.push(folderUri);
+		foldersToOpen.push({
+			folderUri,
+			label: folderUri.scheme === Schemas.vscodeRemote ? labelService.getWorkspaceLabel(folder.workingDirectory, { verbose: Verbosity.LONG }) : undefined,
+		});
 	}
 
 	const chatSessionToOpen = getChatSessionToOpenInEditor(session);
-	return nativeHostService.openWindow(folderUris.map(folderUri => ({ folderUri })), { forceNewWindow: true, chatSessionToOpen });
+	return nativeHostService.openWindow(foldersToOpen, { forceNewWindow: true, chatSessionToOpen });
 }
 
 /**

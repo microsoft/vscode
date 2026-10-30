@@ -50,13 +50,13 @@ suite('Arrays', () => {
 
 	test('quickSelect', () => {
 
-		function assertMedian(expexted: number, data: number[], nth: number = Math.floor(data.length / 2)) {
+		function assertMedian(expected: number, data: number[], nth: number = Math.floor(data.length / 2)) {
 			const compare = (a: number, b: number) => a - b;
 			const actual1 = arrays.quickSelect(nth, data, compare);
-			assert.strictEqual(actual1, expexted);
+			assert.strictEqual(actual1, expected);
 
 			const actual2 = data.slice().sort(compare)[nth];
-			assert.strictEqual(actual2, expexted);
+			assert.strictEqual(actual2, expected);
 		}
 
 		assertMedian(5, [9, 1, 0, 2, 3, 4, 6, 8, 7, 10, 5]);
@@ -64,6 +64,21 @@ suite('Arrays', () => {
 		assertMedian(8, [13, 4, 8]);
 		assertMedian(4, [13, 4, 8, 4, 4]);
 		assertMedian(13, [13, 4, 8], 2);
+	});
+
+	test('quickSelect validates nth', () => {
+		const compare = (a: number, b: number) => a - b;
+		assert.strictEqual(arrays.quickSelect(0.9, [2, 1, 3], compare), 1);
+		assert.throws(() => arrays.quickSelect(-1, [1, 2, 3], compare), TypeError);
+		assert.throws(() => arrays.quickSelect(-0.5, [1, 2, 3], compare), TypeError);
+		assert.throws(() => arrays.quickSelect(-10, [1, 2, 3], compare), TypeError);
+		assert.throws(() => arrays.quickSelect(3, [1, 2, 3], compare), TypeError);
+		assert.throws(() => arrays.quickSelect(NaN, [1, 2, 3], compare), TypeError);
+		assert.throws(() => arrays.quickSelect(NaN, [], compare), TypeError);
+		assert.throws(() => arrays.quickSelect(Infinity, [1, 2, 3], compare), TypeError);
+		assert.throws(() => arrays.quickSelect(undefined as unknown as number, [1, 2, 3], compare), TypeError);
+		assert.throws(() => arrays.quickSelect(null as unknown as number, [1, 2, 3], compare), TypeError);
+		assert.throws(() => arrays.quickSelect(0, [], compare), TypeError);
 	});
 
 	test('sortedDiff', () => {

@@ -4,13 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { getOrLoadAdditionalCertificates, resetCaches, type ProxyAgentParams } from '@vscode/proxy-agent';
+import { rootCertificates } from 'tls';
+import { X509Certificate } from 'crypto';
 import { streamToBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, type DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, type DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { LogLevel, NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AuthInfo, IRequestService } from '../../../request/common/request.js';
@@ -26,6 +31,11 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 	declare readonly _serviceBrand: undefined;
 	readonly onDidRegisterConnection = Event.None;
 	readonly onDidChangeConfiguration = Event.None;
+	readonly clientCertificates: readonly string[] = [];
+	registerCertificateProvider(): IDisposable { return Disposable.None; }
+	async loadClientCertificates(): Promise<readonly string[]> { return this.clientCertificates; }
+	setClientCertificates(): void { }
+	async loadCertificates(): Promise<string[]> { return ['native-ca', 'client-ca']; }
 
 	lastInput: string | URL | Request | undefined;
 	lastInit: RequestInit | undefined;
@@ -48,6 +58,10 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 		this.lastInit = init;
 		return this.fetchImpl(input, init);
 	}
+
+	createWebSocket(): never {
+		throw new Error('not used');
+	}
 }
 
 class TestAgentHostProxyResolver extends AgentHostProxyResolver {
@@ -67,6 +81,214 @@ function createAgentConfigurationService(disposables: Pick<DisposableStore, 'add
 
 suite('AgentHostProxyResolver', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('invalidates the proxy library certificate cache when a client provider reconnects', async () => {
+		const resolver = disposables.add(new AgentHostProxyResolver(createAgentConfigurationService(disposables), new NullLogService()));
+		const params = upcastPartial<ProxyAgentParams>({
+			loadSystemCertificatesFromNode: () => true,
+			loadAdditionalCertificates: () => resolver.loadCertificates(),
+		});
+		resetCaches();
+		try {
+			const native = await getOrLoadAdditionalCertificates(params);
+			disposables.add(resolver.registerCertificateProvider('client', async () => [rootCertificates[0]]));
+			const first = await getOrLoadAdditionalCertificates(params);
+			disposables.add(resolver.registerCertificateProvider('client', async () => [rootCertificates[1]]));
+			const second = await getOrLoadAdditionalCertificates(params);
+			assert.deepStrictEqual({
+				counts: [first.length - native.length, second.length - native.length],
+				clientRoots: [first.at(-1), second.at(-1)],
+			}, {
+				counts: [1, 1],
+				clientRoots: rootCertificates.slice(0, 2).map(certificate => new X509Certificate(certificate).toString()),
+			});
+		} finally {
+			resetCaches();
+		}
+	});
+
+	test('loads client certificates on demand and coalesces concurrent consumers', async () => {
+		const resolver = disposables.add(new AgentHostProxyResolver(createAgentConfigurationService(disposables), new NullLogService()));
+		const pending = new DeferredPromise<readonly string[]>();
+		const started = new DeferredPromise<void>();
+		let calls = 0;
+		disposables.add(resolver.registerCertificateProvider('client', () => {
+			calls++;
+			started.complete();
+			return pending.p;
+		}));
+		assert.strictEqual(calls, 0);
+		const first = resolver.loadClientCertificates();
+		const second = resolver.loadClientCertificates();
+		await started.p;
+		pending.complete([rootCertificates[0]]);
+		const loaded = await Promise.all([first, second]);
+		await resolver.loadClientCertificates();
+		assert.deepStrictEqual({
+			calls,
+			counts: loaded.map(certificates => certificates.length),
+			same: loaded[0] === loaded[1],
+		}, { calls: 1, counts: [1, 1], same: true });
+	});
+
+	test('keeps cached trust across disconnects and refreshes on a new connection', async () => {
+		const resolver = disposables.add(new AgentHostProxyResolver(createAgentConfigurationService(disposables), new NullLogService()));
+		const first = disposables.add(resolver.registerCertificateProvider('client', async () => [rootCertificates[0]]));
+		await resolver.loadClientCertificates();
+		const previous = resolver.clientCertificates;
+		first.dispose();
+		assert.strictEqual(await resolver.loadClientCertificates(), previous);
+		let loads = 0;
+		disposables.add(resolver.registerCertificateProvider('client', async () => { loads++; return [rootCertificates[1]]; }));
+		assert.strictEqual(loads, 0);
+		await resolver.loadClientCertificates();
+		assert.deepStrictEqual({ loads, certificates: resolver.clientCertificates }, {
+			loads: 1, certificates: [new X509Certificate(rootCertificates[1]).toString()],
+		});
+	});
+
+	for (const reject of [false, true]) {
+		test(`ignores a ${reject ? 'rejected' : 'successful'} stale certificate request after replacement`, async () => {
+			const warnings: string[] = [];
+			const log = new class extends NullLogService {
+				override warn(message: string): void { warnings.push(message); }
+			}();
+			const resolver = disposables.add(new AgentHostProxyResolver(createAgentConfigurationService(disposables), log));
+			const stale = new DeferredPromise<readonly string[]>();
+			const started = new DeferredPromise<void>();
+			const oldRegistration = disposables.add(resolver.registerCertificateProvider('client', () => {
+				started.complete();
+				return stale.p;
+			}));
+			const loading = resolver.loadClientCertificates();
+			await started.p;
+			disposables.add(resolver.registerCertificateProvider('client', async () => [rootCertificates[1]]));
+			oldRegistration.dispose();
+			await loading;
+			if (reject) {
+				stale.error(new Error('Stale loading failure'));
+			} else {
+				stale.complete([rootCertificates[0]]);
+			}
+			await resolver.loadClientCertificates();
+			assert.deepStrictEqual({ certificates: resolver.clientCertificates, warnings }, {
+				certificates: [new X509Certificate(rootCertificates[1]).toString()], warnings: [],
+			});
+		});
+	}
+
+	test('a failed certificate load keeps earlier trust without retrying until the client reconnects', async () => {
+		const warnings: string[] = [];
+		const log = new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		}();
+		const resolver = disposables.add(new AgentHostProxyResolver(createAgentConfigurationService(disposables), log));
+		resolver.setClientCertificates('client', [rootCertificates[0]]);
+		let calls = 0;
+		const load = async () => {
+			if (++calls === 1) {
+				throw new Error('Must not log certificate contents');
+			}
+			return [rootCertificates[1]];
+		};
+		disposables.add(resolver.registerCertificateProvider('client', load));
+		const failed = await resolver.loadClientCertificates();
+		await resolver.loadClientCertificates();
+		const callsBeforeReconnect = calls;
+		disposables.add(resolver.registerCertificateProvider('client', load));
+		assert.deepStrictEqual({ failed, callsBeforeReconnect, reconnected: await resolver.loadClientCertificates(), warnings }, {
+			failed: [new X509Certificate(rootCertificates[0]).toString()],
+			callsBeforeReconnect: 1,
+			reconnected: [new X509Certificate(rootCertificates[1]).toString()],
+			warnings: ['[AgentHost] Failed to load client CA certificates; retaining previously loaded trust until the client reconnects.'],
+		});
+	});
+
+	test('reconnecting without a certificate capability removes only that client trust', async () => {
+		const resolver = disposables.add(new AgentHostProxyResolver(createAgentConfigurationService(disposables), new NullLogService()));
+		disposables.add(resolver.registerCertificateProvider('first', async () => [rootCertificates[0]]));
+		disposables.add(resolver.registerCertificateProvider('other', async () => [rootCertificates[1]]));
+		await resolver.loadClientCertificates();
+		disposables.add(resolver.registerCertificateProvider('first', undefined));
+		assert.deepStrictEqual(await resolver.loadClientCertificates(), [new X509Certificate(rootCertificates[1]).toString()]);
+	});
+
+	test('loads native certificates once and shares them with the current client roots', async () => {
+		let nativeLoads = 0;
+		const resolver = disposables.add(new class extends AgentHostProxyResolver {
+			protected override async _loadNativeCertificates(): Promise<string[]> {
+				nativeLoads++;
+				return ['native-ca'];
+			}
+		}(createAgentConfigurationService(disposables), new NullLogService()));
+		const [first, second] = rootCertificates.slice(0, 2).map(certificate => new X509Certificate(certificate).toString());
+		disposables.add(resolver.registerCertificateProvider('client', async () => [first]));
+		const initial = await Promise.all([resolver.loadCertificates(), resolver.loadCertificates()]);
+		disposables.add(resolver.registerCertificateProvider('client', async () => [second]));
+		assert.deepStrictEqual({ initial, reconnected: await resolver.loadCertificates(), nativeLoads }, {
+			initial: [['native-ca', first], ['native-ca', first]],
+			reconnected: ['native-ca', second],
+			nativeLoads: 1,
+		});
+	});
+
+	test('retains only client certificates in memory and combines them with native trust for AH requests', async () => {
+		const configurationService = createAgentConfigurationService(disposables);
+		const resolver = disposables.add(new AgentHostProxyResolver(configurationService, new NullLogService()));
+		const environment = { ...process.env };
+		let changes = 0;
+		disposables.add(resolver.onDidChangeConfiguration(() => changes++));
+		const certificate = new X509Certificate(rootCertificates[0]).toString();
+		resolver.setClientCertificates('first', [certificate]);
+		resolver.setClientCertificates('second', [certificate]);
+		resolver.setClientCertificates('first', []);
+		const combined = await resolver.loadCertificates();
+		assert.deepStrictEqual({
+			clientCertificates: resolver.clientCertificates,
+			includesClient: combined.includes(certificate),
+			changes,
+			environmentUnchanged: JSON.stringify(process.env) === JSON.stringify(environment),
+		}, { clientCertificates: [certificate], includesClient: true, changes: 1, environmentUnchanged: true });
+		resolver.setClientCertificates('second', []);
+		assert.deepStrictEqual({ certificates: resolver.clientCertificates, changes }, { certificates: [], changes: 2 });
+	});
+
+	test('warns and skips malformed certificates without rejecting valid client trust', () => {
+		const configurationService = createAgentConfigurationService(disposables);
+		const warnings: string[] = [];
+		const log = new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		}();
+		const resolver = disposables.add(new AgentHostProxyResolver(configurationService, log));
+		const certificate = new X509Certificate(rootCertificates[0]).toString();
+		resolver.setClientCertificates('client', [certificate, 'invalid-secret-PEM']);
+		assert.deepStrictEqual({ certificates: resolver.clientCertificates, warnings }, {
+			certificates: [certificate],
+			warnings: ['[Certificates] Ignored 1 invalid CA certificate(s).'],
+		});
+	});
+
+	test('does not refresh networking for reordered or duplicate client certificates', () => {
+		const configurationService = createAgentConfigurationService(disposables);
+		const resolver = disposables.add(new AgentHostProxyResolver(configurationService, new NullLogService()));
+		const certificates = rootCertificates.slice(0, 2).map(certificate => new X509Certificate(certificate).toString()).sort();
+		let changes = 0;
+		disposables.add(resolver.onDidChangeConfiguration(() => changes++));
+		resolver.setClientCertificates('client', certificates);
+		resolver.setClientCertificates('client', [certificates[1], certificates[0], certificates[1]]);
+		resolver.setClientCertificates('client', [`${certificates[1].replace(/\n/g, '\r\n')}\n${certificates[0]}`]);
+		assert.deepStrictEqual({ certificates: resolver.clientCertificates, changes }, { certificates, changes: 1 });
+	});
+
+	test('an invalid-only update removes that client roots without removing another client roots', () => {
+		const configurationService = createAgentConfigurationService(disposables);
+		const resolver = disposables.add(new AgentHostProxyResolver(configurationService, new NullLogService()));
+		const certificate = new X509Certificate(rootCertificates[0]).toString();
+		resolver.setClientCertificates('client', [rootCertificates[1]]);
+		resolver.setClientCertificates('other', [certificate]);
+		resolver.setClientCertificates('client', ['invalid PEM']);
+		assert.deepStrictEqual(resolver.clientCertificates, [certificate]);
+	});
 
 	test('loads system and process CA certificates without changing the source arrays', async () => {
 		const systemCertificates = ['system-ca'];
@@ -419,6 +641,10 @@ suite('AgentHostRequestService', () => {
 		}, CancellationToken.None), /Connection refused/);
 
 		assert.strictEqual(attempts, 1);
+	});
+
+	test('includes client certificates in certificate exports for launched Dev Container CLI processes', async () => {
+		assert.deepStrictEqual(await createService(new TestProxyResolver()).loadCertificates(), ['native-ca', 'client-ca']);
 	});
 
 	test('forwards proxy and authorization lookups through the client channel', async () => {

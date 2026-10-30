@@ -115,7 +115,6 @@ class Editor extends Disposable {
 	readonly #taskProgressProvider: IframeEmbeddedEditorProvider;
 	isUpdatingFromExtension = false;
 	#isUpdatingComments = false;
-	#mermaidCounter = 0;
 	#codeBlockEditorProviders: readonly CodeBlockEditorProviderDefinition[] = [];
 	#nextCodeBlockEditorRuntimeId = 1;
 	readonly #codeBlockEditorHostTransports = new Map<string, CodeBlockEditorHostTransport>();
@@ -123,6 +122,7 @@ class Editor extends Disposable {
 	#rename: RenameController | undefined;
 	#completion: CompletionController | undefined;
 	#diagnostics: DiagnosticsController | undefined;
+	#imagePaste: ImagePasteController | undefined;
 	#view: EditorView | undefined;
 	#embeddedCodeEditorFactory: LazyCodeBlockEditorFactory | undefined;
 	/** Identifies the authoritative text baseline against which local edits are computed. */
@@ -180,8 +180,13 @@ class Editor extends Disposable {
 
 		this.model.sourceText.set(new StringValue(initialState.content), undefined);
 		this.model.readonlyMode.set(initialState.readonly, undefined);
+		this.model.renderWhitespace.set(initialState.renderWhitespace, undefined);
 
 		this._register(this.#connection.register(markdownEditorRenderer, {
+			readClipboardMedia: (request, _context, { signal }) => {
+				if (!this.#imagePaste) { throw new Error('The Markdown editor is not ready to paste media.'); }
+				return this.#imagePaste.readClipboardMedia(request, signal);
+			},
 			diagnosticsChanged: () => this.#diagnostics?.refresh(),
 			update: ({ content, editEpoch }) => {
 				// Applying authoritative text maps selection and clears stale pending-paragraph state.
@@ -270,8 +275,9 @@ class Editor extends Disposable {
 			highlightThemeChanged: () => {
 				this.#syntaxHighlighter.themeChanged();
 			},
-			configurationChanged: ({ highlightActiveBlock }) => {
+			configurationChanged: ({ highlightActiveBlock, renderWhitespace }) => {
 				this.#view?.highlightActiveBlock.set(highlightActiveBlock, undefined);
+				this.model.renderWhitespace.set(renderWhitespace, undefined);
 			},
 			richLinkPresentations: ({ presentations }) => {
 				this.#linkPresentationProvider?.updatePresentations(presentations);
@@ -412,30 +418,6 @@ class Editor extends Disposable {
 			onToggleCheckbox: (item, newChecked) => {
 				model.setTaskCheckboxChecked(item, newChecked);
 			},
-			renderCustomCodeBlock: (language, content) => {
-				if (language !== 'mermaid') {
-					return undefined;
-				}
-				const div = document.createElement('div');
-				div.className = 'md-mermaid';
-				div.textContent = content;
-				div.setAttribute('aria-busy', 'true');
-				const id = `mermaid-${this.#mermaidCounter++}`;
-				loadMermaid()
-					.then(mermaid => mermaid.render(id, content))
-					.then(({ svg }) => {
-						div.innerHTML = svg;
-						div.setAttribute('aria-busy', 'false');
-					})
-					.catch(error => {
-						div.textContent = content;
-						div.setAttribute('aria-busy', 'false');
-						this.#send('codeBlockEditorDiagnostic', this.#host.codeBlockEditorDiagnostic({
-							message: `Failed to render Mermaid diagram: ${error instanceof Error ? error.message : String(error)}`,
-						}));
-					});
-				return div;
-			},
 		}));
 		this.#view = view;
 		this.#rename = this._register(new RenameController(model, view, this.#host, () => this.#editEpoch));
@@ -447,7 +429,7 @@ class Editor extends Disposable {
 		// the TextDocument owns the history, and a second local stack would drift
 		// from the Edit menu, dirty state and hot exit.
 		this.#controller = this._register(new EditorController(model, view, {
-			clipboardStrategy: this._register(new ImagePasteController(model, view, this.#host, () => this.#editEpoch)),
+			clipboardStrategy: this.#imagePaste = this._register(new ImagePasteController(model, view, this.#host, () => this.#editEpoch)),
 			keyboardProfile: vscodeLocalKeyboardProfile,
 			forwardedKeyboardProfile: vscodeHostKeyboardProfile,
 			historyStrategy: {
@@ -670,18 +652,6 @@ class Editor extends Disposable {
 	}
 }
 
-let mermaidPromise: Promise<(typeof import('mermaid'))['default']> | undefined;
-
-function loadMermaid(): Promise<(typeof import('mermaid'))['default']> {
-	if (!mermaidPromise) {
-		mermaidPromise = import('mermaid').then(module => {
-			module.default.initialize({ startOnLoad: false, theme: 'default' });
-			return module.default;
-		});
-	}
-	return mermaidPromise;
-}
-
 function readInitialState(): InitialState {
 	const element = document.getElementById('vscode-markdown-editor-initial-state');
 	if (!(element instanceof HTMLMetaElement)) {
@@ -708,6 +678,7 @@ function isInitialState(value: unknown): value is InitialState {
 		&& candidate.editEpoch >= 0
 		&& typeof candidate.readonly === 'boolean'
 		&& typeof candidate.highlightActiveBlock === 'boolean'
+		&& typeof candidate.renderWhitespace === 'boolean'
 		&& typeof candidate.richLinksEnabled === 'boolean'
 		&& Array.isArray(candidate.linkPresentationRules);
 }

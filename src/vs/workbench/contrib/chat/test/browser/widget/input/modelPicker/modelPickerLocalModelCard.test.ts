@@ -541,12 +541,12 @@ suite('LocalModelCard', () => {
 		const effort = createDirectModel({ type: 'string', group: 'navigation', enum: ['low', 'medium', 'high'], enumItemLabels: ['Low', 'Medium', 'High'], default: 'medium' });
 		const result = createCard(createStatus(createFamily({ install, offer, context: exampleFlashContext }), { active: active() }), effort.directModel);
 		result.card.element.classList.add('monaco-reduce-motion');
-		const before = { headings: result.read().headings, thinking: result.choices('Thinking') };
-		const high = result.option('Thinking', 'High');
+		const before = { headings: result.read().headings, thinking: result.choices('Effort Level') };
+		const high = result.option('Effort Level', 'High');
 		high.focus();
 		high.click();
 		await timeout(0);
-		const after = { thinking: result.choices('Thinking'), focused: document.activeElement?.textContent, requests: result.requests };
+		const after = { thinking: result.choices('Effort Level'), focused: document.activeElement?.textContent, requests: result.requests };
 		const toggle = createDirectModel({ type: 'string', group: 'navigation', enum: ['none', 'medium'], enumItemLabels: ['Off', 'On'], default: 'medium' });
 		const qwen = createCard(createStatus(createFamily({ install, offer }), { active: active({ familyId: 'other' }) }), toggle.directModel);
 		const notInstalled = createCard(createStatus(createFamily({ offer })), effort.directModel);
@@ -554,10 +554,10 @@ suite('LocalModelCard', () => {
 			before, after,
 			saved: Object.fromEntries(effort.values),
 			changes: effort.changes,
-			qwen: qwen.choices('Thinking'),
+			qwen: qwen.choices('Effort Level'),
 			notInstalled: notInstalled.read().headings,
 		}, {
-			before: { headings: ['2:Example Flash 1.0', '3:Thinking', '3:Context'], thinking: ['Low', '[Medium]', 'High'] },
+			before: { headings: ['2:Example Flash 1.0', '3:Effort Level', '3:Context'], thinking: ['Low', '[Medium]', 'High'] },
 			after: { thinking: ['Low', 'Medium', '[High]'], focused: 'High', requests: [] },
 			saved: { [effort.directModel.model.identifier]: { thinkingLevel: 'high' } },
 			changes: ['navigation:thinkingLevel:medium->high'],

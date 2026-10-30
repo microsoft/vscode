@@ -13,6 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { FileType, IFileDeleteOptions, IFileWriteOptions, createFileSystemProviderError, FileSystemProviderErrorCode } from '../../../../../../platform/files/common/files.js';
+import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
@@ -95,8 +96,23 @@ suite('customizationMigration', () => {
 				[CustomizationMigrationCategoryId.UserData, [PromptsType.agent, PromptsType.instructions]],
 				[CustomizationMigrationCategoryId.ConfiguredLocations, [PromptsType.agent, PromptsType.instructions, PromptsType.skill]],
 				[CustomizationMigrationCategoryId.McpServers, []],
+				[CustomizationMigrationCategoryId.PluginMarketplaces, []],
 			],
 		});
+	});
+
+	test('provides consistent progress titles for every migration category', () => {
+		assert.deepStrictEqual(CUSTOMIZATION_MIGRATION_CATEGORIES.map(category => ({
+			id: category.id,
+			single: category.getProgressTitle(1),
+			multiple: category.getProgressTitle(4),
+		})), [
+			{ id: CustomizationMigrationCategoryId.PromptFiles, single: 'Converting 1 prompt file to a skill...', multiple: 'Converting 4 prompt files to skills...' },
+			{ id: CustomizationMigrationCategoryId.UserData, single: 'Migrating 1 user data customization...', multiple: 'Migrating 4 user data customizations...' },
+			{ id: CustomizationMigrationCategoryId.ConfiguredLocations, single: 'Migrating 1 customization from a configured location...', multiple: 'Migrating 4 customizations from configured locations...' },
+			{ id: CustomizationMigrationCategoryId.McpServers, single: 'Migrating 1 MCP server...', multiple: 'Migrating 4 MCP servers...' },
+			{ id: CustomizationMigrationCategoryId.PluginMarketplaces, single: 'Migrating 1 plugin marketplace...', multiple: 'Migrating 4 plugin marketplaces...' },
+		]);
 	});
 
 	test('presents MCP source-to-target migration without file-only behavior', () => {
@@ -164,11 +180,9 @@ suite('customizationMigration', () => {
 	});
 
 	test('builds an agent prompt from discovered sources and harness-reported targets', () => {
-		const recoveryBundleFolder = URI.file('/recovery/vscode-customization-migration');
 		const prompt = createCustomizationMigrationAgentPrompt(
 			{ id: 'agent-host-copilotcli', label: 'Copilot' },
 			'migration-flow-id',
-			recoveryBundleFolder,
 			[
 				{
 					category: CustomizationMigrationType.PromptFiles,
@@ -204,16 +218,14 @@ suite('customizationMigration', () => {
 			'',
 			'Selected harness: Copilot (agent-host-copilotcli)',
 			'Migration telemetry flow: migration-flow-id',
-			'Recovery bundle folder: file:///recovery/vscode-customization-migration',
-			`Recovery bundle filesystem path: ${recoveryBundleFolder.path}`,
 			'',
 			'Customizations that need migration:',
-			'- promptFiles: prompt (local): file:///workspace/.github/prompts/review.prompt.md',
+			'- promptFiles: prompt (workspace): file:///workspace/.github/prompts/review.prompt.md',
 			'- mcpServers: MCP server "Server" (user): file:///profile/mcp.json -> file:///home/.copilot/mcp-config.json',
-			'- configuredLocations: instructions (local): file:///workspace/custom/review.instructions.md',
+			'- configuredLocations: instructions (workspace): file:///workspace/custom/review.instructions.md',
 			'',
 			'Valid target folders reported by the selected harness:',
-			'- skill (local, Workspace skills): file:///workspace/.github/skills',
+			'- skill (workspace, Workspace skills): file:///workspace/.github/skills',
 			'- skill (user, User skills): file:///home/.copilot/skills',
 		].join('\n'));
 	});
@@ -605,9 +617,7 @@ suite('customizationMigration', () => {
 			[PromptsType.instructions, new Map([[PromptsStorage.user, userInstructionsRoot]])],
 		]);
 
-		const fileService = store.add(new FileService(new NullLogService()));
-		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
-		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		await fileService.writeFile(customizations[0].uri, VSBuffer.fromString(['---', 'name: "Review Prompt"', 'mode: code', '---', 'Review body'].join('\n')));
 		await fileService.writeFile(customizations[1].uri, VSBuffer.fromString('---\ndescription: Plan work\n---\nPlan.'));
 		await fileService.writeFile(customizations[2].uri, VSBuffer.fromString('---\ndescription: Use tabs\n---\nUse tabs.'));
@@ -673,9 +683,7 @@ suite('customizationMigration', () => {
 		const targetFolders: CustomizationMigrationTargetFolders = new Map([
 			[PromptsType.skill, new Map([[PromptsStorage.local, targetRoot]])],
 		]);
-		const fileService = store.add(new FileService(new NullLogService()));
-		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
-		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		await fileService.writeFile(prompt.uri, VSBuffer.fromString('---\ndescription: Migrated content\n---\nMigrate me.'));
 		const existingTargetUri = createSkillFileUri(targetRoot.uri, 'existing-target-test');
 		await fileService.writeFile(existingTargetUri, VSBuffer.fromString('Existing content'));
@@ -722,9 +730,7 @@ suite('customizationMigration', () => {
 		const targetFolders: CustomizationMigrationTargetFolders = new Map([
 			[PromptsType.skill, new Map([[PromptsStorage.local, targetRoot]])],
 		]);
-		const fileService = store.add(new FileService(new NullLogService()));
-		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
-		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		await fileService.writeFile(skill.uri, VSBuffer.fromString('---\nname: release\n---\nRelease safely.'));
 		await fileService.writeFile(URI.joinPath(dirname(skill.uri), 'references', 'release.md'), VSBuffer.fromString('Release reference'));
 		await fileService.writeFile(URI.joinPath(dirname(skill.uri), 'scripts', 'release.sh'), VSBuffer.fromString('#!/bin/sh'));
@@ -828,9 +834,7 @@ suite('customizationMigration', () => {
 			[PromptsType.skill, new Map([[PromptsStorage.local, workspaceSkillRoot], [PromptsStorage.user, userSkillRoot]])],
 		]);
 
-		const fileService = store.add(new FileService(new NullLogService()));
-		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
-		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('---\nname: Shared\n---\nShared body'));
 
 		const result = await migrateCustomizations(customizations, targetFolders, fileService);
@@ -878,9 +882,7 @@ suite('customizationMigration', () => {
 			[PromptsType.skill, new Map([[PromptsStorage.local, workspaceSkillRoot], [PromptsStorage.user, userSkillRoot]])],
 		]);
 
-		const fileService = store.add(new FileService(new NullLogService()));
-		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
-		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('---\nname: Shared\n---\nShared body'));
 		const workspaceSkillUri = createSkillFileUri(workspaceSkillRoot.uri, 'shared');
 		const userSkillUri = createSkillFileUri(userSkillRoot.uri, 'shared');
@@ -1149,9 +1151,7 @@ suite('customizationMigration', () => {
 		};
 		const instructionsRoot: ICustomizationSourceFolder = { uri: URI.file('/home/test/.copilot/instructions'), label: '~/.copilot/instructions', source: PromptsStorage.user };
 
-		const fileService = store.add(new FileService(new NullLogService()));
-		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
-		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		await fileService.writeFile(customization.uri, VSBuffer.fromString('Use tabs.'));
 
 		const result = await migrateCustomizations(
@@ -1190,9 +1190,7 @@ suite('customizationMigration', () => {
 			{ uri: URI.file('/workspace-b/.github/skills'), label: '.github/skills', source: PromptsStorage.local, workspaceGroupId: 'workspace-b' },
 		];
 
-		const fileService = store.add(new FileService(new NullLogService()));
-		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
-		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		await fileService.writeFile(customization.uri, VSBuffer.fromString('Review the change.'));
 
 		const result = await migrateCustomizations(

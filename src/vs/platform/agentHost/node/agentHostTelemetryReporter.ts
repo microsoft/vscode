@@ -10,6 +10,8 @@ import { hash } from '../../../base/common/hash.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { AgentSession, type AgentSubagentKind, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type AgentTurnProviderSessionState, type IAgentTurnDiagnosticSnapshot, type IAgentTokenUsageSummary, type IAgentTelemetryContext } from '../common/agent.js';
 import { isReasoningEffortLevel } from '../common/reasoningEffort.js';
+import { isAutoModeRoutingTier, normalizeAutoModeTier } from '../common/autoModeTiers.js';
+import { isCopilotHydraFusionModelId } from '../common/copilotCliConfig.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
 import { getTelemetryChatSessionId } from '../common/agentTelemetryCorrelation.js';
 import { readAgentErrorTelemetryMeta } from '../common/meta/errorMeta.js';
@@ -164,6 +166,40 @@ type CanvasExtensionsReadyClassification = {
 export type IAgentHostSubagentKindClassification = {
 	subagentKind?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What the subagent chat represents, set only when isSubagentSession is true: task for a delegated subagent, or fusionPhase for a presentation-only HydraFusion phase chat that shows part of the parent turn.' };
 };
+
+/** The Auto tier a turn was sent with and the HydraFusion model that routed it, when known. */
+export interface IAgentHostFusionTurnTelemetry {
+	autoTier?: string;
+	fusionModel?: string;
+}
+
+export type IAgentHostFusionTurnClassification = {
+	autoTier?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Auto tier selected for the turn, e.g. balance, or hydrafusion or hydrafusion-max for Copilot Fusion High or Max; other for an unrecognized tier. Set only for Copilot turns on Auto. A tier override setting or managed policy can change the tier that runs; fusionModel reports what ran.' };
+	fusionModel?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The HydraFusion model (hydrafusion or hydrafusion-max) the runtime routed the turn with. Absent when the turn did not route through HydraFusion, or was cancelled before routing completed.' };
+};
+
+/** Bounds a selected Auto tier to its known values, mapping anything else to `other`. */
+export function toAutoTierTelemetry(tier: string | undefined): string | undefined {
+	if (tier === undefined) {
+		return undefined;
+	}
+	const normalized = normalizeAutoModeTier(tier);
+	return typeof normalized === 'string' && (isAutoModeRoutingTier(normalized) || isCopilotHydraFusionModelId(normalized)) ? normalized : 'other';
+}
+
+/** Keeps only the known HydraFusion models, so an unexpected runtime value is never reported. */
+export function toFusionModelTelemetry(fusionModel: string | undefined): string | undefined {
+	return isCopilotHydraFusionModelId(fusionModel) ? fusionModel : undefined;
+}
+
+function toFusionTurnTelemetry(report: IAgentHostFusionTurnTelemetry): IAgentHostFusionTurnTelemetry {
+	const autoTier = toAutoTierTelemetry(report.autoTier);
+	const fusionModel = toFusionModelTelemetry(report.fusionModel);
+	return {
+		...(autoTier !== undefined ? { autoTier } : {}),
+		...(fusionModel !== undefined ? { fusionModel } : {}),
+	};
+}
 
 export interface IAgentHostExecutionModeChangedEvent extends IAgentHostEventTelemetry {
 	provider: string;
@@ -345,8 +381,10 @@ interface IAgentHostTurnAttributedReport {
 	clientContext?: IAgentHostClientTelemetryContext;
 }
 
-export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry, Partial<ICodexAccountTelemetryContext> {
+export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry, Partial<ICodexAccountTelemetryContext>, IAgentHostFusionTurnTelemetry {
 	codexModelProvider?: CodexModelProvider;
+	usedPrewarmedSession?: boolean;
+	prewarmedSessionDiscardReason?: string;
 	hostRootTurnOrdinal?: number;
 	hostProcessAgeMs?: number;
 	titleGenerationStrategy?: AutomaticTitleGenerationStrategy;
@@ -401,8 +439,10 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry, 
 	modelCallCount: number;
 }
 
-export type IAgentHostTurnCompletedClassification = IAgentHostEventClassification & CodexAccountTelemetryClassification & IAgentHostSubagentKindClassification & {
+export type IAgentHostTurnCompletedClassification = IAgentHostEventClassification & CodexAccountTelemetryClassification & IAgentHostSubagentKindClassification & IAgentHostFusionTurnClassification & {
 	codexModelProvider?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded model provider actually used by a Codex turn: openai, copilot, other, or unknown.' };
+	usedPrewarmedSession?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the turn claimed a provider session that was started before the first message; absent when it did not.' };
+	prewarmedSessionDiscardReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason the turn discarded a provider session started before the first message and launched one instead, such as modelChanged or clientToolsChanged; absent when it did not.' };
 	hostRootTurnOrdinal?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'One-based root-turn ordinal over the agent host process lifetime, captured at turn start and excluding subagent turns.' };
 	hostProcessAgeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Agent host process age in milliseconds captured at root turn start, not completion.' };
 	titleGenerationStrategy?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective persisted automatic title generation strategy captured before sending the root turn: activeAgent, utility, deferred, or agentReview.' };
@@ -439,7 +479,7 @@ export type IAgentHostTurnCompletedClassification = IAgentHostEventClassificatio
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time in milliseconds from turn start to turn completion.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn completed successfully, with an error, or was cancelled.' };
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The trusted provider model identifier selected at turn start, or a generic value for BYOK and unknown models.' };
-	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn used the provider default, Auto (autoOnDevice while an on-device model is active), HydraFusion, HydraFusion Max, an explicit model, or an on-device model selected directly (onDeviceDirect).' };
+	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn used the provider default, Auto (autoOnDevice while an on-device model is active), HydraFusion or HydraFusion Max (hydrafusion, hydrafusionMax: the HydraFusion model, or Copilot Fusion High or Max, which is Auto at that tier), an explicit model, or an on-device model selected directly (onDeviceDirect).' };
 	isBYOK: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the selected model is a bring-your-own-key model, when model context is available.' };
 	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool auto-approval level configured for the session at turn start (e.g. default, autoApprove, autopilot).' };
 	interactionMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host interaction mode configured at turn start.' };
@@ -458,7 +498,7 @@ export type IAgentHostTurnCompletedClassification = IAgentHostEventClassificatio
 	comment: 'Tracks agent host turn completion, including performance, configuration context, completed model responses, and billed AI credit usage when reported by the provider.';
 };
 
-export interface IAgentHostTurnFailedEvent extends IAgentHostEventTelemetry {
+export interface IAgentHostTurnFailedEvent extends IAgentHostEventTelemetry, IAgentHostFusionTurnTelemetry {
 	provider: string;
 	agentSessionId: string;
 	chatSessionId: string;
@@ -467,6 +507,8 @@ export interface IAgentHostTurnFailedEvent extends IAgentHostEventTelemetry {
 	turnId: string;
 	messageOriginKind: AgentHostMessageOriginTelemetryKind | undefined;
 	failureStage: AgentHostTurnFailureStage;
+	usedPrewarmedSession?: boolean;
+	prewarmedSessionDiscardReason?: string;
 	errorType: string;
 	errorName: string | undefined;
 	errorCode: string | undefined;
@@ -476,7 +518,7 @@ export interface IAgentHostTurnFailedEvent extends IAgentHostEventTelemetry {
 	callstack: string | undefined;
 }
 
-export type IAgentHostTurnFailedClassification = IAgentHostEventClassification & IAgentHostSubagentKindClassification & {
+export type IAgentHostTurnFailedClassification = IAgentHostEventClassification & IAgentHostSubagentKindClassification & IAgentHostFusionTurnClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider handling the failed agent host turn.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The chat identifier within the agent host session.' };
@@ -484,6 +526,8 @@ export type IAgentHostTurnFailedClassification = IAgentHostEventClassification &
 	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the failed turn within the agent host session.' };
 	messageOriginKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The kind of actor or host-owned session classification that started the failed turn.' };
 	failureStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded stage at which the agent host turn failed.' };
+	usedPrewarmedSession?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the failed turn claimed a provider session that was started before the first message; absent when it did not.' };
+	prewarmedSessionDiscardReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason the failed turn discarded a provider session started before the first message and launched one instead; absent when it did not.' };
 	errorType: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The structured agent host or provider error type.' };
 	errorName: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The name of the exception, when available.' };
 	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The exception or protocol error code, when available.' };
@@ -503,7 +547,7 @@ export interface IAgentHostTurnFailure {
 	errorStack?: string;
 }
 
-export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedReport {
+export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedReport, IAgentHostFusionTurnTelemetry {
 	providerTelemetryContext?: IAgentProviderTurnTelemetryContext;
 	codexModelProvider?: CodexModelProvider;
 	hostRootTurnOrdinal?: number;
@@ -664,7 +708,7 @@ function normalizeTurnActivityKind(activityKind: string): AgentHostTurnActivityT
 	return turnActivityKindsByActionType[activityKind as keyof typeof turnActivityKindsByActionType] ?? 'other';
 }
 
-export interface IAgentHostTurnHungEvent extends IAgentHostEventTelemetry, Partial<ICodexAccountTelemetryContext> {
+export interface IAgentHostTurnHungEvent extends IAgentHostEventTelemetry, Partial<ICodexAccountTelemetryContext>, IAgentHostFusionTurnTelemetry {
 	provider: string;
 	agentSessionId: string;
 	chatSessionId: string;
@@ -693,7 +737,7 @@ export interface IAgentHostTurnHungEvent extends IAgentHostEventTelemetry, Parti
 	permissionLevel: string | undefined;
 }
 
-export type IAgentHostTurnHungClassification = IAgentHostEventClassification & CodexAccountTelemetryClassification & IAgentHostSubagentKindClassification & {
+export type IAgentHostTurnHungClassification = IAgentHostEventClassification & CodexAccountTelemetryClassification & IAgentHostSubagentKindClassification & IAgentHostFusionTurnClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider handling the hung agent host turn.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The chat identifier within the agent host session.' };
@@ -717,13 +761,13 @@ export type IAgentHostTurnHungClassification = IAgentHostEventClassification & C
 	quietTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds since the last observed turn activity.' };
 	turnElapsedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the hang report.' };
 	model: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The trusted provider model identifier for the turn, or a generic value for BYOK and unknown models.' };
-	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the turn used the provider default, Auto (autoOnDevice while an on-device model is active), HydraFusion, HydraFusion Max, an explicit model, or an on-device model selected directly (onDeviceDirect).' };
+	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the turn used the provider default, Auto (autoOnDevice while an on-device model is active), HydraFusion or HydraFusion Max (hydrafusion, hydrafusionMax: the HydraFusion model, or Copilot Fusion High or Max, which is Auto at that tier), an explicit model, or an on-device model selected directly (onDeviceDirect).' };
 	permissionLevel: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The tool auto-approval level configured for the session at turn start (e.g. default, autoApprove, autopilot).' };
 	owner: 'roblourens';
 	comment: 'Tracks agent host turns that stop making progress for longer than the hang threshold, so permanently stuck sessions are visible as a positive signal instead of missing turnCompleted events.';
 };
 
-export interface IAgentHostTurnHungReport extends IAgentHostTurnAttributedReport {
+export interface IAgentHostTurnHungReport extends IAgentHostTurnAttributedReport, IAgentHostFusionTurnTelemetry {
 	providerTelemetryContext?: IAgentProviderTurnTelemetryContext;
 	provider: string;
 	session: string;
@@ -751,7 +795,7 @@ export interface IAgentHostTurnHungReport extends IAgentHostTurnAttributedReport
 	permissionLevel: string | undefined;
 }
 
-export interface IAgentHostHungTurnCompletedEvent extends IAgentHostEventTelemetry {
+export interface IAgentHostHungTurnCompletedEvent extends IAgentHostEventTelemetry, IAgentHostFusionTurnTelemetry {
 	provider: string;
 	agentSessionId: string;
 	chatSessionId: string;
@@ -766,7 +810,7 @@ export interface IAgentHostHungTurnCompletedEvent extends IAgentHostEventTelemet
 	timeAfterHangMs: number;
 }
 
-export type IAgentHostHungTurnCompletedClassification = IAgentHostEventClassification & IAgentHostSubagentKindClassification & {
+export type IAgentHostHungTurnCompletedClassification = IAgentHostEventClassification & IAgentHostSubagentKindClassification & IAgentHostFusionTurnClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider handling the recovered agent host turn.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The chat identifier within the agent host session.' };
@@ -782,7 +826,7 @@ export type IAgentHostHungTurnCompletedClassification = IAgentHostEventClassific
 	comment: 'Tracks agent host turns that complete after previously being reported as hung, so permanent hangs can be separated from merely slow ones.';
 };
 
-export interface IAgentHostHungTurnCompletedReport extends IAgentHostTurnAttributedReport {
+export interface IAgentHostHungTurnCompletedReport extends IAgentHostTurnAttributedReport, IAgentHostFusionTurnTelemetry {
 	provider: string;
 	session: string;
 	/** Owning session, recorded when the turn or request started. */
@@ -1187,6 +1231,14 @@ function toProviderStageMeasurements(durations: ReadonlyMap<AgentHostProviderSen
 		result[providerStageMeasurementKeys[stage]] = ms;
 	}
 	return result;
+}
+
+/** Projects whether a turn used a pre-warmed provider session, or why it discarded one, omitting both when it found none. */
+function prewarmedSessionTelemetry(context: IAgentProviderTurnTelemetryContext | undefined): { usedPrewarmedSession?: boolean; prewarmedSessionDiscardReason?: string } {
+	return {
+		...(context?.usedPrewarmedSession ? { usedPrewarmedSession: true } : {}),
+		...(context?.prewarmedSessionDiscardReason !== undefined ? { prewarmedSessionDiscardReason: context.prewarmedSessionDiscardReason } : {}),
+	};
 }
 
 export function toTelemetryModel(model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined): 'byokModel' | 'unknown' | TelemetryTrustedValue<string> | undefined {
@@ -1703,6 +1755,7 @@ export class AgentHostTelemetryReporter {
 			...toCopilotTelemetryData(report.telemetryContext),
 			...(report.provider === 'codex' ? getCodexAccountTelemetryData(report.providerTelemetryContext?.codex) : undefined),
 			...(report.provider === 'codex' ? { codexModelProvider: report.codexModelProvider ?? 'unknown' } : {}),
+			...prewarmedSessionTelemetry(report.providerTelemetryContext),
 			...(report.hostRootTurnOrdinal !== undefined ? { hostRootTurnOrdinal: report.hostRootTurnOrdinal } : {}),
 			...(report.hostProcessAgeMs !== undefined ? { hostProcessAgeMs: report.hostProcessAgeMs } : {}),
 			...(report.titleGenerationStrategy !== undefined ? { titleGenerationStrategy: report.titleGenerationStrategy } : {}),
@@ -1732,6 +1785,7 @@ export class AgentHostTelemetryReporter {
 			result: report.result,
 			model,
 			modelSelectionKind: report.modelSelectionKind,
+			...toFusionTurnTelemetry(report),
 			isBYOK: report.modelTelemetryKind === undefined ? undefined : report.modelTelemetryKind === 'byok',
 			permissionLevel: report.permissionLevel,
 			interactionMode: report.interactionMode,
@@ -1778,6 +1832,8 @@ export class AgentHostTelemetryReporter {
 				turnId: report.turnId,
 				messageOriginKind: report.messageOriginKind,
 				failureStage: report.failure.stage,
+				...toFusionTurnTelemetry(report),
+				...prewarmedSessionTelemetry(report.providerTelemetryContext),
 				errorType: report.failure.error.errorType,
 				errorName: report.failure.errorName,
 				errorCode: report.failure.errorCode,
@@ -1828,6 +1884,7 @@ export class AgentHostTelemetryReporter {
 			turnElapsedMs: report.turnElapsedMs,
 			model: toTelemetryModel(report.model, report.modelTelemetryKind),
 			modelSelectionKind: report.modelSelectionKind,
+			...toFusionTurnTelemetry(report),
 			permissionLevel: report.permissionLevel,
 		});
 	}
@@ -1851,6 +1908,7 @@ export class AgentHostTelemetryReporter {
 			hangReportCount: report.hangReportCount,
 			totalTimeMs: report.totalTimeMs,
 			timeAfterHangMs: report.timeAfterHangMs,
+			...toFusionTurnTelemetry(report),
 		});
 	}
 

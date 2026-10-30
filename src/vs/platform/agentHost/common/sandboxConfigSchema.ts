@@ -5,7 +5,7 @@
 
 import { localize } from '../../../nls.js';
 import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings.js';
-import { AgentSandboxEnabledValue, AgentSandboxSettingId, type IAgentSandboxFileSystemSetting, type IAgentSandboxUserConfiguredPaths } from '../../sandbox/common/settings.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId, type IAgentSandboxMaskedCredentials, type IAgentSandboxFileSystemSetting, type IAgentSandboxUserConfiguredPaths } from '../../sandbox/common/settings.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
 
 /**
@@ -34,6 +34,7 @@ export const enum AgentHostSandboxKey {
 	SandboxLspServers = 'sandboxLspServers',
 	AuthenticateGit = 'authenticateGit',
 	AuthenticateGh = 'authenticateGh',
+	MaskedCredentials = 'credentials',
 	AllowDevToolAccess = 'allowDevToolAccess',
 	AddCurrentWorkingDirectory = 'addCurrentWorkingDirectory',
 	UserConfiguredPaths = 'fileSystem.userConfiguredPaths',
@@ -55,6 +56,7 @@ export type ISandboxConfigValue = Partial<{
 	[AgentHostSandboxKey.SandboxLspServers]: boolean;
 	[AgentHostSandboxKey.AuthenticateGit]: boolean;
 	[AgentHostSandboxKey.AuthenticateGh]: boolean;
+	[AgentHostSandboxKey.MaskedCredentials]: IAgentSandboxMaskedCredentials;
 	[AgentHostSandboxKey.AllowDevToolAccess]: boolean;
 	[AgentHostSandboxKey.AddCurrentWorkingDirectory]: boolean;
 	[AgentHostSandboxKey.UserConfiguredPaths]: IAgentSandboxUserConfiguredPaths;
@@ -110,6 +112,17 @@ export const sandboxConfigSchema = createSchema({
 			[AgentHostSandboxKey.AuthenticateGh]: {
 				type: 'boolean',
 				title: localize('agentHost.config.sandbox.authenticateGh.title', "Authenticate gh"),
+			},
+			[AgentHostSandboxKey.MaskedCredentials]: {
+				type: 'object',
+				title: localize('agentHost.config.sandbox.maskedEnvironmentVariables.title', "Masked environment variables"),
+				properties: {
+					envVars: {
+						type: 'object',
+						title: localize('agentHost.config.sandbox.credentials.envVars.title', "Environment Variables"),
+						description: localize('agentHost.config.sandbox.credentials.envVars.description', "Maps environment variable names to objects with an injectHosts array of HTTPS destinations. Credential entries are validated by the runtime."),
+					},
+				},
 			},
 			[AgentHostSandboxKey.AllowDevToolAccess]: {
 				type: 'boolean',

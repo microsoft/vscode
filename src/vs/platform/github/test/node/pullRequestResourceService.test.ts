@@ -32,7 +32,6 @@ const policy: PullRequestPollingPolicy = {
 	checksBackstop: 500,
 	mergeabilityVisible: 20,
 	mergeabilityBackground: 200,
-	participants: 300,
 	failureBackoff: { immediateRetries: 0, base: 5, maximum: 20, jitter: 0 },
 	jitter: 0,
 };
@@ -90,7 +89,6 @@ class TestPullRequestQueryService implements IPullRequestQuery {
 			case 'core': return { fragment, value: core(this.headSha), complete: true };
 			case 'topLevelComments': return { fragment, value: [{ id: 'C1', body: options.conversation?.includeBodies ? 'body' : undefined }], complete: true };
 			case 'submittedReviews': return { fragment, value: [], complete: true };
-			case 'inlineComments': return { fragment, value: [], complete: true };
 			case 'reviewThreads': return { fragment, value: [], complete: true, headSha: this.headSha };
 			case 'checks': return {
 				fragment,
@@ -121,7 +119,6 @@ class TestPullRequestQueryService implements IPullRequestQuery {
 				complete: true,
 				headSha: this.headSha,
 			};
-			case 'participants': return { fragment, value: { participants: [] }, complete: true };
 		}
 	}
 }
@@ -138,10 +135,6 @@ class TestGitHubCredentialService implements IGitHubCredentials {
 			throw signal.reason;
 		}
 		return this.credential;
-	}
-
-	resolveCredential(): Promise<GitHubCredential> {
-		return Promise.resolve(this.credential);
 	}
 
 	handleRequestError(): void { }
@@ -250,7 +243,6 @@ suite('PullRequestResourceService', () => {
 					headSha: undefined,
 				},
 				submittedReviews: { status: 'missing', complete: false },
-				inlineComments: { status: 'missing', complete: false },
 				reviewThreads: { status: 'missing', complete: false },
 				checks: {
 					value: {
@@ -267,7 +259,6 @@ suite('PullRequestResourceService', () => {
 					headSha: 'head-1',
 				},
 				mergeability: { status: 'missing', complete: false },
-				participants: { status: 'missing', complete: false },
 			},
 		});
 
@@ -737,6 +728,25 @@ suite('PullRequestResourceService', () => {
 		clock.advanceBy(10_000);
 		await flushAsync();
 		assert.deepStrictEqual(queries.calls, []);
+		subscription.dispose();
+	});
+
+	test('polls checks soon while a required check has not reported', async () => {
+		const { clock, queries, service } = setup();
+		queries.handlers.set('checks', () => ({
+			fragment: 'checks',
+			value: { headSha: 'head-1', requirednessComplete: true, requiredContexts: ['PR Gate'], expectedSuites: [], expectedSuitesComplete: true, checks: [] },
+			complete: true,
+			headSha: 'head-1',
+		}));
+		const subscription = service.subscribePullRequest(ref, { priority: 'background', core: true, checks: { required: true } });
+		await subscription.refresh('core');
+		await subscription.refresh('checks');
+
+		queries.calls.length = 0;
+		clock.advanceBy(policy.checksPendingBackground);
+		await flushAsync();
+		assert.deepStrictEqual(queries.calls.map(call => call.fragment), ['checks']);
 		subscription.dispose();
 	});
 });

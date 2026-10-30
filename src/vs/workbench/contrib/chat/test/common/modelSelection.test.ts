@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../common/languageModels.js';
-import { getVisibleLanguageModelsForTarget, ModelSelectionReason, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifier, resolveModelIdentifierFromCatalog, resolveModelIdentifierFromLanguageModels } from '../../common/modelSelection.js';
+import { getDefaultModelPolicyDescription, getVisibleLanguageModelsForTarget, ModelSelectionReason, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifier, resolveModelIdentifierFromCatalog, resolveModelIdentifierFromLanguageModels } from '../../common/modelSelection.js';
 
 function model(identifier: string, metadataId = identifier, family = identifier, version = '1.0'): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -32,6 +32,20 @@ const second = model('target:second', 'second', 'second');
 suite('ModelSelection', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('explains an organization default without implying that conversation model selection is locked', () => {
+		assert.deepStrictEqual(
+			[undefined, '', '   ', 'opus', ' OPUS '].map(saved => getDefaultModelPolicyDescription('opus', saved)),
+			Array(5).fill('Your organization sets "opus" as the default for new conversations. You can choose another model for each conversation.'),
+		);
+	});
+
+	test('names the overridden preference without claiming it was deleted', () => {
+		assert.strictEqual(
+			getDefaultModelPolicyDescription('opus', 'gemini'),
+			'Your organization sets "opus" as the default for new conversations. Your saved preference "gemini" is preserved but does not apply while this policy is in effect. You can choose another model for each conversation.',
+		);
+	});
 
 	test('filters model targets and respects host-specific and underlying BYOK visibility', () => {
 		const target = 'remote-host-copilot';
