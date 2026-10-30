@@ -16,7 +16,7 @@ import { ChatFetchResponseType, ChatResponses } from '../../src/platform/chat/co
 import { IChunkingEndpointClient } from '../../src/platform/chunking/common/chunkingEndpointClient';
 import { ChunkingEndpointClientImpl } from '../../src/platform/chunking/common/chunkingEndpointClientImpl';
 import { INaiveChunkingService, NaiveChunkingService } from '../../src/platform/chunking/node/naiveChunkerService';
-import { CHAT_MODEL, Config, ConfigKey, ExperimentBasedConfig, ExperimentBasedConfigType, globalConfigRegistry, IConfigurationService } from '../../src/platform/configuration/common/configurationService';
+import { CHAT_MODEL, Config, ExperimentBasedConfig, ExperimentBasedConfigType, globalConfigRegistry, IConfigurationService } from '../../src/platform/configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../src/platform/configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../src/platform/configuration/test/common/inMemoryConfigurationService';
 import { IEmbeddingsComputer } from '../../src/platform/embeddings/common/embeddingsComputer';
@@ -51,7 +51,6 @@ import { CachingCompletionsFetchService } from './cachingCompletionsFetchService
 import { CachingResourceFetcher } from './cachingResourceFetcher';
 import { ICompletionsCache } from './completionsCache';
 import { ISimulationEndpointHealth, SimulationEndpointHealthImpl } from './simulationEndpointHealth';
-import { SimulationCodeSearchChunkSearchService } from './simuliationWorkspaceChunkSearch';
 import { FetchRequestCollector, SpyingChatMLFetcher } from './spyingChatMLFetcher';
 import { SimulationTest } from './stest';
 import { ChatModelThrottlingTaskLaunchers, ThrottlingLimits as SimulationThrottlingLimits, ThrottlingChatMLFetcher } from './throttlingChatMLFetcher';
@@ -123,8 +122,6 @@ export interface SimulationServicesOptions {
 	createNesFetchCache?: (info: CurrentTestRunInfo) => ICompletionsCache;
 	resourcesCacheMode: CacheMode;
 	disabledTools: Set<string>;
-	summarizeHistory: boolean;
-	useExperimentalCodeSearchService: boolean;
 	configs: Record<string, unknown> | undefined;
 }
 
@@ -167,7 +164,6 @@ export async function createSimulationAccessor(
 			[
 				new DefaultsOnlyConfigurationService(),
 				new Map<ExperimentBasedConfig<ExperimentBasedConfigType> | Config<any>, unknown>([
-					[ConfigKey.SummarizeAgentConversationHistory, opts.summarizeHistory],
 					...currentTestRunInfo.test.configurations?.map<[ExperimentBasedConfig<ExperimentBasedConfigType> | Config<any>, unknown]>(c => [c.key, c.value]) ?? [],
 					...configs,
 				]),
@@ -249,11 +245,7 @@ export async function createSimulationAccessor(
 	testingServiceCollection.define(IWorkspaceFileIndex, new SyncDescriptor(WorkspaceFileIndex));
 	testingServiceCollection.define(IGithubAvailableEmbeddingTypesService, new SyncDescriptor(MockGithubAvailableEmbeddingTypesService));
 
-	if (opts.useExperimentalCodeSearchService) {
-		testingServiceCollection.define(IWorkspaceChunkSearchService, new SyncDescriptor(SimulationCodeSearchChunkSearchService, []));
-	} else {
-		testingServiceCollection.define(IWorkspaceChunkSearchService, new SyncDescriptor(WorkspaceChunkSearchService));
-	}
+	testingServiceCollection.define(IWorkspaceChunkSearchService, new SyncDescriptor(WorkspaceChunkSearchService));
 
 	return testingServiceCollection;
 }

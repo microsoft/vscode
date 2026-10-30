@@ -585,8 +585,6 @@ function createSimulationTestContext(
 		languageModelCacheMode: opts.lmCacheMode,
 		resourcesCacheMode: opts.resourcesCacheMode,
 		disabledTools: opts.disabledTools,
-		summarizeHistory: opts.summarizeHistory,
-		useExperimentalCodeSearchService: opts.useExperimentalCodeSearchService,
 		configs
 	};
 
