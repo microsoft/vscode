@@ -1379,7 +1379,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const generation = this.cleanupGeneration;
 		let started = false;
 		const start = () => {
-			const focusResult = dom.getActiveElement() === (forceWorktrees ? this.forceCleanupButton?.element : this.cleanupButton?.element);
 			started = true;
 			this.pendingCleanupDelay = 2_000;
 			this.pinnedDisplayOrder = new Map(this.displayedSessionIds.map((sessionId, index) => [sessionId, index]));
@@ -1389,9 +1388,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 				this.cleanupBatch.set(getWorktreeCleanupId(candidate), { candidate, state: 'queued' });
 			}
 			this.renderRows();
-			if (focusResult) {
-				this.renderedCells.get(getWorktreeCleanupId(selected[0]))?.get('title')?.focusTarget?.focus();
-			}
 		};
 		try {
 			const onProgress = (progress: SessionWorktreeCleanupProgress) => {

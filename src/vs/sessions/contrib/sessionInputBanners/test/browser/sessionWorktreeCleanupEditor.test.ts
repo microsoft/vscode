@@ -2219,24 +2219,31 @@ suite('SessionWorktreeCleanupEditor', () => {
 		}, { marginRight: '0px', gap: 8 });
 	});
 
-	test('moves keyboard focus to results when cleanup hides its action controls', async () => {
-		const worktree = createWorktree('available', '/repos/app');
-		let scheduled = false;
-		const { editor, container } = createEditor({
-			getWorktrees: async () => [scheduled ? { ...worktree, cleanupState: 'archived', cleanupStatus: { state: 'pending' } } : worktree],
-			cleanupWorktrees: async (candidates, onProgress) => { scheduled = true; return scheduleCleanup(candidates, onProgress); },
+	for (const count of [1, 200]) {
+		test(`does not move focus or reveal a cleanup candidate in ${count} sorted results`, async () => {
+			const worktrees = Array.from({ length: count }, (_, index) => ({ ...createWorktree(`worktree-${index}`, '/repos/app'), sizeBytes: index + 1 }));
+			let scheduled = false;
+			const { editor, container } = createEditor({
+				getWorktrees: async () => worktrees.map(worktree => scheduled ? { ...worktree, cleanupState: 'archived', cleanupStatus: { state: 'pending' } } : worktree),
+				cleanupWorktrees: async (candidates, onProgress) => { scheduled = true; return scheduleCleanup(candidates, onProgress); },
+			});
+			editor.layout(new dom.Dimension(960, 600));
+			await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+			await timeout(0);
+			const initiallyRendered = [...container.querySelectorAll('.session-worktree-cleanup-session-link')].some(link => link.textContent === 'worktree-0');
+			const button = container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!;
+			focusElement(button);
+			button.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			await timeout(0);
+			const focused = dom.getActiveElement();
+			assert.deepStrictEqual({
+				initiallyRendered,
+				controlsHidden: container.querySelector('.session-worktree-cleanup-summary-row')?.classList.contains('hidden'),
+				focusedInResults: !!focused && !!container.querySelector('.session-worktree-cleanup-progress')?.contains(focused),
+				firstRendered: [...container.querySelectorAll('.session-worktree-cleanup-progress .session-worktree-cleanup-session-link')].some(link => link.textContent === 'worktree-0'),
+			}, { initiallyRendered: count === 1, controlsHidden: true, focusedInResults: false, firstRendered: count === 1 });
 		});
-		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
-		await timeout(0);
-		const button = container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!;
-		focusElement(button);
-		button.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
-		await timeout(0);
-		assert.deepStrictEqual({
-			controlsHidden: container.querySelector('.session-worktree-cleanup-summary-row')?.classList.contains('hidden'),
-			focused: dom.getActiveElement() === container.querySelector('.session-worktree-cleanup-progress .session-worktree-cleanup-session-link'),
-		}, { controlsHidden: true, focused: true });
-	});
+	}
 
 	test('continues polling pending cleanup through request errors beyond thirty seconds', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const worktree: ISessionWorktree = { ...createWorktree('pending', '/repos/app', 'archived'), cleanupStatus: { state: 'pending' } };
