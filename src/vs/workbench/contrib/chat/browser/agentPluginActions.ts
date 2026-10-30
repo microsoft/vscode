@@ -5,12 +5,13 @@
 
 import { Action, IAction, IActionChangeEvent } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICustomizationMarketplaceInstallService } from '../common/customizationMarketplaceInstallService.js';
@@ -52,11 +53,18 @@ export class InstallPluginAction extends Action {
 }
 
 export class UninstallPluginAction extends Action {
-	constructor(private readonly removePlugin: () => Promise<boolean>, requiredByOrganization = false) {
+	constructor(private readonly removePlugin: () => Promise<boolean>, readonly requiredByOrganization = false) {
 		super('agentPlugin.uninstall', localize('uninstall', "Uninstall"), 'extension-action label uninstall', !requiredByOrganization);
 		if (requiredByOrganization) {
 			this.tooltip = getPluginManagedByOrganizationMessage();
 		}
+	}
+
+	/** The accessible name, which includes the reason when the organization requires the plugin. */
+	get ariaLabel(): string {
+		return this.requiredByOrganization
+			? localize('pluginUninstallUnavailableAria', "{0}. {1}", this.label, this.tooltip)
+			: this.label;
 	}
 
 	override async run(): Promise<void> {
@@ -65,6 +73,39 @@ export class UninstallPluginAction extends Action {
 
 	runAndGetResult(): Promise<boolean> {
 		return this.enabled ? this.removePlugin() : Promise.resolve(false);
+	}
+}
+
+/**
+ * Renders the Uninstall action of a plugin the organization requires. It stays
+ * keyboard-reachable in action bars that skip disabled items, its accessible name
+ * includes the reason, and hovering or pressing Enter or Space shows the reason.
+ * The action itself stays disabled, so it never runs.
+ */
+export class OrganizationRequiredUninstallActionViewItem extends ActionViewItem {
+	constructor(
+		private readonly uninstallAction: UninstallPluginAction,
+		options: IActionViewItemOptions,
+		private readonly hoverService: IHoverService,
+	) {
+		super(undefined, uninstallAction, options);
+	}
+
+	override isEnabled(): boolean {
+		return true;
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		this._register(this.hoverService.setupDelayedHover(container, { content: this.uninstallAction.tooltip }, { setupKeyboardEvents: true }));
+	}
+
+	protected override getHoverContents(): undefined {
+		return undefined;
+	}
+
+	protected override updateAriaLabel(): void {
+		this.label?.setAttribute('aria-label', this.uninstallAction.ariaLabel);
 	}
 }
 

@@ -193,6 +193,7 @@ type DiscoveryListEntry = (IInstalledDiscoveryItem | ICatalogDiscoveryItem | { r
 	readonly installationState?: CustomizationMarketplaceInstallState;
 	readonly uninstalling?: boolean;
 	readonly installError?: string;
+	readonly uninstallBlockedMessage?: string;
 };
 type LinkedConnectionRole = 'connector' | 'alternative';
 
@@ -667,7 +668,6 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		private readonly onOpenDetails: (resource: ICustomizationMarketplaceResource) => void,
 		private readonly onOpenInstalled: (item: IInstalledDiscoveryItem) => void,
 		private readonly isDirectUninstalling: (item: IInstalledDiscoveryItem) => boolean,
-		private readonly getUninstallBlockedMessage: (item: IInstalledDiscoveryItem) => string | undefined,
 		private readonly onToggleAlternative: (item: IInstalledDiscoveryItem | ICatalogDiscoveryItem) => void,
 		private readonly onRenderAlternative: (item: IInstalledDiscoveryItem | ICatalogDiscoveryItem, disclosure: HTMLButtonElement) => void,
 		private readonly themeService: IThemeService,
@@ -875,7 +875,7 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 				element.name,
 				state,
 				error,
-				this.getUninstallBlockedMessage(element),
+				element.uninstallBlockedMessage,
 				templateData.elementDisposables,
 				this.hoverService,
 				() => this.onRepair(element.catalogResource!),
@@ -883,7 +883,7 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 				() => this.onUninstall(element),
 			);
 		} else if (element.removable) {
-			const uninstallBlockedMessage = this.getUninstallBlockedMessage(element);
+			const uninstallBlockedMessage = element.uninstallBlockedMessage;
 			const uninstalling = !uninstallBlockedMessage && this.isDirectUninstalling(element);
 			const button = templateData.elementDisposables.add(new Button(templateData.actions, { ...defaultButtonStyles, secondary: true, small: true }));
 			button.label = uninstalling
@@ -1120,7 +1120,6 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			resource => this.openMarketplaceItem(resource, 'search'),
 			item => this.openInstalledItem(item),
 			item => this.pendingDirectUninstalls.has(item.id),
-			item => this.getUninstallBlockedMessage(item),
 			item => this.toggleAlternative(item),
 			(item, disclosure) => this.resultAlternativeActions.set(item.id, disclosure),
 			this.themeService,
@@ -1176,6 +1175,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.refreshInstalledItems();
 		}));
 		// Only organizations that require plugins populate this list; it stays empty, and never re-renders, otherwise.
+		// Search rows snapshot their uninstall policy, so a preserving render still replaces the affected rows.
 		let renderedRequiredPluginUris = this.requiredPluginUris.get();
 		this._register(autorun(reader => {
 			const uris = this.requiredPluginUris.read(reader);
@@ -2370,6 +2370,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				installationState: resource ? this.getInstallState(resource) : undefined,
 				uninstalling: entry.kind === 'installed' && this.pendingDirectUninstalls.has(entry.id),
 				installError: resource ? this.installErrors.get(getCustomizationMarketplaceResourceKey(resource)) : undefined,
+				uninstallBlockedMessage: entry.kind === 'installed' ? this.getUninstallBlockedMessage(entry) : undefined,
 			};
 		});
 		const resultCount = entries.length;

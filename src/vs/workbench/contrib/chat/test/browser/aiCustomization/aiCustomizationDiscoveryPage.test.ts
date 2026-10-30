@@ -2365,6 +2365,31 @@ suite('AICustomizationDiscoveryPage', () => {
 		}
 	});
 
+	test('search rows follow organization plugin requirements as they change', async () => {
+		const removals: string[] = [];
+		const policyEnablement = observableValue<boolean | undefined>('policyEnablement', undefined);
+		const plugin = createRequiredPlugin(policyEnablement, removals);
+		const fixture = createPage(['agentFinder'], [AICustomizationManagementSection.Plugins], [plugin]);
+		fixture.page.setSearchQuery('@installed handy');
+		fixture.page.setVisible(true);
+		await timeout(0);
+		const getAction = () => {
+			const action = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-results .monaco-list-row .monaco-button');
+			return { disabled: action?.getAttribute('aria-disabled'), ariaLabel: action?.getAttribute('aria-label') };
+		};
+		const unmanaged = getAction();
+		policyEnablement.set(true, undefined);
+		const required = getAction();
+		policyEnablement.set(undefined, undefined);
+
+		assert.deepStrictEqual({ unmanaged, required, released: getAction(), removals }, {
+			unmanaged: { disabled: 'false', ariaLabel: 'Uninstall handy-commands' },
+			required: { disabled: 'true', ariaLabel: 'Uninstall handy-commands. This plugin is managed by your organization.' },
+			released: { disabled: 'false', ariaLabel: 'Uninstall handy-commands' },
+			removals: [],
+		});
+	});
+
 	test('organization-required plugin search rows never offer Retry Uninstall', async () => {
 		const removals: string[] = [];
 		const plugin = createRequiredPlugin(constObservable(true), removals);

@@ -448,13 +448,11 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 				...defaultButtonStyles,
 				secondary: true,
 				supportIcons: true,
-				ariaLabel: uninstallAction.enabled
-					? uninstallAction.label
-					: localize('pluginUninstallUnavailableAria', "{0}. {1}", uninstallAction.label, uninstallAction.tooltip),
+				ariaLabel: uninstallAction.ariaLabel,
 			}));
 			uninstallButton.label = uninstallAction.label;
 			uninstallButton.enabled = uninstallAction.enabled;
-			if (!uninstallAction.enabled) {
+			if (uninstallAction.requiredByOrganization) {
 				this.renderDisposables.add(this.hoverService.setupDelayedHover(uninstallButton.element, { content: uninstallAction.tooltip }, { setupKeyboardEvents: true }));
 			}
 			this.renderDisposables.add(uninstallButton.onDidClick(async () => {
