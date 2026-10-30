@@ -43,6 +43,19 @@ function code() {
 	export ELECTRON_ENABLE_STACK_DUMPING=1
 	export ELECTRON_ENABLE_LOGGING=1
 
+	if [[ -n "${NODE_OPTIONS}" ]]; then
+		if [[ -z "${VSCODE_NODE_OPTIONS+x}" ]]; then
+			export VSCODE_NODE_OPTIONS="${NODE_OPTIONS}"
+		fi
+		unset NODE_OPTIONS
+	fi
+	if [[ -n "${NODE_REPL_EXTERNAL_MODULE}" ]]; then
+		if [[ -z "${VSCODE_NODE_REPL_EXTERNAL_MODULE+x}" ]]; then
+			export VSCODE_NODE_REPL_EXTERNAL_MODULE="${NODE_REPL_EXTERNAL_MODULE}"
+		fi
+		unset NODE_REPL_EXTERNAL_MODULE
+	fi
+
 	DISABLE_TEST_EXTENSION="--disable-extension=vscode.vscode-api-tests"
 	if [[ "$@" == *"--extensionTestsPath"* ]]; then
 		DISABLE_TEST_EXTENSION=""
