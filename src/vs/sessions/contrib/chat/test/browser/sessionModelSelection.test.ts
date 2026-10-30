@@ -670,7 +670,7 @@ suite('SessionModelSelection', () => {
 			const values = [access.getModelConfiguration(first.identifier)];
 			const writesAfterOpening = [...languageModelsService.writes];
 			const changes: (Record<string, unknown> | undefined)[] = [];
-			disposables.add(access.onDidChange!(modelId => changes.push(access.getModelConfiguration(modelId))));
+			disposables.add(access.onDidChange!(modelIds => changes.push(...modelIds.map(modelId => access.getModelConfiguration(modelId)))));
 
 			await access.setModelConfiguration(first.identifier, { thinkingLevel: 'medium' });
 			activeSession.set(secondSession.session, undefined);

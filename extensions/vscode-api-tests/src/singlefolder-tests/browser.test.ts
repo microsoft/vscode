@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as crypto from 'crypto';
+import * as dgram from 'dgram';
 import * as fs from 'fs';
+import * as http from 'http';
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
@@ -244,6 +247,97 @@ import { assertNoRpc, closeAllEditors } from '../utils';
 
 		await session.close();
 		await closed;
+	});
+
+	// #endregion
+
+	// #region remote network
+	//
+	// In a remote window, tabs load pages through a proxy to the remote. This
+	// covers what only Chromium can: its proxying of WebSockets (always over
+	// CONNECT), large responses, and that WebRTC sends no direct UDP. The test
+	// resolver's remote is this machine, so its loopback is reachable either way.
+
+	(vscode.env.remoteName ? test : test.skip)('remote network carries WebSockets and large responses without direct UDP', async function () {
+		this.timeout(60_000);
+		let udpPackets = 0;
+		const udpServer = dgram.createSocket('udp4');
+		udpServer.on('message', () => udpPackets++);
+		await new Promise<void>((resolve, reject) => {
+			udpServer.once('error', reject);
+			udpServer.bind(0, '127.0.0.1', resolve);
+		});
+		const udpAddress = udpServer.address();
+		const largeBytes = 8 * 1024 * 1024;
+		const server = http.createServer(async (request, response) => {
+			if (request.url === '/large') {
+				response.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': String(largeBytes), 'Cache-Control': 'no-store' });
+				const chunk = Buffer.alloc(64 * 1024, 0x5a);
+				for (let sent = 0; sent < largeBytes; sent += chunk.byteLength) {
+					if (!response.write(chunk)) {
+						await new Promise<void>(resolve => response.once('drain', resolve));
+					}
+				}
+				response.end();
+				return;
+			}
+			response.writeHead(200, { 'Content-Type': 'text/html' });
+			response.end(`<!DOCTYPE html><title>pending</title><script>
+				const results = {};
+				const done = (key, value) => {
+					results[key] = value;
+					if (Object.keys(results).length === 3) {
+						document.title = 'ws:' + results.ws + ' large:' + results.large + ' rtc:' + results.rtc;
+					}
+				};
+				const socket = new WebSocket('ws://' + location.host + '/socket');
+				socket.onmessage = event => { done('ws', event.data); socket.close(); };
+				socket.onerror = () => done('ws', 'error');
+				fetch('/large').then(response => response.arrayBuffer()).then(buffer => done('large', buffer.byteLength), () => done('large', 'error'));
+				// Gathering against a local STUN server would send it UDP unless WebRTC is confined to the proxy.
+				const peer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:127.0.0.1:${udpAddress.port}' }] });
+				peer.createDataChannel('probe');
+				const gathered = () => { if (!('rtc' in results)) { peer.close(); done('rtc', 'gathered'); } };
+				peer.onicegatheringstatechange = () => peer.iceGatheringState === 'complete' && gathered();
+				setTimeout(gathered, 3000);
+				peer.createOffer().then(offer => peer.setLocalDescription(offer));
+			</script>`);
+		});
+		// Accepts the WebSocket and sends a single 'ready' text frame.
+		const upgraded = new Set<import('stream').Duplex>();
+		server.on('upgrade', (request, socket) => {
+			upgraded.add(socket);
+			const accept = crypto.createHash('sha1').update(`${request.headers['sec-websocket-key']}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest('base64');
+			socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
+			socket.write(Buffer.from([0x81, 5, ...Buffer.from('ready')]));
+			socket.on('error', () => { });
+		});
+		await new Promise<void>((resolve, reject) => {
+			server.once('error', reject);
+			server.listen(0, '127.0.0.1', resolve);
+		});
+		const address = server.address();
+		assert.ok(address && typeof address !== 'string');
+		const browserConfig = workspace.getConfiguration('workbench.browser');
+		const previousRemoteProxy = browserConfig.inspect<boolean>('enableRemoteProxy')?.globalValue;
+		try {
+			await browserConfig.update('enableRemoteProxy', true, vscode.ConfigurationTarget.Global);
+			const tab = await window.openBrowserTab(`http://127.0.0.1:${address.port}/page`);
+			for (let attempt = 0; !tab.title.startsWith('ws:'); attempt++) {
+				if (attempt > 300) {
+					throw new Error(`Timed out waiting for the page, last title: ${tab.title}`);
+				}
+				await new Promise(resolve => setTimeout(resolve, 100));
+			}
+			// Remote tabs append their URL to the title.
+			assert.deepStrictEqual({ title: tab.title.replace(/ \(.*\)$/, ''), udpPackets }, { title: `ws:ready large:${largeBytes} rtc:gathered`, udpPackets: 0 });
+		} finally {
+			await browserConfig.update('enableRemoteProxy', previousRemoteProxy, vscode.ConfigurationTarget.Global);
+			upgraded.forEach(socket => socket.destroy());
+			server.closeAllConnections();
+			await new Promise<void>(resolve => server.close(() => resolve()));
+			await new Promise<void>(resolve => udpServer.close(() => resolve()));
+		}
 	});
 
 	// #endregion

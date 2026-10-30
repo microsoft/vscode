@@ -10,10 +10,17 @@ import { isLocation } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IAgentsWindowDraft } from '../../../../../platform/window/common/window.js';
 import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, isChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry, toPasteVariableEntry } from './chatVariableEntries.js';
+import { IDynamicVariable } from './chatVariables.js';
 
 export interface IChatDraft {
 	readonly inputText: string;
 	readonly attachments: readonly IChatRequestVariableEntry[];
+	/**
+	 * The references of the input text, by the id of what they stand for and
+	 * their range in the text. They tell apart mentions of attachments that
+	 * share a name, which inline attachment pills are saved as.
+	 */
+	readonly references?: readonly IDynamicVariable[];
 }
 
 export class UnsupportedChatDraftAttachmentError extends Error {

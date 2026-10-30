@@ -28,7 +28,7 @@ import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { isRenameChatTool } from '../common/serverToolNames.js';
 import { type CodexModelProvider, AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type AgentSubagentKind, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal, type IAgentSubagentStartedSignal } from '../common/agent.js';
+import { AgentPermissionKind, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type AgentSubagentKind, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal, type IAgentSubagentStartedSignal } from '../common/agent.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
@@ -1649,6 +1649,7 @@ export class AgentSideEffects extends Disposable {
 					pastTenseMessage: toolCall.pastTenseMessage,
 					content: toolCall.content,
 					structuredContent: toolCall.structuredContent,
+					resultMetadata: toolCall.resultMetadata,
 					error: toolCall.error,
 				};
 			} else if (action.type === ActionType.ChatToolCallResultConfirmed && !action.approved && toolCall?.status === ToolCallStatus.Cancelled && toolCall.reason === ToolCallCancellationReason.ResultDenied) {
@@ -1683,9 +1684,11 @@ export class AgentSideEffects extends Disposable {
 	private async _handleToolReady(e: IAgentToolPendingConfirmationSignal, sessionKey: ProtocolURI, turnId: string, agent: IAgent): Promise<void> {
 		const approvalEvent = {
 			toolCallId: e.state.toolCallId,
+			toolName: e.state.toolName,
 			session: e.chat,
 			permissionKind: e.permissionKind,
 			permissionPath: e.permissionPath,
+			permissionUrl: e.permissionUrl,
 			toolInput: e.shellCommand ?? getInlineToolInput(e.state.toolInput),
 			requestSandboxBypass: e.requestSandboxBypass,
 			shellLanguage: e.shellLanguage,
@@ -1695,7 +1698,9 @@ export class AgentSideEffects extends Disposable {
 		// auto-approval. Providers that auto-approve upstream never raise this signal, so this is not a
 		// universal guarantee — the read-only attachment presentation is the primary defense there.
 		const forbiddenSnapshotWrite = this._permissionManager.isForbiddenSnapshotWrite(approvalEvent, sessionKey);
-		const autoApproval = e.managedApprovalRequired || forbiddenSnapshotWrite
+		const deniedByPermissions = forbiddenSnapshotWrite || this._permissionManager.isDeniedByPermissions(approvalEvent, sessionKey);
+		const deniedByPolicy = typeof deniedByPermissions === 'boolean' ? deniedByPermissions : await deniedByPermissions;
+		const autoApproval = e.managedApprovalRequired || deniedByPolicy
 			? undefined
 			: await this._permissionManager.getAutoApproval(approvalEvent, sessionKey);
 		const activeTurn = this._stateManager.getSessionState(sessionKey)?.activeTurn;
@@ -1719,11 +1724,10 @@ export class AgentSideEffects extends Disposable {
 		const contributor = e.state.contributor ?? toolCall?.contributor;
 		let effective = e;
 		const toolCallKey = `${sessionKey}:${e.state.toolCallId}`;
-		if (forbiddenSnapshotWrite) {
-			// Hard-deny: the model tried to edit a read-only attachment snapshot. Refusing lets the
-			// model recover (e.g. reply with the transformed content / edit the real file) instead of
-			// silently mutating the throwaway copy.
-			this._logService.warn(`[AgentSideEffects] Denying write to read-only attachment snapshot: toolCallId=${e.state.toolCallId}`);
+		if (deniedByPolicy) {
+			this._logService.warn(forbiddenSnapshotWrite
+				? `[AgentSideEffects] Denying write to read-only attachment snapshot: toolCallId=${e.state.toolCallId}`
+				: `[AgentSideEffects] Denying tool call by permissions: toolCallId=${e.state.toolCallId}`);
 			this._toolCallAgents.delete(toolCallKey);
 			this._managedApprovalToolCalls.delete(toolCallKey);
 			agent.respondToPermissionRequest(e.state.toolCallId, false, { decisionSource: 'host_policy' });
@@ -1760,11 +1764,10 @@ export class AgentSideEffects extends Disposable {
 			// Make sure the agent is registered for the eventual `ChatToolCallConfirmed` response.
 			this._toolCallAgents.set(toolCallKey, agent.id);
 		}
-		if (autoApproval === undefined && !e.managedApprovalRequired && this._permissionManager.isAutoApproveRuleResolvable(approvalEvent, sessionKey)) {
-			// Mark confirmations where a persistent allow rule can suppress the next equivalent prompt.
-			effective = { ...effective, state: { ...effective.state, _meta: { ...toolCall?._meta, ...effective.state._meta, ...toToolCallMeta({ autoApproveRuleResolvable: true }) } } };
-		}
-		const readyAction = this._permissionManager.createToolReadyAction(effective, sessionKey, turnId);
+
+		const pathOptions = effective.permissionKind === AgentPermissionKind.Read || effective.permissionKind === AgentPermissionKind.Write
+			? await this._permissionManager.getPathConfirmationOptions(effective) : [];
+		const readyAction = this._permissionManager.createToolReadyAction(effective, sessionKey, turnId, pathOptions);
 		if (!toolCall && effective.state.confirmationTitle && activeTurn?.id === turnId) {
 			// Fusion can stage tool-start events, but an approval must be visible
 			// immediately. Use the real request identity and the normal lifecycle.
@@ -1901,8 +1904,7 @@ export class AgentSideEffects extends Disposable {
 					this._logService.warn(`[AgentSideEffects] No agent for tool call confirmation: ${action.toolCallId}`);
 				}
 
-				// When the user chose "Allow in this Session", add the tool
-				// to the session's permissions so future calls are auto-approved.
+				// Persist the host-issued session grant selected by the user.
 				if (action.approved && !managedApprovalRequired) {
 					this._permissionManager.handleToolCallConfirmed(channel, action.toolCallId, action.selectedOptionId);
 				}

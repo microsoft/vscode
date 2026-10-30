@@ -7,6 +7,7 @@ import assert from 'assert';
 import { stub } from 'sinon';
 import { $, Dimension, EventType, ModifierKeyEmitter, reset, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -211,6 +212,110 @@ suite('MultiEditorTabsControl', () => {
 				: indicator.getBoundingClientRect().top - fill.getBoundingClientRect().top,
 		};
 	}
+
+	test('modern tab scrollbars overlay the top edge without changing header or body geometry', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		const body = $('div');
+		body.style.height = '100px';
+		group.appendChild(body);
+		openNamedEditors(['first-long-editor-name.ts', 'second-long-editor-name.ts', 'third-long-editor-name.ts']);
+		const results = [];
+		for (const modern of [false, true]) {
+			root.classList.toggle('modern-ui-tabs', modern);
+			for (const connected of [false, true]) {
+				root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+				for (const tabHeight of ['default', 'compact'] as const) {
+					container.classList.toggle('compact-height', tabHeight === 'compact');
+					for (const titleScrollbarSizing of ['default', 'large'] as const) {
+						const oldOptions = partOptions;
+						partOptions = { ...partOptions, tabHeight, titleScrollbarSizing, titleScrollbarVisibility: 'auto', editorActionsLocation: 'hidden' };
+						control.updateOptions(oldOptions, partOptions);
+						await layoutConnectedGroup(group, 300);
+						const scrollable = container.querySelector<HTMLElement>('.monaco-scrollable-element')!;
+						const scrollbar = scrollable.querySelector<HTMLElement>('.scrollbar.horizontal')!;
+						const geometry = () => ({
+							headerHeight: container.getBoundingClientRect().height,
+							tabHeights: Array.from(container.querySelectorAll<HTMLElement>('.tab')).map(tab => tab.getBoundingClientRect().height),
+							bodyTop: body.getBoundingClientRect().top,
+						});
+						scrollable.dispatchEvent(new MouseEvent(EventType.MOUSE_LEAVE));
+						const idleGeometry = geometry();
+						const hiddenAtRest = scrollbar.classList.contains('invisible') && mainWindow.getComputedStyle(scrollbar).pointerEvents === 'none';
+						scrollable.dispatchEvent(new MouseEvent(EventType.MOUSE_OVER, { bubbles: true }));
+						await timeout(0);
+						const bounds = scrollbar.getBoundingClientRect();
+						const viewport = scrollable.getBoundingClientRect();
+						results.push({
+							modern, connected, tabHeight, titleScrollbarSizing,
+							hiddenAtRest,
+							visibleOnHover: scrollbar.classList.contains('visible'),
+							correctEdge: Math.abs(modern ? bounds.top - viewport.top : bounds.bottom - viewport.bottom) < 1 / 32,
+							withinHeader: bounds.top >= viewport.top && bounds.bottom <= viewport.bottom,
+							stableGeometry: JSON.stringify(geometry()) === JSON.stringify(idleGeometry),
+						});
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result, hiddenAtRest: true, visibleOnHover: true, correctEdge: true, withinHeader: true, stableGeometry: true,
+		})));
+	});
+
+	test('connected top scrollbars preserve explicit visibility settings and stay hidden without overflow', async () => {
+		const group = connectedGroup();
+		openNamedEditors(['first-long-editor-name.ts', 'second-long-editor-name.ts', 'third-long-editor-name.ts']);
+		const results = [];
+		for (const titleScrollbarVisibility of ['auto', 'visible', 'hidden'] as const) {
+			const oldOptions = partOptions;
+			partOptions = { ...partOptions, titleScrollbarVisibility, editorActionsLocation: 'hidden' };
+			control.updateOptions(oldOptions, partOptions);
+			for (const width of [300, 2000]) {
+				await layoutConnectedGroup(group, width);
+				const scrollable = container.querySelector<HTMLElement>('.monaco-scrollable-element')!;
+				const scrollbar = scrollable.querySelector<HTMLElement>('.scrollbar.horizontal')!;
+				scrollable.dispatchEvent(new MouseEvent(EventType.MOUSE_OVER, { bubbles: true }));
+				await timeout(0);
+				const visibleOnHover = scrollbar.classList.contains('visible');
+				scrollable.dispatchEvent(new MouseEvent(EventType.MOUSE_LEAVE));
+				results.push({
+					titleScrollbarVisibility, width,
+					visibleOnHover,
+					visibleAtRest: scrollbar.classList.contains('visible'),
+				});
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result,
+			visibleOnHover: result.width === 300 && result.titleScrollbarVisibility !== 'hidden',
+			visibleAtRest: result.width === 300 && result.titleScrollbarVisibility === 'visible',
+		})));
+	});
+
+	test('connected editor tab scrollbars keep rounded ends and configured thickness', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		root.style.setProperty('--vscode-cornerRadius-circle', '9999px');
+		const results = [];
+		for (const titleScrollbarSizing of ['default', 'large'] as const) {
+			const oldOptions = partOptions;
+			partOptions = { ...partOptions, titleScrollbarSizing };
+			control.updateOptions(oldOptions, partOptions);
+			await layoutConnectedGroup(group, 180);
+			const slider = container.querySelector<HTMLElement>('.scrollbar.horizontal > .slider')!;
+			results.push({
+				titleScrollbarSizing,
+				height: slider.getBoundingClientRect().height,
+				radius: mainWindow.getComputedStyle(slider).borderRadius,
+			});
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result,
+			height: result.titleScrollbarSizing === 'large' ? 10 : 3,
+			radius: '9999px',
+		})));
+	});
 
 	test('keeps connected layout current when an Add Tab toolbar follows the editor tabs', async () => {
 		const group = connectedGroup();
@@ -3665,6 +3770,62 @@ suite('MultiEditorTabsControl', () => {
 		});
 	});
 
+	test('preserves the first Connected tab edge without duplicating the editor frame when scrolled', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		root.style.setProperty('--vscode-editorGroupHeader-tabsBorder', '#334455');
+		root.style.setProperty('--vscode-contrastBorder', '#334455');
+		root.style.setProperty('--vscode-focusBorder', '#334455');
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, tabSizing: 'fixed', tabSizingFixedMinWidth: 160, tabSizingFixedMaxWidth: 160, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		const third = disposables.add(new TestFileEditorInput(URI.file('/path/third.ts'), 'testEditorInput'));
+		model.openEditor(third, { pinned: true, active: false });
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		const results = [];
+		for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+			root.classList.add(theme);
+			for (const compact of [false, true]) {
+				root.classList.toggle('modern-ui-compact', compact);
+				for (const zoom of [1, 1.25]) {
+					root.style.zoom = String(zoom);
+					for (const index of [0, 1, 0]) {
+						model.openEditor(model.getEditorByIndex(index)!, { active: true });
+						control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+						await layoutConnectedGroup(group, 240);
+						const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
+						tabs.classList.add('scroll');
+						tabs.scrollLeft = index === 0 ? 40 : 200;
+						tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
+						const cap = container.querySelector<HTMLElement>('.tab.active > .tab-connected-edge')!;
+						const overflow = container.querySelector<HTMLElement>('.tab-connected-overflow-edge')!;
+						const sourceStyle = mainWindow.getComputedStyle(cap);
+						const clippedStyle = mainWindow.getComputedStyle(overflow, '::before');
+						results.push({
+							theme, compact, zoom, index,
+							clipped: overflow.classList.contains('connected-tab-left-clipped'),
+							sourceHasLeadingStroke: Number.parseFloat(sourceStyle.borderLeftWidth) > 0,
+							matchingLeadingStroke: clippedStyle.borderLeftWidth === sourceStyle.borderLeftWidth,
+							matchingLeadingRadius: clippedStyle.borderTopLeftRadius === sourceStyle.borderTopLeftRadius,
+						});
+					}
+				}
+			}
+			root.classList.remove(theme);
+		}
+		root.classList.remove('modern-ui-connected-editor-tabs');
+		await layoutConnectedGroup(group, 240);
+		assert.deepStrictEqual({
+			results,
+			squareLeftCleared: !container.querySelector('.tab-connected-overflow-edge.connected-tab-square-left'),
+		}, {
+			results: results.map(result => ({
+				...result, clipped: true, sourceHasLeadingStroke: result.index !== 0, matchingLeadingStroke: true, matchingLeadingRadius: true,
+			})),
+			squareLeftCleared: true,
+		});
+	});
+
 	test('keeps the connected outline inside the visible scroll area', async () => {
 		const root = $('.monaco-workbench.modern-ui.modern-ui-tabs.modern-ui-connected-editor-tabs');
 		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-strokeThickness: 1px; --vscode-cornerRadius-small: 4px; --vscode-editor-background: #ffffff; --modern-ui-connected-tab-surface: #333333; --modern-ui-editor-tab-custom-active-background: #333333; --modern-ui-editor-tab-custom-active-hover-background: #654321;';
@@ -3893,7 +4054,7 @@ suite('MultiEditorTabsControl', () => {
 		}, {
 			clippedHover: { hovered: true, background: 'rgb(101, 67, 33)' },
 			clippedHoverReset: { hovered: false, background: 'rgb(51, 51, 51)' },
-			clippedLeft: { edge: true, clipped: true, fillOffset: '', edgeOffset: ['0px', '0px'], inset: 0, stationaryParent: true, ownCapTop: true, edgeOverlay: ['none', 'block', '8', '5px', '5px', 'border-box', '1px', '1px', 'rgb(51, 51, 51)'] },
+			clippedLeft: { edge: true, clipped: true, fillOffset: '', edgeOffset: ['0px', '0px'], inset: 0, stationaryParent: true, ownCapTop: true, edgeOverlay: ['none', 'block', '8', '5px', '0px', 'border-box', '0px', '1px', 'rgb(51, 51, 51)'] },
 			multiSelected: { clipping: '0px', edge: 'block', radius: '0px 5px 0px 0px', connectedClass: true },
 			singleSelected: { clipping: '0px', connectedClass: true },
 			terminalOutline: { right: '1px', rightShoulder: '""', rightMask: 'none' },

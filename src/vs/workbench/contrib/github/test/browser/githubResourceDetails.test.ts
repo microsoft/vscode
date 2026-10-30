@@ -154,7 +154,7 @@ suite('GitHubResourceDetails', () => {
 			getGitHubResourceDetailsPresentation('issue', target, { status }, 'Recorded title')),
 			Array.from({ length: 3 }, () => ({
 				label: 'Recorded title', badge: '#1', badgeBeforeLabel: true, className: 'chat-pill-reference', preserveLabelOnRefresh: false,
-				pillLabel: '#1', ariaLabel: 'Open Issue #1: Recorded title', dropdownAriaLabel: '#1, Open Issue: Recorded title',
+				pillLabel: '#1', ariaLabel: 'Open Issue #1: Recorded title', dropdownAriaLabel: '#1, Open Issue: Recorded title', ariaDescription: undefined,
 			})));
 	});
 
@@ -443,6 +443,74 @@ suite('GitHubResourceDetails', () => {
 			state: { status: 'resolved', value: original, stale: true }, operations: ['issue', 'issue'], warnings: 1,
 		});
 	}));
+
+	test('stops offering details when an initial reference lookup fails', async () => {
+		const { resolver, issue } = createResolver();
+		const target = { owner: 'microsoft', repo: 'vscode', number: 1 };
+		const details = resolver.resolveReference({}, {
+			kind: 'issue',
+			resource: URI.parse('https://github.com/microsoft/vscode/issues/1'),
+			fallbackLabel: 'Unavailable issue',
+			onDidClickRepository: () => { },
+			onDidClickReference: () => { },
+			onDidClickBranch: () => { },
+		});
+		assert.ok(details?.hover.get());
+
+		issue.set({ ...issue.get(), status: 'error' }, undefined);
+		await resolver.resolveIssue(target);
+
+		assert.deepStrictEqual({
+			state: resolver.getIssueState(target).get().status,
+			hover: details?.hover.get(),
+			presentation: details?.presentation.get(),
+		}, {
+			state: 'failed',
+			hover: undefined,
+			presentation: {
+				label: 'Unavailable issue',
+				badge: '#1',
+				badgeBeforeLabel: true,
+				pillLabel: '#1',
+				className: 'chat-pill-reference',
+				preserveLabelOnRefresh: false,
+				ariaLabel: 'Open Issue #1: Unavailable issue',
+				dropdownAriaLabel: '#1, Open Issue: Unavailable issue',
+				ariaDescription: undefined,
+			},
+		});
+	});
+
+	test('keeps prefetch available after failure so reopening can recover reference details', async () => {
+		const { resolver, issue, requests } = createResolver();
+		const details = resolver.resolveReference({}, {
+			kind: 'issue',
+			resource: URI.parse('https://github.com/microsoft/vscode/issues/1'),
+			fallbackLabel: 'Related issue',
+			onDidClickRepository: () => { },
+			onDidClickReference: () => { },
+			onDidClickBranch: () => { },
+		});
+		issue.set({ ...issue.get(), status: 'error' }, undefined);
+		details?.prefetch?.();
+		await timeout(0);
+		const failed = { state: resolver.getIssueState({ owner: 'microsoft', repo: 'vscode', number: 1 }).get().status, hover: details?.hover.get() };
+
+		issue.set({ ...issue.get(), status: 'ready' }, undefined);
+		details?.prefetch?.();
+		await timeout(0);
+		assert.deepStrictEqual({
+			failed,
+			title: details?.presentation.get().label,
+			expandable: details?.hover.get()?.hover.expandable,
+			requests: requests.length,
+		}, {
+			failed: { state: 'failed', hover: undefined },
+			title: 'Issue title',
+			expandable: true,
+			requests: 2,
+		});
+	});
 
 	test('refreshes PR merge status and checks without claiming success from a different head', () => runWithFakedTimers({}, async () => {
 		const { resolver, snapshot, operations } = createResolver();

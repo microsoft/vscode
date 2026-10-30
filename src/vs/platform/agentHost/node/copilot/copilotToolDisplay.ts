@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { AssistantMessageToolRequest, PermissionRequest, SkillInvokedData } from '@github/copilot-sdk';
+import { assertNever } from '../../../../base/common/assert.js';
 import { hasKey, isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -11,7 +12,7 @@ import { hash } from '../../../../base/common/hash.js';
 import { escapeIcons } from '../../../../base/common/iconLabels.js';
 import { isAbsolute } from '../../../../base/common/path.js';
 import { localize } from '../../../../nls.js';
-import type { IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import { AgentPermissionKind } from '../../common/agent.js';
 import { copilotCliToolInputContract, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import { parseImageGenerationToolMetadata, type IImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
@@ -1165,6 +1166,25 @@ function readConfirmationTitle(request: PermissionRequest, path: string | undefi
 		: localize('copilot.permission.read.generic.title', "Allow reading file?");
 }
 
+/** Maps the SDK's permission kinds into host-owned categories. */
+function toAgentPermissionKind(kind: PermissionRequest['kind']): AgentPermissionKind {
+	switch (kind) {
+		case 'shell': return AgentPermissionKind.Shell;
+		case 'write': return AgentPermissionKind.Write;
+		case 'mcp': return AgentPermissionKind.Mcp;
+		case 'read': return AgentPermissionKind.Read;
+		case 'url': return AgentPermissionKind.Url;
+		case 'custom-tool': return AgentPermissionKind.CustomTool;
+		case 'hook': return AgentPermissionKind.Hook;
+		case 'memory': return AgentPermissionKind.Memory;
+		case 'workflow': return AgentPermissionKind.Workflow;
+		case 'extension-management': return AgentPermissionKind.ExtensionManagement;
+		case 'extension-permission-access': return AgentPermissionKind.ExtensionPermissionAccess;
+		case 'extension-env-access': return AgentPermissionKind.ExtensionEnvAccess;
+		default: return assertNever(kind);
+	}
+}
+
 /**
  * Names a shell command's model-authored intention in its confirmation title,
  * e.g. "Run in terminal: List project files", so the request can be understood
@@ -1195,9 +1215,11 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 	invocationMessage: StringOrMarkdown;
 	toolInput?: string;
 	/** Normalized permission kind for auto-approval routing. */
-	permissionKind: IAgentToolPendingConfirmationSignal['permissionKind'];
+	permissionKind: AgentPermissionKind;
 	/** File path extracted from the request. */
 	permissionPath?: string;
+	/** Normalized URL extracted from the request. */
+	permissionUrl?: string;
 	shellCommand?: string;
 } {
 	const path = request.kind === 'read' ? str(request.path) : request.kind === 'write' ? str(request.fileName) : undefined;
@@ -1237,7 +1259,7 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 				invocationMessage: intention ?? getInvocationMessage(CopilotToolName.Bash, getToolDisplayName(CopilotToolName.Bash), cleanedCommand ? { command: cleanedCommand } : undefined),
 				toolInput: getToolInputString(CopilotToolName.Bash, shellParams, undefined),
 				shellCommand: cleanedCommand,
-				permissionKind: 'shell',
+				permissionKind: AgentPermissionKind.Shell,
 				permissionPath: path,
 			};
 		}
@@ -1254,7 +1276,7 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 					invocationMessage: getInvocationMessage(sdkToolName, getToolDisplayName(sdkToolName), { command }),
 					toolInput: getToolInputString(sdkToolName, args, undefined),
 					shellCommand: command,
-					permissionKind: 'shell',
+					permissionKind: AgentPermissionKind.Shell,
 					permissionPath: path,
 				};
 			}
@@ -1263,7 +1285,7 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 				confirmationTitle: serverDisplay?.confirmationTitle ?? localize('copilot.permission.default.title', "Allow tool call?"),
 				invocationMessage: serverDisplay?.confirmationMessage ?? md(localize('copilot.permission.default.message', "Allow the model to call {0}?", appendEscapedMarkdownInlineCode(toolName ?? request.kind))),
 				toolInput: serverDisplay?.hideConfirmationInput ? undefined : args ? tryStringify(args) : tryStringify(request),
-				permissionKind: request.kind,
+				permissionKind: toAgentPermissionKind(request.kind),
 				permissionPath: path,
 			};
 		}
@@ -1280,7 +1302,7 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 					? getInvocationMessage(shellToolName, getToolDisplayName(shellToolName), typeof args?.command === 'string' ? args : undefined)
 					: md(localize('copilot.permission.default.message', "Allow the model to call {0}?", appendEscapedMarkdownInlineCode(toolName ?? request.kind)))),
 				toolInput: tryStringify(args ?? request.toolArgs, 2),
-				permissionKind: 'hook',
+				permissionKind: AgentPermissionKind.Hook,
 				shellCommand: shellToolName ? str(args?.command) : undefined,
 			};
 		}
@@ -1292,7 +1314,7 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 					: localize('copilot.permission.write.title', "Write file?"),
 				invocationMessage: getInvocationMessage(toolName, getToolDisplayName(toolName), path ? { path } : undefined),
 				toolInput: tryStringify(path ? { path } : request) ?? undefined,
-				permissionKind: 'write',
+				permissionKind: AgentPermissionKind.Write,
 				permissionPath: path,
 			};
 		}
@@ -1304,7 +1326,7 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 					: localize('copilot.permission.default.title', "Allow tool call?"),
 				invocationMessage: serverName ? localize('copilot.permission.mcp.invocation', "{0}: {1}", serverName, title) : title,
 				toolInput: tryStringify({ serverName, toolName }) ?? undefined,
-				permissionKind: 'mcp',
+				permissionKind: AgentPermissionKind.Mcp,
 				permissionPath: path,
 			};
 		}
@@ -1312,7 +1334,7 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 			return {
 				confirmationTitle: readConfirmationTitle(request, path, workingDirectory ? [workingDirectory, ...(additionalDirectories ?? [])] : [], requestSandboxBypass),
 				invocationMessage: getInvocationMessage(CopilotToolName.View, getToolDisplayName(CopilotToolName.View), path ? { path } : undefined),
-				permissionKind: 'read',
+				permissionKind: AgentPermissionKind.Read,
 				permissionPath: path,
 			};
 		case 'url': {
@@ -1323,7 +1345,8 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 				confirmationTitle: localize('copilot.permission.url.title', "Fetch URL?"),
 				invocationMessage: md(localize('copilot.permission.url.message', "Allow fetching web content?")),
 				toolInput: normalizedUrl ? JSON.stringify({ url: normalizedUrl }) : undefined,
-				permissionKind: 'url',
+				permissionKind: AgentPermissionKind.Url,
+				permissionUrl: normalizedUrl,
 			};
 		}
 		default:
@@ -1331,7 +1354,7 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 				confirmationTitle: localize('copilot.permission.default.title', "Allow tool call?"),
 				invocationMessage: md(localize('copilot.permission.default.message', "Allow the model to call {0}?", appendEscapedMarkdownInlineCode(toolName ?? request.kind))),
 				toolInput: tryStringify(request) ?? undefined,
-				permissionKind: request.kind,
+				permissionKind: toAgentPermissionKind(request.kind),
 				permissionPath: path,
 			};
 	}

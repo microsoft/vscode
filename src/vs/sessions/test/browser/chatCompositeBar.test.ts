@@ -1398,6 +1398,23 @@ suite('Sessions - ChatCompositeBar', () => {
 		});
 	});
 
+	test('does not measure the tab strip while hidden and measures it once shown', () => {
+		const { activeChatResource, bar, chats, tabs, visible } = createHarness(disposables);
+		const tabStrip = bar.element.querySelector<HTMLElement>('.chat-composite-bar-tabs')!;
+		let layoutReads = 0;
+		for (const property of ['clientWidth', 'scrollWidth']) {
+			Object.defineProperty(tabStrip, property, { configurable: true, get: () => { layoutReads++; return 0; } });
+		}
+
+		visible.set(false, undefined);
+		layoutReads = 0;
+		activeChatResource.set(tabs[1].dataset.chatResource!, undefined);
+		chats.set([...chats.get()], undefined);
+		const readsWhileHidden = layoutReads;
+		visible.set(true, undefined);
+
+		assert.deepStrictEqual({ readsWhileHidden, measuredWhenShown: layoutReads > 0 }, { readsWhileHidden: 0, measuredWhenShown: true });
+	});
 	test('tracks height changes from ResizeObserver', () => {
 		const { bar } = createHarness(disposables, { resizeObserverCtor: TestResizeObserver });
 		const resizeObserver = TestResizeObserver.instance;
@@ -1551,6 +1568,39 @@ suite('Sessions - ChatCompositeBar', () => {
 			mouseDownDefaultPrevented: false,
 			mouseUpDefaultPrevented: false,
 			auxClickDefaultPrevented: false,
+		});
+	});
+
+	test('rename input lets clipboard and editing shortcuts reach the workbench keybinding dispatcher without driving the tab', () => {
+		const { container, sessionsService, tabs } = createHarness(disposables);
+		const bubbled: string[] = [];
+		container.addEventListener(EventType.KEY_DOWN, e => bubbled.push(e.code));
+		tabs[1].dispatchEvent(new MouseEvent(EventType.DBLCLICK, { bubbles: true, button: 0, cancelable: true }));
+		const input = tabs[1].querySelector<HTMLInputElement>('.chat-composite-bar-tab-input input')!;
+		const openedBefore = sessionsService.openedChats.length;
+
+		for (const code of ['KeyV', 'KeyC', 'KeyX', 'KeyA', 'KeyZ']) {
+			input.dispatchEvent(new KeyboardEvent(EventType.KEY_DOWN, { code, key: code.slice(-1).toLowerCase(), ctrlKey: true, metaKey: true, bubbles: true, cancelable: true }));
+		}
+		const typingDefaultPrevented: boolean[] = [];
+		for (const [code, key, keyCode] of [['Space', ' ', 32], ['ArrowLeft', 'ArrowLeft', 37], ['Home', 'Home', 36]] as const) {
+			const keyDown = new KeyboardEvent(EventType.KEY_DOWN, { code, key, keyCode, bubbles: true, cancelable: true });
+			const keyUp = new KeyboardEvent(EventType.KEY_UP, { code, key, keyCode, bubbles: true, cancelable: true });
+			input.dispatchEvent(keyDown);
+			input.dispatchEvent(keyUp);
+			typingDefaultPrevented.push(keyDown.defaultPrevented || keyUp.defaultPrevented);
+		}
+
+		assert.deepStrictEqual({
+			bubbled,
+			typingDefaultPrevented,
+			openedChatsDuringRename: sessionsService.openedChats.length - openedBefore,
+			stillEditing: tabs[1].querySelector('.chat-composite-bar-tab-input input') === input,
+		}, {
+			bubbled: ['KeyV', 'KeyC', 'KeyX', 'KeyA', 'KeyZ', 'Space', 'ArrowLeft', 'Home'],
+			typingDefaultPrevented: [false, false, false],
+			openedChatsDuringRename: 0,
+			stillEditing: true,
 		});
 	});
 

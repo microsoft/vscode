@@ -15,6 +15,7 @@ export function sessionActivityBarChatActionContext(commandId: string): RawConte
 //#region < --- Active Session --- >
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
+export const NewSessionComposerFocusContext = new RawContextKey<boolean>('newSessionComposerFocus', false, localize('newSessionComposerFocus', "Whether focus is within the new-session composer or its pickers"));
 export const NewSessionOnboardingHandoffContext = new RawContextKey<boolean>('newSessionOnboardingHandoff', false);
 export const SessionIdContext = new RawContextKey<string>('sessionId', '', localize('sessionId', "The identifier of the session in scope (the active session globally, or a specific session within an isolated component such as the session view or a context menu overlay)"));
 export const SessionProviderIdContext = new RawContextKey<string>('sessionProviderId', '', localize('sessionProviderId', "The provider ID of the session in scope (the active session globally, or a specific session within an isolated component such as the session view or a context menu overlay)"));
@@ -88,6 +89,7 @@ export const SessionsEditorScopeContext = ContextKeyExpr.or(EditorAreaFocusConte
 //#region < --- Custom View Grid --- >
 
 export const CustomViewVisibleContext = new RawContextKey<boolean>('customViewVisible', false, localize('customViewVisible', "Whether a custom view is shown in place of the sessions grid. The side panel and the panel are hidden while it is."));
+export const InboxCanvasFocusContext = new RawContextKey<boolean>('inboxCanvasFocus', false, localize('inboxCanvasFocus', "Whether the Inbox canvas has keyboard focus"));
 export const AutomationsCustomViewFocusContext = new RawContextKey<boolean>('automationsCustomViewFocus', false, localize('automationsCustomViewFocus', "Whether the Automations custom view has keyboard focus"));
 export const AutomationsHasItemsContext = new RawContextKey<boolean>('automationsHasItems', false, localize('automationsHasItems', "Whether there is at least one automation"));
 

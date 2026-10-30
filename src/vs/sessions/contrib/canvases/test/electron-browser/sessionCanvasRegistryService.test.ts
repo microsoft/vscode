@@ -7,24 +7,32 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, derived, observableValue, waitForState } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isIMenuItem, isISubmenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { NullCommandService } from '../../../../../platform/commands/test/common/nullCommandService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ICanvasContextService, ICanvasReference, ICanvasService } from '../../../../../workbench/contrib/canvases/common/canvas.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 import { getSessionCanvasDefinitionInstanceId } from '../../common/sessionCanvas.js';
-import { OPEN_SESSION_CANVAS_COMMAND_ID, registerSessionCanvasActions } from '../../electron-browser/sessionCanvasActions.js';
+import { CREATE_SESSION_CANVAS_COMMAND_ID, DISCOVER_SESSION_CANVASES_COMMAND_ID, OPEN_SESSION_CANVAS_COMMAND_ID, registerSessionCanvasActions } from '../../electron-browser/sessionCanvasActions.js';
 import { SessionCanvasRegistryService } from '../../electron-browser/sessionCanvasService.js';
 
 suite('SessionCanvasRegistryService', () => {
@@ -93,6 +101,7 @@ suite('SessionCanvasRegistryService', () => {
 		return {
 			activeChat,
 			activeSession,
+			capabilities,
 			canvases,
 			enabled,
 			canvasService,
@@ -147,16 +156,17 @@ suite('SessionCanvasRegistryService', () => {
 			afterCanvasRemoved,
 			afterDispose: { entries: getEntries(), canvasEntries: getCanvasTitles() },
 		}, {
-			withoutCanvas: { entries: [`submenu:${Menus.SessionActivityBarCanvas.id}:Canvas`], canvasEntries: ['1_available:Plan'] },
+			withoutCanvas: { entries: [`submenu:${Menus.SessionActivityBarCanvas.id}:Canvas`], canvasEntries: ['1_available:Plan', '3_discover:Create a Canvas...', '3_discover:Discover More Canvases'] },
 			opened: ['plan'],
 			withCanvas: { entries: [`command:${Menus.SessionActivityBarCanvas.id}`], canvasEntries: ['navigation:Plan'] },
-			afterCanvasRemoved: { entries: [`submenu:${Menus.SessionActivityBarCanvas.id}:Canvas`], canvasEntries: ['1_available:Plan'] },
+			afterCanvasRemoved: { entries: [`submenu:${Menus.SessionActivityBarCanvas.id}:Canvas`], canvasEntries: ['1_available:Plan', '3_discover:Create a Canvas...', '3_discover:Discover More Canvases'] },
 			afterDispose: { entries: [], canvasEntries: [] },
 		});
 	});
 
-	test('activity bar shows no canvas entry when no canvas types are available', () => {
+	test('activity bar shows no canvas entry when the chat does not support canvases', () => {
 		const harness = createHarness([]);
+		harness.capabilities.set({ supportsCanvases: false, supportsMultipleChats: true }, undefined);
 		const before = MenuRegistry.getMenuItems(Menus.SessionActivityBar);
 		const registration = store.add(registerSessionCanvasActions(harness.canvasService, harness.registryService, harness.contextService));
 		const entries = MenuRegistry.getMenuItems(Menus.SessionActivityBar).filter(item => !before.includes(item));
@@ -269,13 +279,14 @@ suite('SessionCanvasRegistryService', () => {
 		harness.activeSession.set(undefined, undefined);
 		const noSession = snapshot();
 		registration.dispose();
+		const discoverOnly = { title: 'Canvas', children: ['Create a Canvas...', 'Discover More Canvases'] };
 		assert.deepStrictEqual({ multiple, single, otherChat, disabled, enabled, unsettled, noSession, disposed: snapshot() }, {
 			multiple: [{ title: 'Canvas', children: ['Board (first)', 'Board (second)'] }],
 			single: ['Renamed Board'],
-			otherChat: [],
+			otherChat: [discoverOnly],
 			disabled: [],
 			enabled: ['Renamed Board'],
-			unsettled: [],
+			unsettled: [discoverOnly],
 			noSession: [],
 			disposed: [],
 		});
@@ -480,6 +491,64 @@ suite('SessionCanvasRegistryService', () => {
 				canvasId: 'main',
 				instanceId: getSessionCanvasDefinitionInstanceId(definitions[0]),
 			}],
+		});
+	});
+
+	test('offers Discover entries in the Canvas submenu whenever the chat supports canvases', async () => {
+		const harness = createHarness([]);
+		const registration = store.add(registerSessionCanvasActions(harness.canvasService, harness.registryService, harness.contextService));
+		const discoverCommandIds = [CREATE_SESSION_CANVAS_COMMAND_ID, DISCOVER_SESSION_CANVASES_COMMAND_ID];
+		const getEntries = (menu: MenuId) => MenuRegistry.getMenuItems(menu)
+			.filter(isIMenuItem)
+			.filter(item => discoverCommandIds.includes(item.command.id))
+			.map(item => `${item.group}:${item.order}:${ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : ''}:${typeof item.command.title === 'string' ? item.command.title : item.command.title.value}`);
+		const snapshot = () => ({
+			addTab: MenuRegistry.getMenuItems(Menus.SessionsEditorTabsBarAddTab)
+				.filter(isISubmenuItem)
+				.filter(item => item.submenu === Menus.SessionsEditorTabsBarAddTabCanvas).length,
+			canvas: getEntries(Menus.SessionsEditorTabsBarAddTabCanvas),
+			activityBar: getEntries(Menus.SessionActivityBarCanvas),
+		});
+		const withoutCanvasTypes = snapshot();
+		harness.canvases.set([{
+			resource: URI.parse('agent-host-canvas:/session/board'), instanceId: 'board',
+			title: 'Board', source: URI.parse('https://example.com/board'),
+		}], undefined);
+		const withLiveCanvas = snapshot();
+		harness.canvases.set([], undefined);
+		harness.capabilities.set({ supportsCanvases: false, supportsMultipleChats: true }, undefined);
+		const unsupported = snapshot();
+		harness.capabilities.set({ supportsCanvases: true, supportsMultipleChats: true }, undefined);
+
+		const executed: Array<{ id: string; args: unknown[] }> = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
+			executeCommand: async (id: string, ...args: unknown[]) => {
+				executed.push({ id, args });
+				return undefined;
+			},
+		}));
+		instantiationService.stub(ICustomizationMarketplaceService, upcastPartial<ICustomizationMarketplaceService>({ sources: [CustomizationMarketplaceSources.PluginMarketplaces] }));
+		const run = (id: string, marketplaceEnabled: boolean) => {
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [CustomizationMarketplaceConfiguration.MarketplaceEnabled]: marketplaceEnabled }));
+			return instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+		};
+		await run(CREATE_SESSION_CANVAS_COMMAND_ID, true);
+		await run(DISCOVER_SESSION_CANVASES_COMMAND_ID, true);
+		await run(DISCOVER_SESSION_CANVASES_COMMAND_ID, false);
+		registration.dispose();
+
+		const discoverEntries = ['3_discover:0:add:Create a Canvas...', '3_discover:1:search:Discover More Canvases'];
+		assert.deepStrictEqual({ withoutCanvasTypes, withLiveCanvas, unsupported, executed, disposed: snapshot() }, {
+			withoutCanvasTypes: { addTab: 1, canvas: discoverEntries, activityBar: discoverEntries },
+			withLiveCanvas: { addTab: 1, canvas: discoverEntries, activityBar: [] },
+			unsupported: { addTab: 0, canvas: [], activityBar: [] },
+			executed: [
+				{ id: NEW_SESSION_ACTION_ID, args: [{ prompt: '/create-canvas ', prefillPrompt: true }] },
+				{ id: AICustomizationManagementCommands.OpenEditor, args: [{ showDiscover: true, searchQuery: '@type:canvas' }] },
+				{ id: AICustomizationManagementCommands.OpenEditor, args: [AICustomizationManagementSection.Canvases] },
+			],
+			disposed: { addTab: 0, canvas: [], activityBar: [] },
 		});
 	});
 

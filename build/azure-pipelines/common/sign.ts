@@ -134,7 +134,121 @@ function getParams(type: string): Params[] {
 	}
 }
 
-export function main([esrpCliPath, type, folderPath, pattern]: string[]) {
+function isWindowsSignType(type: string): boolean {
+	return type === 'sign-windows' || type === 'sign-windows-appx';
+}
+
+/**
+ * ESRP's own session timeout. The Windows sign job times out after 90 minutes,
+ * so Windows sessions have to give up well before that.
+ */
+function getSessionTimeoutMinutes(type: string): string {
+	return isWindowsSignType(type) ? '60' : '120';
+}
+
+export const DEFAULT_ESRP_STALL_TIMEOUT_MINUTES = 20;
+
+/**
+ * How long a Windows ESRP session may wait on its remaining operations without
+ * any of them completing. Across 115 sampled sign jobs the longest such wait was
+ * 5.3 minutes, so a session waiting this long is stuck (one stuck operation has
+ * held a job until its 90 minute limit).
+ */
+export function getEsrpStallTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
+	const minutes = Number(env['VSCODE_ESRP_STALL_TIMEOUT_MINUTES']);
+	return (Number.isFinite(minutes) && minutes > 0 ? minutes : DEFAULT_ESRP_STALL_TIMEOUT_MINUTES) * 60_000;
+}
+
+/**
+ * Tracks an ESRP session's progress from its output. ESRP prints
+ * `N file(s) remaining, FileIds: ...` whenever its set of pending operations
+ * changes and `Signed file: ...` for each file it replaces. In between it only
+ * polls the status of the pending operations.
+ */
+export class EsrpProgress {
+	remaining: number | undefined;
+	fileIds = '';
+	private lastProgressAt: number;
+	private partialLine = '';
+
+	constructor(now = Date.now()) {
+		this.lastProgressAt = now;
+	}
+
+	write(chunk: string, now = Date.now()): void {
+		const lines = (this.partialLine + chunk).split(/\r?\n/);
+		this.partialLine = lines.pop() ?? '';
+		for (const line of lines) {
+			const remaining = /(\d+) file\(s\) remaining(?:, FileIds: (.*))?/.exec(line);
+			if (remaining) {
+				const count = Number(remaining[1]);
+				if (count !== this.remaining) {
+					this.remaining = count;
+					this.lastProgressAt = now;
+				}
+				this.fileIds = remaining[2]?.trim() ?? '';
+			} else if (line.includes('Signed file: ')) {
+				this.lastProgressAt = now;
+			}
+		}
+	}
+
+	/** How long the session has waited without progress, once ESRP reported pending operations. */
+	stalledForMs(now = Date.now()): number {
+		return this.remaining ? now - this.lastProgressAt : 0;
+	}
+}
+
+function killProcessTree(child: cp.ChildProcess): void {
+	if (child.pid === undefined) {
+		return;
+	}
+	if (process.platform === 'win32') {
+		cp.spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+	} else {
+		child.kill('SIGKILL');
+	}
+}
+
+/**
+ * Runs an ESRP session and stops it once it stops making progress, so a stuck
+ * operation fails the sign step in minutes instead of holding the job until its
+ * time limit. The signed files are replaced in place as they complete, so the
+ * session isn't resubmitted here. A stage retry signs fresh, unsigned artifacts.
+ */
+export async function runWithEsrpStallGuard(command: string, args: string[], stallTimeoutMs: number, pollIntervalMs = 15_000): Promise<{ exitCode: number | null; stalled?: EsrpProgress }> {
+	const progress = new EsrpProgress();
+	const child = cp.spawn(command, args, { stdio: ['inherit', 'pipe', 'inherit'] });
+	child.stdout!.on('data', (data: Buffer) => {
+		process.stdout.write(data);
+		progress.write(data.toString());
+	});
+
+	let stalled: EsrpProgress | undefined;
+	let resolveExit!: (exitCode: number | null) => void;
+	const exited = new Promise<number | null>((resolve, reject) => {
+		resolveExit = resolve;
+		child.once('error', reject);
+		child.once('close', resolve);
+	});
+	const timer = setInterval(() => {
+		if (progress.stalledForMs() >= stallTimeoutMs) {
+			clearInterval(timer);
+			stalled = progress;
+			killProcessTree(child);
+			// Don't wait on a process that survived the kill.
+			setTimeout(() => resolveExit(null), 30_000).unref();
+		}
+	}, pollIntervalMs);
+
+	try {
+		return { exitCode: await exited, stalled };
+	} finally {
+		clearInterval(timer);
+	}
+}
+
+export function main([esrpCliPath, type, folderPath, pattern]: string[]): void | Promise<void> {
 	const tmp = new Temp();
 	process.on('exit', () => tmp.dispose());
 
@@ -188,7 +302,7 @@ export function main([esrpCliPath, type, folderPath, pattern]: string[]) {
 		'-y', 'inlineSignParams',
 		'-j', paramsPath,
 		'-c', '9997',
-		'-t', '120',
+		'-t', getSessionTimeoutMinutes(type),
 		'-g', '10',
 		'-v', 'Tls12',
 		'-s', 'https://api.esrp.microsoft.com/api/v1',
@@ -207,6 +321,25 @@ export function main([esrpCliPath, type, folderPath, pattern]: string[]) {
 		'-federatedTokenData', JSON.stringify(federatedTokenData)
 	];
 
+	if (isWindowsSignType(type)) {
+		const stallTimeoutMs = getEsrpStallTimeoutMs();
+		return runWithEsrpStallGuard('dotnet', args, stallTimeoutMs).then(({ exitCode, stalled }) => {
+			if (stalled) {
+				console.log(`##vso[task.logissue type=error]ESRP signing stalled: ${stalled.remaining} file(s) still pending after ${stallTimeoutMs / 60_000} minutes without progress (FileIds: ${stalled.fileIds}). Retry the stage, not this step: files signed so far were replaced in place.`);
+				process.exit(1);
+			}
+			if (exitCode !== 0) {
+				console.error('ESRP failed');
+				console.error(`dotnet exited with code ${exitCode}`);
+				process.exit(1);
+			}
+		}, err => {
+			console.error('ESRP failed');
+			console.error(err);
+			process.exit(1);
+		});
+	}
+
 	try {
 		cp.execFileSync('dotnet', args, { stdio: 'inherit' });
 	} catch (err) {
@@ -217,6 +350,6 @@ export function main([esrpCliPath, type, folderPath, pattern]: string[]) {
 }
 
 if (import.meta.main) {
-	main(process.argv.slice(2));
+	await main(process.argv.slice(2));
 	process.exit(0);
 }

@@ -55,6 +55,35 @@
 	}
 }
 
+/*
+ * Once the entrance animation has ended (or is ended early because an item hover is shown), the
+ * widget must not establish a containing block, so that fixed-position item hovers rendered inside
+ * it are neither clipped nor sized by it. The final frame of the animation is identical.
+ */
+.modern-ui.monaco-enable-motion .quick-input-widget.quick-input-widget-motion-settled:not(.quick-input-widget-overlay):not(.quick-input-widget-closing) {
+	animation: none;
+	will-change: auto;
+}
+
+/*
+ * Viewport-sized host for item hovers. It stays inside the widget for tab order and focus
+ * tracking, but its containing block is the viewport (which requires the widget to be settled,
+ * see above), so the widget's overflow and size do not affect the hover. The hover's
+ * `.context-view` must be a direct child to receive pointer events.
+ */
+.quick-input-list-hover-host {
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+	/* The host is a stacking context, so it needs the hover's stack level (see ContextView) to stay
+	above positioned list contents such as sticky headers and the scrollbar */
+	z-index: 2575;
+}
+
+.quick-input-list-hover-host > .context-view {
+	pointer-events: auto;
+}
+
 .quick-input-titlebar {
 	cursor: grab;
 	display: flex;

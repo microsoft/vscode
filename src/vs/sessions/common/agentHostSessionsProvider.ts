@@ -384,6 +384,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 */
 	getCustomAgents(sessionId: string): readonly AgentCustomization[];
 
+	/** Resolves a draft source or advertised URI to its current published agent, when known. */
+	resolveCustomAgent?(sessionId: string, uri: string): AgentCustomization | undefined;
+
 	readonly onDidChangeCustomizations: Event<void>;
 
 	/**

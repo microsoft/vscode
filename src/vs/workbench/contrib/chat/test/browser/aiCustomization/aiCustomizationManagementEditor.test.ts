@@ -18,16 +18,16 @@ import { SaveReason } from '../../../../../common/editor.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { dirname } from '../../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { IConfirmation, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
@@ -70,6 +70,7 @@ import { TestExperimentTriggerTelemetryService } from '../../../../../../platfor
 import { IMcpWorkbenchService, McpServerInstallState, mcpOAuthClientSecretStorageKey } from '../../../../mcp/common/mcpTypes.js';
 import type { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { Severity } from '../../../../../../platform/notification/common/notification.js';
 
 suite('aiCustomizationManagementEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -718,7 +719,12 @@ suite('aiCustomizationManagementEditor', () => {
 		quickInputService: {
 			pick(items: readonly TestQuickPickItem[], options?: { activeItem?: TestQuickPickItem }): Promise<TestQuickPickResult | readonly TestQuickPickItem[] | undefined>;
 		};
-		notificationService: { error(message: string): void; info(message: string): void; warn(message: string): void };
+		notificationService: {
+			error(message: string): void;
+			info(message: string): void;
+			warn(message: string): void;
+			prompt?(severity: Severity, message: string, choices: readonly { label: string; run(): void | Promise<void> }[]): void;
+		};
 		progressService: IProgressService;
 		fileService: IFileService;
 		environmentService: { workspaceStorageHome: URI };
@@ -765,6 +771,7 @@ suite('aiCustomizationManagementEditor', () => {
 		showEmbeddedPluginDetail(item: IAgentPluginItem): Promise<void>;
 		goBackToList(): void;
 		onDidChangeSidebarSelection(e: IListEvent<{ readonly id: AICustomizationManagementSection }>): void;
+		showDiscover(searchQuery?: string): void;
 		showWelcomePage(options?: { resetFilters?: boolean; preserveFocus?: boolean }): void;
 		renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void;
 		onStructuredPreviewSettingChanged(): void;
@@ -927,14 +934,7 @@ suite('aiCustomizationManagementEditor', () => {
 			}),
 			findHarnessById: () => undefined,
 		};
-		editor.hoverService = hoverService ?? {
-			setupManagedHover: () => ({
-				dispose() { },
-				show() { },
-				hide() { },
-				update() { },
-			}),
-		} as unknown as IHoverService;
+		editor.hoverService = hoverService ?? { ...NullHoverService };
 		editor.instantiationService = workbenchInstantiationService({}, editor.editorPreviewDisposables);
 		editor.configurationService = configurationService ?? createConfigurationServiceStub();
 		editor.markdownRendererService = {
@@ -978,6 +978,7 @@ suite('aiCustomizationManagementEditor', () => {
 			error: () => { },
 			info: () => { },
 			warn: () => { },
+			prompt: () => { },
 		};
 		editor.progressService = new TestProgressService();
 		editor.getActiveHarnessLabel = () => 'Copilot';
@@ -1026,8 +1027,7 @@ suite('aiCustomizationManagementEditor', () => {
 	test('backs up customization sources before launching an agent migration', async () => {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.inMemory);
 		const source = URI.from({ scheme: Schemas.inMemory, path: '/workspace/review.prompt.md' });
 		const recoveryRoot = URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage/workspace-id/customizationMigrations' });
 		await fileService.writeFile(source, VSBuffer.fromString('original'));
@@ -1081,8 +1081,7 @@ suite('aiCustomizationManagementEditor', () => {
 	test('does not launch an agent migration when backup preparation fails', async () => {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.inMemory);
 		editor.fileService = fileService;
 		editor.environmentService = { workspaceStorageHome: URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage' }) };
 		editor.customizationsByMigrationCategory.set(CustomizationMigrationCategoryId.PromptFiles, [
@@ -1125,8 +1124,7 @@ suite('aiCustomizationManagementEditor', () => {
 	test('unlocks stale running recoveries while preserving active ones', async () => {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.inMemory);
 		const workspaceStorageHome = URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage' });
 		const recoveryRoot = URI.joinPath(workspaceStorageHome, 'workspace-id', 'customizationMigrations');
 		editor.fileService = fileService;
@@ -1474,6 +1472,33 @@ suite('aiCustomizationManagementEditor', () => {
 			selected: true,
 			ariaCurrent: 'page',
 		});
+	});
+
+	test('opening Discover with a query clears an existing source filter first', () => {
+		const { editor } = createContributedSectionEditor();
+		let selectedSourceId: string | undefined = 'mcpGallery';
+		const calls: string[] = [];
+		Object.assign(editor, {
+			homeButton: $('button'),
+			welcomePage: {
+				container: $('div'),
+				setVisible() { },
+				resetFilters() {
+					calls.push(`reset:${selectedSourceId}`);
+					selectedSourceId = undefined;
+				},
+				reset() { },
+				focus() { },
+				setSearchQuery(query: string) { calls.push(`search:${selectedSourceId ?? 'all'}:${query}`); },
+			},
+		});
+
+		editor.showDiscover('@type:canvas');
+
+		assert.deepStrictEqual(calls, [
+			'reset:mcpGallery',
+			'search:all:@type:canvas',
+		]);
 	});
 
 	test('showing Discover can preserve focus through reset', () => {
@@ -2002,7 +2027,9 @@ suite('aiCustomizationManagementEditor', () => {
 		sectionsList.setSelection([0]);
 		store.add(sectionsList.onDidChangeSelection(e => editor.onDidChangeSidebarSelection(e)));
 
-		const skillUri = URI.file('/plugins/example/skills/review/SKILL.md');
+		const pluginUri = URI.file('/plugins/example');
+		const skillUri = URI.joinPath(pluginUri, 'skills', 'review', 'SKILL.md');
+		const skillDirectoryUri = dirname(skillUri);
 		const skillsLoaded = new DeferredPromise<void>();
 		const openedSkills: URI[] = [];
 		Object.assign(editor, {
@@ -2016,7 +2043,7 @@ suite('aiCustomizationManagementEditor', () => {
 			listWidget: { setSection: () => skillsLoaded.p },
 			itemsModel: {
 				whenSectionLoaded: async () => { },
-				getItems: () => observableValue('items', [{ uri: skillUri }]),
+				getItems: () => observableValue('items', [{ uri: skillUri, pluginUri }]),
 			},
 			openCustomizationItem: async (item: { uri: URI }) => { openedSkills.push(item.uri); },
 		});
@@ -2024,10 +2051,13 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.viewMode = 'pluginDetail';
 		editor.pluginDetailInput = new class extends mock<Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Installed }>>() {
 			override readonly kind = AgentPluginItemKind.Installed;
+			override readonly plugin = new class extends mock<IAgentPlugin>() {
+				override readonly uri = pluginUri;
+			}();
 		};
 		editor.pluginDetailOrigin = { kind: 'section', section: AICustomizationManagementSection.Plugins };
 
-		const navigation = editor.openSkillFromPluginDetail(skillUri);
+		const navigation = editor.openSkillFromPluginDetail(skillDirectoryUri);
 		// A re-enabled plugin's skills finish loading, which re-splices the sidebar.
 		editor.updateSectionCount(AICustomizationManagementSection.Skills, 2);
 		skillsLoaded.complete();
@@ -4198,6 +4228,105 @@ suite('aiCustomizationManagementEditor', () => {
 				pickerInvocationCount: 1,
 				agentTarget: '/home/test/.copilot/agents',
 				instructionsTarget: '/home/test/.claude/rules',
+			});
+		} finally {
+			editor.editorPreviewDisposables.dispose();
+		}
+	});
+
+	test('offers scenario-specific recovery for unavailable migration destinations', async () => {
+		const editor = createTestEditor();
+		const prompts: { severity: Severity; message: string; label: string; run(): void | Promise<void> }[] = [];
+		const errors: string[] = [];
+		const commands: { commandId: string; args: readonly unknown[] }[] = [];
+		let readiness: 'loading' | 'ready' | 'unavailable' = 'loading';
+		let refreshCount = 0;
+		let closeCount = 0;
+		editor.closeCustomizationEditor = async () => {
+			closeCount++;
+			return true;
+		};
+		editor.commandService = {
+			executeCommand: async (commandId, ...args) => {
+				commands.push({ commandId, args });
+				return undefined;
+			},
+		};
+		editor.refreshCustomizationMigrationInfo = async () => {
+			refreshCount++;
+		};
+		editor.harnessService.findHarnessById = id => ({
+			id,
+			label: 'Copilot',
+			icon: Codicon.copilot,
+			itemProvider: {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: async () => [],
+				getSourceFolderReadiness: () => readiness,
+			},
+		});
+		editor.notificationService.prompt = (severity, message, choices) => {
+			prompts.push({ severity, message, label: choices[0].label, run: choices[0].run });
+		};
+		editor.notificationService.error = message => errors.push(message);
+		const customization: MigratableConfiguration = {
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+
+		try {
+			const untitledSession = URI.parse('agent-host-copilotcli:/untitled-2');
+			editor.harnessService.activeSessionResource.set(untitledSession, undefined);
+			await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), untitledSession);
+			await prompts[0].run();
+
+			const activeSession = URI.parse('agent-host-copilotcli:/session');
+			editor.harnessService.activeSessionResource.set(activeSession, undefined);
+			await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), activeSession);
+			await prompts[1].run();
+
+			readiness = 'unavailable';
+			await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), activeSession);
+			await prompts[2].run();
+
+			readiness = 'ready';
+			await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), activeSession);
+
+			assert.deepStrictEqual({
+				prompts: prompts.map(prompt => ({
+					severity: prompt.severity,
+					message: prompt.message,
+					label: prompt.label,
+				})),
+				errors,
+				commands,
+				closeCount,
+				refreshCount,
+			}, {
+				prompts: [{
+					severity: Severity.Error,
+					message: 'Copilot needs an active session before it can report a writable skills folder for this workspace. Start a new session, send a message, then try the migration again.',
+					label: 'Start new session',
+				}, {
+					severity: Severity.Error,
+					message: 'Copilot is still loading writable skills folders for this workspace. Wait for the session to finish starting, then try again.',
+					label: 'Retry',
+				}, {
+					severity: Severity.Error,
+					message: 'Could not load writable skills folders from Copilot for this workspace. Check the active agent connection, then try again.',
+					label: 'Retry',
+				}],
+				errors: [
+					'Copilot does not provide a writable skills folder for this workspace. Select a different agent target or configure a supported destination before migrating.',
+				],
+				commands: [{
+					commandId: 'workbench.action.chat.openNewSessionSidebar.agent-host-copilotcli',
+					args: [],
+				}],
+				closeCount: 1,
+				refreshCount: 2,
 			});
 		} finally {
 			editor.editorPreviewDisposables.dispose();

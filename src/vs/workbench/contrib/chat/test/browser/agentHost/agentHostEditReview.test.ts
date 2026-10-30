@@ -593,24 +593,25 @@ suite('AgentHostEditReview', () => {
 	});
 
 	for (const provider of ['claude', 'codex', 'third-party']) {
-		for (const authority of ['local', 'remote.example']) {
-			test(`reviews ${provider} changes on ${authority} using advertised URIs without optional metadata`, async () => {
+		// The ambient host of a remote window resolves as `local` but runs on the remote, whose files its URIs wrap
+		for (const [authority, resourceAuthority] of [['local', 'local'], ['remote.example', 'remote.example'], ['local', 'ambient-remote']] as const) {
+			test(`reviews ${provider} changes on ${resourceAuthority} using advertised URIs without optional metadata`, async () => {
 				review.dispose();
 				connectionAuthority = authority;
 				backendSession = URI.parse('ahp-session:/opaque-host-session');
 				const channel = 'ahp-changeset:/opaque-host-review';
 				host.session = { ...host.session, provider, changesets: [{ label: 'Review', uriTemplate: channel, changeKind: ChangesetKind.WorkingSet }] };
 				host.resourceUris = {
-					fromAgentHost: resource => toAgentHostUri(resource, authority),
+					fromAgentHost: resource => toAgentHostUri(resource, resourceAuthority),
 					toAgentHost: fromAgentHostUri,
 				};
-				const resource = toAgentHostUri(URI.file('/a.ts'), authority);
+				const resource = toAgentHostUri(URI.file('/a.ts'), resourceAuthority);
 				disk.set(resource, 'A\n');
 				const file = workingSetFile('/a.ts', 'a\n', 'A\n');
 				for (const side of [file.edit.before, file.edit.after]) {
 					if (side?.content) {
 						const snapshot = URI.parse(side.content.uri);
-						recorded.set(toAgentHostContentUri(snapshot, authority, URI.parse(side.uri)), recorded.get(snapshot)!);
+						recorded.set(toAgentHostContentUri(snapshot, resourceAuthority, URI.parse(side.uri)), recorded.get(snapshot)!);
 					}
 				}
 				host.setWorkingSet([file]);

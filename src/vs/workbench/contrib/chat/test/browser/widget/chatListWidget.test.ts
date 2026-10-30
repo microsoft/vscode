@@ -44,6 +44,7 @@ import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../
 import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions, getChatContextMenuTargetContext, isChatBackgroundContextMenuTarget, shouldShowChatLinkOpenWith } from '../../../browser/widget/chatListWidget.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { ChatListItemRenderer } from '../../../browser/widget/chatListRenderer.js';
+import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatRequestQueueKind, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { IChatSideChatService } from '../../../common/chatSideChatService.js';
@@ -860,6 +861,73 @@ suite('ChatListWidget', () => {
 		});
 	});
 
+	test('restores the row at the top of the viewport after switching to another chat and back', async () => {
+		const { disposables, instantiationService, model, viewModel, widget } = createWidget();
+		const other = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		for (const target of [model, other]) {
+			for (let index = 0; index < 6; index++) {
+				const text = `question ${index}`;
+				const request = target.addRequest({
+					text,
+					parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+				}, { variables: [] }, 0);
+				target.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 30 }, (_, line) => `answer ${index} line ${line}`).join('\n\n')) });
+				request.response!.complete();
+			}
+		}
+		// Agent host sessions come back with the same request IDs, but new response IDs.
+		const data = model.toJSON();
+		const restoredModel = disposables.add(instantiationService.createInstance(ChatModel, { value: { ...data, requests: data.requests.map(request => ({ ...request, responseId: undefined })) }, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		// Hosts save and restore the view state through ChatWidget, around binding a new view model for each chat.
+		const chatWidget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), { listWidget: widget });
+		let bound: ChatViewModel = viewModel;
+		// Like ChatWidget.setModel: the outgoing view model is disposed, which empties the list, then a new one is bound.
+		const switchTo = (target: ChatModel) => {
+			bound.dispose();
+			widget.refresh();
+			bound = disposables.add(instantiationService.createInstance(ChatViewModel, target, undefined));
+			widget.setViewModel(bound);
+			widget.refresh();
+			return bound;
+		};
+		const topOfViewport = (viewModel: ChatViewModel) => {
+			const items = viewModel.getItems();
+			const row = items.findLastIndex(item => widget.getElementTop(item)! <= widget.scrollTop);
+			return { row, offset: widget.scrollTop - widget.getElementTop(items[row])! };
+		};
+
+		widget.layout(300, 500);
+		const first = switchTo(model);
+		await waitForStableLayout(widget);
+		// Read down to the fourth response, which renders and measures every row above it.
+		const items = first.getItems();
+		for (const item of items.slice(0, 8)) {
+			widget.reveal(item, 0);
+			await waitForStableLayout(widget);
+		}
+		widget.scrollTop = widget.getElementTop(items[7])! + 150;
+		const saved = topOfViewport(first);
+		const viewState = chatWidget.getViewState();
+
+		switchTo(other);
+		chatWidget.restoreViewState({ scrollTop: 0, isAtBottom: true });
+		await waitForStableLayout(widget);
+		const restored = switchTo(restoredModel);
+		chatWidget.restoreViewState(viewState);
+		await waitForStableLayout(widget);
+
+		assert.deepStrictEqual({
+			saved,
+			restored: topOfViewport(restored),
+			responseIdsChanged: restored.getItems().filter(isResponseVM).every(response => !items.some(item => item.id === response.id)),
+		}, {
+			saved: { row: 7, offset: 150 },
+			restored: { row: 7, offset: 150 },
+			responseIdsChanged: true,
+		});
+		disposables.dispose();
+	});
+
 	async function measureFirstRequestPushOut(firstText: string) {
 		const { disposables, model, viewModel, container, widget } = createWidget({}, configurationService => {
 			configurationService.setUserConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING, true);
@@ -886,6 +954,9 @@ suite('ChatListWidget', () => {
 
 		widget.refresh();
 		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		// Rows only measure once they render, so render the first exchange before reading the second request's position.
+		widget.scrollTop = 0;
 		await waitForStableLayout(widget);
 		const secondRequestItem = viewModel.getItems().filter(isRequestVM)[1];
 		const secondRequestTop = widget.getElementTop(secondRequestItem);

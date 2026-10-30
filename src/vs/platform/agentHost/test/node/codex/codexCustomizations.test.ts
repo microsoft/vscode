@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { sep } from '../../../../../base/common/path.js';
 import { isLinux } from '../../../../../base/common/platform.js';
@@ -14,6 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { CustomizationLoadStatus, CustomizationType } from '../../../common/state/protocol/channels-session/state.js';
 import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents, discoverCodexWorkspaceInstructions, discoverCodexWorkspaceSkills } from '../../../node/codex/codexCustomizations.js';
@@ -24,10 +24,7 @@ import type { SkillsListResponse } from '../../../node/codex/protocol/generated/
 
 suite('codexCustomizations', () => {
 
-	const disposables = new DisposableStore();
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const skill = (name: string, scope: SkillScope, path: string, enabled = true): SkillMetadata =>
 		({ name, description: `${name} desc`, path, scope, enabled, pluginId: null });
@@ -39,8 +36,7 @@ suite('codexCustomizations', () => {
 		({ key, eventName, handlerType: 'command', matcher: null, command: 'echo hi', async: false, timeoutSec: 5n, statusMessage: null, additionalContextLimit: null, sourcePath, source: 'project', pluginId: null, displayOrder: BigInt(displayOrder), enabled, isManaged: false, currentHash: 'h', trustStatus: 'trusted' });
 
 	test('discovers workspace agents without client-pushed local customizations', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
 		const agentsDirectory = URI.joinPath(workspace, '.github', 'agents');
 		const agent = URI.joinPath(agentsDirectory, 'reviewer.agent.md');
@@ -72,8 +68,7 @@ suite('codexCustomizations', () => {
 	});
 
 	test('discovers every workspace root with primary-root name precedence', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		const primaryWorkspace = URI.from({ scheme: Schemas.inMemory, path: '/primary' });
 		const secondaryWorkspace = URI.from({ scheme: Schemas.inMemory, path: '/secondary' });
 		const primaryDirectory = URI.joinPath(primaryWorkspace, '.github', 'agents');
@@ -112,8 +107,7 @@ suite('codexCustomizations', () => {
 	});
 
 	test('discovers GitHub workspace skills and preserves invocation metadata', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
 		const directory = URI.joinPath(workspace, '.github', 'skills');
 		const skillUri = URI.joinPath(directory, 'website', 'SKILL.md');
@@ -152,8 +146,7 @@ suite('codexCustomizations', () => {
 	});
 
 	test('discovers workspace skills across roots with primary-root name precedence', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		const primary = URI.from({ scheme: Schemas.inMemory, path: '/primary' });
 		const secondary = URI.from({ scheme: Schemas.inMemory, path: '/secondary' });
 		const primarySkill = URI.joinPath(primary, '.github', 'skills', 'shared', 'SKILL.md');
@@ -227,8 +220,7 @@ suite('codexCustomizations', () => {
 	});
 
 	test('ignores missing and non-directory workspace skill roots', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
 		await fileService.writeFile(URI.joinPath(workspace, '.github', 'skills'), VSBuffer.fromString('Not a directory.'));
 
@@ -236,8 +228,7 @@ suite('codexCustomizations', () => {
 	});
 
 	test('surfaces each workspace root AGENTS.md as an always-on rule', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
 		await fileService.createFolder(workspace);
 		await Promise.all([
