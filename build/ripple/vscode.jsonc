@@ -83,24 +83,30 @@
 		"dependency installation": [
 			"build/npm/**",
 			"build/azure-pipelines/win32/exec.ps1",
+			"build/azure-pipelines/linux/setup-env.sh",
 			"build/.npmrc",
 			"build/.cachesalt",
 			"build/azure-pipelines/common/computeNodeModulesCacheKey.ts",
 			"build/azure-pipelines/common/cacheKeys.ts"
 		],
-		// The macOS and Windows unit test jobs and the actions they use.
+		// The unit test jobs, the actions they use and the scripts that set up their Linux machines.
+		// TEMPORARY (DO NOT MERGE): pr.yml and pr-linux-test.yml are left out so that the draft pull
+		// request that adopts ripple on Linux measures the job times of a selected run.
 		"test job definition": [
-			".github/workflows/pr.yml",
 			".github/workflows/pr-darwin-test.yml",
 			".github/workflows/pr-win32-test.yml",
 			".github/workflows/node_modules_cache/**",
 			".github/actions/setup-electron/**",
-			".github/actions/restore-node-modules/**"
+			".github/actions/restore-node-modules/**",
+			"build/azure-pipelines/linux/apt-retry.sh",
+			"build/azure-pipelines/linux/xvfb.init"
 		],
 		// ripple and this file decide what runs.
+		// TEMPORARY (DO NOT MERGE): this file is left out for the same measurement.
 		"test planner": [
 			"build/ripple/**",
-			"!build/ripple/**/*.md"
+			"!build/ripple/**/*.md",
+			"!build/ripple/vscode.jsonc"
 		]
 	},
 
