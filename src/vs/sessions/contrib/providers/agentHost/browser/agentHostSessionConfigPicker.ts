@@ -841,7 +841,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			// `_trackWorktreeSuggestion` for the same reason.
 			const tracksWorktreeSuggestion = presentation === SessionConfigKey.Isolation && isNewSession && !isReadOnly && !isLoading;
 			const tooltip = presentation !== SessionConfigKey.Branch
-				? (schema.description ?? schema.title)
+				? presentation === SessionConfigKey.Isolation
+					? localize('agentHostSessionConfig.isolationTooltip', "Working copy for the session")
+					: (schema.description ?? schema.title)
 				: undefined;
 			if (tooltip && !tracksWorktreeSuggestion) {
 				const content = () => presentation === SessionConfigKey.Isolation && isNewSession && !isReadOnly

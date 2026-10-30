@@ -21,7 +21,7 @@ type VoiceLiveInputResult = { readonly toolCall: IVoiceToolCall; readonly clarif
 const approvalReplies: Readonly<Record<string, { readonly approve: readonly string[]; readonly reject: readonly string[] }>> = {
 	en: {
 		approve: ['approve', 'approved', 'accept', 'accepted', 'allow', 'yes', 'i approve', 'i accept'],
-		reject: ['reject', 'deny', 'no'],
+		reject: ['reject', 'deny', 'no', 'skip'],
 	},
 	ar: {
 		// allow-any-unicode-next-line
@@ -281,8 +281,9 @@ export class VoiceLiveInputRouter {
 		if (!this._hasContext || !language || language === 'en') {
 			return '';
 		}
-		return approvalReplies[language]
-			? localize('voice.live.approvalReply', "Please approve or reject by voice, or use the controls in chat.")
+		const replies = approvalReplies[language];
+		return replies
+			? localize('voice.live.approvalReplyWithPhrases', "Please say \"{0}\" to approve or \"{1}\" to reject, or use the controls in chat.", replies.approve[0], replies.reject[0])
 			: localize('voice.live.englishApprovalReply', "Please approve or reject in English, or use the controls in chat.");
 	}
 

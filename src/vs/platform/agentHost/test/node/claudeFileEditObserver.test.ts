@@ -11,14 +11,16 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
+import { fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
@@ -30,6 +32,7 @@ import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '.
 import { IEditArcReporterLaunchParams, IEditArcReporterService } from '../../node/shared/editArcReporter.js';
 import { createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
+import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
 
 interface IObserverHarness {
 	readonly observer: ClaudeFileEditObserver;
@@ -40,10 +43,8 @@ interface IObserverHarness {
 	readonly fileEditCoordinator: AgentHostFileEditCoordinator;
 }
 
-function createObserver(disposables: Pick<import('../../../../base/common/lifecycle.js').DisposableStore, 'add'>): IObserverHarness {
-	const fileService = disposables.add(new FileService(new NullLogService()));
-	const fs = disposables.add(new InMemoryFileSystemProvider());
-	disposables.add(fileService.registerProvider('file', fs));
+function createObserver(disposables: Pick<import('../../../../base/common/lifecycle.js').DisposableStore, 'add'>, owner: IAgentChatOwnerRef = fixedChatOwnerRef(URI.parse('claude:/sess-1'))): IObserverHarness {
+	const fileService = createInMemoryFileService(disposables, Schemas.file);
 
 	const db = new TestSessionDatabase();
 	const dbRef: IReference<ISessionDatabase> = { object: db, dispose: () => { } };
@@ -69,7 +70,7 @@ function createObserver(disposables: Pick<import('../../../../base/common/lifecy
 	const observer = disposables.add(instantiationService.createInstance(
 		ClaudeFileEditObserver,
 		'claude:/sess-1',
-		() => 'claude:/sess-1',
+		owner,
 		dbRef,
 	));
 	return { observer, db, fileService, mapperState: new ClaudeMapperState(), arcReports, fileEditCoordinator };
@@ -86,6 +87,24 @@ function userMessage(content: unknown): Extract<SDKMessage, { type: 'user' }> {
 suite('ClaudeFileEditObserver', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('attributes edits to the live owner after the chat moves', async () => {
+		const owner = disposables.add(new TestChatOwnerRef(URI.parse('claude:/original')));
+		const { observer, fileService, mapperState, arcReports } = createObserver(disposables, owner);
+		const file = URI.file('/work/moved.txt');
+		await fileService.writeFile(file, VSBuffer.fromString('before'));
+		observer.observeAssistant(assistantMessage([
+			{ type: 'tool_use', id: 'moved-edit', name: 'Write', input: { file_path: file.fsPath, content: 'after' } },
+		]));
+		await fileService.writeFile(file, VSBuffer.fromString('after'));
+		owner.set(URI.parse('claude:/new-owner'));
+		await observer.observeUser(userMessage([
+			{ type: 'tool_result', tool_use_id: 'moved-edit', content: 'ok' },
+		]), 'turn-1', mapperState);
+		assert.deepStrictEqual(arcReports.map(report => ({ storage: report.sessionUri, owner: report.ownerSessionUri })), [
+			{ storage: 'claude:/sess-1', owner: 'claude:/new-owner' },
+		]);
+	});
 
 	test('shares editing state through snapshot persistence without advertising a pre-write barrier', async () => {
 		const { observer, fileService, mapperState, db, fileEditCoordinator } = createObserver(disposables);

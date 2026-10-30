@@ -11,6 +11,7 @@ import { isMobile, isWeb } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IPosition } from '../../../../editor/common/core/position.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { EditDeltaInfo } from '../../../../editor/common/textModelEditSource.js';
@@ -286,6 +287,8 @@ export interface IChatListItemRendererOptions {
 	readonly editable?: boolean;
 	/** Whether the chat is read-only, independently of whether request editing is enabled. */
 	readonly readOnly?: boolean;
+	/** Whether to render questions, confirmations, and other requests for user input. Defaults to true. */
+	readonly renderInputRequests?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatModeKind) => boolean);
@@ -304,6 +307,8 @@ export interface IChatListItemRendererOptions {
 }
 
 export interface IChatWidgetViewOptions {
+	/** Whether this widget can host the chat pet. Defaults to true. */
+	readonly renderChatPet?: boolean;
 	readonly firstRequestSummary?: IObservable<string | undefined>;
 	autoScroll?: boolean | ((mode: ChatModeKind) => boolean);
 	renderInputOnTop?: boolean;
@@ -503,6 +508,16 @@ export interface IChatWidgetViewModelChangeEvent {
 export interface IChatWidgetViewState {
 	readonly scrollTop: number;
 	readonly isAtBottom?: boolean;
+	/** The row at the top of the viewport. Unlike `scrollTop`, it lands on the same content when the rows above it haven't been measured yet. */
+	readonly scrollAnchor?: IChatScrollAnchor;
+}
+
+/** A transcript row and how far the viewport is scrolled past its top. */
+export interface IChatScrollAnchor {
+	/** The ID of the request, or of the request that the response answers. Response IDs can change when a chat is restored. */
+	readonly requestId: string;
+	readonly kind: 'request' | 'response';
+	readonly offset: number;
 }
 
 export const CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT = 100;
@@ -704,7 +719,18 @@ export const InstalledAgentPluginsViewId = 'workbench.views.agentPlugins.install
 export interface IChatAttachmentTarget {
 	readonly attachments: readonly IChatRequestVariableEntry[];
 
-	addAttachments(entries: readonly IChatRequestVariableEntry[]): void;
+	/**
+	 * @param dropPosition Where in the target's input the attachments were
+	 * dropped, see {@link getDropPosition}.
+	 */
+	addAttachments(entries: readonly IChatRequestVariableEntry[], dropPosition?: IPosition): void;
+
+	/**
+	 * The position in the target's input at a point in the window where
+	 * attachments are dropped, when the target places attachments in its input,
+	 * as it does for inline attachment pills.
+	 */
+	getDropPosition?(clientX: number, clientY: number): IPosition | undefined;
 }
 
 /**
@@ -719,6 +745,15 @@ export interface IChatPasteTarget extends IChatAttachmentTarget {
 
 	/** Inline references currently present in the input. */
 	readonly inlineReferences: readonly IDynamicVariable[];
+
+	/**
+	 * The prompt that a copied range of the input stands for when the input
+	 * shows attachments as pills inline with the prompt, with the references in
+	 * it relative to the copied text, and the attachments of pills outside the
+	 * range, which the copy leaves out. `undefined` when the input does not
+	 * show attachments inline.
+	 */
+	getCopiedInlinePrompt?(ranges: readonly IRange[]): { readonly text: string; readonly references: readonly IDynamicVariable[]; readonly excludedAttachmentIds: ReadonlySet<string> } | undefined;
 
 	removeAttachments(ids: readonly string[]): void;
 

@@ -6,7 +6,6 @@
 import assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -25,7 +24,7 @@ import { AgentHostMultipleChatProvidersEnabledEnvVar, buildAgentSdkEnv } from '.
 
 suite('AgentConfigurationService', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let manager: AgentHostStateManager;
 	let service: AgentConfigurationService;
 
@@ -72,10 +71,6 @@ suite('AgentConfigurationService', () => {
 		manager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		service = disposables.add(new AgentConfigurationService(manager, new NullLogService()));
 	});
-
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('rejects a chat channel when reading session config', () => {
 		const session = URI.from({ scheme: 'copilot', path: '/chat-owner' }).toString();

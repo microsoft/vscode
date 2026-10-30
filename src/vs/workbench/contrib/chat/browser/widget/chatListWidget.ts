@@ -41,12 +41,12 @@ import { IChatRequestModeInfo } from '../../common/model/chatModel.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
-import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatContextMenuActionContext, IChatFileTreeInfo, IChatListItemRendererOptions } from '../chat.js';
+import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatContextMenuActionContext, IChatFileTreeInfo, IChatListItemRendererOptions, IChatScrollAnchor } from '../chat.js';
 import { resolveResponseSelection } from '../responseSelectionResolver.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { ChatCollapsibleContentPart } from './chatContentParts/chatCollapsibleContentPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
-import { getLinkTarget, sanitizeChatClipboardFragment } from './chatClipboard.js';
+import { cloneVisibleSelection, getLinkTarget, sanitizeChatClipboardFragment } from './chatClipboard.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 
@@ -857,7 +857,7 @@ export class ChatListWidget extends Disposable {
 			ranges.push(range);
 		}
 
-		const fragments = ranges.map(range => this.cloneSelectedContents(range));
+		const fragments = ranges.map(range => cloneVisibleSelection(range, this._container));
 		if (!fragments.map(fragment => sanitizeChatClipboardFragment(fragment)).some(Boolean)) {
 			return;
 		}
@@ -870,44 +870,6 @@ export class ChatListWidget extends Disposable {
 		e.clipboardData.setData(Mimes.text, selection.toString());
 		e.clipboardData.setData(Mimes.html, holder.innerHTML);
 		e.preventDefault();
-	}
-
-	/**
-	 * Clones a range along with the elements it sits inside. `cloneContents` returns only what
-	 * lies between the range boundaries, which drops both the heading or list item giving the
-	 * text its shape and, for a partly selected link, the rest of its label.
-	 */
-	private cloneSelectedContents(range: Range): DocumentFragment {
-		let content: Node = range.cloneContents();
-
-		for (
-			let ancestor = range.commonAncestorContainer;
-			ancestor && ancestor !== this._container;
-			ancestor = ancestor.parentNode as Node
-		) {
-			if (!dom.isHTMLElement(ancestor)) {
-				continue;
-			}
-
-			// A link is one unit: selecting part of `foo.ts:42` should still copy the whole
-			// reference rather than a fragment of its label.
-			if (ancestor.tagName === 'A') {
-				content = ancestor.cloneNode(true);
-				continue;
-			}
-
-			const wrapper = ancestor.cloneNode(false);
-			wrapper.appendChild(content);
-			content = wrapper;
-		}
-
-		if (content.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
-			return content as DocumentFragment;
-		}
-
-		const fragment = this._container.ownerDocument.createDocumentFragment();
-		fragment.appendChild(content);
-		return fragment;
 	}
 
 	/**
@@ -1315,6 +1277,60 @@ export class ChatListWidget extends Disposable {
 			return undefined;
 		}
 		return this._tree.getElementTop(element);
+	}
+
+	/**
+	 * The row at the top of the viewport and how far the viewport is scrolled past its top.
+	 */
+	getScrollAnchor(): IChatScrollAnchor | undefined {
+		const items = this.getItems();
+		const scrollTop = this._tree.scrollTop;
+		// Row tops increase in list order, so the row at the top is the last one that starts at or above the viewport top.
+		let anchor: { item: ChatTreeItem; top: number } | undefined;
+		for (let low = 0, high = items.length - 1; low <= high;) {
+			const middle = (low + high) >> 1;
+			const top = this.getElementTop(items[middle]);
+			if (top === undefined) {
+				return undefined;
+			}
+			if (top <= scrollTop) {
+				anchor = { item: items[middle], top };
+				low = middle + 1;
+			} else {
+				high = middle - 1;
+			}
+		}
+		if (!anchor) {
+			return undefined;
+		}
+		const offset = scrollTop - anchor.top;
+		if (isRequestVM(anchor.item)) {
+			return { requestId: anchor.item.id, kind: 'request', offset };
+		}
+		if (isResponseVM(anchor.item)) {
+			return { requestId: anchor.item.requestId, kind: 'response', offset };
+		}
+		return undefined;
+	}
+
+	/**
+	 * Scrolls the row of a {@link getScrollAnchor scroll anchor} to the top of the viewport, then past its top by
+	 * the anchor's offset. Returns `false` when the row is no longer in the list.
+	 */
+	revealScrollAnchor(anchor: IChatScrollAnchor): boolean {
+		const item = this.getItems().find(item => anchor.kind === 'response'
+			? isResponseVM(item) && item.requestId === anchor.requestId
+			: isRequestVM(item) && item.id === anchor.requestId);
+		const top = item && this.getElementTop(item);
+		if (!item || top === undefined) {
+			return false;
+		}
+		// Rows above the anchor keep estimated heights until they render, so an offset from the top of the transcript
+		// would land elsewhere. Aligning the anchor first renders and measures it without moving it, so the offset into
+		// it is exact.
+		this._tree.scrollTop = top;
+		this._tree.scrollTop = (this.getElementTop(item) ?? top) + anchor.offset;
+		return true;
 	}
 
 	/**

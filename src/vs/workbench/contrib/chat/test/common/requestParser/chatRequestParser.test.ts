@@ -665,6 +665,52 @@ suite('ChatRequestParser', () => {
 		await assertSnapshot(result);
 	});
 
+	test('a variable in the text of a reference does not start another part', () => {
+		// The name of an attachment, such as a terminal command, can mention a tool.
+		const text = 'run #attachment:echo #selection now';
+		variableService.setSelectedToolAndToolSets(testSessionUri, ToolAndToolSetEnablementMap.fromEntries([
+			[{ id: 'get_selection', toolReferenceName: 'selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true],
+		] satisfies [IToolData | ToolSet, boolean][]));
+		variableService.setDynamicVariables(testSessionUri, [{
+			id: 'terminal-1',
+			fullName: 'echo #selection',
+			range: new Range(1, 5, 1, 32),
+			isAttachmentReference: true,
+			data: undefined,
+		}]);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest(testSessionUri, text);
+		assert.deepStrictEqual(result.parts.map(part => [part.kind, part.text]), [
+			['text', 'run '],
+			['dynamic', '#attachment:echo #selection'],
+			['text', ' now'],
+		]);
+	});
+
+	test('the prompt reads a reference as its prompt text, which keeps ranges in the prompt', () => {
+		// An inline attachment pill reads as its attachment's name and location, however often it is mentioned.
+		const text = 'compare #attachment:a.ts with #attachment:a.ts';
+		const reference = { id: 'a', isAttachmentReference: true, data: undefined, promptText: '[a.ts](file:///a.ts)' };
+		variableService.setDynamicVariables(testSessionUri, [
+			{ ...reference, range: new Range(1, 9, 1, 25) },
+			{ ...reference, range: new Range(1, 31, 1, 47) },
+		]);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest(testSessionUri, text);
+		const promptText = getPromptText(result);
+		assert.deepStrictEqual({
+			text: result.text,
+			prompt: promptText.message,
+			rangeEdits: promptText.rangeEdits?.map(edit => [edit.range.start, edit.range.endExclusive, edit.newLength]),
+		}, {
+			text,
+			prompt: 'compare [a.ts](file:///a.ts) with [a.ts](file:///a.ts)',
+			rangeEdits: [[8, 24, 20], [30, 46, 20]],
+		});
+	});
+
 	test('agents and tools and multiline', async () => {
 		const agentsService = mockObject<IChatAgentService>()({ _serviceBrand: undefined, hasToolsAgent: false, onDidChangeAgents: Event.None });
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);

@@ -7,6 +7,7 @@ import { isThenable, SequencerByKey } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { equals } from '../../../../base/common/objects.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -22,12 +23,54 @@ import { IEditSurvivalReporterFactory } from './editSurvivalReporter.js';
 import { IEditArcReporterService } from './editArcReporter.js';
 import { createArcTextEditFromDiff, extractArcTextEdit } from './arcToolEdit.js';
 
+/** A file's content at some point, and whether the file existed then. */
+interface IFileSnapshot {
+	readonly content: VSBuffer;
+	readonly existed: boolean;
+}
+
+/** An edit tool call on a file that started and hasn't completed. */
+interface IPendingEdit {
+	/** The file's content when the edit started. */
+	readonly before: Promise<IFileSnapshot>;
+	/** How many edits of the file had completed when this one started, see {@link IFileEdits.completions}. */
+	readonly completionsBefore: number;
+	readonly toolInput: unknown;
+	readonly mode: string | undefined;
+	readonly lease: IDisposable;
+}
+
 interface ICompletedEdit {
 	readonly beforeContent: VSBuffer;
 	readonly beforeExisted: boolean;
 	readonly afterContent: VSBuffer;
+	readonly toolInput: unknown;
 	readonly mode: string | undefined;
 	readonly lease: IDisposable;
+}
+
+/**
+ * The edit tool calls on one file, oldest first. Agents run the edits of a
+ * file one after another, in the order they start them, but a batch of tool
+ * calls starts all of its edits before any of them runs.
+ */
+interface IFileEdits {
+	readonly pending: IPendingEdit[];
+	readonly completed: ICompletedEdit[];
+	/** Edits that are completing, which are in neither list meanwhile. */
+	completing: number;
+	/** How many edits of the file completed. */
+	completions: number;
+	/** The file's content after the edit that completed last, while edits that started before it are pending. */
+	lastAfter: IFileSnapshot | undefined;
+}
+
+/**
+ * The index of the oldest edit made with `toolInput`, or -1 when there is
+ * none or the caller didn't say which input the edit was made with.
+ */
+function indexOfEdit(edits: readonly { readonly toolInput: unknown }[], toolInput: unknown): number {
+	return toolInput === undefined ? -1 : edits.findIndex(edit => equals(edit.toolInput, toolInput));
 }
 
 /**
@@ -39,18 +82,12 @@ export class FileEditTracker extends Disposable {
 	private readonly _runningEdits = this._register(new DisposableStore());
 
 	/**
-	 * Pending edits keyed by file path. Populated by {@link trackEditStart}
-	 * before the edit tool runs; popped by {@link completeEdit} when it
-	 * finishes.
+	 * The edit tool calls on each file, keyed by file path. Populated by
+	 * {@link trackEditStart} before the edit tool runs, completed by
+	 * {@link completeEdit} when it finishes, and drained by
+	 * {@link takeCompletedEdit}, which persists the edit to the database.
 	 */
-	private readonly _pendingEdits = new Map<string, { beforeContent: VSBuffer; beforeExisted: boolean; mode: string | undefined; snapshotDone: Promise<void>; lease: IDisposable }>();
-
-	/**
-	 * Completed edits keyed by file path. Populated by {@link completeEdit};
-	 * drained by {@link takeCompletedEdit}, which persists the entry to
-	 * the database.
-	 */
-	private readonly _completedEdits = new Map<string, ICompletedEdit>();
+	private readonly _edits = new Map<string, IFileEdits>();
 	/** Processes each file's completed edits in claim order, so attribution never sees them reordered. */
 	private readonly _completedEditSequencer = new SequencerByKey<string>();
 
@@ -72,8 +109,7 @@ export class FileEditTracker extends Disposable {
 	}
 
 	override dispose(): void {
-		this._pendingEdits.clear();
-		this._completedEdits.clear();
+		this._edits.clear();
 		super.dispose();
 	}
 
@@ -85,8 +121,12 @@ export class FileEditTracker extends Disposable {
 	 *
 	 * @param filePath - Absolute path of the file being edited.
 	 * @param mode - Provider execution mode when the edit started.
+	 * @param toolInput - Input of the edit tool call, which tells its edit
+	 * apart from other edits of the file that run meanwhile, as in a batch of
+	 * tool calls. Pass the same input to {@link completeEdit} and
+	 * {@link takeCompletedEdit}.
 	 */
-	async trackEditStart(filePath: string, mode?: string): Promise<void> {
+	async trackEditStart(filePath: string, mode?: string, toolInput?: unknown): Promise<void> {
 		if (this._store.isDisposed) {
 			throw new CancellationError();
 		}
@@ -103,25 +143,24 @@ export class FileEditTracker extends Disposable {
 			lease.add(edit);
 			return this._readFileWithExistence(filePath);
 		};
-		const snapshotDone = isThenable(acquired) ? acquired.then(snapshot) : snapshot(acquired);
-		const entry = {
-			beforeContent: VSBuffer.fromString(''),
-			beforeExisted: false,
+		const edits = this._getEdits(filePath);
+		const entry: IPendingEdit = {
+			before: isThenable(acquired) ? acquired.then(snapshot) : snapshot(acquired),
+			completionsBefore: edits.completions,
+			toolInput,
 			mode,
 			lease,
-			snapshotDone: snapshotDone.then(({ content, existed }) => {
-				entry.beforeContent = content;
-				entry.beforeExisted = existed;
-			}),
 		};
-		this._pendingEdits.set(filePath, entry);
+		edits.pending.push(entry);
 		try {
-			await entry.snapshotDone;
+			await entry.before;
 		} catch (error) {
-			if (this._pendingEdits.get(filePath) === entry) {
-				this._pendingEdits.delete(filePath);
+			const index = edits.pending.indexOf(entry);
+			if (index !== -1) {
+				edits.pending.splice(index, 1);
 			}
 			this._runningEdits.delete(lease);
+			this._deleteIfSettled(filePath, edits);
 			throw error;
 		}
 	}
@@ -132,26 +171,39 @@ export class FileEditTracker extends Disposable {
 	 * {@link takeCompletedEdit}.
 	 *
 	 * @param filePath - Absolute path of the file that was edited.
+	 * @param toolInput - Input of the edit tool call, as passed to {@link trackEditStart}.
 	 */
-	async completeEdit(filePath: string): Promise<void> {
-		const pending = this._pendingEdits.get(filePath);
-		if (!pending) {
+	async completeEdit(filePath: string, toolInput?: unknown): Promise<void> {
+		const edits = this._edits.get(filePath);
+		if (!edits?.pending.length) {
 			return;
 		}
-		this._pendingEdits.delete(filePath);
-		await pending.snapshotDone;
-
-		const afterContent = await this._readFile(filePath);
-		if (this._store.isDisposed) {
-			return;
+		// Edits complete in the order they started, so pending edits that started before this one missed their completion.
+		this._releaseEdits(edits.pending.splice(0, Math.max(indexOfEdit(edits.pending, toolInput), 0)));
+		const [pending] = edits.pending.splice(0, 1);
+		edits.completing++;
+		try {
+			const snapshot = await pending.before;
+			const after = await this._readFileWithExistence(filePath);
+			if (this._store.isDisposed) {
+				return;
+			}
+			// An edit that started before others of the file completed runs after them, so it starts from what the last of them wrote.
+			const before = edits.lastAfter && edits.completions > pending.completionsBefore ? edits.lastAfter : snapshot;
+			edits.completions++;
+			edits.lastAfter = edits.pending.length ? after : undefined;
+			edits.completed.push({
+				beforeContent: before.content,
+				beforeExisted: before.existed,
+				afterContent: after.content,
+				toolInput: pending.toolInput,
+				mode: pending.mode,
+				lease: pending.lease,
+			});
+		} finally {
+			edits.completing--;
+			this._deleteIfSettled(filePath, edits);
 		}
-		this._completedEdits.set(filePath, {
-			beforeContent: pending.beforeContent,
-			beforeExisted: pending.beforeExisted,
-			afterContent,
-			mode: pending.mode,
-			lease: pending.lease,
-		});
 	}
 
 	/**
@@ -162,21 +214,50 @@ export class FileEditTracker extends Disposable {
 	 *
 	 * `toolName` and `toolInput` are forwarded to {@link extractAiChunks}
 	 * for region-based survival scoring; unknown shapes fall back to
-	 * whole-file scoring.
+	 * whole-file scoring. `toolInput` also tells the edit apart from other
+	 * edits of the file, as passed to {@link trackEditStart}.
 	 */
 	takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string, autoTierSnapshot?: string | Promise<string | undefined>, fusionModel?: string): Promise<ToolResultFileEditContent | undefined> {
-		const edit = this._completedEdits.get(filePath);
-		if (!edit) {
-			const pending = this._pendingEdits.get(filePath);
-			if (pending) {
-				this._pendingEdits.delete(filePath);
-				this._runningEdits.delete(pending.lease);
-			}
+		const edits = this._edits.get(filePath);
+		if (!edits) {
 			return Promise.resolve(undefined);
 		}
-		this._completedEdits.delete(filePath);
+		const completedIndex = indexOfEdit(edits.completed, toolInput);
+		const pendingIndex = indexOfEdit(edits.pending, toolInput);
+		if (completedIndex === -1 && (pendingIndex !== -1 || !edits.completed.length)) {
+			// The tool failed before it completed, so it left the file as it was. Pending edits that started before it missed their completion.
+			this._releaseEdits(edits.pending.splice(0, Math.max(pendingIndex, 0) + 1));
+			this._deleteIfSettled(filePath, edits);
+			return Promise.resolve(undefined);
+		}
+		// Edits are taken in the order they completed, so completed edits before this one missed being taken.
+		this._releaseEdits(edits.completed.splice(0, Math.max(completedIndex, 0)));
+		const [edit] = edits.completed.splice(0, 1);
+		this._deleteIfSettled(filePath, edits);
 		return this._completedEditSequencer.queue(filePath, () => this._processCompletedEdit(edit, turnId, toolCallId, filePath, toolName, toolInput, modelId, isSubagent, clientContext, chatUri, autoTierSnapshot, fusionModel))
 			.finally(() => this._runningEdits.delete(edit.lease));
+	}
+
+	private _getEdits(filePath: string): IFileEdits {
+		let edits = this._edits.get(filePath);
+		if (!edits) {
+			edits = { pending: [], completed: [], completing: 0, completions: 0, lastAfter: undefined };
+			this._edits.set(filePath, edits);
+		}
+		return edits;
+	}
+
+	/** Forgets the edits of a file once none is left, which releases the content they hold. */
+	private _deleteIfSettled(filePath: string, edits: IFileEdits): void {
+		if (!edits.pending.length && !edits.completed.length && !edits.completing && this._edits.get(filePath) === edits) {
+			this._edits.delete(filePath);
+		}
+	}
+
+	private _releaseEdits(edits: readonly { readonly lease: IDisposable }[]): void {
+		for (const edit of edits) {
+			this._runningEdits.delete(edit.lease);
+		}
 	}
 
 	private async _processCompletedEdit(edit: ICompletedEdit, turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext: IAgentHostClientTelemetryContext | undefined, chatUri: string | undefined, autoTierSnapshot: string | Promise<string | undefined> | undefined, fusionModel: string | undefined): Promise<ToolResultFileEditContent | undefined> {
@@ -320,17 +401,7 @@ export class FileEditTracker extends Disposable {
 		await this._editAttributionService.flushSession(this._sessionUri);
 	}
 
-	private async _readFile(filePath: string): Promise<VSBuffer> {
-		try {
-			const content = await this._fileService.readFile(URI.file(filePath));
-			return content.value;
-		} catch (err) {
-			this._logService.trace(`[FileEditTracker] Could not read file for snapshot: ${filePath}`, err);
-			return VSBuffer.fromString('');
-		}
-	}
-
-	private async _readFileWithExistence(filePath: string): Promise<{ content: VSBuffer; existed: boolean }> {
+	private async _readFileWithExistence(filePath: string): Promise<IFileSnapshot> {
 		try {
 			const content = await this._fileService.readFile(URI.file(filePath));
 			return { content: content.value, existed: true };

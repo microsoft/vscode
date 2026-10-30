@@ -27,7 +27,6 @@
 		"../../src/vscode-dts/vscode.proposed.envIsConnectionMetered.d.ts"
 	],
 	"exclude": [
-		"test/scenarios/**/*",
 		"test/simulation/fixtures/**/*",
 		"test/simulation/workbench/**/*",
 		"src/platform/parser/test/node/fixtures/**/*",
@@ -35,7 +34,6 @@
 		"src/extension/prompts/node/test/fixtures/**/*",
 		"src/extension/typescriptContext/serverPlugin/fixtures/**",
 		"src/extension/typescriptContext/vscode-node/ts7/fixtures/**",
-		"src/extension/completions-core/vscode-node/extension/src/copilotPanel/webView/suggestionsPanelWebview.ts",
-		"test/aml/out"
+		"src/extension/completions-core/vscode-node/extension/src/copilotPanel/webView/suggestionsPanelWebview.ts"
 	]
 }

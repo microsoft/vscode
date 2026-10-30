@@ -42,7 +42,7 @@ import { applyMcpServerEnablement, findMcpChildId, findMcpServerName } from '../
 import { scanClaudeHooks } from './customizations/scan/claudeHookScan.js';
 import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
-import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { IAgentHostOTelService, type IAgentHostNativeOTelConfig, type IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { scanClaudeRules } from './customizations/scan/claudeRuleScan.js';
 import { discoverClaudeMultiRootCustomizations } from './customizations/claudeMultiRootCustomizationDiscovery.js';
@@ -62,9 +62,6 @@ import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { IAgentHostAuthenticationService } from '../agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer } from '../shared/agentMergeToolRestrictions.js';
-
-// Re-export for callers that import IRematerializer from the session.
-export type { IRematerializer } from './claudeSdkPipeline.js';
 
 /**
  * Inputs to {@link ClaudeAgentSession.materialize}. Carries the
@@ -155,10 +152,15 @@ function toClaudeMcpToolServerName(serverName: string): string {
  *   • Pending-permission and pending-user-input registries (Phase 7),
  *     surfaced via `requestPermission` / `requestUserInput`.
  */
-export class ClaudeAgentSession extends Disposable {
+export class ClaudeAgentSession extends Disposable implements IRematerializer {
 	private _hostInstructions: readonly string[] | undefined;
 
 	private _pipeline: ClaudeSdkPipeline | undefined;
+	private _rebuildContext: {
+		readonly context: IMaterializeContext;
+		readonly telemetry: IAgentHostNativeOTelConfig | undefined;
+		readonly traceContext: IAgentHostTraceContext | undefined;
+	} | undefined;
 	private _chatChannelUri: URI;
 	private readonly _mcpEnablementSequencer = new Sequencer();
 	private _lastReconciledMcpEnablement: ReadonlyMap<string, boolean> | undefined;
@@ -693,7 +695,7 @@ export class ClaudeAgentSession extends Disposable {
 				this.abortController,
 				dbRef,
 				this.subagents,
-				(toolName: string) => this.toolDiff.model.ownerOf(toolName),
+				this.toolDiff.model,
 			));
 		} catch (err) {
 			dbRef.dispose();
@@ -736,93 +738,8 @@ export class ClaudeAgentSession extends Disposable {
 			throw new CancellationError();
 		}
 
-		pipeline.attachRematerializer(async (_reason) => {
-			// One owner for the whole relaunch: the chat's owner at its start.
-			const launchOwner = ctx.owner.get();
-			const liveMode = resolveCurrentPermissionMode(this._configurationService, launchOwner, this._chatChannelUri, this._inheritedPermissionMode, this._permissionModeFallback);
-			const rebuildAbort = new AbortController();
-			let rebuildWarm: WarmQuery | undefined;
-			try {
-				// Pin the transport: prefer the one the agent staged for a deliberate
-				// per-session switch (`_pendingSwitchTransport`, already resolved and
-				// validated at `send` — the session only consumes it, never re-resolves),
-				// else reuse the transport captured at materialize. Reusing it keeps a
-				// runtime host-default flip (config change / Copilot sign-in) from
-				// rerouting a live conversation; an SDK-driven recover with nothing staged
-				// stays put and re-tries the switch on the next send.
-				const rebuildTransport = this._pendingSwitchTransport ?? this._materializedTransport;
-				if (!rebuildTransport) {
-					// Always set once `materialize` has run; a throwing guard (never a
-					// non-null assertion) keeps a rebuild honest rather than crashing on
-					// an impossible null.
-					throw new Error(`Cannot rebuild Claude session ${this.sessionId}: no transport resolved`);
-				}
-				this._watchCustomizations(this.workingDirectories);
-				const rebuildPlugins = this._desiredClientPluginConfigs(launchOwner);
-				this.clientCustomizationsDiff.consume(rebuildPlugins.map(plugin => plugin.uri));
-				const rebuildMcpLaunchEnablementRevision = this._mcpLaunchEnablementRevision;
-				const { mcpServers: rebuildMcp, deniedMcpServers: rebuildDeniedMcpServers, allowedTools: rebuildAllowedTools, agentMergeRestrictedMcpServerNames: rebuildAgentMergeRestrictedMcpServerNames } = await this._buildStartupToolWiring(launchOwner, ctx.serverToolHost);
-				const rebuildAgentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
-				const rebuildOptions = await buildOptions(
-					{
-						sessionId: this.sessionId,
-						workingDirectory: this.workingDirectory!,
-						additionalDirectories: this._desiredAdditionalDirectories,
-						model: this._provisionalModel,
-						abortController: rebuildAbort,
-						permissionMode: liveMode,
-						canUseTool: ctx.canUseTool,
-						onElicitation: ctx.onElicitation,
-						isResume: ctx.isResume || pipeline.isResumed,
-						resumeSessionAt: this._pendingResumeSessionAt,
-						mcpServers: rebuildMcp,
-						deniedMcpServers: rebuildDeniedMcpServers,
-						allowedTools: rebuildAllowedTools,
-						plugins: rebuildPlugins,
-						agent: rebuildAgentName,
-						telemetry,
-						traceContext,
-						getUserPromptAdditionalContext: () => this._hostInstructions?.join('\n\n'),
-						onPreToolUse: (toolName, input) => this._restrictAgentMergeGitHubTool(toolName, input, rebuildAgentMergeRestrictedMcpServerNames),
-					},
-					rebuildTransport,
-					data => this._logService.error(`[Claude SDK stderr] ${data}`),
-				);
-				this._logService.info(`[Claude] session ${this.sessionId}: rebuild isResume=${!!rebuildOptions.resume} agent=${rebuildOptions.agent ?? '(none)'}`);
-				rebuildWarm = await this._sdkService.startup({ options: rebuildOptions });
-				// Rebuild succeeded with the anchor applied — clear it so it
-				// isn't re-applied. A throw above keeps it staged (handled in the
-				// catch alongside the tool/customization diffs) so the next send
-				// retries the truncation instead of dropping the restore.
-				this._pendingResumeSessionAt = undefined;
-				this._appliedMcpLaunchEnablementRevision = rebuildMcpLaunchEnablementRevision;
-				this._appliedAdditionalDirectories = this._desiredAdditionalDirectories;
-				// Commit the (possibly switched) transport now that the new
-				// subprocess is live, so credit enrichment tracks the running
-				// transport. A throw above leaves everything untouched so the next
-				// send retries.
-				this._transportKind = rebuildTransport.kind;
-				this._materializedTransport = rebuildTransport;
-				if (this._pendingSwitchTransport) {
-					// Only a rebuild that actually consumed a pushed switch transport
-					// resolves the pending switch. An ordinary/SDK-recover rebuild that
-					// reused the materialized transport leaves the flag set so the next
-					// send still performs the deferred switch.
-					this._pendingTransportSwitch = false;
-					this._pendingSwitchTransport = undefined;
-				}
-				this._materializedOwner = launchOwner;
-				// The relaunched process carries the server tools of its owner; advertise them there.
-				ctx.serverToolHost?.advertise(launchOwner.toString());
-				return { warm: rebuildWarm, abortController: rebuildAbort };
-			} catch (err) {
-				rebuildAbort.abort();
-				await rebuildWarm?.[Symbol.asyncDispose]();
-				this.toolDiff.markDirty();
-				this.clientCustomizationsDiff.markDirty();
-				throw err;
-			}
-		});
+		this._rebuildContext = { context: ctx, telemetry, traceContext };
+		pipeline.attachRematerializer(this);
 		await this._reconcileMcpServerEnablement();
 
 		// Advertise the agent host's server tools on this session so the client
@@ -835,6 +752,77 @@ export class ClaudeAgentSession extends Disposable {
 		// client-pushed slice; firing here prompts the workbench to refetch
 		// and pick up the bundled `Discovered in Claude` entry.
 		this._onDidCustomizationsChange.fire();
+	}
+
+	/** Rebuilds the SDK subprocess with the external inputs captured at materialization. */
+	async rematerialize(_reason: 'restart' | 'recover'): Promise<{ readonly warm: WarmQuery; readonly abortController: AbortController }> {
+		if (!this._rebuildContext) {
+			throw new Error(`Cannot rebuild Claude session ${this.sessionId}: not materialized`);
+		}
+		const { context: ctx, telemetry, traceContext } = this._rebuildContext;
+		const pipeline = this._requirePipeline();
+		const launchOwner = ctx.owner.get();
+		const liveMode = resolveCurrentPermissionMode(this._configurationService, launchOwner, this._chatChannelUri, this._inheritedPermissionMode, this._permissionModeFallback);
+		const rebuildAbort = new AbortController();
+		let rebuildWarm: WarmQuery | undefined;
+		try {
+			// Only a staged provider switch may replace the materialized transport.
+			const rebuildTransport = this._pendingSwitchTransport ?? this._materializedTransport;
+			if (!rebuildTransport) {
+				throw new Error(`Cannot rebuild Claude session ${this.sessionId}: no transport resolved`);
+			}
+			this._watchCustomizations(this.workingDirectories);
+			const rebuildPlugins = this._desiredClientPluginConfigs(launchOwner);
+			this.clientCustomizationsDiff.consume(rebuildPlugins.map(plugin => plugin.uri));
+			const rebuildMcpLaunchEnablementRevision = this._mcpLaunchEnablementRevision;
+			const { mcpServers: rebuildMcp, deniedMcpServers: rebuildDeniedMcpServers, allowedTools: rebuildAllowedTools, agentMergeRestrictedMcpServerNames: rebuildAgentMergeRestrictedMcpServerNames } = await this._buildStartupToolWiring(launchOwner, ctx.serverToolHost);
+			const rebuildAgentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
+			const rebuildOptions = await buildOptions(
+				{
+					sessionId: this.sessionId,
+					workingDirectory: this.workingDirectory!,
+					additionalDirectories: this._desiredAdditionalDirectories,
+					model: this._provisionalModel,
+					abortController: rebuildAbort,
+					permissionMode: liveMode,
+					canUseTool: ctx.canUseTool,
+					onElicitation: ctx.onElicitation,
+					isResume: ctx.isResume || pipeline.isResumed,
+					resumeSessionAt: this._pendingResumeSessionAt,
+					mcpServers: rebuildMcp,
+					deniedMcpServers: rebuildDeniedMcpServers,
+					allowedTools: rebuildAllowedTools,
+					plugins: rebuildPlugins,
+					agent: rebuildAgentName,
+					telemetry,
+					traceContext,
+					getUserPromptAdditionalContext: () => this._hostInstructions?.join('\n\n'),
+					onPreToolUse: (toolName, input) => this._restrictAgentMergeGitHubTool(toolName, input, rebuildAgentMergeRestrictedMcpServerNames),
+				},
+				rebuildTransport,
+				data => this._logService.error(`[Claude SDK stderr] ${data}`),
+			);
+			this._logService.info(`[Claude] session ${this.sessionId}: rebuild isResume=${!!rebuildOptions.resume} agent=${rebuildOptions.agent ?? '(none)'}`);
+			rebuildWarm = await this._sdkService.startup({ options: rebuildOptions });
+			this._pendingResumeSessionAt = undefined;
+			this._appliedMcpLaunchEnablementRevision = rebuildMcpLaunchEnablementRevision;
+			this._appliedAdditionalDirectories = this._desiredAdditionalDirectories;
+			this._transportKind = rebuildTransport.kind;
+			this._materializedTransport = rebuildTransport;
+			if (this._pendingSwitchTransport) {
+				this._pendingTransportSwitch = false;
+				this._pendingSwitchTransport = undefined;
+			}
+			this._materializedOwner = launchOwner;
+			ctx.serverToolHost?.advertise(launchOwner.toString());
+			return { warm: rebuildWarm, abortController: rebuildAbort };
+		} catch (err) {
+			rebuildAbort.abort();
+			await rebuildWarm?.[Symbol.asyncDispose]();
+			this.toolDiff.markDirty();
+			this.clientCustomizationsDiff.markDirty();
+			throw err;
+		}
 	}
 
 	/**
@@ -1041,10 +1029,6 @@ export class ClaudeAgentSession extends Disposable {
 	 */
 	seedBijectiveState(state: { model?: string; effort?: ClaudeRuntimeEffortLevel; permissionMode?: PermissionMode }): void {
 		this._requirePipeline().seedCurrentConfig(state.model, state.effort, state.permissionMode);
-	}
-
-	attachRematerializer(rematerializer: IRematerializer): void {
-		this._requirePipeline().attachRematerializer(rematerializer);
 	}
 
 	/**

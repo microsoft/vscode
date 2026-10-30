@@ -67,7 +67,7 @@ export interface IFileBasedScenario extends ICommonScenarioProps {
 	readonly workspaceFolders?: Uri[];
 }
 export type IScenario = IDeserializedWorkspaceStateBasedScenario | IFileBasedScenario;
-export type DiagnosticProviderId = 'tsc' | 'eslint' | 'pylint' | 'pyright' | 'roslyn' | 'cpp' | 'ruff';
+export type DiagnosticProviderId = 'tsc' | 'pyright';
 
 export interface IScenarioQuery {
 	file?: string | Uri;
@@ -116,14 +116,6 @@ export const enum EditTestStrategy {
 	 * Tests Edits in non-agent mode (with codeblock strategy)
 	 */
 	Edits,
-	/**
-	 * We will test an inline interaction.
-	 */
-	Inline,
-	/**
-	 * We will test an inline chat intent interaction.
-	 */
-	InlineChatIntent,
 	/**
 	 * Test Edits in agent mode
 	 */

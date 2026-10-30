@@ -606,10 +606,11 @@ export class SessionChatInputToolbar extends Disposable {
 			}
 			return computeAggregateIssueIcon(resolved.map(({ issue }) => issue));
 		});
+		// Integrated pull requests and issues without a pill of their own stay in these pills, with their integration's presentation.
 		const plainPullRequestSections = derived(this, reader => pullRequestSections.read(reader)
-			.map(section => ({ ...section, entries: section.entries.filter(entry => !sessionArtifacts.hasIntegration(entry.id, reader)) })));
+			.map(section => ({ ...section, entries: section.entries.filter(entry => !sessionArtifacts.hasOwnPill(entry.id, reader)).map(entry => sessionArtifacts.decorateEntry(entry, reader)) })));
 		const plainIssueSections = derived(this, reader => issueSections.read(reader)
-			.map(section => ({ ...section, entries: section.entries.filter(entry => !sessionArtifacts.hasIntegration(entry.id, reader)) })));
+			.map(section => ({ ...section, entries: section.entries.filter(entry => !sessionArtifacts.hasOwnPill(entry.id, reader)).map(entry => sessionArtifacts.decorateEntry(entry, reader)) })));
 		const pullRequestData = createSessionPullRequestPillData(plainPullRequestSections, visibility.pullRequests, pullRequestPresentation.icon);
 		const activityBarPullRequests = createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestPresentation.icon);
 		const openerChanges = observableSignalFromEvent(this, Event.any<unknown>(

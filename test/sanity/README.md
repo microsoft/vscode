@@ -36,7 +36,9 @@ Use -g or -f command-line options to filter tests to match the host platform.
 
 ### Failure Logs
 
-When a desktop UI test fails, the app is closed and VS Code's own process logs (main, shared process, renderer, extension host, pty host, agent host and network) are copied from the test's throwaway profile into `<screenshots-dir>/<test>-logs`, so they are uploaded with the screenshots. Each file keeps its last 2 MB, up to 10 MB per test, and extension output logs are not copied. Treat the screenshots directory as internal.
+When a desktop UI test fails, the app is closed and VS Code's own process logs (main, shared process, renderer, extension host, pty host, agent host and network) are copied from the test's throwaway profile into `<screenshots-dir>/<test>-logs`, so they are uploaded with the screenshots. Each file keeps its last 2 MB, up to 10 MB per test, and extension output logs are not copied. The desktop app also runs with `--log-net-log`, and the gzipped Chromium NetLog is saved as `<test>-netlog.json.gz` (open it in the [NetLog viewer](https://netlog-viewer.appspot.com/)). Treat the screenshots directory as internal.
+
+When installing the extension from the Marketplace fails in any UI test, `<test>-gallery.json` lists the app's gallery requests that failed or returned an error status. Each failed URL is also requested once from the test's Node process, with the same request headers, as soon as it fails, and that response's status and headers are saved next to it. The CORS preflight (`OPTIONS`) that the app sends first is replayed with curl too, directly and, for desktop tests, through the proxy that the app resolved for the URL, and the start of each raw response is saved. This tells a Marketplace, CDN or proxy response apart from a failure in the app's own request.
 
 ### Example
 
@@ -62,9 +64,13 @@ explicit error rather than falling back to the update service, so runs must be s
 to the artifacts that were actually downloaded. The SHA-256 check is skipped in this mode because
 there is no update service metadata to compare against.
 
+Server-web previews also require the tested commit's webview bootstrap assets on the CDN; downloading the server archive alone is not sufficient. Pipeline artifact-sanity runs selecting server-web targets must use `VSCODE_BUILD_TYPE=Product` and explicitly set `VSCODE_BUILD_WEB=true`. Invalid configurations are rejected during template expansion, and artifact-sanity stages wait for Web to finish. ARM32-only runs, which do not run server-web, do not require Web. **The Web stage uploads to the shared CDN even with `VSCODE_PUBLISH=false`**; that flag controls product publishing, not webview asset preparation. Do not substitute assets from another commit to make a run green.
+
 ### Timeouts
 
 The UI tests open a Markdown preview and wait up to one minute for its webview to render, then up to one minute for its document to finish loading. Resource monitoring remains active through document loading so delayed script failures are also detected. This catches webview resource loading failures (for example 401 responses for remote authorities with uppercase letters such as `wsl+Ubuntu`), and any webview resource response with an error status fails the test. Browsers that refuse to register the webview service worker (such as Chromium on Debian 12) cannot load any webview, so the check is skipped there with a pipeline warning.
+
+HTTP errors and failed requests for CDN webview bootstrap files also interrupt the render/load wait immediately. A `Webview fatal error:` console message interrupts the wait too, including service-worker installation failures that page network listeners do not observe; it does not add a failed resource, preserving the unsupported-browser skip above. Failure messages include status, URL (without credentials/query/fragment), frame URLs, console errors and page errors, rather than reporting only a heading timeout. Newly attached frames without a URL use a fixed placeholder so formatting cannot mask the original failure. A missing bootstrap asset is a failure, not a reason to skip the preview check or increase its timeout.
 
 Synchronous `wsl` commands issued by the tests, and the Ubuntu import, startup, conversion and listing commands in the Windows setup script, have a five-minute timeout. The setup wrapper normalizes nonzero exit codes (including `-1`) to `1` so batch error checks detect them. Setup emits a pipeline warning when Ubuntu cannot run; this does not install a missing WSL2 kernel or re-enable unavailable WSL coverage.
 

@@ -125,6 +125,8 @@ function createTestPeer(): ITestPeer {
 		const request = JSON.parse(chunk.toString('utf8')) as ITestWireRequest;
 		if (request.method === 'skills/list' || request.method === 'hooks/list') {
 			stdout.write(JSON.stringify({ id: request.id, result: { data: [] } }) + '\n');
+		} else if (request.method === 'account/read') {
+			stdout.write(JSON.stringify({ id: request.id, result: { account: null, requiresOpenaiAuth: true } }) + '\n');
 		} else {
 			outbound.write(chunk);
 		}
@@ -2075,6 +2077,7 @@ suite('CodexAgent prewarm eviction', () => {
 			_serviceBrand: undefined,
 			onDidChange: onDidChange.event,
 			initializeSession: async () => { },
+			adoptMcpServerOwnership: () => { },
 			getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
 			resolve,
 			applyClientGlobalEnablement: resolve,

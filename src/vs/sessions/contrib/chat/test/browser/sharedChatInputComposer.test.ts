@@ -249,6 +249,7 @@ suite('SharedChatInputComposer', () => {
 				viewModel: {},
 				supportsFileReferences: true,
 				input: { attachmentModel },
+				inputEditor: { getValue: () => input },
 				attachmentModel,
 				getContrib: () => dynamicVariables,
 				getInput: () => input,
@@ -278,6 +279,8 @@ suite('SharedChatInputComposer', () => {
 			_modelRef: modelRef,
 			_modelBinding: 0,
 			_widget: {
+				input: {},
+				inputEditor: { getValue: () => '' },
 				getInput: () => '',
 				getContrib: () => undefined,
 				setModel: (model: { id: string }) => bound.push(model.id),

@@ -42,7 +42,7 @@ import { Extensions as ConfigurationMigrationExtensions, IConfigurationMigration
 import { safeSetInnerHtml } from '../../../../../base/browser/domSanitize.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ChatDynamicVariableModel } from '../../../chat/browser/attachments/chatDynamicVariables.js';
-import { toAttachedContextDynamicVariable } from '../../../chat/common/attachments/chatVariables.js';
+import { IDynamicVariable, toAttachedContextDynamicVariable } from '../../../chat/common/attachments/chatVariables.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType, IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -102,6 +102,15 @@ function createElementContextValue(elementData: IElementData, displayName: strin
 	sections.push(`CSS:\n\`\`\`css\n${elementData.computedStyle}\n\`\`\``);
 
 	return sections.join('\n\n');
+}
+
+/**
+ * The reference in the chat input to the element that a comment is about. It is
+ * text, or a pill when attachments are shown inline, whose range is its anchor.
+ */
+function findCommentReference(widget: IChatWidget, dynamicVariableModel: ChatDynamicVariableModel | undefined, attachmentId: string): IDynamicVariable | undefined {
+	const isCommentReference = (candidate: IDynamicVariable) => candidate.id === attachmentId && !!candidate.isAttachmentReference;
+	return dynamicVariableModel?.variables.find(isCommentReference) ?? widget.input.inlineAttachments?.getPillReferences().find(isCommentReference);
 }
 
 // Context key expression to check if browser editor is active
@@ -608,15 +617,16 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			if (!inputModel || !dynamicVariableModel) {
 				continue;
 			}
-			const variable = dynamicVariableModel.variables.find(candidate => candidate.id === attachmentId && candidate.isAttachmentReference);
+			const variable = findCommentReference(tracked.widget, dynamicVariableModel, attachmentId);
 			if (!variable) {
 				this._deleteCommentAttachments(attachmentId, tracked);
 				continue;
 			}
-			const line = inputModel.getLineContent(variable.range.endLineNumber);
+			const lineNumber = variable.range.endLineNumber;
+			const bodyRange = new Range(lineNumber, variable.range.endColumn, lineNumber, inputModel.getLineMaxColumn(lineNumber));
 			comments.push({
 				elementId: tracked.elementId,
-				body: line.slice(variable.range.endColumn - 1).trimStart()
+				body: (tracked.widget.input.inlineAttachments?.getPromptText(bodyRange) ?? inputModel.getValueInRange(bodyRange)).trimStart()
 			});
 		}
 		void browserModel.setElementComments({ comments, pendingCommentIdsToDiscard });
@@ -628,7 +638,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 				continue;
 			}
 			const dynamicVariableModel = tracked.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID);
-			const variable = dynamicVariableModel?.variables.find(candidate => candidate.id === attachmentId && candidate.isAttachmentReference);
+			const variable = findCommentReference(tracked.widget, dynamicVariableModel, attachmentId);
 			const inputModel = tracked.widget.inputEditor.getModel();
 			if (variable && inputModel) {
 				const lineNumber = variable.range.startLineNumber;

@@ -8,6 +8,7 @@ import { CancellationError, onUnexpectedError } from '../../../../../base/common
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableFromEvent } from '../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
@@ -527,6 +528,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			connectionAuthority: sanitized,
 			extensionId: 'vscode.remote-agent-host',
 			extensionDisplayName: 'Remote Agent Host',
+			supportsCanvasPresentation: this._isSessionsWindow && !isWeb && agent.provider === 'copilotcli',
 			resolveWorkingDirectory,
 			prepareSession: prepareSession ? async (sessionResource, token) => {
 				const directory = await prepareSession(resolveWorkingDirectory(sessionResource) ?? undefined, token);
@@ -650,7 +652,11 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				if (this._connections.get(address) !== connState) {
 					throw new CancellationError();
 				}
+				if (!request) {
+					return false;
+				}
 				await connection.authenticate(request);
+				return true;
 			} : undefined,
 			authenticate: this._authenticateCallback(address, connection, reason),
 		}))
