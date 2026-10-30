@@ -258,19 +258,6 @@ export function getAnchorRect(anchor: HTMLElement | StandardMouseEvent | IAnchor
 	}
 }
 
-const POPOVER_RESET_STYLES: Readonly<Record<string, string>> = {
-	inset: 'auto',
-	margin: '0',
-	padding: '0',
-	border: '0',
-	background: 'transparent',
-	overflow: 'visible',
-	color: 'inherit',
-	position: 'fixed',
-	width: 'auto',
-	height: 'auto',
-};
-
 function getDeepActiveElement(doc: Document): Element | null {
 	let result = doc.activeElement;
 	while (result?.shadowRoot?.activeElement) {
@@ -336,7 +323,7 @@ export class ContextView extends Disposable {
 			this.toDisposeOnSetContainer.dispose();
 
 			this.view.remove();
-			this.resetPopoverElement(this.view);
+			this.view.removeAttribute('popover');
 			if (this.shadowRoot) {
 				this.shadowRoot = null;
 				this.shadowRootHostElement?.remove();
@@ -360,10 +347,9 @@ export class ContextView extends Disposable {
 					height: '0'
 				});
 				if (isPopover) {
-					// Attached to the owner only while shown, see showPopover
-					this.preparePopoverElement(this.shadowRootHostElement);
-					this.shadowRootHostElement.style.width = '0';
-					this.shadowRootHostElement.style.height = '0';
+					// Attached to the owner only while shown, see showPopover.
+					// contextview.css resets the user agent popover styles
+					this.shadowRootHostElement.setAttribute('popover', 'manual');
 				} else {
 					this.container.appendChild(this.shadowRootHostElement);
 				}
@@ -375,8 +361,9 @@ export class ContextView extends Disposable {
 				this.shadowRoot.appendChild(DOM.$('slot'));
 			} else {
 				if (isPopover) {
-					// Attached to the owner only while shown, see showPopover
-					this.preparePopoverElement(this.view);
+					// Attached to the owner only while shown, see showPopover.
+					// contextview.css resets the user agent popover styles
+					this.view.setAttribute('popover', 'manual');
 				} else {
 					this.container.appendChild(this.view);
 				}
@@ -473,24 +460,6 @@ export class ContextView extends Disposable {
 
 	private getPopoverElement(): HTMLElement {
 		return this.shadowRootHostElement ?? this.view;
-	}
-
-	private preparePopoverElement(element: HTMLElement): void {
-		element.setAttribute('popover', 'manual');
-		Object.assign(element.style, POPOVER_RESET_STYLES);
-		element.style.top = '0';
-		element.style.left = '0';
-	}
-
-	private resetPopoverElement(element: HTMLElement): void {
-		if (!element.hasAttribute('popover')) {
-			return;
-		}
-
-		element.removeAttribute('popover');
-		for (const property of Object.keys(POPOVER_RESET_STYLES)) {
-			element.style.removeProperty(property);
-		}
 	}
 
 	private showPopover(): void {

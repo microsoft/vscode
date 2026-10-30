@@ -450,6 +450,33 @@ suite('ContextView', () => {
 			assert.strictEqual(isOpen(host), false);
 		});
 
+		for (const domPosition of [ContextViewDOMPosition.POPOVER, ContextViewDOMPosition.POPOVER_SHADOW]) {
+			test(`resets the user agent popover styles with CSS while rendering and once shown, in DOM position ${domPosition}`, () => {
+				const { owner } = createOwner();
+				const contextView = createContextView(owner, domPosition);
+				const getPopover = () => owner.querySelector<HTMLElement>('[popover]')!;
+				const readStyle = () => {
+					const popover = getPopover();
+					const style = getWindow(popover).getComputedStyle(popover);
+					return {
+						open: isOpen(popover),
+						position: style.position,
+						margin: style.margin,
+						padding: style.padding,
+						borderWidth: style.borderWidth,
+						overflow: style.overflow,
+						background: style.backgroundColor,
+						inlineReset: [popover.style.inset, popover.style.margin, popover.style.padding, popover.style.border, popover.style.background]
+					};
+				};
+				let whileRendering: ReturnType<typeof readStyle> | undefined;
+				contextView.show(createDelegate({ render: () => { whileRendering = readStyle(); return null; } }).delegate);
+
+				const reset = { open: true, position: 'fixed', margin: '0px', padding: '0px', borderWidth: '0px', overflow: 'visible', background: 'rgba(0, 0, 0, 0)', inlineReset: ['', '', '', '', ''] };
+				assert.deepStrictEqual({ whileRendering, shown: readStyle() }, { whileRendering: reset, shown: reset });
+			});
+		}
+
 		test('falls back to a fixed position in the fallback container when showPopover throws, before rendering and without moving focus', () => {
 			const { owner, input } = createOwner();
 			const fallback = $('.fallback');
@@ -981,6 +1008,9 @@ suite('ContextView', () => {
 			disposables.push(() => iframe.remove());
 			const otherDocument = iframe.contentDocument!;
 			otherDocument.body.style.margin = '0';
+			// Auxiliary windows clone the main window's stylesheets, see `AuxiliaryWindowService`
+			const collectRules = (sheet: CSSStyleSheet): string[] => Array.from(sheet.cssRules).flatMap(rule => rule instanceof CSSImportRule ? (rule.styleSheet ? collectRules(rule.styleSheet) : []) : [rule.cssText]);
+			otherDocument.head.appendChild(otherDocument.createElement('style')).textContent = Array.from(mainWindow.document.styleSheets).flatMap(collectRules).join('\n');
 			const owner = otherDocument.createElement('div');
 			owner.style.cssText = 'position: absolute; top: 20px; left: 20px; width: 200px; height: 40px; overflow: hidden; transform: scale(0.97);';
 			const input = owner.appendChild(otherDocument.createElement('input'));
