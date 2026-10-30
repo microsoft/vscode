@@ -922,7 +922,7 @@ export class TabOperation {
 		return indentation;
 	}
 
-	private static _replaceJumpToNextIndent(config: CursorConfiguration, model: ICursorSimpleModel, selection: Selection, insertsAutoWhitespace: boolean): ReplaceCommand {
+	private static _replaceJumpToNextIndent(config: CursorConfiguration, model: ICursorSimpleModel, selection: Selection, insertsAutoWhitespace: boolean): ICommand {
 		let typeText = '';
 		const position = selection.getStartPosition();
 		if (config.insertSpaces) {
@@ -933,6 +933,22 @@ export class TabOperation {
 				typeText += ' ';
 			}
 		} else {
+			if (config.tabSize > config.indentSize) {
+				// Mixed indentation style (e.g. tab size 8, indent size 2): when the selection is
+				// in the leading whitespace, shift the line instead, which properly inserts as
+				// many tabs as possible and normalizes existing leading whitespace.
+				const firstNonWhitespace = model.getLineFirstNonWhitespaceColumn(selection.endLineNumber);
+				if (selection.endColumn <= firstNonWhitespace) {
+					return new ShiftCommand(selection, {
+						isUnshift: false,
+						tabSize: config.tabSize,
+						indentSize: config.indentSize,
+						insertSpaces: config.insertSpaces,
+						useTabStops: config.useTabStops,
+						autoIndent: config.autoIndent
+					}, config.languageConfigurationService);
+				}
+			}
 			typeText = '\t';
 		}
 		return new ReplaceCommand(selection, typeText, insertsAutoWhitespace);

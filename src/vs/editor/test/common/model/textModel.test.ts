@@ -1050,6 +1050,49 @@ suite('Editor Model - TextModel', () => {
 		model.dispose();
 	});
 
+	test('issue #5394: normalizeIndentation with mixed indentation (tab size 8, indent size 2)', () => {
+		const model = createTextModel('', undefined, { insertSpaces: false, tabSize: 8, indentSize: 2 });
+
+		// indent levels 1-3: spaces only
+		assert.strictEqual(model.normalizeIndentation('  a'), '  a');
+		assert.strictEqual(model.normalizeIndentation('    a'), '    a');
+		assert.strictEqual(model.normalizeIndentation('      a'), '      a');
+		// indent level 4: a full tab
+		assert.strictEqual(model.normalizeIndentation('        a'), '\ta');
+		assert.strictEqual(model.normalizeIndentation('\ta'), '\ta');
+		// indent levels 5-7: tab + spaces
+		assert.strictEqual(model.normalizeIndentation('          a'), '\t  a');
+		assert.strictEqual(model.normalizeIndentation('\t  a'), '\t  a');
+		assert.strictEqual(model.normalizeIndentation('            a'), '\t    a');
+		// indent level 8: two tabs
+		assert.strictEqual(model.normalizeIndentation('                a'), '\t\ta');
+		assert.strictEqual(model.normalizeIndentation('\t\ta'), '\t\ta');
+
+		model.dispose();
+	});
+
+	test('issue #5394: mixed tab/space indentation style is detected (tab size 8, indent size 2)', () => {
+		const model = createTextModel([
+			'int main() {',
+			'  if (x) {',
+			'    while (y) {',
+			'\t  frobnicate();',
+			'\t  if (z) {',
+			'\t    do_stuff();',
+			'\t  }',
+			'\t}',
+			'  }',
+			'}',
+		].join('\n'), undefined, { insertSpaces: true, tabSize: 4, detectIndentation: true });
+		const options = model.getOptions();
+
+		assert.strictEqual(options.insertSpaces, false);
+		assert.strictEqual(options.tabSize, 8);
+		assert.strictEqual(options.indentSize, 2);
+
+		model.dispose();
+	});
+
 	test('getLineFirstNonWhitespaceColumn', () => {
 		const model = createTextModel([
 			'asd',

@@ -1751,6 +1751,50 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #275754: backspace after a tab with tab size greater than indent size unindents', () => {
+		const model = createTextModel(
+			[
+				'\tx',
+				'\t  x'
+			].join('\n'),
+			undefined,
+			{
+				insertSpaces: false,
+				tabSize: 8,
+				indentSize: 2
+			},
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			// Backspace right after a tab (visible column 8): unindent to 6 columns
+			viewModel.setSelections('test', [new Selection(1, 2, 1, 2)]);
+			editor.runCommand(CoreEditingCommands.DeleteLeft, null);
+			assert.strictEqual(model.getLineContent(1), '      x');
+
+			// Backspace at visible column 10: unindent to 8 columns (a single tab)
+			viewModel.setSelections('test', [new Selection(2, 4, 2, 4)]);
+			editor.runCommand(CoreEditingCommands.DeleteLeft, null);
+			assert.strictEqual(model.getLineContent(2), '\tx');
+		});
+
+		const model2 = createTextModel(
+			'\tx',
+			undefined,
+			{
+				insertSpaces: true,
+				tabSize: 8,
+				indentSize: 2
+			},
+		);
+
+		withTestCodeEditor(model2, {}, (editor, viewModel) => {
+			// Backspace right after a tab: the tab is replaced by 6 spaces
+			viewModel.setSelections('test', [new Selection(1, 2, 1, 2)]);
+			editor.runCommand(CoreEditingCommands.DeleteLeft, null);
+			assert.strictEqual(model2.getLineContent(1), '      x');
+		});
+	});
+
 	test('issue #23539: Setting model EOL isn\'t undoable', () => {
 		withTestCodeEditor([
 			'Hello',
