@@ -271,6 +271,64 @@ suite('McpCustomizationController', () => {
 		});
 	}
 
+	test('late SDK plugin discovery rejects a different-plugin runtime server', () => {
+		const child: McpServerCustomization = {
+			type: CustomizationType.McpServer, id: 'b-child', uri: 'file:///plugins/B/.mcp.json', name: 'search', state: stopped(),
+			_meta: withCustomizationDiscoveryMeta(undefined, { source: 'plugin', defaultEnabled: false }),
+		};
+		const pluginB: PluginCustomization = { type: CustomizationType.Plugin, id: 'B', uri: 'file:///plugins/B', name: 'B', children: [child] };
+		const { controller, setCustomizations } = harness(store, { provenance: new Map([['search', { source: 'plugin', sourcePlugin: 'A' }]]) });
+		store.add(controller);
+		controller.applyOne(server('search', ready()));
+		const live = controller.topLevelCustomizations();
+		const merged = mergeMcpServerCustomizations([pluginB], live);
+		setCustomizations(merged);
+		assert.deepStrictEqual({
+			merged, live: controller.topLevelCustomizations(), owner: controller.pluginMcpServerSources,
+		}, { merged: [pluginB, ...live], live, owner: undefined });
+	});
+
+	test('transitioning provenance from plugin to user/workspace/builtin discards adopted plugin discovery without losing unrelated metadata', () => {
+		const child: McpServerCustomization = {
+			type: CustomizationType.McpServer, id: 'native-child', uri: 'file:///plugins/native/.mcp.json', name: 'search',
+			range: { start: { line: 0, character: 0 }, end: { line: 4, character: 0 } },
+			state: stopped(),
+			_meta: withCustomizationDiscoveryMeta(withMcpServerSourceMeta({ customMeta: 'preserved' }, 'plugin'), { source: 'plugin', pluginId: 'opaque-plugin', defaultEnabled: false }),
+		};
+		const plugin: PluginCustomization = { type: CustomizationType.Plugin, id: 'native', uri: 'file:///plugins/native', name: 'native', children: [child] };
+		const provenance = new Map<string, IMcpServerProvenance>([['search', { source: 'plugin', sourcePlugin: 'native' }]]);
+		const { controller, setCustomizations } = harness(store, {
+			provenance,
+			resolveEnablement: (server, owner) => {
+				const enabled = readCustomizationDiscoveryMeta(server)?.defaultEnabled;
+				return enabled === undefined ? [] : [{ kind: CustomizationEnablementKind.Global, enabled }];
+			},
+		});
+		store.add(controller);
+		controller.applyOne(server('search', ready()));
+		const merged = mergeMcpServerCustomizations([plugin], controller.topLevelCustomizations());
+		setCustomizations(merged);
+		const publishedWithPlugin = controller.topLevelCustomizations()[0];
+		assert.strictEqual(publishedWithPlugin.uri, child.uri);
+		assert.deepStrictEqual(publishedWithPlugin.range, child.range);
+		assert.strictEqual(readCustomizationDiscoveryMeta(publishedWithPlugin)?.defaultEnabled, false);
+		assert.strictEqual(isCustomizationEnabled(publishedWithPlugin), false);
+		assert.strictEqual(controller.pluginMcpServerSources?.get('search'), plugin.uri);
+
+		// Subsequent inventory changes provenance to user configuration
+		provenance.set('search', { source: 'user', sourceUri: 'file:///home/user/.mcp.json' });
+		controller.applyOne(server('search', ready()));
+		const publishedAfterUserTransition = controller.topLevelCustomizations()[0];
+		assert.strictEqual(publishedAfterUserTransition.uri, 'file:///home/user/.mcp.json');
+		assert.strictEqual(publishedAfterUserTransition.range, undefined);
+		assert.strictEqual(readCustomizationDiscoveryMeta(publishedAfterUserTransition), undefined);
+		assert.strictEqual(readMcpServerSource(publishedAfterUserTransition), 'user');
+		assert.strictEqual(readMcpServerSourcePlugin(publishedAfterUserTransition), undefined);
+		assert.strictEqual(publishedAfterUserTransition._meta?.customMeta, 'preserved');
+		assert.strictEqual(isCustomizationEnabled(publishedAfterUserTransition), true);
+		assert.strictEqual(controller.pluginMcpServerSources, undefined);
+	});
+
 	test('late plugin matching leaves unmarked and ambiguous same-name declarations distinct', () => {
 		for (const nativeCount of [0, 2]) {
 			const plugins: PluginCustomization[] = ['first', 'second'].map(name => ({

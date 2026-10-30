@@ -264,22 +264,26 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		}
 
 		const persistentKey = this._persistentKey(target);
+		const unownedPersistentKey = this._unownedPersistentKey(target);
 		const decisions: CustomizationEnablement[] = [];
 		const sessionDecision = sessionEnablement.get(this._sessionKey(target));
 		if (sessionDecision !== undefined) {
 			decisions.push({ kind: CustomizationEnablementKind.Session, enabled: sessionDecision });
 		}
 		if (workingDirectory.kind === 'directory') {
-			const workspaceDecision = this._persistent.workingDirectories?.[workingDirectory.uri.toString()]?.[persistentKey];
+			const workspaceDecision = this._persistent.workingDirectories?.[workingDirectory.uri.toString()]?.[persistentKey]
+				?? (unownedPersistentKey ? this._persistent.workingDirectories?.[workingDirectory.uri.toString()]?.[unownedPersistentKey] : undefined);
 			if (workspaceDecision !== undefined) {
 				decisions.push({ kind: CustomizationEnablementKind.Workspace, uri: workingDirectory.uri.toString(), enabled: workspaceDecision });
 			}
 		}
-		const globalDecision = this._persistent.global?.[persistentKey];
+		const globalDecision = this._persistent.global?.[persistentKey]
+			?? (unownedPersistentKey ? this._persistent.global?.[unownedPersistentKey] : undefined);
 		if (globalDecision !== undefined) {
 			decisions.push({ kind: CustomizationEnablementKind.Global, enabled: globalDecision });
 		} else {
-			const clientGlobalDecision = this._clientGlobalEnablement.get(session)?.get(persistentKey);
+			const clientGlobalDecision = this._clientGlobalEnablement.get(session)?.get(persistentKey)
+				?? (unownedPersistentKey ? this._clientGlobalEnablement.get(session)?.get(unownedPersistentKey) : undefined);
 			if (clientGlobalDecision !== undefined) {
 				decisions.push({ kind: CustomizationEnablementKind.Global, enabled: clientGlobalDecision });
 			} else if (target.defaultEnabled !== undefined) {
@@ -501,17 +505,34 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		return getCustomizationEnablementKey(target, CustomizationEnablementKind.Global);
 	}
 
+	private _unownedPersistentKey(target: ICustomizationEnablementTarget): string | undefined {
+		return target.type === CustomizationType.McpServer && target.owningPluginSource
+			? `mcpServers#${target.name}`
+			: undefined;
+	}
+
 	private _sessionKey(target: ICustomizationEnablementTarget): string {
 		return getCustomizationEnablementKey(target, CustomizationEnablementKind.Session);
 	}
 
 	private _workspaceInheritedEnablement(session: string, target: ICustomizationEnablementTarget, workingDirectory: URI): boolean {
-		return this._persistent.workingDirectories?.[workingDirectory.toString()]?.[this._persistentKey(target)] ?? this._globalEnablement(session, target);
+		const persistentKey = this._persistentKey(target);
+		const unownedPersistentKey = this._unownedPersistentKey(target);
+		const workspace = this._persistent.workingDirectories?.[workingDirectory.toString()];
+		const decision = workspace?.[persistentKey]
+			?? (unownedPersistentKey ? workspace?.[unownedPersistentKey] : undefined);
+		return decision ?? this._globalEnablement(session, target);
 	}
 
 	private _globalEnablement(session: string, target: ICustomizationEnablementTarget): boolean {
 		const key = this._persistentKey(target);
-		return this._persistent.global?.[key] ?? this._clientGlobalEnablement.get(session)?.get(key) ?? target.defaultEnabled ?? DEFAULT_CUSTOMIZATION_ENABLED;
+		const unownedKey = this._unownedPersistentKey(target);
+		return this._persistent.global?.[key]
+			?? (unownedKey ? this._persistent.global?.[unownedKey] : undefined)
+			?? this._clientGlobalEnablement.get(session)?.get(key)
+			?? (unownedKey ? this._clientGlobalEnablement.get(session)?.get(unownedKey) : undefined)
+			?? target.defaultEnabled
+			?? DEFAULT_CUSTOMIZATION_ENABLED;
 	}
 
 	private _setWorkspace(session: string, target: ICustomizationEnablementTarget, workingDirectory: URI, enabled: boolean | undefined): void {

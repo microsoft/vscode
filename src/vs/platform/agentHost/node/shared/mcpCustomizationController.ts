@@ -74,7 +74,7 @@ function withObservedDefault(server: McpServerCustomization, defaultEnabled: boo
 }
 
 /** Finds an unambiguous SDK plugin declaration without claiming servers from other runtime sources. */
-export function findDiscoveredPluginMcpServer(customizations: readonly Customization[], serverName: string, source?: McpServerSource): { server: McpServerCustomization; plugin: PluginCustomization } | undefined {
+export function findDiscoveredPluginMcpServer(customizations: readonly Customization[], serverName: string, source?: McpServerSource, sourcePlugin?: string): { server: McpServerCustomization; plugin: PluginCustomization } | undefined {
 	if (source !== undefined && source !== 'plugin') {
 		return undefined;
 	}
@@ -83,8 +83,15 @@ export function findDiscoveredPluginMcpServer(customizations: readonly Customiza
 		if (plugin.type !== CustomizationType.Plugin) {
 			continue;
 		}
+		if (sourcePlugin !== undefined && plugin.name !== sourcePlugin && plugin.id !== sourcePlugin && plugin.uri !== sourcePlugin) {
+			continue;
+		}
 		for (const server of plugin.children ?? []) {
 			if (server.type !== CustomizationType.McpServer || server.name !== serverName || readCustomizationDiscoveryMeta(server)?.source !== 'plugin') {
+				continue;
+			}
+			const serverPlugin = readMcpServerSourcePlugin(server);
+			if (sourcePlugin !== undefined && serverPlugin !== undefined && serverPlugin !== sourcePlugin) {
 				continue;
 			}
 			if (match) {
@@ -101,7 +108,7 @@ export function mergeMcpServerCustomizations(declarations: readonly Customizatio
 	const byId = new Map(declarations.map(customization => [customization.id, customization]));
 	for (const live of liveServers) {
 		const declaration = byId.get(live.id) ?? (live.type === CustomizationType.McpServer
-			? findDiscoveredPluginMcpServer(declarations, live.name, readMcpServerSource(live))?.server
+			? findDiscoveredPluginMcpServer(declarations, live.name, readMcpServerSource(live), readMcpServerSourcePlugin(live))?.server
 			: undefined);
 		byId.set(live.id, declaration?.type === CustomizationType.McpServer && live.type === CustomizationType.McpServer
 			? {
@@ -309,8 +316,8 @@ export class McpCustomizationController extends Disposable {
 			if (sources.has(name)) {
 				continue;
 			}
-			const source = this._options.resolveProvenance?.(name)?.source;
-			const discovered = findDiscoveredPluginMcpServer(customizations, name, source);
+			const provenance = this._options.resolveProvenance?.(name);
+			const discovered = findDiscoveredPluginMcpServer(customizations, name, provenance?.source, provenance?.sourcePlugin);
 			if (discovered) {
 				sources.set(name, discovered.plugin.uri);
 			}
@@ -634,26 +641,36 @@ export class McpCustomizationController extends Disposable {
 		const existing = this._findPublishedTopLevel(id);
 		// Runtime configuration takes precedence over the SDK discovery declaration.
 		const provenance: IMcpServerProvenance = this._options.resolveProvenance?.(serverName) ?? { source: undefined };
-		const native = findDiscoveredPluginMcpServer(this._stateManager.getSessionState(this._sessionUri.toString())?.customizations ?? [], serverName, provenance.source);
+		const native = findDiscoveredPluginMcpServer(this._stateManager.getSessionState(this._sessionUri.toString())?.customizations ?? [], serverName, provenance.source, provenance.sourcePlugin);
 		const owningPluginUri = this._options.pluginMcpServerSources?.()?.get(serverName) ?? native?.plugin.uri;
-		const discovered = native?.server ?? (existing && readCustomizationDiscoveryMeta(existing) ? existing : undefined);
+		const existingDiscovery = existing ? readCustomizationDiscoveryMeta(existing) : undefined;
+		const incompatiblePluginDiscovery = existingDiscovery?.source === 'plugin' && (
+			(provenance.source !== undefined && provenance.source !== 'plugin') ||
+			(provenance.sourcePlugin !== undefined && readMcpServerSourcePlugin(existing) !== undefined && readMcpServerSourcePlugin(existing) !== provenance.sourcePlugin)
+		);
+		const discovered = native?.server ?? (!incompatiblePluginDiscovery && existingDiscovery ? existing : undefined);
 		// `SessionCustomizationUpdated` replaces the whole customization, so keep opaque entries owned by others.
+		const baseMeta = incompatiblePluginDiscovery
+			? withCustomizationDiscoveryMeta(existing?._meta, undefined)
+			: (discovered ? { ...existing?._meta, ...discovered._meta } : existing?._meta);
 		const meta = withMcpServerConnectorNameMeta(
 			withMcpServerControllingSettingMeta(
 				withMcpServerSourcePluginMeta(
-					withMcpServerDisplayNameMeta(withMcpServerSourceMeta(discovered ? { ...existing?._meta, ...discovered._meta } : existing?._meta, provenance.source ?? readMcpServerSource(discovered)), displayName),
-					provenance.sourcePlugin ?? readMcpServerSourcePlugin(discovered),
+					withMcpServerDisplayNameMeta(withMcpServerSourceMeta(baseMeta, provenance.source ?? readMcpServerSource(discovered)), displayName),
+					provenance.sourcePlugin ?? (incompatiblePluginDiscovery ? undefined : readMcpServerSourcePlugin(discovered)),
 				),
 				this._options.controllingSetting?.(serverName, provenance),
 			),
 			this._options.connectorName?.(serverName),
 		);
-		const uri = provenance.sourceUri ?? discovered?.uri ?? this._mintTopLevelId(serverName);
+		const uri = provenance.sourceUri ?? discovered?.uri ?? (incompatiblePluginDiscovery ? this._mintTopLevelId(serverName) : existing?.uri ?? this._mintTopLevelId(serverName));
 		const customization: McpServerCustomization = {
 			type: CustomizationType.McpServer,
 			id,
 			uri,
-			...(uri === discovered?.uri && discovered.range ? { range: discovered.range } : uri === existing?.uri && existing.range ? { range: existing.range } : {}),
+			...(!incompatiblePluginDiscovery && ((uri === discovered?.uri && discovered.range) || (uri === existing?.uri && existing.range))
+				? { range: uri === discovered?.uri && discovered.range ? discovered.range : existing?.range }
+				: {}),
 			name: serverName,
 			state,
 			channel,
@@ -661,7 +678,7 @@ export class McpCustomizationController extends Disposable {
 			...(meta ? { _meta: meta } : {}),
 		};
 		const observed = withObservedDefault(customization, defaultEnabled);
-		const enablement = this._options.resolveEnablement?.(observed, owningPluginUri) ?? discovered?.enablement ?? existing?.enablement;
+		const enablement = this._options.resolveEnablement?.(observed, owningPluginUri) ?? discovered?.enablement ?? (incompatiblePluginDiscovery ? undefined : existing?.enablement);
 		return enablement?.length ? { ...observed, enablement: [...enablement] } : observed;
 	}
 }
