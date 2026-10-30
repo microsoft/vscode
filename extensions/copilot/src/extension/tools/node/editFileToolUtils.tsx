@@ -16,6 +16,7 @@ import { IFileSystemService } from '../../../platform/filesystem/common/fileSyst
 import { ILogService } from '../../../platform/log/common/logService';
 import { IAlternativeNotebookContentService } from '../../../platform/notebook/common/alternativeContent';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
+import { IPromptsService } from '../../../platform/promptFiles/common/promptsService';
 import { IPromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { WorkingDirectory } from '../../../platform/workspace/common/workingDirectory';
@@ -806,9 +807,10 @@ export const enum ConfirmationCheckResult {
 
 /**
  * Returns a function that returns whether a URI is approved for editing without
- * further user confirmation. Configured agent locations are protected across all workspace roots.
+ * further user confirmation. Configured agent locations are protected across all discovery roots,
+ * without expanding the editable workspace boundary.
  */
-export function makeUriConfirmationChecker(configuration: IConfigurationService, getWorkspaceFolder: (resource: URI) => URI | undefined, workspaceFolders: readonly URI[]) {
+export function makeUriConfirmationChecker(configuration: IConfigurationService, getWorkspaceFolder: (resource: URI) => URI | undefined, discoveryRoots: readonly URI[]) {
 	const patterns = configuration.getNonExtensionConfig<Record<string, boolean>>('chat.tools.edits.autoApprove');
 	const hookFilesLocations = configuration.getNonExtensionConfig<Record<string, boolean>>('chat.hookFilesLocations');
 
@@ -858,7 +860,7 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 		}
 
 		const ignoreCasing = extUriBiasedIgnorePathCase.ignorePathCasing(wf);
-		const roots = new ResourceSet([wf, ...workspaceFolders]);
+		const roots = new ResourceSet([wf, ...discoveryRoots]);
 		arr = {
 			patterns: [],
 			// Protect configured locations and descendants without inferring file type from extensions.
@@ -969,11 +971,15 @@ export async function createEditConfirmation(accessor: ServicesAccessor, uris: r
 	}
 
 	const workspaceService = accessor.get(IWorkspaceService);
+	const configuration = accessor.get(IConfigurationService);
 	const wd = new WorkingDirectory(workingDirectory, workspaceService);
-	if (!getWorkspaceFolder) {
-		getWorkspaceFolder = (resource: URI) => wd.getFolder(resource);
-	}
-	const checker = makeUriConfirmationChecker(accessor.get(IConfigurationService), getWorkspaceFolder, wd.getFolders());
+	const resolveWorkspaceFolder = getWorkspaceFolder ?? ((resource: URI) => wd.getFolder(resource));
+	const workspaceFolders = new ResourceSet([
+		...wd.getFolders(),
+		...uris.map(uri => resolveWorkspaceFolder(normalizePath(uri))).filter(isDefined),
+	]);
+	const discoveryRoots = await accessor.get(IPromptsService).getWorkspaceFolderRoots([...workspaceFolders]);
+	const checker = makeUriConfirmationChecker(configuration, resolveWorkspaceFolder, discoveryRoots);
 	const needsConfirmation = (await Promise.all(uris
 		.map(async uri => ({ uri, reason: await checker(uri) }))
 	)).filter(r => r.reason !== ConfirmationCheckResult.NoConfirmation && !allowedUris?.has(r.uri));

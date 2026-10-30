@@ -7,19 +7,24 @@ import * as fs from 'fs';
 import { homedir, tmpdir } from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, onTestFinished, test, vi } from 'vitest';
+import { IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { IAlternativeNotebookContentService } from '../../../../platform/notebook/common/alternativeContent';
 import { MockAlternativeNotebookContentService } from '../../../../platform/notebook/common/mockAlternativeContentService';
 import { INotebookService } from '../../../../platform/notebook/common/notebookService';
+import { IPromptsService } from '../../../../platform/promptFiles/common/promptsService';
+import { MockPromptsService } from '../../../../platform/promptFiles/test/common/mockPromptsService';
+import { createPlatformServices } from '../../../../platform/test/node/services';
 import { TestWorkspaceService } from '../../../../platform/test/node/testWorkspaceService';
+import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { WorkspaceEdit as WorkspaceEditShim } from '../../../../util/common/test/shims/editing';
 import { createTextDocumentData, IExtHostDocumentData, setDocText } from '../../../../util/common/test/shims/textDocument';
 import { isMacintosh, isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { WorkspaceEdit } from '../../../../vscodeTypes';
 import { applyEdits as applyTextEdits } from '../../../prompt/node/intents';
-import { applyEdit, assertPathIsSafe, ConfirmationCheckResult, ContentFormatError, makeUriConfirmationChecker, MultipleMatchesError, NoChangeError, NoMatchError, setSimilarityMatchThresholdForTests } from '../editFileToolUtils';
+import { applyEdit, assertPathIsSafe, ConfirmationCheckResult, ContentFormatError, createEditConfirmation, makeUriConfirmationChecker, MultipleMatchesError, NoChangeError, NoMatchError, setSimilarityMatchThresholdForTests } from '../editFileToolUtils';
 import * as toolUtils from '../toolUtils';
 
 describe('replace_string_in_file - applyEdit', () => {
@@ -1246,6 +1251,32 @@ describe('makeUriConfirmationChecker', async () => {
 			const target = URI.file(path.join(workspaceDir, 'assets', 'newdir', 'pwned.desktop'));
 			expect(await checker(target)).toBe(ConfirmationCheckResult.OutsideWorkspace);
 		});
+	});
+});
+
+describe.each(['chat.agentFilesLocations', 'chat.agentSkillsLocations'])('createEditConfirmation - %s', setting => {
+	test('protects parent discovery locations without expanding the editable workspace', async () => {
+		const workspaceFolder = URI.file('/repo/app');
+		const services = createPlatformServices();
+		const configService = new InMemoryConfigurationService(new DefaultsOnlyConfigurationService());
+		services.define(IConfigurationService, configService);
+		services.define(IWorkspaceService, new TestWorkspaceService([workspaceFolder], []));
+		const promptsService = new MockPromptsService();
+		services.define(IPromptsService, promptsService);
+		promptsService.setWorkspaceFolderRoots([workspaceFolder, URI.file('/repo')]);
+		const accessor = services.createTestingAccessor();
+		onTestFinished(() => accessor.dispose());
+		await configService.setNonExtensionConfig(setting, { 'app/agents': true });
+		await configService.setNonExtensionConfig('chat.tools.edits.autoApprove', { '**/*': true });
+		await configService.setNonExtensionConfig('chat.useCustomizationsInParentRepositories', true);
+
+		const results = await Promise.all([
+			URI.file('/repo/app/agents/reviewer.agent.md'),
+			URI.file('/repo/app/src/file.ts'),
+			URI.file('/repo/src/file.ts'),
+		].map(uri => createEditConfirmation(accessor, [uri], undefined)));
+
+		expect(results.map(result => result.confirmationMessages !== undefined)).toEqual([true, false, true]);
 	});
 });
 
