@@ -455,6 +455,9 @@ export type IAgentCustomizationInstallationReview = {
 	readonly serverName: string;
 	readonly target: string;
 	readonly endpoint?: string;
+	readonly command?: string;
+	readonly args?: readonly string[];
+	readonly env?: Readonly<Record<string, string>>;
 	readonly configurationFields: readonly string[];
 	readonly restoresPreviousConfiguration?: boolean;
 	readonly preservesSharedAuthentication?: boolean;
