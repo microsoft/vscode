@@ -1285,10 +1285,13 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		const headerActions = item.actions.filter(action =>
 			action.kind === InboxNotificationActionKind.OpenSession
 			|| action.kind === InboxNotificationActionKind.MarkDone);
+		let footerActions: HTMLElement | undefined;
 		if (primaryActions.length || headerActions.length) {
-			const headingActions = heading.appendChild($('.inbox-notifications-item-header-actions'));
+			const actionContainer = item.kind === InboxNotificationKind.PullRequestMerged
+				? footerActions = $('.inbox-notifications-item-actions.inbox-notifications-item-footer-actions')
+				: heading.appendChild($('.inbox-notifications-item-actions.inbox-notifications-item-header-actions'));
 			for (const action of [...primaryActions, ...headerActions]) {
-				const button = this.renderActionButton(headingActions, item, action, store);
+				const button = this.renderActionButton(actionContainer, item, action, store);
 				if (action.kind === InboxNotificationActionKind.MarkDone) {
 					button.element.classList.add('inbox-notifications-item-action-done');
 				}
@@ -1302,13 +1305,37 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			badges.appendChild($('.inbox-notifications-item-badge.repository', undefined, item.repositoryLabel));
 		}
 		if (item.pullRequestStates?.length) {
-			const pullRequestStates = badges.appendChild($('.inbox-notifications-item-pr-states'));
+			const multiple = item.pullRequestStates.length > 1;
+			const group = multiple ? card.appendChild($('.inbox-notifications-item-pr-group')) : badges;
+			const pullRequestStates = $('ul.inbox-notifications-item-pr-states');
+			pullRequestStates.setAttribute('aria-label', localize('inboxNotifications.pullRequests', "Pull requests"));
+			pullRequestStates.classList.toggle('inbox-notifications-item-pr-list', multiple);
+			if (item.pullRequestStates.length > 3) {
+				const label = localize('inboxNotifications.pullRequests.count', "{0} pull requests", item.pullRequestStates.length);
+				const disclosure = store.add(new Button(group, {
+					...inboxButtonStyles, secondary: true, small: true, supportIcons: true, ariaLabel: label,
+				}));
+				disclosure.element.classList.add('inbox-notifications-item-pr-toggle');
+				disclosure.label = `$(chevron-right) ${label}`;
+				disclosure.element.setAttribute('aria-expanded', 'false');
+				pullRequestStates.id = generateUuid();
+				disclosure.element.setAttribute('aria-controls', pullRequestStates.id);
+				pullRequestStates.hidden = true;
+				store.add(disclosure.onDidClick(() => {
+					pullRequestStates.hidden = !pullRequestStates.hidden;
+					disclosure.element.setAttribute('aria-expanded', String(!pullRequestStates.hidden));
+					disclosure.label = `$(${pullRequestStates.hidden ? 'chevron-right' : 'chevron-down'}) ${label}`;
+					this.scrollableElement.scanDomNode();
+				}));
+			}
+			group.appendChild(pullRequestStates);
+			const hoverLifecycleOptions = { groupId: generateUuid() };
 			for (const pullRequestState of item.pullRequestStates) {
-				const pullRequestStateElement = pullRequestStates.appendChild($('.inbox-notifications-item-pr-state'));
+				const pullRequestStateElement = pullRequestStates.appendChild($('li.inbox-notifications-item-pr-state'));
 				const pullRequestUri = pullRequestState.pullRequestUri;
 				if (pullRequestUri) {
 					const pullRequestButton = store.add(new Button(pullRequestStateElement, {
-						...defaultButtonStyles,
+						...(multiple ? inboxButtonStyles : defaultButtonStyles),
 						secondary: true,
 						small: true,
 						supportIcons: true,
@@ -1316,6 +1343,12 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 					}));
 					pullRequestButton.element.classList.add('inbox-notifications-item-pr-state-link');
 					pullRequestButton.label = `$(${pullRequestState.icon.id}) ${pullRequestState.label}`;
+					if (multiple) {
+						store.add(this.hoverService.setupDelayedHover(pullRequestButton.element, {
+							content: pullRequestState.label,
+							appearance: { showPointer: true },
+						}, hoverLifecycleOptions));
+					}
 					store.add(pullRequestButton.onDidClick(() => {
 						this.logInboxInteraction('openPullRequestState', 'pullRequestState', item);
 						void this.openerService.open(pullRequestUri).catch(onUnexpectedError);
@@ -1347,6 +1380,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			}));
 		}
 
+		if (footerActions) {
+			card.appendChild(footerActions);
+		}
 		return card;
 	}
 

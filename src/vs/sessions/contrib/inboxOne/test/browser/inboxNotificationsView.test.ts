@@ -341,6 +341,82 @@ suite('InboxNotificationsView', () => {
 		assert.deepStrictEqual(layouts, Array.from({ length: 3 }, () => ({ noOverlap: true, withinHeader: true })));
 	});
 
+	for (const count of [1, 2, 3, 4, 7]) {
+		test(`${count} pull requests use a list with disclosure only above three`, () => {
+			const item: IInboxNotificationItem = {
+				id: 'pull-requests', kind: InboxNotificationKind.PullRequestMerged, priority: InboxNotificationPriority.Later,
+				title: 'Merged pull requests', description: 'Ready to archive', timestamp: 1, actions: [],
+				pullRequestStates: Array.from({ length: count }, (_, index) => ({
+					label: `owner/${'repository'.repeat(10)}#${index + 1}`, repositoryLabel: 'owner/repository', statusLabel: 'Merged', icon: { id: 'git-pull-request-done' },
+					pullRequestUri: URI.parse(`https://github.com/owner/repository/pull/${index + 1}`),
+				})),
+			};
+			const { view, container, instantiationService } = createView(constObservable([item]));
+			const opened: string[] = [];
+			instantiationService.stub(IOpenerService, 'open', async (uri: URI | string) => { opened.push(uri.toString()); return true; });
+			view.render(container);
+			container.style.width = '320px';
+			view.layout(320, 400);
+			const list = container.querySelector<HTMLElement>('.inbox-notifications-item-pr-states')!;
+			const toggle = container.querySelector<HTMLElement>('.inbox-notifications-item-pr-toggle');
+			const collapsed = { hidden: list.hidden, expanded: toggle?.getAttribute('aria-expanded'), controls: !toggle || toggle.getAttribute('aria-controls') === list.id };
+			toggle?.click();
+			const expanded = { hidden: list.hidden, expanded: toggle?.getAttribute('aria-expanded') };
+			const linksFit = count === 1 || [...list.querySelectorAll<HTMLElement>('.inbox-notifications-item-pr-state-link')].every(link =>
+				link.getBoundingClientRect().right <= list.getBoundingClientRect().right + 1);
+			list.querySelector<HTMLElement>('.inbox-notifications-item-pr-state-link')!.click();
+			toggle?.click();
+			assert.deepStrictEqual({
+				isList: list.classList.contains('inbox-notifications-item-pr-list'), links: list.children.length,
+				collapsed, expanded, collapsedAgain: list.hidden, linksFit, opened,
+				cardSelected: !!container.querySelector('.inbox-notifications-item.selected'),
+			}, {
+				isList: count > 1, links: count,
+				collapsed: { hidden: count > 3, expanded: count > 3 ? 'false' : undefined, controls: true },
+				expanded: { hidden: false, expanded: count > 3 ? 'true' : undefined },
+				collapsedAgain: count > 3, linksFit: true, opened: ['https://github.com/owner/repository/pull/1'], cardSelected: false,
+			});
+		});
+	}
+
+	test('merged session cleanup actions wrap below the content without overflowing or competing with the title', () => {
+		const session = upcastPartial<ISession>({ providerId: 'local-agent-host' });
+		const { view, container, instantiationService } = createView(constObservable([{
+			id: 'merged', kind: InboxNotificationKind.PullRequestMerged, priority: InboxNotificationPriority.Later,
+			title: '7 Pull Requests Merged', description: 'Archive or delete this session when you are done.', timestamp: 1,
+			sessionResource: URI.parse('test:///session'),
+			actions: [
+				{ id: 'archive', label: 'Archive Session', kind: InboxNotificationActionKind.ArchiveSession },
+				{ id: 'delete', label: 'Delete Session', kind: InboxNotificationActionKind.DeleteSession },
+				{ id: 'open', label: 'Open Session', kind: InboxNotificationActionKind.OpenSession },
+				{ id: 'done', label: '$(check)', kind: InboxNotificationActionKind.MarkDone },
+			],
+		}]));
+		instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
+		view.render(container);
+		const layouts = [320, 420, 560, 900].map(width => {
+			container.style.width = `${width}px`;
+			view.layout(width, 400);
+			const card = container.querySelector<HTMLElement>('.inbox-notifications-item')!;
+			const footer = card.querySelector<HTMLElement>('.inbox-notifications-item-footer-actions')!;
+			const bounds = footer.getBoundingClientRect();
+			const description = card.querySelector<HTMLElement>('.inbox-notifications-item-description')!.getBoundingClientRect();
+			return {
+				belowContent: bounds.top >= description.bottom,
+				last: card.lastElementChild === footer,
+				headerActions: card.querySelector('.inbox-notifications-item-header-actions'),
+				noOverflow: [...footer.querySelectorAll<HTMLElement>('.monaco-button')].every(button => {
+					const rect = button.getBoundingClientRect();
+					return rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1 && rect.bottom <= bounds.bottom + 1;
+				}),
+				dropdowns: footer.querySelectorAll('.monaco-button-dropdown').length,
+			};
+		});
+		assert.deepStrictEqual(layouts, Array.from({ length: 4 }, () => ({
+			belowContent: true, last: true, headerActions: null, noOverflow: true, dropdowns: 2,
+		})));
+	});
+
 	test('the header session button keeps its bounded preview without duplicating evidence actions or dates', () => {
 		const chat = upcastPartial<IChat>({ resource: URI.parse('test:///chat') });
 		const session = upcastPartial<ISession>({
