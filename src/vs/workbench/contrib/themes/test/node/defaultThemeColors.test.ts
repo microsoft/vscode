@@ -5,20 +5,21 @@
 
 import assert from 'assert';
 import * as fs from 'fs';
-import { Color } from '../../../../../base/common/color.js';
+import { Color, RGBA } from '../../../../../base/common/color.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { editorRuler } from '../../../../../editor/common/core/editorColorRegistry.js';
 import { IExtensionResourceLoaderService } from '../../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
+import { editorFindMatchHighlightBorder, minimapFindMatch, overviewRulerFindMatchForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { BANNER_BACKGROUND, BANNER_FOREGROUND, BANNER_ICON_FOREGROUND, STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_ERROR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ERROR_ITEM_HOVER_FOREGROUND, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND } from '../../../../common/theme.js';
 import { ColorThemeData } from '../../../../services/themes/common/colorThemeData.js';
 
 suite('Default theme colors', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function loadDefaultTheme(name: string, selector: 'vs' | 'vs-dark', extension = 'theme-defaults'): Promise<ColorThemeData> {
+	async function loadDefaultTheme(name: string, selector: 'vs' | 'vs-dark' | 'hc-black' | 'hc-light', extension = 'theme-defaults'): Promise<ColorThemeData> {
 		const theme = ColorThemeData.createUnloadedTheme(selector);
 		theme.location = FileAccess.asFileUri(`vs/../../extensions/${extension}/themes/${name}`);
 		await theme.ensureLoaded(new class extends mock<IExtensionResourceLoaderService>() {
@@ -76,6 +77,54 @@ suite('Default theme colors', () => {
 		});
 
 		assert.ok(contrast >= referenceContrast, `Light 2026 ruler contrast ${contrast} is below Light Modern's ${referenceContrast}`);
+	});
+
+	test('minimap find markers stay visible and match the overview ruler in default themes', async () => {
+		const themes = await Promise.all([
+			loadDefaultTheme('dark_modern.json', 'vs-dark'),
+			loadDefaultTheme('light_modern.json', 'vs'),
+			loadDefaultTheme('2026-dark.json', 'vs-dark'),
+			loadDefaultTheme('2026-light.json', 'vs'),
+		]);
+
+		assert.deepStrictEqual(themes.map(theme => {
+			const background = theme.getColor('editor.background')!;
+			const marker = theme.getColor(minimapFindMatch)!;
+			const ruler = theme.getColor(overviewRulerFindMatchForeground)!;
+			return {
+				matchesRuler: marker.rgba.r === ruler.rgba.r && marker.rgba.g === ruler.rgba.g && marker.rgba.b === ruler.rgba.b,
+				opacity: marker.rgba.a,
+				visibleFullLine: marker.transparent(0.5).makeOpaque(background).getContrastRatio(background) >= 1.5,
+			};
+		}), themes.map(() => ({ matchesRuler: true, opacity: 0.8, visibleFullLine: true })));
+	});
+
+	test('high-contrast minimap find markers use the editor match border', async () => {
+		const themes = await Promise.all([
+			loadDefaultTheme('hc_black.json', 'hc-black'),
+			loadDefaultTheme('hc_light.json', 'hc-light'),
+		]);
+
+		assert.deepStrictEqual(themes.map(theme => theme.getColor(minimapFindMatch)?.rgba), themes.map(theme => theme.getColor(editorFindMatchHighlightBorder)!.rgba));
+	});
+
+	test('minimap find markers follow customized overview colours and preserve explicit minimap colours', async () => {
+		const theme = await loadDefaultTheme('2026-light.json', 'vs');
+		theme.setCustomColors({ [overviewRulerFindMatchForeground]: '#52a37019' });
+		const inherited = theme.getColor(minimapFindMatch)!.rgba;
+		const customColors = ['#123456', '#98765440', '#abcdef00'];
+		const customized = customColors.map(color => {
+			theme.setCustomColors({
+				[overviewRulerFindMatchForeground]: '#52a37019',
+				[minimapFindMatch]: color,
+			});
+			return theme.getColor(minimapFindMatch)!.rgba;
+		});
+
+		assert.deepStrictEqual({ inherited, customized }, {
+			inherited: new RGBA(82, 163, 112, 0.8),
+			customized: customColors.map(color => Color.fromHex(color).rgba),
+		});
 	});
 
 	test('Quiet Light banner text, links and icon remain readable', async () => {
