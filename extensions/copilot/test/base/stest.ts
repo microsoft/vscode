@@ -207,8 +207,6 @@ export class SimulationSuiteOptions {
 	) { }
 }
 
-export type ExtHostDescriptor = boolean; // todo: more things like extension config later
-
 export interface ISimulationSuiteDescriptor {
 
 	/***
@@ -243,11 +241,6 @@ export interface ISimulationSuiteDescriptor {
 	 * Non-extension settings configurations defined for the test
 	 */
 	readonly nonExtensionConfigurations?: NonExtensionConfiguration[] | undefined;
-
-	/**
-	 * Set to true to run in a real VS Code extension host.
-	 */
-	readonly extHost?: ExtHostDescriptor;
 }
 
 export class SimulationSuite {
@@ -261,7 +254,6 @@ export class SimulationSuite {
 
 	public readonly configurations: Configuration<any>[] | undefined;
 	public readonly nonExtensionConfigurations: NonExtensionConfiguration[] | undefined;
-	public readonly extHost: ExtHostDescriptor | undefined;
 
 	constructor(
 		descriptor: ISimulationSuiteDescriptor,
@@ -321,11 +313,6 @@ class SimulationTestsRegistryClass {
 	private suites: SimulationSuite[] = [this.defaultSuite];
 	private currentSuite: SimulationSuite = this.defaultSuite;
 	private readonly testNames = new Set<string>();
-
-	private _inputPath: string | undefined;
-	public setInputPath(inputPath: string) {
-		this._inputPath = inputPath;
-	}
 
 	private _testPath: string | undefined;
 	private _filter: (test: SimulationTest) => boolean = () => true;
@@ -388,7 +375,7 @@ class SimulationTestsRegistryClass {
 		this.currentSuite.tests.push(test);
 	}
 
-	public registerSuite(descriptor: ISimulationSuiteDescriptor, options: ISimulationSuiteOptions, factory: (inputPath?: string) => void) {
+	public registerSuite(descriptor: ISimulationSuiteDescriptor, options: ISimulationSuiteOptions, factory: () => void) {
 		if (this._testPath && options.location !== undefined) {
 
 			const testBasename = path.basename(options.location.path);
@@ -409,10 +396,10 @@ class SimulationTestsRegistryClass {
 		this.invokeSuiteFactory(suite, factory);
 	}
 
-	private invokeSuiteFactory(suite: SimulationSuite, factory: (inputPath?: string) => void) {
+	private invokeSuiteFactory(suite: SimulationSuite, factory: () => void) {
 		try {
 			this.currentSuite = suite;
-			factory(this._inputPath);
+			factory();
 		} finally {
 			this.currentSuite = this.defaultSuite;
 		}
@@ -479,13 +466,13 @@ function captureLocation(fn: Function): ITestLocation | undefined {
 /**
  * @remarks DO NOT FORGET to register the test file in `simulationTests.ts` for local test files
  */
-export function ssuite(descriptor: ISimulationSuiteDescriptor, factory: (inputPath?: string) => void) {
+export function ssuite(descriptor: ISimulationSuiteDescriptor, factory: () => void) {
 	SimulationTestsRegistry.registerSuite(descriptor, { optional: false, location: captureLocation(ssuite) }, factory);
 }
-ssuite.optional = function (skip: (opts: SimulationOptions) => boolean, descriptor: ISimulationSuiteDescriptor, factory: (inputPath?: string) => void) {
+ssuite.optional = function (skip: (opts: SimulationOptions) => boolean, descriptor: ISimulationSuiteDescriptor, factory: () => void) {
 	SimulationTestsRegistry.registerSuite(descriptor, { optional: true, skip, location: captureLocation(ssuite.optional) }, factory);
 };
-ssuite.skip = function (descriptor: ISimulationSuiteDescriptor, factory: (inputPath?: string) => void) {
+ssuite.skip = function (descriptor: ISimulationSuiteDescriptor, factory: () => void) {
 	SimulationTestsRegistry.registerSuite(descriptor, { optional: true, skip: (_: SimulationOptions) => true, location: captureLocation(ssuite.skip) }, factory);
 };
 

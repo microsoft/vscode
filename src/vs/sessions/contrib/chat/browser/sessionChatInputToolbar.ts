@@ -37,7 +37,7 @@ import { ChatInputPills, StandardChatInputPillSources } from '../../../../workbe
 import type { IChatBackgroundActivityPillSections } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../../../workbench/contrib/chat/browser/sessionPullRequestPill.js';
 import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
-import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
+import { createOpenPullRequestChangesAction, SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
 import { SessionCustomizations } from '../../../../workbench/contrib/chat/browser/sessionCustomizations.js';
 import { localize } from '../../../../nls.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, getChatPillEntries, getChatPillResourceLocation, getChatReferencePillPresentation, type ChatPillsCompactMode, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
@@ -75,7 +75,6 @@ import { EditorInput } from '../../../../workbench/common/editor/editorInput.js'
 
 const copiedLabel = localize('sessionChatPills.copied', "Copied");
 const copiedToClipboardStatus = localize('sessionChatPills.copiedToClipboard', "Copied to clipboard");
-const openChangesHoverLabel = localize('sessionChatPills.openChanges', "Open Changes");
 const copyFeedbackDuration = 1200;
 
 /** Fake artifacts for the pill debug overlay. */
@@ -179,17 +178,12 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 				class: ThemeIcon.asClassName(Codicon.close),
 				run: () => artifactActions.remove?.([recordedReferenceId], resourceLabel),
 			}), chatPillRemoveArtifactHoverLabel) : undefined,
-			toolbarActions: [withChatPillHoverLabel(toAction({
-				id: `sessionChatPills.openPullRequestChanges.${ref.owner.toLowerCase()}.${ref.repo.toLowerCase()}.${ref.number}`,
-				label: localize('sessionChatPills.openPullRequestChanges', "Open Pull Request Changes"),
-				class: ThemeIcon.asClassName(Codicon.diffMultiple),
-				run: () => {
-					if (session) {
-						sessionsService.setActive(session);
-					}
-					return commandService.executeCommand(OPEN_PULL_REQUEST_CHANGES_ACTION_ID, { pullRequest: ref });
-				},
-			}), openChangesHoverLabel), withChatPillHoverLabel(createCopyAction?.(
+			toolbarActions: [createOpenPullRequestChangesAction(ref, () => {
+				if (session) {
+					sessionsService.setActive(session);
+				}
+				return commandService.executeCommand(OPEN_PULL_REQUEST_CHANGES_ACTION_ID, { pullRequest: ref });
+			}), withChatPillHoverLabel(createCopyAction?.(
 				`${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`,
 				localize('sessionChatPills.copyPullRequest', "Copy pull request URL"),
 				() => clipboardService.writeText(ref.uri.toString(true)),
@@ -606,10 +600,11 @@ export class SessionChatInputToolbar extends Disposable {
 			}
 			return computeAggregateIssueIcon(resolved.map(({ issue }) => issue));
 		});
+		// Integrated pull requests and issues without a pill of their own stay in these pills, with their integration's presentation.
 		const plainPullRequestSections = derived(this, reader => pullRequestSections.read(reader)
-			.map(section => ({ ...section, entries: section.entries.filter(entry => !sessionArtifacts.hasIntegration(entry.id, reader)) })));
+			.map(section => ({ ...section, entries: section.entries.filter(entry => !sessionArtifacts.hasOwnPill(entry.id, reader)).map(entry => sessionArtifacts.decorateEntry(entry, reader)) })));
 		const plainIssueSections = derived(this, reader => issueSections.read(reader)
-			.map(section => ({ ...section, entries: section.entries.filter(entry => !sessionArtifacts.hasIntegration(entry.id, reader)) })));
+			.map(section => ({ ...section, entries: section.entries.filter(entry => !sessionArtifacts.hasOwnPill(entry.id, reader)).map(entry => sessionArtifacts.decorateEntry(entry, reader)) })));
 		const pullRequestData = createSessionPullRequestPillData(plainPullRequestSections, visibility.pullRequests, pullRequestPresentation.icon);
 		const activityBarPullRequests = createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestPresentation.icon);
 		const openerChanges = observableSignalFromEvent(this, Event.any<unknown>(

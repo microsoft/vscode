@@ -1064,6 +1064,52 @@ describe('makeUriConfirmationChecker', async () => {
 		});
 	});
 
+	describe.each(['chat.agentFilesLocations', 'chat.agentSkillsLocations'])('%s', setting => {
+		beforeEach(() => {
+			workspaceService = new TestWorkspaceService([URI.file('/workspace')], []);
+		});
+
+		test.each([
+			['custom/agents', '/workspace/custom/agents'],
+			['custom/agents', '/workspace/custom/agents/agent.md'],
+			['custom/agents', '/workspace/nested/custom/agents/skill/scripts/run.py'],
+			['custom/agents/', '/workspace/custom/agents/skill/SKILL.md'],
+			['**/agents', '/workspace/nested/agents/agent.md'],
+			['/workspace/custom/agents', '/workspace/custom/agents/agent.md'],
+		])('requires confirmation for %s matching %s', async (location, filePath) => {
+			await configService.setNonExtensionConfig(setting, { [location]: true });
+			await configService.setNonExtensionConfig('chat.tools.edits.autoApprove', { '**/*': true });
+
+			const checker = makeUriConfirmationChecker(configService, workspaceService.getWorkspaceFolder.bind(workspaceService), customInstructionsService);
+
+			expect(await checker(URI.file(filePath))).toBe(ConfirmationCheckResult.Sensitive);
+		});
+
+		test('disabled locations still require confirmation', async () => {
+			await configService.setNonExtensionConfig(setting, { 'custom/agents': false });
+
+			const checker = makeUriConfirmationChecker(configService, workspaceService.getWorkspaceFolder.bind(workspaceService), customInstructionsService);
+
+			expect(await checker(URI.file('/workspace/custom/agents/agent.md'))).toBe(ConfirmationCheckResult.Sensitive);
+		});
+
+		test('skips home directory locations and unrelated files', async () => {
+			await configService.setNonExtensionConfig(setting, { '~/agents': true, 'custom/agents': true });
+
+			const checker = makeUriConfirmationChecker(configService, workspaceService.getWorkspaceFolder.bind(workspaceService), customInstructionsService);
+
+			expect(await Promise.all([
+				checker(URI.file('/workspace/agents/agent.md')),
+				checker(URI.file('/workspace/custom/agents-other/agent.md')),
+				checker(URI.file('/workspace/src/file.ts')),
+			])).toEqual([
+				ConfirmationCheckResult.NoConfirmation,
+				ConfirmationCheckResult.NoConfirmation,
+				ConfirmationCheckResult.NoConfirmation,
+			]);
+		});
+	});
+
 	test('complex glob patterns', async () => {
 		const workspaceFolder = URI.file('/workspace');
 		workspaceService = new TestWorkspaceService([workspaceFolder], []);

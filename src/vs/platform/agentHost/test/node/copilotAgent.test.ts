@@ -78,7 +78,7 @@ import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { ISessionDataService } from '../../common/sessionDataService.js';
+import { ISessionDataService, type StoredAssistantResponsePart } from '../../common/sessionDataService.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ToolResultContentType, TurnState, customizationId, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ProtectedResourceMetadata, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -3341,6 +3341,68 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('discovered SDK customizations', () => {
+		for (const scope of [CustomizationEnablementKind.Global, CustomizationEnablementKind.Workspace, CustomizationEnablementKind.Session]) {
+			test(`runtime-first native MCP keeps real ${scope} disablement after ownership adoption`, async () => {
+				const fileService = disposables.add(new FileService(new NullLogService()));
+				disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+				const workspace = URI.file('/workspace');
+				const plugin = URI.file('/sdk-installed/native');
+				const source = URI.joinPath(plugin, '.mcp.json');
+				await fileService.writeFile(URI.joinPath(plugin, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"native"}'));
+				await fileService.writeFile(source, VSBuffer.fromString('{"mcpServers":{"native":{"command":"native-server"}}}'));
+				const client = new TestCopilotClient([]);
+				let discovered = false;
+				client.discoverMcp = async () => ({
+					servers: discovered ? [{
+						name: 'native', type: 'stdio', source: 'plugin', enabled: true,
+						effectiveSource: { kind: 'plugin', id: 'opaque-source', editability: 'read-only', plugin: { id: 'opaque-plugin', name: 'native' }, file: { uri: source.toString() } },
+					}] : [],
+				});
+				const { agent, instantiationService, stateManager } = createTestAgentContext(disposables, {
+					fileService, copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()),
+					useRealCustomizationEnablementService: true,
+					rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+				});
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
+					await provisionSession(agent, { session: sessionUri, workingDirectories: [workspace] });
+					stateManager.createSession({
+						resource: sessionUri.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
+						createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(), workingDirectories: [workspace.toString()],
+						defaultChat: buildDefaultChatUri(sessionUri.toString()),
+					});
+					const enablement = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostCustomizationEnablementService));
+					await enablement.initializeSession(sessionUri.toString());
+					disposables.add(agent.onDidChatProgress(signal => {
+						if (signal.kind === 'action' && signal.resource.toString() === sessionUri.toString()) {
+							stateManager.dispatchServerAction(sessionUri.toString(), signal.action as SessionAction);
+						}
+					}));
+					const activeClient = agent['_getOrCreateActiveClient'](sessionUri, workspace);
+					const { session } = createAgentSessionThroughAgent(agent, instantiationService, { workingDirectory: workspace });
+					agent['_registerLiveChat'](URI.parse(buildDefaultChatUri(sessionUri)), session, activeClient);
+					await getDefaultChatCustomizations(agent, sessionUri);
+					session['_mcpCustomizations'].applyOne({ name: 'native', state: { kind: McpServerStatus.Ready } });
+					const live = session.topLevelMcpCustomizations()[0];
+					enablement.setEnablement(sessionUri.toString(), { id: live.id, type: CustomizationType.McpServer, name: live.name, source: URI.parse(live.uri) }, scope, false);
+					discovered = true;
+					await activeClient.pluginController.refreshDiscovery();
+					const published = (await getDefaultChatCustomizations(agent, sessionUri)).filter(item => item.type === CustomizationType.McpServer);
+					session['_mcpCustomizations'].applyOne({ name: 'native', state: { kind: McpServerStatus.Stopped } });
+					const updated = session.topLevelMcpCustomizations();
+					assert.deepStrictEqual([published, updated].map(servers => servers.map(server => ({
+						id: server.id, uri: server.uri, enabled: isCustomizationEnabled(server), decision: server.enablement?.find(entry => entry.kind === scope)?.enabled,
+					}))), [
+						[{ id: live.id, uri: source.toString(), enabled: false, decision: false }],
+						[{ id: live.id, uri: source.toString(), enabled: false, decision: false }],
+					]);
+				} finally {
+					await disposeAgent(agent);
+				}
+			});
+		}
+
 		test('runtime-first native MCP inventory acquires late discovery metadata and plugin ownership', async () => {
 			const fileService = createInMemoryFileService(disposables, Schemas.file);
 			const workspace = URI.file('/workspace');
@@ -8196,6 +8258,9 @@ suite('CopilotAgent', () => {
 			try {
 				await database.object.createTurn('question');
 				await database.object.storeTerminalOutput('question', 'shell', VSBuffer.fromString('retained output').buffer);
+				const batchedLookups = spy(database.object, 'getTerminalOutputSizes');
+				const singleLookups = spy(database.object, 'getTerminalOutputSize');
+				disposables.add(toDisposable(() => { batchedLookups.restore(); singleLookups.restore(); }));
 				await agent.materializeChat(chat, context, undefined);
 				const parentRead = agent.chats.getMessages(chat, context);
 				await readStarted.p;
@@ -8219,6 +8284,7 @@ suite('CopilotAgent', () => {
 					sibling: { question: siblingTurns[0].message.text, markdown: markdown(siblingTurns) },
 					childAgain: markdown(childAgain),
 					terminal: shell?.kind === ResponsePartKind.ToolCall && shell.toolCall.status === 'completed' ? shell.toolCall.content?.find(content => content.type === ToolResultContentType.Terminal)?.resource : undefined,
+					storedOutputLookups: { batched: batchedLookups.callCount, single: singleLookups.callCount },
 					launches: launches.length,
 					clients: options.map(option => option.mode),
 				}, {
@@ -8228,6 +8294,7 @@ suite('CopilotAgent', () => {
 					sibling: { question: 'Sibling question', markdown: ['Sibling answer'] },
 					childAgain: ['Child answer'],
 					terminal: buildNonPtyShellTerminalUri(storage, owner, chat, 'shell'),
+					storedOutputLookups: { batched: 1, single: 0 },
 					launches: 0, clients: ['empty'],
 				});
 				await agent.chats.releaseChat(chat, context);
@@ -20119,6 +20186,81 @@ suite('CopilotAgent', () => {
 
 	suite('createChat activeClient eager-claim', () => {
 
+		for (const parseFailure of [false, true]) {
+			test(`client plugin stays loading after transfer until discovery ${parseFailure ? 'fails' : 'completes'}`, async () => {
+				const fileService = disposables.add(new FileService(new NullLogService()));
+				disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+				const root = URI.file('/cache/discovery-readiness');
+				if (!parseFailure) {
+					await fileService.writeFile(URI.joinPath(root, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"Review"}'));
+					await fileService.writeFile(URI.joinPath(root, 'agents', 'reviewer.agent.md'), VSBuffer.fromString('---\nname: Reviewer\n---\nReview.'));
+				}
+				const transferred = new DeferredPromise<void>();
+				const release = new DeferredPromise<void>();
+				class PluginManager extends TestAgentPluginManager {
+					override async syncCustomizations(_clientId: string, inputs: ClientPluginCustomization[], progress?: (status: PluginCustomization) => void): Promise<ISyncedCustomization[]> {
+						if (inputs.length === 0) {
+							return [];
+						}
+						const customization: PluginCustomization = { ...inputs[0], load: { kind: CustomizationLoadStatus.Loaded } };
+						progress?.(customization);
+						transferred.complete();
+						await release.p;
+						return [{ customization, pluginDir: root }];
+					}
+				}
+				const agent = createTestAgent(disposables, {
+					sessionDataService: disposables.add(new TestSessionDataService()),
+					copilotClient: new TestCopilotClient([]), fileService, pluginManager: new PluginManager(),
+				});
+				if (parseFailure) {
+					const parsing = stub(agent['_plugins'], 'tryParsePlugin').resolves(undefined);
+					disposables.add(toDisposable(() => parsing.restore()));
+				}
+				const updates: { load: CustomizationLoadStatus | undefined; agents: number | undefined }[] = [];
+				disposables.add(agent.onDidChatProgress(progress => {
+					if (progress.kind !== 'action') {
+						return;
+					}
+					const action = progress.action;
+					const items = action.type === ActionType.SessionCustomizationUpdated ? [action.customization]
+						: action.type === ActionType.SessionCustomizationsChanged ? action.customizations : [];
+					for (const item of items) {
+						if (item.type === CustomizationType.Plugin && item.uri === 'client-plugin:/review') {
+							updates.push({ load: item.load?.kind, agents: item.children?.filter(child => child.type === CustomizationType.Agent).length });
+						}
+					}
+				}));
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					const session = AgentSession.uri('copilotcli', `readiness-${parseFailure}`);
+					await provisionSession(agent, {
+						session, workingDirectories: [URI.file('/workspace')],
+					});
+					const activeClient = agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client' });
+					activeClient.customizations = [{
+						type: CustomizationType.Plugin, id: 'review', uri: 'client-plugin:/review', name: 'Review',
+					}];
+					const resolving = getDefaultChatCustomizations(agent, session);
+					await transferred.p;
+					const prematureLoaded = updates.some(update => update.load === CustomizationLoadStatus.Loaded);
+					release.complete();
+					await resolving;
+					assert.deepStrictEqual({
+						prematureLoaded,
+						loadedWithoutDiscovery: updates.some(update => update.load === CustomizationLoadStatus.Loaded && update.agents === undefined),
+						final: updates.at(-1),
+					}, {
+						prematureLoaded: false, loadedWithoutDiscovery: false,
+						final: { load: parseFailure ? CustomizationLoadStatus.Error : CustomizationLoadStatus.Loaded, agents: parseFailure ? undefined : 1 },
+					});
+				} finally {
+					release.complete();
+					await disposeAgent(agent);
+				}
+			});
+		}
+
 		class SpyingPluginManager extends TestAgentPluginManager {
 			public readonly calls: { clientId: string; customizations: ClientPluginCustomization[] }[] = [];
 
@@ -20838,6 +20980,7 @@ suite('CopilotAgent', () => {
 				_serviceBrand: undefined,
 				onDidChange: Event.None,
 				initializeSession: async () => { },
+				adoptMcpServerOwnership: () => { },
 				getWorkingDirectoryState: () => ({ kind: 'pending' }),
 				resolve: () => ({ kind: 'pending', reason: 'session' }),
 				applyClientGlobalEnablement: () => ({ kind: 'pending', reason: 'session' }),
@@ -22473,7 +22616,10 @@ suite('CopilotAgent', () => {
 					id: 'imported-turn-1',
 					state: TurnState.Complete,
 					message: { text: 'Remember IMPORT_ALPHA.', origin: { kind: MessageKind.User } },
-					responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: 'ready' }],
+					responseParts: [
+						{ kind: ResponsePartKind.Reasoning, id: 'imported-reasoning', content: 'Considering the request', startedAt: '1970-01-01T00:00:01.000Z', duration: 45_000 },
+						{ kind: ResponsePartKind.Markdown, id: 'response', content: 'ready' },
+					],
 					usage: {},
 				};
 
@@ -22482,6 +22628,16 @@ suite('CopilotAgent', () => {
 					workingDirectories: [workingDirectory],
 					importConversation: { turns: [turn] },
 				});
+				const events: SessionEvent[] = (await fs.readFile(join(getCopilotHomePath(userHome.fsPath, {}), 'session-state', 'import-exact-chat', 'events.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+				const database = sessionDataService.openDatabase(session);
+				let importedReasoning: readonly StoredAssistantResponsePart[] | undefined;
+				try {
+					const parts = await database.object.getAssistantResponseParts();
+					const reasoningEvent = events.find(event => event.type === 'assistant.message' && event.data.reasoningText);
+					importedReasoning = reasoningEvent && parts.get(reasoningEvent.id);
+				} finally {
+					database.dispose();
+				}
 
 				// The imported session's default chat is bound directly by
 				// `createChat` itself (via `_importConversation` →
@@ -22492,11 +22648,13 @@ suite('CopilotAgent', () => {
 					resultSession: result.session.toString(),
 					boundSdkId: chatBackings(agent).get(chat.toString())?.sdkSessionId,
 					live: hasLiveChat(agent, chat),
+					importedReasoning,
 				}, {
 					resumeCalls: ['import-exact-chat'],
 					resultSession: session.toString(),
 					boundSdkId: 'import-exact-chat',
 					live: true,
+					importedReasoning: [turn.responseParts[0]],
 				});
 
 				await agent.chats.sendMessage(chat, 'follow-up', [workingDirectory], undefined, 'turn-2', undefined, exactChatContext(result.session, chat, result.session));
@@ -24246,6 +24404,7 @@ suite('CopilotAgent', () => {
 				_serviceBrand: undefined,
 				onDidChange: Event.None,
 				initializeSession: async () => { },
+				adoptMcpServerOwnership: () => { },
 				getWorkingDirectoryState: () => ({ kind: 'pending' }),
 				resolve: () => ({ kind: 'pending', reason: 'session' }),
 				applyClientGlobalEnablement: () => ({ kind: 'pending', reason: 'session' }),

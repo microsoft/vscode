@@ -82,6 +82,8 @@ import { ChangesetStatus, ChatOriginKind, getSessionChatResource, getErrorRespon
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { parsePermissionGrantOptionId, PermissionGrantScope } from '../../../../../../platform/agentHost/common/permissionRules.js';
+import { mirrorAgentHostGrants } from './agentHostPermissionMirror.js';
 import { SAVE_SANDBOX_PATH } from '../../../../../../platform/agentHost/common/sandboxPathGrant.js';
 import { saveSandboxPathGrant } from './agentHostSandboxPathGrant.js';
 import { INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
@@ -164,7 +166,7 @@ import { ICopilotHomeService } from '../../../../../services/environment/common/
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, chatUsageToSessionCost, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, chatUsageToSessionCost, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, reasoningPartToThinking, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { COPILOT_HYDRA_FUSION_MODEL_NAMES, isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getFusionTierLabel } from '../../widget/input/modelPicker/modelPickerPresentation.js';
 import { autoAuthenticateMcpServer, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
@@ -1027,6 +1029,8 @@ export interface IAgentHostSessionHandlerConfig {
 	/** Sanitized connection authority for constructing vscode-agent-host:// URIs. */
 	readonly connectionAuthority: string;
 	readonly supportsCanvasPresentation?: boolean;
+	/** Mirrors host-scoped URL and terminal grants to user settings only for the local agent host. */
+	readonly mirrorsPermissionGrants?: boolean;
 	/**
 	 * Whether a managed plugin preparation failure offers a Retry link. Only the
 	 * local Agent Host management connection can retry, so other hosts show the
@@ -3973,6 +3977,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					_meta: responseMeta,
 					...(selectedOption ? { selectedOptionId: selectedOption.id } : {}),
 				});
+
+			// The host records its own grant; the local host's grants are also mirrored into VS Code's approval settings.
+			const permissionGrant = approved && selectedOption && this._config.mirrorsPermissionGrants ? parsePermissionGrantOptionId(selectedOption.id) : undefined;
+			if (permissionGrant?.scope === PermissionGrantScope.Host) {
+				mirrorAgentHostGrants(this._configurationService, permissionGrant.rules).catch(error => {
+					this._logService.error('[AgentHost] Failed to mirror permission grant into settings', error);
+				});
+			}
 		}).catch(err => {
 			this._logService.warn(`[AgentHost] Tool confirmation failed for toolCallId=${toolCallId}`, err);
 		});
@@ -4663,14 +4675,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	): void {
 		const partId = part$.get().id;
 		let lastEmitted = opts.seedEmittedLengths?.get(partId) ?? 0;
+		const initial = lastEmitted > 0 ? reasoningPartToThinking(part$.get()) : undefined;
+		let lastStartedAt = initial?.reasoningStartedAt;
+		let lastDuration = initial?.reasoningDurationMs;
 		store.add(autorun(reader => {
-			const content = part$.read(reader).content;
-			if (content.length <= lastEmitted) {
+			const part = part$.read(reader);
+			const progress = reasoningPartToThinking(part, part.content.substring(lastEmitted));
+			if (!part.content || (part.content.length <= lastEmitted
+				&& progress.reasoningStartedAt === lastStartedAt && progress.reasoningDurationMs === lastDuration)) {
 				return;
 			}
-			const delta = content.substring(lastEmitted);
-			lastEmitted = content.length;
-			opts.sink([{ kind: 'thinking', value: delta, id: partId }]);
+			lastEmitted = part.content.length;
+			lastStartedAt = progress.reasoningStartedAt;
+			lastDuration = progress.reasoningDurationMs;
+			opts.sink([progress]);
 		}));
 	}
 

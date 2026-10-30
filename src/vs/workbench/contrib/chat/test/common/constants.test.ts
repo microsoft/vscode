@@ -1030,6 +1030,25 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
+	test('remote agent host is only usable when its contribution is registered in this window', () => {
+		const configurationService = new TestConfigurationService();
+		const remoteType = 'remote-example-host-copilotcli';
+		const storageService = disposables.add(new TestStorageService());
+		storeUserSelectedSessionType(storageService, remoteType);
+
+		assert.deepStrictEqual({
+			unavailable: isNewChatSessionTypeUsable(remoteType, configurationService, createChatSessionsService(), localWorkspace),
+			unavailableRemembered: getDefaultNewChatSessionType(configurationService, createChatSessionsService(), storageService, localWorkspace, true),
+			available: isNewChatSessionTypeUsable(remoteType, configurationService, createChatSessionsService(remoteType), localWorkspace),
+			availableRemembered: getDefaultNewChatSessionType(configurationService, createChatSessionsService(remoteType), storageService, localWorkspace, true),
+		}, {
+			unavailable: false,
+			unavailableRemembered: getComputedDefaultSessionType(configurationService, createChatSessionsService(), localWorkspace, true),
+			available: true,
+			availableRemembered: remoteType,
+		});
+	});
+
 	test('disabled Agent Host is not inherited from remembered or current session types', () => {
 		const configurationService = new TestConfigurationService();
 		const chatSessionsService = createChatSessionsService();
