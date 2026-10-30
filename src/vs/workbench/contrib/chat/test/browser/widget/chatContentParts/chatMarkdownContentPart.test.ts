@@ -24,6 +24,7 @@ import { Range } from '../../../../../../../editor/common/core/range.js';
 import { SymbolKind, SymbolTag } from '../../../../../../../editor/common/languages.js';
 import { ILinkPresentation, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -204,17 +205,7 @@ suite('ChatMarkdownContentPart', () => {
 		});
 
 		// Stub hover service
-		instantiationService.stub(IHoverService, {
-			_serviceBrand: undefined,
-			showDelayedHover: () => undefined,
-			setupDelayedHover: () => ({ dispose: () => { } }),
-			setupDelayedHoverAtMouse: () => ({ dispose: () => { } }),
-			showInstantHover: () => undefined,
-			hideHover: () => { },
-			showAndFocusLastHover: () => { },
-			setupManagedHover: () => ({ dispose: () => { }, show: () => { }, hide: () => { }, update: () => { } }),
-			showManagedHover: () => { },
-		});
+		instantiationService.stub(IHoverService, { ...NullHoverService });
 
 		// Stub AI edit telemetry service
 		instantiationService.stub(IAiEditTelemetryService, {

@@ -13,7 +13,7 @@ import { DeferredPromise, retry, timeout } from '../../../../../base/common/asyn
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event as VSCodeEvent } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
@@ -27,7 +27,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/virtualSched
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -3150,9 +3150,7 @@ suite('Sessions - Chat View', () => {
 			const request = dom.append(session, dom.$('.interactive-item-container.interactive-request'));
 			const actionRequest = disposables.add(new ChatActionRequestContentPart({
 				title: 'Action', label: 'Action request', source: 'Test', message: 'Test message',
-			}, new class extends mock<IHoverService>() {
-				override setupDelayedHover() { return Disposable.None; }
-			}()));
+			}, { ...NullHoverService }));
 			dom.append(request, actionRequest.domNode);
 			const card = actionRequest.domNode.querySelector<HTMLElement>('.chat-action-request-card')!;
 			const disclosure = actionRequest.domNode.querySelector<HTMLElement>('.chat-action-request-disclosure')!;
