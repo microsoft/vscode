@@ -1087,14 +1087,14 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	}
 
 	/** A gated index whose authorization server exchanges `github-token` for `exchanged-token`. */
-	function gatedGitHubMarketplace(exchangeRequests: IRequestOptions[], options: { tokenEndpoint?: string; exchangeStatus?: number } = {}): (request: IRequestOptions) => IRequestContext {
+	function gatedGitHubMarketplace(exchangeRequests: IRequestOptions[], options: { issuer?: string; tokenEndpoint?: string; exchangeStatus?: number } = {}): (request: IRequestOptions) => IRequestContext {
 		const tokenEndpoint = options.tokenEndpoint ?? `${GITHUB_AUTHORIZATION_SERVER}/token`;
 		return request => {
 			if (request.url?.includes('/.well-known/oauth-protected-resource')) {
 				return mockResponse(200, GITHUB_PROTECTED_RESOURCE_METADATA);
 			}
 			if (request.url?.includes('/.well-known/oauth-authorization-server') || request.url?.includes('/.well-known/openid-configuration')) {
-				return mockResponse(200, { issuer: GITHUB_AUTHORIZATION_SERVER, token_endpoint: tokenEndpoint, response_types_supported: ['code'] });
+				return mockResponse(200, { issuer: options.issuer ?? GITHUB_AUTHORIZATION_SERVER, token_endpoint: tokenEndpoint, response_types_supported: ['code'] });
 			}
 			if (request.url === tokenEndpoint) {
 				exchangeRequests.push(request);
@@ -1164,6 +1164,26 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
 		assert.strictEqual(exchangeRequests.length, 0);
 		assert.strictEqual(await authorizationService.getAccessToken(MARKETPLACE_URL), undefined);
+	});
+
+	test('GitHub — rejects authorization server metadata with a mismatched issuer', async () => {
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		stubGitHubSession();
+		const exchangeRequests: IRequestOptions[] = [];
+		requestHandler = gatedGitHubMarketplace(exchangeRequests, { issuer: 'https://identity.example.com/oauth' });
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.deepStrictEqual({
+			status: service.extensionGalleryManifestStatus,
+			exchanges: exchangeRequests.length,
+			token: await authorizationService.getAccessToken(MARKETPLACE_URL),
+		}, {
+			status: ExtensionGalleryManifestStatus.RequiresSignIn,
+			exchanges: 0,
+			token: undefined,
+		});
 	});
 
 	test('GitHub — a rejected exchange asks to sign in without publishing a token', async () => {
