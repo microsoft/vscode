@@ -103,7 +103,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/a92e0c554f09d1e7d3b864d0b1cd5c70c057b2acbe4fb67daadeba0cb8351eb8)
 
 #### sessions/chat/newWidget/newChatWidget/ConnectorRecommendations/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/2c7bdd5be84d32e0b3bc7daeafc769044cfeeb79bf5fee43d7c82744cdc7df71)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/a6ba395d8e63751153e98285624ed0acb03be5166039a7d84026b8ad8975af8e)
 
 #### sessions/chat/newWidget/newChatWidget/ConnectorRecommendationsPhoneWithNotices/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/e1821fa00708ee20143f808a553ef30cc14fc2df9c16c60333f6ff08a4a0477d)
