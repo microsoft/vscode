@@ -11,6 +11,7 @@ import { Direction, Grid, IView, Sizing } from '../../../base/browser/ui/grid/gr
 import { ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { Event } from '../../../base/common/event.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
+import { isMacintosh, isNative } from '../../../base/common/platform.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
@@ -379,11 +380,13 @@ suite('Sessions - Titlebar Part', () => {
 			size.width = screen.width;
 			size.height = screen.height;
 		};
-		const read = () => {
-			const spacer = parent.querySelector<HTMLElement>('.titlebar-left > .window-controls-container');
-			return { fullscreenClass: parent.classList.contains('titlebar-fullscreen'), spacer: spacer ? spacer.style.display : 'absent' };
-		};
-		return { auxiliaryWindow, coverScreen, read };
+		// Only native macOS reserves a spacer for the traffic lights.
+		const hasTrafficLightSpacer = isMacintosh && isNative;
+		const read = () => ({
+			fullscreenClass: parent.classList.contains('titlebar-fullscreen'),
+			spacer: hasTrafficLightSpacer ? parent.querySelector<HTMLElement>('.titlebar-left > .window-controls-container')!.style.display : 'absent',
+		});
+		return { auxiliaryWindow, coverScreen, read, hasTrafficLightSpacer };
 	}
 
 	test('tracks fullscreen of an auxiliary window independently of the main window', () => {
@@ -403,7 +406,7 @@ suite('Sessions - Titlebar Part', () => {
 	});
 
 	test('keeps the traffic-light inset for an auxiliary window flagged fullscreen that does not cover its screen', () => {
-		const { auxiliaryWindow, coverScreen, read } = createAuxiliaryTitlebar();
+		const { auxiliaryWindow, coverScreen, read, hasTrafficLightSpacer } = createAuxiliaryTitlebar();
 		const reserved = read();
 
 		setFullscreen(true, auxiliaryWindow);
@@ -412,12 +415,10 @@ suite('Sessions - Titlebar Part', () => {
 		auxiliaryWindow.dispatchEvent(new UIEvent('resize'));
 		const fullscreen = read();
 
-		// The spacer only exists for native macOS traffic lights.
-		const hasSpacer = reserved.spacer !== 'absent';
 		assert.deepStrictEqual({ reserved, flaggedButWindowed, fullscreen }, {
-			reserved: { fullscreenClass: false, spacer: hasSpacer ? '' : 'absent' },
-			flaggedButWindowed: { fullscreenClass: false, spacer: hasSpacer ? '' : 'absent' },
-			fullscreen: { fullscreenClass: true, spacer: hasSpacer ? 'none' : 'absent' },
+			reserved: { fullscreenClass: false, spacer: hasTrafficLightSpacer ? '' : 'absent' },
+			flaggedButWindowed: { fullscreenClass: false, spacer: hasTrafficLightSpacer ? '' : 'absent' },
+			fullscreen: { fullscreenClass: true, spacer: hasTrafficLightSpacer ? 'none' : 'absent' },
 		});
 	});
 
