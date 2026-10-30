@@ -4,10 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { StringSHA1 } from '../../../../../base/common/hash.js';
 import type { ClientPluginCustomization } from '../../state/sessionState.js';
 
 const mcpDefaultCwdsKey = 'mcpDefaultCwds';
 const standaloneCustomizationsKey = 'vscode.standaloneCustomizations';
+const agentIdentitiesKey = 'vscode.agentIdentities';
+
+/** Prototype identities keyed by normalized plugin-relative agent paths, not materialized locations. */
+export type ClientPluginAgentIdentities = Readonly<Record<string, string>>;
+
+/** Source-addressed prototype; installation relocation and source-file renames change identity. */
+export function getClientAgentDefinitionId(source: URI): string {
+	const hash = new StringSHA1();
+	hash.update(source.toString());
+	return `vscode-agent-definition-${hash.digest()}`;
+}
+
+export function toClientPluginAgentIdentitiesMeta(identities: ClientPluginAgentIdentities): Record<string, unknown> {
+	return Object.keys(identities).length > 0 ? { [agentIdentitiesKey]: identities } : {};
+}
+
+export function readClientPluginAgentIdentities(customization: ClientPluginCustomization): ClientPluginAgentIdentities {
+	const value = customization._meta?.[agentIdentitiesKey];
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return {};
+	}
+	const entries = Object.entries(value);
+	const ids = new Set<string>();
+	for (const [path, id] of entries) {
+		if (!path || path.includes('\\') || path.includes('%') || path.includes('?') || path.includes('#') || path.includes(':')
+			|| path.split('/').some(part => !part || part === '.' || part === '..')
+			|| typeof id !== 'string' || !/^vscode-agent-definition-[a-f0-9]{40}$/.test(id) || ids.has(id)) {
+			return {};
+		}
+		ids.add(id);
+	}
+	return Object.fromEntries(entries);
+}
 
 export type ClientPluginMcpDefaultCwds = Readonly<Record<string, URI | null>>;
 

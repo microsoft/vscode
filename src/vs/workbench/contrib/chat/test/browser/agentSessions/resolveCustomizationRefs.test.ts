@@ -13,6 +13,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { parseHooksJson, PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { getClientAgentDefinitionId, readClientPluginAgentIdentities } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -1127,6 +1128,33 @@ suite('resolveLocalCustomAgents', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const sessionType of [SessionType.AgentHostCopilot, 'remote-ssh-host-copilotcli', SessionType.CopilotCLI]) {
+		test(`prototype plugin manifest agrees with draft agent identity for ${sessionType}`, async () => {
+			const plugin = makePlugin(URI.file('/plugins/review'), { agents: 1 });
+			const source = plugin.agents.get()[0].uri;
+			const prompts = makePromptsService(new Map([
+				[`${PromptsType.agent}/${PromptsStorage.plugin}`, [makePromptPath(source, PromptsType.agent, PromptsStorage.plugin)]],
+			]));
+			const fileService = makeFileService();
+			const plugins = makeAgentPluginService([plugin]);
+			const sync = new FakeSyncProvider();
+			const agents = await resolveLocalCustomAgents(fileService, prompts, sync, plugins, sessionType, undefined);
+			const refs = await resolveCustomizationRefs(
+				fileService, prompts, sync, plugins, makeMcpService([]), makeConfigurationResolverService(),
+				toBundlers(new FakeBundler()), sessionType, undefined,
+			);
+			const prototype = sessionType !== SessionType.CopilotCLI;
+			const id = getClientAgentDefinitionId(source);
+			assert.deepStrictEqual({
+				draft: agents.map(agent => ({ id: agent.id, uri: agent.uri })),
+				identities: readClientPluginAgentIdentities(refs[0]),
+			}, {
+				draft: [{ id: prototype ? id : source.toString(), uri: source.toString() }],
+				identities: prototype ? { 'agents/agent-0.agent.md': id } : {},
+			});
+		});
+	}
+
 	test('includes configured agents in the pre-session picker but not defaults or sync opt-outs', async () => {
 		const agentUri = URI.file('/configured/reviewer.agent.md');
 		const disabledUri = URI.file('/configured/disabled.agent.md');
@@ -1147,7 +1175,7 @@ suite('resolveLocalCustomAgents', () => {
 
 		assert.deepStrictEqual(agents, [{
 			type: CustomizationType.Agent,
-			id: agentUri.toString(),
+			id: getClientAgentDefinitionId(agentUri),
 			uri: agentUri.toString(),
 			name: 'Reviewer',
 			description: 'Review changes',

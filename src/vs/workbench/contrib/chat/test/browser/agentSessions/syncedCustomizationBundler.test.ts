@@ -23,7 +23,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { McpServerType, type IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { CustomizationEnablementKind, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { parsePlugin } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
-import { isClientPluginStandalone } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
+import { getClientAgentDefinitionId, readClientPluginAgentIdentities, isClientPluginStandalone } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 import { type ISyncableMcpServer, type ISyncedCustomizationBundlerOptions, type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { AgentCustomizationContentExpander } from '../../../browser/agentSessions/agentHost/agentCustomizationContentExpander.js';
 import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
@@ -168,6 +168,31 @@ suite('SyncedCustomizationBundler', () => {
 		const bundler = createBundler();
 		const result = await bundler.bundle([]);
 		assert.strictEqual(result, undefined);
+	});
+
+	test('prototype agent IDs survive edits, bundle relocation and collision layout changes', async () => {
+		const first = await seedFile('/first/reviewer.agent.md', '---\nname: Reviewer\n---\nFirst');
+		const second = await seedFile('/second/reviewer.agent.md', '---\nname: Reviewer\n---\nSecond');
+		const options = { preserveAgentFileCollisions: true, preserveAgentDefinitionIds: true };
+		const bundler = createBundler('identity-first', options);
+		const files = [{ uri: first, type: PromptsType.agent }, { uri: second, type: PromptsType.agent }];
+		const initial = (await bundler.bundle(files.slice(0, 1)))!;
+		const collided = (await bundler.bundle(files))!;
+		await fileService.writeFile(first, VSBuffer.fromString('---\nname: Reviewer\n---\nEdited'));
+		const edited = (await bundler.bundle(files))!;
+		const relocated = (await createBundler('identity-other', options).bundle(files))!;
+		const read = (ref: typeof initial.ref) => Object.values(readClientPluginAgentIdentities(ref)).sort();
+		const expected = [getClientAgentDefinitionId(first), getClientAgentDefinitionId(second)].sort();
+		const legacy = (await createBundler('identity-legacy').bundle(files.slice(0, 1)))!;
+		assert.deepStrictEqual({
+			initial: read(initial.ref), collided: read(collided.ref), edited: read(edited.ref), relocated: read(relocated.ref),
+			layoutChanged: Object.keys(readClientPluginAgentIdentities(collided.ref)).every(path => path.split('/').length === 3),
+			revisionChanged: collided.ref.nonce !== edited.ref.nonce,
+			legacy: read(legacy.ref),
+		}, {
+			initial: [getClientAgentDefinitionId(first)], collided: expected, edited: expected, relocated: expected,
+			layoutChanged: true, revisionChanged: true, legacy: [],
+		});
 	});
 
 	test('returns undefined when all files have unsupported types', async () => {

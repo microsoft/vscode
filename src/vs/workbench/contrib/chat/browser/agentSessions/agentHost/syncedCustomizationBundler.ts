@@ -17,7 +17,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { AICustomizationSource } from '../../../common/aiCustomizationWorkspaceService.js';
-import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta, type ClientPluginMcpDefaultCwds } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
+import { getClientAgentDefinitionId, toClientPluginAgentIdentitiesMeta, toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta, type ClientPluginMcpDefaultCwds } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -172,6 +172,8 @@ export interface ISyncableMcpServer {
 }
 
 export interface ISyncedCustomizationBundlerOptions {
+	/** Prototype: preserve source-derived agent IDs independently of bundle layout. */
+	readonly preserveAgentDefinitionIds?: boolean;
 	/** Separates colliding agent filenames without changing paths for uniquely named agents. */
 	readonly preserveAgentFileCollisions?: boolean;
 	/**
@@ -219,6 +221,7 @@ export class SyncedCustomizationBundler extends Disposable {
 	private readonly _authority: string;
 	private readonly _standalone: boolean;
 	private readonly _preserveAgentFileCollisions: boolean;
+	private readonly _preserveAgentDefinitionIds: boolean;
 	private _lastNonce: string | undefined;
 	private _lastRef: IBundleResult | undefined;
 	private _isDisposed = false;
@@ -236,6 +239,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		this._authority = authority;
 		this._standalone = options?.standalone === true;
 		this._preserveAgentFileCollisions = options?.preserveAgentFileCollisions === true;
+		this._preserveAgentDefinitionIds = options?.preserveAgentDefinitionIds === true;
 		agentHostFileSystemService.ensureSyncedCustomizationProvider();
 	}
 
@@ -298,9 +302,13 @@ export class SyncedCustomizationBundler extends Disposable {
 		}
 		const entries: { sourceUri: URI; destUri: URI; hashKey: string; content?: string }[] = [];
 		const agentPaths: string[] = [];
+		const agentIdentities: Record<string, string> = {};
 		const originByDest = new ResourceMap<ISyncedCustomizationOrigin>();
 		const addEntry = (file: ISyncableFile, sourceUri: URI, destUri: URI, hashKey: string): void => {
 			entries.push({ sourceUri, destUri, hashKey, content: file.content });
+			if (this._preserveAgentDefinitionIds && file.type === PromptsType.agent) {
+				agentIdentities[hashKey] = getClientAgentDefinitionId(sourceUri);
+			}
 			if (file.source !== undefined) {
 				originByDest.set(destUri, {
 					uri: file.content === undefined ? sourceUri : destUri,
@@ -385,6 +393,10 @@ export class SyncedCustomizationBundler extends Disposable {
 			contentHashParts.push(`mcpDefaultCwds:${JSON.stringify(toClientPluginMcpDefaultCwdsMeta(mcpDefaultCwds))}`);
 		}
 		contentHashParts.sort();
+		const identityMeta = toClientPluginAgentIdentitiesMeta(Object.fromEntries(Object.entries(agentIdentities).sort(([a], [b]) => a.localeCompare(b))));
+		if (Object.keys(agentIdentities).length > 0) {
+			contentHashParts.push(JSON.stringify(identityMeta));
+		}
 		const nonce = String(hash(contentHashParts.join('\n')));
 		this._throwIfDisposed();
 
@@ -430,7 +442,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		this._lastNonce = nonce;
 
 		const rootUriString = this._rootUri.toString() as ProtocolURI;
-		const meta = this._toMeta(mcpDefaultCwds);
+		const meta = { ...this._toMeta(mcpDefaultCwds), ...identityMeta };
 		const result: IBundleResult = {
 			ref: {
 				type: CustomizationType.Plugin,
@@ -438,7 +450,7 @@ export class SyncedCustomizationBundler extends Disposable {
 				uri: rootUriString,
 				name: this._standalone ? STANDALONE_DISPLAY_NAME : SYNCED_CUSTOMIZATION_DISPLAY_NAME,
 				nonce,
-				...(meta ? { _meta: meta } : {}),
+				...(Object.keys(meta).length > 0 ? { _meta: meta } : {}),
 				enablement: withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {
 					kind: CustomizationEnablementKind.Global,
 					enabled: true,

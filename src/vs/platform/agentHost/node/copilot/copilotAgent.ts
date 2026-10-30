@@ -141,7 +141,7 @@ import { getAppNodeModulesUri } from '../appNodeModules.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 import { resolveCopilotRuntimePaths } from './copilotRuntimePaths.js';
 import { SessionMcpDiscovery } from '../shared/sessionMcpDiscovery.js';
-import { hasClientPluginMcpDefaultCwd, isClientPluginStandalone, readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
+import { hasClientPluginMcpDefaultCwd, isClientPluginStandalone, readClientPluginMcpDefaultCwd, readClientPluginAgentIdentities } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { classifyCopilotClientOperationFailure, CopilotClientStartupConfigChangedError, createCopilotFailureCorrelation, isRecognizedCopilotClientStartupFailure, reportCopilotClientOperationFailure, reportCopilotClientRecovery, reportCopilotClientRecoveryTurn, reportCopilotClientStartup, type CopilotClientOperation, type CopilotClientOperationFailureKind, type ICopilotFailureCorrelation } from './copilotFailureTelemetry.js';
 import { reportCopilotRuntimeRestart, type CopilotSessionRefreshReason } from './copilotRuntimeRestartTelemetry.js';
 
@@ -10218,10 +10218,20 @@ class PluginController extends Disposable {
 
 		const materializedRoot = URI.parse(pluginDir.toString());
 		const sourceRoot = URI.parse(baseCustomization.uri);
+		const identities = readClientPluginAgentIdentities(input ?? item.customization);
+		const plugin: IParsedPlugin = {
+			...parsed,
+			agents: parsed.agents.map(agent => {
+				const resource = URI.parse(agent.uri.toString());
+				const path = isEqualOrParent(resource, materializedRoot) ? relativePath(materializedRoot, resource) : undefined;
+				const id = path !== undefined && Object.hasOwn(identities, path) ? identities[path] : undefined;
+				return id ? { ...agent, customization: { ...agent.customization, id } } : agent;
+			}),
+		};
 		return {
 			customization: {
 				...baseCustomization,
-				children: toChildCustomizations([parsed]).map(child => {
+				children: toChildCustomizations([plugin]).map(child => {
 					if (child.type !== CustomizationType.Agent) {
 						return child;
 					}
@@ -10237,7 +10247,7 @@ class PluginController extends Disposable {
 				}),
 			},
 			pluginDir,
-			plugin: parsed,
+			plugin,
 			input,
 		};
 	}

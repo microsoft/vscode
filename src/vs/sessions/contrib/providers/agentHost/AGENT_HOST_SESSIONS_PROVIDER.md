@@ -68,6 +68,12 @@ The host-owned executor creates run sessions from this template. The Automation 
 
 ## Identity
 
+### Forwarded agent definition identity prototype
+
+The VS Code Copilot forwarding path carries an optional `vscode.agentIdentities` plugin metadata map from normalized plugin-relative agent paths to source-derived `vscode-agent-definition-<sha1>` IDs. Draft discovery and forwarding compute the same ID from the serialized original source URI; Copilot preserves it in the parsed and published `AgentCustomization.id`, independently of the bundled and materialized resource locations. Other providers and hosts without the extension retain their existing IDs. Selection, persistence, SDK registration, and authorization remain URI-based and unchanged in this first slice.
+
+This is a VS Code-only prototype, not a durable AHP identity guarantee. The source URI is still the identity anchor: installation moves, source-file renames, and equivalent sources on different machines do not retain identity. Duplicate identities in a manifest and malformed or escaping paths invalidate the optional map. Cross-client ownership, conflicting revisions, worktree equivalence, and negotiated ID-based selection must be specified before treating these IDs as portable or accepting them as selections.
+
 The local provider uses:
 
 | Property | Contract |

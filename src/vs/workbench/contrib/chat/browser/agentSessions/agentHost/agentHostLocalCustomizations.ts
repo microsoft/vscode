@@ -5,9 +5,11 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
-import { basename, isEqualOrParent } from '../../../../../../base/common/resources.js';
+import { basename, isEqualOrParent, relativePath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isRemoteAgentHostSessionType, parseAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { isCopilotCliSessionType } from './agentHostToolSetEnablementService.js';
+import { getClientAgentDefinitionId, toClientPluginAgentIdentitiesMeta } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 import { CustomizationEnablementKind, type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
@@ -180,7 +182,7 @@ export async function resolveLocalCustomAgents(
 			}
 			result.push({
 				type: CustomizationType.Agent,
-				id: agent.uri.toString(),
+				id: isCopilotCliSessionType(sessionType) ? getClientAgentDefinitionId(agent.uri) : agent.uri.toString(),
 				uri: agent.uri.toString(),
 				name,
 				description,
@@ -283,6 +285,12 @@ export async function resolveCustomizationRefs(
 					id: customizationId(key),
 					uri: key as ProtocolURI,
 					name: plugin.label,
+					...(isCopilotCliSessionType(sessionType) ? {
+						_meta: toClientPluginAgentIdentitiesMeta(Object.fromEntries(plugin.agents.get().flatMap(agent => {
+							const path = relativePath(plugin.uri, agent.uri);
+							return path !== undefined && isEqualOrParent(agent.uri, plugin.uri) ? [[path, getClientAgentDefinitionId(agent.uri)]] : [];
+						}))),
+					} : {}),
 					enablement: withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {
 						kind: CustomizationEnablementKind.Global,
 						enabled: agentPluginService.enablementModel.readProfileEnabled(key),

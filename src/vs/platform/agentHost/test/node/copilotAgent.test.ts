@@ -32,7 +32,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
-import { PluginFormat, type IParsedAgent, type IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
+import { PluginFormat, type IParsedAgent, type IParsedPlugin, type IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
 import { FileService } from '../../../files/common/fileService.js';
@@ -72,7 +72,7 @@ import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js
 import { buildAgentHostOTelEnv } from '../../common/agentService.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
+import { getClientAgentDefinitionId, toClientPluginAgentIdentitiesMeta, toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentCanvasInfo, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -21109,6 +21109,53 @@ suite('CopilotAgent', () => {
 			} finally {
 				await disposeAgent(agent);
 				await fs.rm(root, { recursive: true, force: true });
+			}
+		});
+
+		test('prototype forwarded agent IDs survive materialized revisions without changing URI selection', async () => {
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const agent = createTestAgent(disposables, {
+				fileService, sessionDataService: disposables.add(new TestSessionDataService()), copilotClient: new TestCopilotClient([]),
+			});
+			const source = URI.parse('client-source:/extension/agents/reviewer.agent.md');
+			const id = getClientAgentDefinitionId(source);
+			const input: ClientPluginCustomization = {
+				type: CustomizationType.Plugin, id: 'opaque-plugin', uri: 'client-sync:/bundle', name: 'Bundle',
+				_meta: toClientPluginAgentIdentitiesMeta({ 'agents/reviewer.agent.md': id }),
+			};
+			try {
+				const results = [];
+				for (const revision of ['first', 'second']) {
+					const root = URI.file(`/cache/${revision}`);
+					const uri = URI.joinPath(root, 'agents', 'reviewer.agent.md');
+					await fileService.writeFile(uri, VSBuffer.fromString(`---\nname: Reviewer\n---\n${revision}`));
+					await fileService.writeFile(URI.joinPath(root, 'agents', 'other.agent.md'), VSBuffer.fromString('---\nname: Reviewer\n---\nUnmapped'));
+					const resolved = await agent['_plugins'].resolveSyncedCustomization({
+						customization: { ...input, load: { kind: CustomizationLoadStatus.Loaded } }, pluginDir: root,
+					}, 'client', input);
+					const published = resolved.customization.type === CustomizationType.Plugin ? resolved.customization.children : undefined;
+					const parsed = resolved.plugin!;
+					const legacy = await agent['_plugins'].resolveSyncedCustomization({
+						customization: { ...input, _meta: undefined, load: { kind: CustomizationLoadStatus.Loaded } }, pluginDir: root,
+					}, 'client', { ...input, _meta: undefined });
+					const select = (plugin: IParsedPlugin) => getCopilotAgentSelectionName({
+						plugins: [{ ...plugin, mcpServers: [], pluginDir: root, sourceUri: URI.parse(input.uri) }], discoveredAgents: [], additionalRootInstructions: [],
+					}, uri.toString());
+					results.push({
+						id: parsed.agents.find(item => item.uri.toString() === uri.toString())?.customization.id,
+						publishedId: published?.find(child => child.uri === uri.toString())?.id,
+						resource: published?.find(child => child.id === id)?.uri,
+						unmapped: published?.find(child => child.uri.endsWith('/other.agent.md'))?.id,
+						selectionUnchanged: select(parsed) !== undefined && select(parsed) === select(legacy.plugin!),
+					});
+				}
+				assert.deepStrictEqual(results, ['first', 'second'].map(revision => ({
+					id, publishedId: id, resource: URI.file(`/cache/${revision}/agents/reviewer.agent.md`).toString(),
+					unmapped: customizationId(URI.file(`/cache/${revision}/agents/other.agent.md`).toString()), selectionUnchanged: true,
+				})));
+			} finally {
+				await disposeAgent(agent);
 			}
 		});
 
