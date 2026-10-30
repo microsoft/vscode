@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { TextDocument } from 'vscode-languageserver-textdocument';
 import { CopyFilesSettings, ResourcePasteOrDropProvider } from '../languageFeatures/copyFiles/dropOrPasteResource';
 import type { MarkdownEditorHost, MarkdownEditorRenderer } from './markdownEditorProtocol';
-import type { MarkdownEditorText } from './markdownEditorDocumentSync';
+import type { MarkdownEditorText } from './markdownEditorText';
 import { readClipboardMediaContents } from './markdownEditorMediaTransfer';
 
 export class MarkdownEditorImagePaste implements vscode.Disposable {
@@ -82,10 +81,7 @@ export class MarkdownEditorImagePaste implements vscode.Disposable {
 			if (!edit?.additionalEdits) {
 				throw new Error(vscode.l10n.t('Media paste requires markdown.editor.paste.copyIntoWorkspace to be mediaFiles.'));
 			}
-			const mirror = TextDocument.create(this.document.uri.toString(), 'markdown', 0, this.#text.text);
-			const startPosition = mirror.positionAt(start.offset);
-			const endPosition = mirror.positionAt(end.offset);
-			const range = new vscode.Range(startPosition.line, startPosition.character, endPosition.line, endPosition.character);
+			const range = new vscode.Range(this.document.positionAt(start.offset), this.document.positionAt(end.offset));
 			const oldLength = this.document.getText().length;
 			const oldEnd = this.document.offsetAt(range.end);
 			// Workspace edits resolve snippet defaults without starting a snippet session in a custom editor.
@@ -93,9 +89,8 @@ export class MarkdownEditorImagePaste implements vscode.Disposable {
 			if (!await this.#apply(edit.additionalEdits)) {
 				throw new Error(vscode.l10n.t('The workspace rejected the media paste.'));
 			}
-			const newMirror = TextDocument.create(this.document.uri.toString(), 'markdown', 0, this.#text.text);
 			const offset = this.document.version === version + 1 && this.#isEditable() && !pending.token.isCancellationRequested
-				? newMirror.offsetAt(this.document.positionAt(oldEnd + this.document.getText().length - oldLength)) : undefined;
+				? oldEnd + this.document.getText().length - oldLength : undefined;
 			return { offset, version: this.#text.version };
 		} finally {
 			start?.dispose();

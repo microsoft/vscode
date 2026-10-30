@@ -14,7 +14,11 @@ const range = z.object({ start: offset, endExclusive: offset });
  * offsets into its current text, or ignores them if it cannot.
  */
 const version = z.object({ serverRevision: offset, clientRevision: offset });
-const editorConfiguration = z.object({ highlightActiveBlock: z.boolean() });
+const editorConfiguration = z.object({
+	highlightActiveBlock: z.boolean(),
+	/** The line break the document uses, which the editor should insert. */
+	lineBreak: z.enum(['\n', '\r\n']),
+});
 const selection = z.object({ anchor: offset, active: offset });
 export const navigationState = z.object({
 	version,

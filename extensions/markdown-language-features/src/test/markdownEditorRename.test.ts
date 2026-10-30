@@ -12,11 +12,11 @@ import { TestEditorText } from './testEditorText';
 
 suite('Markdown editor rename', () => {
 	const prepared = { range: new vscode.Range(2, 0, 2, 6), placeholder: 'Target' };
-	const request = { requestId: 1, offset: 10, version: { serverRevision: 1, clientRevision: 0 } };
+	const request = { requestId: 1, offset: 12, version: { serverRevision: 1, clientRevision: 0 } };
 
 	async function setup(overrides: Partial<MarkdownRenameApi> = {}, drain: () => Promise<void> = async () => { }) {
 		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '# Title\r\n\r\nTarget' });
-		const text = new TestEditorText('# Title\n\nTarget');
+		const text = new TestEditorText('# Title\r\n\r\nTarget');
 		text.drain = drain;
 		const state = { active: true };
 		const calls: { uri: vscode.Uri; position: vscode.Position; name?: string }[] = [];
@@ -33,9 +33,9 @@ suite('Markdown editor rename', () => {
 		return { document, text, state, calls, edit, rename, get applications() { return applications; } };
 	}
 
-	test('maps LF renderer offsets to CRLF document positions and back', async () => {
+	test('maps editor offsets to CRLF document positions and back', async () => {
 		const test = await setup();
-		assert.deepStrictEqual(await test.rename.prepare(request), { start: 9, endExclusive: 15, placeholder: 'Target', version: { serverRevision: 1, clientRevision: 0 } });
+		assert.deepStrictEqual(await test.rename.prepare(request), { start: 11, endExclusive: 17, placeholder: 'Target', version: { serverRevision: 1, clientRevision: 0 } });
 		assert.deepStrictEqual(test.calls[0].position, new vscode.Position(2, 1));
 		await test.rename.rename({ requestId: 1, newName: 'Renamed' });
 		assert.deepStrictEqual(test.calls[1].position, new vscode.Position(2, 1));

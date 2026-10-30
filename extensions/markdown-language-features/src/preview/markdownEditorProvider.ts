@@ -10,7 +10,8 @@ import { Disposable, disposeAll } from '../util/dispose';
 import { getRangeFromPositionOrRange, MdLinkOpener } from '../util/openDocumentLink';
 import { areUrisEqual, getMarkdownLocalResourceRoots } from '../util/resources';
 import { ChangedLineRange, MarkdownPreviewLineDiffProvider } from './lineDiff';
-import { MarkdownEditorDocumentSync, syncedTextDocument } from './markdownEditorDocumentSync';
+import { TextDocumentSync } from '@vscode/web-editors';
+import { vsCodeLineBreak, vsCodeTextDocument } from '@vscode/web-editors/vscode';
 import { encodeWebviewInitialState } from './webviewInitialState';
 import type { ILogger } from '../logging';
 import type { ResolvedDocumentLinkTarget } from '../client/protocol';
@@ -351,7 +352,9 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		if (token.isCancellationRequested) {
 			return;
 		}
-		const sync = new MarkdownEditorDocumentSync(syncedTextDocument(document), (message, error) => this.#logger.trace('Markdown editor', message, error));
+		const syncedDocument = vsCodeTextDocument(document);
+		const sync = new TextDocumentSync(syncedDocument, { onError: (message, error) => this.#logger.trace('Markdown editor', message, error) });
+		webviewPanel.onDidDispose(() => syncedDocument.dispose());
 		const webview = new AuthenticatedWebview(webviewPanel.webview, this.#logger, connection => sync.connect(connection));
 		this.#webviewPanels.set(webviewPanel, webview);
 		const codeBlockEditorProviders = this.#loadCodeBlockEditorProviders(webviewPanel.webview);
@@ -378,7 +381,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		originalDocument: vscode.TextDocument | undefined,
 		initialCodeBlockEditorProviders: Promise<readonly CodeBlockEditorProviderDefinition[]>,
 		editorWebview: AuthenticatedWebview,
-		sync: MarkdownEditorDocumentSync,
+		sync: TextDocumentSync,
 	): void {
 		let webviewReady = false;
 		let readonly = this.#globalState.get(MarkdownEditorProvider.#readonlyStateKey, true);
@@ -434,7 +437,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			params => editorWebview.renderer.richLinkPresentations(params),
 		);
 		const postConfiguration = (): void => {
-			editorWebview.report('Update configuration', editorWebview.renderer.configurationChanged(this.#getEditorConfiguration(document.uri)));
+			editorWebview.report('Update configuration', editorWebview.renderer.configurationChanged(this.#getEditorConfiguration(document)));
 		};
 		const postCodeBlockEditorProviders = (): void => {
 			if (webviewReady && codeBlockEditorProviders) {
@@ -576,9 +579,16 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			highlight: async ({ source, languageId }) => vscode.languages.computeFullSyntaxHighlighting(source, languageId),
 		});
 
+		let lineBreak = vsCodeLineBreak(document);
 		const onDocumentChange = vscode.workspace.onDidChangeTextDocument((e) => {
 			if (e.document.uri.toString() === document.uri.toString() && e.contentChanges.length > 0) {
 				diagnosticsChanged();
+				if (vsCodeLineBreak(document) !== lineBreak) {
+					lineBreak = vsCodeLineBreak(document);
+					if (editorWebview.ready) {
+						postConfiguration();
+					}
+				}
 			}
 		});
 
@@ -935,11 +945,11 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	 * are converted to source character offsets here, since the webview works in
 	 * offsets.
 	 */
-	#wireQuickDiff(document: vscode.TextDocument, editorWebview: AuthenticatedWebview, sync: MarkdownEditorDocumentSync): vscode.Disposable {
+	#wireQuickDiff(document: vscode.TextDocument, editorWebview: AuthenticatedWebview, sync: TextDocumentSync): vscode.Disposable {
 		const diffProvider = vscode.window.createSourceControlDiffInformation(document.uri);
 
 		const postMarkers = async () => {
-			// Offsets into the editor text match document lines once the editor's changes are written.
+			// Offsets into the editor text are document offsets once the editor's changes are written.
 			await sync.drain();
 			const diffInformation = diffProvider.diffInformation;
 			// The changes are computed asynchronously against a specific document
@@ -950,7 +960,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			if (!editorWebview.ready || !diffInformation || diffInformation.isStale || !version) {
 				return;
 			}
-			editorWebview.renderer.gutterMarkers({ version, markers: toEditorRanges(document, sync.text, toGutterMarkers(document, diffInformation.changes)) });
+			editorWebview.renderer.gutterMarkers({ version, markers: toGutterMarkers(document, diffInformation.changes) });
 		};
 		const publishMarkers = () => editorWebview.report('Publish quick diff', postMarkers());
 
@@ -967,7 +977,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		return vscode.Disposable.from(diffProvider, onChange, onReady, onDocumentChange);
 	}
 
-	#wireDocumentDiff(originalDocument: vscode.TextDocument, modifiedDocument: vscode.TextDocument, editorWebview: AuthenticatedWebview, sync: MarkdownEditorDocumentSync): vscode.Disposable {
+	#wireDocumentDiff(originalDocument: vscode.TextDocument, modifiedDocument: vscode.TextDocument, editorWebview: AuthenticatedWebview, sync: TextDocumentSync): vscode.Disposable {
 		const lineDiffProvider = new MarkdownPreviewLineDiffProvider(originalDocument, modifiedDocument);
 		const postMarkers = async () => {
 			if (!editorWebview.ready) {
@@ -983,7 +993,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			if (originalVersion !== originalDocument.version || modifiedVersion !== modifiedDocument.version || revision !== sync.revision || !version) {
 				return;
 			}
-			editorWebview.renderer.gutterMarkers({ version, markers: toEditorRanges(modifiedDocument, sync.text, lineRangesToGutterMarkers(modifiedDocument, changes)) });
+			editorWebview.renderer.gutterMarkers({ version, markers: lineRangesToGutterMarkers(modifiedDocument, changes) });
 		};
 
 		const publishMarkers = () => editorWebview.report('Publish document diff', postMarkers());
@@ -1005,7 +1015,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	 * Comment ranges are converted between {@link vscode.Range} and offsets into
 	 * the editor text.
 	 */
-	#wireComments(document: vscode.TextDocument, editorWebview: AuthenticatedWebview, sync: MarkdownEditorDocumentSync): vscode.Disposable & Pick<InterfaceHandlers<typeof markdownEditorHost>, 'addComment' | 'deleteComment'> {
+	#wireComments(document: vscode.TextDocument, editorWebview: AuthenticatedWebview, sync: TextDocumentSync): vscode.Disposable & Pick<InterfaceHandlers<typeof markdownEditorHost>, 'addComment' | 'deleteComment'> {
 		const commentsProvider = vscode.window.createAgentEditorComments(document.uri);
 		let revealedCommentId: string | undefined;
 
@@ -1015,13 +1025,13 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			if (!editorWebview.ready || !version) {
 				return;
 			}
-			const comments = toEditorRanges(document, sync.text, commentsProvider.comments.map(comment => ({
+			const comments = commentsProvider.comments.map(comment => ({
 				id: comment.id,
 				start: document.offsetAt(comment.range.start),
 				endExclusive: document.offsetAt(comment.range.end),
 				body: comment.body,
 				author: comment.author,
-			})));
+			}));
 			await editorWebview.renderer.comments({ version, comments, acceptsComments: commentsProvider.acceptsComments });
 		};
 		const publishComments = () => editorWebview.report('Publish comments', postComments());
@@ -1043,24 +1053,17 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 
 		return {
 			addComment: async message => {
-				const start = sync.fromEditor(message.version, message.start);
-				const endExclusive = sync.fromEditor(message.version, message.endExclusive);
-				if (start === undefined || endExclusive === undefined || endExclusive < start || endExclusive > sync.text.length) {
-					throw new Error(vscode.l10n.t('The document changed. Add the comment again.'));
-				}
-				const trackedStart = sync.track(start);
-				const trackedEnd = sync.track(endExclusive);
+				const start = message.start <= message.endExclusive ? sync.trackFromEditor(message.version, message.start) : undefined;
+				const end = start && sync.trackFromEditor(message.version, message.endExclusive);
 				try {
+					if (!start || !end) {
+						throw new Error(vscode.l10n.t('The document changed. Add the comment again.'));
+					}
 					await sync.drain();
-					const editor = TextDocument.create(document.uri.toString(), 'markdown', 0, sync.text);
-					const toPosition = (offset: number) => {
-						const position = editor.positionAt(offset);
-						return new vscode.Position(position.line, position.character);
-					};
-					commentsProvider.addComment(new vscode.Range(toPosition(trackedStart.offset), toPosition(trackedEnd.offset)), message.text);
+					commentsProvider.addComment(new vscode.Range(document.positionAt(start.offset), document.positionAt(end.offset)), message.text);
 				} finally {
-					trackedStart.dispose();
-					trackedEnd.dispose();
+					start?.dispose();
+					end?.dispose();
 				}
 			},
 			deleteComment: message => {
@@ -1090,7 +1093,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const baseUri = webview.asWebviewUri(document.uri);
 		const nonce = getNonce();
 		const initialState = encodeWebviewInitialState({
-			...this.#getEditorConfiguration(document.uri),
+			...this.#getEditorConfiguration(document),
 			taskProgressLabels: {
 				title: vscode.l10n.t("Task Progress"),
 				summary: vscode.l10n.t("{0} of {1} tasks completed"),
@@ -1130,9 +1133,10 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 </html>`;
 	}
 
-	#getEditorConfiguration(resource: vscode.Uri): MarkdownEditorConfiguration {
+	#getEditorConfiguration(document: vscode.TextDocument): MarkdownEditorConfiguration {
 		return {
-			highlightActiveBlock: vscode.workspace.getConfiguration('markdown.editor', resource).get<boolean>('highlightActiveBlock', true),
+			highlightActiveBlock: vscode.workspace.getConfiguration('markdown.editor', document.uri).get<boolean>('highlightActiveBlock', true),
+			lineBreak: vsCodeLineBreak(document),
 		};
 	}
 }
@@ -1326,19 +1330,6 @@ interface GutterMarkerMessage {
 	readonly type: 'added' | 'modified' | 'deleted';
 }
 
-/**
- * Converts ranges of document offsets into offsets of the editor text, which
- * has the same lines with `\n` line breaks. Only exact while the editor text
- * matches the document, i.e. after {@link MarkdownEditorDocumentSync.drain}.
- */
-function toEditorRanges<T extends { readonly start: number; readonly endExclusive: number }>(document: vscode.TextDocument, editorText: string, ranges: readonly T[]): T[] {
-	const editor = TextDocument.create(document.uri.toString(), 'markdown', 0, editorText);
-	return ranges.map(range => ({
-		...range,
-		start: editor.offsetAt(document.positionAt(range.start)),
-		endExclusive: editor.offsetAt(document.positionAt(range.endExclusive)),
-	}));
-}
 
 /**
  * Converts the line-based source control changes into source character offset

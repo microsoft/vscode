@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { MarkdownEditorHost, MarkdownEditorRenderer, MarkdownEditorVersion, MarkdownNavigationState } from './markdownEditorProtocol';
-import type { MarkdownEditorText } from './markdownEditorDocumentSync';
+import type { MarkdownEditorText } from './markdownEditorText';
 
 export class MarkdownEditorNavigation implements vscode.CustomTextEditorNavigation {
 	readonly #onDidChangeSelection = new vscode.EventEmitter<vscode.Selection | undefined>();
@@ -49,9 +48,8 @@ export class MarkdownEditorNavigation implements vscode.CustomTextEditorNavigati
 			if (this.#disposed || request !== this.#selectionRequest) {
 				return;
 			}
-			const mirror = this.#mirror();
 			this.#selection = anchor && active ? new vscode.Selection(
-				this.#position(mirror.positionAt(anchor.offset)), this.#position(mirror.positionAt(active.offset)),
+				this.#document.positionAt(anchor.offset), this.#document.positionAt(active.offset),
 			) : undefined;
 			this.#onDidChangeSelection.fire(this.#selection);
 		} finally {
@@ -77,15 +75,14 @@ export class MarkdownEditorNavigation implements vscode.CustomTextEditorNavigati
 			|| options.selection && !this.#document.validateRange(options.selection).isEqual(options.selection)) {
 			throw new Error('Invalid Markdown editor navigation range');
 		}
-		const mirror = this.#mirror();
 		await renderer.revealRange({
-			start: mirror.offsetAt(range.start),
-			endExclusive: mirror.offsetAt(range.end),
+			start: this.#document.offsetAt(range.start),
+			endExclusive: this.#document.offsetAt(range.end),
 			version: state.version,
 			revision: state.revision,
 			selection: options.selection ? {
-				anchor: mirror.offsetAt(options.selection.anchor),
-				active: mirror.offsetAt(options.selection.active),
+				anchor: this.#document.offsetAt(options.selection.anchor),
+				active: this.#document.offsetAt(options.selection.active),
 			} : undefined,
 			preserveFocus: options.preserveFocus ?? false,
 		});
@@ -127,13 +124,6 @@ export class MarkdownEditorNavigation implements vscode.CustomTextEditorNavigati
 		this.#onDidChangeSelection.dispose();
 	}
 
-	#mirror(): TextDocument {
-		return TextDocument.create(this.#document.uri.toString(), 'markdown', 0, this.#text.text);
-	}
-
-	#position(position: { line: number; character: number }): vscode.Position {
-		return new vscode.Position(position.line, position.character);
-	}
 
 	#checkCurrent(token: vscode.CancellationToken): void {
 		if (this.#disposed || token.isCancellationRequested || this.#document.isClosed) {

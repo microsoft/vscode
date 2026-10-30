@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { MarkdownCompletion, MarkdownDiagnostic, MarkdownEditorHost } from './markdownEditorProtocol';
-import type { MarkdownEditorText } from './markdownEditorDocumentSync';
+import type { MarkdownEditorText } from './markdownEditorText';
 
 export class MarkdownEditorLanguageFeatures {
 	#session: CompletionSession | undefined;
@@ -48,9 +48,7 @@ export class MarkdownEditorLanguageFeatures {
 				}
 			}
 			const revision = this.#text.revision;
-			const mirror = TextDocument.create(this.#document.uri.toString(), 'markdown', 0, this.#text.text);
-			const raw = mirror.positionAt(requested.offset);
-			const position = new vscode.Position(raw.line, raw.character);
+			const position = this.#document.positionAt(requested.offset);
 			const version = this.#document.version;
 			const list = await this.#api.provide(this.#document.uri, position, 0);
 			this.#checkCurrent(session, version, revision);
@@ -137,9 +135,7 @@ export class MarkdownEditorLanguageFeatures {
 					}
 				}
 			}
-			const mirror = TextDocument.create(this.#document.uri.toString(), 'markdown', 0, this.#text.text);
-			const caret = this.#document.version === appliedVersion && this.#isActive()
-				? mirror.offsetAt(this.#document.positionAt(offset)) : undefined;
+			const caret = this.#document.version === appliedVersion && this.#isActive() ? offset : undefined;
 			return { offset: caret, version: this.#text.version, retrigger, ...(warning ? { warning } : {}) };
 		} finally {
 			if (this.#session === session) { this.#session = undefined; }

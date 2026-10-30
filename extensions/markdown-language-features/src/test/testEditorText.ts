@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { MarkdownEditorText, TrackedOffset } from '../preview/markdownEditorDocumentSync';
+import type { TrackedOffset } from '@vscode/web-editors';
+import type { MarkdownEditorText } from '../preview/markdownEditorText';
 import type { MarkdownEditorVersion } from '../preview/markdownEditorProtocol';
 
 /**

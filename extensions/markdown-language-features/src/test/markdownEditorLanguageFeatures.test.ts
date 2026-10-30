@@ -10,11 +10,11 @@ import { MarkdownEditorLanguageFeatures, mapMarkdownDiagnostics, type MarkdownCo
 import { TestEditorText } from './testEditorText';
 
 suite('Markdown editor diagnostics and completion', () => {
-	const request = { requestId: 1, offset: 11, version: { serverRevision: 1, clientRevision: 0 }, automatic: false };
+	const request = { requestId: 1, offset: 13, version: { serverRevision: 1, clientRevision: 0 }, automatic: false };
 
 	async function setup(overrides: Partial<MarkdownCompletionApi> = {}) {
 		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '# Title\r\n\r\nTa' });
-		const text = new TestEditorText('# Title\n\nTa');
+		const text = new TestEditorText('# Title\r\n\r\nTa');
 		const item = new vscode.CompletionItem('Target', vscode.CompletionItemKind.Reference);
 		item.range = new vscode.Range(2, 0, 2, 2);
 		const counts: number[] = [];
@@ -39,7 +39,7 @@ suite('Markdown editor diagnostics and completion', () => {
 		return { document, text, item, counts, commands, features, get applied() { return applied; } };
 	}
 
-	test('maps all diagnostic severities, source and code from CRLF documents to LF renderer offsets', async () => {
+	test('maps all diagnostic severities, source and code to editor offsets', async () => {
 		const test = await setup();
 		const diagnostics = [0, 1, 2, 3].map(severity => {
 			const item = new vscode.Diagnostic(new vscode.Range(2, 0, 2, 2), `Message ${severity}`, severity);
@@ -49,7 +49,7 @@ suite('Markdown editor diagnostics and completion', () => {
 		});
 		assert.deepStrictEqual(mapMarkdownDiagnostics(test.document, test.text.text, diagnostics),
 			['error', 'warning', 'info', 'hint'].map((severity, index) => ({
-				start: 9, endExclusive: 11, message: `Message ${index}`, severity, source: 'third-party', code: 'rule', codeTarget: 'https://example.com/rule',
+				start: 11, endExclusive: 13, message: `Message ${index}`, severity, source: 'third-party', code: 'rule', codeTarget: 'https://example.com/rule',
 			})));
 	});
 
@@ -225,19 +225,6 @@ suite('Markdown editor diagnostics and completion', () => {
 		await test.features.completions(request);
 		assert.strictEqual((await test.features.accept({ requestId: 1, id: '0' })).retrigger, true);
 		assert.deepStrictEqual(test.commands, []);
-	});
-
-	test('maps the accepted caret back to a normalized renderer snapshot', async () => {
-		const test = await setup({
-			apply: async edit => {
-				const applied = await vscode.workspace.applyEdit(edit);
-				test.text.change(test.document.getText().replace(/\r\n/g, '\n'));
-				return applied;
-			}
-		});
-		await test.features.completions(request);
-		assert.strictEqual((await test.features.accept({ requestId: 1, id: '0' })).offset, 15);
-		assert.strictEqual(test.text.text, '# Title\n\nTarget');
 	});
 
 	test('does not restore a stale caret after a follow-up command edits the document', async () => {

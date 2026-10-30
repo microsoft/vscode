@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { MarkdownEditorHost } from './markdownEditorProtocol';
-import type { MarkdownEditorText } from './markdownEditorDocumentSync';
+import type { MarkdownEditorText } from './markdownEditorText';
 
 export class MarkdownEditorRename {
 	readonly #text: MarkdownEditorText;
@@ -36,10 +35,9 @@ export class MarkdownEditorRename {
 			await this.#text.drain();
 			this.#checkCurrent(session);
 			const revision = this.#text.revision;
-			const mirror = TextDocument.create(this.document.uri.toString(), 'markdown', 0, this.#text.text);
-			const position = mirror.positionAt(requested.offset);
+			const position = this.document.positionAt(requested.offset);
 			const version = this.document.version;
-			const prepared = await this.#api.prepare(this.document.uri, new vscode.Position(position.line, position.character));
+			const prepared = await this.#api.prepare(this.document.uri, position);
 			this.#checkCurrent(session);
 			const contentVersion = this.#text.version;
 			if (version !== this.document.version || revision !== this.#text.revision || !contentVersion) {
@@ -48,10 +46,10 @@ export class MarkdownEditorRename {
 			if (!prepared) {
 				throw new Error(vscode.l10n.t('This symbol cannot be renamed.'));
 			}
-			session.prepared = { position: new vscode.Position(position.line, position.character), version, revision };
+			session.prepared = { position, version, revision };
 			return {
-				start: mirror.offsetAt(prepared.range.start),
-				endExclusive: mirror.offsetAt(prepared.range.end),
+				start: this.document.offsetAt(prepared.range.start),
+				endExclusive: this.document.offsetAt(prepared.range.end),
 				placeholder: prepared.placeholder,
 				version: contentVersion,
 			};

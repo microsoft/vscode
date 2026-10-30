@@ -22,9 +22,9 @@ suite('Markdown editor outline navigation', () => {
 
 	async function setup(drain: () => Promise<void> = async () => { }) {
 		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '# One\r\n\r\n## Two' });
-		const text = new TestEditorText('# One\n\n## Two');
+		const text = new TestEditorText('# One\r\n\r\n## Two');
 		text.drain = drain;
-		const state: MarkdownNavigationState = { version: text.version, revision: 4, scrollTop: 120, selection: { anchor: 10, active: 13 } };
+		const state: MarkdownNavigationState = { version: text.version, revision: 4, scrollTop: 120, selection: { anchor: 12, active: 15 } };
 		const revealed: Parameters<MarkdownEditorRenderer['revealRange']>[0][] = [];
 		const restored: MarkdownNavigationState[] = [];
 		const renderer = {
@@ -37,19 +37,19 @@ suite('Markdown editor outline navigation', () => {
 		return { navigation, document, text, state, revealed, restored, renderer };
 	}
 
-	test('maps selection and reveal between LF renderer offsets and CRLF source positions', async () => {
+	test('maps selection and reveal between editor offsets and CRLF source positions', async () => {
 		const test = await setup();
 		const selections: (vscode.Selection | undefined)[] = [];
 		disposables.push(test.navigation.onDidChangeSelection(selection => selections.push(selection)));
-		await test.navigation.acceptSelection({ version: test.text.version, selection: { anchor: 13, active: 10 } });
+		await test.navigation.acceptSelection({ version: test.text.version, selection: { anchor: 15, active: 12 } });
 		assert.deepStrictEqual(selections, [new vscode.Selection(2, 6, 2, 3)]);
 		assert.deepStrictEqual(test.navigation.selection, selections[0]);
 		await test.navigation.revealRange(new vscode.Range(2, 0, 2, 6), {
 			selection: new vscode.Selection(2, 3, 2, 6), preserveFocus: true,
 		}, token());
 		assert.deepStrictEqual(test.revealed, [{
-			start: 7, endExclusive: 13, version: { serverRevision: 1, clientRevision: 0 }, revision: 4,
-			selection: { anchor: 10, active: 13 }, preserveFocus: true,
+			start: 9, endExclusive: 15, version: { serverRevision: 1, clientRevision: 0 }, revision: 4,
+			selection: { anchor: 12, active: 15 }, preserveFocus: true,
 		}]);
 	});
 

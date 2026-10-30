@@ -28,10 +28,10 @@ suite('Markdown editor image paste', () => {
 	let text: TestEditorText;
 	let editable: boolean;
 	let paste: MarkdownEditorImagePaste;
-	const request = () => ({ start: 9, endExclusive: 13, version: text.version, images: [image] });
+	const request = () => ({ start: 11, endExclusive: 15, version: text.version, images: [image] });
 	const apply = async (edit: vscode.WorkspaceEdit): Promise<boolean> => {
 		const result = await vscode.workspace.applyEdit(edit);
-		text.change(document.getText().replace(/\r\n/g, '\n'));
+		text.change(document.getText());
 		return result;
 	};
 
@@ -41,7 +41,7 @@ suite('Markdown editor image paste', () => {
 		const uri = vscode.Uri.joinPath(root, 'document.md');
 		await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode('# Title\r\n\r\nHERE'));
 		document = await vscode.workspace.openTextDocument(uri);
-		text = new TestEditorText('# Title\n\nHERE');
+		text = new TestEditorText('# Title\r\n\r\nHERE');
 		editable = true;
 		files = new Map([[image.id, Uint8Array.from(atob(base64), c => c.charCodeAt(0))]]);
 		chunks = [];

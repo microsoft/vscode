@@ -35,18 +35,19 @@ suite('Markdown editor bridge', () => {
 			connection = connectRenderer(panel, secret);
 			const { host, client, reveals } = connection;
 			await host.ready({});
-			await until(() => client.getContent() === 'changed\nbefore-ready', () => client.getContent());
+			await until(() => client.getContent() === 'changed\r\nbefore-ready', () => client.getContent());
 			await navigationBeforeReady;
-			assert.deepStrictEqual(reveals, [{ start: 8, endExclusive: 14, version: client.version, revision: 0, preserveFocus: true }]);
+			assert.deepStrictEqual(reveals, [{ start: 9, endExclusive: 15, version: client.version, revision: 0, preserveFocus: true }]);
 
-			type(client, 0, '\n');
-			type(client, 1, 'x');
+			// The editor inserts the document's line break.
+			type(client, 0, '\r\n');
+			type(client, 2, 'x');
 			await until(() => document.getText() === '\r\nxchanged\r\nbefore-ready', () => [document.getText(), client.getContent()]);
-			await host.selectionChanged({ version: client.version, selection: { anchor: 1, active: 9 } });
+			await host.selectionChanged({ version: client.version, selection: { anchor: 2, active: 10 } });
 			assert.deepStrictEqual(navigation.selection, new vscode.Selection(1, 0, 1, 8));
 
 			await replaceDocument(document, 'external\r\n');
-			await until(() => client.getContent() === 'external\n', () => [document.getText(), client.getContent()]);
+			await until(() => client.getContent() === 'external\r\n', () => [document.getText(), client.getContent()]);
 			await host.setReadonly({ readonly: false });
 			assert.deepStrictEqual(Array.from(state.values), [['markdown.editor.readonly', false]]);
 		} finally {
@@ -70,7 +71,7 @@ suite('Markdown editor bridge', () => {
 			connection = connectRenderer(panel, secret);
 			const { host, client } = connection;
 			await host.ready({});
-			await until(() => client.getContent() === 'one\ntwo');
+			await until(() => client.getContent() === 'one\r\ntwo');
 
 			// The external edit lands while the typing is on its way, so writing the typing is rejected and rebased.
 			const external = new vscode.WorkspaceEdit();
@@ -83,9 +84,35 @@ suite('Markdown editor bridge', () => {
 			type(client, String(client.getContent()).length, '!');
 
 			// Both sides converge, and neither the typing nor the external edit is lost.
-			await until(() => document.getText().includes('!') && client.getContent() === document.getText().replace(/\r\n/g, '\n'), () => [client.getContent(), document.getText()]);
+			await until(() => document.getText().includes('!') && client.getContent() === document.getText(), () => [client.getContent(), document.getText()]);
 			const text = document.getText();
 			assert.deepStrictEqual(['# ', ' external', ' typed', 'a\r\nb', '!'].filter(part => !text.includes(part)), []);
+		} finally {
+			panel.dispose();
+			connection?.dispose();
+			provider.dispose();
+			cancellation.dispose();
+		}
+	});
+
+	test('gives the editor the line breaks VS Code converted its writes to', async () => {
+		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: 'a\r\nb' });
+		const panel = new TestPanel();
+		const provider = createProvider(new TestMemento());
+		const cancellation = new vscode.CancellationTokenSource();
+		let connection: ReturnType<typeof connectRenderer> | undefined;
+		try {
+			await provider.resolveCustomTextEditor(document, panel, cancellation.token);
+			const secret = /name="vscode-markdown-editor-message-secret" content="([^"]+)"/.exec(panel.webview.html)?.[1];
+			assert.ok(secret);
+			assert.match(decodeURIComponent(/id="vscode-markdown-editor-initial-state" content="([^"]+)"/.exec(panel.webview.html)?.[1] ?? ''), /"lineBreak":"\\r\\n"/);
+			connection = connectRenderer(panel, secret);
+			const { host, client } = connection;
+			await host.ready({});
+			await until(() => client.getContent() === 'a\r\nb');
+
+			type(client, 1, '\nc');
+			await until(() => document.getText() === 'a\r\nc\r\nb' && client.getContent() === document.getText(), () => [client.getContent(), document.getText()]);
 		} finally {
 			panel.dispose();
 			connection?.dispose();
