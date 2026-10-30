@@ -10,10 +10,13 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ConfigurationTarget, IConfigurationOverrides, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { INotification, INotificationActions, INotificationHandle, INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { DisablementReason, IUpdateService, State, UpdateType } from '../../../../../platform/update/common/update.js';
 import { IBannerItem, IBannerService } from '../../../../services/banner/browser/bannerService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
@@ -22,6 +25,7 @@ import { OutdatedBuildReminderContribution } from '../../browser/outdatedBuildRe
 
 const DAY = 24 * 60 * 60 * 1000;
 const LAST_SHOWN_STORAGE_KEY = 'update/outdatedBuildReminderLastShown';
+const SETTING = 'update.showOutdatedBuildReminder';
 const DOWNLOAD_URL = 'https://code.visualstudio.com/Download';
 const MESSAGE = 'This version of Visual Studio Code is 2 months old. Update to get the latest features and fixes.';
 
@@ -32,10 +36,26 @@ interface IReminderOptions {
 	readonly state?: State;
 	readonly isSessionsWindow?: boolean;
 	readonly storage?: InMemoryStorageService;
+	readonly enabled?: boolean;
+	readonly userConfigured?: boolean;
 }
 
 function formatActions(actions: readonly { readonly label: string | HTMLElement; readonly href?: string; readonly id?: string }[] | undefined): string[] {
 	return (actions ?? []).map(action => `${action.label} -> ${action.href ?? action.id}`);
+}
+
+/**
+ * Reports values as defaults, such as ones an experiment assigns, unless the user configured them.
+ */
+class ReminderConfigurationService extends TestConfigurationService {
+	constructor(private readonly userConfigured: boolean) {
+		super();
+	}
+
+	override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+		const inspected = super.inspect<T>(key, overrides);
+		return this.userConfigured ? inspected : { value: inspected.value, defaultValue: inspected.value };
+	}
 }
 
 /**
@@ -106,6 +126,12 @@ suite('OutdatedBuildReminderContribution', () => {
 			override state = options.state ?? State.Idle(UpdateType.Archive);
 			override readonly onStateChange = onStateChange.event;
 		}();
+		const configuration = new ReminderConfigurationService(!!options.userConfigured);
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		if (options.enabled !== undefined) {
+			await configuration.setUserConfiguration(SETTING, options.enabled);
+		}
+		const telemetry = new TestExperimentTriggerTelemetryService();
 
 		let banner: IBannerItem | undefined;
 		let notification: TestNotificationHandle | undefined;
@@ -119,6 +145,7 @@ suite('OutdatedBuildReminderContribution', () => {
 					events.push({ hide: id });
 				}
 			}(),
+			configuration,
 			new class extends mock<IHostService>() {
 				override readonly onDidChangeFocus = onDidChangeFocus.event;
 				override hadLastFocus(): Promise<boolean> {
@@ -144,6 +171,7 @@ suite('OutdatedBuildReminderContribution', () => {
 				override readonly downloadUrl = DOWNLOAD_URL;
 			}(),
 			storage,
+			telemetry,
 			updateService,
 			new class extends mock<IWorkbenchEnvironmentService>() {
 				override readonly isSessionsWindow = !!options.isSessionsWindow;
@@ -156,11 +184,17 @@ suite('OutdatedBuildReminderContribution', () => {
 		return {
 			contribution,
 			events,
+			triggers: telemetry.triggers,
 			get banner() { return banner; },
 			get notificationActions(): readonly IAction[] { return notification?.actions?.primary ?? []; },
 			get lastShown() { return storage.getNumber(LAST_SHOWN_STORAGE_KEY, StorageScope.APPLICATION_SHARED); },
 			focus: async (focused: boolean) => {
 				onDidChangeFocus.fire(focused);
+				await timeout(0);
+			},
+			setEnabled: async (enabled: boolean) => {
+				await configuration.setUserConfiguration(SETTING, enabled);
+				configuration.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: key => key === SETTING, affectedKeys: new Set([SETTING]), source: ConfigurationTarget.DEFAULT, change: { keys: [SETTING], overrides: [] } });
 				await timeout(0);
 			},
 			setState: (state: State) => {
@@ -262,6 +296,47 @@ suite('OutdatedBuildReminderContribution', () => {
 			remindersPerWindow: [delayed.events.length, other.events.length],
 		}, {
 			remindersPerWindow: [0, 1],
+		});
+	});
+
+	test('logs the experiment trigger in every arm, and shows the reminder only while the setting is on', async () => {
+		const outcome = async (options: IReminderOptions) => {
+			const reminder = await createReminder(options);
+			return { reminders: reminder.events.length, claimed: reminder.lastShown !== undefined, triggers: reminder.triggers };
+		};
+
+		assert.deepStrictEqual({
+			tooNew: await outcome({ buildAgeDays: 59 }),
+			enabled: await outcome({ buildAgeDays: 61 }),
+			disabledByExperiment: await outcome({ buildAgeDays: 61, enabled: false }),
+			disabledByUser: await outcome({ buildAgeDays: 61, enabled: false, userConfigured: true }),
+		}, {
+			tooNew: { reminders: 0, claimed: false, triggers: [] },
+			enabled: { reminders: 1, claimed: true, triggers: [`config.${SETTING}`] },
+			disabledByExperiment: { reminders: 0, claimed: false, triggers: [`config.${SETTING}`] },
+			disabledByUser: { reminders: 0, claimed: false, triggers: [] },
+		});
+	});
+
+	test('hides the reminder as soon as the setting is turned off', async () => {
+		const banner = await createReminder({ buildAgeDays: 61 });
+		const notification = await createReminder({ buildAgeDays: 61, isSessionsWindow: true });
+		const readDelay = new DeferredPromise<void>();
+		const pending = await createReminder({ buildAgeDays: 61, storage: store.add(new WindowStorageService(new Map(), readDelay.p)) });
+		for (const reminder of [banner, notification, pending]) {
+			await reminder.setEnabled(false);
+		}
+		readDelay.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			banner: banner.events.at(-1),
+			notification: notification.events.at(-1),
+			pending: pending.events,
+		}, {
+			banner: { hide: OutdatedBuildReminderContribution.ID },
+			notification: 'close',
+			pending: [],
 		});
 	});
 

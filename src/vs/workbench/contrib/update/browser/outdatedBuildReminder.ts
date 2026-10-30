@@ -11,11 +11,14 @@ import { fromNow } from '../../../../base/common/date.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService, isConfigured } from '../../../../platform/configuration/common/configuration.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { NotificationTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUpdateService, State, StateType } from '../../../../platform/update/common/update.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IBannerService } from '../../../services/banner/browser/bannerService.js';
@@ -27,6 +30,7 @@ const DAY = 24 * 60 * 60 * 1000;
 const OUTDATED_BUILD_AGE = 60 * DAY;
 const REMINDER_INTERVAL = 30 * DAY;
 const LAST_SHOWN_STORAGE_KEY = 'update/outdatedBuildReminderLastShown';
+const OUTDATED_BUILD_REMINDER_SETTING = 'update.showOutdatedBuildReminder';
 
 interface IReminderAction {
 	readonly label: string;
@@ -53,11 +57,13 @@ export class OutdatedBuildReminderContribution extends Disposable implements IWo
 
 	constructor(
 		@IBannerService private readonly bannerService: IBannerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
@@ -67,6 +73,13 @@ export class OutdatedBuildReminderContribution extends Disposable implements IWo
 		if (buildDate === undefined) {
 			return;
 		}
+
+		// Hide a visible reminder as soon as the setting is turned off, for example by an experiment.
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(OUTDATED_BUILD_REMINDER_SETTING) && !this.isEnabled()) {
+				this.reminder.clear();
+			}
+		}));
 
 		// Checking on focus also covers windows that stay open while the build ages.
 		this._register(hostService.onDidChangeFocus(focused => {
@@ -87,6 +100,15 @@ export class OutdatedBuildReminderContribution extends Disposable implements IWo
 			return;
 		}
 
+		// Every experiment arm reaches this point, so log the trigger before reading the setting or the
+		// last-shown time, which only the enabled arm writes. A value the user chose is not affected by experiments.
+		if (!isConfigured(this.configurationService.inspect(OUTDATED_BUILD_REMINDER_SETTING))) {
+			logSettingExperimentTrigger(this.telemetryService, OUTDATED_BUILD_REMINDER_SETTING);
+		}
+		if (!this.isEnabled()) {
+			return;
+		}
+
 		// The local cache lags behind other windows, so it can only rule a reminder out without a round trip.
 		if (wasShownRecently(this.storageService.get(LAST_SHOWN_STORAGE_KEY, StorageScope.APPLICATION_SHARED), Date.now())) {
 			return;
@@ -100,13 +122,18 @@ export class OutdatedBuildReminderContribution extends Disposable implements IWo
 			return;
 		}
 		const { swapped } = await this.storageService.compareAndSwapApplicationSharedValue(LAST_SHOWN_STORAGE_KEY, lastShown, String(now));
-		if (!swapped || this._store.isDisposed) {
+		// The setting may have been turned off while the claim was pending.
+		if (!swapped || this._store.isDisposed || !this.isEnabled()) {
 			return;
 		}
 
 		const message = localize('outdatedBuildReminder.message', "This version of {0} is {1} old. Update to get the latest features and fixes.", this.productService.nameLong, fromNow(buildDate, false, true));
 		this.reminder.clear();
 		this.reminder.value = this.environmentService.isSessionsWindow ? this.showNotification(message) : this.showBanner(message);
+	}
+
+	private isEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(OUTDATED_BUILD_REMINDER_SETTING) !== false;
 	}
 
 	private showBanner(message: string): IDisposable {
