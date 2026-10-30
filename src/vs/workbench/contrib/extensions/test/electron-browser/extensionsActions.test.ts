@@ -10,7 +10,7 @@ import * as ExtensionsActions from '../../browser/extensionsActions.js';
 import { Extension, ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata, ExtensionBlockingOrigin, ExtensionBlockingScope
+	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata, ExtensionBlockingOrigin, ExtensionBlockingScope, IAllowedExtensionsService
 } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, ExtensionInstallLocation, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionRecommendationsService } from '../../../../services/extensionRecommendations/common/extensionRecommendations.js';
@@ -100,6 +100,10 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 	instantiationService.stub(IExtensionFeaturesManagementService, {
 		onDidChangeAccessData: Event.None,
 	});
+	instantiationService.stub(IAllowedExtensionsService, {
+		onDidChangeAllowedExtensionsConfigValue: Event.None,
+		isAllowed: () => true,
+	});
 
 	instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 	instantiationService.stub(IExtensionGalleryManifestService, {
@@ -187,6 +191,13 @@ suite('ExtensionsActions', () => {
 	test('Auto update action is disabled for blocked extensions', () => {
 		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.ToggleAutoUpdateForExtensionAction));
 		testObject.extension = aWorkbenchExtension(ExtensionState.Installed, ExtensionBlockingOrigin.Policy);
+
+		assert.strictEqual(testObject.enabled, false);
+	});
+
+	test('Pre-release toggle is disabled for blocked extensions', () => {
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.TogglePreReleaseExtensionAction));
+		testObject.extension = aWorkbenchExtension(ExtensionState.Installed, ExtensionBlockingOrigin.Policy, { hasPreReleaseVersion: true });
 
 		assert.strictEqual(testObject.enabled, false);
 	});
@@ -1773,6 +1784,28 @@ suite('RemoteInstallAction', () => {
 
 	setup(() => setupTest(disposables));
 
+	test('Test remote install action is disabled for blocked extensions', async () => {
+		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
+		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]));
+		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
+		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
+
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', {
+			identifier: localWorkspaceExtension.identifier,
+			blockingInfo: { origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Extension }
+		})));
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
+
+		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
+		await workbenchService.queryGallery(CancellationToken.None);
+		testObject.extension = extensions[0];
+
+		assert.strictEqual(testObject.enabled, false);
+	});
+
 	test('Test remote install action is enabled for local workspace extension', async () => {
 		// multi server setup
 		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
@@ -2634,9 +2667,9 @@ suite('EnableAIFeaturesInWorkspaceAction', () => {
 
 });
 
-function aWorkbenchExtension(state: ExtensionState, origin: ExtensionBlockingOrigin): Extension {
+function aWorkbenchExtension(state: ExtensionState, origin: ExtensionBlockingOrigin, galleryProperties: Partial<IGalleryExtension> = {}): Extension {
 	const local = state === ExtensionState.Uninstalled ? undefined : aLocalExtension('blocked');
-	const gallery = aGalleryExtension('blocked', { blockingInfo: { origin, scope: ExtensionBlockingScope.Extension } });
+	const gallery = aGalleryExtension('blocked', { ...galleryProperties, blockingInfo: { origin, scope: ExtensionBlockingScope.Extension } });
 	return instantiationService.createInstance(Extension, () => state, () => undefined, undefined, local, gallery, undefined);
 }
 

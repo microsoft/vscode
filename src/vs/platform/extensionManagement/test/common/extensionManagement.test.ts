@@ -101,6 +101,17 @@ suite('Extension Blocked Message', () => {
 		);
 	});
 
+	test('installFromGallery rejects a blocked compatible version', async () => {
+		const service = createExtensionManagementService(true, aGalleryExtension({ origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Extension }));
+
+		await assert.rejects(
+			() => service.installFromGallery(aGalleryExtension()),
+			error => error instanceof ExtensionManagementError
+				&& error.code === ExtensionManagementErrorCode.NotAllowed
+				&& error.message === 'This extension is not permitted by your organization\'s policy.'
+		);
+	});
+
 	test('installFromGallery preserves the existing plain platform error for other canInstall failures', async () => {
 		const service = createExtensionManagementService(new MarkdownString('it is not in the [allowed list](command:workbench.action.openSettings)'));
 
@@ -112,7 +123,7 @@ suite('Extension Blocked Message', () => {
 		);
 	});
 
-	function createExtensionManagementService(allowed: true | MarkdownString = true): AbstractExtensionManagementService {
+	function createExtensionManagementService(allowed: true | MarkdownString = true, compatibleExtension?: IGalleryExtension): AbstractExtensionManagementService {
 		const galleryService = new class extends mock<IExtensionGalleryService>() {
 			override isEnabled(): boolean {
 				return true;
@@ -120,6 +131,18 @@ suite('Extension Blocked Message', () => {
 
 			override async getExtensionsControlManifest(): Promise<IExtensionsControlManifest> {
 				return { malicious: [], deprecated: {}, search: [] };
+			}
+
+			override async isExtensionCompatible(): Promise<boolean> {
+				return !compatibleExtension;
+			}
+
+			override async getCompatibleExtension(): Promise<IGalleryExtension | null> {
+				return compatibleExtension ?? null;
+			}
+
+			override async getManifest(): Promise<never> {
+				throw new Error('Blocked compatible extensions must be rejected before fetching the manifest.');
 			}
 		};
 		const allowedExtensionsService = new class extends mock<IAllowedExtensionsService>() {

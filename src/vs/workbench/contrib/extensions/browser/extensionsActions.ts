@@ -778,6 +778,7 @@ export abstract class InstallInOtherServerAction extends ExtensionAction {
 			!this.extension
 			|| !this.server
 			|| !this.extension.local
+			|| !!this.extension.blockingInfo
 			|| this.extension.state !== ExtensionState.Installed
 			|| this.extension.type !== ExtensionType.User
 			|| this.extension.enablementState === EnablementState.DisabledByEnvironment || this.extension.enablementState === EnablementState.DisabledByTrustRequirement || this.extension.enablementState === EnablementState.DisabledByVirtualWorkspace
@@ -1532,6 +1533,9 @@ export class TogglePreReleaseExtensionAction extends ExtensionAction {
 			return;
 		}
 		if (this.extension.isBuiltin) {
+			return;
+		}
+		if (this.extension.blockingInfo) {
 			return;
 		}
 		if (this.extension.state !== ExtensionState.Installed) {

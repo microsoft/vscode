@@ -13,7 +13,7 @@ import { Extension, ExtensionsWorkbenchService } from '../../browser/extensionsW
 import '../../browser/extensions.contribution.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata, ExtensionBlockingOrigin, ExtensionBlockingScope, IExtensionInfo, IExtensionQueryOptions
+	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata, ExtensionBlockingOrigin, ExtensionBlockingScope, IExtensionInfo, IExtensionQueryOptions, ExtensionManagementError, ExtensionManagementErrorCode
 } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionRecommendationsService } from '../../../../services/extensionRecommendations/common/extensionRecommendations.js';
@@ -62,7 +62,7 @@ import { IUserDataProfileService } from '../../../../services/userDataProfile/co
 import { toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IMeteredConnectionService } from '../../../../../platform/meteredConnection/common/meteredConnection.js';
-import { ExtensionGalleryManifestStatus, IExtensionGalleryManifestService } from '../../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ExtensionGalleryManifestStatus, ExtensionGalleryServiceUrlConfigKey, IExtensionGalleryManifestService } from '../../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
@@ -468,11 +468,12 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 	test('test installed version blocking metadata is preserved when an older version is permitted', async () => {
 		const local = aLocalExtension('blocked', { version: '2.0.0' });
-		const gallery = aGalleryExtension(local.manifest.name, { version: '1.0.0', private: true });
+		const gallery = aGalleryExtension(local.manifest.name, { version: '1.0.0' });
 		const installedGallery = aGalleryExtension(local.manifest.name, {
 			version: local.manifest.version,
 			blockingInfo: { origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Version }
 		});
+		await instantiationService.get(IConfigurationService).updateValue(ExtensionGalleryServiceUrlConfigKey, 'https://marketplace.example.com');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 		instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', true);
@@ -499,11 +500,12 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 	test('test a blocked installed version does not block a permitted update', async () => {
 		const local = aLocalExtension('blocked', { version: '1.0.0' });
-		const gallery = aGalleryExtension(local.manifest.name, { version: '2.0.0', private: true });
+		const gallery = aGalleryExtension(local.manifest.name, { version: '2.0.0' });
 		const installedGallery = aGalleryExtension(local.manifest.name, {
 			version: local.manifest.version,
 			blockingInfo: { origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Version }
 		});
+		await instantiationService.get(IConfigurationService).updateValue(ExtensionGalleryServiceUrlConfigKey, 'https://marketplace.example.com');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', true);
 		instantiationService.stub(IExtensionGalleryService, 'getExtensions', async (_extensionInfos: ReadonlyArray<IExtensionInfo>, options: CancellationToken | IExtensionQueryOptions) =>
@@ -553,8 +555,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 	test('test missing installed version blocking metadata preserves the known state', async () => {
 		const local = aLocalExtension('blocked', { version: '1.0.0' });
-		const gallery = aGalleryExtension(local.manifest.name, { version: '2.0.0', private: true });
+		const gallery = aGalleryExtension(local.manifest.name, { version: '2.0.0' });
 		let exactVersionRequestCount = 0;
+		await instantiationService.get(IConfigurationService).updateValue(ExtensionGalleryServiceUrlConfigKey, 'https://marketplace.example.com');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', true);
 		instantiationService.stub(IExtensionGalleryService, 'getExtensions', async (_extensionInfos: ReadonlyArray<IExtensionInfo>, options: CancellationToken | IExtensionQueryOptions) => {
@@ -588,8 +591,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 	test('test returned installed version metadata can clear a known block', async () => {
 		const local = aLocalExtension('blocked', { version: '1.0.0' });
-		const gallery = aGalleryExtension(local.manifest.name, { version: '2.0.0', private: true });
+		const gallery = aGalleryExtension(local.manifest.name, { version: '2.0.0' });
 		const installedGallery = aGalleryExtension(local.manifest.name, { version: local.manifest.version });
+		await instantiationService.get(IConfigurationService).updateValue(ExtensionGalleryServiceUrlConfigKey, 'https://marketplace.example.com');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', true);
 		instantiationService.stub(IExtensionGalleryService, 'getExtensions', async (_extensionInfos: ReadonlyArray<IExtensionInfo>, options: CancellationToken | IExtensionQueryOptions) =>
@@ -632,6 +636,28 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			outdatedCount: 0,
 			autoUpdate: false
 		});
+	});
+
+	test('test blocked extensions are rejected by direct and cross-server install paths', async () => {
+		const local = aLocalExtension('blocked');
+		const gallery = aGalleryExtension(local.manifest.name);
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, local, gallery, undefined);
+		extension.setBlockingInfo({ origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Extension });
+		const installFromGallery = sinon.spy(async () => local);
+		instantiationService.stub(IWorkbenchExtensionManagementService, 'installFromGallery', installFromGallery);
+		testObject = await aWorkbenchService();
+		const server = instantiationService.get(IExtensionManagementServerService).localExtensionManagementServer!;
+
+		for (const install of [
+			() => testObject.install(extension),
+			() => testObject.installInServer(extension, server),
+		]) {
+			await assert.rejects(install, error => error instanceof ExtensionManagementError
+				&& error.code === ExtensionManagementErrorCode.NotAllowed
+				&& error.message === 'This extension is not permitted by your organization\'s policy.');
+		}
+
+		assert.strictEqual(installFromGallery.callCount, 0);
 	});
 
 	test('test extension state computation', async () => {

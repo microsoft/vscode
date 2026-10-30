@@ -2184,10 +2184,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private async getInstalledVersionBlockingInfo(galleryExtensions: IGalleryExtension[]): Promise<ReadonlyMap<string, IExtensionBlockingInfo | undefined>> {
 		const result = new Map<string, IExtensionBlockingInfo | undefined>();
+		if (!this.configurationService.getValue<string>(ExtensionGalleryServiceUrlConfigKey)) {
+			return result;
+		}
 		const extensionInfos: IExtensionInfo[] = [];
 		for (const installed of this.local) {
 			const gallery = galleryExtensions.find(gallery => areSameExtensions(gallery.identifier, installed.identifier));
-			if (!gallery?.private
+			if (!gallery
 				|| gallery.blockingInfo?.scope === ExtensionBlockingScope.Extension
 				|| gallery.version === installed.version) {
 				continue;
@@ -2808,6 +2811,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				throw new Error(nls.localize('malicious', "This extension is reported to be problematic."));
 			}
 
+			if (extension?.blockingInfo) {
+				throw new ExtensionManagementError(getExtensionBlockedMessage(extension.blockingInfo).value, ExtensionManagementErrorCode.NotAllowed);
+			}
+
 			if (gallery) {
 				// If requested to install everywhere
 				// then install the extension in all the servers where it is not installed
@@ -2904,6 +2911,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	async installInServer(extension: IExtension, server: IExtensionManagementServer, installOptions?: InstallOptions): Promise<void> {
+		if (extension.blockingInfo) {
+			throw new ExtensionManagementError(getExtensionBlockedMessage(extension.blockingInfo).value, ExtensionManagementErrorCode.NotAllowed);
+		}
 		await this.doInstall(extension, async () => {
 			const local = extension.local;
 			if (!local) {
