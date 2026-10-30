@@ -136,6 +136,13 @@ steps:
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.APISCAN_NODE_MODULES_RESTORED, 'true'))
 
+  # NuGetAuthenticate@1 exposes its access token to all later steps as the
+  # VSS_NUGET_ACCESSTOKEN environment variable, from where they can write it to
+  # logs. Only installing dependencies needs it, so clear it now.
+  - powershell: echo "##vso[task.setvariable variable=VSS_NUGET_ACCESSTOKEN]"
+    displayName: Clear package feed credentials
+    condition: always()
+
   - powershell: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
     displayName: Verify native optional dependency binaries
 

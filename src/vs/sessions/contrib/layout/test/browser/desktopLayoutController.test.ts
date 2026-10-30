@@ -1907,8 +1907,8 @@ suite('DesktopLayoutController', () => {
 				editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
 				auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
 			},
-			{ editorVisible: false, auxiliaryBarVisible: true },
-			'the persisted composition must be restored on the first visit after a fresh restart'
+			{ editorVisible: false, auxiliaryBarVisible: false },
+			'the persisted docked-only composition must not reveal the pane after a fresh restart'
 		);
 		assert.deepStrictEqual(
 			harness.applyWorkingSetCalls,

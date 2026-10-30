@@ -33,7 +33,6 @@
 		"src/extension/test/node/fixtures/**/*",
 		"src/extension/prompts/node/test/fixtures/**/*",
 		"src/extension/typescriptContext/serverPlugin/fixtures/**",
-		"src/extension/completions-core/vscode-node/extension/src/copilotPanel/webView/suggestionsPanelWebview.ts",
-		"test/aml/out"
+		"src/extension/completions-core/vscode-node/extension/src/copilotPanel/webView/suggestionsPanelWebview.ts"
 	]
 }

@@ -857,9 +857,11 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
-			.split('\n').find(line => line.startsWith('Artifacts and references with an integration'));
+			.split('\n').find(line => line.startsWith('Integrations decide which artifacts and references get pills of their own'));
 
 		assert.deepStrictEqual({
+			listedInKindPills: content?.includes('Other integrated artifacts and references are listed in the Artifacts, References, Pull Requests or Issues pill'),
+			listedRowDetails: content?.includes('where Enter or Space opens the artifact\'s details and the row\'s Open action opens the resource'),
 			mainDetails: content?.includes('Enter or Space on a main pill opens an input-width details panel'),
 			runOnce: content?.includes('Actions below the lists run once'),
 			standingPermission: content?.includes('standing permission'),
@@ -869,7 +871,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			switchKeyboard: content?.includes('Space to change a switch'),
 			listKeyboard: content?.includes('arrow keys navigate list rows'),
 			oldActionsSegment: content?.includes('Actions button'),
-		}, { mainDetails: true, runOnce: true, standingPermission: true, turningOff: true, sharedAutomation: true, enabledAutomation: true, switchKeyboard: true, listKeyboard: true, oldActionsSegment: false });
+		}, { listedInKindPills: true, listedRowDetails: true, mainDetails: true, runOnce: true, standingPermission: true, turningOff: true, sharedAutomation: true, enabledAutomation: true, switchKeyboard: true, listKeyboard: true, oldActionsSegment: false });
 	});
 
 	test('describes grouped artifact pills, their list navigation, and pinning', () => {
