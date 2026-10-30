@@ -85,6 +85,8 @@ Repository operations use `RepositoryRef` (`{ owner, repo }`). Typed request met
 - **Raw repository content:** reads are anonymous and confined to the configured raw origin and pinned repository/commit path. The text-download limit is 1 MiB; mutable refs must first be resolved to a full SHA-1 or SHA-256 commit. Raw files are not fetched through arbitrary response-provided URLs. See the [content client](common/content/contentClient.ts).
 - **Legacy resources and guarded mutations:** existing [subscriptions](common/githubQueryService.ts) and [compound mutations](common/githubPullRequestMutationService.ts) retain their own polling, reconciliation, and authorization rules. A raw endpoint call is not a replacement for guarded merging or reply-and-resolve behavior; an unpublished review reply must not be treated as a published comment.
 
+The workbench's [session feed](../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionFeed.ts) uses exponential reconnect backoff with jitter (one-second base, 60-second cap), resetting only after a connection stays healthy for 60 seconds. A failed HTTP negotiation still stops feed retries for that lifetime; discovery polling remains available.
+
 ## Request execution
 
 The [transport](common/githubTransport.ts), [queue](common/requestQueue.ts), and [rate-limit coordinator](common/githubRateLimitCoordinator.ts) provide shared execution policy:

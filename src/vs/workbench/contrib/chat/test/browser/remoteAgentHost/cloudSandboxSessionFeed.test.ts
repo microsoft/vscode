@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -57,6 +57,7 @@ function createFeed(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly autoReady?: boolean;
 	readonly socketError?: boolean;
 	readonly onInvalidate?: () => void;
+	readonly disconnectAfterMs?: number;
 }) {
 	const instantiationService = store.add(new TestInstantiationService());
 	const sockets: TestSocket[] = [];
@@ -90,6 +91,9 @@ function createFeed(store: Pick<DisposableStore, 'add'>, options?: {
 		sockets.push(socket);
 		if (options?.autoReady !== false) {
 			queueMicrotask(() => socket.receive({ type: 'system', event: 'connected' }));
+		}
+		if (options?.disconnectAfterMs !== undefined) {
+			store.add(disposableTimeout(() => socket.disconnect(), options.disconnectAfterMs));
 		}
 		return socket;
 	}));
@@ -250,6 +254,36 @@ suite('CloudSandboxSessionFeed', () => {
 		assert.deepStrictEqual({ disconnected, sockets: h.sockets.length, connected: h.feed.connected, refreshes: h.invalidations }, {
 			disconnected: false, sockets: 2, connected: true, refreshes: [false],
 		});
+	}));
+
+	test('backs off short-lived sockets and resets only after a healthy connection', () => runWithFakedTimers<void>({ useFakeTimers: true, maxTaskCount: 1000 }, async () => {
+		const h = createFeed(store);
+		await h.feed.start();
+		const attempts: { beforeMinimum: number; afterMaximum: number }[] = [];
+		for (const maximumDelay of [1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 60_000, 60_000]) {
+			const before = h.requests.length;
+			h.sockets[h.sockets.length - 1].disconnect();
+			await timeout(maximumDelay / 2 - 1);
+			const beforeMinimum = h.requests.length - before;
+			await timeout(maximumDelay / 2 + 2);
+			attempts.push({ beforeMinimum, afterMaximum: h.requests.length - before });
+		}
+		await timeout(60_001);
+		h.sockets[h.sockets.length - 1].disconnect();
+		await timeout(1_001);
+		assert.deepStrictEqual({ attempts, requests: h.requests.length, connected: h.feed.connected }, {
+			attempts: Array.from({ length: 8 }, () => ({ beforeMinimum: 0, afterMaximum: 1 })),
+			requests: 10,
+			connected: true,
+		});
+	}));
+
+	test('bounds negotiations when successful sockets repeatedly close after two seconds', () => runWithFakedTimers<void>({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+		const h = createFeed(store, { disconnectAfterMs: 2_000 });
+		await h.feed.start();
+		await timeout(30 * 60_000 - 1);
+		h.feed.dispose();
+		assert.ok(h.requests.length > 20 && h.requests.length <= 65, `Expected bounded ongoing recovery, got ${h.requests.length} negotiations in 30 minutes`);
 	}));
 
 	test('probes disabled feeds once without opening a socket or retrying', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
