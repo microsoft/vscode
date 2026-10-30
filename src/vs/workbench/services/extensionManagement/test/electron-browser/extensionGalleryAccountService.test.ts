@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { bufferToStream, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -31,6 +32,7 @@ suite('MicrosoftGalleryAccountProvider - protected resource metadata', () => {
 	const signInScopes = ['openid', 'profile'];
 	const resourceScopes = ['marketplace.read'];
 	const cacheLifetime = 5 * 60 * 1000;
+	const absenceLifetime = 30 * 1000;
 	const session: AuthenticationSession = {
 		id: 'session',
 		accessToken: 'signin-token',
@@ -149,9 +151,180 @@ suite('MicrosoftGalleryAccountProvider - protected resource metadata', () => {
 		assert.deepStrictEqual({ beforeExpiration, afterExpiration: requests.length }, { beforeExpiration: 1, afterExpiration: 2 });
 	}));
 
+	for (const statuses of [[404, 404], [410, 410], [404, 410], [410, 404]]) {
+		test(`caches confirmed absence after ${statuses.join(' and ')} from every endpoint`, async () => {
+			requestHandler = options => response({}, statuses[options.url === `${metadataUrl}/other` ? 0 : 1]);
+			const provider = createProvider();
+			await Promise.all([provider.getAccount(otherMarketplaceUrl), provider.getAccount(otherMarketplaceUrl)]);
+			requestHandler = () => metadataResponse(otherMarketplaceUrl);
+			await provider.getAccount(otherMarketplaceUrl);
+
+			assert.deepStrictEqual(requests.map(request => request.url), [`${metadataUrl}/other`, metadataUrl]);
+		});
+	}
+
+	test('expires confirmed absence thirty seconds after completion without extending on reads', () => runWithFakedTimers({}, async () => {
+		requestHandler = async () => {
+			await timeout(1000);
+			return response({}, 404);
+		};
+		const provider = createProvider();
+		await provider.getAccount(marketplaceUrl);
+		requestHandler = () => metadataResponse();
+		await timeout(absenceLifetime - 1);
+		await provider.getAccount(marketplaceUrl);
+		const beforeExpiration = requests.length;
+		await timeout(1);
+		await Promise.all([provider.getAccount(marketplaceUrl), provider.getAccount(marketplaceUrl)]);
+		await timeout(absenceLifetime);
+		await provider.getAccount(marketplaceUrl);
+
+		assert.deepStrictEqual({ beforeExpiration, afterExpiration: requests.length }, { beforeExpiration: 1, afterExpiration: 2 });
+	}));
+
+	test('coalesces pending absence discovery without caching an unfinished attempt', () => runWithFakedTimers({}, async () => {
+		const pending = new DeferredPromise<IRequestContext>();
+		const started = new DeferredPromise<void>();
+		requestHandler = options => {
+			if (options.url === `${metadataUrl}/other`) {
+				return response({}, 404);
+			}
+			started.complete();
+			return pending.p;
+		};
+		const provider = createProvider();
+		let settled = false;
+		const accounts = Promise.all([provider.getAccount(otherMarketplaceUrl), provider.getAccount(otherMarketplaceUrl)]);
+		accounts.then(() => settled = true);
+		await started.p;
+		await timeout(absenceLifetime + 1);
+		const joinedAccount = provider.getAccount(otherMarketplaceUrl);
+		const settledBeforeCompletion = settled;
+		await pending.complete(response({}, 410));
+		await Promise.all([accounts, joinedAccount]);
+		requestHandler = () => metadataResponse(otherMarketplaceUrl);
+		await provider.getAccount(otherMarketplaceUrl);
+
+		assert.deepStrictEqual({ settledBeforeCompletion, requests: requests.map(request => request.url) }, {
+			settledBeforeCompletion: false,
+			requests: [`${metadataUrl}/other`, metadataUrl],
+		});
+	}));
+
+	test('retries failures after an absence entry expires', () => runWithFakedTimers({}, async () => {
+		requestHandler = () => response({}, 410);
+		const provider = createProvider();
+		await provider.getAccount(marketplaceUrl);
+		await timeout(absenceLifetime);
+		requestHandler = () => response({}, 503);
+		await provider.getAccount(marketplaceUrl);
+		await provider.getAccount(marketplaceUrl);
+		requestHandler = () => metadataResponse();
+		await provider.getAccount(marketplaceUrl);
+		await provider.getAccount(marketplaceUrl);
+
+		assert.strictEqual(requests.length, 4);
+	}));
+
+	test('bypasses only confirmed absence during explicit sign-in', async () => {
+		requestHandler = () => response({}, 404);
+		resourceSessions = async () => [];
+		const provider = createProvider();
+		await provider.getAccount(marketplaceUrl);
+		requestHandler = () => metadataResponse();
+		await provider.getAccount(marketplaceUrl);
+		const beforeSignIn = requests.length;
+		await provider.signIn();
+		await provider.signIn();
+
+		assert.deepStrictEqual({ beforeSignIn, afterSignIn: requests.length, createdSessions }, {
+			beforeSignIn: 1,
+			afterSignIn: 2,
+			createdSessions: [
+				{ scopes: signInScopes, authorizationServer: undefined },
+				{ scopes: resourceScopes, authorizationServer },
+				{ scopes: signInScopes, authorizationServer: undefined },
+				{ scopes: resourceScopes, authorizationServer },
+			],
+		});
+	});
+
+	test('coalesces concurrent explicit retries of confirmed absence', async () => {
+		requestHandler = () => response({}, 410);
+		const provider = createProvider();
+		await provider.getAccount(marketplaceUrl);
+		const pending = new DeferredPromise<IRequestContext>();
+		const started = new DeferredPromise<void>();
+		requestHandler = () => {
+			started.complete();
+			return pending.p;
+		};
+		const signIns = Promise.all([provider.signIn(), provider.signIn()]);
+		await started.p;
+		await pending.complete(metadataResponse());
+		await signIns;
+
+		assert.strictEqual(requests.length, 2);
+	});
+
+	test('invalidates confirmed absence when the full service URL changes', async () => {
+		requestHandler = () => response({}, 404);
+		const provider = createProvider();
+		await provider.getAccount(marketplaceUrl);
+		requestHandler = options => metadataResponse(options.url === metadataUrl ? marketplaceUrl : otherMarketplaceUrl);
+		await provider.getAccount(otherMarketplaceUrl);
+		await provider.getAccount(marketplaceUrl);
+
+		assert.deepStrictEqual(requests.map(request => request.url), [metadataUrl, `${metadataUrl}/other`, metadataUrl]);
+	});
+
+	test('caches successful fallback metadata despite an earlier absent endpoint', () => runWithFakedTimers({}, async () => {
+		requestHandler = options => options.url === metadataUrl ? metadataResponse() : response({}, 404);
+		const provider = createProvider();
+		await provider.getAccount(otherMarketplaceUrl);
+		await timeout(absenceLifetime);
+		await provider.getAccount(otherMarketplaceUrl);
+
+		assert.deepStrictEqual(requests.map(request => request.url), [`${metadataUrl}/other`, metadataUrl]);
+	}));
+
+	test('does not classify a zero-attempt discovery failure as absence', async () => {
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Check the private result without exposing a test-only API.
+		const result = await createProvider()['discoverProtectedResource']('not a URL');
+
+		assert.deepStrictEqual({ result, requests: requests.length }, { result: undefined, requests: 0 });
+	});
+
+	for (const failure of [
+		{ name: 'a network error', response: (): IRequestContext => { throw new Error('Network failed'); } },
+		{ name: 'cancellation', response: (): IRequestContext => { throw new CancellationError(); } },
+		{ name: 'a timeout', response: (): IRequestContext => { throw new Error('Request timed out'); } },
+		{ name: 'malformed metadata', response: () => response({}) },
+		{ name: 'metadata without an authorization server', response: () => response({ resource: marketplaceUrl }) },
+		{ name: 'an invalid server list', response: () => response({ resource: marketplaceUrl, authorization_servers: authorizationServer }) },
+		{ name: 'invalid scopes', response: () => response({ resource: marketplaceUrl, authorization_servers: [authorizationServer], scopes_supported: [42] }) },
+		...[401, 403, 429, 500, 503].map(status => ({ name: `HTTP ${status}`, response: () => response({}, status) })),
+	]) {
+		for (const missingFirst of [true, false]) {
+			test(`retries ${missingFirst ? 'absence followed by' : 'absence preceded by'} ${failure.name}`, async () => {
+				requestHandler = options => (options.url === `${metadataUrl}/other`) === missingFirst
+					? response({}, 404)
+					: failure.response();
+				const provider = createProvider();
+				await Promise.all([provider.getAccount(otherMarketplaceUrl), provider.getAccount(otherMarketplaceUrl)]);
+				requestHandler = () => metadataResponse(otherMarketplaceUrl);
+				await provider.getAccount(otherMarketplaceUrl);
+				await provider.getAccount(otherMarketplaceUrl);
+
+				assert.deepStrictEqual(requests.map(request => request.url), [`${metadataUrl}/other`, metadataUrl, `${metadataUrl}/other`]);
+			});
+		}
+	}
+
 	for (const failure of [
 		{ name: 'network failures', response: () => { throw new Error('Discovery failed'); } },
-		{ name: 'missing metadata', response: () => response({}, 404) },
+		{ name: 'cancelled discovery', response: () => { throw new CancellationError(); } },
+		...[0, 401, 403, 429, 500, 503].map(status => ({ name: `HTTP ${status}`, response: () => response({}, status) })),
 		{ name: 'invalid metadata', response: () => response({ resource: marketplaceUrl, scopes_supported: 'invalid' }) },
 		{ name: 'metadata without an authorization server', response: () => response({ resource: marketplaceUrl }) },
 		...[
@@ -229,6 +402,69 @@ suite('MicrosoftGalleryAccountProvider - protected resource metadata', () => {
 			],
 		});
 	});
+
+	for (const { name, scopes } of [
+		{ name: 'numeric', scopes: [42] },
+		{ name: 'null', scopes: [null] },
+		{ name: 'empty', scopes: [''] },
+		{ name: 'whitespace', scopes: [' '] },
+		{ name: 'space-separated', scopes: ['marketplace.read marketplace.write'] },
+		{ name: 'control-character', scopes: ['marketplace.read\n'] },
+		{ name: 'quoted', scopes: ['marketplace."read'] },
+		{ name: 'backslash', scopes: ['marketplace.\\read'] },
+	]) {
+		test(`preserves the ${name} scope discovery reason without caching or resource acquisition`, async () => {
+			requestHandler = () => response({ resource: marketplaceUrl, authorization_servers: [authorizationServer], scopes_supported: scopes });
+			let resourceLookups = 0;
+			resourceSessions = async () => {
+				resourceLookups++;
+				return [];
+			};
+			const provider = createProvider();
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Verify the private diagnostic without adding a public result field.
+			const discovery = await provider['discoverProtectedResource'](marketplaceUrl);
+			await Promise.all([provider.getAccount(marketplaceUrl), provider.getAccount(marketplaceUrl)]);
+			await provider.signIn();
+			const beforeCorrection = { requests: requests.length, resourceLookups, createdSessions: [...createdSessions] };
+			requestHandler = () => metadataResponse();
+			await provider.getAccount(marketplaceUrl);
+			await provider.signIn();
+
+			assert.deepStrictEqual({ discovery, beforeCorrection, requests: requests.length, resourceLookups, createdSessions }, {
+				discovery: { authorizationServer, scopes: [], invalidScopes: true },
+				beforeCorrection: {
+					requests: 3,
+					resourceLookups: 0,
+					createdSessions: [{ scopes: signInScopes, authorizationServer: undefined }],
+				},
+				requests: 4,
+				resourceLookups: 2,
+				createdSessions: [
+					{ scopes: signInScopes, authorizationServer: undefined },
+					{ scopes: signInScopes, authorizationServer: undefined },
+					{ scopes: resourceScopes, authorizationServer },
+				],
+			});
+		});
+	}
+
+	test('validates the authority before preserving an invalid-scope reason', async () => {
+		requestHandler = () => response({ resource: marketplaceUrl, authorization_servers: ['/tenant'], scopes_supported: [42] });
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Verify the private diagnostic never carries an unvalidated authority.
+		const discovery = await createProvider()['discoverProtectedResource'](marketplaceUrl);
+
+		assert.strictEqual(discovery, undefined);
+	});
+
+	for (const scopes of [['openid', 'profile', 'email', 'offline_access'], ['VSCODE_TENANT:tenant']]) {
+		test(`preserves syntactically valid ${scopes[0]} scope metadata without an invalid-scope flag`, async () => {
+			requestHandler = () => response({ resource: marketplaceUrl, authorization_servers: [authorizationServer], scopes_supported: scopes });
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Scope usability is separate from the private discovery syntax diagnostic.
+			const discovery = await createProvider()['discoverProtectedResource'](marketplaceUrl);
+
+			assert.deepStrictEqual(discovery, { authorizationServer, scopes });
+		});
+	}
 
 	test('preserves Entra authority paths and hosts when caching metadata', async () => {
 		const authorities = [
@@ -351,34 +587,36 @@ suite('MicrosoftGalleryAccountProvider - protected resource metadata', () => {
 		});
 	}
 
-	test('does not restore an old result after switching away and back to the same URL', async () => {
-		const pending = new DeferredPromise<IRequestContext>();
-		const started = new DeferredPromise<void>();
-		requestHandler = () => {
-			started.complete();
-			return pending.p;
-		};
-		const provider = createProvider();
-		const oldAccount = provider.getAccount(marketplaceUrl);
-		await started.p;
-		sessions = [];
-		await provider.getAccount(otherMarketplaceUrl);
-		requestHandler = () => metadataResponse(marketplaceUrl, 'https://login.example.com/updated');
-		sessions = [session];
-		await provider.getAccount(marketplaceUrl);
-		await pending.complete(metadataResponse());
-		await oldAccount;
-		resourceSessions = async () => [];
-		await provider.signIn();
+	for (const status of [200, 404, 410]) {
+		test(`does not restore an old ${status} result after switching away and back to the same URL`, async () => {
+			const pending = new DeferredPromise<IRequestContext>();
+			const started = new DeferredPromise<void>();
+			requestHandler = () => {
+				started.complete();
+				return pending.p;
+			};
+			const provider = createProvider();
+			const oldAccount = provider.getAccount(marketplaceUrl);
+			await started.p;
+			sessions = [];
+			await provider.getAccount(otherMarketplaceUrl);
+			requestHandler = () => metadataResponse(marketplaceUrl, 'https://login.example.com/updated');
+			sessions = [session];
+			await provider.getAccount(marketplaceUrl);
+			await pending.complete(status === 200 ? metadataResponse() : response({}, status));
+			await oldAccount;
+			resourceSessions = async () => [];
+			await provider.signIn();
 
-		assert.deepStrictEqual({ requests: requests.length, createdSessions }, {
-			requests: 2,
-			createdSessions: [
-				{ scopes: signInScopes, authorizationServer: undefined },
-				{ scopes: resourceScopes, authorizationServer: 'https://login.example.com/updated' },
-			],
+			assert.deepStrictEqual({ requests: requests.length, createdSessions }, {
+				requests: 2,
+				createdSessions: [
+					{ scopes: signInScopes, authorizationServer: undefined },
+					{ scopes: resourceScopes, authorizationServer: 'https://login.example.com/updated' },
+				],
+			});
 		});
-	});
+	}
 
 	for (const invalidate of ['URL change', 'expiration', 'metadata refresh', 'provider disposal']) {
 		test(`does not prompt for stale consent after ${invalidate} during silent session lookup`, () => runWithFakedTimers({}, async () => {
@@ -432,22 +670,27 @@ suite('MicrosoftGalleryAccountProvider - protected resource metadata', () => {
 		assert.deepStrictEqual(createdSessions, [{ scopes: signInScopes, authorizationServer: undefined }]);
 	});
 
-	test('does not share metadata with a replacement provider', async () => {
-		const accountService = store.add(instantiationService.createInstance(ExtensionGalleryAccountService));
-		accountService.setAccountProvider(createProvider());
-		await accountService.getAccount(marketplaceUrl);
-		requestHandler = () => metadataResponse(marketplaceUrl, 'https://login.example.com/replacement');
-		accountService.setAccountProvider(createProvider());
-		await accountService.getAccount(marketplaceUrl);
-		resourceSessions = async () => [];
-		await accountService.signIn();
+	for (const initiallyAbsent of [false, true]) {
+		test(`does not share ${initiallyAbsent ? 'confirmed absence' : 'metadata'} with a replacement provider`, async () => {
+			if (initiallyAbsent) {
+				requestHandler = () => response({}, 404);
+			}
+			const accountService = store.add(instantiationService.createInstance(ExtensionGalleryAccountService));
+			accountService.setAccountProvider(createProvider());
+			await accountService.getAccount(marketplaceUrl);
+			requestHandler = () => metadataResponse(marketplaceUrl, 'https://login.example.com/replacement');
+			accountService.setAccountProvider(createProvider());
+			await accountService.getAccount(marketplaceUrl);
+			resourceSessions = async () => [];
+			await accountService.signIn();
 
-		assert.deepStrictEqual({ requests: requests.length, createdSessions }, {
-			requests: 2,
-			createdSessions: [
-				{ scopes: signInScopes, authorizationServer: undefined },
-				{ scopes: resourceScopes, authorizationServer: 'https://login.example.com/replacement' },
-			],
+			assert.deepStrictEqual({ requests: requests.length, createdSessions }, {
+				requests: 2,
+				createdSessions: [
+					{ scopes: signInScopes, authorizationServer: undefined },
+					{ scopes: resourceScopes, authorizationServer: 'https://login.example.com/replacement' },
+				],
+			});
 		});
-	});
+	}
 });
