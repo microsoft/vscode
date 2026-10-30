@@ -1097,8 +1097,10 @@ suite('InboxNotificationsView', () => {
 			assert.deepStrictEqual({
 				dismissed: dismiss.args, read: markRead.args, replyDisposed: chatViews[0].disposed,
 				selected: !!container.querySelector('.inbox-notifications-item.selected'), done: done.callCount,
-			}, { dismissed: dismisses ? [[item.id, item]] : [], read: dismisses ? [[session, true]] : [], replyDisposed: false, selected: true,
-				done: kind === InboxNotificationActionKind.MarkDone ? 1 : 0 });
+			}, {
+				dismissed: dismisses ? [[item.id, item]] : [], read: dismisses ? [[session, true]] : [], replyDisposed: false, selected: true,
+				done: kind === InboxNotificationActionKind.MarkDone ? 1 : 0
+			});
 		});
 	}
 
@@ -1311,8 +1313,10 @@ suite('InboxNotificationsView', () => {
 			visual, working, done, focused: document.activeElement === tabs[0],
 			selected: Array.from(container.querySelectorAll<HTMLElement>('.inbox-notifications-item.selected')).map(card => card.dataset.notificationId),
 			composers: newChatViews.length,
-		}, { labels: ['Ready for you 1', 'Working 1', 'Ready to merge 0', 'On hold 0', 'Done 0'],
-			visual: 'Visual', working: ['item-1'], done: 0, focused: true, selected: [], composers: 1 });
+		}, {
+			labels: ['Ready for you 1', 'Working 1', 'Ready to merge 0', 'On hold 0', 'Done 0'],
+			visual: 'Visual', working: ['item-1'], done: 0, focused: true, selected: [], composers: 1
+		});
 	});
 
 	test('toolbar accessible names include their visible labels', () => {

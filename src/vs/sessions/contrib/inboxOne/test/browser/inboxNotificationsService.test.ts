@@ -2152,8 +2152,10 @@ suite('InboxNotificationsService', () => {
 	});
 
 	test('merge readiness requires real checks independently of a merge action and combines review asks', () => {
-		const session = createSession({ id: 'workflow-ci', status: SessionStatus.Completed, updatedAt: 100,
-			pullRequest: { owner: 'owner', repo: 'repo', number: 44 } });
+		const session = createSession({
+			id: 'workflow-ci', status: SessionStatus.Completed, updatedAt: 100,
+			pullRequest: { owner: 'owner', repo: 'repo', number: 44 }
+		});
 		const fixture = createFixture([session]);
 		fixture.gitHubService.setPullRequest('owner', 'repo', 44, openPullRequest(44, 'sha44'));
 		fixture.gitHubService.setCIStatus('owner', 'repo', 44, 'sha44', GitHubCIOverallStatus.Success, []);
@@ -2162,8 +2164,10 @@ suite('InboxNotificationsService', () => {
 		const ready = fixture.service.sessionRows.get()[0];
 		fixture.service.publishExternalNotification({ id: 'review', title: 'Review request', description: 'Check the changes', sessionResource: session.resource });
 		const rows = fixture.service.sessionRows.get();
-		assert.deepStrictEqual({ noChecks, ready: ready.tab, canMerge: ready.notifications.some(item => item.actions.some(action => action.kind === InboxNotificationActionKind.AgentMergeMergePullRequest)),
-			combined: rows.map(row => ({ tab: row.tab, count: row.notifications.length })) }, {
+		assert.deepStrictEqual({
+			noChecks, ready: ready.tab, canMerge: ready.notifications.some(item => item.actions.some(action => action.kind === InboxNotificationActionKind.AgentMergeMergePullRequest)),
+			combined: rows.map(row => ({ tab: row.tab, count: row.notifications.length }))
+		}, {
 			noChecks: InboxTab.ReadyForYou, ready: InboxTab.ReadyToMerge, canMerge: false,
 			combined: [{ tab: InboxTab.ReadyForYou, count: 2 }],
 		});
@@ -2184,7 +2188,8 @@ suite('InboxNotificationsService', () => {
 	});
 
 	test('a partially merged session stays active and all open owned PRs must have passing checks', () => {
-		const session = createSession({ id: 'multi-pr-workflow', status: SessionStatus.Completed, updatedAt: 100,
+		const session = createSession({
+			id: 'multi-pr-workflow', status: SessionStatus.Completed, updatedAt: 100,
 			pullRequests: [{ owner: 'owner', repo: 'repo', number: 44 }, { owner: 'owner', repo: 'repo', number: 45 }],
 		});
 		const fixture = createFixture([session]);

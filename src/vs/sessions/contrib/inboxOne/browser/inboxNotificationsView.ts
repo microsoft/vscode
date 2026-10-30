@@ -1262,8 +1262,10 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		const actions = trailing.appendChild($('.inbox-notifications-row-actions'));
 		if (row && row.tab !== InboxTab.Done) {
 			card.classList.add('has-actions');
-			const hold = store.add(new Button(actions, { ...inboxButtonStyles, secondary: true, small: true, supportIcons: true,
-				ariaLabel: row.tab === InboxTab.OnHold ? localize('inbox.resume', "Resume") : localize('inbox.hold', "Put on Hold") }));
+			const hold = store.add(new Button(actions, {
+				...inboxButtonStyles, secondary: true, small: true, supportIcons: true,
+				ariaLabel: row.tab === InboxTab.OnHold ? localize('inbox.resume', "Resume") : localize('inbox.hold', "Put on Hold")
+			}));
 			hold.label = row.tab === InboxTab.OnHold ? '$(play)' : '$(history)';
 			store.add(hold.onDidClick(() => this.inboxNotificationsService.setSessionOnHold(row, row.tab !== InboxTab.OnHold)));
 			this.renderActionButton(actions, row, { id: 'done', label: '$(check)', ariaLabel: localize('inbox.done', "Mark as Done"), kind: InboxNotificationActionKind.MarkDone }, store);
@@ -1274,11 +1276,15 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => card,
 					getActions: () => [
-						...(row.sessionResource ? [toAction({ id: 'open', label: localize('inbox.openSession', "Open Session"),
-							run: () => this.runAction(row, { id: 'open', label: localize('inbox.openSession', "Open Session"), kind: InboxNotificationActionKind.OpenSession }) })] : []),
+						...(row.sessionResource ? [toAction({
+							id: 'open', label: localize('inbox.openSession', "Open Session"),
+							run: () => this.runAction(row, { id: 'open', label: localize('inbox.openSession', "Open Session"), kind: InboxNotificationActionKind.OpenSession })
+						})] : []),
 						...(row.tab !== InboxTab.Done ? [
-							toAction({ id: 'hold', label: row.tab === InboxTab.OnHold ? localize('inbox.resume', "Resume") : localize('inbox.hold', "Put on Hold"),
-								run: () => this.inboxNotificationsService.setSessionOnHold(row, row.tab !== InboxTab.OnHold) }),
+							toAction({
+								id: 'hold', label: row.tab === InboxTab.OnHold ? localize('inbox.resume', "Resume") : localize('inbox.hold', "Put on Hold"),
+								run: () => this.inboxNotificationsService.setSessionOnHold(row, row.tab !== InboxTab.OnHold)
+							}),
 							toAction({ id: 'done', label: localize('inbox.done', "Mark as Done"), run: () => this.inboxNotificationsService.markSessionDone(row) }),
 						] : []),
 					],
@@ -2742,8 +2748,10 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		if (item.sessionResource) {
 			this.renderActionButton(header, item, { id: 'open', label: localize('inbox.openSession', "Open Session"), kind: InboxNotificationActionKind.OpenSession }, this.detailDisposables);
 		}
-		const close = this.detailDisposables.add(new Button(header, { ...inboxButtonStyles, secondary: true, small: true, supportIcons: true,
-			ariaLabel: localize('inbox.closeEvidence', "Close Evidence") }));
+		const close = this.detailDisposables.add(new Button(header, {
+			...inboxButtonStyles, secondary: true, small: true, supportIcons: true,
+			ariaLabel: localize('inbox.closeEvidence', "Close Evidence")
+		}));
 		close.label = '$(close)';
 		this.detailDisposables.add(close.onDidClick(() => {
 			this.focusSelectedCard();

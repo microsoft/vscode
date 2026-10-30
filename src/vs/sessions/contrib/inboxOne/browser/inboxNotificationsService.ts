@@ -689,8 +689,10 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			const represented = new Set(rows.flatMap(row => row.notifications.map(item => item.id)));
 			for (const item of allItems.filter(item => !represented.has(item.id) && !dismissed.has(item.id))) {
 				const saved = workflow.get(item.id);
-				rows.push({ ...item, tab: saved?.hold ? InboxTab.OnHold : saved?.done === item.id ? InboxTab.Done : InboxTab.ReadyForYou,
-					sessionTitle: item.title, notifications: [item], hasImages: false, occurrence: item.id });
+				rows.push({
+					...item, tab: saved?.hold ? InboxTab.OnHold : saved?.done === item.id ? InboxTab.Done : InboxTab.ReadyForYou,
+					sessionTitle: item.title, notifications: [item], hasImages: false, occurrence: item.id
+				});
 			}
 			return rows.sort(this.sortMode.read(reader) === InboxNotificationsSortMode.Priority ? compareInboxNotifications : compareInboxNotificationsByRecency);
 		});
@@ -1383,7 +1385,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			return localize('inbox.action.done', "Review completed work");
 		}
 		if (tab === InboxTab.OnHold) {
-			return localize('inbox.action.hold', "Resume when you’re ready");
+			return localize('inbox.action.hold', "Resume when you're ready");
 		}
 		if (tab === InboxTab.ReadyToMerge) {
 			return localize('inbox.action.merge', "Review and merge changes");
@@ -1392,7 +1394,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			case InboxNotificationKind.NeedsInput:
 			case InboxNotificationKind.ConfirmationRequested:
 				return item.needsInputPart?.kind === 'questionCarousel'
-					? localize('inbox.action.answer', "Answer the agent’s question")
+					? localize('inbox.action.answer', "Answer the agent's question")
 					: localize('inbox.action.approve', "Review the pending request");
 			case InboxNotificationKind.FailingCI:
 				return localize('inbox.action.fixCI', "Address failing checks");
