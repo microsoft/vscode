@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
-import { DisposableStore, type IReference } from '../../../../../base/common/lifecycle.js';
+import { type IReference } from '../../../../../base/common/lifecycle.js';
 import { autorun, ISettableObservable, observableValue, type IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -28,11 +28,7 @@ import { BlockedSessionReason, BlockedSessions } from '../../browser/blockedSess
 
 suite('BlockedSessions', () => {
 
-	const store = new DisposableStore();
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createService(sessions: TestSession[], gitHubService: TestGitHubService) {
 		const management = new TestSessionsManagementService(sessions as unknown as ISession[]);
@@ -97,6 +93,73 @@ suite('BlockedSessions', () => {
 		const session = new TestSession('ci', SessionStatus.Completed, { pr: { owner: 'owner', repo: 'repo', number: 7 } });
 		const { service } = createService([session], gitHub);
 		assert.deepStrictEqual(blockedOccurrences(service), [`${BlockedSessionReason.FailingCI}:sha7`]);
+	});
+
+	test('reports CI failures independently while preserving the input-needed blocked reason', () => {
+		const gitHub = new TestGitHubService();
+		gitHub.setPullRequest('owner', 'repo', 7, openPullRequest(7, 'sha7'));
+		gitHub.setCIStatus('owner', 'repo', 7, 'sha7', GitHubCIOverallStatus.Failure);
+		const session = new TestSession('both', SessionStatus.NeedsInput, { pr: { owner: 'owner', repo: 'repo', number: 7 } });
+		const { service } = createService([session], gitHub);
+		const failingCI: string[][] = [];
+		store.add(autorun(reader => {
+			failingCI.push(service.failingCISessions.read(reader).map(session => session.sessionId));
+		}));
+
+		gitHub.setCIStatus('owner', 'repo', 7, 'sha7', GitHubCIOverallStatus.Success);
+		gitHub.setCIStatus('owner', 'repo', 7, 'sha7', GitHubCIOverallStatus.Failure);
+		session.agentMergeState.set({ enabled: true }, undefined);
+		session.agentMergeState.set({ enabled: true, overrides: { fixCI: false } }, undefined);
+
+		assert.deepStrictEqual({
+			failingCI,
+			blocked: blockedReasons(service),
+			released: gitHub.releasedModels,
+		}, {
+			failingCI: [['both'], [], ['both'], [], ['both']],
+			blocked: [['both', BlockedSessionReason.NeedsInput]],
+			released: [],
+		});
+	});
+
+	for (const { name, status, archived, pullRequest } of [
+		{ name: 'in-progress', status: SessionStatus.InProgress, archived: false, pullRequest: openPullRequest(7, 'sha7') },
+		{ name: 'archived', status: SessionStatus.NeedsInput, archived: true, pullRequest: openPullRequest(7, 'sha7') },
+		{ name: 'draft PR', status: SessionStatus.NeedsInput, archived: false, pullRequest: { ...openPullRequest(7, 'sha7'), isDraft: true } },
+		{ name: 'closed PR', status: SessionStatus.NeedsInput, archived: false, pullRequest: { ...openPullRequest(7, 'sha7'), state: GitHubPullRequestState.Closed } },
+		{ name: 'merged PR', status: SessionStatus.NeedsInput, archived: false, pullRequest: { ...openPullRequest(7, 'sha7'), state: GitHubPullRequestState.Merged } },
+	]) {
+		test(`excludes ${name} sessions from independent CI eligibility`, () => {
+			const gitHub = new TestGitHubService();
+			gitHub.setPullRequest('owner', 'repo', 7, pullRequest);
+			gitHub.setCIStatus('owner', 'repo', 7, 'sha7', GitHubCIOverallStatus.Failure);
+			const session = new TestSession('excluded', status, { archived, pr: { owner: 'owner', repo: 'repo', number: 7 } });
+			const { service } = createService([session], gitHub);
+			store.add(autorun(reader => { service.failingCISessions.read(reader); }));
+
+			assert.deepStrictEqual(service.failingCISessions.get(), []);
+		});
+	}
+
+	test('keeps independent CI models across recomputes and releases them when no longer observed', () => {
+		const gitHub = new TestGitHubService();
+		gitHub.setPullRequest('owner', 'repo', 7, openPullRequest(7, 'sha7'));
+		gitHub.setCIStatus('owner', 'repo', 7, 'sha7', GitHubCIOverallStatus.Failure);
+		const session = new TestSession('both', SessionStatus.NeedsInput, { pr: { owner: 'owner', repo: 'repo', number: 7 } });
+		const { service, management } = createService([session], gitHub);
+		const observer = store.add(autorun(reader => { service.failingCISessions.read(reader); }));
+
+		management.fireDidChangeSessions();
+		const beforeDisposal = {
+			failingCI: service.failingCISessions.get().map(session => session.sessionId),
+			released: [...gitHub.releasedModels],
+		};
+		observer.dispose();
+
+		assert.deepStrictEqual({ beforeDisposal, released: gitHub.releasedModels }, {
+			beforeDisposal: { failingCI: ['both'], released: [] },
+			released: ['owner/repo/7', 'owner/repo/7/sha7'],
+		});
 	});
 
 	test('CI blocking reacts to per-session Agent Merge enablement and Fix CI overrides', () => {

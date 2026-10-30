@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -28,6 +28,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { ActiveTunnelMode, INACTIVE_TUNNEL_MODE, IRemoteTunnelService, TunnelMode, TunnelStatus } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
@@ -45,16 +46,15 @@ class StubProvider extends mock<RemoteAgentHostSessionsProvider>() {
 
 	override readonly id: string;
 	override readonly remoteAddress: string;
-	override readonly label: string;
+	override get label(): string { return this.name; }
 
 	private readonly _status = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.connecting);
 	override readonly connectionStatus = this._status;
 
-	constructor(address: string, name: string) {
+	constructor(address: string, private readonly name: string) {
 		super();
 		this.id = `agenthost-${address}`;
 		this.remoteAddress = address;
-		this.label = name;
 	}
 
 	override setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {
@@ -141,6 +141,11 @@ class StubTunnelService extends Disposable implements ITunnelAgentHostService {
 
 class StubRemoteAgentHostService extends Disposable {
 	declare readonly _serviceBrand: undefined;
+	readonly pendingConnections: { address: string; startedAt: number; userInitiated: boolean }[] = [];
+	private readonly _onDidChangePendingConnections = this._register(new Emitter<void>());
+	readonly onDidChangePendingConnections = this._onDidChangePendingConnections.event;
+
+	firePendingChange(): void { this._onDidChangePendingConnections.fire(); }
 
 	private readonly _onDidChangeConnections = this._register(new Emitter<void>());
 	readonly onDidChangeConnections = this._onDidChangeConnections.event;
@@ -160,10 +165,10 @@ class StubRemoteAgentHostService extends Disposable {
 		this._onDidChangeConnections.fire();
 	}
 
-	setConnectionStatus(address: string, status: RemoteAgentHostConnectionStatus): void {
+	setConnectionStatus(address: string, status: RemoteAgentHostConnectionStatus, lastConnectionError?: string): void {
 		const index = this._connections.findIndex(connection => connection.address === address);
 		if (index >= 0) {
-			this._connections[index] = { ...this._connections[index], status };
+			this._connections[index] = { ...this._connections[index], status, lastConnectionError };
 			this._onDidChangeConnections.fire();
 		}
 	}
@@ -267,10 +272,70 @@ suite('TunnelAgentHostContribution', () => {
 	function createInstantiationService(): TestInstantiationService {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConnectionDiagnosticsService, {
-			trackDiscovery: (_trigger, discover) => discover(),
+			trackDiscovery: (_trigger, discover) => discover(() => { }),
 			recordHostAction: () => { },
 		});
 		return instantiationService;
+	}
+
+	for (const web of [false, true]) {
+		test(`discovery and pending status retain a tunnel warning until retry completion (web=${web})`, async () => {
+			const tunnelService = store.add(new StubTunnelService());
+			const remoteService = store.add(new StubRemoteAgentHostService());
+			const instantiationService = createInstantiationService();
+			instantiationService.stub(ITunnelAgentHostService, tunnelService);
+			instantiationService.stub(IRemoteAgentHostService, remoteService);
+			instantiationService.stub(ISessionsProvidersService, store.add(new StubSessionsProvidersService()));
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }));
+			instantiationService.stub(INotificationService, new TestNotificationService());
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None });
+			instantiationService.stub(ITelemetryService, { publicLog2: () => { } });
+			instantiationService.stub(IHostService, new StubHostService());
+			instantiationService.stub(IRemoteTunnelService, store.add(new StubRemoteTunnelService()));
+			let discover: (() => Promise<void>) | undefined;
+			instantiationService.stub(IAgentHostFilterService, {
+				registerDiscoveryHandler: handler => {
+					discover = handler;
+					return toDisposable(() => { discover = undefined; });
+				},
+				rediscover: async () => true,
+			});
+			const contribution = store.add(instantiationService.createInstance(class extends TestTunnelContribution {
+				protected override get isWebPlatform(): boolean { return web; }
+			}));
+			const tunnel = { tunnelId: 'retained', clusterId: 'use', name: 'Retained warning', hostConnectionCount: 0, protocolVersion: 6, tags: [] };
+			tunnelService.setCached([tunnel]);
+			tunnelService.setListed([tunnel]);
+			assert.ok(discover);
+			await discover();
+			const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
+			remoteService.addConnection({
+				address, name: tunnel.name, clientId: undefined,
+				status: RemoteAgentHostConnectionStatus.disconnected, lastConnectionError: 'First failure',
+			}, new class extends mock<IAgentConnection>() { }());
+			const provider = contribution.stubProviders.get(address)!;
+			const warnings: (string | undefined)[] = [];
+			const lastError = () => remoteService.connections.find(connection => connection.address === address)?.lastConnectionError;
+			const listener = store.add(autorun(reader => {
+				provider.connectionStatus.read(reader);
+				warnings.push(lastError());
+			}));
+			remoteService.pendingConnections.push({ address, startedAt: Date.now(), userInitiated: false });
+			remoteService.firePendingChange();
+			await discover();
+			remoteService.setConnectionStatus(address, RemoteAgentHostConnectionStatus.connecting, 'First failure');
+			await discover();
+			listener.dispose();
+			remoteService.pendingConnections.length = 0;
+			remoteService.setConnectionStatus(address, RemoteAgentHostConnectionStatus.disconnected, 'Retry failed');
+			const afterFailure = lastError();
+			remoteService.setConnectionStatus(address, RemoteAgentHostConnectionStatus.connected);
+			assert.deepStrictEqual({
+				retained: warnings.length > 0 && warnings.every(warning => warning === 'First failure'),
+				afterFailure, afterSuccess: lastError(),
+			}, { retained: true, afterFailure: 'Retry failed', afterSuccess: undefined });
+		});
 	}
 
 	test('newly-cached tunnel binds to subsequent live connection', async () => {
@@ -309,6 +374,19 @@ suite('TunnelAgentHostContribution', () => {
 		assert.ok(provider, 'provider should be created for the cached tunnel');
 		assert.strictEqual(provider!.setConnectionCalls.length, 0, 'no live connection yet — wire-up must wait');
 
+		remoteService.pendingConnections.push({ address, startedAt: Date.now(), userInitiated: false });
+		remoteService.firePendingChange();
+		tunnelService.setListed([{ tunnelId, clusterId: 'use', name: 'My Tunnel', hostConnectionCount: 1, protocolVersion: 6, tags: [] }]);
+		await (contribution as unknown as { _silentStatusCheck(): Promise<void> })._silentStatusCheck();
+		assert.deepStrictEqual({
+			status: provider!.connectionStatus.get().kind,
+			connectionEntries: remoteService.connections.length,
+		}, { status: 'connecting', connectionEntries: 0 });
+
+		remoteService.pendingConnections.length = 0;
+		remoteService.firePendingChange();
+		assert.strictEqual(provider!.connectionStatus.get().kind, 'disconnected');
+
 		// Step 2: announce the live connection — `_wireConnections` should bind it.
 		remoteService.addConnection({
 			address,
@@ -331,7 +409,7 @@ suite('TunnelAgentHostContribution', () => {
 	});
 
 	for (const web of [false, true]) {
-		test(`on-demand connect preserves ${web ? 'web' : 'native'} suppression semantics`, async () => {
+		test(`on-demand ${web ? 'web' : 'native'} connect leaves suppression clearing to connection staging`, async () => {
 			const tunnelService = store.add(new StubTunnelService());
 			const remoteService = store.add(new StubRemoteAgentHostService());
 			const providersService = store.add(new StubSessionsProvidersService());
@@ -374,7 +452,7 @@ suite('TunnelAgentHostContribution', () => {
 				providers: providersService.getProviders().map(provider => provider.id),
 			}, {
 				dismissed: false,
-				suppressed: !web,
+				suppressed: true,
 				connectCalls: [true],
 				providers: [`agenthost-${address}`],
 			});
@@ -391,7 +469,7 @@ suite('TunnelAgentHostContribution', () => {
 		instantiationService.stub(IConnectionDiagnosticsService, {
 			trackDiscovery: async (trigger, discover) => {
 				recorded.push(trigger);
-				return discover();
+				return discover(() => { });
 			},
 		});
 		instantiationService.stub(ITunnelAgentHostService, tunnelService);

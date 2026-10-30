@@ -13,9 +13,9 @@ import { CheckoutBlockedByLocalChangesError, IAgentHostGitService } from '../../
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { CheckoutOperationPreAction, checkoutOperationMeta } from '../../common/meta/agentCheckoutOperationMeta.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostCheckoutOperationHandler } from '../../node/agentHostCheckoutOperationHandler.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 
 suite('AgentHostCheckoutOperationHandler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -32,7 +32,11 @@ suite('AgentHostCheckoutOperationHandler', () => {
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
 			workingDirectories: [workingDirectory.toString()],
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
+		const peer = buildChatUri(session.toString(), 'peer');
+		const peerWorkingDirectory = URI.file('/peer-repo');
+		stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, buildDefaultChatUri(session.toString())), { workingDirectories: [peerWorkingDirectory.toString()] });
 		const gitCalls: string[] = [];
 		const gitService = new class extends mock<IAgentHostGitService>() {
 			declare readonly _serviceBrand: undefined;
@@ -57,10 +61,11 @@ suite('AgentHostCheckoutOperationHandler', () => {
 			async sessionKey => { refreshedSessions.push(sessionKey); },
 			gitService,
 			new NullLogService(),
+			stateManager,
 		);
 
 		const result = await handler.invoke({
-			channel: buildUncommittedChangesetUri(session.toString()),
+			channel: buildUncommittedChangesetUri(peer),
 			operationId: AgentHostCheckoutOperationHandler.OPERATION_CHECKOUT,
 			_meta: checkoutOperationMeta('dev'),
 		}, CancellationToken.None);
@@ -93,11 +98,11 @@ suite('AgentHostCheckoutOperationHandler', () => {
 			missingBranchErrorCode: missingBranchError?.code,
 		}, {
 			gitCalls: [
-				`branchExists:${workingDirectory.toString()}:dev`,
-				`checkout:${workingDirectory.toString()}:dev`,
+				`branchExists:${peerWorkingDirectory.toString()}:dev`,
+				`checkout:${peerWorkingDirectory.toString()}:dev`,
 				`branchExists:${workingDirectory.toString()}:missing`,
 			],
-			refreshedSessions: [session.toString()],
+			refreshedSessions: [peer],
 			message: { markdown: 'Checked out branch `dev`.' },
 			optionErrorCode: JsonRpcErrorCodes.InvalidParams,
 			missingBranchErrorCode: JsonRpcErrorCodes.InvalidParams,
@@ -116,6 +121,7 @@ suite('AgentHostCheckoutOperationHandler', () => {
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
 			workingDirectories: [workingDirectory.toString()],
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		const gitCalls: string[] = [];
 		const gitService = new class extends mock<IAgentHostGitService>() {
@@ -150,6 +156,7 @@ suite('AgentHostCheckoutOperationHandler', () => {
 			async sessionKey => { refreshedSessions.push(sessionKey); },
 			gitService,
 			new NullLogService(),
+			stateManager,
 		);
 		const invoke = (preCheckoutAction?: CheckoutOperationPreAction) => handler.invoke({
 			channel: buildUncommittedChangesetUri(session.toString()),
@@ -210,6 +217,7 @@ suite('AgentHostCheckoutOperationHandler', () => {
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
 			workingDirectories: [workingDirectory.toString()],
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		const gitService = new class extends mock<IAgentHostGitService>() {
 			declare readonly _serviceBrand: undefined;
@@ -227,6 +235,7 @@ suite('AgentHostCheckoutOperationHandler', () => {
 			() => { },
 			gitService,
 			new NullLogService(),
+			stateManager,
 		);
 
 		let checkoutError: ProtocolError | undefined;

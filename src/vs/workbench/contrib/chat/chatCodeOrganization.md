@@ -2,6 +2,20 @@
 
 This contrib is, as of the end of 2025, the largest workbench contrib in VS Code by a substantial margin. Let's try to keep it organized! Here's a rough description of some of the key folders.
 
+## Agents titlebar experiments
+
+The desktop editor titlebar action reads the string treatment `chatOpenInAgentsTitleBarLabel` for users who have not created a session in the Agents Window. It replaces the expanding hover/focus label, tooltip, and accessible name; without a valid non-empty string, the existing localized copy is retained. Other commands and menus keep their existing labels.
+
+Eligibility reads `AgentsWindowUsage.createdSessionCount`. The helper wraps the existing application-scoped `AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY` counter (`agentSessions.telemetry.totalSessions`), defaults missing values to zero, and provides change notifications without callers needing the storage key or scope. No additional usage state is stored. When the count becomes positive, the action restores its default copy.
+
+Onboarding tours, new-session composer tips and first-run notices, Agents Window launch handling, and lifecycle telemetry also read this count through the helper. The lifecycle tracker remains responsible for incrementing the existing counter when a new session starts.
+
+For local testing, set `"experiments.override.chatOpenInAgentsTitleBarLabel": "Try Agents"` in user settings with a fresh profile/data directory. Assignments are refreshed through the assignment service. A triggered scorecard can use `monacoworkbench/experimentTrigger` with `treatmentName == "chatOpenInAgentsTitleBarLabel"`; eligible rendered actions log the trigger in both control and treatment.
+
+The boolean treatment `chatOpenInAgentsTitleBarExpandOnHover` applies to all users, independently of the copy experiment. It defaults to `true`; `false` keeps the action icon-only on pointer hover, while keyboard focus still reveals the label. Tooltips, accessible names, and action behavior remain available. Set `"experiments.override.chatOpenInAgentsTitleBarExpandOnHover": false` to test locally. Its `experimentTrigger` fires on pointer hover in both arms after the assignment resolves.
+
+The experimental setting `chat.titleBar.openInAgentsWindow.richHover` (`experiment: { mode: 'auto' }`) controls what users who are new to the Agents Window (`createdSessionCount < 2`) see when they hover or focus the action. `none` keeps the simple tooltip and the expanding label. The other values show a hover card (`AgentsWindowHoverCard`: a compact graphic, a title, a description, and an Open Agents Window button) and keep the action icon-only, even on keyboard focus. Each is named after its graphic, like the values of `chat.welcomePage.agentsWindowGraphic`: `manyWindowsToOne` shows editor windows for several projects becoming one Agents Window, and `windowComparison` shows the editor window and the Agents Window side by side. The card uses the same managed hover as the tooltip, so it also shows on keyboard focus and can be focused with Cmd/Ctrl+K Cmd/Ctrl+I. Other users always see the simple tooltip, and the action switches as the count or the setting changes. Its `experimentTrigger` (`treatmentName == "config.chat.titleBar.openInAgentsWindow.richHover"`) fires in every arm when a new user hovers or focuses the action. While the card shows, the label never does, so the card arms neither apply nor trigger the copy and expansion treatments. Set `"chat.titleBar.openInAgentsWindow.richHover": "manyWindowsToOne"` or `"windowComparison"` with a fresh profile/data directory to test locally.
+
 ## Key Folders
 
 ### `browser/`
@@ -23,3 +37,13 @@ This contrib is, as of the end of 2025, the largest workbench contrib in VS Code
 - `participants/` - Chat participant management (sometimes called "agents" in code).
 - `tools/` - Language model tools infrastructure and services.
 	- `builtinTools/` - Implementations of some built-in tools.
+
+## Rejected Agent Host requests
+
+`AgentHostSessionHandler` listens for a local `chat/turnStarted` rejection before dispatch, including while subscription updates are buffered, and reports the reason through the normal failed-request UI. The prompt and error remain in the live transcript, including across history refreshes, without restoring text over a newer composer draft. Rejected requests are not added to the host's accepted turn history.
+
+## Markdown file images
+
+Response Markdown targets are resolved by the owning session content provider before rendering. Agent Host paths retain their connection identity in `vscode-agent-host:` URIs; relative image paths use the session or chat's advertised working directory. Recorded cloud history preserves this identity without requiring a live connection.
+
+For Agent Host resources, chat permits parsed Markdown images only when they resolve to eligible local files on the owning connection. HTTP(S), network-file paths, and other connections remain disallowed before media sources are activated. Image eligibility is separate from byte delivery: the normal Markdown renderer uses `FileAccess` and the shared `IBrowserResourceService`, which reads through `IFileService`. Desktop and web embedders with a resource handler serve window-issued resource URLs; web hosts without a handler use render-scoped object URLs. The resource bridge does not connect to or resume a sandbox.

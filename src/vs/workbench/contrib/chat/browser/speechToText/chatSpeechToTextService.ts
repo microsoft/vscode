@@ -17,6 +17,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IProgress, IProgressService, IProgressStep, Progress, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { NotificationTelemetryId } from '../../../../../platform/notification/common/notificationTelemetry.js';
 import { DeferredPromise, raceCancellation, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -32,6 +33,7 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../common/languageModels.js';
+import { IChatUtilityModelService } from '../../common/chatUtilityModelService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
 import { getMediaCaptureWindow } from '../voiceClient/micCaptureService.js';
@@ -153,6 +155,11 @@ type DictationCleanupModel = 'none' | 'copilot-utility-small' | 'gpt-5.6-luna';
  * - `mai`: the cloud transcription service.
  */
 type DictationBackend = 'nemo' | 'mai';
+
+type BackendFinalizationResult = {
+	readonly text: string | undefined;
+	readonly timedOut: boolean;
+};
 
 export function isDictationEntitled(entitlement: ChatEntitlement, isInternal: boolean, usesMai: boolean): boolean {
 	return !usesMai || entitlement !== ChatEntitlement.Enterprise || isInternal;
@@ -555,6 +562,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
+		@IChatUtilityModelService private readonly _chatUtilityModelService: IChatUtilityModelService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 	) {
@@ -1067,7 +1075,9 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		if (generation !== this._sessionGeneration) {
 			return;
 		}
-		if (status.state !== LocalTranscriptionModelState.Ready && status.state !== LocalTranscriptionModelState.Error) {
+		if (status.state === LocalTranscriptionModelState.Error) {
+			this._handleModelStatus(status);
+		} else if (status.state !== LocalTranscriptionModelState.Ready) {
 			this._trackModelPreparation();
 		}
 	}
@@ -1178,6 +1188,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			let report: IProgress<IProgressStep> = Progress.None;
 			this._progressService.withProgress({
 				location: ProgressLocation.Notification,
+				telemetry: NotificationTelemetryId.DictationModelPrepare,
 				title: localize('chatStt.preparingModel', "Preparing speech-to-text model…"),
 				delay: 500,
 			}, progress => {
@@ -1248,9 +1259,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	 * attached to the notification when the failure is actionable.
 	 */
 	private _failSession(errorCode: string, message: string, action?: IAction): void {
-		if (this._state === ChatSpeechToTextState.Idle) {
+		if (this._state === ChatSpeechToTextState.Idle && this._startInProgress === undefined) {
 			return;
 		}
+		this._sessionGeneration++;
+		this._startGeneration++;
 		this._sessionErrorCode = this._sessionErrorCode || errorCode;
 		this._logSessionTelemetry('error');
 		this._cancelBackend();
@@ -1306,18 +1319,21 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		let text = liveTranscript;
 		let hasAuthoritativeFinal = false;
 		try {
-			const finalText = await this._finishBackend();
+			const finalization = await this._finishBackend();
 			if (generation !== this._sessionGeneration) {
 				return undefined;
 			}
 			hasAuthoritativeFinal = this._activeBackend === 'mai' && this._maiReceivedFinal;
 			text = hasAuthoritativeFinal
-				? selectAuthoritativeDictationTranscript(liveTranscript, finalText)
+				? selectAuthoritativeDictationTranscript(liveTranscript, finalization.text)
 				: selectFinalDictationTranscript(
 					liveTranscript,
-					finalText,
+					finalization.text,
 					this._activeBackend !== 'mai' && options?.preserveLiveTranscript === true,
 				);
+			if (this._activeBackend === 'nemo' && finalization.timedOut && !stripDictationFillers(text)) {
+				this._sessionErrorCode = this._sessionErrorCode || 'transcribe.timeout';
+			}
 		} catch (err) {
 			if (generation !== this._sessionGeneration) {
 				return undefined;
@@ -1445,49 +1461,17 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			const requestOptions = selectedCleanupModel === LLM_CLEANUP_LUNA_MODEL_ID
 				? { configuration: { reasoningEffort: 'none' } }
 				: {};
-			const response = await raceCancellation(
-				this._languageModelsService.sendChatRequest(
-					models[0],
-					undefined,
-					[
-						{ role: ChatMessageRole.System, content: [{ type: 'text', value: systemPrompt }] },
-						{ role: ChatMessageRole.User, content: [{ type: 'text', value: transcriptPayload }] },
-					],
-					requestOptions,
-					cts.token,
-				),
-				cts.token,
-			);
-			if (!response) {
+			let cleaned = await this._chatUtilityModelService.sendRequest({
+				purpose: 'dictationCleanup',
+				model: models[0],
+				messages: [
+					{ role: ChatMessageRole.System, content: [{ type: 'text', value: systemPrompt }] },
+					{ role: ChatMessageRole.User, content: [{ type: 'text', value: transcriptPayload }] },
+				],
+				options: requestOptions,
+			}, cts.token);
+			if (cleaned === undefined || cts.token.isCancellationRequested) {
 				this._logService.info(`[chat-stt] skipped language model cleanup (reason=${timedOut ? 'timeout' : 'cancelled'}, phase=${phase}, elapsedMs=${Date.now() - cleanupStartMs}); using raw transcript`);
-				return undefined;
-			}
-			this._logService.trace(`[chat-stt] language model cleanup request started (elapsedMs=${Date.now() - cleanupStartMs})`);
-
-			// Consume the stream with strict error propagation and await the
-			// result: `getTextResponseFromStream` would return accumulated partial
-			// text on a mid-stream failure, which could replace the complete raw
-			// transcript with a truncated one. Any error here falls through to the
-			// catch and yields `undefined` (raw-transcript fallback).
-			// Bound response consumption so cancellation can release a stalled stream or result wait.
-			let cleaned = '';
-			let firstTextMs: number | undefined;
-			phase = 'consumeResponse';
-			const consumed = await raceCancellation((async () => {
-				for await (const part of response.stream) {
-					const parts = Array.isArray(part) ? part : [part];
-					for (const item of parts) {
-						if (item.type === 'text') {
-							firstTextMs ??= Date.now() - cleanupStartMs;
-							cleaned += item.value;
-						}
-					}
-				}
-				await response.result;
-				return true;
-			})(), cts.token);
-			if (consumed === undefined || cts.token.isCancellationRequested) {
-				this._logService.info(`[chat-stt] cancelled language model cleanup while consuming response (reason=${timedOut ? 'timeout' : 'cancelled'}, phase=${phase}, elapsedMs=${Date.now() - cleanupStartMs}, firstTextMs=${firstTextMs ?? -1}); using raw transcript`);
 				return undefined;
 			}
 			cleaned = cleaned.trim();
@@ -1504,7 +1488,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				this._logService.warn(`[chat-stt] language model cleanup returned refusal-like output (rawChars=${text.length}, cleanedChars=${cleaned.length}); using raw transcript`);
 				return undefined;
 			}
-			this._logService.info(`[chat-stt] applied language model cleanup (model=${selectedCleanupModel}, rawChars=${text.length}, cleanedChars=${cleaned.length}, elapsedMs=${Date.now() - cleanupStartMs}, firstTextMs=${firstTextMs ?? -1})`);
+			this._logService.info(`[chat-stt] applied language model cleanup (model=${selectedCleanupModel}, rawChars=${text.length}, cleanedChars=${cleaned.length}, elapsedMs=${Date.now() - cleanupStartMs})`);
 			return cleaned;
 		} catch (err) {
 			const reason = timedOut ? 'timeout' : cts.token.isCancellationRequested ? 'cancelled' : 'error';
@@ -1521,7 +1505,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	 * the on-device service's `stop()`, or — for MAI — a `ptt_end` followed by a
 	 * short wait for the backend's final `transcription`.
 	 */
-	private async _finishBackend(): Promise<string | undefined> {
+	private async _finishBackend(): Promise<BackendFinalizationResult> {
 		if (this._activeBackend === 'mai') {
 			const finalTranscript = this._maiFinalTranscript = new DeferredPromise<void>();
 			this._transcriptionClient.sendPttEnd(this._maiTurnId);
@@ -1535,12 +1519,12 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			if (!receivedFinal) {
 				this._logService.warn(`[chat-stt] cloud final transcription timed out after ${MAI_FINAL_TIMEOUT_MS}ms; using streamed transcript`);
 			}
-			return this._transcript;
+			return { text: this._transcript, timedOut: !receivedFinal };
 		}
 		const stop = this._localTranscription.stop();
 		const finalText = await raceTimeout(stop, NEMO_FINAL_TIMEOUT_MS);
 		if (finalText !== undefined) {
-			return finalText;
+			return { text: finalText, timedOut: false };
 		}
 		this._logService.warn(`[chat-stt] on-device final transcription timed out after ${NEMO_FINAL_TIMEOUT_MS}ms; using streamed transcript`);
 		const cancel = this._localTranscription.cancel();
@@ -1554,7 +1538,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				this._pendingLocalTeardown = undefined;
 			}
 		});
-		return this._transcript;
+		return { text: this._transcript, timedOut: true };
 	}
 
 	async cancel(): Promise<void> {

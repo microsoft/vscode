@@ -7,16 +7,54 @@ on:
 
 permissions: {}
 
+# Warming a missing cache takes up to 15 minutes, and the pushes in the meantime need the same
+# caches. Allow one running and one pending run: GitHub replaces the pending run with the newest
+# push, which then skips the caches the running one saved. Don't cancel in-progress runs, or
+# frequent pushes may keep a slow cache from ever being saved.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  # Most pushes don't change the dependencies. Each job below only runs when one of the caches
+  # it keeps warm is missing (see .github/actions/detect-missing-caches/detect.ts), for example
+  # after a dependency change or a cache eviction. Jobs also run when the detection fails.
+  caches:
+    name: Detect Missing Caches
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      compile: ${{ steps.detect.outputs.compile }}
+      linux: ${{ steps.detect.outputs.linux }}
+      macOS: ${{ steps.detect.outputs.macOS }}
+      windows: ${{ steps.detect.outputs.windows }}
+      copilot-linux: ${{ steps.detect.outputs.copilot-linux }}
+      copilot-windows: ${{ steps.detect.outputs.copilot-windows }}
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Detect missing caches
+        id: detect
+        uses: ./.github/actions/detect-missing-caches
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   compile:
     name: Compile
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    needs: caches
+    if: ${{ !cancelled() && (needs.caches.result != 'success' || needs.caches.outputs.compile == 'true') }}
+    runs-on: vscode-large-runners-ubuntu-8-core
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
 
@@ -79,7 +117,9 @@ jobs:
 
   linux:
     name: Linux
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=linux-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    needs: caches
+    if: ${{ !cancelled() && (needs.caches.result != 'success' || needs.caches.outputs.linux == 'true') }}
+    runs-on: vscode-large-runners-ubuntu-8-core
     env:
       NPM_ARCH: x64
       VSCODE_ARCH: x64
@@ -88,7 +128,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
 
@@ -106,6 +146,15 @@ jobs:
           key-prefix: node_modules-linux
           key-args: "linux ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
           lookup-only: ${{ steps.cache-electron.outputs.cache-hit == 'true' }}
+
+      # The runner image lacks the headers that native modules such as native-keymap build against.
+      # The Linux test jobs install the same packages before they install the dependencies.
+      - name: Install build tools
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config libxkbfile-dev libkrb5-dev
 
       - name: Install build dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -165,7 +214,9 @@ jobs:
 
   macOS:
     name: macOS
-    runs-on: macos-26-xlarge
+    needs: caches
+    if: ${{ !cancelled() && (needs.caches.result != 'success' || needs.caches.outputs.macOS == 'true') }}
+    runs-on: vscode-large-runners-macos-5-core-0
     env:
       NPM_ARCH: arm64
       VSCODE_ARCH: arm64
@@ -174,7 +225,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
 
@@ -240,16 +291,54 @@ jobs:
 
   windows:
     name: Windows
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    needs: caches
+    if: ${{ !cancelled() && (needs.caches.result != 'success' || needs.caches.outputs.windows == 'true') }}
+    runs-on: vscode-large-runners-windows-8-core
     env:
       NPM_ARCH: x64
       VSCODE_ARCH: x64
     steps:
+      # Installing the dependencies on the OS disk takes 16 to 20 minutes, against about 12 on the Dev Drive
+      # of the Windows test jobs, and pull requests miss the cache until this job saves it. The same step as
+      # in pr-win32-test.yml, which explains it; build/lib/test/detectMissingCaches.test.ts keeps them equal.
+      - name: Move the workspace to a Dev Drive
+        shell: pwsh
+        working-directory: ${{ runner.temp }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $workspace = $env:GITHUB_WORKSPACE
+          $mount = Split-Path $workspace -Parent
+          $vhd = Join-Path $env:RUNNER_TEMP 'workspace.vhdx'
+          try {
+            if (Get-ChildItem -Force $workspace) { throw "$workspace is not empty" }
+            @(
+              "create vdisk file=`"$vhd`" maximum=204800 type=expandable"
+              "select vdisk file=`"$vhd`""
+              'attach vdisk'
+              'create partition primary'
+              'assign letter=W'
+            ) | Set-Content diskpart.txt
+            diskpart /s diskpart.txt | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw "diskpart exited with $LASTEXITCODE" }
+            Format-Volume -DriveLetter W -DevDrive -Confirm:$false -Force | Out-Host
+            Remove-Item $workspace
+            if (Get-ChildItem -Force $mount) { throw "$mount holds more than the workspace" }
+            Add-PartitionAccessPath -DriveLetter W -AccessPath "$mount\"
+            # Without a drive letter, the native realpath of the workspace files stays under $mount.
+            Remove-PartitionAccessPath -DriveLetter W -AccessPath 'W:\'
+            New-Item -ItemType Directory -Path $workspace | Out-Null
+            fsutil devdrv query $mount | Out-Host
+          } catch {
+            Write-Output "::warning::The workspace stays on the OS disk: $_"
+            New-Item -ItemType Directory -Path $workspace -Force | Out-Null
+          }
+          exit 0
+
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
 
@@ -313,15 +402,24 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
 
+      # The Windows smoke tests install this WSL release, see pr-win32-test.yml
+      - name: Cache WSL installer
+        continue-on-error: true
+        uses: ./.github/actions/restore-wsl-installer
+        with:
+          save-cache: 'true'
+
   copilot-linux:
     name: Copilot (Linux)
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-linux-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    needs: caches
+    if: ${{ !cancelled() && (needs.caches.result != 'success' || needs.caches.outputs.copilot-linux == 'true') }}
+    runs-on: vscode-large-runners-ubuntu-8-core
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: extensions/copilot/.nvmrc
 
@@ -348,13 +446,15 @@ jobs:
 
   copilot-windows:
     name: Copilot (Windows)
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=copilot-windows-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    needs: caches
+    if: ${{ !cancelled() && (needs.caches.result != 'success' || needs.caches.outputs.copilot-windows == 'true') }}
+    runs-on: vscode-large-runners-windows-8-core
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: extensions/copilot/.nvmrc
 

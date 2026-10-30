@@ -55,7 +55,7 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 	}
 
 	override getName(): string {
-		return localize('aiCustomizationManagementEditorName', "Agent Customizations");
+		return localize('aiCustomizationManagementEditorName', "Customizations");
 	}
 
 	override getDescription(): string | undefined {
@@ -77,7 +77,10 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 	}
 
 	getModalEditorOptions(): IModalEditorOptions {
-		return { compactHeader: true };
+		return {
+			compactHeader: true,
+			canMoveToEditorArea: false,
+		};
 	}
 
 	override async resolve(): Promise<null> {

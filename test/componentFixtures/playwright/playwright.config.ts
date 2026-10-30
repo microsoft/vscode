@@ -15,7 +15,8 @@ export default defineConfig({
 	timeout: 30_000,
 	retries: 0,
 	use: {
-		trace: 'retain-on-failure',
+		// DOM trace snapshots can exhaust the headless fixture's native-time render deadline.
+		trace: { mode: 'retain-on-failure', snapshots: false },
 	},
 	webServer: {
 		command: 'npx component-explorer serve -p ../component-explorer.json --background --attach -vv',

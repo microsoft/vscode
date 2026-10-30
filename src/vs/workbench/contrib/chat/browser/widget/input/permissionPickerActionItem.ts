@@ -9,16 +9,17 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
-import { isWindows } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionListItemInlineToggle } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { equalsAgentHostSandboxTogglePresentation } from '../../../../../../platform/agentHost/browser/agentHostSandboxToggle.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
+import { getOrganizationDefaultApprovalLevel } from '../../../common/agentHostConfigPolicy.js';
 import { IChatSessionProviderOptionItem, SessionType } from '../../../common/chatSessionsService.js';
 import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -31,6 +32,7 @@ import { IStorageService } from '../../../../../../platform/storage/common/stora
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../../../../platform/sandbox/common/settings.js';
 import { getCompactCodicon } from '../../chatIcons.js';
+import { equalsUnavailablePermissionLevels, getOfferedPermissionLevels, getPermissionLevelBadge, getPermissionLevelUnavailablePresentation, IUnavailablePermissionLevel } from '../../agentSessions/agentHost/agentHostModePickerPresentation.js';
 
 export interface IExtensionPermissionState {
 	/** Stable identifier for the contributing chat session type, used to namespace action ids. */
@@ -41,15 +43,18 @@ export interface IExtensionPermissionState {
 }
 
 export interface IPermissionPickerDelegate {
+	readonly isPolicyRestricted?: () => boolean;
 	readonly currentPermissionLevel: IObservable<ChatPermissionLevel>;
 	readonly setPermissionLevel: (level: ChatPermissionLevel) => void;
 	/**
 	 * The ordered set of permission levels the picker should offer. When
 	 * omitted, the built-in Default/Bypass/Autopilot set is used. Agent-host
-	 * sessions override this to Default/Bypass (Autopilot lives on the
+	 * sessions override this to Default/Assisted/Bypass (Autopilot lives on the
 	 * orthogonal mode axis there).
 	 */
 	readonly availableLevels?: readonly ChatPermissionLevel[];
+	/** Supported levels the session does not currently allow. They are shown disabled and are never selectable. */
+	readonly unavailableLevels?: IObservable<readonly IUnavailablePermissionLevel[]>;
 	/**
 	 * The setting id the elevated-level warning dialog links to as "make this
 	 * the default". Defaults to `chat.permissions.default`; agent-host sessions
@@ -75,6 +80,7 @@ export interface IPermissionPickerDelegate {
 	readonly managedSandboxEnforced?: IObservable<boolean>;
 	readonly managedSandboxAllowsBypass?: IObservable<boolean>;
 	readonly sandboxEnabled?: IObservable<boolean | undefined>;
+	readonly sandboxDevContainerSupported?: IObservable<boolean | undefined>;
 	readonly isApplicable?: IObservable<boolean>;
 	readonly isResolving?: IObservable<boolean>;
 	readonly getSandboxToggle?: () => IActionListItemInlineToggle | undefined;
@@ -149,10 +155,6 @@ function sanitizeIdSegment(value: string): string {
 	return value.replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
-function getLocalSandboxEnabledSettingId(): AgentSandboxSettingId.AgentSandboxEnabled | AgentSandboxSettingId.AgentSandboxWindowsEnabled {
-	return isWindows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
-}
-
 export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 
 	private readonly _onDidDispose = this._register(new Emitter<void>());
@@ -161,6 +163,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 	private _currentTooltip: string = '';
 	private _hoverElement: HTMLElement | undefined;
 	private readonly _hover = this._register(new MutableDisposable<IDisposable>());
+	private _sandboxTogglePresentation: IActionListItemInlineToggle | undefined;
 
 	constructor(
 		action: MenuItemAction,
@@ -176,7 +179,16 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		@IStorageService storageService: IStorageService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
-		const isAutoApprovePolicyRestricted = () => configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const isAutoApprovePolicyRestricted = () => delegate.isPolicyRestricted?.() ?? configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const getUnavailablePresentation = (level: ChatPermissionLevel) => {
+			if (!getPermissionLevelMeta(level).elevated) {
+				return undefined;
+			}
+			const withheld = delegate.unavailableLevels?.get().find(entry => entry.level === level);
+			const legacyPolicy = isAutoApprovePolicyRestricted();
+			return legacyPolicy || withheld ? getPermissionLevelUnavailablePresentation(legacyPolicy || withheld?.byPolicy === true) : undefined;
+		};
+		const isUnavailable = (level: ChatPermissionLevel) => !!getUnavailablePresentation(level);
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				// If the active session contributes its own permission items, surface those instead
@@ -204,7 +216,6 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 					} satisfies IActionWidgetDropdownAction));
 				}
 				const currentLevel = delegate.currentPermissionLevel.get();
-				const policyRestricted = isAutoApprovePolicyRestricted();
 				const sandboxToggleEnabled = this.isSandboxToggleAvailable();
 				const setSandboxEnabled = async (enableSandbox: boolean) => {
 					if (this.isSandboxManaged()) {
@@ -226,12 +237,14 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 					disabled: sandboxManaged,
 					onChange: (checked: boolean) => { void setSandboxEnabled(checked); },
 				} : undefined;
-				const levels = delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS;
+				const levels = getOfferedPermissionLevels(delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS, delegate.unavailableLevels?.get());
+				// Only pickers seeded from `chat.defaultConfiguration` start from the organization's default.
+				const organizationDefault = delegate.defaultSettingKey === ChatConfiguration.DefaultConfiguration ? getOrganizationDefaultApprovalLevel(configurationService) : undefined;
 				const actions: IActionWidgetDropdownAction[] = levels.map(level => {
 					const meta = getPermissionLevelMeta(level);
-					const disabledByPolicy = meta.elevated && policyRestricted;
-					const hover = disabledByPolicy
-						? localize('permissions.policyDescription', "Disabled by enterprise policy")
+					const unavailable = getUnavailablePresentation(level);
+					const hover = unavailable
+						? unavailable.hover
 						: delegate.getPermissionLevelHover?.(level, meta) ?? meta.description;
 
 					// The Default level carries an inline toggle that controls whether
@@ -245,21 +258,28 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						...action,
 						id: meta.id,
 						label: meta.label,
-						detail: meta.detail,
+						...getPermissionLevelBadge(level, !!unavailable, organizationDefault),
 						icon: meta.icon,
 						checked: currentLevel === level,
-						enabled: !disabledByPolicy,
+						enabled: !unavailable,
 						inlineToggle,
-						tooltip: disabledByPolicy ? localize('permissions.policyDisabled', "Disabled by enterprise policy") : '',
+						...(unavailable ? { description: unavailable.description, ariaDescription: unavailable.ariaDescription } : { detail: meta.detail }),
+						tooltip: '',
 						hover: {
 							content: hover,
 						},
 						run: async () => {
+							if (isUnavailable(level)) {
+								return;
+							}
 							// Elevated levels show a one-time confirmation warning.
 							if (meta.elevated && !await maybeConfirmElevatedPermissionLevel(level, this.dialogService, storageService, {
 								defaultSettingKey: delegate.defaultSettingKey,
 								levelLabel: meta.label,
 							})) {
+								return;
+							}
+							if (isUnavailable(level)) {
 								return;
 							}
 							delegate.setPermissionLevel(level);
@@ -308,12 +328,25 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		}, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove)) {
+				this.hide();
+			}
 			const settingId = this.getSandboxToggleSettingId();
-			const affectsSandboxToggle = e.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)
-				|| (settingId !== undefined && e.affectsConfiguration(settingId))
+			const affectsSandboxToggle = (settingId !== undefined && e.affectsConfiguration(settingId))
 				|| this.delegate.sandboxToggleConfigurationKeys?.some(key => e.affectsConfiguration(key)) === true;
-			if (affectsSandboxToggle && this.element) {
-				this.renderLabel(this.element);
+			if (affectsSandboxToggle) {
+				this.refreshSandboxToggle();
+				if (this.element) {
+					this.renderLabel(this.element);
+				}
+			}
+		}));
+		let unavailableLevels = delegate.unavailableLevels?.get();
+		this._register(autorun(reader => {
+			const levels = delegate.unavailableLevels?.read(reader);
+			if (!equalsUnavailablePermissionLevels(levels, unavailableLevels)) {
+				unavailableLevels = levels;
+				this.hide();
 			}
 		}));
 		let sandboxSettingId: string | undefined;
@@ -326,15 +359,29 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 			delegate.isApplicable?.read(reader);
 			delegate.isResolving?.read(reader);
 			delegate.sandboxEnabled?.read(reader);
+			delegate.sandboxDevContainerSupported?.read(reader);
 			delegate.managedSandboxEnforced?.read(reader);
 			delegate.managedSandboxAllowsBypass?.read(reader);
+			this.refreshSandboxToggle();
 			if (this.element) {
 				this.renderLabel(this.element);
 			}
 		}));
 	}
 
+	private refreshSandboxToggle(): void {
+		const toggle = this.delegate.getSandboxToggle?.();
+		if (!equalsAgentHostSandboxTogglePresentation(this._sandboxTogglePresentation, toggle)) {
+			// Snapshot getters before an optimistic toggle mutates its displayed state.
+			this._sandboxTogglePresentation = toggle ? { ...toggle } : undefined;
+			this.hide();
+		}
+	}
+
 	private isSandboxingEnabled(): boolean {
+		if (this.delegate.sandboxDevContainerSupported?.get() === false) {
+			return false;
+		}
 		if (this.delegate.getSandboxToggle) {
 			return this.delegate.getSandboxToggle()?.checked ?? false;
 		}
@@ -356,20 +403,11 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 	private getSandboxToggleSettingId(): string | undefined {
 		return this.delegate.getSandboxToggleSettingId
 			? this.delegate.getSandboxToggleSettingId()
-			: getLocalSandboxEnabledSettingId();
+			: AgentSandboxSettingId.AgentSandboxEnabled;
 	}
 
-	private isSandboxToggleSettingEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(ChatConfiguration.PermissionsSandboxToggleEnabled) === true;
-	}
-
-	/**
-	 * Whether the sandbox toggle should surface for the current harness: the
-	 * experimental setting must be on and the delegate must opt in.
-	 */
 	private isSandboxToggleAvailable(): boolean {
-		return this.isSandboxToggleSettingEnabled()
-			&& this.delegate.isSandboxToggleApplicable?.() === true
+		return this.delegate.isSandboxToggleApplicable?.() === true
 			&& this.getSandboxToggleSettingId() !== undefined;
 	}
 

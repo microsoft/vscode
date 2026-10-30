@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
+import { ConnectionDiagnosticObserver } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 
 export const ShowConnectionDiagnosticsCommandId = 'sessions.showConnectionDiagnostics';
-export const CopyConnectionDiagnosticsCommandId = 'sessions.copyConnectionDiagnostics';
 
 export interface IConnectionDiagnosticsSection {
 	readonly title: string;
@@ -52,11 +52,11 @@ export const IConnectionDiagnosticsService = createDecorator<IConnectionDiagnost
 export interface IConnectionDiagnosticsService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeHostManagement: Event<void>;
-	getSnapshot(): IConnectionDiagnosticsSnapshot;
+	getSnapshot(): Promise<IConnectionDiagnosticsSnapshot>;
 	getHostManagementState(): IConnectionHostManagementState;
 	runHostAction(hostId: string, action: ConnectionHostManagementAction): Promise<void>;
 	rediscover(): Promise<boolean>;
 	/** Observe an existing discovery operation without changing its result or error. */
-	trackDiscovery(trigger: string, discover: () => Promise<ITunnelInfo[]>): Promise<ITunnelInfo[]>;
+	trackDiscovery(trigger: string, discover: (onDiagnostic: ConnectionDiagnosticObserver) => Promise<ITunnelInfo[]>): Promise<ITunnelInfo[]>;
 	recordHostAction(address: string, action: 'connect' | 'disconnect', userInitiated: boolean): void;
 }

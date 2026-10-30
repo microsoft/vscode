@@ -73,10 +73,12 @@ export interface IManagedSettingsResponse {
 		readonly endpoint?: string;
 		readonly protocol?: 'grpc' | 'http/protobuf' | 'http/json';
 		readonly captureContent?: boolean;
+		readonly capture?: { readonly identity?: boolean };
 		readonly lockCaptureContent?: boolean;
 		readonly serviceName?: string;
 		readonly resourceAttributes?: Record<string, string>;
 		readonly headers?: Record<string, string>;
+		readonly filePath?: string;
 	};
 	/** Any unknown keys in the response are accepted for forward compatibility. */
 	readonly [key: string]: unknown;
@@ -148,8 +150,9 @@ export function parseManagedSettingsCompatibilityError(response: unknown): IMana
  */
 export function adaptManagedSettings(response: IManagedSettingsResponse, onWarn?: (msg: string) => void): Partial<IPolicyData> {
 	const managedSettings = normalizeManagedSettings(response as Record<string, unknown>, onWarn);
+	const unrepresentedGovernance = !hasRawManagedSettings(managedSettings) && hasRawManagedSettings(response);
 	return {
 		managedSettings,
-		...(Object.keys(managedSettings).length === 0 && hasRawManagedSettings(response) ? { managedSettingsActive: true } : {}),
+		...(unrepresentedGovernance ? { managedSettingsActive: true } : !hasRawManagedSettings(response) ? { managedSettingsActive: false } : {}),
 	};
 }

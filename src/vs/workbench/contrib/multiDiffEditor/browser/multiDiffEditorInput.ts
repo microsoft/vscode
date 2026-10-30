@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LazyStatefulPromise, raceTimeout } from '../../../../base/common/async.js';
+import { cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { BugIndicatingError, CancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
@@ -106,7 +107,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 					throw new CancellationError();
 				}
 
-				const vm = store.add(new MultiDiffEditorViewModel(model, this._instantiationService));
+				const vm = store.add(this._instantiationService.createInstance(MultiDiffEditorViewModel, model));
 				await raceTimeout(vm.waitForDiffOr1s(), 1000);
 				if (this._store.isDisposed) {
 					throw new CancellationError();
@@ -195,10 +196,21 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 	}
 
 	public async getViewModel(): Promise<MultiDiffEditorViewModel> {
+		const viewModel = this._viewModel.currentValue;
+		if (viewModel && this._resourceOrder.get()) {
+			await raceTimeout(viewModel.waitForDiffOr1s(), 1000);
+		}
 		return this._viewModel.getPromise();
 	}
 
 	private readonly _viewModel;
+
+	private readonly _resourceOrder = observableValue<((resources: readonly MultiDiffEditorItem[]) => readonly MultiDiffEditorItem[]) | undefined>(this, undefined);
+
+	/** Orders resolved resources before their diffs are created, and reorders them when the order changes. */
+	public setResourceOrder(order: ((resources: readonly MultiDiffEditorItem[]) => readonly MultiDiffEditorItem[]) | undefined): void {
+		this._resourceOrder.set(order, undefined);
+	}
 
 	private async _createModel(): Promise<IMultiDiffEditorModel & IDisposable> {
 		const source = await this._resolvedSource.getPromise();
@@ -235,7 +247,6 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			const errorResult = errorResults.find(result => !isBinaryTextFileOperationError(result.reason));
 			if (errorResult) {
 				multiDiffItemStore.dispose();
-				console.error(errorResult.reason);
 				onUnexpectedError(errorResult.reason);
 				return undefined;
 			}
@@ -268,12 +279,26 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			return store.add(RefCounted.createOfNonDisposable(result, multiDiffItemStore, this));
 		}, i => JSON.stringify([i.modifiedUri?.toString(), i.originalUri?.toString()]));
 
-		const documents = observableValue<readonly RefCounted<IDocumentDiffItem>[] | 'loading'>('documents', 'loading');
+		const documents = observableValue<readonly RefCounted<IDocumentDiffItemWithMultiDiffEditorItem>[] | 'loading'>('documents', 'loading');
+		const orderedDocuments = derived(this, reader => {
+			const resolvedDocuments = documents.read(reader);
+			const order = this._resourceOrder.read(reader);
+			if (resolvedDocuments === 'loading' || !order) {
+				return resolvedDocuments;
+			}
+			const documentsByResource = new Map(resolvedDocuments.map(document => [document.object.multiDiffEditorItem, document]));
+			return order(resolvedDocuments.map(document => document.object.multiDiffEditorItem))
+				.map(resource => documentsByResource.get(resource)!);
+		});
 
 		const updateDocuments = derived(async reader => {
 			/** @description Update documents */
+			const cancellationToken = cancelOnDispose(reader.store);
 			const docsPromises = documentsWithPromises.read(reader);
 			const docs = await Promise.all(docsPromises);
+			if (cancellationToken.isCancellationRequested) {
+				return;
+			}
 			const newDocuments = docs.filter(isDefined);
 			documents.set(newDocuments, undefined);
 		});
@@ -283,7 +308,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 
 		const result: IMultiDiffEditorModel & IDisposable = {
 			dispose: () => a.dispose(),
-			documents: new ValueWithChangeEventFromObservable(documents),
+			documents: new ValueWithChangeEventFromObservable(orderedDocuments),
 			contextKeys: source.source?.contextKeys,
 		};
 		return result;

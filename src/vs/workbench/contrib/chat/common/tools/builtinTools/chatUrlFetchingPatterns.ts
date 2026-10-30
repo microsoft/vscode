@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { isURLSafeForTrust, normalizeURL } from '../../../../../../platform/url/common/trustedDomains.js';
+import { isURLSafeForTrust, normalizeURLForTrust, normalizeURLPattern, serializeURLPattern } from '../../../../../../platform/url/common/trustedDomains.js';
 import { testUrlMatchesGlob } from '../../../../../../platform/url/common/urlGlob.js';
 
 /**
@@ -22,26 +22,33 @@ function getUrlApprovalValue(settings: boolean | IUrlApprovalSettings, checkRequ
 	return checkRequest ? settings.approveRequest : settings.approveResponse;
 }
 
+function normalizeSafeURL(url: URI): URI | undefined {
+	if (!isURLSafeForTrust(url)) {
+		return undefined;
+	}
+	const normalized = normalizeURLForTrust(url);
+	return isURLSafeForTrust(normalized) ? normalized : undefined;
+}
+
 /**
  * Extracts domain patterns from a URL for use in approval actions
  * @param url The URL to extract patterns from
  * @returns An array of patterns in order of specificity (most specific first)
  */
 export function extractUrlPatterns(url: URI): string[] {
-	if (!isURLSafeForTrust(url)) {
+	const normalized = normalizeSafeURL(url);
+	if (!normalized) {
 		return [];
 	}
 
-	const normalizedStr = normalizeURL(url);
-	const normalized = URI.parse(normalizedStr);
 	const patterns = new Set<string>();
 
 	// Full URL (most specific)
-	const fullUrl = normalized.toString(true);
+	const fullUrl = serializeURLPattern(normalized);
 	patterns.add(fullUrl);
 
 	// Domain-only pattern (without trailing slash)
-	const domainOnly = normalized.with({ path: '', query: '', fragment: '' }).toString(true);
+	const domainOnly = serializeURLPattern(normalized.with({ path: '', query: '', fragment: '' }));
 	patterns.add(domainOnly);
 
 	// Wildcard subdomain pattern (*.example.com)
@@ -60,12 +67,12 @@ export function extractUrlPatterns(url: URI): string[] {
 		// For example, foo.bar.example.com -> *.bar.example.com, *.example.com
 		for (let i = 0; i < domainParts.length - 2; i++) {
 			const wildcardAuthority = '*.' + domainParts.slice(i + 1).join('.');
-			const wildcardPattern = normalized.with({
+			const wildcardPattern = serializeURLPattern(normalized.with({
 				authority: wildcardAuthority,
 				path: '',
 				query: '',
 				fragment: ''
-			}).toString(true);
+			}));
 			patterns.add(wildcardPattern);
 		}
 	}
@@ -76,11 +83,11 @@ export function extractUrlPatterns(url: URI): string[] {
 		// Add patterns for each path level with wildcard
 		for (let i = pathSegments.length - 1; i >= 0; i--) {
 			const pathPattern = pathSegments.slice(0, i).join('/');
-			const urlWithPathPattern = normalized.with({
+			const urlWithPathPattern = serializeURLPattern(normalized.with({
 				path: (i > 0 ? '/' : '') + pathPattern,
 				query: '',
 				fragment: ''
-			}).toString(true);
+			}));
 			patterns.add(urlWithPathPattern);
 		}
 	}
@@ -91,11 +98,11 @@ export function extractUrlPatterns(url: URI): string[] {
 /**
  * Generates user-friendly labels for URL patterns to show in quick pick
  * @param url The original URL
- * @param pattern The pattern to generate a label for
+ * @param pattern The serialized URI pattern to generate a label for
  * @returns A user-friendly label describing what the pattern matches (without protocol)
  */
 export function getPatternLabel(url: URI, pattern: string): string {
-	let displayPattern = pattern;
+	let displayPattern = URI.parse(pattern).toString(true);
 
 	if (displayPattern.startsWith('https://')) {
 		displayPattern = displayPattern.substring(8);
@@ -118,17 +125,15 @@ export function isUrlApproved(
 	approvedUrls: Record<string, boolean | IUrlApprovalSettings>,
 	checkRequest: boolean
 ): boolean {
-	if (!isURLSafeForTrust(url)) {
+	const normalizedUrl = normalizeSafeURL(url);
+	if (!normalizedUrl) {
 		const settings = approvedUrls['*'];
 		return settings === undefined ? false : getUrlApprovalValue(settings, checkRequest) ?? false;
 	}
 
-	const normalizedUrlStr = normalizeURL(url);
-	const normalizedUrl = URI.parse(normalizedUrlStr);
-
 	for (const [pattern, settings] of Object.entries(approvedUrls)) {
 		// Check if URL matches this pattern
-		if (testUrlMatchesGlob(normalizedUrl, pattern)) {
+		if (testUrlMatchesGlob(normalizedUrl, normalizeURLPattern(pattern))) {
 			const value = getUrlApprovalValue(settings, checkRequest);
 			if (value !== undefined) {
 				return value;
@@ -149,18 +154,18 @@ export function getMatchingPattern(
 	url: URI,
 	approvedUrls: Record<string, boolean | IUrlApprovalSettings>
 ): string | undefined {
-	if (!isURLSafeForTrust(url)) {
+	const normalizedUrl = normalizeSafeURL(url);
+	if (!normalizedUrl) {
 		return Object.keys(approvedUrls).includes('*') ? '*' : undefined;
 	}
 
-	const normalizedUrlStr = normalizeURL(url);
-	const normalizedUrl = URI.parse(normalizedUrlStr);
 	const patterns = extractUrlPatterns(url);
 
 	// Check patterns in order of specificity (most specific first)
 	for (const pattern of patterns) {
 		for (const approvedPattern of Object.keys(approvedUrls)) {
-			if (testUrlMatchesGlob(normalizedUrl, approvedPattern) && testUrlMatchesGlob(URI.parse(pattern), approvedPattern)) {
+			const normalizedPattern = normalizeURLPattern(approvedPattern);
+			if (testUrlMatchesGlob(normalizedUrl, normalizedPattern) && testUrlMatchesGlob(URI.parse(pattern), normalizedPattern)) {
 				return approvedPattern;
 			}
 		}

@@ -236,6 +236,8 @@ class TunnelMessageSocket extends Disposable implements ITunnelMessageSocket {
 		onDidAddFirstListener: () => this.flushPendingMessages(),
 	}));
 	readonly onDidReceiveMessage: Event<string> = this._onDidReceiveMessage.event;
+	private readonly _onDidReceiveData = this._register(new Emitter<void>());
+	readonly onDidReceiveData: Event<void> = this._onDidReceiveData.event;
 	private readonly _onDidClose = this._register(new Emitter<ITunnelSocketCloseEvent>());
 	readonly onDidClose: Event<ITunnelSocketCloseEvent> = this._onDidClose.event;
 	private readonly _pendingMessages: string[] = [];
@@ -309,6 +311,10 @@ class TunnelMessageSocket extends Disposable implements ITunnelMessageSocket {
 			} else {
 				this.fail(new Error('Received an invalid WebSocket frame.'), 1002);
 			}
+		}
+		// After the frames, so a chunk that completes a message is delivered as that message first.
+		if (!this._closed) {
+			this._onDidReceiveData.fire();
 		}
 	}
 

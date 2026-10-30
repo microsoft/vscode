@@ -14,7 +14,7 @@ import { Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { getBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
 const $ = DOM.$;
 
@@ -33,6 +33,8 @@ export function isMobilePickerSheetTarget(target: HTMLElement): boolean {
 export interface IMobilePickerSheetItem {
 	readonly id: string;
 	readonly label: string;
+	/** Optional badge displayed beside the label and included in its accessible name. */
+	readonly badge?: string;
 	readonly description?: string;
 	readonly icon?: ThemeIcon;
 	readonly checked?: boolean;
@@ -55,6 +57,8 @@ export interface IMobilePickerSheetItem {
 }
 
 export interface IMobilePickerSheetOptions {
+	/** Dismisses the sheet when its owner or picker data becomes unavailable. */
+	readonly cancellationToken?: CancellationToken;
 	/**
 	 * Optional caption shown beneath the title (single-line, muted). Useful
 	 * for explaining what the picker controls (e.g. "Agents are pre-configured
@@ -155,6 +159,8 @@ export interface IMobilePickerSheetSearchSource {
 	readonly ariaLabel?: string;
 	/** Message rendered inside the result list when zero results are returned. */
 	readonly emptyMessage?: string;
+	/** Notifies the sheet that the current query's results have changed. */
+	readonly onDidChangeItems?: Event<void>;
 	/** Loads the result rows for the given query. */
 	loadItems(query: string, token: CancellationToken): Promise<readonly IMobilePickerSheetItem[]>;
 	/**
@@ -260,6 +266,9 @@ export function showMobilePickerSheet(
 	items: readonly IMobilePickerSheetItem[],
 	options?: IMobilePickerSheetOptions,
 ): Promise<string | undefined> {
+	if (options?.cancellationToken?.isCancellationRequested) {
+		return Promise.resolve(undefined);
+	}
 	return new Promise<string | undefined>(resolve => {
 		let resolved = false;
 
@@ -279,6 +288,9 @@ export function showMobilePickerSheet(
 			onHeaderAction: actionId => finish(`${MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX}${actionId}`),
 		});
 		const { sheet, disposables } = shell;
+		if (options?.cancellationToken) {
+			disposables.add(options.cancellationToken.onCancellationRequested(() => finish(undefined)));
+		}
 
 		// -- Optional inline search input ------------------------------
 		// Sits between the title row and the scrollable list. Its value
@@ -483,6 +495,11 @@ export function showMobilePickerSheet(
 			};
 			const inputListener = DOM.addDisposableListener(searchInput, 'input', onInput);
 			disposables.add(inputListener);
+			if (search.onDidChangeItems) {
+				disposables.add(search.onDidChangeItems(() => {
+					void renderResults(searchInput!.value);
+				}));
+			}
 
 			// Initial population (empty query).
 			renderResults('');
@@ -652,6 +669,7 @@ function buildMobileSheetShell(
 	let closed = false;
 	const headerFocusTargets: HTMLButtonElement[] = [];
 	let bodyFocusTargets: readonly HTMLElement[] = [];
+	const hoverDelegate = disposables.add(createInstantHoverDelegate());
 
 	// -- DOM: backdrop + sheet -------------------------------------
 	const overlay = DOM.append(workbenchContainer, $('div.mobile-picker-sheet-overlay'));
@@ -669,7 +687,7 @@ function buildMobileSheetShell(
 	const titleEl = DOM.append(titleRow, $('div.mobile-picker-sheet-title'));
 	titleEl.textContent = title;
 	if (options.iconClose) {
-		disposables.add(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('element'), titleEl, title));
+		disposables.add(getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, titleEl, title));
 	}
 
 	// Optional header actions (icon buttons) rendered between the
@@ -680,11 +698,7 @@ function buildMobileSheetShell(
 			const btn = DOM.append(titleRow, $('button.mobile-picker-sheet-header-action', { type: 'button' })) as HTMLButtonElement;
 			btn.setAttribute('aria-label', action.label);
 			headerFocusTargets.push(btn);
-			if (options.iconClose) {
-				disposables.add(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('element'), btn, action.label));
-			} else {
-				btn.title = action.label;
-			}
+			disposables.add(getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, btn, action.label));
 			const iconHost = DOM.append(btn, $('span.mobile-picker-sheet-header-action-icon'));
 			const iconEl = DOM.append(iconHost, $('span.mobile-picker-sheet-header-action-icon-glyph'));
 			iconEl.classList.add(...ThemeIcon.asClassNameArray(action.icon));
@@ -740,7 +754,7 @@ function buildMobileSheetShell(
 			doneBtn.classList.add('mobile-picker-sheet-header-action');
 			const icon = DOM.append(doneBtn, $('span.mobile-picker-sheet-header-action-icon-glyph', { 'aria-hidden': 'true' }));
 			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.close));
-			disposables.add(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('element'), doneBtn, closeLabel));
+			disposables.add(getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, doneBtn, closeLabel));
 		} else {
 			doneBtn.textContent = options.doneLabel ?? localize('mobilePickerSheet.done', "Done");
 		}
@@ -933,7 +947,14 @@ function renderRow(
 
 	// Text column — label on top, optional description beneath.
 	const textCol = DOM.append(row, $('span.mobile-picker-sheet-text'));
-	DOM.append(textCol, $('span.mobile-picker-sheet-label')).textContent = item.label;
+	const labelRow = item.badge ? DOM.append(textCol, $('span.mobile-picker-sheet-label-row')) : textCol;
+	DOM.append(labelRow, $('span.mobile-picker-sheet-label')).textContent = item.label;
+	if (item.badge) {
+		DOM.append(labelRow, $('span.mobile-picker-sheet-badge', { 'aria-hidden': 'true' })).textContent = item.badge;
+		row.setAttribute('aria-label', item.description
+			? localize('mobilePickerSheet.itemAriaLabelWithBadgeAndDescription', "{0}, {1}, {2}", item.label, item.badge, item.description)
+			: localize('mobilePickerSheet.itemAriaLabelWithBadge', "{0}, {1}", item.label, item.badge));
+	}
 	if (item.description) {
 		DOM.append(textCol, $('span.mobile-picker-sheet-description')).textContent = item.description;
 	}

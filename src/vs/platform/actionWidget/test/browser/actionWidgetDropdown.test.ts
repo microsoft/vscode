@@ -33,6 +33,8 @@ interface ICapturedAction {
 class TestActionWidgetService extends mock<IActionWidgetService>() {
 	override readonly isVisible = false;
 	capturedActions: ICapturedAction[] = [];
+	capturedBadges: (string | undefined)[] = [];
+	capturedLabelIcons: (string | undefined)[] = [];
 	capturedListOptions: IActionListOptions | undefined;
 	initialFocusItemId: string | undefined;
 
@@ -51,6 +53,8 @@ class TestActionWidgetService extends mock<IActionWidgetService>() {
 	): void {
 		this.capturedListOptions = listOptions;
 		this.initialFocusItemId = listOptions?.initialFocusItemId;
+		this.capturedBadges = items.map(item => item.badge);
+		this.capturedLabelIcons = items.map(item => item.labelIcon?.id);
 		this.capturedActions = items.flatMap(item => {
 			const action = item.item as (IActionWidgetDropdownAction | undefined);
 			return action ? [{
@@ -73,6 +77,52 @@ class TestActionWidgetDropdownActionViewItem extends ActionWidgetDropdownActionV
 
 suite('ActionWidgetDropdown', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps label icons separate from checked and unchecked selection indicators', () => {
+		const service = new TestActionWidgetService();
+		const dropdown = disposables.add(new ActionWidgetDropdown(
+			mainWindow.document.createElement('div'),
+			{
+				label: 'Remote Connections',
+				actions: [
+					{ ...toAction({ id: 'tunnel', label: 'Dev Tunnels', checked: false, run: () => { } }), labelIcon: Codicon.radioTower },
+					{ ...toAction({ id: 'github', label: 'GitHub Environments', checked: true, run: () => { } }), labelIcon: Codicon.github },
+				],
+			},
+			service,
+			new MockKeybindingService(),
+			NullTelemetryService,
+		));
+		dropdown.show();
+		assert.deepStrictEqual({
+			labels: service.capturedLabelIcons,
+			selections: service.capturedActions.map(action => ({ icon: action.iconId, checked: action.checkedState })),
+		}, {
+			labels: [Codicon.radioTower.id, Codicon.github.id],
+			selections: [{ icon: Codicon.blank.id, checked: false }, { icon: Codicon.check.id, checked: true }],
+		});
+	});
+
+	test('passes badges through to the action list', () => {
+		const actionWidgetService = new TestActionWidgetService();
+		const dropdown = disposables.add(new ActionWidgetDropdown(
+			mainWindow.document.createElement('div'),
+			{
+				label: 'Permissions',
+				actions: [
+					toAction({ id: 'manual', label: 'Manual permissions', run: () => { } }),
+					{ ...toAction({ id: 'assisted', label: 'Assisted permissions', run: () => { } }), badge: 'Experimental' },
+				],
+			},
+			actionWidgetService,
+			new MockKeybindingService(),
+			NullTelemetryService,
+		));
+
+		dropdown.show();
+
+		assert.deepStrictEqual(actionWidgetService.capturedBadges, [undefined, 'Experimental']);
+	});
 
 	test('applies motion defaults idempotently and preserves overrides', () => {
 		const customCloseAnimation: IActionListCloseAnimation = {

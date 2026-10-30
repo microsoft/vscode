@@ -181,7 +181,10 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 		},
 		accessibilityProvider: options.accessibilityProvider && {
 			...options.accessibilityProvider,
-			getSetSize(node) {
+			getSetSize(node, index, listLength) {
+				if (options.accessibilityProvider!.getSetSize) {
+					return options.accessibilityProvider!.getSetSize(node.element, index, listLength);
+				}
 				const model = modelProvider();
 				const ref = model.getNodeLocation(node);
 				const parentRef = model.getParentNodeLocation(ref);
@@ -189,8 +192,8 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 
 				return parentNode.visibleChildrenCount;
 			},
-			getPosInSet(node) {
-				return node.visibleChildIndex + 1;
+			getPosInSet(node, index) {
+				return options.accessibilityProvider!.getPosInSet?.(node.element, index) ?? node.visibleChildIndex + 1;
 			},
 			isChecked: options.accessibilityProvider && options.accessibilityProvider.isChecked ? (node) => {
 				return options.accessibilityProvider!.isChecked!(node.element);
@@ -2761,6 +2764,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	private eventBufferer = new EventBufferer();
 	private findController?: FindController<T, TFilterData>;
 	private findFilter?: FindFilter<T>;
+	private additionalFocusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
 	readonly onDidChangeFindOpenState: Event<boolean> = Event.None;
 	onDidChangeStickyScrollFocused: Event<boolean> = Event.None;
 	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
@@ -3039,6 +3043,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.view.layout(height, width);
 	}
 
+	withScrollAnchorAtBottom(fn: () => void): void {
+		this.view.withScrollAnchorAtBottom(fn);
+	}
+
 	style(styles: IListStyles): void {
 		const suffix = `.${this.view.domId}`;
 		const content: string[] = [];
@@ -3214,27 +3222,39 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	focusNext(n = 1, loop = false, browserEvent?: UIEvent, filter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined = (isKeyboardEvent(browserEvent) && browserEvent.altKey) ? undefined : this.focusNavigationFilter): void {
-		this.view.focusNext(n, loop, browserEvent, filter);
+		this.view.focusNext(n, loop, browserEvent, this.getFocusNavigationFilter(filter));
 	}
 
 	focusPrevious(n = 1, loop = false, browserEvent?: UIEvent, filter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined = (isKeyboardEvent(browserEvent) && browserEvent.altKey) ? undefined : this.focusNavigationFilter): void {
-		this.view.focusPrevious(n, loop, browserEvent, filter);
+		this.view.focusPrevious(n, loop, browserEvent, this.getFocusNavigationFilter(filter));
 	}
 
 	focusNextPage(browserEvent?: UIEvent, filter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined = (isKeyboardEvent(browserEvent) && browserEvent.altKey) ? undefined : this.focusNavigationFilter): Promise<void> {
-		return this.view.focusNextPage(browserEvent, filter);
+		return this.view.focusNextPage(browserEvent, this.getFocusNavigationFilter(filter));
 	}
 
 	focusPreviousPage(browserEvent?: UIEvent, filter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined = (isKeyboardEvent(browserEvent) && browserEvent.altKey) ? undefined : this.focusNavigationFilter): Promise<void> {
-		return this.view.focusPreviousPage(browserEvent, filter, () => this.stickyScrollController?.height ?? 0);
+		return this.view.focusPreviousPage(browserEvent, this.getFocusNavigationFilter(filter), () => this.stickyScrollController?.height ?? 0);
 	}
 
 	focusLast(browserEvent?: UIEvent, filter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined = (isKeyboardEvent(browserEvent) && browserEvent.altKey) ? undefined : this.focusNavigationFilter): void {
-		this.view.focusLast(browserEvent, filter);
+		this.view.focusLast(browserEvent, this.getFocusNavigationFilter(filter));
 	}
 
 	focusFirst(browserEvent?: UIEvent, filter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined = (isKeyboardEvent(browserEvent) && browserEvent.altKey) ? undefined : this.focusNavigationFilter): void {
-		this.view.focusFirst(browserEvent, filter);
+		this.view.focusFirst(browserEvent, this.getFocusNavigationFilter(filter));
+	}
+
+	setFocusNavigationFilter(filter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined): void {
+		this.additionalFocusNavigationFilter = filter;
+	}
+
+	private getFocusNavigationFilter(filter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined): ((node: ITreeNode<T, TFilterData>) => boolean) | undefined {
+		const additionalFilter = this.additionalFocusNavigationFilter;
+		if (!additionalFilter) {
+			return filter;
+		}
+		return node => (filter?.(node) ?? true) && additionalFilter(node);
 	}
 
 	getFocus(): T[] {

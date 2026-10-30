@@ -8,6 +8,7 @@ import type { IDisposable } from '../../../base/common/lifecycle.js';
 import type { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentConnection } from './agentService.js';
+import { isSessionDefaultChatId, StateComponents } from './state/sessionState.js';
 import type { DefaultChangesetKind } from './changesetUri.js';
 
 /**
@@ -64,7 +65,11 @@ export interface IAgentHostConnectionInfo {
  */
 export interface IAgentHostSessionIdentity {
 	readonly connectionAuthority: string;
+	/** Provider-owned remote address, retained even when the live connection has been removed. */
+	readonly connectionAddress?: string;
 	readonly backendSession: URI;
+	/** The backend resource was advertised, not reconstructed by the bounded legacy fallback. */
+	readonly backendSessionIsAdvertised?: true;
 	readonly defaultChangesetKind?: DefaultChangesetKind;
 }
 
@@ -74,6 +79,7 @@ export interface IAgentHostSessionResolution extends IAgentHostSessionIdentity {
 
 /** Provider-owned policy needed to resolve a workbench session resource back to its host. */
 export interface IAgentHostSessionResolutionPolicy {
+	readonly connectionAddress?: string;
 	readonly sessionSchemeAlias?: IAgentHostSessionSchemeAlias;
 	readonly defaultChangesetKind?: DefaultChangesetKind;
 }
@@ -141,6 +147,24 @@ export interface IAgentHostConnectionsService {
 	registerSessionResolutionPolicy(authority: string, policy: IAgentHostSessionResolutionPolicy): IDisposable;
 
 	/**
+	 * Runs `fn`, coalescing every {@link onDidChangeSessionResolution} it would fire into a single
+	 * event emitted after the outermost batch completes. Reads inside the batch see the new state.
+	 */
+	batchSessionResolutionChanges<T>(fn: () => T): T;
+
+	/** Records an exact backend identity and adapts only its frontend provider scheme. */
+	registerSessionResource(backendSession: URI, authority?: string, provider?: string): URI;
+
+	/** Looks up a frontend resource using its advertised backend identity on one connection. */
+	findSessionResource(backendSession: URI, authority?: string): URI | undefined;
+
+	/**
+	 * Maps a backend session through provider policy only when the resource
+	 * resolves back to that exact session. Unsupported identities return undefined.
+	 */
+	getSessionResource(backendSession: URI, authority?: string): URI | undefined;
+
+	/**
 	 * Resolves an agent-host chat-session resource to its connection authority
 	 * and backend session URI without requiring the host to be connected.
 	 */
@@ -158,4 +182,26 @@ export interface IAgentHostConnectionsService {
 	 * handled here — callers that support them should resolve those first.
 	 */
 	resolveSessionResource(sessionResource: URI): IAgentHostSessionResolution | undefined;
+}
+
+/**
+ * Whether a link's `chatId` addresses the session's advertised default chat
+ * (rule 7 matching). Reads the cached session state and, when the session is
+ * not subscribed, the host's session listing summary. `false` when neither
+ * knows the session.
+ */
+export async function isDefaultChatLinkId(connection: IAgentConnection, backendSession: URI, chatId: string): Promise<boolean> {
+	const state = connection.getSubscriptionUnmanaged(StateComponents.Session, backendSession)?.value;
+	if (state && !(state instanceof Error)) {
+		return isSessionDefaultChatId(state, chatId, state.defaultChat);
+	}
+	let listing;
+	try {
+		listing = await connection.listSessions();
+	} catch {
+		return false;
+	}
+	const chats = listing.find(item => item.session.toString() === backendSession.toString())?.chats;
+	const defaultChat = chats?.find(chat => chat.kind === 'default')?.chat.toString();
+	return !!chats && isSessionDefaultChatId({ chats: chats.map(chat => ({ resource: chat.chat.toString() })) }, chatId, defaultChat);
 }

@@ -5,12 +5,13 @@
 
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../../base/browser/keyboardEvent.js';
+import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { Button } from '../../../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
-import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
 import { generateUuid } from '../../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../../nls.js';
@@ -38,6 +39,7 @@ interface ICarouselToolItem {
 	readonly subagentTitle?: string;
 	readonly revealSubagent?: RevealSubagentCallback;
 	readonly revealSubagentLabel?: string;
+	readonly toolPartFactory: ToolInvocationPartFactory;
 	ownsToolPart: boolean;
 	toolPart?: ChatToolInvocationPart;
 }
@@ -170,6 +172,18 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		return this.items[this.activeIndex]?.subAgentInvocationId;
 	}
 
+	get activeToolConfirmation(): IChatToolInvocation | undefined {
+		return this.items[this.activeIndex]?.tool;
+	}
+
+	acceptActiveConfirmation(): void {
+		this.items[this.activeIndex]?.toolPart?.acceptConfirmation();
+	}
+
+	addDisposable(disposable: IDisposable): void {
+		this._register(disposable);
+	}
+
 	setMaxHeight(maxHeight: number | undefined): void {
 		this.maxHeight = maxHeight;
 		this.updateContentExpansionState();
@@ -179,7 +193,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		return this.toolCallIds.has(toolCallId);
 	}
 
-	addToolInvocation(tool: IChatToolInvocation, subAgentInvocationId?: string, subagentTitle?: string, revealSubagent?: RevealSubagentCallback, revealSubagentLabel?: string, toolPart?: ChatToolInvocationPart): void {
+	addToolInvocation(tool: IChatToolInvocation, subAgentInvocationId?: string, subagentTitle?: string, revealSubagent?: RevealSubagentCallback, revealSubagentLabel?: string, toolPart?: ChatToolInvocationPart, toolPartFactory: ToolInvocationPartFactory = this.toolPartFactory): void {
 		if (this.toolCallIds.has(tool.toolCallId)) {
 			const existing = this.items.find(item => item.toolCallId === tool.toolCallId);
 			if (existing && toolPart && !existing.toolPart) {
@@ -200,6 +214,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 			subagentTitle,
 			revealSubagent,
 			revealSubagentLabel,
+			toolPartFactory,
 			ownsToolPart: !toolPart,
 			toolPart,
 		};
@@ -219,6 +234,12 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 		if (this.items.length === 1) {
 			this.setActiveIndex(0);
+		}
+	}
+
+	removeToolInvocation(tool: IChatToolInvocation): void {
+		if (this.items.some(item => item.tool === tool)) {
+			this.removeItem(tool.toolCallId);
 		}
 	}
 
@@ -420,7 +441,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		}
 
 		if (!item.toolPart) {
-			item.toolPart = this.toolPartFactory(item.tool);
+			item.toolPart = item.toolPartFactory(item.tool);
 			if (item.ownsToolPart) {
 				item.disposables.add(item.toolPart);
 			}
@@ -546,7 +567,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 	private skipAll(): void {
 		for (const item of [...this.items]) {
-			IChatToolInvocation.confirmWith(item.tool, { type: ToolConfirmKind.Skipped });
+			IChatToolInvocation.confirmWith(item.tool, { type: ToolConfirmKind.Skipped, source: 'user' });
 		}
 	}
 
@@ -568,23 +589,8 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 	}
 
 	private toPlainText(message: string | IMarkdownString): string {
-		const markdown = typeof message === 'string' ? message : message.value;
-		return markdown
-			.replace(/\[([^\]]*)\]\(([^)]+)\)/g, (_match, text, url) => text || this.basename(url))
-			.replace(/\*\*([^*]+)\*\*/g, '$1')
-			.replace(/__([^_]+)__/g, '$1')
-			.replace(/`([^`]+)`/g, '$1')
-			.replace(/[\\*_#>]/g, '');
-	}
-
-	private basename(url: string): string {
-		try {
-			const path = decodeURIComponent(url.split('?')[0].split('#')[0]);
-			const segments = path.split('/').filter(Boolean);
-			return segments.at(-1) ?? url;
-		} catch {
-			return url;
-		}
+		// Titles are markdown even as strings (e.g. "Run `zsh` command?"); empty link labels show the target's name.
+		return renderAsPlaintext(typeof message === 'string' ? new MarkdownString(message) : message, { useLinkFormatter: true });
 	}
 
 	private revealActiveSubagent(): void {

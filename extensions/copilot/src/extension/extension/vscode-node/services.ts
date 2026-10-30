@@ -57,7 +57,7 @@ import { IFetcherService } from '../../../platform/networking/common/fetcherServ
 import { IToolDeferralService } from '../../../platform/networking/common/toolDeferralService';
 import { ChatWebSocketManager, IChatWebSocketManager } from '../../../platform/networking/node/chatWebSocketManager';
 import { FetcherService } from '../../../platform/networking/vscode-node/fetcherServiceImpl';
-import { resolveOTelConfig } from '../../../platform/otel/common/otelConfig';
+import { IOTelConfigResolver } from '../../../platform/otel/common/otelConfigResolution';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { InMemoryOTelService } from '../../../platform/otel/node/inMemoryOTelService';
 import { IOTelSqliteStore, OTelSqliteStore } from '../../../platform/otel/node/sqlite/otelSqliteStore';
@@ -112,12 +112,12 @@ import { IUserFeedbackService, UserFeedbackService } from '../../conversation/vs
 import { ConversationStore, IConversationStore } from '../../conversationStore/node/conversationStore';
 import { SimilarFilesContextService } from '../../inlineEdits/vscode-node/similarFilesContext';
 import { IIntentService, IntentService } from '../../intents/node/intentService';
-import { INewWorkspacePreviewContentManager, NewWorkspacePreviewContentManagerImpl } from '../../intents/node/newIntent';
 import { LanguageContextProviderService } from '../../languageContextProvider/vscode-node/languageContextProviderService';
 import { ILinkifyService, LinkifyService } from '../../linkify/common/linkifyService';
 import { DebugCommandToConfigConverter, IDebugCommandToConfigConverter } from '../../onboardDebug/node/commandToConfigConverter';
 import { DebuggableCommandIdentifier, IDebuggableCommandIdentifier } from '../../onboardDebug/node/debuggableCommandIdentifier';
 import { ILanguageToolsProvider, LanguageToolsProvider } from '../../onboardDebug/node/languageToolsProvider';
+import { VSCodeOTelConfigResolver } from '../../otel/vscode-node/otelConfigResolver';
 import { IPowerService } from '../../power/common/powerService';
 import { PowerService } from '../../power/vscode-node/powerService';
 import { ChatMLFetcherImpl } from '../../prompt/node/chatMLFetcher';
@@ -251,7 +251,6 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IGithubApiFetcherService, new SyncDescriptor(GithubApiFetcherService));
 	builder.define(IAdoCodeSearchService, new SyncDescriptor(AdoCodeSearchService));
 	builder.define(ISettingsEditorSearchService, new SyncDescriptor(SettingsEditorSearchServiceImpl));
-	builder.define(INewWorkspacePreviewContentManager, new SyncDescriptor(NewWorkspacePreviewContentManagerImpl));
 	builder.define(IPromptVariablesService, new SyncDescriptor(PromptVariablesServiceImpl));
 	builder.define(IPromptWorkspaceLabels, new SyncDescriptor(PromptWorkspaceLabels));
 	builder.define(IUserFeedbackService, new SyncDescriptor(UserFeedbackService));
@@ -293,34 +292,11 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	const otelSqliteStore = new OTelSqliteStore(otelDbPath);
 	builder.define(IOTelSqliteStore, otelSqliteStore);
 
-	// OTel service — resolve config from env + settings, create appropriate impl
-	const otelSettings = workspace.getConfiguration('github.copilot.chat.otel');
-	const policyValue = <T>(key: string): T | undefined => (otelSettings.inspect<T>(key) as { policyValue?: T } | undefined)?.policyValue;
-	const otelConfig = resolveOTelConfig({
-		env: process.env,
-		settingEnabled: otelSettings.get<boolean>('enabled'),
-		settingExporterType: otelSettings.get<'otlp-grpc' | 'otlp-http' | 'console' | 'file'>('exporterType'),
-		settingOtlpEndpoint: otelSettings.get<string>('otlpEndpoint'),
-		settingCaptureContent: otelSettings.get<boolean>('captureContent'),
-		settingMaxAttributeSizeChars: otelSettings.get<number>('maxAttributeSizeChars'),
-		settingOutfile: otelSettings.get<string>('outfile') || undefined,
-		settingDbSpanExporter: otelSettings.get<boolean>('dbSpanExporter.enabled'),
-		settingProtocol: otelSettings.get<string>('protocol') || undefined,
-		policyEnabled: policyValue<boolean>('enabled'),
-		policyExporterType: policyValue<'otlp-grpc' | 'otlp-http' | 'console' | 'file'>('exporterType'),
-		policyOtlpEndpoint: policyValue<string>('otlpEndpoint'),
-		policyCaptureContent: policyValue<boolean>('captureContent'),
-		policyOutfile: policyValue<string>('outfile'),
-		policyProtocol: policyValue<string>('protocol'),
-		settingServiceName: otelSettings.get<string>('serviceName') || undefined,
-		policyServiceName: policyValue<string>('serviceName'),
-		settingResourceAttributes: otelSettings.get<Record<string, string>>('resourceAttributes'),
-		policyResourceAttributes: policyValue<Record<string, string>>('resourceAttributes'),
-		settingHeaders: otelSettings.get<Record<string, string>>('headers'),
-		policyHeaders: policyValue<Record<string, string>>('headers'),
-		extensionVersion: extensionContext.extension.packageJSON.version ?? '0.0.0',
-		sessionId: env.sessionId,
-	});
+	// Keep the exact resolution the service uses so late policy can be detected.
+	const otelConfigResolver = new VSCodeOTelConfigResolver(process.env, extensionContext.extension.packageJSON.version ?? '0.0.0', env.sessionId);
+	extensionContext.subscriptions.push(otelConfigResolver);
+	builder.define(IOTelConfigResolver, otelConfigResolver);
+	const otelConfig = otelConfigResolver.activeResolution.config;
 	if (otelConfig.enabled) {
 		// Dynamic import to avoid loading OTel SDK when disabled
 		const { NodeOTelService } = require('../../../platform/otel/node/otelServiceImpl') as typeof import('../../../platform/otel/node/otelServiceImpl');
@@ -331,7 +307,8 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 			else if (level === 'warn') { console.warn(msg); }
 			else { console.info(msg); }
 		};
-		builder.define(IOTelService, new NodeOTelService(otelConfig, logFn, otelConfig.dbSpanExporter ? otelSqliteStore : undefined));
+		builder.define(IOTelService, new NodeOTelService(otelConfig, logFn, otelConfig.dbSpanExporter ? otelSqliteStore : undefined,
+			() => otelConfigResolver.captureIdentityAllowed));
 	} else {
 		builder.define(IOTelService, new InMemoryOTelService(otelConfig));
 	}

@@ -8,10 +8,7 @@ jobs:
     steps:
       - template: ../common/checkout.yml@self
 
-      - task: NodeTool@0
-        inputs:
-          versionSource: fromFile
-          versionFilePath: .nvmrc
+      - template: ../common/setup-node.yml@self
 
       - template: ../distro/download-distro.yml@self
 
@@ -37,6 +34,7 @@ jobs:
           path: .build/node_modules_cache
           cacheHitVar: NODE_MODULES_RESTORED
         displayName: Restore node_modules cache
+        retryCountOnTaskFailure: 2
 
       - script: |
           set -e
@@ -54,10 +52,9 @@ jobs:
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
-      - template: ../common/foundry-local.yml@self
-        parameters:
-          phase: prepare
-          onlyOnNodeModulesCacheMiss: true
+      - task: NuGetAuthenticate@1
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+        displayName: Setup NuGet Authentication
 
       - script: |
           set -e
@@ -85,13 +82,17 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-token-code-oss)"
+          FOUNDRY_LOCAL_NUGET_MODE: dotnet
+          FOUNDRY_LOCAL_NUGET_FEEDS: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json"
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-      - template: ../common/foundry-local.yml@self
-        parameters:
-          phase: install
-          onlyOnNodeModulesCacheMiss: true
+      # NuGetAuthenticate@1 exposes its access token to all later steps as the
+      # VSS_NUGET_ACCESSTOKEN environment variable, from where they can write it
+      # to logs. Only installing dependencies needs it, so clear it now.
+      - script: echo "##vso[task.setvariable variable=VSS_NUGET_ACCESSTOKEN]"
+        displayName: Clear package feed credentials
+        condition: always()
 
       - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))

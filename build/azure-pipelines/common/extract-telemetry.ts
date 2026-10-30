@@ -27,7 +27,8 @@ for (const repo of repos) {
 	cp.execSync(`git clone --depth 1 ${repo}`, { cwd: extractionDir, stdio: 'inherit' });
 }
 
-const extractor = path.join(BUILD_SOURCESDIRECTORY, 'node_modules', '@vscode', 'telemetry-extractor', 'out', 'extractor.js');
+// PR validation installs only the locked extractor outside the workspace.
+const extractor = process.env.VSCODE_TELEMETRY_EXTRACTOR ?? path.join(BUILD_SOURCESDIRECTORY, 'node_modules', '@vscode', 'telemetry-extractor', 'out', 'extractor.js');
 const telemetryConfig = path.join(BUILD_SOURCESDIRECTORY, 'build', 'azure-pipelines', 'common', 'telemetry-config.json');
 
 interface ITelemetryConfigEntry {

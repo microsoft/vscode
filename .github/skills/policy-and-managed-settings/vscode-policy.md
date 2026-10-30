@@ -1,26 +1,18 @@
 # VS Code Configuration Policy
 
-Use this path only when the governed behavior belongs to the editor/workbench, such as editor UI, updates, extension management, or other VS Code-native behavior.
+Use only for editor/workbench-owned behavior (editor UI, updates, extension management, etc.).
 
-## Delivery
-
-VS Code configuration policy can arrive from:
-
-- OS policy (`NativePolicyService` on Windows/macOS, `FilePolicyService` on Linux);
-- existing GitHub account data (`AccountPolicyService` via `IPolicyData`, deprecated for new properties);
-- Copilot managed-settings projection (native MDM > server > file, per key).
-
-`MultiplexPolicyService` combines the applicable policy services. Managed-settings keys must be declared before they can project into VS Code configuration.
+Policy values reach configuration through `MultiplexPolicyService` from OS policy (`NativePolicyService` on Windows/macOS, `FilePolicyService` on Linux), legacy GitHub account data (`AccountPolicyService`, closed to new fields), and projected Copilot managed settings ([github-managed-settings.md](./github-managed-settings.md)).
 
 ## Declaration
 
-Find the configuration registration, typically in a `*.contribution.ts` file, and add:
+Add to the setting's registration (usually a `*.contribution.ts`):
 
 ```typescript
 policy: {
 	name: 'MyPolicyName',
 	category: PolicyCategory.InteractiveSession,
-	minimumVersion: '1.133',
+	minimumVersion: '1.NNN', // root package.json major.minor
 	localization: {
 		description: {
 			key: 'my.config.key.policy',
@@ -30,48 +22,22 @@ policy: {
 }
 ```
 
-Rules:
+- Unique PascalCase `name`; an existing `PolicyCategory` from `vs/base/common/policy` unless a new one (with localization) is truly needed.
+- Localize everything; string enums need one `enumDescriptions` entry per value.
+- `value(policyData)` returns the restrictive value to lock, `undefined` to fall through. Preserve existing callbacks, including historical `chat_preview_features_enabled === false` checks (compare with `=== false`), but do not add that check to new controls.
 
-- Use a unique PascalCase `name`.
-- Derive `minimumVersion` from root `package.json` major/minor.
-- Import `PolicyCategory` from `vs/base/common/policy` and use an existing category (`Extensions`, `IntegratedTerminal`, `InteractiveSession`, `Telemetry`, or `Update`) unless a new category and its localization are necessary.
-- Localize all text.
-- For string enums, provide one localized `enumDescriptions` entry per value.
-- Preserve existing `value(policyData)` callbacks when maintaining historical GitHub account policies; return the restrictive value to override and `undefined` otherwise.
-- Read [github-managed-settings.md](./github-managed-settings.md) before projecting a managed-settings key into VS Code configuration.
+### One policy, several settings (`policyReference`)
 
-Do not add new GitHub-token entitlement or policy fields to `IPolicyData` / `AccountPolicyService`. Use managed settings for new Copilot enterprise controls.
+One setting owns `policy`; others declare `policyReference: { name }`.
 
-### Existing GitHub preview-feature policies
+- A setting cannot declare both; exactly one owner per name; reference and owner types must match.
+- References carry no value, managed settings, localization, or other metadata. `PolicyConfiguration` applies the owner's value to every reference.
+- The exported catalog lists `referencedSettings` only for references loaded at export time; **Developer: Policy Diagnostics** lists all registered ones.
 
-Some existing preview-feature policies use the historical `policyData.chat_preview_features_enabled` token entitlement. When maintaining one, compare with `=== false` (not negation), return the setting's restrictive value when false, and return `undefined` otherwise. Do not use this pattern for a new control.
+## Procedure
 
-If one policy controls multiple VS Code settings, one setting owns `policy`; the others use `policyReference: { name }`.
+1. Add the policy and focused value/projection tests.
+2. Add its status to `agentHostPolicySupport` (`src/vs/platform/agentHost/common/agentHostPolicySupport.ts`); export fails without it.
+3. Run `npm run export-policy-data` from the worktree with the change and commit `build/lib/policies/policyData.jsonc`. It exports both Workbench and the Agents window and detects conflicts; never run one entrypoint's `--export-policy-data` directly. `policyExport.integrationTest.ts` checks the result.
 
-- A setting cannot declare both `policy` and `policyReference`.
-- Exactly one setting owns the policy metadata.
-- Reference-setting and owner types must match.
-- References contribute no `value`, managed-settings declarations, restricted value, localization, or other policy metadata.
-
-## Required Procedure
-
-1. Add/update the policy and focused value/projection tests.
-2. Check the build watch task or run the smallest relevant type check/test (`npm run typecheck-client` when needed).
-3. Run `npm run export-policy-data`.
-4. Verify the policy appears and include `build/lib/policies/policyData.jsonc`.
-
-Never edit or synthesize `policyData.jsonc`, and never invoke a single product entrypoint's `--export-policy-data` directly. Run the npm command from the worktree containing the source change; it exports both Workbench and the Agents window, detects conflicting policy metadata, and produces the complete catalog.
-
-The blocking `src/vs/workbench/contrib/policyExport/test/node/policyExport.integrationTest.ts` uses this canonical export path in check mode.
-
-Key sources:
-
-- `src/vs/base/common/policy.ts`
-- `src/vs/base/common/defaultAccount.ts`
-- `src/vs/platform/policy/common/policy.ts`
-- `src/vs/platform/configuration/common/configurationRegistry.ts`
-- `src/vs/platform/configuration/common/configurations.ts`
-- `src/vs/platform/policy/common/copilotManagedSettings.ts`
-- `src/vs/workbench/services/policies/common/accountPolicyService.ts`
-- `build/lib/policies/policyGenerator.ts`
-- `build/lib/test/policyConversion.test.ts`
+Key sources: `src/vs/base/common/policy.ts`, `src/vs/platform/policy/common/policy.ts`, `src/vs/platform/configuration/common/configurationRegistry.ts`, `src/vs/platform/configuration/common/configurations.ts`, `src/vs/workbench/services/policies/common/accountPolicyService.ts`, `build/lib/policies/policyGenerator.ts`.

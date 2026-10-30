@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derivedOpts, IObservable, IReaderWithStore, observableFromEvent } from '../../../../base/common/observable.js';
+import { derived, derivedOpts, IObservable, IReaderWithStore, observableFromEvent } from '../../../../base/common/observable.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
@@ -54,6 +54,9 @@ export class BlockedSessions extends Disposable {
 	/** The blocked sessions paired with their reason, most-recently-updated first. */
 	readonly blockedSessionsWithReasons: IObservable<readonly IBlockedSession[]>;
 
+	/** Sessions with eligible CI failures, including sessions that also need input. */
+	readonly failingCISessions: IObservable<readonly ISession[]>;
+
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
@@ -101,6 +104,9 @@ export class BlockedSessions extends Disposable {
 			owner: this,
 			equalsFn: (a, b) => equals(a, b, (x, y) => x.sessionId === y.sessionId),
 		}, reader => this.blockedSessionsWithReasons.read(reader).map(blocked => blocked.session));
+
+		this.failingCISessions = derived(this, reader => this._allSessions.read(reader)
+			.filter(session => this._getFailingCISession(reader, session) !== undefined));
 	}
 
 	private _getBlockedSession(reader: IReaderWithStore, session: ISession): IBlockedSession | undefined {
@@ -117,8 +123,11 @@ export class BlockedSessions extends Disposable {
 			};
 		}
 
-		// CI failures only count while the session is not actively in progress.
-		if (status === SessionStatus.InProgress) {
+		return this._getFailingCISession(reader, session);
+	}
+
+	private _getFailingCISession(reader: IReaderWithStore, session: ISession): IBlockedSession | undefined {
+		if (session.isArchived.read(reader) || session.status.read(reader) === SessionStatus.InProgress) {
 			return undefined;
 		}
 

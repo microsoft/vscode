@@ -9,18 +9,25 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { BrowserEditor } from './browserEditor.js';
-import { BrowserEditorInput, BrowserEditorSerializer } from '../common/browserEditorInput.js';
+import { BrowserEditorInput, BrowserEditorSerializer, reviveBrowserEditorViewState } from '../common/browserEditorInput.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { raceTimeout } from '../../../../base/common/async.js';
+import { Event } from '../../../../base/common/event.js';
+import { waitForState } from '../../../../base/common/observable.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../common/browserView.js';
+import { IBrowserViewCDPService, IBrowserViewModel, IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
 import { BrowserViewCDPService } from './browserViewCDPService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
+import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 
 // Register actions and browser features
 import './features/webContentsViewRendererFeature.js';
@@ -40,11 +47,6 @@ import './features/browserEditorFindFeature.js';
 import './features/browserSearchFeatures.js';
 import './features/browserTabManagementFeatures.js';
 import './features/browserRemoteFeatures.js';
-
-function getBrowserViewStateUrl(viewState: object | undefined): string | undefined {
-	const url = Object.entries(viewState ?? {}).find(([key]) => key === 'url')?.[1];
-	return typeof url === 'string' ? url : undefined;
-}
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -90,7 +92,7 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 
 					const browserInput = browserViewWorkbenchService.getOrCreateLazy({
 						id: parsed.id,
-						...options?.viewState
+						...reviveBrowserEditorViewState(options?.viewState)
 					});
 
 					// Start resolving the input right away. This will create the browser view.
@@ -124,12 +126,12 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 					createEditorInput: ({ resource, options }) => {
 						logBrowserOpen(telemetryService, 'fileResource');
 
-						const viewState = options?.viewState;
+						const viewState = reviveBrowserEditorViewState(options?.viewState);
 						const browserInput = browserViewWorkbenchService.getOrCreateLazy({
 							id: generateUuid(),
 							associatedResource: resource,
 							...viewState,
-							url: getBrowserViewStateUrl(viewState) ?? resource.toString()
+							url: viewState.url ?? resource.toString()
 						});
 						void browserInput.resolve();
 
@@ -151,3 +153,49 @@ registerWorkbenchContribution2(BrowserEditorResolverContribution.ID, BrowserEdit
 
 registerSingleton(IBrowserViewWorkbenchService, BrowserViewWorkbenchService, InstantiationType.Delayed);
 registerSingleton(IBrowserViewCDPService, BrowserViewCDPService, InstantiationType.Delayed);
+
+const extensionTestBrowserViews = new Map<string, IBrowserViewModel>();
+
+CommandsRegistry.registerCommand('_workbench.test.openBrowserViewViaAgentHostNetwork', async (accessor, url: string, expectedTitle?: string) => {
+	const environmentService = accessor.get(IWorkbenchEnvironmentService);
+	if (!environmentService.extensionTestsLocationURI) {
+		throw new Error('Command is only available when running extension tests.');
+	}
+	const agentHostService = accessor.get(IAgentHostService);
+	const browserViewService = accessor.get(IBrowserViewWorkbenchService);
+	agentHostService.startAgentHost();
+	const initialized = await raceTimeout(waitForState(agentHostService.initializeResult, result => result?.tcpConnections !== undefined), 30_000);
+	if (!initialized) {
+		throw new Error('Agent Host TCP forwarding did not become available');
+	}
+	const resolver = browserViewService.registerNetworkResolver({
+		resolveNetwork: () => ({ authority: AMBIENT_AGENT_HOST_AUTHORITY }),
+		getNetworkStatus: () => ({ label: 'Agent Host', connected: true, proxySupported: true }),
+		onDidChangeNetworkStatus: Event.None,
+	});
+	let model: IBrowserViewModel;
+	try {
+		model = await browserViewService.createExternalBrowserView(url, 'canvas', { type: 'agent', sessionId: 'extension-test' }, true);
+	} finally {
+		resolver.dispose();
+	}
+	extensionTestBrowserViews.set(model.id, model);
+	Event.once(model.onWillDispose)(() => extensionTestBrowserViews.delete(model.id));
+	if (expectedTitle && model.title !== expectedTitle) {
+		const changed = await raceTimeout(Event.toPromise(Event.filter(model.onDidChangeTitle, event => event.title === expectedTitle)), 30_000);
+		if (!changed) {
+			const details = `current title '${model.title}', URL '${model.url}', error '${model.error?.errorDescription ?? 'none'}'`;
+			model.dispose();
+			throw new Error(`Browser view did not reach expected title '${expectedTitle}': ${details}`);
+		}
+	}
+	return { id: model.id, title: model.title, networkAuthority: model.network?.authority };
+});
+
+CommandsRegistry.registerCommand('_workbench.test.closeExternalBrowserView', (accessor, id: string) => {
+	const environmentService = accessor.get(IWorkbenchEnvironmentService);
+	if (!environmentService.extensionTestsLocationURI) {
+		throw new Error('Command is only available when running extension tests.');
+	}
+	extensionTestBrowserViews.get(id)?.dispose();
+});

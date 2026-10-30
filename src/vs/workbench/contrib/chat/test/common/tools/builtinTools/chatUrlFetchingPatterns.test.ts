@@ -66,6 +66,38 @@ suite('ChatUrlFetchingPatterns', () => {
 			]);
 		});
 
+		test('backslash URLs produce approval patterns for the browser destination', () => {
+			const urls = [
+				String.raw`https://evil.example\.github.com/collect?leak=<data>`,
+				String.raw`https://evil.example\\.github.com/collect?leak=<data>`,
+				String.raw`https://api.github.com\.example.com/Readme?query=\value#\fragment`,
+				String.raw`custom://example.com/path\segment?query=\value`,
+			];
+
+			assert.deepStrictEqual(urls.map(url => extractUrlPatterns(URI.parse(url))), [
+				[
+					'https://evil.example/.github.com/collect?leak=<data>',
+					'https://evil.example',
+					'https://evil.example/.github.com',
+				],
+				[
+					'https://evil.example//.github.com/collect?leak=<data>',
+					'https://evil.example',
+					'https://evil.example/.github.com',
+				],
+				[
+					String.raw`https://api.github.com/.example.com/Readme?query=\value#\fragment`,
+					'https://api.github.com',
+					'https://*.github.com',
+					'https://api.github.com/.example.com',
+				],
+				[
+					String.raw`custom://example.com/path\segment?query=\value`,
+					'custom://example.com',
+				],
+			]);
+		});
+
 		test('encoded user information does not produce approval patterns', () => {
 			const encodedSeparators = ['%2F', '%2f', '%5C', '%5c', '%25%32%46', '%25%32%66', '%25%35%43', '%25%35%63'];
 
@@ -142,6 +174,36 @@ suite('ChatUrlFetchingPatterns', () => {
 			assert.strictEqual(isUrlApproved(url, approved, true), true);
 		});
 
+		test('path-scoped request and response approval uses the resolved destination', () => {
+			const paths = [
+				'/allowed/../outside',
+				'/allowed/%2e%2e/outside',
+				'/allowed/.\t./outside',
+				'/allowed/.\n./outside',
+				'/allowed/.\r./outside',
+				'/allowed/child/../page',
+			];
+			const approved = { 'https://example.com/allowed/*': { approveRequest: true, approveResponse: true } };
+
+			assert.deepStrictEqual(
+				paths.map(path => {
+					const url = URI.parse(`https://example.com${path}`);
+					return {
+						request: isUrlApproved(url, approved, true),
+						response: isUrlApproved(url, approved, false),
+					};
+				}),
+				[
+					{ request: false, response: false },
+					{ request: false, response: false },
+					{ request: false, response: false },
+					{ request: false, response: false },
+					{ request: false, response: false },
+					{ request: true, response: true },
+				]
+			);
+		});
+
 		test('granular settings - request approved', () => {
 			const url = URI.parse('https://example.com');
 			const approved: Record<string, IUrlApprovalSettings> = {
@@ -175,6 +237,44 @@ suite('ChatUrlFetchingPatterns', () => {
 				'https://example.com': { approveRequest: true }
 			};
 			assert.strictEqual(isUrlApproved(url, approved, false), false);
+		});
+
+		test('backslash URLs cannot auto-approve a different browser destination', () => {
+			const cases = [
+				{ url: String.raw`https://evil.example\.github.com/collect?leak=<data>`, host: 'evil.example', approved: false },
+				{ url: String.raw`https://evil.example\\.github.com/collect?leak=<data>`, host: 'evil.example', approved: false },
+				{ url: String.raw`https://169.254.169.254\.github.com/latest/meta-data/`, host: '169.254.169.254', approved: false },
+				{ url: String.raw`https://169.254.169.254\\.github.com/latest/meta-data/`, host: '169.254.169.254', approved: false },
+				{ url: String.raw`http://127.0.0.2:38651\.github.com/exfil?data=fixture`, host: '127.0.0.2', approved: false },
+				{ url: String.raw`https://github.com\.evil.example/resource`, host: 'github.com', approved: true },
+				{ url: 'https://github.com', host: 'github.com', approved: true },
+				{ url: 'https://api.github.com/resource', host: 'api.github.com', approved: true },
+				{ url: 'https://evil.example/resource', host: 'evil.example', approved: false },
+			];
+			const booleanRules = { 'https://*.github.com': true, 'http://*.github.com:*': true };
+			const granularRules: Record<string, IUrlApprovalSettings> = {
+				'https://*.github.com': { approveRequest: true, approveResponse: true },
+				'http://*.github.com:*': { approveRequest: true, approveResponse: true },
+			};
+
+			assert.deepStrictEqual(
+				cases.map(({ url }) => {
+					const uri = URI.parse(url);
+					return {
+						url,
+						host: new URL(uri.toString(true)).hostname,
+						approvals: [booleanRules, granularRules].map(rules => [
+							isUrlApproved(uri, rules, true),
+							isUrlApproved(uri, rules, false),
+						]),
+					};
+				}),
+				cases.map(({ url, host, approved }) => ({
+					url,
+					host,
+					approvals: [[approved, approved], [approved, approved]],
+				}))
+			);
 		});
 
 		test('encoded user information does not match boolean auto-approval rules', () => {
@@ -279,6 +379,42 @@ suite('ChatUrlFetchingPatterns', () => {
 				false,
 			]);
 		});
+
+		for (const { name, settings, expected } of [
+			{ name: 'boolean', settings: false, expected: { request: false, response: false } },
+			{ name: 'request', settings: { approveRequest: false }, expected: { request: false, response: true } },
+			{ name: 'response', settings: { approveResponse: false }, expected: { request: true, response: false } },
+		]) {
+			test(`IDN ${name} denial precedes broader approval for equivalent host spellings`, () => {
+				const patterns = ['https://*.bücher.example.test', 'https://*.xn--bcher-kva.example.test'];
+				const hosts = ['x.bücher.example.test', 'x.xn--bcher-kva.example.test', 'x.b%C3%BCcher.example.test', 'x.BÜCHER.EXAMPLE.TEST', 'x.XN--BCHER-KVA.EXAMPLE.TEST'];
+
+				assert.deepStrictEqual(
+					patterns.map(pattern => {
+						const approved: Record<string, boolean | IUrlApprovalSettings> = {
+							[pattern]: settings,
+							'https://*.example.test': true,
+						};
+						return {
+							denied: hosts.map(host => {
+								const url = URI.parse(`https://${host}/resource`);
+								return {
+									request: isUrlApproved(url, approved, true),
+									response: isUrlApproved(url, approved, false),
+								};
+							}),
+							unrelated: [true, false].map(request => isUrlApproved(URI.parse('https://x.other.example.test/resource'), approved, request)),
+							outside: [true, false].map(request => isUrlApproved(URI.parse('https://x.other.test/resource'), approved, request)),
+						};
+					}),
+					patterns.map(() => ({
+						denied: hosts.map(() => expected),
+						unrelated: [true, true],
+						outside: [false, false],
+					}))
+				);
+			});
+		}
 	});
 
 	suite('getMatchingPattern', () => {
@@ -296,11 +432,40 @@ suite('ChatUrlFetchingPatterns', () => {
 			assert.strictEqual(pattern, 'https://*.example.com');
 		});
 
+		test('IDN matching retains the configured exception pattern for either spelling', () => {
+			const patterns = ['https://*.bücher.example.test', 'https://*.xn--bcher-kva.example.test'];
+			const hosts = ['x.bücher.example.test', 'x.xn--bcher-kva.example.test'];
+
+			assert.deepStrictEqual(
+				patterns.map(pattern => hosts.map(host => getMatchingPattern(URI.parse(`https://${host}/resource`), {
+					[pattern]: false,
+					'https://*.example.test': true,
+				}))),
+				patterns.map(pattern => hosts.map(() => pattern))
+			);
+		});
+
 		test('no match returns undefined', () => {
 			const url = URI.parse('https://example.com');
 			const approved = { 'https://other.com': true };
 			const pattern = getMatchingPattern(url, approved);
 			assert.strictEqual(pattern, undefined);
+		});
+
+		test('dot segments cannot select an approved path outside the resolved destination', () => {
+			const paths = [
+				'/allowed/../outside',
+				'/allowed/%2e%2e/outside',
+				'/allowed/.\t./outside',
+				'/allowed/.\n./outside',
+				'/allowed/.\r./outside',
+			];
+			const approved = { 'https://example.com/allowed/*': true };
+
+			assert.deepStrictEqual(
+				paths.map(path => getMatchingPattern(URI.parse(`https://example.com${path}`), approved)),
+				paths.map(() => undefined)
+			);
 		});
 
 		test('most specific match', () => {
@@ -312,6 +477,30 @@ suite('ChatUrlFetchingPatterns', () => {
 			};
 			const pattern = getMatchingPattern(url, approved);
 			assert.ok(pattern !== undefined);
+		});
+
+		test('backslash URLs resolve matching patterns by the browser destination', () => {
+			const urls = [
+				String.raw`https://evil.example\.github.com/collect`,
+				String.raw`https://evil.example\\.github.com/collect`,
+				String.raw`https://github.com\.evil.example/resource`,
+			];
+			const approved = {
+				'https://*.github.com': true,
+				'https://evil.example': true,
+			};
+
+			assert.deepStrictEqual(
+				urls.map(url => ({
+					restricted: getMatchingPattern(URI.parse(url), { 'https://*.github.com': true }),
+					explicitDestination: getMatchingPattern(URI.parse(url), approved),
+				})),
+				[
+					{ restricted: undefined, explicitDestination: 'https://evil.example' },
+					{ restricted: undefined, explicitDestination: 'https://evil.example' },
+					{ restricted: 'https://*.github.com', explicitDestination: 'https://*.github.com' },
+				]
+			);
 		});
 
 		test('encoded user information does not resolve to an approved pattern', () => {

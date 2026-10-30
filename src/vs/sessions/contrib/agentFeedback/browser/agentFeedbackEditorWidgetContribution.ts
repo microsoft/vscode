@@ -10,13 +10,11 @@ import { autorun, observableSignalFromEvent } from '../../../../base/common/obse
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IEditorContribution, ScrollType } from '../../../../editor/common/editorCommon.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ICodeReviewService, IPRReviewState } from '../../codeReview/browser/codeReviewService.js';
 import { AgentFeedbackEditorWidget, IComposerDraft, IComposerDraftState } from './agentFeedbackEditorWidget.js';
 import { IAgentFeedbackService, shouldIncludeRawPRReviewComments } from './agentFeedbackService.js';
@@ -48,7 +46,6 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ICodeReviewService private readonly _codeReviewService: ICodeReviewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -192,11 +189,7 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 			return undefined;
 		}
 
-		const changes = this._sessionsManagementService.getSession(this._sessionResource)?.changes.get();
-		if (!changes) {
-			return undefined;
-		}
-
+		const changes = this._agentFeedbackService.getChatChanges(this._sessionResource);
 		return changes.find(change => this._changeMatchesFsPath(change, resourceUri));
 	}
 
@@ -306,5 +299,3 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 		super.dispose();
 	}
 }
-
-registerEditorContribution(AgentFeedbackEditorWidgetContribution.ID, AgentFeedbackEditorWidgetContribution, EditorContributionInstantiation.Eventually);

@@ -3,14 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellationError } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { hasKey } from '../../../../base/common/types.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -31,15 +35,13 @@ import { EditorAreaFocusContext, FocusedViewContext, IsAuxiliaryWindowContext, I
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
-import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus, SessionHeaderMenus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionHasSideChatsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
-import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
-import { CLOSE_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionItemIsMultiSelectionContext, IsPhoneLayoutContext, SessionToolbarShowsSessionContext } from '../../../common/contextkeys.js';
+import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { $, append, EventHelper, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
@@ -57,15 +59,23 @@ import { asCssVariable } from '../../../../platform/theme/common/colorRegistry.j
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
+import { registerViewNavigationCommand } from '../../../../workbench/browser/actions/navigationActions.js';
 import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../common/theme.js';
 import { logSessionsInteraction, SessionsInteractionSource } from '../../../common/sessionsTelemetry.js';
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
-import { getSessionConversationActionId, isSessionConversationSideChat, SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../browser/sessionConversationGroups.js';
-import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
+import { getSessionConversationActionId, SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../browser/sessionConversationGroups.js';
+import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemCanRenameContext, SessionChatItemHasMoveDestinationContext, SessionChatItemIsUntitledContext, SessionItemHasMoveDestinationContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import './media/newSessionActionViewItem.css';
 import { INewSessionComposerService } from '../../chat/browser/newSessionComposerService.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
+import { Direction } from '../../../../base/browser/ui/grid/grid.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ChatMoveSettingId } from '../../../../platform/agentHost/common/agentHostChatMove.js';
+import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { getChatMoveDestinations, getSessionMoveDestinations, isChatMoveDndEnabled, isCrossAgentChatMoveEnabled, ISessionsListMoveDestination, runSessionsListMove, SessionsListMove } from './views/sessionsListChatMove.js';
 
 export const NEW_SESSION_BUTTON_STYLE_SETTING = 'sessions.newSessionButton.style';
 export const NEW_SESSION_BUTTON_STYLE_TREATMENT = 'agentSessionsNewSessionButtonStyle';
@@ -115,8 +125,10 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			const isArchived = session.isArchived.read(reader);
 			const workspace = session.workspace.read(reader);
 			const gitHubInfo = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
-			const pullRequestIcon = getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
-			const completedStateIcon = session.completedStateIcon?.read(reader) ?? pullRequestIcon;
+			// A provider icon is authoritative: the workspace's pull requests may belong to other chats.
+			const completedStateIcon = session.completedStateIcon
+				? session.completedStateIcon.read(reader)
+				: getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
 			const icon = sessionsListModelService.getStatusIcon(status, isRead, isArchived, completedStateIcon);
 
 			// Second row: workspace (with its icon, like the session header /
@@ -174,7 +186,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 				}
 			};
 
-			appendSessions(localize('sessionsPickerNeedsInput', "needs input"), sessionGroups.needsInput);
+			appendSessions(localize('sessionsPickerNeedsInput', "needs attention"), sessionGroups.needsInput);
 			appendSessions(localize('sessionsPickerUnread', "unread"), sessionGroups.unread);
 			appendSessions(localize('recentlyOpened', "recently opened"), sessionGroups.recent);
 			appendSessions(localize('otherSessions', "other sessions"), sessionGroups.other);
@@ -209,7 +221,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			// normal open when there is no active session to anchor against or the
 			// session is already the active one.
 			if (toSide && activeSessionId !== undefined && selected.session.sessionId !== activeSessionId) {
-				sessionsService.insertAt(selected.session, activeSessionId, 'right', !inBackground);
+				void sessionsService.openSessionsAt([selected.session], activeSessionId, 'right', { preserveFocus: inBackground, activate: inBackground ? false : 'first', source: 'sessionsList' }).catch(onUnexpectedError);
 			} else {
 				sessionsService.openSession(selected.session.resource, { preserveFocus: inBackground, source: 'sessionsList' });
 			}
@@ -273,15 +285,19 @@ registerAction2(class GoBackAction extends Action2 {
 			tooltip: localize('sessionsGoBackTooltip', "Go Back One Session"),
 			category: SessionsCategories.Sessions,
 			precondition: CanGoBackContext,
-			keybinding: {
+			keybinding: [{
 				// Higher than `WorkbenchContrib` so the `Ctrl+Shift+Tab` secondary wins over the
 				// editor quick-open actions (which bind the same chord at `WorkbenchContrib`).
 				weight: KeybindingWeight.SessionsContrib,
 				win: { primary: KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
 				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus, secondary: [KeyCode.BrowserBack, KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab] },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyMod.Alt | KeyCode.LeftArrow, KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
-			},
+			}, {
+				weight: KeybindingWeight.SessionsContrib,
+				mac: { primary: KeyMod.Alt | KeyCode.LeftArrow },
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.negate(), EditorContextKeys.textInputFocus.negate()),
+			}],
 			menu: [{
 				id: Menus.TitleBarCenterLeft,
 				group: 'navigation',
@@ -315,15 +331,19 @@ registerAction2(class GoForwardAction extends Action2 {
 			tooltip: localize('sessionsGoForwardTooltip', "Go Forward One Session"),
 			category: SessionsCategories.Sessions,
 			precondition: CanGoForwardContext,
-			keybinding: {
+			keybinding: [{
 				// Higher than `WorkbenchContrib` so the `Ctrl+Tab` secondary wins over the
 				// editor quick-open actions (which bind the same chord at `WorkbenchContrib`).
 				weight: KeybindingWeight.SessionsContrib,
 				win: { primary: KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus, secondary: [KeyCode.BrowserForward, KeyMod.WinCtrl | KeyCode.Tab] },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.Alt | KeyCode.RightArrow, KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
-			},
+			}, {
+				weight: KeybindingWeight.SessionsContrib,
+				mac: { primary: KeyMod.Alt | KeyCode.RightArrow },
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.negate(), EditorContextKeys.textInputFocus.negate()),
+			}],
 			menu: [{
 				id: Menus.TitleBarCenterLeft,
 				group: 'navigation',
@@ -485,6 +505,26 @@ registerAction2(class MoveChatToNextGroupAction extends Action2 {
 	}
 });
 
+registerAction2(class DetachChatAction extends Action2 {
+	constructor() {
+		super({
+			id: DETACH_CHAT_COMMAND_ID,
+			title: localize2('detachChat', "Detach Chat into New Pane"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, SessionIsCreatedContext, SessionActiveChatIsClosableContext),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const service = accessor.get(ISessionsService);
+		const session = service.activeSession.get();
+		if (session) {
+			await service.detachChat(session, session.activeChat.get().resource);
+		}
+	}
+});
+
 // -- Focus Nth Session in the Grid (Cmd/Ctrl+1..9) --
 // Mirrors VS Code's "Focus Editor Group N": Ctrl/Cmd+1..8 focus that grid slot
 // and Ctrl/Cmd+9 focuses the LAST slot. Does nothing when the slot doesn't exist.
@@ -513,13 +553,12 @@ for (let index = 0; index < 9; index++) {
 			const sessionsService = accessor.get(ISessionsService);
 			const sessionsPartService = accessor.get(ISessionsPartService);
 
-			const visible = sessionsService.visibleSessions.get();
-			const targetIndex = isLast ? visible.length - 1 : index;
-			if (targetIndex < 0 || targetIndex >= visible.length) {
+			const target = sessionsPartService.getSessionAtPosition(isLast ? -1 : index);
+			if (target === undefined) {
 				return;
 			}
 
-			const session = visible[targetIndex];
+			const session = target ?? undefined;
 			sessionsService.setActive(session);
 			sessionsPartService.focusSession(session);
 		}
@@ -560,6 +599,7 @@ const CHAT_TAB_KEYBINDING_WEIGHT = KeybindingWeight.SessionsContrib + 10;
 interface IChatRenameContext {
 	readonly session: ISession;
 	readonly chat: IChat;
+	readonly inline?: boolean;
 }
 
 function getSessionsList(accessor: ServicesAccessor): SessionsList | undefined {
@@ -629,42 +669,49 @@ registerAction2(class RenameChatAction extends Action2 {
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
 					ContextKeyExpr.or(
-						ContextKeyExpr.and(ChatContextKeys.inChatSession, SessionFocusedChatIsRenameTargetContext),
+						SessionFocusedChatIsRenameTargetContext,
 						ContextKeyExpr.and(FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey, SessionsListFocusedChatItemContext),
 					),
 				),
 			},
+			menu: [{
+				id: Menus.SessionChatItemContext,
+				group: '4_manage',
+				order: 1,
+				when: ContextKeyExpr.and(SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext.negate()),
+			}, ...SessionHeaderMenus.map(id => ({
+				id,
+				group: 'secondary/4_manage',
+				order: 10,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionHeaderShowsChatContext, SessionFocusedChatIsRenameTargetContext, SessionIsArchivedContext.negate()),
+			}))],
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, context?: IChatRenameContext): Promise<void> {
-		const target = getChatRenameContext(accessor, context);
+	override async run(accessor: ServicesAccessor, context?: IChatRenameContext | IActiveSession, chat?: IChat): Promise<void> {
+		let renameContext: IChatRenameContext | undefined;
+		if (context && hasKey(context, { session: true })) {
+			renameContext = context;
+		} else if (context && chat) {
+			renameContext = { session: context, chat, inline: true };
+		}
+		if (!renameContext) {
+			const sessionsList = getSessionsList(accessor);
+			const focusedChat = sessionsList?.getFocusedChatItem();
+			if (focusedChat && sessionsList?.beginRenameChat(focusedChat)) {
+				return;
+			}
+		}
+		if (renameContext?.inline && accessor.get(ISessionsPartService).getSessionView(renameContext.session.sessionId)?.startChatTitleEditing(renameContext.chat.resource)) {
+			return;
+		}
+		if (!renameContext && accessor.get(ISessionsPartService).getFocusedSessionView()?.startFocusedChatTitleEditing?.()) {
+			return;
+		}
+		const target = getChatRenameContext(accessor, renameContext);
 		if (target) {
 			await renameChatWithQuickInput(accessor, target);
 		}
-	}
-});
-
-registerAction2(class RenameSessionListChatAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.list.renameChat',
-			title: localize2('renameChat', "Rename..."),
-			f1: false,
-			menu: {
-				id: Menus.SessionChatItemContext,
-				group: '1_chat',
-				order: 1,
-				when: ContextKeyExpr.and(SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext.negate()),
-			},
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, context?: ISessionChatItem): Promise<void> {
-		if (!context) {
-			return;
-		}
-		await renameChatWithQuickInput(accessor, context);
 	}
 });
 
@@ -676,7 +723,7 @@ registerAction2(class OpenSessionListChatToSideAction extends Action2 {
 			f1: false,
 			menu: {
 				id: Menus.SessionChatItemContext,
-				group: '1_chat',
+				group: 'navigation',
 				order: 2,
 			},
 		});
@@ -694,18 +741,184 @@ registerAction2(class OpenSessionListChatToSideAction extends Action2 {
 	}
 });
 
+/** Moves a nested session (a chat of a session) into a new session of its own, like dropping it on the list's empty space. */
+export const PROMOTE_CHAT_TO_SESSION_ACTION_ID = 'sessions.list.promoteChatToSession';
+
+registerAction2(class PromoteChatToSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: PROMOTE_CHAT_TO_SESSION_ACTION_ID,
+			title: localize2('moveChatToNewSession', "Move to New Session"),
+			f1: false,
+			menu: [{
+				id: Menus.SessionChatItemContext,
+				group: '2_organize',
+				order: 3,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatMoveSettingId.Enabled}`, true), ChatContextKeys.enabled, SessionChatItemCanMoveContext),
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: ISessionChatItem): Promise<boolean> {
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const configurationService = accessor.get(IConfigurationService);
+		if (!context || !isChatMoveDndEnabled(configurationService, accessor.get(IChatEntitlementService)) || !sessionsManagementService.canMoveChat(context.session, context.chat)) {
+			return false;
+		}
+		const move: SessionsListMove = { kind: 'chat', session: context.session, chat: context.chat, destination: { kind: 'newSession' } };
+		const sessionsList = getSessionsList(accessor);
+		// Like a drop on the list, reveal and select the new session in the list once it shows it.
+		return runSessionsListMove(move, sessionsManagementService, accessor.get(INotificationService), accessor.get(ILogService), {
+			watch: sessionsList && (watched => sessionsList.watchMoveForReveal(watched)),
+		});
+	}
+});
+
+/** The label of both "move into another session" commands; the quick pick's title says which kind of move it is. */
+const MOVE_TO_SESSION_LABEL = localize2('moveToSession', "Move to Session...");
+
+export const MOVE_CHAT_TO_SESSION_ACTION_ID = 'sessions.list.moveChatToSession';
+export const MOVE_SESSION_INTO_SESSION_ACTION_ID = 'sessions.list.moveSessionIntoSession';
+
+interface IMoveDestinationPickItem extends IQuickPickItem {
+	readonly destination: ISessionsListMoveDestination;
+}
+
+/** Lets the user pick the session to move into, the most recently updated first. Resolves to `undefined` when cancelled. */
+async function pickMoveDestination(quickInputService: IQuickInputService, destinations: readonly ISessionsListMoveDestination[], title: string, placeHolder: string): Promise<ISessionsListMoveDestination | undefined> {
+	const items: IMoveDestinationPickItem[] = [...destinations]
+		.sort((a, b) => b.session.updatedAt.get().getTime() - a.session.updatedAt.get().getTime())
+		.map(destination => {
+			const chatCount = destination.session.chats.get().length;
+			return {
+				label: destination.session.title.get(),
+				description: destination.session.workspace.get()?.label,
+				detail: chatCount === 1 ? localize('moveToSession.oneChat', "1 chat") : localize('moveToSession.chats', "{0} chats", chatCount),
+				destination,
+			};
+		});
+	const picked = await quickInputService.pick(items, { title, placeHolder, matchOnDescription: true, matchOnDetail: true });
+	return picked?.destination;
+}
+
+/** Captures what a move needs from the accessor, which is not valid after the destination pick. */
+function getMoveRunner(accessor: ServicesAccessor): (move: SessionsListMove) => Promise<boolean> {
+	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const notificationService = accessor.get(INotificationService);
+	const logService = accessor.get(ILogService);
+	const sessionsList = getSessionsList(accessor);
+	return move => runSessionsListMove(move, sessionsManagementService, notificationService, logService, {
+		watch: sessionsList && (watched => sessionsList.watchMoveForReveal(watched)),
+	});
+}
+
+registerAction2(class MoveChatToSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: MOVE_CHAT_TO_SESSION_ACTION_ID,
+			title: MOVE_TO_SESSION_LABEL,
+			f1: false,
+			menu: [{
+				id: Menus.SessionChatItemContext,
+				group: '1_move',
+				order: 2,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatMoveSettingId.Enabled}`, true), ChatContextKeys.enabled, SessionChatItemCanMoveContext, SessionChatItemHasMoveDestinationContext),
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: ISessionChatItem): Promise<boolean> {
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const runMove = getMoveRunner(accessor);
+		const configurationService = accessor.get(IConfigurationService);
+		if (!context || !isChatMoveDndEnabled(configurationService, accessor.get(IChatEntitlementService))) {
+			return false;
+		}
+		const crossAgent = isCrossAgentChatMoveEnabled(configurationService);
+		const destinations = getChatMoveDestinations(context.session, context.chat, sessionsManagementService.getSessions(), sessionsManagementService, crossAgent);
+		if (!destinations.length) {
+			return false;
+		}
+		const title = context.chat.title.get();
+		const destination = await pickMoveDestination(quickInputService, destinations,
+			localize('moveChatToSession.title', "Move '{0}' to Session", title),
+			localize('moveChatToSession.placeholder', "Select the session to move '{0}' into; it becomes the session's last chat", title));
+		if (!destination) {
+			return false;
+		}
+		// The pick is asynchronous: check the destination still takes the chat.
+		const current = getChatMoveDestinations(context.session, context.chat, sessionsManagementService.getSessions(), sessionsManagementService, crossAgent).find(candidate => candidate.session === destination.session);
+		if (!current) {
+			return false;
+		}
+		return runMove({ kind: 'chat', session: context.session, chat: context.chat, destination: { kind: 'session', session: current.session, after: current.after } });
+	}
+});
+
+registerAction2(class MoveSessionIntoSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: MOVE_SESSION_INTO_SESSION_ACTION_ID,
+			title: MOVE_TO_SESSION_LABEL,
+			f1: false,
+			precondition: SessionItemIsMultiSelectionContext.negate(),
+			menu: [{
+				id: MenuId.SessionItemContextMenu,
+				group: '1_move',
+				order: 1,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatMoveSettingId.Enabled}`, true), ChatContextKeys.enabled, SessionItemHasMoveDestinationContext),
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<boolean> {
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const runMove = getMoveRunner(accessor);
+		const session = Array.isArray(context) ? (context.length === 1 ? context[0] : undefined) : context;
+		const configurationService = accessor.get(IConfigurationService);
+		if (!session || !isChatMoveDndEnabled(configurationService, accessor.get(IChatEntitlementService))) {
+			return false;
+		}
+		const crossAgent = isCrossAgentChatMoveEnabled(configurationService);
+		const destinations = getSessionMoveDestinations(session, sessionsManagementService.getSessions(), sessionsManagementService, crossAgent);
+		if (!destinations.length) {
+			return false;
+		}
+		const title = session.title.get();
+		const destination = await pickMoveDestination(quickInputService, destinations,
+			localize('moveSessionIntoSession.title', "Move '{0}' into Session", title),
+			localize('moveSessionIntoSession.placeholder', "Select the session to nest '{0}' under; it becomes the session's last chat", title));
+		if (!destination) {
+			return false;
+		}
+		const current = getSessionMoveDestinations(session, sessionsManagementService.getSessions(), sessionsManagementService, crossAgent).find(candidate => candidate.session === destination.session);
+		if (!current) {
+			return false;
+		}
+		return runMove({ kind: 'session', session, destination: current.session, after: current.after });
+	}
+});
+
 registerAction2(class DeleteSessionListChatAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.list.deleteChat',
 			title: localize2('deleteChat', "Delete..."),
+			icon: Codicon.trash,
 			f1: false,
-			menu: {
+			menu: [{
 				id: Menus.SessionChatItemContext,
-				group: '2_delete',
-				order: 1,
+				group: '4_manage',
+				order: 2,
 				when: SessionChatItemCanDeleteContext,
-			},
+			}, {
+				id: Menus.SessionChatItemToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(SessionChatItemCanDeleteContext, SessionChatItemIsUntitledContext),
+			}],
 		});
 	}
 
@@ -713,38 +926,42 @@ registerAction2(class DeleteSessionListChatAction extends Action2 {
 		if (!context || !getChatCapabilities(context.chat, context.session, undefined).canDelete) {
 			return;
 		}
-		await accessor.get(ISessionsManagementService).deleteChat(context.session, context.chat.resource);
+		await accessor.get(ISessionsManagementService).deleteChat(
+			context.session,
+			context.chat.resource,
+			context.chat.status.get() === SessionStatus.Untitled ? { skipConfirmation: true } : undefined,
+		);
 	}
 });
 
-// "New Chat in This Session" starts a new chat from the session header's overflow menu.
+// "New Nested Session" starts a nested session from the Sessions list.
 const ADD_CHAT_TO_SESSION_ACTION_ID = 'sessions.chatCompositeBar.addChat';
 
 registerAction2(class AddChatToSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: ADD_CHAT_TO_SESSION_ACTION_ID,
-			title: localize2('chatCompositeBar.addChat', "New Chat in This Session"),
+			title: localize2('chatCompositeBar.addChat', "New Nested Session"),
 			icon: Codicon.add,
+			precondition: SessionItemIsMultiSelectionContext.negate(),
 			keybinding: {
 				weight: CHAT_TAB_KEYBINDING_WEIGHT,
 				// Like Cmd/Ctrl+T in a browser — opens a new chat tab within the
 				// active session. Scoped so it does not steal the shortcut outside
 				// the agents window or when the session does not support multiple chats.
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionIsCreatedContext, SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyT,
 			},
 			menu: [{
-				id: Menus.SessionBarToolbar,
-				// Keep New Chat visually separate from the Side Chats submenu.
-				group: 'secondary/3_newChat',
-				order: 10,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate()),
+				id: Menus.SessionItemToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(SessionsListPromoteNewChatActionContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionItemInExternalSectionContext.negate(), SessionItemIsCloudContext.negate()),
 			}, {
 				id: Menus.SessionItemContextMenu,
-				group: '1_newChat',
-				order: 0,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate()),
+				group: 'navigation',
+				order: 2,
+				when: ContextKeyExpr.and(SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionItemInExternalSectionContext.negate()),
 			}],
 		});
 	}
@@ -754,9 +971,6 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const target = Array.isArray(context) ? context[0] : context ?? sessionsService.activeSession.get();
 		if (!target) {
-			return;
-		}
-		if (target.isQuickChat?.get()) {
 			return;
 		}
 		await sessionsService.openNewChatInSession(target);
@@ -826,23 +1040,17 @@ registerAction2(class NavigatePreviousChatAction extends Action2 {
 	}
 });
 
-// The close-chat action is both a keybinding (Ctrl/Cmd+W closes the active chat)
-// and a per-tab toolbar action contributed to {@link Menus.SessionChatTab}: the
-// chat tab strip renders this menu and forwards the tab's {@link IChatTabContext}
-// as the action argument so the button closes that specific tab.
-export interface IChatTabContext {
-	readonly session: IActiveSession;
-	readonly chat: IChat;
-}
+// The close action is shared by chat tabs and chat-group headers. A main-chat
+// group is removed without hiding the session's main chat.
 
 registerAction2(class CloseChatAction extends Action2 {
 	constructor() {
 		super({
 			id: CLOSE_CHAT_COMMAND_ID,
-			title: localize2('closeActiveChat', "Close Chat"),
-			icon: Codicon.close,
-			// Hidden from the palette: closing a specific chat is contextual (the
-			// keybinding targets the active chat; the menu targets a tab).
+			title: localize2('closeActiveChat', "Close"),
+			icon: Codicon.closeSmall,
+			// Hidden from the palette because closing a chat requires either an
+			// explicit tab context or an active chat group.
 			f1: false,
 			category: SessionsCategories.Sessions,
 			keybinding: {
@@ -854,37 +1062,58 @@ registerAction2(class CloseChatAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyW,
 				win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 			},
-			// Rendered as the tab's close button by the chat tab strip; the main
-			// chat's tab does not render this menu, so no per-tab gating is needed.
-			menu: {
+			menu: [{
 				id: Menus.SessionChatTab,
 				group: 'navigation',
 				order: 10,
-			},
+			}, ...SessionHeaderMenus.map(id => ({
+				id,
+				when: ContextKeyExpr.and(SessionHeaderShowsChatContext, SessionActiveChatIsClosableContext),
+				group: 'secondary/0_pane',
+				order: 10,
+			}))],
 		});
 	}
-	override async run(accessor: ServicesAccessor, context?: IChatTabContext): Promise<void> {
+	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined, chat?: IChat): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const extUri = accessor.get(IUriIdentityService).extUri;
-		// From the tab menu: act on the forwarded tab's chat. From the keybinding:
-		// act on the active chat of the active session.
-		const session = context?.session ?? sessionsService.activeSession.get();
+		session ??= sessionsService.activeSession.get();
 		if (!session) {
 			return;
 		}
-		const chat = context?.chat ?? session.activeChat.get();
-		if (!chat || extUri.isEqual(chat.resource, session.mainChat.get().resource)) {
+		const sessionView = accessor.get(ISessionsPartService).getSessionView(session.sessionId);
+		chat ??= sessionView?.getActiveChat() ?? session.activeChat.get();
+		if (!chat) {
+			return;
+		}
+		if (extUri.isEqual(chat.resource, session.mainChat.get().resource)) {
+			await sessionView?.closeChatGroup(chat.resource);
 			return;
 		}
 		// An untitled (in-composer) draft has nothing to reopen, so delete it
 		// outright; a committed chat is hidden (reopenable).
 		if (chat.status.get() === SessionStatus.Untitled) {
-			await sessionsManagementService.deleteChat(session, chat.resource, { skipConfirmation: true });
+			if (await sessionsManagementService.deleteChat(session, chat.resource, { skipConfirmation: true })) {
+				await sessionView?.closeChatGroup(chat.resource);
+			}
 		} else {
+			await sessionView?.closeChatGroup(chat.resource);
 			await sessionsService.closeChat(session, chat);
 		}
 	}
+});
+
+MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
+	command: {
+		id: CLOSE_CHAT_COMMAND_ID,
+		title: localize('closeChatGroup', "Close"),
+		tooltip: localize('closeChatGroupTooltip', "Close Chat Group"),
+		icon: Codicon.closeSmall,
+	},
+	when: ContextKeyExpr.and(SessionHeaderShowsChatContext, SessionActiveChatIsClosableContext),
+	group: 'navigation',
+	order: 30,
 });
 
 registerAction2(class CloseAllChatsAction extends Action2 {
@@ -944,6 +1173,7 @@ registerAction2(class DeleteChatAction extends Action2 {
 		super({
 			id: 'sessions.chatCompositeBar.deleteChat',
 			title: localize2('deleteActiveChat', "Delete Chat"),
+			icon: Codicon.trash,
 			f1: true,
 			category: SessionsCategories.Sessions,
 			keybinding: {
@@ -958,22 +1188,32 @@ registerAction2(class DeleteChatAction extends Action2 {
 					secondary: [KeyCode.Delete],
 				},
 			},
+			menu: SessionHeaderMenus.map(id => ({
+				id,
+				group: 'secondary/4_manage',
+				order: 20,
+				when: ContextKeyExpr.and(SessionHeaderTargetsChatContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext),
+			})),
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, session?: IActiveSession, chat?: IChat): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const session = sessionsService.activeSession.get();
+		session ??= sessionsService.activeSession.get();
 		if (!session) {
 			return;
 		}
-		const chat = session.activeChat.get();
+		chat ??= session.activeChat.get();
 		// The main chat and worker (subagent) chats report `canDelete: false`.
 		if (!chat || !getChatCapabilities(chat, session, undefined).canDelete) {
 			return;
 		}
-		await sessionsManagementService.deleteChat(session, chat.resource);
+		await sessionsManagementService.deleteChat(
+			session,
+			chat.resource,
+			chat.status.get() === SessionStatus.Untitled ? { skipConfirmation: true } : undefined,
+		);
 	}
 });
 
@@ -1071,12 +1311,15 @@ function openChatsPicker(accessor: ServicesAccessor, mru?: { readonly backward: 
 		readonly chat: IChat;
 	}
 
-	const toItem = (chat: IChat): IChatPickItem => ({
-		label: chat.title.get()?.trim() || localize('untitledChat', "Untitled Chat"),
-		description: fromNow(chat.updatedAt.get(), true, true),
-		iconClass: ThemeIcon.asClassName(Codicon.commentDiscussion),
-		chat,
-	});
+	const toItem = (chat: IChat): IChatPickItem => {
+		const updatedAt = chat.updatedAt.get();
+		return {
+			label: chat.title.get()?.trim() || localize('untitledChat', "Untitled Chat"),
+			...(updatedAt ? { description: fromNow(updatedAt, true, true) } : {}),
+			iconClass: ThemeIcon.asClassName(Codicon.commentDiscussion),
+			chat,
+		};
+	};
 
 	// MRU mode cycles every open tab (including in-composer drafts) so the set of
 	// switchable chats matches the SessionHasMultipleOpenChatsContext gate. The
@@ -1234,8 +1477,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 /**
  * Base class for the compact pill button rendered in the sessions UI (e.g. the "New" session/chat
- * buttons, the empty file editor's "Search Files" button). Subclasses provide the command id,
- * label and hover/aria text.
+ * buttons and the empty file editor actions). Subclasses provide the command id,
+ * label, optional icon and hover/aria text.
  */
 export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 
@@ -1253,6 +1496,11 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 
 	/** Visible pill label (e.g. "New", "New Chat"). */
 	protected abstract get label(): string;
+
+	/** Optional leading icon for the pill. */
+	protected get icon(): ThemeIcon | undefined {
+		return undefined;
+	}
 
 	/** Hover text; receives the resolved keybinding label, if any. */
 	protected abstract getHoverContent(keybindingLabel: string | undefined): string;
@@ -1299,7 +1547,9 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 		this.configureButton(button);
 		const onboardingTargetId = this.onboardingTargetId;
 		if (onboardingTargetId) {
-			this._register(markOnboardingTarget(button.element, onboardingTargetId));
+			this._register(markOnboardingTarget(button.element, onboardingTargetId, {
+				onDidActivate: Event.map(Event.filter(button.onDidClick, () => this.action.enabled), () => undefined),
+			}));
 		}
 		this._register(button.onDidClick(e => {
 			// Stop propagation so the parent <li> click handler doesn't run the action twice.
@@ -1312,6 +1562,13 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 		}));
 
 		const buttonLabel = $('span.new-session-button-label', undefined, this.label);
+		const icon = this.icon;
+		if (icon) {
+			const iconElement = $('span.new-session-button-icon');
+			iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+			iconElement.setAttribute('aria-hidden', 'true');
+			buttonLabel.prepend(iconElement);
+		}
 		const keybindingHint = $('span.new-session-keybinding-hint');
 		const keybindingHintLabel = this.showKeybindingHint
 			? this._register(new KeybindingLabel(keybindingHint, OS, {
@@ -1333,7 +1590,7 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 
 		this._register(this.hoverService.setupDelayedHover(button.element, () => ({
 			content: this.getHoverContent(getKeybinding()?.getLabel() ?? undefined),
-			appearance: { compact: true },
+			appearance: { compact: true, showPointer: true },
 			position: { hoverPosition: HoverPosition.BELOW },
 		})));
 
@@ -1521,6 +1778,52 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 }
 
 /**
+ * Resolves the experiment that selects the primary action shown on session rows.
+ */
+export class SessionListActionsExperimentContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessions.sessionListActionsExperiment';
+	private static readonly PROMOTE_NEW_CHAT_ACTION_TREATMENT = 'sessions.promoteNewChatAction';
+
+	private readonly promoteNewChatActionContext: IContextKey<boolean>;
+	private readonly treatmentCancellation = this._register(new MutableDisposable());
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
+		@ILogService private readonly logService: ILogService,
+	) {
+		super();
+
+		this.promoteNewChatActionContext = SessionsListPromoteNewChatActionContext.bindTo(contextKeyService);
+		this._register(this.assignmentService.onDidRefetchAssignments(() => this.updateTreatment()));
+		this.updateTreatment();
+	}
+
+	private updateTreatment(): void {
+		const cancellation = new CancellationTokenSource();
+		this.treatmentCancellation.value = toDisposable(() => {
+			cancellation.cancel();
+			cancellation.dispose();
+		});
+		void this.resolveTreatment(cancellation.token);
+	}
+
+	private async resolveTreatment(token: CancellationToken): Promise<void> {
+		let enabled = SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT;
+		try {
+			enabled = await raceCancellationError(this.assignmentService.getTreatment<boolean>(SessionListActionsExperimentContribution.PROMOTE_NEW_CHAT_ACTION_TREATMENT), token) ?? SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT;
+		} catch (error) {
+			if (isCancellationError(error)) {
+				return;
+			}
+			this.logService.warn('[SessionListActionsExperimentContribution] Failed to resolve the promoted New Chat action treatment; using the default session row action.', error);
+		}
+		this.promoteNewChatActionContext.set(enabled);
+	}
+}
+
+/**
  * Populates the Side Chats submenu for each visible session. Actions are
  * scoped per session via {@link SessionIdContext} and re-registered whenever
  * visible sessions or their chats change.
@@ -1535,8 +1838,10 @@ export class SessionConversationActionsContribution extends Disposable implement
 	) {
 		super();
 		this._register(autorun(reader => {
-			for (const session of this._sessionsService.visibleSessions.read(reader)) {
-				if (session) {
+			const owners = new Set<string>();
+			for (const session of this._sessionsService.visibleSessionPanes.read(reader)) {
+				if (session && !owners.has(session.sessionId)) {
+					owners.add(session.sessionId);
 					reader.store.add(this._registerSessionConversationActions(session, reader));
 				}
 			}
@@ -1556,12 +1861,12 @@ export class SessionConversationActionsContribution extends Disposable implement
 			scopedToSession,
 			SessionIsCreatedContext,
 			SessionIsArchivedContext.negate(),
-			SessionHasSideChatsContext,
+			SessionActiveChatHasSideChatsContext,
 		);
 
 		const allChats = session.chats.read(reader);
 
-		const registerOpen = (chat: IChat, order: number) => {
+		const registerOpen = (chat: IChat, parentChat: IChat, order: number) => {
 			const chatResource = chat.resource;
 			const title = chat.title.read(reader) || localize('untitledChat', "Untitled Chat");
 			// Action IDs are global, so scope them to the session and a hash of the
@@ -1572,7 +1877,12 @@ export class SessionConversationActionsContribution extends Disposable implement
 					super({
 						id: getSessionConversationActionId(session.sessionId, chatResource),
 						title,
-						menu: { id: Menus.SessionConversations, group: SESSION_CONVERSATION_SIDE_CHATS_GROUP, order, when: conversationsVisible },
+						menu: {
+							id: Menus.SessionConversations,
+							group: SESSION_CONVERSATION_SIDE_CHATS_GROUP,
+							order,
+							when: ContextKeyExpr.and(conversationsVisible, ContextKeyExpr.equals(SessionActiveChatResourceContext.key, parentChat.resource.toString())),
+						},
 					});
 				}
 				override async run(accessor: ServicesAccessor, forwardedSession?: IActiveSession): Promise<void> {
@@ -1603,8 +1913,9 @@ export class SessionConversationActionsContribution extends Disposable implement
 			if (chat.status.read(reader) === SessionStatus.Untitled) {
 				return;
 			}
-			if (isSessionConversationSideChat(chat)) {
-				registerOpen(chat, index);
+			const parentChat = allChats.find(candidate => isSideChatOf(chat, candidate.resource));
+			if (parentChat) {
+				registerOpen(chat, parentChat, index);
 			}
 		});
 
@@ -1612,23 +1923,79 @@ export class SessionConversationActionsContribution extends Disposable implement
 	}
 }
 
-MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
-	submenu: Menus.SessionConversations,
-	title: localize2('chatCompositeBar.sideChats', "Side Chats"),
-	icon: Codicon.commentDiscussion,
-	group: 'secondary/2_chats',
-	order: 10,
-	when: ContextKeyExpr.and(
-		SessionIsCreatedContext,
-		SessionIsArchivedContext.negate(),
-		SessionHasSideChatsContext,
-	),
+for (const menu of SessionHeaderMenus) {
+	MenuRegistry.appendMenuItem(menu, {
+		submenu: MenuId.ChatViewMode,
+		title: localize2('chat.viewMode', "View Mode"),
+		group: 'secondary/4_manage',
+		order: 10,
+		when: ChatContextKeys.enabled,
+	});
+
+	MenuRegistry.appendMenuItem(menu, {
+		submenu: Menus.SessionConversations,
+		title: localize2('chatCompositeBar.sideChats', "Side Chats"),
+		icon: Codicon.commentDiscussion,
+		group: 'secondary/0_pane',
+		order: 40,
+		when: ContextKeyExpr.and(
+			SessionIsCreatedContext,
+			SessionIsArchivedContext.negate(),
+			SessionActiveChatHasSideChatsContext,
+		),
+	});
+
+	MenuRegistry.appendMenuItem(menu, {
+		submenu: Menus.SessionChatTabs,
+		title: localize2('chatCompositeBar.showChatTabs', "Show Chat Tabs"),
+		group: 'secondary/0_pane',
+		order: 50,
+		when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext),
+	});
+}
+
+registerAction2(class ShowMultipleChatTabsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.action.showMultipleChatTabs',
+			title: localize2('showMultipleChatTabs', "Multiple"),
+			toggled: ContextKeyExpr.equals(`config.${SESSIONS_CHAT_TABS_SETTING}`, SessionsChatTabsMode.Multiple),
+			menu: {
+				id: Menus.SessionChatTabs,
+				group: '1_presentation',
+				order: 10,
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		return accessor.get(IConfigurationService).updateValue(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Multiple);
+	}
+});
+
+registerAction2(class ShowSingleChatAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.action.showSingleChat',
+			title: localize2('showSingleChat', "Single"),
+			toggled: ContextKeyExpr.equals(`config.${SESSIONS_CHAT_TABS_SETTING}`, SessionsChatTabsMode.Single),
+			menu: {
+				id: Menus.SessionChatTabs,
+				group: '1_presentation',
+				order: 20,
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		return accessor.get(IConfigurationService).updateValue(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
+	}
 });
 
 registerAction2(class TogglePinSessionAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessions.chatCompositeBar.togglePin',
+			id: TOGGLE_PIN_SESSION_COMMAND_ID,
 			title: localize2('chatCompositeBar.pin', "Pin"),
 			icon: Codicon.pin,
 			toggled: {
@@ -1640,13 +2007,13 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 				id: Menus.SessionBarToolbar,
 				group: 'navigation',
 				order: 10,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsStickyContext, SessionIsArchivedContext.negate()),
-			}, {
-				id: Menus.SessionBarToolbar,
-				group: 'secondary/4_pin',
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsStickyContext, SessionIsArchivedContext.negate(), SessionHeaderShowsChatContext.negate()),
+			}, ...SessionHeaderMenus.map(id => ({
+				id,
+				group: 'secondary/2_organize',
 				order: 10,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsArchivedContext.negate()),
-			}],
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsArchivedContext.negate(), SessionHeaderShowsChatContext.negate()),
+			}))],
 		});
 	}
 
@@ -1658,18 +2025,37 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 	}
 });
 
-MenuRegistry.appendMenuItem(Menus.SessionHeaderContext, {
-	command: {
-		id: 'sessions.chatCompositeBar.togglePin',
-		title: localize('chatCompositeBar.pinView', "Pin"),
-		toggled: {
-			condition: SessionIsStickyContext,
-			title: localize('chatCompositeBar.unpinView', "Unpin"),
-		},
-	},
-	group: '1_view',
-	order: 1,
-	when: SessionIsCreatedContext,
+registerAction2(class TogglePinChatAction extends Action2 {
+	constructor() {
+		super({
+			id: TOGGLE_PIN_CHAT_COMMAND_ID,
+			title: localize2('chatCompositeBar.pinChat', "Pin"),
+			icon: Codicon.pin,
+			toggled: {
+				condition: SessionHeaderActiveChatIsPinnedContext,
+				icon: Codicon.pinned,
+				title: localize('chatCompositeBar.unpinChat', "Unpin"),
+			},
+			menu: [{
+				id: Menus.SessionBarToolbar,
+				group: 'navigation',
+				order: 10,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionHeaderShowsChatContext, SessionHeaderActiveChatIsPinnedContext, SessionIsArchivedContext.negate()),
+			}, ...SessionHeaderMenus.map(id => ({
+				id,
+				group: 'secondary/2_organize',
+				order: 10,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionHeaderShowsChatContext, SessionIsArchivedContext.negate()),
+			}))],
+		});
+	}
+
+	override run(accessor: ServicesAccessor, session: IActiveSession | undefined): void {
+		session ??= accessor.get(ISessionsService).activeSession.get();
+		if (session) {
+			accessor.get(ISessionsPartService).getSessionView(session.sessionId)?.toggleActiveChatPin();
+		}
+	}
 });
 
 registerAction2(class RenameSessionHeaderAction extends Action2 {
@@ -1678,21 +2064,27 @@ registerAction2(class RenameSessionHeaderAction extends Action2 {
 			id: 'sessions.sessionHeader.rename',
 			title: localize2('renameSessionHeader', "Rename..."),
 			icon: Codicon.edit,
-			menu: [{
-				id: Menus.SessionHeaderContext,
-				group: '2_edit',
-				order: 1,
-				when: ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
-			}, {
-				id: Menus.SessionBarToolbar,
-				group: 'secondary/1_session',
-				order: 20,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsRenameContext, SessionIsArchivedContext.negate()),
-			}],
+			keybinding: {
+				primary: KeyCode.F2,
+				weight: KeybindingWeight.SessionsContrib + 1,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					SessionsFocusContext,
+					SessionSupportsRenameContext,
+					SessionFocusedChatIsRenameTargetContext.negate(),
+				),
+			},
+			menu: SessionHeaderMenus.map(id => ({
+				id,
+				group: 'secondary/4_manage',
+				order: 10,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsRenameContext, SessionHeaderShowsChatContext.negate(), SessionIsArchivedContext.negate()),
+			})),
 		});
 	}
 
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
+		session ??= accessor.get(ISessionsService).activeSession.get();
 		if (!session) {
 			return;
 		}
@@ -1710,55 +2102,161 @@ registerAction2(class RenameSessionHeaderAction extends Action2 {
 registerAction2(class CloseSessionAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessions.chatCompositeBar.close',
+			id: CLOSE_SESSION_COMMAND_ID,
 			title: localize2('chatCompositeBar.close', "Close"),
-			icon: Codicon.close,
+			tooltip: localize2('chatCompositeBar.closeTooltip', "Close Session"),
+			icon: Codicon.closeSmall,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				when: ContextKeyExpr.and(
+					IsNewChatSessionContext.negate(),
+					IsSessionsWindowContext,
+					SessionsFocusContext,
+					EditorAreaFocusContext.negate(),
+				),
+				primary: KeyMod.CtrlCmd | KeyCode.KeyW,
+				win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
+			},
 			menu: [{
 				id: Menus.SessionBarToolbar,
-				when: ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
-				group: 'secondary/4_pin',
+				when: ContextKeyExpr.and(
+					MultipleSessionsVisibleContext,
+					SessionToolbarShowsSessionContext,
+				),
+				group: 'navigation',
 				order: 30,
-			}, {
-				id: Menus.SessionHeaderContext,
-				when: ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
-				group: '1_view',
-				order: 2,
-			}],
+			}, ...SessionHeaderMenus.map(id => ({
+				id,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
+					SessionHeaderShowsChatContext.negate(),
+				),
+				group: 'secondary/0_pane',
+				order: 10,
+			}))],
 		});
 	}
 
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
+		session ??= sessionsService.activeSession.get();
+
+		const sessionView = session && sessionsPartService.getSessionView(session.sessionId);
+		const activeChat = sessionView?.getActiveChat();
+		if (session
+			&& sessionView
+			&& activeChat
+			&& accessor.get(IUriIdentityService).extUri.isEqual(activeChat.resource, session.mainChat.get().resource)
+			&& await sessionView.closeChatGroup(activeChat.resource)) {
+			return;
+		}
 
 		sessionsService.closeSession(session);
 		sessionsPartService.focusSession(sessionsService.activeSession.get());
 	}
 });
 
+const sessionGridWhen = ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, IsPhoneLayoutContext.negate(), MultipleSessionsVisibleContext);
+
+for (const menu of SessionHeaderMenus) {
+	MenuRegistry.appendMenuItem(menu, {
+		submenu: Menus.SessionGridLayout,
+		title: localize('sessionGridLayout', "Session Layout"),
+		group: 'secondary/0_pane',
+		order: 30,
+		when: sessionGridWhen,
+	});
+}
+
+registerAction2(class ArrangeSessionsAction extends Action2 {
+	constructor() {
+		super({
+			id: ARRANGE_SESSIONS_COMMAND_ID,
+			title: localize2('arrangeSessions', "Arrange Sessions in a Balanced Grid"),
+			category: SessionsCategories.Sessions,
+			f1: true,
+			precondition: sessionGridWhen,
+			menu: { id: Menus.SessionGridLayout, group: '0_arrange', order: 0 },
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		accessor.get(ISessionsService).arrangeSessions();
+	}
+});
+
+const sessionGridActions = [
+	{ direction: Direction.Left, key: KeyCode.LeftArrow, focus: SESSION_GRID_FOCUS_COMMANDS.left, focusTitle: localize2('focusSessionLeft', "Focus Session to the Left"), move: 'sessions.moveSessionLeft', moveTitle: localize2('moveSessionLeft', "Move Session Left"), resize: 'sessions.narrowSession', resizeTitle: localize2('narrowSession', "Decrease Session Width") },
+	{ direction: Direction.Right, key: KeyCode.RightArrow, focus: SESSION_GRID_FOCUS_COMMANDS.right, focusTitle: localize2('focusSessionRight', "Focus Session to the Right"), move: 'sessions.moveSessionRight', moveTitle: localize2('moveSessionRight', "Move Session Right"), resize: 'sessions.widenSession', resizeTitle: localize2('widenSession', "Increase Session Width") },
+	{ direction: Direction.Up, key: KeyCode.UpArrow, focus: SESSION_GRID_FOCUS_COMMANDS.up, focusTitle: localize2('focusSessionAbove', "Focus Session Above"), move: 'sessions.moveSessionUp', moveTitle: localize2('moveSessionUp', "Move Session Above"), resize: 'sessions.shortenSession', resizeTitle: localize2('shortenSession', "Decrease Session Height") },
+	{ direction: Direction.Down, key: KeyCode.DownArrow, focus: SESSION_GRID_FOCUS_COMMANDS.down, focusTitle: localize2('focusSessionBelow', "Focus Session Below"), move: 'sessions.moveSessionDown', moveTitle: localize2('moveSessionDown', "Move Session Below"), resize: 'sessions.heightenSession', resizeTitle: localize2('heightenSession', "Increase Session Height") },
+] as const;
+
+const sessionGridNavigationWhen = ContextKeyExpr.and(sessionGridWhen, SessionsFocusContext)!;
+for (const item of sessionGridActions) {
+	registerViewNavigationCommand(item.direction, item.focus, sessionGridNavigationWhen);
+}
+
+for (const item of sessionGridActions) {
+	for (const operation of ['focus', 'move', 'resize'] as const) {
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: item[operation],
+					title: operation === 'focus' ? item.focusTitle : operation === 'move' ? item.moveTitle : item.resizeTitle,
+					category: SessionsCategories.Sessions,
+					f1: true,
+					precondition: sessionGridWhen,
+					menu: { id: Menus.SessionGridLayout, group: operation === 'focus' ? '1_focus' : operation === 'move' ? '2_move' : '3_size', order: item.direction },
+					keybinding: operation === 'focus' ? {
+						primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | item.key),
+						weight: KeybindingWeight.SessionsContrib,
+						when: SessionsFocusContext,
+					} : undefined,
+				});
+			}
+			run(accessor: ServicesAccessor, session?: IActiveSession): void {
+				const service = accessor.get(ISessionsService);
+				session ??= service.activeSession.get();
+				if (operation === 'focus') {
+					service.focusSessionInDirection(session, item.direction);
+				} else if (operation === 'move') {
+					service.moveSessionInDirection(session, item.direction);
+				} else {
+					service.resizeSession(session, item.direction);
+				}
+			}
+		});
+	}
+}
+
 registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.chatCompositeBar.toggleMaximize',
 			title: localize2('chatCompositeBar.maximize', "Maximize"),
+			category: SessionsCategories.Sessions,
+			precondition: sessionGridWhen,
+			f1: true,
 			icon: Codicon.screenFull,
 			toggled: {
 				condition: SessionIsMaximizedContext,
 				icon: Codicon.screenNormal,
-				title: localize('chatCompositeBar.unmaximize', "Restore"),
+				title: localize('chatCompositeBar.unmaximize', "Restore Size"),
 			},
-			menu: {
-				id: Menus.SessionBarToolbar,
-				when: MultipleSessionsVisibleContext,
-				group: 'secondary/4_pin',
+			menu: SessionHeaderMenus.map(id => ({
+				id,
+				when: sessionGridWhen,
+				group: 'secondary/0_pane',
 				order: 20,
-			},
+			})),
 		});
 	}
 
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
-		accessor.get(ISessionsPartService).toggleMaximizeSession(session);
+		session ??= accessor.get(ISessionsService).activeSession.get();
 		accessor.get(ISessionsService).setActive(session);
+		accessor.get(ISessionsPartService).toggleMaximizeSession(session);
 	}
 });
 

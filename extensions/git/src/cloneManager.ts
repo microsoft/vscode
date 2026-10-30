@@ -11,6 +11,7 @@ import { l10n, workspace, window, Uri, ProgressLocation, commands } from 'vscode
 import { RepositoryCache, RepositoryCacheInfo } from './repositoryCache';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { Model } from './model';
+import { getSafeNotificationMessage } from './notification';
 
 type ApiPostCloneAction = 'none';
 enum PostCloneAction { Open, OpenNewWindow, AddToWorkspace, None }
@@ -91,7 +92,10 @@ export class CloneManager {
 		try {
 			const opts = {
 				location: ProgressLocation.Notification,
-				title: l10n.t('Cloning git repository "{0}"...', url),
+				title: getSafeNotificationMessage(
+					l10n.t('Cloning git repository "{0}"...', url),
+					l10n.t('Cloning git repository...'),
+				),
 				cancellable: true
 			};
 
@@ -211,9 +215,10 @@ export class CloneManager {
 	}
 
 	private async tryOpenExistingRepository(cachedRepository: RepositoryCacheInfo[], url: string, postCloneAction?: ApiPostCloneAction, parentPath?: string, ref?: string, returnRepositoryPath?: boolean): Promise<string | undefined> {
-		// Gather existing folders/workspace files (ignore ones that no longer exist)
+		// Ignore cached entries whose requested path no longer exists.
 		const existingCachedRepositories: RepositoryCacheInfo[] = (await Promise.all<RepositoryCacheInfo | undefined>(cachedRepository.map(async folder => {
-			const stat = await fs.promises.stat(folder.workspacePath).catch(() => undefined);
+			const cachedPath = returnRepositoryPath ? folder.repositoryPath : folder.workspacePath;
+			const stat = await fs.promises.stat(cachedPath).catch(() => undefined);
 			if (stat) {
 				return folder;
 			}

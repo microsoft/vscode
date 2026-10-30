@@ -236,7 +236,7 @@ suite('ActivitybarPart', () => {
 		});
 	});
 
-	test('compact Modern UI density reserves the connected cluster perimeter and rail padding', () => {
+	test('compact Modern UI density reserves only the rail padding', () => {
 		const { part } = createActivitybarPart(false, true, Position.LEFT, {}, true);
 
 		assert.deepStrictEqual(
@@ -337,7 +337,7 @@ suite('ActivitybarPart', () => {
 			minimumWidth: part.minimumWidth,
 		}, {
 			events: [undefined],
-			minimumWidth: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + COMPACT_FLOATING_PANEL_OUTER_MARGIN * 2,
+			minimumWidth: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + COMPACT_FLOATING_PANEL_OUTER_MARGIN + ActivitybarPart.FLOATING_COMPACT_LANE,
 		});
 	});
 
@@ -549,7 +549,7 @@ suite('ActivitybarPart', () => {
 		});
 	});
 
-	test('compact density aligns the activity bar bottom gutter with the panel cluster', () => {
+	test('compact density keeps the activity bar flush with window chrome', () => {
 		const outerMargin = COMPACT_FLOATING_PANEL_OUTER_MARGIN;
 		const borders = ActivitybarPart.FLOATING_BORDER * 2;
 		assert.deepStrictEqual({

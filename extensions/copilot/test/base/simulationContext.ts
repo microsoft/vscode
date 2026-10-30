@@ -11,7 +11,6 @@ import { IIntentService, IntentService } from '../../src/extension/intents/node/
 import { ILinkifyService, LinkifyService } from '../../src/extension/linkify/common/linkifyService';
 import { ChatMLFetcherImpl } from '../../src/extension/prompt/node/chatMLFetcher';
 import { createExtensionUnitTestingServices, ISimulationModelConfig } from '../../src/extension/test/node/services';
-import { AIEvaluationService, IAIEvaluationService } from '../../src/extension/testing/node/aiEvaluationService';
 import { IChatMLFetcher } from '../../src/platform/chat/common/chatMLFetcher';
 import { ChatFetchResponseType, ChatResponses } from '../../src/platform/chat/common/commonTypes';
 import { IChunkingEndpointClient } from '../../src/platform/chunking/common/chunkingEndpointClient';
@@ -28,7 +27,6 @@ import { IGitExtensionService } from '../../src/platform/git/common/gitExtension
 import { NullGitExtensionService } from '../../src/platform/git/common/nullGitExtensionService';
 import { ICompletionsFetchService } from '../../src/platform/nesFetch/common/completionsFetchService';
 import { CompletionsFetchService } from '../../src/platform/nesFetch/node/completionsFetchServiceImpl';
-import { IProjectTemplatesIndex, ProjectTemplatesIndex } from '../../src/platform/projectTemplatesIndex/common/projectTemplatesIndex';
 import { IReleaseNotesService } from '../../src/platform/releaseNotes/common/releaseNotesService';
 import { ReleaseNotesService } from '../../src/platform/releaseNotes/vscode/releaseNotesServiceImpl';
 import { IDocsSearchClient } from '../../src/platform/remoteSearch/common/codeOrDocsSearchClient';
@@ -196,7 +194,6 @@ export async function createSimulationAccessor(
 			[
 				new DefaultsOnlyConfigurationService(),
 				new Map<ExperimentBasedConfig<ExperimentBasedConfigType> | Config<any>, unknown>([
-					[ConfigKey.UseProjectTemplates, false],
 					[ConfigKey.SummarizeAgentConversationHistory, opts.summarizeHistory],
 					...currentTestRunInfo.test.configurations?.map<[ExperimentBasedConfig<ExperimentBasedConfigType> | Config<any>, unknown]>(c => [c.key, c.value]) ?? [],
 					...configs,
@@ -219,8 +216,6 @@ export async function createSimulationAccessor(
 	testingServiceCollection.define(ICachingResourceFetcher, new SyncDescriptor(CachingResourceFetcher, [currentTestRunInfo, opts.resourcesCacheMode]));
 	testingServiceCollection.define(IVSCodeExtensionContext, new SyncDescriptor(MockExtensionContext, [globalStoragePath, constructGlobalStateMemento(globalStatePath)]));
 	testingServiceCollection.define(IIntentService, new SyncDescriptor(IntentService));
-
-	testingServiceCollection.define(IAIEvaluationService, new SyncDescriptor(AIEvaluationService));
 
 	const docsSearchClient = new SyncDescriptor(ThrottlingCodeOrDocsSearchClient, [new SyncDescriptor(DocsSearchClient)]);
 	testingServiceCollection.define(ITokenizerProvider, new SyncDescriptor(TokenizerProvider, [false]));
@@ -270,7 +265,6 @@ export async function createSimulationAccessor(
 		testingServiceCollection.define(IChunkingEndpointClient, new SyncDescriptor(ChunkingEndpointClientImpl));
 		testingServiceCollection.define(ICombinedEmbeddingIndex, new SyncDescriptor(VSCodeCombinedIndexImpl, [/*useRemoteCache*/ true]));
 		testingServiceCollection.define(IApiEmbeddingsIndex, new SyncDescriptor(ApiEmbeddingsIndex, [/*useRemoteCache*/ true]));
-		testingServiceCollection.define(IProjectTemplatesIndex, new SyncDescriptor(ProjectTemplatesIndex, [/*useRemoteCache*/ true]));
 	} else {
 		const embeddingCache = new EmbeddingsSQLiteCache(TestingCacheSalts.embeddingsCacheSalt, currentTestRunInfo);
 		testingServiceCollection.define(IEmbeddingsComputer, new SyncDescriptor(CachingEmbeddingsComputer, [embeddingCache]));
@@ -280,7 +274,6 @@ export async function createSimulationAccessor(
 		testingServiceCollection.define(IDocsSearchClient, new SyncDescriptor(CachingCodeOrDocSearchClient, [docsSearchClient, codeOrDocSearchCache]));
 		testingServiceCollection.define(ICombinedEmbeddingIndex, new SyncDescriptor(VSCodeCombinedIndexImpl, [/*useRemoteCache*/ false]));
 		testingServiceCollection.define(IApiEmbeddingsIndex, new SyncDescriptor(ApiEmbeddingsIndex, [/*useRemoteCache*/ false]));
-		testingServiceCollection.define(IProjectTemplatesIndex, new SyncDescriptor(ProjectTemplatesIndex, [/*useRemoteCache*/ false]));
 		testingServiceCollection.define(IChunkingEndpointClient, new SyncDescriptor(CachingChunkingEndpointClient, [chunksEndpointCache]));
 	}
 

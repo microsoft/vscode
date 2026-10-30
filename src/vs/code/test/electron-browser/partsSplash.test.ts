@@ -8,7 +8,53 @@ import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IPartsSplash } from '../../../platform/theme/common/themeService.js';
 import { ThemeTypeSelector } from '../../../platform/theme/common/theme.js';
-import { getPartsSplashColors } from '../../electron-browser/workbench/partsSplash.js';
+import { getPartsSplashColors, getPartsSplashLayoutMetrics } from '../../electron-browser/workbench/partsSplash.js';
+
+suite('Parts splash layout', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps compact edges flush and square with and without saved part bounds', () => {
+		const layoutInfo = new class extends mock<NonNullable<IPartsSplash['layoutInfo']>>() {
+			override modernUI = true;
+			override modernUICompact = true;
+			override partBounds = {
+				activityBar: { top: 35, left: 0, width: 40, height: 600 },
+				sideBar: { top: 35, left: 40, width: 200, height: 600 },
+				editor: { top: 35, left: 240, width: 560, height: 400 },
+				panel: { top: 435, left: 240, width: 560, height: 200 },
+				auxiliaryBar: { top: 35, left: 800, width: 200, height: 600 },
+			};
+		}();
+
+		const expected = {
+			floatingMargin: 0,
+			floatingOuterMargin: 0,
+			floatingBorderWidth: 1,
+			floatingBorderRadius: 0,
+		};
+		assert.deepStrictEqual({
+			savedBounds: getPartsSplashLayoutMetrics(layoutInfo),
+			fallback: getPartsSplashLayoutMetrics({ ...layoutInfo, partBounds: undefined }),
+		}, {
+			savedBounds: expected,
+			fallback: expected,
+		});
+	});
+
+	test('preserves default-density gutters and rounded corners', () => {
+		const layoutInfo = new class extends mock<NonNullable<IPartsSplash['layoutInfo']>>() {
+			override modernUI = true;
+			override modernUICompact = false;
+		}();
+
+		assert.deepStrictEqual(getPartsSplashLayoutMetrics(layoutInfo), {
+			floatingMargin: 4,
+			floatingOuterMargin: 4,
+			floatingBorderWidth: 1,
+			floatingBorderRadius: 8,
+		});
+	});
+});
 
 suite('Parts splash colors', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

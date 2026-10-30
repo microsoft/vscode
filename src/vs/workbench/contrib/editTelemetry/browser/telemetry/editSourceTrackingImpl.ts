@@ -5,7 +5,8 @@
 
 import { reverseOrder, compareBy, numberComparator, sumBy } from '../../../../../base/common/arrays.js';
 import { IntervalTimer } from '../../../../../base/common/async.js';
-import { toDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
+import { groupByMap } from '../../../../../base/common/collections.js';
+import { toDisposable, Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { mapObservableArrayCached, derived, IObservable, observableSignal, runOnChange, autorun } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditTelemetryMode, EditTelemetryTrigger, sendEditSourcesDetailsTelemetry, sendEditSourcesStatsTelemetry } from '../../../../../platform/telemetry/common/editTelemetry.js';
@@ -24,6 +25,12 @@ import { IRandomService } from '../randomService.js';
 import { AgentHostEditAttributionDeferredError, AgentHostEditAttributionUnknownOutcomeError, IAgentHostEditMarkerService, IPreparedAgentHostEditAttributionFlush } from './agentHostEditMarkerService.js';
 
 const FOCUS_CORRELATION_DRAIN_TIMEOUT = 1_000;
+
+function getDetailsGroupingKey(source: TextModelEditSource, sourceKey = source.toKey(1)): string {
+	return source.props.$origin === 'agentHost' && (source.props.$$agentSessionId !== undefined || source.props.$$chatSessionId !== undefined)
+		? JSON.stringify([sourceKey, source.props.$$agentSessionId, source.props.$$sessionId, source.props.$$chatSessionId])
+		: sourceKey;
+}
 
 export type EditTelemetryCategory = 'nes' | 'inlineCompletionsCopilot' | 'inlineCompletionsNES' | 'inlineCompletionsOther' | 'otherAI' | 'agentHost' | 'user' | 'ide' | 'external' | 'unknown';
 
@@ -88,7 +95,14 @@ class TrackedDocumentInfo extends Disposable {
 
 		this._repo = derived(this, reader => this._scm.getRepo(_doc.document.uri, reader));
 
-		const docWithJustReason = createDocWithJustReason(_doc.documentWithAnnotations, this._store);
+		const annotationStore = new DisposableStore();
+		const docWithJustReason = createDocWithJustReason(_doc.documentWithAnnotations, annotationStore);
+		this._register(toDisposable(() => {
+			void docWithJustReason.waitForQueue(() => annotationStore.dispose()).catch(error => {
+				annotationStore.dispose();
+				this._logService.error(`[EditSourceTrackingImpl] Failed to drain document annotations: ${error}`);
+			});
+		}));
 		const externalEditCorrelation = this._agentHostEditMarkerService?.createCorrelation(_doc.document.uri);
 
 		const longtermResetSignal = observableSignal('resetSignal');
@@ -103,7 +117,6 @@ class TrackedDocumentInfo extends Disposable {
 			const startTime = Date.now();
 			reader.store.add(toDisposable(() => {
 				// send long term document telemetry
-				t.stopTracking();
 				this._sendTelemetryAndLog('longterm', longtermReason, t, this._userAttentionService.totalFocusTimeMs - startFocusTime, Date.now() - startTime);
 			}));
 			return t;
@@ -158,7 +171,6 @@ class TrackedDocumentInfo extends Disposable {
 			const startTime = Date.now();
 			reader.store.add(toDisposable(() => {
 				// send windowed document telemetry
-				t.stopTracking();
 				this._sendTelemetryAndLog('10minFocusWindow', 'time', t, this._userAttentionService.totalFocusTimeMs - startFocusTime, Date.now() - startTime);
 			}));
 
@@ -186,7 +198,6 @@ class TrackedDocumentInfo extends Disposable {
 			const startTime = Date.now();
 			reader.store.add(toDisposable(() => {
 				// send focus-windowed document telemetry
-				t.stopTracking();
 				this._sendTelemetryAndLog('20minFocusWindow', 'time', t, this._userAttentionService.totalFocusTimeMs - startFocusTime, Date.now() - startTime);
 			}));
 
@@ -196,7 +207,7 @@ class TrackedDocumentInfo extends Disposable {
 	}
 
 	private _sendTelemetryAndLog(mode: EditTelemetryMode, trigger: EditTelemetryTrigger, tracker: DocumentEditSourceTracker, focusTime: number, actualTime: number): void {
-		void this.sendTelemetry(mode, trigger, tracker, focusTime, actualTime).catch(error => {
+		void tracker.stopTracking().then(() => this.sendTelemetry(mode, trigger, tracker, focusTime, actualTime)).catch(error => {
 			this._logService.error(`[EditSourceTrackingImpl] Failed to send ${mode} edit telemetry: ${error}`);
 		}).finally(() => {
 			tracker.releaseExternalEditCorrelations();
@@ -259,6 +270,9 @@ class TrackedDocumentInfo extends Disposable {
 			return;
 		}
 		const totalModifiedCount = data.totalModifiedCharactersInFinalState + (preparedAgentFlush?.agentModifiedCount ?? 0);
+		const coarseDiffCount = preparedAgentFlush
+			? preparedAgentFlush.coarseDiffCount === undefined ? undefined : t.coarseDiffCount + preparedAgentFlush.coarseDiffCount
+			: t.coarseDiffCount;
 
 		const telemetryKeys = new Map<string, {
 			readonly representative: TextModelEditSource;
@@ -267,7 +281,7 @@ class TrackedDocumentInfo extends Disposable {
 		}>();
 		for (const internalKey of internalKeys) {
 			const representative = t.getRepresentative(internalKey)!;
-			const telemetryKey = representative.toKey(1);
+			const telemetryKey = getDetailsGroupingKey(representative);
 			const entry = telemetryKeys.get(telemetryKey) ?? {
 				representative,
 				modifiedCount: 0,
@@ -278,39 +292,47 @@ class TrackedDocumentInfo extends Disposable {
 		}
 		for (const range of ranges) {
 			const representative = t.getRepresentative(range.sourceKey)!;
-			const entry = telemetryKeys.get(representative.toKey(1));
+			const entry = telemetryKeys.get(getDetailsGroupingKey(representative));
 			if (entry) {
 				entry.modifiedCount += range.range.length;
 			}
 		}
-		const sums = Object.fromEntries(Array.from(telemetryKeys, ([key, value]) => [key, value.modifiedCount]));
-		const entries = Object.entries(sums)
-			.filter((entry): entry is [string, number] => entry[1] !== undefined)
-			.sort(reverseOrder(compareBy(([, value]) => value, numberComparator)))
-			.slice(0, mode === 'longterm' ? 30 : 10);
+		// Apply the source cap before subdividing by Auto tier and HydraFusion model so no selected source loses contributions.
+		const sourceGroups = groupByMap(Array.from(telemetryKeys), ([, entry]) => getDetailsGroupingKey(entry.representative, entry.representative.toKey(1, { $autoTier: false, $fusionModel: false })));
+		const entries = Array.from(sourceGroups.values(), entries => ({
+			entries,
+			modifiedCount: sumBy(entries, ([, entry]) => entry.modifiedCount),
+		}))
+			.sort(reverseOrder(compareBy(group => group.modifiedCount, numberComparator)))
+			.slice(0, mode === 'longterm' ? 30 : 10)
+			.flatMap(group => group.entries);
 
-		for (const [key, value] of entries) {
-			const telemetryEntry = telemetryKeys.get(key)!;
+		for (const [, telemetryEntry] of entries) {
 			const repr = telemetryEntry.representative;
 			const deltaModifiedCount = telemetryEntry.deltaModifiedCount;
 
 			sendEditSourcesDetailsTelemetry(this._telemetryService, {
 				mode,
-				sourceKey: key,
-				sourceKeyCleaned: repr.toKey(1, { $extensionId: false, $extensionVersion: false, $modelId: false }),
+				sourceKey: repr.toKey(1),
+				sourceKeyCleaned: repr.toKey(1, { $extensionId: false, $extensionVersion: false, $modelId: false, $autoTier: false, $fusionModel: false }),
 				extensionId: repr.props.$extensionId,
 				extensionVersion: repr.props.$extensionVersion,
 				modelId: repr.props.$modelId,
+				autoTier: repr.props.$autoTier,
+				fusionModel: repr.props.$fusionModel,
 				trigger,
 				languageId: this._doc.document.languageId.get(),
 				statsUuid: statsUuid,
 				conversationId: repr.props.$$sessionId,
+				...(repr.props.$$agentSessionId !== undefined ? { agentSessionId: repr.props.$$agentSessionId } : {}),
+				...(repr.props.$$chatSessionId !== undefined ? { chatSessionId: repr.props.$$chatSessionId } : {}),
 				requestId: repr.props.$$requestId,
 				origin: repr.props.$origin,
-				harness: repr.props.$harness,
-				modifiedCount: value,
+				provider: repr.props.$origin === 'agentHost' ? repr.props.$harness || 'unknown' : undefined,
+				modifiedCount: telemetryEntry.modifiedCount,
 				deltaModifiedCount: deltaModifiedCount,
 				totalModifiedCount,
+				...(coarseDiffCount !== undefined ? { coarseDiffCount } : {}),
 			});
 		}
 
@@ -330,6 +352,7 @@ class TrackedDocumentInfo extends Disposable {
 			userModifiedCount: data.userModifiedCount,
 			ideModifiedCount: data.ideModifiedCount,
 			totalModifiedCharacters: totalModifiedCount,
+			...(coarseDiffCount !== undefined ? { coarseDiffCount } : {}),
 			externalModifiedCount: data.externalModifiedCount,
 			isTrackedByGit: isTrackedByGit ? 1 : 0,
 			focusTime,

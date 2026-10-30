@@ -189,7 +189,7 @@ export function setup(logger: Logger): void {
 			await workbenchPage.keyboard.press('Escape');
 		});
 
-		it('prompts for and remembers a camera permission decision', async function () {
+		it('remembers camera permissions and shares them with about:blank frames', async function () {
 			const app = this.app as Application;
 			const browserPage = await openBrowserPage(app, `${baseUrl}/permission`, openPages);
 			const workbenchPage = app.code.driver.currentPage;
@@ -211,6 +211,32 @@ export function setup(logger: Logger): void {
 			await browserPage.waitForFunction(previous => document.querySelector('#permission-result')?.textContent !== previous, previousPermissionResult);
 			assert.match(await browserPage.locator('#permission-result').textContent() ?? '', /^NotAllowedError:\d+$/);
 			assert.strictEqual(await workbenchPage.locator('.monaco-dialog-box:visible').count(), 0);
+
+			await runBrowserOverflowAction(browserPage, workbenchPage, 'Site Permissions');
+			const cameraRow = permissionsPicker.locator('.monaco-list-row', { hasText: 'Camera' });
+			await cameraRow.hover();
+			await cameraRow.locator('[aria-label="Allow"]').click();
+			await permissionsPicker.getByRole('button', { name: 'Save 1 Change', exact: true }).click();
+			await permissionsPicker.waitFor({ state: 'hidden' });
+			await browserPage.waitForFunction(async () => (await navigator.permissions.query({ name: 'camera' as PermissionName })).state === 'granted');
+
+			const inheritedPermission = await browserPage.evaluate(async () => {
+				const frame = document.createElement('iframe');
+				frame.src = 'about:blank';
+				const loaded = new Promise<void>(resolve => { frame.onload = () => resolve(); });
+				document.body.appendChild(frame);
+				try {
+					await loaded;
+					const child = frame.contentWindow!;
+					return {
+						url: child.location.href,
+						camera: (await child.navigator.permissions.query({ name: 'camera' as PermissionName })).state,
+					};
+				} finally {
+					frame.remove();
+				}
+			});
+			assert.deepStrictEqual(inheritedPermission, { url: 'about:blank', camera: 'granted' });
 		});
 
 		it('adds browser context to chat', async function () {
@@ -236,13 +262,16 @@ export function setup(logger: Logger): void {
 			await browserPage.keyboard.type(comment);
 			await browserPage.keyboard.press('Enter');
 			assert.strictEqual(await browserPage.locator('#comment-keydown-count').textContent(), '0');
-			await app.workbench.chat.waitForInputText('@button#comment-target');
+			const chatInput = workbenchPage.locator('div[id="workbench.panel.chat"] .interactive-input-part .monaco-editor[role="code"]');
+			// The input mentions the element as text, or as a pill when attachments are shown inline.
+			await chatInput.filter({ hasText: 'button#comment-target' }).waitFor();
 			await app.workbench.chat.waitForInputText(comment);
 
 			await browserPage.keyboard.press('Escape');
 			await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'attached' });
-			const chatInput = workbenchPage.locator('div[id="workbench.panel.chat"] .interactive-input-part .monaco-editor[role="code"]');
-			await chatInput.click();
+			// Click past the comment at the end of the input, as a click on an inline attachment pill would open its attachment.
+			const { width, height } = (await chatInput.boundingBox())!;
+			await chatInput.click({ position: { x: width - 30, y: height - 5 } });
 			await workbenchPage.keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a');
 			await workbenchPage.keyboard.press('Backspace');
 			await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'detached' });
@@ -350,6 +379,22 @@ export function setup(logger: Logger): void {
 			await workbenchPage.locator('.tab', { hasText: 'Browser Smoke Popup Child' }).waitFor({ state: 'detached' });
 			await workbenchPage.locator('.tab', { hasText: 'Browser Smoke Lifecycle' }).click();
 			assert.strictEqual(await browserPage.locator('#state-input').inputValue(), 'Preserved state');
+
+			const writtenPage = await app.code.driver.waitForNewPage('about:blank', () => browserPage.locator('#write-popup').click());
+			openPages.add(writtenPage);
+			await writtenPage.waitForLoadState('load');
+			await writtenPage.locator('#written-content').waitFor();
+			await workbenchPage.locator('.tab', { hasText: 'Browser Smoke Written Popup' }).waitFor();
+			assert.deepStrictEqual(await writtenPage.evaluate(() => ({
+				content: document.querySelector('#written-content')?.textContent,
+				openerTitle: window.opener.document.title
+			})), {
+				content: 'Written by opener',
+				openerTitle: 'Browser Smoke Lifecycle'
+			});
+			await writtenPage.close();
+			openPages.delete(writtenPage);
+			await workbenchPage.locator('.tab', { hasText: 'Browser Smoke Written Popup' }).waitFor({ state: 'detached' });
 
 			await app.restart();
 			const mainLog = fs.readFileSync(path.join(app.logsPath, 'main.log'), 'utf8');
@@ -582,7 +627,16 @@ function pageForRoute(route: string, requestCount: number): string {
 					});
 				</script>`);
 		case '/lifecycle':
-			return html('Browser Smoke Lifecycle', '<div id="lifecycle-content">Lifecycle content</div><input id="state-input"><a id="open-popup" target="_blank" href="/popup-child">Open child</a><div style="height: 1800px"></div><div id="scroll-marker">Scroll marker</div>');
+			return html('Browser Smoke Lifecycle', `<div id="lifecycle-content">Lifecycle content</div><input id="state-input">
+				<a id="open-popup" target="_blank" href="/popup-child">Open child</a><button id="write-popup">Write child</button>
+				<div style="height: 1800px"></div><div id="scroll-marker">Scroll marker</div>
+				<script>
+					document.querySelector('#write-popup').addEventListener('click', () => {
+						const child = window.open('', '_blank', 'popup=false');
+						child.document.write('<!DOCTYPE html><title>Browser Smoke Written Popup</title><div id="written-content">Written by opener</div>');
+						child.document.close();
+					});
+				</script>`);
 		case '/popup-child':
 			return html('Browser Smoke Popup Child', '<div id="popup-child-content">Popup child</div>');
 		default:

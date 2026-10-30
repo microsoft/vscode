@@ -9,7 +9,7 @@ import { activeContrastBorder, chartsGreen, chartsYellow, errorForeground } from
 import { getColorRegistry } from '../../../../../platform/theme/common/colorUtils.js';
 import { ColorScheme, isHighContrast } from '../../../../../platform/theme/common/theme.js';
 import { ColorThemeData } from '../../../../services/themes/common/colorThemeData.js';
-import { chatInputWorkingBorderColor1, chatInputWorkingBorderColor2, chatInputWorkingBorderColor3, chatSessionInProgressBorder, chatSessionNeedsInputBorder, chatSessionUnvisitedBorder, chatThinkingShimmer } from '../../common/widget/chatColors.js';
+import { chatInputWorkingBorderColor1, chatInputWorkingBorderColor2, chatInputWorkingBorderColor3, chatSessionInProgressBorder, chatSessionNeedsInputBorder, chatSessionUnvisitedBorder, chatThinkingShimmer, chatWorkingProgressInsidersIconForeground, chatWorkingProgressStableIconForeground } from '../../common/widget/chatColors.js';
 
 suite('Chat colors', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -30,6 +30,17 @@ suite('Chat colors', () => {
 	});
 
 	for (const scheme of Object.values(ColorScheme)) {
+		test(`working progress product icons use brand colors in ${scheme}`, () => {
+			const theme = ColorThemeData.createUnloadedThemeForThemeType(scheme, {
+				[activeContrastBorder]: '#efcd12',
+			});
+
+			assert.deepStrictEqual([
+				theme.getColor(chatWorkingProgressStableIconForeground)?.toString().toLowerCase(),
+				theme.getColor(chatWorkingProgressInsidersIconForeground)?.toString().toLowerCase(),
+			], isHighContrast(scheme) ? ['#efcd12', '#efcd12'] : ['#007acc', '#24bfa5']);
+		});
+
 		test(`session state borders inherit semantic colors in ${scheme}`, () => {
 			const theme = ColorThemeData.createUnloadedThemeForThemeType(scheme, {
 				[chartsYellow]: '#cdab12',

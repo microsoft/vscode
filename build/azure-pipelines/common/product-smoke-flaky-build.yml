@@ -113,10 +113,12 @@ jobs:
                 compile-extension:css-language-features-server `
                 compile-extension:emmet `
                 compile-extension:git `
+                compile-extension:git-base `
                 compile-extension:github-authentication `
                 compile-extension:html-language-features-server `
                 compile-extension:ipynb `
                 compile-extension:notebook-renderers `
+                compile-extension:json-language-features-client `
                 compile-extension:json-language-features-server `
                 compile-extension:markdown-language-features `
                 compile-extension-media `
@@ -136,10 +138,12 @@ jobs:
                 compile-extension:css-language-features-server \
                 compile-extension:emmet \
                 compile-extension:git \
+                compile-extension:git-base \
                 compile-extension:github-authentication \
                 compile-extension:html-language-features-server \
                 compile-extension:ipynb \
                 compile-extension:notebook-renderers \
+                compile-extension:json-language-features-client \
                 compile-extension:json-language-features-server \
                 compile-extension:markdown-language-features \
                 compile-extension-media \

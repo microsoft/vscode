@@ -71,14 +71,31 @@
 	flex-shrink: 0;
 }
 
-.host-picker-sheet-title {
+.host-picker-sheet-heading {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
 	flex: 1;
+	min-width: 0;
+}
+
+.host-picker-sheet-title {
 	min-width: 0;
 	font-size: 16px;
 	font-weight: 600;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.host-picker-sheet-close.host-picker-sheet-information {
+	width: 44px;
+	height: 44px;
+}
+
+.host-picker-sheet-information:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .host-picker-sheet-close {

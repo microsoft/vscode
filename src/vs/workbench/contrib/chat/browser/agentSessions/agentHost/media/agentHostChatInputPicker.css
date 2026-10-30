@@ -159,7 +159,6 @@
 	overflow: visible;
 	text-overflow: clip;
 	white-space: nowrap;
-	transform: translateY(1px);
 }
 
 .agent-host-chat-input-picker-slot .action-label .codicon + .agent-host-chat-input-picker-label {
@@ -169,4 +168,10 @@
 .agent-host-chat-input-picker-sandbox-icon {
 	flex-shrink: 0;
 	margin-left: var(--vscode-spacing-size60);
+}
+
+/* A chat's own value is still loading: show the session's value dimmed until it arrives. */
+.agent-host-chat-input-picker-slot.resolving .action-label {
+	opacity: 0.6;
+	cursor: default;
 }

@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OperatingSystem } from '../../../base/common/platform.js';
+import { Schemas } from '../../../base/common/network.js';
+import { URI } from '../../../base/common/uri.js';
 import type { IAgentConnection } from './agentService.js';
+import { readAgentHostResources } from './meta/agentHostResources.js';
 
 const operatingSystems = new WeakMap<IAgentConnection, Promise<OperatingSystem>>();
 
@@ -24,6 +27,23 @@ export function getAgentHostOperatingSystem(connection: IAgentConnection): Promi
 }
 
 async function resolveOperatingSystem(connection: IAgentConnection): Promise<OperatingSystem> {
+	const root = connection.rootState?.value;
+	const platform = readAgentHostResources(root instanceof Error ? undefined : root)?.platform;
+	switch (platform) {
+		case 'windows':
+			return OperatingSystem.Windows;
+		case 'macos':
+			return OperatingSystem.Macintosh;
+		case 'linux':
+			return OperatingSystem.Linux;
+	}
+	const defaultDirectory = connection.initializeResult?.get()?.defaultDirectory;
+	if (defaultDirectory) {
+		const uri = typeof defaultDirectory === 'string' ? URI.parse(defaultDirectory) : URI.revive(defaultDirectory);
+		if (uri.scheme === Schemas.file && (uri.authority || /^\/[a-zA-Z]:\//.test(uri.path))) {
+			return OperatingSystem.Windows;
+		}
+	}
 	const { os } = await connection.getNetworkDiagnosticsInfo();
 	switch (os) {
 		case 'win32':

@@ -40,6 +40,13 @@ export class AutoRepliesPtyServiceContribution implements IPtyServiceContributio
 	}
 
 	handleProcessReady(persistentProcessId: number, process: ITerminalChildProcess): void {
+		// Ready fires again when a persistent process is reattached, dispose the old responders
+		const existingAutoResponders = this._autoResponders.get(persistentProcessId);
+		if (existingAutoResponders) {
+			for (const e of existingAutoResponders.values()) {
+				e.dispose();
+			}
+		}
 		this._terminalProcesses.set(persistentProcessId, process);
 		this._autoResponders.set(persistentProcessId, new Map());
 		for (const [match, reply] of this._autoReplies.entries()) {

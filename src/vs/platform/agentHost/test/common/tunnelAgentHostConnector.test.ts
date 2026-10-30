@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { RELAY_ACTIVITY_INTERVAL_MS } from '../../common/relayActivity.js';
 import {
 	TUNNEL_STEP_TIMEOUT_MS,
 	TunnelAgentHostConnector,
@@ -20,6 +22,7 @@ import {
 	type ITunnelSocketFactory,
 } from '../../common/tunnelAgentHostConnector.js';
 import type { ITunnelDuplexStream, ITunnelMessageSocket, ITunnelSocketCloseEvent } from '../../common/tunnelMessageSocket.js';
+import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 
 class FakeStream implements ITunnelDuplexStream {
 	on(_event: 'data', _listener: (data: Uint8Array) => void): this;
@@ -74,6 +77,7 @@ class FakeRelayClient implements ITunnelRelayClient {
 
 class FakeSocket implements ITunnelMessageSocket {
 	private readonly _onDidReceiveMessage = new Emitter<string>();
+	private readonly _onDidReceiveData = new Emitter<void>();
 	private readonly _onDidClose = new Emitter<ITunnelSocketCloseEvent>();
 	private readonly _queuedMessages: string[];
 
@@ -89,6 +93,7 @@ class FakeSocket implements ITunnelMessageSocket {
 		}
 		return disposable;
 	};
+	readonly onDidReceiveData = this._onDidReceiveData.event;
 	readonly onDidClose = this._onDidClose.event;
 	closeCalls = 0;
 	disposeCalls = 0;
@@ -104,6 +109,14 @@ class FakeSocket implements ITunnelMessageSocket {
 		this.closeCalls++;
 	}
 
+	fireMessage(message: string): void {
+		this._onDidReceiveMessage.fire(message);
+	}
+
+	fireData(): void {
+		this._onDidReceiveData.fire();
+	}
+
 	fireClose(event: ITunnelSocketCloseEvent): void {
 		this._onDidClose.fire(event);
 	}
@@ -111,6 +124,7 @@ class FakeSocket implements ITunnelMessageSocket {
 	dispose(): void {
 		this.disposeCalls++;
 		this._onDidReceiveMessage.dispose();
+		this._onDidReceiveData.dispose();
 		this._onDidClose.dispose();
 	}
 }
@@ -183,6 +197,49 @@ suite('TunnelAgentHostConnector', () => {
 			'LPJNul-wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ',
 			'a-Vv_dDaSd407TSoKmBuY8Jrx1w_cDjpHarRcBiCPpxc',
 		]);
+	});
+
+	test('reports relay phase failure and releases the relay without changing the rejection', async () => {
+		const events: IConnectionDiagnosticEvent[] = [];
+		const failure = new Error('Relay authorization rejected');
+		const pending = new DeferredPromise<void>();
+		const relay = new FakeRelayClient(pending.p);
+		const socket = new FakeSocket();
+		const { connector } = createConnector({ tunnelId: 'test', clusterId: 'cluster', labels: ['protocolv5'] }, relay, new FakeSocketFactory(socket));
+		try {
+			const connect = connector.connect('private-token', 'github', 'test', 'cluster', event => events.push(event));
+			const rejected = assert.rejects(connect, error => error === failure);
+			await pending.error(failure);
+			await rejected;
+			assert.deepStrictEqual({
+				phases: events.map(event => `${event.phase}:${event.outcome}`),
+				error: events.at(-1)?.error?.message,
+				disposed: relay.disposeCalls,
+				tokenLeaked: JSON.stringify(events).includes('private-token'),
+			}, {
+				phases: ['tunnel.lookup:started', 'tunnel.lookup:succeeded', 'relay.create:started', 'relay.create:succeeded', 'relay.connect:started', 'relay.connect:failed'],
+				error: 'Relay authorization rejected',
+				disposed: 1,
+				tokenLeaked: false,
+			});
+		} finally {
+			connector.dispose();
+			socket.dispose();
+		}
+	});
+
+	test('captures observed relay close code and redacts its reason', async () => {
+		const events: IConnectionDiagnosticEvent[] = [];
+		const socket = new FakeSocket();
+		const { connector } = createConnector({ tunnelId: 'test', clusterId: 'cluster', labels: ['protocolv5'] }, new FakeRelayClient(), new FakeSocketFactory(socket));
+		try {
+			await connector.connect('private-token', 'github', 'test', 'cluster', event => events.push(event));
+			socket.fireClose({ code: 1011, reason: 'token=private-value' });
+			const close = events.find(event => event.phase === 'relay.closed');
+			assert.deepStrictEqual({ detail: close?.detail, outcome: close?.outcome }, { detail: 'code=1011; reason=token=[redacted]', outcome: 'info' });
+		} finally {
+			connector.dispose();
+		}
 	});
 
 	test('uses the legacy root route for v5 and the gateway route for v6', async () => {
@@ -349,6 +406,35 @@ suite('TunnelAgentHostConnector', () => {
 			});
 		} finally {
 			connector.dispose();
+		}
+	});
+
+	test('reports throttled relay activity while a message is still arriving', async () => {
+		const clock = sinon.useFakeTimers();
+		const socket = new FakeSocket();
+		const { connector } = createConnector(
+			{ tunnelId: 'downloading', clusterId: 'cluster', labels: ['protocolv5'] },
+			new FakeRelayClient(),
+			new FakeSocketFactory(socket),
+		);
+		try {
+			const { connectionId } = await connector.connect('token', 'github', 'downloading', 'cluster');
+			const activity: string[] = [];
+			const listener = connector.onDidRelayActivity(id => activity.push(id));
+
+			// Partial data for 1.5 intervals, then the final chunk, whose message arrives before its data event.
+			for (let chunk = 0; chunk < 3; chunk++) {
+				socket.fireData();
+				clock.tick(RELAY_ACTIVITY_INTERVAL_MS / 2);
+			}
+			socket.fireMessage('{"jsonrpc":"2.0","id":1}');
+			socket.fireData();
+			listener.dispose();
+
+			assert.deepStrictEqual(activity, [connectionId, connectionId]);
+		} finally {
+			connector.dispose();
+			clock.restore();
 		}
 	});
 

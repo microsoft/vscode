@@ -29,6 +29,9 @@ export interface IEditorPartCreationOptions {
 export const DEFAULT_EDITOR_MIN_DIMENSIONS = new Dimension(220, 70);
 export const DEFAULT_EDITOR_MAX_DIMENSIONS = new Dimension(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY);
 
+export const CONNECTED_EDITOR_TABS_CLASS = 'modern-ui-connected-editor-tabs';
+export const CONNECTED_EDITOR_TABS_SELECTOR = `.${CONNECTED_EDITOR_TABS_CLASS}`;
+
 export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	showTabs: 'multiple',
 	highlightModifiedTabs: false,
@@ -328,6 +331,14 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	openEditor(editor: EditorInput, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined>;
 
 	relayout(): void;
+}
+
+export function fillActiveEditorSelection(group: IEditorGroup, expectedActiveEditor: EditorInput, options: IEditorOptions): IEditorOptions {
+	if (group.activeEditor && expectedActiveEditor.matches(group.activeEditor)) {
+		return group.activeEditorPane?.getSelection?.()?.restore(options) ?? options;
+	}
+
+	return options;
 }
 
 export function fillActiveEditorViewState(group: IEditorGroup, expectedActiveEditor?: EditorInput, presetOptions?: IEditorOptions): IEditorOptions {

@@ -4,9 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import type { ConnectionDiagnosticObserver } from './connectionDiagnostics.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { localize } from '../../../nls.js';
 
 export const ITunnelAgentHostService = createDecorator<ITunnelAgentHostService>('tunnelAgentHostService');
+
+/** Silent discovery has no usable token for a configured authentication provider. */
+export class TunnelAuthenticationRequiredError extends Error {
+	constructor(readonly authProvider: 'github' | 'microsoft') {
+		super(localize('tunnelAgentHost.authenticationRequired', "Sign in to allow access to your tunnels."));
+		this.name = 'TunnelAuthenticationRequiredError';
+	}
+}
 
 /**
  * IPC channel name for the shared-process tunnel service.
@@ -368,6 +378,9 @@ export interface ITunnelAgentHostMainService {
 	/** Fires when a message is received from a remote agent host via the tunnel relay. */
 	readonly onDidRelayMessage: Event<ITunnelRelayMessage>;
 
+	/** Fires with a connection ID while that tunnel relay receives part of a message. */
+	readonly onDidRelayActivity: Event<string /* connectionId */>;
+
 	/** Fires when a relay connection to a remote agent host closes. */
 	readonly onDidRelayClose: Event<string /* connectionId */>;
 
@@ -455,6 +468,12 @@ export interface ITunnelVisibility {
 	readonly autoConnectSuppressed: readonly string[];
 }
 
+export interface ITunnelDiscoveryOptions {
+	readonly authProvider?: 'github' | 'microsoft';
+	readonly silent?: boolean;
+	readonly onDiagnostic?: ConnectionDiagnosticObserver;
+}
+
 /**
  * Renderer-side service that manages dev tunnel agent host connections.
  * Uses the shared-process {@link ITunnelAgentHostMainService} for
@@ -474,8 +493,9 @@ export interface ITunnelAgentHostService {
 	 * disabled. Rejects when discovery cannot complete, including when
 	 * authentication is unavailable. {@link options.silent} suppresses
 	 * authentication prompts but does not convert failures to empty results.
+	 * An explicit auth provider takes precedence over cached provider selection.
 	 */
-	listTunnels(options?: { silent?: boolean }): Promise<ITunnelInfo[]>;
+	listTunnels(options?: ITunnelDiscoveryOptions): Promise<ITunnelInfo[]>;
 
 	/**
 	 * Determine whether startup auto-connect can run silently or must first ask
@@ -501,7 +521,7 @@ export interface ITunnelAgentHostService {
 	readonly canDeleteTunnels: boolean;
 
 	/** Delete a dev tunnel and remove it from the local tunnel cache. */
-	deleteTunnel(tunnel: ITunnelInfo): Promise<void>;
+	deleteTunnel(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): Promise<void>;
 
 	/**
 	 * Disconnect from a tunnel agent host.
@@ -544,6 +564,8 @@ export interface ITunnelAgentHostService {
 	 * Returns `undefined` if no cached session is available.
 	 */
 	getAuthProvider(options?: { silent?: boolean }): Promise<'github' | 'microsoft' | undefined>;
+	/** Requests the configured tunnel permissions without connecting to a host. */
+	signIn?(authProvider: 'github' | 'microsoft'): Promise<void>;
 }
 
 /** Information about an actively hosted tunnel. */

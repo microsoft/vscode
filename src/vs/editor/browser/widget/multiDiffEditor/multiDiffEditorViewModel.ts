@@ -11,7 +11,9 @@ import { ContextKeyValue } from '../../../../platform/contextkey/common/contextk
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { Selection } from '../../../common/core/selection.js';
-import { IModelService } from '../../../common/services/model.js';
+import { ITextModelService } from '../../../common/services/resolverService.js';
+import { ITextModel } from '../../../common/model.js';
+import { isDefined } from '../../../../base/common/types.js';
 import { DiffEditorOptions } from '../diffEditor/diffEditorOptions.js';
 import { DiffEditorViewModel } from '../diffEditor/diffEditorViewModel.js';
 import { RefCounted } from '../diffEditor/utils.js';
@@ -79,7 +81,8 @@ export class MultiDiffEditorViewModel extends Disposable {
 
 	constructor(
 		public readonly model: IMultiDiffEditorModel,
-		private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
 	) {
 		super();
 		this._documents = observableFromValueWithChangeEvent(this.model, this.model.documents);
@@ -87,18 +90,16 @@ export class MultiDiffEditorViewModel extends Disposable {
 		const allItems = mapObservableArrayCached(
 			this,
 			this._documentsArr,
-			(d, store) => store.add(RefCounted.create(this._instantiationService.createInstance(DocumentDiffItemViewModel, d, this)))
+			(d, store) => this._createItem(d, store)
 		).recomputeInitiallyAndOnChange(this._store);
 
 		this._waitForNewDiffs = derived(this, reader => {
-			const next = allItems.read(reader);
-			const unresolved = next.filter(i => !i.object.waitForInitialDiffOr1s.promiseResult.read(undefined));
-			if (unresolved.length === 0) {
-				return ObservablePromise.resolved(next);
-			}
-			return new ObservablePromise(
-				Promise.all(unresolved.map(i => i.object.waitForInitialDiffOr1s.promise)).then(() => next)
-			);
+			const pending = allItems.read(reader);
+			return ObservablePromise.fromFn(async () => {
+				const next = (await Promise.all(pending)).filter(isDefined);
+				await Promise.all(next.map(i => i.object.waitForInitialDiffOr1s.promise));
+				return next;
+			});
 		});
 
 		const resolved = new ObservableResolvedPromise(this._waitForNewDiffs, [] as readonly RefCounted<DocumentDiffItemViewModel>[], this._store);
@@ -114,6 +115,30 @@ export class MultiDiffEditorViewModel extends Disposable {
 		this.isLoading = derived(this, reader =>
 			this._documents.read(reader) === 'loading' || resolved.isResolving.read(reader)
 		);
+	}
+
+	private async _createItem(document: RefCounted<IDocumentDiffItem>, store: DisposableStore): Promise<RefCounted<DocumentDiffItemViewModel> | undefined> {
+		const resources = new DisposableStore();
+		let transferred = false;
+		try {
+			const documentReference = resources.add(document.createNewRef(this));
+			const original = document.object.original?.textModel ?? resources.add(await this._textModelService.createSyntheticDocument('', null)).object.textEditorModel;
+			if (store.isDisposed) {
+				return undefined;
+			}
+			const modified = document.object.modified?.textModel ?? resources.add(await this._textModelService.createSyntheticDocument('', null)).object.textEditorModel;
+			if (store.isDisposed) {
+				return undefined;
+			}
+			const item = this._instantiationService.createInstance(DocumentDiffItemViewModel, documentReference, this, original, modified, resources);
+			const reference = store.add(RefCounted.create(item));
+			transferred = true;
+			return reference;
+		} finally {
+			if (!transferred) {
+				resources.dispose();
+			}
+		}
 	}
 }
 
@@ -155,7 +180,6 @@ export class DocumentDiffItemViewModel extends Disposable {
 		this._isFocusedSource.set(source, tx);
 	}
 
-	private readonly _documentDiffItemRef: RefCounted<IDocumentDiffItem>;
 	public get documentDiffItem(): IDocumentDiffItem {
 		return this._documentDiffItemRef.object;
 	}
@@ -163,18 +187,18 @@ export class DocumentDiffItemViewModel extends Disposable {
 	public readonly isAlive = observableValue<boolean>(this, true);
 
 	constructor(
-		documentDiffItem: RefCounted<IDocumentDiffItem>,
+		private readonly _documentDiffItemRef: RefCounted<IDocumentDiffItem>,
 		private readonly _editorViewModel: MultiDiffEditorViewModel,
+		originalTextModel: ITextModel,
+		modifiedTextModel: ITextModel,
+		diffEditorViewModelStore: DisposableStore,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IModelService private readonly _modelService: IModelService,
 	) {
 		super();
 
 		this._register(toDisposable(() => {
 			this.isAlive.set(false, undefined);
 		}));
-
-		this._documentDiffItemRef = this._register(documentDiffItem.createNewRef(this));
 
 		function updateOptions(options: IDiffEditorOptions): IDiffEditorOptions {
 			return {
@@ -191,11 +215,6 @@ export class DocumentDiffItemViewModel extends Disposable {
 				options.updateOptions(updateOptions(this.documentDiffItem.options || {}));
 			}));
 		}
-
-		const diffEditorViewModelStore = new DisposableStore();
-		const originalTextModel = this.documentDiffItem.original?.textModel ?? diffEditorViewModelStore.add(this._modelService.createModel('', null));
-		const modifiedTextModel = this.documentDiffItem.modified?.textModel ?? diffEditorViewModelStore.add(this._modelService.createModel('', null));
-		diffEditorViewModelStore.add(this._documentDiffItemRef.createNewRef(this));
 
 		this.diffEditorViewModelRef = this._register(RefCounted.createWithDisposable(
 			this._instantiationService.createInstance(DiffEditorViewModel, {
