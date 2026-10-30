@@ -34,9 +34,18 @@
 		color: var(--vscode-descriptionForeground);
 	}
 
+	/* A press focuses the list before its focused row moves, so a pointer focus ring would mark the previously chosen row. */
+	&.session-section-focus-from-pointer .monaco-list:focus .monaco-list-row.session-section.focused.session-section-shortcut {
+		outline: 0 !important;
+	}
+
 	&.session-section-focus-from-pointer .monaco-list:focus .monaco-list-row.session-section.focused.session-section-shortcut:not(.active):not(:hover, .hovered) {
 		background-color: transparent;
-		outline: 0 !important;
+	}
+
+	/* A navigation row is its own section element, so its active state must outrank the list's focused-row background. */
+	.monaco-list .monaco-list-row.session-section.session-section-shortcut.active:not(:hover, .hovered) {
+		background-color: var(--vscode-list-inactiveSelectionBackground);
 	}
 }
 
@@ -1463,7 +1472,9 @@
 
 	&.session-section-focus-from-pointer {
 		.monaco-list-row.session-list-section-row.focused,
-		.monaco-list-row.session-list-section-row.selected {
+		.monaco-list-row.session-list-section-row.selected,
+		/* Like a section header, a shortcut row such as Automations or a pinned canvas keeps no pointer focus ring. */
+		.monaco-list-row.session-list-shortcut-row.focused {
 			outline: none !important;
 		}
 	}
