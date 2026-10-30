@@ -303,4 +303,4 @@ export class ModelPickerToolbarsContribution extends Disposable implements IWork
 	}
 }
 
-registerWorkbenchContribution2(ModelPickerToolbarsContribution.ID, ModelPickerToolbarsContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ModelPickerToolbarsContribution.ID, ModelPickerToolbarsContribution, WorkbenchPhase.BlockRestore);
