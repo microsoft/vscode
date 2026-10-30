@@ -51,6 +51,17 @@ suite('InboxNotificationsService', () => {
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	function createPullRequestMergeChangeset(): ISessionChangeset {
+		return upcastPartial<ISessionChangeset>({
+			id: 'branch',
+			isEnabled: observableValue('merge.enabled', true),
+			operations: observableValue<readonly ISessionChangesetOperation[]>('merge.operations', [{
+				id: 'pr-merge', label: 'Merge Pull Request',
+				scopes: [SessionChangesetOperationScope.Changeset], status: SessionChangesetOperationStatus.Idle,
+			}]),
+		});
+	}
+
 	function createSession(options: {
 		readonly id: string;
 		readonly providerId?: string;
@@ -1433,6 +1444,7 @@ suite('InboxNotificationsService', () => {
 			status: SessionStatus.Completed,
 			updatedAt: 100,
 			isRead: true,
+			changesets: [createPullRequestMergeChangeset()],
 			pullRequest: { owner: 'owner', repo: 'repo', number: 42 },
 		})], undefined, gitHubService);
 
@@ -1476,7 +1488,7 @@ suite('InboxNotificationsService', () => {
 			kind: InboxNotificationKind.PassingCI,
 			repositoryLabel: 'owner/repo',
 			pullRequestStates: [{ label: '#42', statusLabel: 'Open', iconId: Codicon.gitPullRequest.id }],
-			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.MarkDone],
+			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.AgentMergeMergePullRequest, InboxNotificationActionKind.MarkDone],
 		}]);
 	});
 
@@ -1487,6 +1499,7 @@ suite('InboxNotificationsService', () => {
 			status: SessionStatus.Completed,
 			updatedAt: 100,
 			isRead: true,
+			changesets: [createPullRequestMergeChangeset()],
 			pullRequest: { owner: 'owner', repo: 'repo', number: 77 },
 		})], undefined, gitHubService);
 
@@ -1670,6 +1683,7 @@ suite('InboxNotificationsService', () => {
 		const gitHubService = new TestGitHubService();
 		const sessions = ['second', 'first'].map(id => createSession({
 			id, status: SessionStatus.Completed, updatedAt: 100,
+			changesets: [createPullRequestMergeChangeset()],
 			pullRequest: { owner: 'owner', repo: 'repo', number: 77 },
 		}));
 		const fixture = createFixture(sessions, undefined, gitHubService);
@@ -1820,6 +1834,7 @@ suite('InboxNotificationsService', () => {
 			const gitHubService = new TestGitHubService();
 			const fixture = createFixture([createSession({
 				id: `merged-${ciStatus}`, status: SessionStatus.Completed, updatedAt: 100,
+				changesets: [createPullRequestMergeChangeset()],
 				pullRequest: { owner: 'owner', repo: 'repo', number: 46 },
 			})], undefined, gitHubService);
 			gitHubService.setPullRequest('owner', 'repo', 46, openPullRequest(46, 'sha46'));
@@ -1912,10 +1927,7 @@ suite('InboxNotificationsService', () => {
 			detailsUrl: undefined,
 		}]);
 
-		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.actions.map(action => action.kind)), [[
-			InboxNotificationActionKind.OpenSession,
-			InboxNotificationActionKind.MarkDone,
-		]]);
+		assert.deepStrictEqual(fixture.service.notifications.get(), []);
 	});
 
 	test('offers real PR merge only while the main chat advertises an enabled changeset merge operation', () => {
@@ -1931,16 +1943,28 @@ suite('InboxNotificationsService', () => {
 		const fixture = createFixture([session], undefined, gitHubService);
 		gitHubService.setPullRequest('owner', 'repo', 44, openPullRequest(44, 'sha44'));
 		gitHubService.setCIStatus('owner', 'repo', 44, 'sha44', GitHubCIOverallStatus.Success, []);
-		const hasMerge = () => fixture.service.notifications.get()[0].actions.some(action => action.kind === InboxNotificationActionKind.AgentMergeMergePullRequest);
-		assert.strictEqual(hasMerge(), false);
+		const snapshot = () => fixture.service.notifications.get().map(item => ({
+			kind: item.kind, hasMerge: item.actions.some(action => action.kind === InboxNotificationActionKind.AgentMergeMergePullRequest),
+		}));
+		const initial = snapshot();
 		operations.set([operation], undefined);
-		assert.strictEqual(hasMerge(), true);
+		const available = snapshot();
 		assert.deepStrictEqual(getInboxPullRequestMergeOperation(session), { changeset, operation });
 		operations.set([{ ...operation, status: SessionChangesetOperationStatus.Running }], undefined);
-		assert.strictEqual(hasMerge(), false);
+		const running = snapshot();
 		operations.set([operation], undefined);
 		enabled.set(false, undefined);
-		assert.strictEqual(hasMerge(), false);
+		const disabledChangeset = snapshot();
+		enabled.set(true, undefined);
+		operations.set([{ ...operation, status: SessionChangesetOperationStatus.Disabled }], undefined);
+		const disabledOperation = snapshot();
+		operations.set([operation], undefined);
+		const completed = [{ kind: InboxNotificationKind.Completed, hasMerge: false }];
+		const mergeReady = [{ kind: InboxNotificationKind.PassingCI, hasMerge: true }];
+		assert.deepStrictEqual({ initial, available, running, disabledChangeset, disabledOperation, restored: snapshot() }, {
+			initial: completed, available: mergeReady, running: completed,
+			disabledChangeset: completed, disabledOperation: completed, restored: mergeReady,
+		});
 	});
 
 	test('rejects local merges, resource-only merges, disabled operations and ambiguous PR merge targets', () => {
@@ -1990,10 +2014,7 @@ suite('InboxNotificationsService', () => {
 			detailsUrl: undefined,
 		}]);
 
-		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.actions.map(action => action.kind)), [[
-			InboxNotificationActionKind.OpenSession,
-			InboxNotificationActionKind.MarkDone,
-		]]);
+		assert.deepStrictEqual(fixture.service.notifications.get(), []);
 	});
 
 	test('offers CI fixes for cloud sessions without an unrelated Agent Merge provider', () => {
@@ -2054,10 +2075,7 @@ suite('InboxNotificationsService', () => {
 			detailsUrl: undefined,
 		}]);
 
-		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.actions.map(action => action.kind)), [[
-			InboxNotificationActionKind.OpenSession,
-			InboxNotificationActionKind.MarkDone,
-		]]);
+		assert.deepStrictEqual(fixture.service.notifications.get(), []);
 	});
 
 	test('persists dismissed notifications across instances', () => {

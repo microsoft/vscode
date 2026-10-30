@@ -1619,7 +1619,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		candidates: readonly IPullRequestNotificationCandidate[],
 		reader: IReader,
 	): void {
-		if (candidates.length === 0) {
+		if (candidates.length === 0 || (kind === InboxNotificationKind.PassingCI && !getInboxPullRequestMergeOperation(session, reader))) {
 			return;
 		}
 

@@ -6,19 +6,22 @@
 import assert from 'assert';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { match, spy, stub } from 'sinon';
-import { timeout } from '../../../../../base/common/async.js';
+import { IAction } from '../../../../../base/common/actions.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { IObservable, constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
+import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -109,6 +112,7 @@ suite('InboxNotificationsView', () => {
 			submitToolConfirmationPart(item: IInboxNotificationItem, part: IInboxNotificationToolConfirmationPart, buttonIndex: number): Promise<void>;
 			classifyCarouselAnswers(answers: Map<string, IChatQuestionAnswerValue>): { answerKind: string; answerCharCount: number };
 			runMergedSessionCleanupAction(item: IInboxNotificationItem, kind: InboxNotificationActionKind.ArchiveSession | InboxNotificationActionKind.DeleteSession, enableAlways: boolean): Promise<string>;
+			runAction(item: IInboxNotificationItem, action: IInboxNotificationItem['actions'][number], sourceElement?: HTMLElement, enableAlways?: boolean): Promise<void>;
 			getSessionChatModel(item: IInboxNotificationItem): IChatModel | undefined;
 			runInboxPullRequestAction(item: IInboxNotificationItem, kind: InboxNotificationActionKind.AgentMergeFixCI | InboxNotificationActionKind.AgentMergeAddressReviews | InboxNotificationActionKind.AgentMergeMergePullRequest): Promise<string>;
 		};
@@ -128,6 +132,8 @@ suite('InboxNotificationsView', () => {
 			detailSummaries?: IObservable<ReadonlyMap<string, IInboxDetailSummary>>;
 			completedVisible?: boolean;
 			chatService?: Partial<IChatService>;
+			confettiEnabled?: boolean;
+			reducedMotion?: boolean;
 		} = {},
 	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -193,10 +199,10 @@ suite('InboxNotificationsView', () => {
 		instantiationService.stub(IOnboardingScenarioService, {});
 		instantiationService.stub(INotificationService, {});
 		instantiationService.stub(ICommandService, {});
-		const configurationService = new TestConfigurationService();
+		const configurationService = new TestConfigurationService({ [SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: options.confettiEnabled ?? false });
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IAccessibilityService, { isMotionReduced: () => true });
+		instantiationService.stub(IAccessibilityService, { isMotionReduced: () => options.reducedMotion ?? true });
 		instantiationService.stub(IOpenerService, {});
 		const storageService = disposables.add(new InMemoryStorageService());
 		if (options.completedVisible) {
@@ -1313,6 +1319,105 @@ suite('InboxNotificationsView', () => {
 		instantiationService.stub(INotificationService, 'notify', () => upcastPartial<ReturnType<INotificationService['notify']>>({}));
 		const result = await accessView(view).runMergedSessionCleanupAction(item, InboxNotificationActionKind.DeleteSession, true);
 		assert.deepStrictEqual({ result, deletions: deleteSession.callCount }, { result: 'success', deletions: 1 });
+	});
+
+	for (const kind of [InboxNotificationActionKind.ArchiveSession, InboxNotificationActionKind.DeleteSession] as const) {
+		for (const outcome of ['success', 'always', 'cancelled', 'failed', 'disabled', 'reducedMotion', 'hidden', 'disposed'] as const) {
+			test(`Inbox cleanup confetti follows successful completion and original geometry: ${kind}, ${outcome}`, async () => {
+				const session = upcastPartial<ISession>({
+					resource: URI.parse('test:///session'), providerId: 'local-agent-host',
+					capabilities: constObservable(upcastPartial<ISessionCapabilities>({ supportsDelete: true })),
+				});
+				const action = { id: kind, kind, label: kind };
+				const item: IInboxNotificationItem = {
+					id: 'merged', kind: InboxNotificationKind.PullRequestMerged, priority: InboxNotificationPriority.Next,
+					title: 'Merged', description: '', timestamp: 1, actions: [action], sessionResource: session.resource,
+				};
+				const items = observableValue<readonly IInboxNotificationItem[]>('items', [item]);
+				const { view, container, instantiationService } = createView(items, {
+					confettiEnabled: outcome !== 'disabled', reducedMotion: outcome === 'reducedMotion',
+				});
+				container.classList.add('monaco-workbench');
+				const completion = new DeferredPromise<void>();
+				const cleanupStarted = new DeferredPromise<void>();
+				const cleanup = async () => { items.set([], undefined); await cleanupStarted.complete(); await completion.p; };
+				instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
+				instantiationService.stub(ISessionsManagementService, 'archiveSession', cleanup);
+				instantiationService.stub(ISessionsManagementService, 'deleteSession', cleanup);
+				instantiationService.stub(IDialogService, 'confirm', async () => ({ confirmed: outcome !== 'cancelled' }));
+				instantiationService.stub(INotificationService, 'notify', () => upcastPartial<ReturnType<INotificationService['notify']>>({}));
+				const notifications = spy();
+				instantiationService.stub(INotificationService, 'error', notifications);
+				view.render(container);
+				const button = container.querySelector<HTMLElement>('.inbox-notifications-item-footer-actions .monaco-button')!;
+				button.style.cssText = 'position: fixed; left: 120px; top: 80px; width: 48px; height: 24px; box-sizing: border-box;';
+				const previousHandler = errorHandler.getUnexpectedErrorHandler();
+				const errors: Error[] = [];
+				setUnexpectedErrorHandler(error => errors.push(error));
+				try {
+					const result = accessView(view).runAction(item, action, button, outcome === 'always' || outcome === 'cancelled');
+					const before = container.querySelector('.animation-overlay');
+					if (outcome !== 'cancelled') {
+						await cleanupStarted.p;
+					}
+					if (outcome === 'hidden') {
+						view.setVisible(false);
+					} else if (outcome === 'disposed') {
+						view.dispose();
+					}
+					if (outcome === 'failed') {
+						await completion.error(new Error('Cleanup failed'));
+					} else {
+						await completion.complete();
+					}
+					await result;
+					const overlay = container.querySelector<HTMLElement>('.animation-overlay');
+					disposables.add(toDisposable(() => overlay?.remove()));
+					const celebrated = outcome === 'success' || outcome === 'always';
+					assert.deepStrictEqual({
+						before,
+						bounds: overlay && [overlay.style.left, overlay.style.top, overlay.style.width, overlay.style.height],
+						particles: overlay?.querySelectorAll('.animation-confetti-particle').length ?? 0,
+						buttonConnected: button.isConnected,
+						errors: errors.map(error => error.message),
+						notifications: notifications.callCount,
+					}, {
+						before: null, bounds: celebrated ? ['120px', '80px', '48px', '24px'] : null,
+						particles: celebrated ? 24 : 0, buttonConnected: outcome === 'cancelled',
+						errors: outcome === 'failed' ? ['Cleanup failed'] : [], notifications: outcome === 'failed' ? 1 : 0,
+					});
+				} finally {
+					setUnexpectedErrorHandler(previousHandler);
+				}
+			});
+		}
+	}
+
+	test('Always cleanup preserves the triggering button as the confetti origin', async () => {
+		const session = upcastPartial<ISession>({
+			resource: URI.parse('test:///session'), providerId: 'local-agent-host',
+			capabilities: constObservable(upcastPartial<ISessionCapabilities>({ supportsDelete: true })),
+		});
+		const item: IInboxNotificationItem = {
+			id: 'merged', kind: InboxNotificationKind.PullRequestMerged, priority: InboxNotificationPriority.Next,
+			title: 'Merged', description: '', timestamp: 1, sessionResource: session.resource,
+			actions: [{ id: 'archive', kind: InboxNotificationActionKind.ArchiveSession, label: 'Archive Session' }],
+		};
+		const { view, container, instantiationService } = createView(constObservable([item]), { confettiEnabled: true, reducedMotion: false });
+		container.classList.add('monaco-workbench');
+		instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
+		instantiationService.stub(ISessionsManagementService, 'archiveSession', async () => { });
+		instantiationService.stub(IDialogService, 'confirm', async () => ({ confirmed: true }));
+		instantiationService.stub(INotificationService, 'notify', () => upcastPartial<ReturnType<INotificationService['notify']>>({}));
+		let menuAction: IAction | undefined;
+		instantiationService.stub(IContextMenuService, 'showContextMenu', (delegate: Parameters<IContextMenuService['showContextMenu']>[0]) => { menuAction = delegate.getActions?.()[0]; });
+		view.render(container);
+		container.querySelector<HTMLElement>('.inbox-notifications-item-footer-actions .monaco-dropdown-button')!.click();
+		assert.ok(menuAction);
+		await menuAction.run();
+		const overlay = container.querySelector('.animation-overlay');
+		disposables.add(toDisposable(() => overlay?.remove()));
+		assert.strictEqual(!!overlay, true);
 	});
 
 	test('quietly retries an invalidated interpretation and shows it only when content arrives', () => {

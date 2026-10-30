@@ -6,7 +6,7 @@
 import './media/inboxNotificationsView.css';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { $, addDisposableListener, clearNode, DisposableResizeObserver, EventType, getActiveElement, getWindow, isEditableElement, isHTMLElement, trackFocus } from '../../../../base/browser/dom.js';
-import { triggerConfettiAnimation } from '../../../../base/browser/ui/animations/animations.js';
+import { captureAnimationTarget, IAnimationTarget, triggerConfettiAnimation } from '../../../../base/browser/ui/animations/animations.js';
 import { Button, ButtonWithDropdown, IButton } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -1905,7 +1905,11 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 				}
 				case InboxNotificationActionKind.ArchiveSession:
 				case InboxNotificationActionKind.DeleteSession: {
+					const animationTarget = sourceElement ? captureAnimationTarget(sourceElement) : undefined;
 					const result = await this.runMergedSessionCleanupAction(item, action.kind, enableAlways);
+					if (result === 'success') {
+						this.maybeTriggerConfetti(animationTarget);
+					}
 					logResult(result);
 					return;
 				}
@@ -1961,7 +1965,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 					label: localize('inboxNotifications.action.always', "Always {0}", action.label),
 					run: () => {
 						this.logInboxInteraction('runActionAlways', 'actionDropdown', item, action.kind, { commandId: action.commandId ?? 'none' });
-						return this.runAction(item, action, undefined, true);
+						return this.runAction(item, action, button.element, true);
 					},
 				})],
 			}))
@@ -2383,8 +2387,8 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		}
 	}
 
-	private maybeTriggerConfetti(sourceElement: HTMLElement | undefined): void {
-		if (!sourceElement || this.accessibilityService.isMotionReduced() || !this.configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING)) {
+	private maybeTriggerConfetti(sourceElement: HTMLElement | IAnimationTarget | undefined): void {
+		if (!sourceElement || this._store.isDisposed || !this.visible.get() || this.accessibilityService.isMotionReduced() || !this.configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING)) {
 			return;
 		}
 
