@@ -12,7 +12,6 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRequestContext } from '../../../../../../base/parts/request/common/request.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { AgentPluginItemKind, IAgentPluginItem, IMarketplacePluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
@@ -20,7 +19,7 @@ import { getPluginRepository, getPluginSourceUri, getPluginVersion, loadMarketpl
 import { IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { parseMarketplaceReference } from '../../../common/plugins/marketplaceReference.js';
 import { IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
-import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { createCustomizationMarketplaceInstallationSnapshot, emptyCustomizationMarketplaceInstallationSnapshot } from '../../../common/customizationMarketplaceInstallService.js';
@@ -188,8 +187,7 @@ suite('embeddedAgentPluginDetail', () => {
 
 	test('loads contribution details from a marketplace plugin source', async () => {
 		const pluginUri = URI.from({ scheme: Schemas.inMemory, path: '/plugins/example' });
-		const testFileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(testFileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const testFileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		const writeFile = (path: string, content: string) => testFileService.writeFile(
 			URI.from({ scheme: Schemas.inMemory, path }),
 			VSBuffer.fromString(content),

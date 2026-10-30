@@ -31,8 +31,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -6914,8 +6913,7 @@ suite('ChatService', () => {
 	});
 
 	test('session storage does not wait for editing diff stats', async () => {
-		const fileService = testDisposables.add(new FileService(new NullLogService()));
-		testDisposables.add(fileService.registerProvider(Schemas.file, testDisposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(testDisposables, Schemas.file);
 		instantiationService.stub(IFileService, fileService);
 		const pendingDiff = new DeferredPromise<void>();
 		const modifiedUri = URI.file('/workspace/file.ts');
@@ -7027,8 +7025,7 @@ suite('ChatService', () => {
 	});
 
 	test('moving an autosaved empty session with a handoff reference preserves its transcript after restart', async () => {
-		const fileService = testDisposables.add(new FileService(new NullLogService()));
-		testDisposables.add(fileService.registerProvider(Schemas.file, testDisposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(testDisposables, Schemas.file);
 		instantiationService.stub(IFileService, fileService);
 		const testService = createChatService();
 		instantiationService.stub(IChatService, testService);

@@ -10,10 +10,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AGENT_PLUGIN_MCP_SCHEMA, AGENT_PLUGIN_SCHEMA } from '../../../../../../platform/agentPlugins/common/agentPluginParser.js';
 import { detectPluginFormat, parsePlugin, PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IPromptPath, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { McpCollectionSortOrder, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
@@ -337,9 +335,7 @@ suite('writePluginToDisk', () => {
 	const root = URI.from({ scheme: Schemas.inMemory, path: '/test' });
 
 	setup(() => {
-		const service = disposables.add(new FileService(new NullLogService()));
-		const provider = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(service.registerProvider(Schemas.inMemory, provider));
+		const service = createInMemoryFileService(disposables, Schemas.inMemory);
 		fileService = service;
 	});
 
@@ -779,9 +775,7 @@ suite('updateMarketplaceIfNeeded', () => {
 	const root = URI.from({ scheme: Schemas.inMemory, path: '/marketplace-test' });
 
 	setup(() => {
-		const service = disposables.add(new FileService(new NullLogService()));
-		const provider = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(service.registerProvider(Schemas.inMemory, provider));
+		const service = createInMemoryFileService(disposables, Schemas.inMemory);
 		fileService = service;
 	});
 

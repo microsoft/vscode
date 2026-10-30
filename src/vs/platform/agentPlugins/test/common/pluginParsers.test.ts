@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { FileService } from '../../../files/common/fileService.js';
 import { FileSystemProviderCapabilities } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../agentHost/common/state/protocol/state.js';
@@ -389,8 +390,7 @@ suite('pluginParsers', () => {
 		let fileService: FileService;
 
 		setup(() => {
-			fileService = store.add(new FileService(new NullLogService()));
-			store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+			fileService = createInMemoryFileService(store, Schemas.inMemory);
 		});
 		teardown(() => store.clear());
 
@@ -417,8 +417,7 @@ suite('pluginParsers', () => {
 		let fileService: FileService;
 
 		setup(() => {
-			fileService = store.add(new FileService(new NullLogService()));
-			store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+			fileService = createInMemoryFileService(store, Schemas.inMemory);
 		});
 		teardown(() => store.clear());
 
@@ -581,8 +580,7 @@ suite('pluginParsers', () => {
 			let fileService: FileService;
 
 			setup(() => {
-				fileService = store.add(new FileService(new NullLogService()));
-				store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+				fileService = createInMemoryFileService(store, Schemas.inMemory);
 			});
 
 			teardown(() => store.clear());
