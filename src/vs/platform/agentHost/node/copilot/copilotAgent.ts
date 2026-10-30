@@ -3031,7 +3031,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return this._reconcileExtensionEnablement(currentSession, extensionId, enabled);
 			});
 		} catch (error) {
-			if (!enabled && error instanceof CopilotExtensionReconciliationError && error.failedExtensions.length > 0) {
+			if (error instanceof CopilotExtensionReconciliationError && error.failedExtensions.length > 0) {
+				if (enabled) {
+					throw new Error(error.failedExtensions.length === 1
+						? localize(
+							'copilot.extensionEnableRefreshFailed',
+							"After enabling '{0}', this chat couldn't finish updating canvas extensions because '{1}' failed to start. This chat may not match your Canvas extension settings.",
+							extension.name,
+							error.failedExtensions[0].name,
+						)
+						: localize(
+							'copilot.extensionEnableRefreshMultipleFailed',
+							"After enabling '{0}', this chat couldn't finish updating canvas extensions because other Canvas extensions failed to start. This chat may not match your Canvas extension settings.",
+							extension.name,
+						));
+				}
 				throw new Error(error.failedExtensions.length === 1
 					? localize(
 						'copilot.extensionDisableRefreshFailed',
@@ -3070,7 +3084,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._logService.warn(`[Copilot:${session.sessionId}] Extension '${extensionId}' enablement was applied, but extension reconciliation reported a lifecycle failure`, error);
 				return;
 			}
-			const failedExtensions = !enabled && targetSettled
+			const targetFailed = targets.some(extension => extension.status === 'failed');
+			const canAttributeOtherFailures = targets.length > 0 && !targetFailed && (enabled || targetSettled);
+			const failedExtensions = canAttributeOtherFailures
 				? [...new Map(extensions
 					.filter(extension => extension.id !== extensionId && (extension.status === 'failed' || extension.status === 'starting'))
 					.map(extension => [extension.id, extension])).values()]
