@@ -856,7 +856,7 @@ suite('SessionPermissionManager', () => {
 			sensitiveEditLocations: [
 				{ path: 'custom-agents', isDirectory: true },
 				{ path: 'custom-hook-dir', isDirectory: true },
-				{ path: 'custom-hooks/hooks.json', isDirectory: false },
+				{ path: 'custom-hooks/hooks.json', isDirectory: true },
 			],
 			approvals: [
 				undefined,
@@ -869,6 +869,34 @@ suite('SessionPermissionManager', () => {
 			],
 		});
 	});
+
+	for (const location of ['settings.json', 'settings.json/', 'settings.JSON']) {
+		for (const exists of [false, true]) {
+			test(`requires confirmation for configured dotted hook location ${location} (exists: ${exists})`, async () => {
+				if (exists) {
+					mkdirSync(join(workDir, location));
+				}
+				configService.updateRootConfig({ [AgentHostEditAutoApprovePatternsConfigKey]: { '**/*': true } });
+				manager.setSessionConfig(sessionUri, {
+					schema: platformSessionSchema.toProtocol(),
+					values: {
+						[SessionConfigKey.SensitiveEditLocations]: getChatSensitiveEditLocations({ [location]: true }, {}),
+					},
+				});
+				const directory = location.replace(/\/+$/, '');
+
+				assert.deepStrictEqual(await Promise.all([
+					permissions.getAutoApproval(writeEvent(join(workDir, directory, 'hook.json')), sessionUri),
+					permissions.getAutoApproval(writeEvent(join(workDir, `${directory}-other`, 'hook.json')), sessionUri),
+					permissions.getAutoApproval(writeEvent(join(workDir, 'src', 'app.ts')), sessionUri),
+				]), [
+					undefined,
+					ToolCallConfirmationReason.NotNeeded,
+					ToolCallConfirmationReason.NotNeeded,
+				]);
+			});
+		}
+	}
 
 	test('requires confirmation for configured locations in every working directory', async () => {
 		const multiRootSession = URI.from({ scheme: 'copilot', path: '/multi-root' }).toString();
