@@ -111,6 +111,8 @@ export interface ISessionArtifactImage {
 
 interface ISessionArtifactPresentation extends ISessionArtifact {
 	readonly generatedImageMimeType?: string;
+	/** An integration presents the record, whose entry alone reaches its details, so a browser showing its page never replaces it. */
+	readonly integrated?: boolean;
 }
 
 function artifactValueKey(artifact: ISessionArtifact): string {
@@ -422,7 +424,8 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
  * the artifacts pill and the references pill each build their own. Entries keep
  * the order they arrive in, which is newest first, so each section opens on
  * what the session recorded last. Websites the browsers pill already lists are
- * left out, so the same page is offered once across the pills.
+ * left out, so the same page is offered once across the pills, unless an
+ * integration presents them.
  */
 export function buildSessionArtifactSections(artifacts: readonly ISessionArtifactPresentation[], actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>, commits: ReadonlyMap<string, GitHubCommit> = new Map(), gitHubResolver?: GitHubResourceDetailsResolver, reader?: IReader, commitHoverCache?: ChatPillHoverCache): readonly IChatPillSection[] {
 	const entriesByKind = new Map<SessionArtifactKind, IChatPillEntry[]>();
@@ -440,7 +443,7 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 	}
 
 	for (const artifact of artifacts) {
-		if (artifact.kind === SessionArtifactKind.Website && isShownInBrowser(artifact.link, browserKeys)) {
+		if (artifact.kind === SessionArtifactKind.Website && !artifact.integrated && isShownInBrowser(artifact.link, browserKeys)) {
 			continue;
 		}
 		const generatedImage = generatedImages.get(artifactValueKey(artifact));
@@ -826,13 +829,14 @@ export class SessionArtifacts extends Disposable {
 				...gitHubReferences?.issues ?? [],
 			].map(ref => linkKey(ref.uri.toString())));
 			const hidden = hiddenAliases.read(reader);
+			const integrated = presentations.read(reader);
 			const artifacts: ISessionArtifactPresentation[] = chatArtifacts.read(reader).filter(artifact =>
 				artifact.isArtifact === isArtifact
 				&& !surfacedIds.has(artifact.id)
 				&& !this.hasOwnPill(artifact.id, reader)
 				&& !hidden.has(artifact.id)
 				&& !(artifact.link && parseGitHubArtifactLink(artifact) && surfacedLinks.has(linkKey(artifact.link.toString())))
-			);
+			).map(artifact => (integrated.get(artifact.id)?.snapshot.read(reader).contributions.length ?? 0) > 0 ? { ...artifact, integrated: true } : artifact);
 			if (isArtifact) {
 				artifacts.push(...generatedImages.read(reader));
 			}
@@ -841,7 +845,6 @@ export class SessionArtifacts extends Disposable {
 				const commit = target ? commitResolver.get(target).read(reader) : undefined;
 				return commit ? [[artifact.id, commit] as const] : [];
 			}));
-			const integrated = presentations.read(reader);
 			return buildSessionArtifactSections(
 				artifacts,
 				this._actions(current, chat.read(reader)?.resource ?? current.resource, reader),

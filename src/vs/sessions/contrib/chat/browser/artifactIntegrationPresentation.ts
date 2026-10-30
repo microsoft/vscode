@@ -6,7 +6,6 @@
 import './media/artifactIntegrations.css';
 import { $, append, isAncestorOfActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
-import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { Action, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -23,7 +22,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ChatPillActionViewItem, IChatPill, IChatPillAction, IChatPillEntry } from '../../../../workbench/browser/chatPills.js';
+import { ChatPillActionViewItem, IChatInlinePillViewItemOptions, IChatPill, IChatPillAction, IChatPillEntry } from '../../../../workbench/browser/chatPills.js';
 import { ArtifactButtons, IArtifactButton } from './artifactButtons.js';
 import { ArtifactDetailsSelection, ArtifactDetailsViewState, IArtifactActionViewData } from './artifactDetailsView.js';
 
@@ -158,6 +157,8 @@ export class ArtifactIntegrationPresentation extends Disposable {
 		const label = entry.badge || !main ? entry.label : main.label;
 		return {
 			...entry, label, icon: main ? icon(main.icon) : entry.icon,
+			// A resource renders its file icon in place of the integration's; the base entry keeps it to open the resource.
+			...(main ? { resource: undefined } : {}),
 			dropdownAriaLabel: localize('artifactShowDetails', "Show artifact details: {0}", main?.description ?? label),
 			toolbarActions: [createArtifactOpenAction(entry), ...entry.toolbarActions ?? []],
 			inlinePill: this.inlinePill, hover: undefined,
@@ -221,10 +222,10 @@ class ArtifactIntegrationPill extends ChatPillActionViewItem {
 		private readonly presentation: ArtifactIntegrationPresentation,
 		action: Action,
 		private readonly trailingAction: IObservable<IChatPillAction | undefined>,
-		options: IActionViewItemOptions,
+		private readonly inlineOptions: IChatInlinePillViewItemOptions,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
-		super(undefined, action, options);
+		super(undefined, action, inlineOptions);
 	}
 
 	protected override get itemModifierClass(): string { return 'artifact-integration-pill'; }
@@ -251,7 +252,9 @@ class ArtifactIntegrationPill extends ChatPillActionViewItem {
 				host.toggle(this.presentation, selection === 'autopilot' ? this.button!.element : target, selection));
 			this.sections!.update(sections);
 			this.element!.classList.toggle('chat-pill-segmented', sections.length > 0);
-			this.updatePromotedAction(this.trailingAction.read(reader), Codicon.unpin, this.hoverService);
+			// Its own surface's trailing action, else that of the pill showing it as a lone entry, such as a pinned entry's Unpin.
+			const trailing = this.trailingAction.read(reader);
+			this.updatePromotedAction(trailing ?? this.inlineOptions.promotedAction?.read(reader), trailing ? Codicon.unpin : this.inlineOptions.promotedActionIcon, this.hoverService);
 		}));
 	}
 

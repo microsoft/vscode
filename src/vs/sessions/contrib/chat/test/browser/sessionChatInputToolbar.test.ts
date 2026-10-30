@@ -2787,7 +2787,7 @@ suite('SessionChatInputToolbar', () => {
 		}, { initial: ['#42', '3/5', '2'], updated: ['#42', '3/5'], integratedPills: 1, opened: 1, referencesPresent: true });
 	});
 
-	test('lists an integrated artifact without a group ID in the Artifacts pill, opening its details on select and its resource from the Open action', async () => {
+	test('lists integrated artifacts without a group ID in the Artifacts pill with their integration\'s icon, opening details on select, the resource from Open, and pinning with Unpin', async () => {
 		const { instantiationService } = createServices(true);
 		const host = mainWindow.document.body.appendChild(document.createElement('div'));
 		host.classList.add('monaco-workbench');
@@ -2802,6 +2802,7 @@ suite('SessionChatInputToolbar', () => {
 		const records: readonly ISessionArtifact[] = [
 			{ id: 'experiment', kind: SessionArtifactKind.Website, label: 'Recorded experiment', isArtifact: true, link: URI.parse('https://experiments.test/7') },
 			{ id: 'plain', kind: SessionArtifactKind.Website, label: 'Plain', isArtifact: true, link: URI.parse('https://example.test/plain') },
+			{ id: 'report', kind: SessionArtifactKind.File, label: 'report.md', isArtifact: true, uri: URI.file('/repo/report.md') },
 		];
 		const artifacts = observableValue('artifacts', records);
 		const session = upcastPartial<IActiveSession>({
@@ -2823,14 +2824,18 @@ suite('SessionChatInputToolbar', () => {
 				},
 			}],
 		};
+		const report: ArtifactSnapshot = {
+			...integrated, artifact: { id: 'report', label: 'report.md', resource: 'file:///repo/report.md', isArtifact: true },
+			contributions: integrated.contributions.map(contribution => ({ ...contribution, view: { ...contribution.view, main: { icon: { id: 'graph' }, label: 'Report', detailsId: 'main' } } })),
+		};
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			onDidChangeSessions: Event.None,
 			acquireArtifactIntegration: async (_session, id) => new ImmortalReference(upcastPartial<IArtifactModel>({
-				snapshot: constObservable(id === 'experiment' ? integrated : { ...integrated, artifact: { id, label: 'Plain', resource: 'https://example.test/plain' }, contributions: [], mainIntegrationId: undefined }),
+				snapshot: constObservable(id === 'experiment' ? integrated : id === 'report' ? report : { ...integrated, artifact: { id, label: 'Plain', resource: 'https://example.test/plain' }, contributions: [], mainIntegrationId: undefined }),
 				acquireDetails: async () => ({ details: constObservable({ title: 'Experiment 7', availability: { kind: 'available' as const }, items: [], links: [], completeness: 'complete' as const }), dispose: () => { } }),
 			})),
 		}));
-		let rows: { label: string | undefined; ariaLabel: string | undefined; actions: readonly IAction[]; select(): void }[] = [];
+		let rows: { label: string | undefined; icon: string | undefined; fileIcon: boolean; ariaLabel: string | undefined; actions: readonly IAction[]; select(): void }[] = [];
 		let hideDropdown: (() => void) | undefined;
 		instantiationService.stub(IActionWidgetService, {
 			isVisible: false,
@@ -2839,6 +2844,8 @@ suite('SessionChatInputToolbar', () => {
 					const ariaLabel = accessibility?.getAriaLabel?.(item);
 					return item.item ? [{
 						label: item.label,
+						icon: item.group?.icon?.id,
+						fileIcon: !!item.iconClasses?.length,
 						ariaLabel: typeof ariaLabel === 'string' ? ariaLabel : undefined,
 						actions: item.toolbarActions ?? [],
 						select: () => delegate.onSelect(item.item!),
@@ -2862,25 +2869,44 @@ suite('SessionChatInputToolbar', () => {
 		await timeout(0);
 		const listed = {
 			integrationPills: toolbar.element.querySelectorAll('.artifact-integration-pill, .artifact-integration-group-pill').length,
-			artifactsPill: !!toolbar.element.querySelector('[aria-label="Show 2 artifacts"]'),
+			artifactsPill: !!toolbar.element.querySelector('[aria-label="Show 3 artifacts"]'),
 		};
-		toolbar.element.querySelector<HTMLElement>('[aria-label="Show 2 artifacts"]')!.click();
+		toolbar.element.querySelector<HTMLElement>('[aria-label="Show 3 artifacts"]')!.click();
 		const experiment = rows.find(row => row.label === 'Experiment 7')!;
-		const dropdown = rows.map(row => ({ label: row.label, ariaLabel: row.ariaLabel, actions: row.actions.map(action => action.label) }));
+		const dropdown = rows.map(row => ({ label: row.label, icon: row.icon, fileIcon: row.fileIcon }));
+		// File rows add platform-specific actions and locations, so only the website rows' controls are compared.
+		const controls = rows.filter(row => row.label !== 'Report').map(row => ({ label: row.label, ariaLabel: row.ariaLabel, actions: row.actions.map(action => action.label) }));
 		await experiment.actions[0].run();
 		experiment.select();
+		const details = host.querySelector('.artifact-details-context-view')?.isConnected;
+		// A pinned artifact keeps its integration pill, which offers Unpin as its trailing button.
+		await experiment.actions.find(action => action.label === 'Pin Experiment 7')!.run();
+		await timeout(0);
+		const pinned = toolbar.element.querySelector<HTMLElement>('.artifact-integration-pill');
+		const unpin = pinned?.classList.contains('has-promoted-action') ? pinned.querySelector<HTMLElement>('.chat-pill-promoted-action') : undefined;
+		const pin = { label: pinned?.querySelector('.chat-pill-label')?.textContent, unpin: unpin?.getAttribute('aria-label') };
+		unpin?.click();
+		await timeout(0);
 		assert.deepStrictEqual({
-			alone, listed, dropdown, opened,
-			details: host.querySelector('.artifact-details-context-view')?.isConnected,
+			alone, listed, dropdown, controls, opened, details, pin,
+			unpinned: toolbar.element.querySelectorAll('.artifact-integration-pill').length,
 		}, {
 			alone: 'Experiment 7',
 			listed: { integrationPills: 0, artifactsPill: true },
 			dropdown: [
+				{ label: 'Experiment 7', icon: 'beaker', fileIcon: false },
+				{ label: 'Plain', icon: 'globe', fileIcon: false },
+				// The integration's icon, rather than the file's.
+				{ label: 'Report', icon: 'graph', fileIcon: false },
+			],
+			controls: [
 				{ label: 'Experiment 7', ariaLabel: 'Show artifact details: Experiment 7 is running, https://experiments.test/7', actions: ['Open Recorded experiment', 'Copy Website URL', 'Pin Experiment 7', 'Remove Artifact Recorded experiment from Session'] },
 				{ label: 'Plain', ariaLabel: 'Open Plain, https://example.test/plain', actions: ['Copy Website URL', 'Pin Plain', 'Remove Artifact Plain from Session'] },
 			],
 			opened: ['https://experiments.test/7'],
 			details: true,
+			pin: { label: 'Experiment 7', unpin: 'Unpin Experiment 7' },
+			unpinned: 0,
 		});
 	});
 	for (const providerId of [LOCAL_AGENT_HOST_PROVIDER_ID, `${REMOTE_AGENT_HOST_PROVIDER_PREFIX}custom-host`]) {
