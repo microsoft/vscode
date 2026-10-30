@@ -206,8 +206,10 @@ suite('ActionListWidget', () => {
 	test('the header name is keyboard-operable without selecting a method', () => {
 		let renames = 0;
 		let selections = 0;
+		let dismissals = 0;
 		const widget = createActionListWidget(disposables, {
 			onSelect: () => selections++,
+			onHide: () => dismissals++,
 			listOptions: {
 				headerText: 'Shared as Workstation',
 				headerAction: toAction({ id: 'rename', label: 'Workstation', tooltip: 'Rename Remote Environment', run: () => renames++ }),
@@ -221,8 +223,11 @@ suite('ActionListWidget', () => {
 		const tabFocus = isActiveElement(link);
 		dispatchKeyDown(link, { key: 'Enter', keyCode: 13 });
 		dispatchKeyDown(link, { key: 'Tab', shiftKey: true });
-		assert.deepStrictEqual({ tabFocus, returned: isActiveElement(list), renames, selections, text: widget.headerContainer?.textContent }, {
-			tabFocus: true, returned: true, renames: 1, selections: 0, text: 'Shared as Workstation',
+		const returned = isActiveElement(list);
+		dispatchKeyDown(list, { key: 'Tab' });
+		dispatchKeyDown(link, { key: 'Tab' });
+		assert.deepStrictEqual({ tabFocus, returned, renames, selections, dismissals, text: widget.headerContainer?.textContent }, {
+			tabFocus: true, returned: true, renames: 1, selections: 0, dismissals: 1, text: 'Shared as Workstation',
 		});
 	});
 

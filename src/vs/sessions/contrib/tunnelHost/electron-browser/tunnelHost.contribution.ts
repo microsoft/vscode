@@ -75,15 +75,17 @@ export class SessionsTunnelHostTitlebarContribution extends Disposable implement
 		}));
 
 		const viewItemFactory: IActionViewItemFactory = (action, _options, instantiationService) => {
-			const enabled = configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING)
-				&& configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING)
-				&& configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
 			return instantiationService.createInstance(RemoteConnectionsActionViewItem, action, false, {
-				managementAction: enabled ? toAction({
-					id: OPEN_REMOTES_EDITOR_COMMAND_ID,
-					label: localize('manageRemoteEnvironments', "Manage Remote Environments..."),
-					run: () => commandService.executeCommand(OPEN_REMOTES_EDITOR_COMMAND_ID),
-				}) : undefined,
+				getManagementAction: () => {
+					const enabled = configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING)
+						&& configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING)
+						&& configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
+					return enabled ? toAction({
+						id: OPEN_REMOTES_EDITOR_COMMAND_ID,
+						label: localize('manageRemoteEnvironments', "Manage Remote Environments..."),
+						run: () => commandService.executeCommand(OPEN_REMOTES_EDITOR_COMMAND_ID),
+					}) : undefined;
+				},
 			});
 		};
 		this._register(actionViewItemService.register(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID, viewItemFactory, remoteTunnelService.onDidChangeTunnelStatus));

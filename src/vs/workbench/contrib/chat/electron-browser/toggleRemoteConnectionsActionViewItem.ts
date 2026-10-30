@@ -42,7 +42,7 @@ function getGitHubEnvironmentDetail(): string {
 
 export interface IRemoteConnectionsActionOptions {
 	readonly showLabel?: boolean;
-	readonly managementAction?: IAction;
+	readonly getManagementAction?: () => IAction | undefined;
 }
 
 export interface IRemoteTunnelAccessState {
@@ -367,13 +367,14 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		for (const method of connectionMethods) {
 			method.category = { label: 'methods', order: 1 };
 		}
-		if (this._menuOptions.managementAction) {
+		const managementAction = this._menuOptions.getManagementAction?.();
+		if (managementAction) {
 			connectionMethods.push({
 				...toAction({
-					id: this._menuOptions.managementAction.id,
-					label: this._menuOptions.managementAction.label,
-					enabled: this._menuOptions.managementAction.enabled,
-					run: () => this._menuOptions.managementAction!.run(),
+					id: managementAction.id,
+					label: managementAction.label,
+					enabled: managementAction.enabled,
+					run: () => managementAction.run(),
 				}),
 				icon: Codicon.blank,
 				labelIcon: Codicon.settingsGear,

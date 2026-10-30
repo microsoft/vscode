@@ -17,7 +17,7 @@
 	height: 100%;
 }
 
-.remotes-editor-content {
+.remotes-editor-content:not([hidden]) {
 	display: flex;
 	flex-direction: column;
 	gap: var(--vscode-spacing-size160);

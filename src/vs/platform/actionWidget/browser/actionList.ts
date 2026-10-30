@@ -1444,7 +1444,7 @@ export class ActionListWidget<T> extends Disposable {
 			}
 			const text = dom.append(this._headerContainer, dom.$('span.action-list-header-text'));
 			text.textContent = this._options.headerText;
-			this.renderTextAction(text, this._options.headerText, this._options.headerAction);
+			this.renderTextAction(text, this._options.headerText, this._options.headerAction, true);
 
 			// The banner is chrome, not an item: pointing at it dismisses a row's hover panel.
 			this._register(dom.addDisposableListener(this._headerContainer, dom.EventType.MOUSE_ENTER, () => {
@@ -1816,7 +1816,7 @@ export class ActionListWidget<T> extends Disposable {
 		return this._filterContainer;
 	}
 
-	private renderTextAction(container: HTMLElement, text: string, action: IAction | undefined): void {
+	private renderTextAction(container: HTMLElement, text: string, action: IAction | undefined, header = false): void {
 		const nameIndex = action ? text.lastIndexOf(action.label) : -1;
 		if (!action || nameIndex < 0) {
 			return;
@@ -1839,6 +1839,9 @@ export class ActionListWidget<T> extends Disposable {
 		}, true));
 		this._register(dom.addDisposableListener(element, 'keydown', e => {
 			if (e.key === 'Escape') {
+				dom.EventHelper.stop(e, true);
+				this.hide(true);
+			} else if (header && e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
 				dom.EventHelper.stop(e, true);
 				this.hide(true);
 			} else if (e.key === 'Tab' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {

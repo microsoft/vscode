@@ -101,7 +101,8 @@ export class ThisComputerSharing extends Disposable {
 			const name = github && (active || starting)
 				? sharingService.environmentName.read(reader) ?? provider?.localRegistrationName?.read(reader)
 				: !github && status?.type === 'connected' ? status.info.tunnelName : provider?.localRegistrationName?.read(reader);
-			const displayName = name ?? dropdown.getSharingName();
+			const displayName = active ? name ?? dropdown.getSharingName()
+				: (github ? sharingService.environmentName.read(reader) : undefined) ?? dropdown.getSharingName() ?? name;
 			this.name.textContent = displayName ?? '';
 			nameHover.update(displayName ?? '');
 			rename.enabled = !!displayName && !starting;

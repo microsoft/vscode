@@ -161,7 +161,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => restore());
 
-	function fixture(backend: AgentHostRemoteConnectionsBackend = 'devTunnel', options: { quality?: IProductService['quality']; isChatInput?: boolean; precedingAction?: boolean; tunnelsAvailable?: boolean } = { quality: 'insider', isChatInput: true }) {
+	function fixture(backend: AgentHostRemoteConnectionsBackend = 'devTunnel', options: { quality?: IProductService['quality']; isChatInput?: boolean; precedingAction?: boolean; tunnelsAvailable?: boolean; managementEnabled?: () => boolean } = { quality: 'insider', isChatInput: true }) {
 		const instantiation = store.add(new TestInstantiationService());
 		const availability = observableValue('availability', true);
 		instantiation.stub(IMissionControlAvailabilityService, { available: availability });
@@ -237,8 +237,9 @@ suite('RemoteConnectionsActionViewItem', () => {
 
 		const run = stub().callsFake(() => instantiation.invokeFunction(accessor => executeToggleRemoteConnections(accessor)));
 		const action = store.add(new Action('test.toggleRemoteConnections', 'Toggle Remote Connections', undefined, true, run));
+		const managementAction = store.add(new Action('test.manage', 'Manage Remote Environments...', undefined, true, () => commands.executeCommand('test.manage')));
 		const viewItem = store.add(instantiation.createInstance(RemoteConnectionsActionViewItem, action, options.isChatInput ?? false, {
-			managementAction: !options.isChatInput ? store.add(new Action('test.manage', 'Manage Remote Environments...', undefined, true, () => commands.executeCommand('test.manage'))) : undefined,
+			getManagementAction: () => !options.isChatInput && (options.managementEnabled?.() ?? true) ? managementAction : undefined,
 		}));
 		const container = dom.append(document.body, dom.$('div'));
 		store.add(toDisposable(() => container.remove()));
@@ -301,6 +302,19 @@ suite('RemoteConnectionsActionViewItem', () => {
 		]);
 		await actions[3].run();
 		assert.deepStrictEqual(commands.commands, [{ id: 'test.manage', args: [] }]);
+	});
+
+	test('reevaluates management availability whenever its menu opens', () => {
+		let enabled = false;
+		const { openMenu, closeMenu } = fixture('devTunnel', { isChatInput: false, managementEnabled: () => enabled });
+		const visible = () => openMenu().some(action => action.id === 'test.manage');
+		const disabled = visible();
+		closeMenu();
+		enabled = true;
+		const available = visible();
+		closeMenu();
+		enabled = false;
+		assert.deepStrictEqual([disabled, available, visible()], [false, true, false]);
 	});
 
 	test('connection methods do not add extra hovers', () => {
