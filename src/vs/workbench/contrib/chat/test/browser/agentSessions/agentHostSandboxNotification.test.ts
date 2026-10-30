@@ -238,17 +238,23 @@ suite('AgentHostSandboxNotification', () => {
 			focusedSessionChanged.fire();
 		}
 
-		function enableInstallation(install: (chat: string, scopeId: string) => Promise<void>, supported = true): void {
+		function enableInstallation(install: (chat: string, scopeId: string) => Promise<void>, supported = true, local = true): void {
 			assert.ok(resolution);
+			const connection = new class extends mock<IAgentHostService>() {
+				override readonly initializeResult = constObservable(upcastPartial<InitializeResult>({ _meta: { 'vscode.sandboxCertificate.install': supported } }));
+				override readonly sandboxCertificateInstallationSupported = constObservable(supported);
+				override installSandboxCertificate = install;
+				override getSubscriptionUnmanaged(): undefined { return undefined; }
+			};
 			resolution = {
 				...resolution,
-				connection: new class extends mock<IAgentConnection>() {
-					override readonly initializeResult = constObservable(upcastPartial<InitializeResult>({ _meta: { 'vscode.sandboxCertificate.install': supported } }));
-					override readonly sandboxCertificateInstallationSupported = constObservable(supported);
-					override installSandboxCertificate = install;
-					override getSubscriptionUnmanaged(): undefined { return undefined; }
-				},
+				connectionAuthority: local ? 'local' : 'custom-host',
+				connection,
 			};
+			if (local) {
+				localHost = connection;
+				instantiationService.stub(IAgentHostService, localHost);
+			}
 		}
 
 		function installCommand(service: NotificationService) {
@@ -730,7 +736,7 @@ suite('AgentHostSandboxNotification', () => {
 				calls: [['conversation://opaque/certificate?revision%3D3#entry', 'host-runtime']],
 				progress: 'Removing sandbox certificate trust', host: true, retention: true, impact: true,
 				information: ['The sandbox certificate was removed from OS trust. The stored certificate authority was kept.'],
-				errors: [], installOffered: true,
+				errors: [], installOffered: false,
 			});
 		});
 
@@ -843,7 +849,7 @@ suite('AgentHostSandboxNotification', () => {
 			});
 		});
 
-		test('Install confirms the target host, displays progress and responds to the trusted status', async () => {
+		(isWeb ? test.skip : test)('Install confirms the target host, displays progress and responds to the trusted status', async () => {
 			const subscription = store.add(new TestSubscription());
 			subscription.setValue();
 			subscription.setCertificate(certificate);
@@ -861,7 +867,7 @@ suite('AgentHostSandboxNotification', () => {
 			createNotification(resource, subscription, service);
 			await instantiationService.invokeFunction(installCommand(service).handler);
 			assert.deepStrictEqual({
-				calls, progress, buttonWhileInstalling, targetNamed: confirmations[0]?.message.includes('custom-host'),
+				calls, progress, buttonWhileInstalling, targetNamed: confirmations[0]?.message.includes('This Computer'),
 				trustExplained: typeof confirmations[0]?.detail === 'string' && confirmations[0].detail.includes('OS trust store'),
 				remaining: service.notifications.size, installationErrors,
 			}, {
@@ -870,7 +876,7 @@ suite('AgentHostSandboxNotification', () => {
 			});
 		});
 
-		test('cancelling the confirmation never sends an installation request', async () => {
+		(isWeb ? test.skip : test)('cancelling the confirmation never sends an installation request', async () => {
 			const subscription = store.add(new TestSubscription());
 			subscription.setValue();
 			subscription.setCertificate(certificate);
@@ -884,7 +890,7 @@ suite('AgentHostSandboxNotification', () => {
 			assert.deepStrictEqual({ calls, errors: installationErrors, hasInstallButton: hasInstallButton(service) }, { calls: 0, errors: [], hasInstallButton: true });
 		});
 
-		test('duplicate clicks share confirmation and a changed runtime is rejected afterward', async () => {
+		(isWeb ? test.skip : test)('duplicate clicks share confirmation and a changed runtime is rejected afterward', async () => {
 			const subscription = store.add(new TestSubscription());
 			subscription.setValue();
 			subscription.setCertificate(certificate);
@@ -904,7 +910,7 @@ suite('AgentHostSandboxNotification', () => {
 			assert.deepStrictEqual({ calls, confirmations: confirmations.length, rejected: installationErrors[0]?.includes('target changed') }, { calls: 0, confirmations: 1, rejected: true });
 		});
 
-		test('installation failures are visible and the action is available to retry', async () => {
+		(isWeb ? test.skip : test)('installation failures are visible and the action is available to retry', async () => {
 			const subscription = store.add(new TestSubscription());
 			subscription.setValue();
 			subscription.setCertificate(certificate);
@@ -931,8 +937,122 @@ suite('AgentHostSandboxNotification', () => {
 			assert.deepStrictEqual({ hasInstallButton: hasInstallButton(service), actions: service.notifications.get(id)?.actions }, { hasInstallButton: false, actions: [] });
 		});
 
+		const remoteGuidance = 'Install the sandbox certificate authority (CA) on the remote agent host. On that computer, open a local desktop window of VS Code and run Sandbox: Manage Trusted CA from the Command Palette, then select Install. Learn more.';
+
+		(isWeb ? test : test.skip)('web windows provide manual guidance and reject chat installation even through the default host service', async () => {
+			const subscription = store.add(new TestSubscription());
+			subscription.setValue();
+			subscription.setCertificate(certificate);
+			const service = new NotificationService();
+			enableInstallation(async () => { assert.fail('Must not install from a web window'); });
+			focus(resource);
+			createNotification(resource, subscription, service);
+			await runChatInstallation(service);
+			const notice = service.notifications.get(id);
+			assert.ok(notice && isMarkdownString(notice.description));
+			const rendered = store.add(renderMarkdown(notice.description));
+			assert.deepStrictEqual({
+				description: rendered.element.textContent,
+				actions: notice.actions,
+				confirmations,
+				rejected: installationErrors[0]?.includes('remote agent host'),
+			}, { description: remoteGuidance, actions: [], confirmations: [], rejected: true });
+		});
+
+		for (const target of ['remote connection', 'remote window'] as const) {
+			for (const supported of [true, false]) {
+				test(`${target} shows manual certificate guidance without an Install action when capability is ${supported}`, () => {
+					const subscription = store.add(new TestSubscription());
+					subscription.setValue();
+					subscription.setCertificate({ ...certificate, detail: '[Install](command:evil)' });
+					const service = new NotificationService();
+					enableInstallation(async () => { assert.fail('Must not install remotely'); }, supported, target === 'remote window');
+					remoteAuthority = target === 'remote window' ? 'ssh-remote+host' : undefined;
+					focus(resource);
+					createNotification(resource, subscription, service);
+					const notice = service.notifications.get(id);
+					assert.ok(notice && isMarkdownString(notice.description));
+					const openedLinks: string[] = [];
+					const rendered = store.add(renderMarkdown(notice.description, { actionHandler: url => openedLinks.push(url) }));
+					rendered.element.querySelector('a')?.click();
+					assert.deepStrictEqual({
+						message: notice.message,
+						description: rendered.element.textContent,
+						actions: notice.actions,
+						dismissible: notice.dismissible,
+						openedLinks,
+						dispatched,
+					}, {
+						message: 'Sandbox trusted CA is not installed (optional)',
+						description: remoteGuidance,
+						actions: [],
+						dismissible: true,
+						openedLinks: ['https://aka.ms/vscode-sandboxing-certtrust'],
+						dispatched: [],
+					});
+				});
+			}
+		}
+
+		test('refreshes certificate guidance when locality changes without a scope or capability change', () => {
+			const subscription = store.add(new TestSubscription());
+			subscription.setValue();
+			subscription.setCertificate(certificate);
+			const service = new NotificationService();
+			enableInstallation(async () => { assert.fail('Must not install'); }, false);
+			focus(resource);
+			createNotification(resource, subscription, service);
+			const localDescription = service.notifications.get(id)?.description;
+			remoteAuthority = 'ssh-remote+host';
+			subscription.setCertificate(certificate);
+			const remoteDescription = service.notifications.get(id)?.description;
+			assert.ok(isMarkdownString(remoteDescription));
+			const rendered = store.add(renderMarkdown(remoteDescription));
+			remoteAuthority = undefined;
+			subscription.setCertificate(certificate);
+			assert.deepStrictEqual({
+				updates: service.updates,
+				remote: rendered.element.textContent,
+				local: service.notifications.get(id)?.description,
+				actions: service.notifications.get(id)?.actions,
+			}, { updates: isWeb ? 1 : 3, remote: remoteGuidance, local: localDescription, actions: [] });
+		});
+
+		for (const timing of ['before confirmation', 'during confirmation'] as const) {
+			(isWeb ? test.skip : test)(`a stale Install action cannot target a remote connection ${timing}`, async () => {
+				const subscription = store.add(new TestSubscription());
+				subscription.setValue();
+				subscription.setCertificate(certificate);
+				const service = new NotificationService();
+				enableInstallation(async () => { assert.fail('Must not install after the target changes'); });
+				focus(resource);
+				createNotification(resource, subscription, service);
+				const command = installCommand(service);
+				const pending = new DeferredPromise<{ confirmed: boolean }>();
+				confirmation = pending.p;
+				const installing = timing === 'during confirmation' ? instantiationService.invokeFunction(command.handler) : undefined;
+				enableInstallation(async () => { assert.fail('Must not install remotely'); }, true, false);
+				focus(resource);
+				await pending.complete({ confirmed: true });
+				if (timing === 'during confirmation') {
+					await installing;
+				} else {
+					await instantiationService.invokeFunction(command.handler);
+				}
+				assert.deepStrictEqual({
+					confirmations: confirmations.length,
+					errors: installationErrors,
+					actions: service.notifications.get(id)?.actions,
+				}, {
+					confirmations: timing === 'during confirmation' ? 1 : 0,
+					errors: ['Could not install the sandbox certificate: Install the sandbox certificate on the remote agent host. Open a local desktop window of VS Code on that computer and run Sandbox: Manage Trusted CA from the Command Palette.'],
+					actions: [],
+				});
+			});
+		}
+
 		for (const outcome of ['installed', 'cancelled', 'failed'] as const) {
-			test(`renders an accessible Install button and handles ${outcome} installation`, async () => {
+			(isWeb ? test.skip : test)(`renders an accessible Install button and handles ${outcome} installation`, async () => {
 				const subscription = store.add(new TestSubscription());
 				subscription.setValue();
 				subscription.setCertificate({ ...certificate, detail: '[untrusted](command:evil)' });
@@ -1025,7 +1145,7 @@ suite('AgentHostSandboxNotification', () => {
 				calls.push([chat.toString(), scopeId]);
 				progress = !!service.notifications.get(id)?.progress;
 				subscription.setCertificate({ ...certificate, state: 'installed' });
-			});
+			}, true, false);
 			focus(resource);
 			createNotification(resource, subscription, service);
 			service.dismissNotification(id);
@@ -1071,7 +1191,7 @@ suite('AgentHostSandboxNotification', () => {
 			});
 		});
 
-		test('offers Install for an incompatible CA and explains replacement and tool restarts', async () => {
+		(isWeb ? test.skip : test)('offers Install for an incompatible CA and explains replacement and tool restarts', async () => {
 			const subscription = store.add(new TestSubscription());
 			subscription.setValue();
 			subscription.setCertificate({ ...certificate, requiresRotation: true });
@@ -1090,7 +1210,7 @@ suite('AgentHostSandboxNotification', () => {
 		});
 
 		for (const fails of [false, true]) {
-			test(`Install shows progress for an installed incompatible CA until ${fails ? 'failure' : 'completion'}, but stays hidden while idle`, async () => {
+			(isWeb ? test.skip : test)(`Install shows progress for an installed incompatible CA until ${fails ? 'failure' : 'completion'}, but stays hidden while idle`, async () => {
 				const subscription = store.add(new TestSubscription());
 				subscription.setValue();
 				subscription.setCertificate({ ...certificate, state: 'installed', requiresRotation: true });
@@ -1130,21 +1250,24 @@ suite('AgentHostSandboxNotification', () => {
 			});
 		}
 
-		test('uses connection-level installation support when the local AHP handshake omits it', async () => {
+		(isWeb ? test.skip : test)('uses connection-level installation support when the local AHP handshake omits it', async () => {
 			const subscription = store.add(new TestSubscription());
 			subscription.setValue();
 			subscription.setCertificate(certificate);
 			const service = new NotificationService();
 			let calls = 0;
 			assert.ok(resolution);
+			localHost = new class extends mock<IAgentHostService>() {
+				override readonly initializeResult = constObservable(upcastPartial<InitializeResult>({}));
+				override readonly sandboxCertificateInstallationSupported = constObservable(true);
+				override installSandboxCertificate = async () => { calls++; };
+				override getSubscriptionUnmanaged(): undefined { return undefined; }
+			};
+			instantiationService.stub(IAgentHostService, localHost);
 			resolution = {
 				...resolution,
-				connection: new class extends mock<IAgentConnection>() {
-					override readonly initializeResult = constObservable(upcastPartial<InitializeResult>({}));
-					override readonly sandboxCertificateInstallationSupported = constObservable(true);
-					override installSandboxCertificate = async () => { calls++; };
-					override getSubscriptionUnmanaged(): undefined { return undefined; }
-				},
+				connectionAuthority: 'local',
+				connection: localHost,
 			};
 			focus(resource);
 			createNotification(resource, subscription, service);
@@ -1152,7 +1275,7 @@ suite('AgentHostSandboxNotification', () => {
 			assert.strictEqual(calls, 1);
 		});
 
-		test('chat installation shares the pending confirmation with the Install button', async () => {
+		(isWeb ? test.skip : test)('chat installation shares the pending confirmation with the Install button', async () => {
 			const subscription = store.add(new TestSubscription());
 			subscription.setValue();
 			subscription.setCertificate(certificate);
@@ -1217,7 +1340,7 @@ suite('AgentHostSandboxNotification', () => {
 			});
 		}
 
-		test('closing the chat during confirmation prevents installation', async () => {
+		(isWeb ? test.skip : test)('closing the chat during confirmation prevents installation', async () => {
 			const subscription = store.add(new TestSubscription());
 			subscription.setValue();
 			subscription.setCertificate(certificate);
@@ -1239,6 +1362,7 @@ suite('AgentHostSandboxNotification', () => {
 			const subscription = store.add(new TestSubscription());
 			subscription.setValue();
 			const service = new NotificationService();
+			enableInstallation(async () => { assert.fail('Must not install'); }, false);
 			focus(resource);
 			createNotification(resource, subscription, service);
 			const before = service.notifications.size;
@@ -1257,7 +1381,7 @@ suite('AgentHostSandboxNotification', () => {
 					id, inputUri,
 					severity: ChatInputNotificationSeverity.Info,
 					message: 'Sandbox trusted CA is not installed (optional)',
-					description: 'Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. Learn more.',
+					description: isWeb ? remoteGuidance : 'Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. Learn more.',
 					actions: [], dismissible: true, autoDismissOnMessage: false, sessionResources: [resource],
 				},
 				links: ['Learn more'],
@@ -1369,7 +1493,7 @@ suite('AgentHostSandboxNotification', () => {
 			assert.deepStrictEqual({
 				warning: warning.severity, info: info.severity, id: info.id, remaining: service.getActiveNotification(), warningRendered, certificateRendered, renderedButton, dispatched,
 			}, {
-				warning: ChatInputNotificationSeverity.Warning, info: ChatInputNotificationSeverity.Info, id, remaining: undefined, warningRendered: true, certificateRendered: true, renderedButton: { label: 'Install', tabIndex: 0 }, dispatched: [],
+				warning: ChatInputNotificationSeverity.Warning, info: ChatInputNotificationSeverity.Info, id, remaining: undefined, warningRendered: true, certificateRendered: true, renderedButton: { label: isWeb ? undefined : 'Install', tabIndex: isWeb ? undefined : 0 }, dispatched: [],
 			});
 		});
 

@@ -83,6 +83,130 @@ suite('CopilotSandboxCertificate', () => {
 	const config = { enabled: true, auth: { git: true, gh: true } };
 
 	suite('host certificate management', () => {
+		test('host removal waits for installation from a different client sharing the CA store', async () => {
+			const hostRpc = new TestCertificateRpc();
+			const chatRpc = new TestCertificateRpc();
+			const certificates = new CopilotSandboxCertificate(new NullLogService());
+			const initial = await certificates.getStatus(chatRpc, config);
+			assert.ok(initial);
+			const created = new DeferredPromise<CertificateCreateResult>();
+			chatRpc.createResult = created.p;
+			const mutations: string[] = [];
+			let trusted = false;
+			chatRpc.trust = async () => {
+				mutations.push('trust');
+				trusted = true;
+				return { state: 'installed', canInstall: true };
+			};
+			hostRpc.remove = async () => {
+				mutations.push('remove');
+				trusted = false;
+				return { state: 'notInstalled', canInstall: true };
+			};
+			const installing = certificates.install(chatRpc, () => config, initial.scopeId);
+			await chatRpc.createStarted.p;
+			const removing = certificates.removeForHost(hostRpc);
+			await timeout(0);
+			const whileInstalling = [...mutations];
+			await created.complete({ certificatePath: '/runtime/proxy-ca.pem' });
+			await Promise.all([installing, removing]);
+			assert.deepStrictEqual({ whileInstalling, mutations, trusted }, {
+				whileInstalling: [], mutations: ['trust', 'remove'], trusted: false,
+			});
+		});
+
+		for (const operation of ['installForHost', 'rotateForHost', 'removeForHost'] as const) {
+			test(`${operation} refreshes other clients and configurations while preserving runtime scopes`, async () => {
+				const hostRpc = new TestCertificateRpc();
+				const chatRpc = new TestCertificateRpc();
+				const certificates = new CopilotSandboxCertificate(new NullLogService());
+				if (operation !== 'installForHost') {
+					hostRpc.status = { state: 'installed', canInstall: true };
+				}
+				const getChatStatus = chatRpc.getStatus;
+				chatRpc.getStatus = async params => {
+					chatRpc.status = hostRpc.status;
+					return getChatStatus(params);
+				};
+				const otherConfig = { ...config, auth: { git: false, gh: true } };
+				const before = await Promise.all([certificates.getStatus(hostRpc, config), certificates.getStatus(chatRpc, config), certificates.getStatus(chatRpc, otherConfig)]);
+				await certificates[operation](hostRpc);
+				const after = await Promise.all([certificates.getStatus(hostRpc, config), certificates.getStatus(chatRpc, config), certificates.getStatus(chatRpc, otherConfig)]);
+				assert.deepStrictEqual({
+					states: after.map(status => status?.state),
+					refreshed: after.map((status, index) => status !== before[index]),
+					scopesRetained: after.map((status, index) => status?.scopeId === before[index]?.scopeId),
+					distinctClientScopes: after[0]?.scopeId !== after[1]?.scopeId,
+					chatStatusCalls: chatRpc.calls.filter(call => call === 'status').length,
+					chatSupportCalls: chatRpc.calls.filter(call => call === 'support').length,
+				}, {
+					states: Array(3).fill(operation === 'removeForHost' ? 'notInstalled' : 'installed'),
+					refreshed: [true, true, true], scopesRetained: [true, true, true], distinctClientScopes: true,
+					chatStatusCalls: 4, chatSupportCalls: 2,
+				});
+			});
+		}
+
+		test('a late chat observation is refreshed after a different client removes trust', async () => {
+			const hostRpc = new TestCertificateRpc();
+			const chatRpc = new TestCertificateRpc();
+			const certificates = new CopilotSandboxCertificate(new NullLogService());
+			const pending = new DeferredPromise<CertificateStatus>();
+			chatRpc.statusResult = pending.p;
+			const before = certificates.getStatus(chatRpc, config);
+			await chatRpc.statusStarted.p;
+			await certificates.removeForHost(hostRpc);
+			chatRpc.statusResult = undefined;
+			const after = await certificates.getStatus(chatRpc, config);
+			await pending.complete({ state: 'installed', canInstall: true });
+			const late = await before;
+			assert.deepStrictEqual({ state: late?.state, sameResult: late === after, statusCalls: chatRpc.calls.filter(call => call === 'status').length }, {
+				state: 'notInstalled', sameResult: true, statusCalls: 2,
+			});
+		});
+
+		test('failed host mutations invalidate other clients before queued reads resume', async () => {
+			const hostRpc = new TestCertificateRpc();
+			const chatRpc = new TestCertificateRpc();
+			chatRpc.status = { state: 'installed', canInstall: true };
+			const certificates = new CopilotSandboxCertificate(new NullLogService());
+			const before = await certificates.getStatus(chatRpc, config);
+			const started = new DeferredPromise<void>();
+			const pending = new DeferredPromise<CertificateStatus>();
+			hostRpc.remove = async () => {
+				started.complete();
+				return pending.p;
+			};
+			const removing = assert.rejects(certificates.removeForHost(hostRpc), /OS authorization denied/);
+			await started.p;
+			const reading = certificates.getStatus(chatRpc, config);
+			await timeout(0);
+			const callsWhileRemoving = [...chatRpc.calls];
+			chatRpc.status = { state: 'notInstalled', canInstall: true };
+			await pending.error(new Error('OS authorization denied'));
+			await removing;
+			const after = await reading;
+			assert.deepStrictEqual({ callsWhileRemoving, state: after?.state, scopeRetained: after?.scopeId === before?.scopeId, refreshed: after !== before }, {
+				callsWhileRemoving: ['relevance', 'support', 'status'], state: 'notInstalled', scopeRetained: true, refreshed: true,
+			});
+		});
+
+		test('queued chat installation revalidates its own runtime scope after a host mutation', async () => {
+			const hostRpc = new TestCertificateRpc();
+			const chatRpc = new TestCertificateRpc();
+			const certificates = new CopilotSandboxCertificate(new NullLogService());
+			const initial = await certificates.getStatus(chatRpc, config);
+			assert.ok(initial);
+			const removing = certificates.removeForHost(hostRpc);
+			const stale = assert.rejects(certificates.install(new TestCertificateRpc(), () => config, initial.scopeId), /runtime changed/);
+			const installing = certificates.install(chatRpc, () => config, initial.scopeId);
+			await Promise.all([removing, stale, installing]);
+			assert.deepStrictEqual({ hostCalls: hostRpc.calls, chatCalls: chatRpc.calls }, {
+				hostCalls: ['remove'],
+				chatCalls: ['relevance', 'support', 'status', 'relevance', 'support', 'status', 'create', 'trust'],
+			});
+		});
+
 		test('rotates and trusts using saved settings without a chat or sandbox enablement', async () => {
 			const rpc = new TestCertificateRpc();
 			rpc.relevant = false;
@@ -582,15 +706,16 @@ suite('CopilotSandboxCertificate', () => {
 			});
 		});
 
-		test('does not block operations on another runtime', async () => {
+		test('does not block operations managed by a different Copilot home', async () => {
 			const first = new TestCertificateRpc();
 			const second = new TestCertificateRpc();
 			const pending = new DeferredPromise<CertificateCreateResult>();
 			first.createResult = pending.p;
 			const certificates = new CopilotSandboxCertificate(new NullLogService());
+			const otherCertificates = new CopilotSandboxCertificate(new NullLogService());
 			const create = certificates.create(first, config);
 			await first.createStarted.p;
-			const trusted = await certificates.trust(second, config);
+			const trusted = await otherCertificates.trust(second, config);
 			const firstPending = !pending.isSettled;
 			await pending.complete({ certificatePath: '/runtime/proxy-ca.pem' });
 			await create;
@@ -627,10 +752,11 @@ suite('CopilotSandboxCertificate', () => {
 				assert.deepStrictEqual({
 					refreshed: [before !== after, beforeOtherConfig !== afterOtherConfig],
 					sameScope: before?.scopeId === after?.scopeId,
-					otherRuntimeUnchanged: beforeOtherRuntime === afterOtherRuntime,
+					otherRuntimeRefreshed: beforeOtherRuntime !== afterOtherRuntime,
+					otherRuntimeScopeRetained: beforeOtherRuntime?.scopeId === afterOtherRuntime?.scopeId,
 					calls: rpc.calls,
 				}, {
-					refreshed: [true, true], sameScope: true, otherRuntimeUnchanged: true,
+					refreshed: [true, true], sameScope: true, otherRuntimeRefreshed: true, otherRuntimeScopeRetained: true,
 					calls: ['relevance', 'support', 'status', 'relevance', 'status', operation, 'relevance', 'support', 'status', 'relevance', 'status'],
 				});
 			});
