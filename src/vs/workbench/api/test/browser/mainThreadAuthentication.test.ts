@@ -101,7 +101,7 @@ suite('MainThreadAuthentication', () => {
 				dynamicStorage, undefined!, undefined!, undefined!, undefined!
 			));
 			return {
-				mainThread, proxy, unregistered,
+				mainThread, unregistered,
 				get clientRegistrationWrites() { return clientRegistrationWrites; },
 				stop: () => { stopped = true; mainThread.dispose(); }
 			};
@@ -150,7 +150,9 @@ suite('MainThreadAuthentication', () => {
 				}));
 				const host = createHost(sessionId, {}, mainRpc);
 				mainRpc.set(MainContext.MainThreadAuthentication, host.mainThread);
-				extHostRpc.set(ExtHostContext.ExtHostAuthentication, host.proxy);
+				extHostRpc.set(ExtHostContext.ExtHostAuthentication, upcastPartial<ExtHostAuthenticationShape>({
+					$getSessions: async () => [{ id: sessionId, accessToken: 'test-token', scopes: [], account: { id: 'account', label: 'Account' } }]
+				}));
 				return {
 					mainThread: extHostRpc.getProxy(MainContext.MainThreadAuthentication),
 					stop: () => {
