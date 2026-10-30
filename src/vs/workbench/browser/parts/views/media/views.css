@@ -288,7 +288,7 @@
 }
 
 .customview-tree .monaco-list.horizontal-scrolling:focus .monaco-list-row.focused:not(.selected) .custom-view-tree-node-item .actions {
-	background-image: linear-gradient(var(--vscode-list-focusBackground, var(--vscode-list-inactiveFocusBackground, transparent)), var(--vscode-list-focusBackground, var(--vscode-list-inactiveFocusBackground, transparent)));
+	background-image: linear-gradient(var(--vscode-list-focusBackground, transparent), var(--vscode-list-focusBackground, transparent));
 }
 
 /* filter view pane */

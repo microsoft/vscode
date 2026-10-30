@@ -97,6 +97,8 @@ suite('Custom tree action backgrounds', () => {
 				await record('active selection and focus');
 				tree.setSelection([]);
 				await record('active focus');
+				root.style.removeProperty('--vscode-list-focusBackground');
+				await record('active focus without a background');
 				outside.focus();
 				await record('inactive focus');
 				tree.scrollLeft = 100;
