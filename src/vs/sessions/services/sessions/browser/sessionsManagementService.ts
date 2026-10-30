@@ -13,6 +13,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
@@ -1322,12 +1323,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return this._getProvider(session)?.sessionWorktreeExists?.(session.sessionId, token) ?? Promise.resolve(undefined);
 	}
 
-	async sessionWorktreeCleanup(session: ISession, retry: boolean) {
+	canForceWorktreeCleanup(owner: ISession | IManagedSessionWorktree): boolean {
+		const provider = hasKey(owner, { sessionId: true }) ? this._getProvider(owner) : this.sessionsProvidersService.getProvider(owner.providerId);
+		return provider?.supportsForceWorktreeCleanup === true;
+	}
+
+	async sessionWorktreeCleanup(session: ISession, retry: boolean, force?: boolean) {
 		const provider = this._getProvider(session);
 		if (retry && !provider?.sessionWorktreeCleanup) {
 			throw new Error(localize('sessions.worktreeCleanupUnavailable', "Retrying worktree cleanup is unavailable for this session."));
 		}
-		return provider?.sessionWorktreeCleanup?.(session.sessionId, retry);
+		return provider?.sessionWorktreeCleanup?.(session.sessionId, retry, force);
 	}
 
 	async listManagedWorktrees(knownWorktrees: readonly IManagedSessionWorktree[] = []): Promise<IManagedSessionWorktree[]> {
@@ -1346,12 +1352,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return this.sessionsProvidersService.getProvider(worktree.providerId)?.managedWorktreeExists?.(worktree);
 	}
 
-	async cleanupManagedWorktree(worktree: IManagedSessionWorktree): Promise<void> {
+	async cleanupManagedWorktree(worktree: IManagedSessionWorktree, force?: boolean): Promise<void> {
 		const provider = this.sessionsProvidersService.getProvider(worktree.providerId);
 		if (!provider?.cleanupManagedWorktree) {
 			throw new Error(localize('sessions.managedWorktreeCleanupUnavailable', "Connect to this worktree's host to clean it up."));
 		}
-		await provider.cleanupManagedWorktree(worktree);
+		await provider.cleanupManagedWorktree(worktree, force);
 	}
 
 	async unarchiveSession(session: ISession): Promise<void> {
@@ -1472,7 +1478,25 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async markAllRead(sessions: readonly ISession[]): Promise<void> {
-		await Promise.all(sessions.map(session => this.setSessionReadState(session, true)));
+		// Hand each provider its sessions in one call so it can publish a single
+		// change instead of one per session, which listeners answer with a full refresh.
+		const byProvider = new Map<ISessionsProvider, string[]>();
+		for (const session of sessions) {
+			this._explicitlyMarkedUnreadChats.delete(session.resource);
+			const provider = this._getProvider(session);
+			if (!provider) {
+				continue;
+			}
+			const sessionIds = byProvider.get(provider);
+			if (sessionIds) {
+				sessionIds.push(session.sessionId);
+			} else {
+				byProvider.set(provider, [session.sessionId]);
+			}
+		}
+		await Promise.all(Array.from(byProvider, ([provider, sessionIds]) => provider.setSessionsReadState
+			? provider.setSessionsReadState(sessionIds, true)
+			: Promise.all(sessionIds.map(sessionId => provider.setSessionReadState(sessionId, true)))));
 	}
 
 	async deleteSession(session: ISession): Promise<void> {

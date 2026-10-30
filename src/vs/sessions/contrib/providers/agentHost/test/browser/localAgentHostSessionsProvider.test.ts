@@ -1226,7 +1226,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		disposables.add(provider.onDidChangeSessionTypes(() => changes++));
 
 		const initialization = () => provider.sessionTypes[0]?.initializationOnSelection;
-		const windowGate = () => resolveSignedOutWindowGate(false, provider.sessionTypes.map(type => type.authRequirement), initialization()?.canInitializeWithoutGitHub);
+		const windowGate = () => resolveSignedOutWindowGate(provider.sessionTypes.map(type => type.authRequirement), initialization()?.canInitializeWithoutGitHub);
 		const states = [initialization()];
 		const windowGates = [windowGate()];
 		agentHost.setRootState(rootState('signedIn'));
@@ -1964,6 +1964,48 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}],
 		});
 	}));
+
+	for (const protocolVersion of [undefined, '0.8.0']) {
+		test(`marking several sessions read publishes one session change (${protocolVersion ?? 'current'} protocol)`, async () => {
+			if (protocolVersion) {
+				agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion }, undefined);
+			}
+			const ids = ['bulk-read-1', 'bulk-read-2', 'bulk-read-3'];
+			for (const id of ids) {
+				agentHost.addSession(createSession(id, { status: ProtocolSessionStatus.Idle }));
+			}
+			const provider = createProvider(disposables, agentHost);
+			provider.getSessions();
+			await timeout(0);
+			const sessions = ids.map(id => provider.getSessions().find(session => AgentSession.id(session.resource) === id)!);
+			const before = sessions.map(session => session.isRead.get());
+			const changes: ISessionChangeEvent[] = [];
+			disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+			await provider.setSessionsReadState(sessions.map(session => session.sessionId), true);
+			const afterBatch = { events: changes.length, read: sessions.map(session => session.isRead.get()) };
+			await provider.setSessionReadState(sessions[0].sessionId, false);
+
+			assert.deepStrictEqual({
+				before,
+				afterBatch,
+				events: changes.map(change => change.changed.map(session => AgentSession.id(session.resource)).sort()),
+				read: sessions.map(session => session.isRead.get()),
+				dispatched: agentHost.dispatchedActions
+					.filter(dispatch => dispatch.action.type === ActionType.SessionIsReadChanged)
+					.map(dispatch => ({ channel: dispatch.channel, isRead: dispatch.action.type === ActionType.SessionIsReadChanged ? dispatch.action.isRead : undefined })),
+			}, {
+				before: [false, false, false],
+				afterBatch: { events: 1, read: [true, true, true] },
+				events: [ids, ['bulk-read-1']],
+				read: [false, true, true],
+				dispatched: [
+					...ids.map(id => ({ channel: AgentSession.uri('copilotcli', id).toString(), isRead: true })),
+					{ channel: AgentSession.uri('copilotcli', 'bulk-read-1').toString(), isRead: false },
+				],
+			});
+		});
+	}
 
 	test('session removed notification clears cache and metadata', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, agentHost);
@@ -3317,6 +3359,43 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		assert.strictEqual(lastStates.get(session.sessionId), state, 'subscription opens and applies the state once the marker clears');
+	}));
+
+	test('listed legacy sessions retain one row through adoption, repeated notifications and reconnect', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const active = createSession('legacy-active', { summary: 'Active Legacy', adoptable: true });
+		const archived = createSession('legacy-archived', { summary: 'Archived Legacy', adoptable: true, status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsArchived });
+		agentHost.addSession(active);
+		agentHost.addSession(archived);
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		const initialSessions = provider.getSessions();
+		const rows = () => provider.getSessions().map(session => ({
+			resource: session.resource.toString(),
+			archived: session.isArchived.get(),
+		})).sort((a, b) => a.resource.localeCompare(b.resource));
+		const initial = rows();
+
+		agentHost.addSession({ ...active, _meta: undefined });
+		fireSessionSummaryChanged(agentHost, 'legacy-active', { _meta: undefined });
+		fireSessionAdded(agentHost, 'legacy-active', { title: 'Active Legacy' });
+		fireSessionAdded(agentHost, 'legacy-active', { title: 'Active Legacy' });
+		await timeout(0);
+		const adopted = rows();
+
+		agentHost.fireAgentHostExit();
+		agentHost.fireAgentHostStart();
+		await timeout(100);
+
+		const expected = [
+			{ resource: 'agent-host-copilotcli:/legacy-active', archived: false },
+			{ resource: 'agent-host-copilotcli:/legacy-archived', archived: true },
+		];
+		assert.deepStrictEqual({
+			initial, adopted, reconnected: rows(),
+			identitiesPreserved: initialSessions.every(session => provider.getSessions().includes(session)),
+		}, {
+			initial: expected, adopted: expected, reconnected: expected, identitiesPreserved: true,
+		});
 	}));
 
 	test('resolveSessionResource seeds the twin in cache when the legacy provider is absent and refresh produces no row', async () => {
@@ -12421,6 +12500,29 @@ suite('LocalAgentHostSessionsProvider', () => {
 				session: true,
 				main: true,
 				actions: [{ channel: defaultChat.toString(), isRead: true }],
+			});
+		});
+
+		test('explicit session read works before the default chat is advertised', async () => {
+			const rawId = 'session-read-before-chat-catalog';
+			const sessionUri = AgentSession.uri('copilotcli', rawId);
+			agentHost.addSession(createSession(rawId, { status: ProtocolSessionStatus.Idle }));
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			const session = provider.getSessions().find(session => AgentSession.id(session.resource.toString()) === rawId)!;
+
+			await provider.setSessionReadState(session.sessionId, true);
+
+			assert.deepStrictEqual({
+				isRead: session.isRead.get(),
+				actions: agentHost.dispatchedActions.map(dispatch => ({
+					channel: dispatch.channel,
+					type: dispatch.action.type,
+					isRead: dispatch.action.type === ActionType.SessionIsReadChanged ? dispatch.action.isRead : undefined,
+				})),
+			}, {
+				isRead: true,
+				actions: [{ channel: sessionUri.toString(), type: ActionType.SessionIsReadChanged, isRead: true }],
 			});
 		});
 

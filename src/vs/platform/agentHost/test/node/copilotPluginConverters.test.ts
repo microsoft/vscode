@@ -7,17 +7,15 @@ import assert from 'assert';
 import { writeFileSync, unlinkSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { FileService } from '../../../files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
-import { mapCopilotCustomAgentTools, toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, findRelocatedAgentName, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
-import { PluginFormat, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookGroup, type IParsedPlugin, type IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
+import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, findRelocatedAgentName, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
+import { PluginFormat, toParsedAgent, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookGroup, type IParsedPlugin, type IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
 import { CustomizationType, McpServerStatus, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 
 function stubMcpCustomization(name = 'test'): McpServerCustomization {
@@ -32,16 +30,13 @@ function stubSkillCustomization(name: string): SkillCustomization {
 
 suite('copilotPluginConverters', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: FileService;
 
 	setup(() => {
-		fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// ---- toSdkMcpServers ------------------------------------------------
 
@@ -225,6 +220,51 @@ suite('copilotPluginConverters', () => {
 
 	suite('toSdkCustomAgents', () => {
 
+		test('keeps authored names visible in single-line model descriptions', async () => {
+			const uri = URI.from({ scheme: Schemas.inMemory, path: '/agents/reviewer.md' });
+			await fileService.writeFile(uri, VSBuffer.fromString('---\nname: Reviewer\ndescription: |\n  Reviews code.\n  Reports bugs.\n---\nPrompt'));
+			const [agent] = await toSdkCustomAgents([{ uri, name: 'reviewer' }], fileService);
+			assert.deepStrictEqual({ name: agent.name, displayName: agent.displayName, description: agent.description }, {
+				name: getSdkCustomAgentName(uri), displayName: 'Reviewer', description: 'Reviewer: Reviews code. Reports bugs.',
+			});
+		});
+
+		test('uses a logical source identity supplied by the snapshot rather than the cache path', async () => {
+			const uri = URI.from({ scheme: Schemas.inMemory, path: '/cache/revision/agent.md' });
+			await fileService.writeFile(uri, VSBuffer.fromString('---\nname: Friendly Reviewer\n---\nReview.'));
+			const sdkName = getSdkCustomAgentName(URI.parse('client-plugin:/source/agent.md'));
+			assert.deepStrictEqual(await toSdkCustomAgents([{ uri, name: 'Friendly Reviewer', sdkName }], fileService), [{
+				name: sdkName, displayName: 'Friendly Reviewer', description: 'Friendly Reviewer', tools: null, prompt: 'Review.',
+			}]);
+		});
+
+		test('keeps duplicate authored names distinct and their SDK identities independent of file contents', async () => {
+			const uris = ['first', 'second'].map(source => URI.from({ scheme: Schemas.inMemory, path: `/${source}/shared.agent.md` }));
+			for (const [index, uri] of uris.entries()) {
+				await fileService.writeFile(uri, VSBuffer.fromString(`---\nname: Friendly Reviewer\n---\nPrompt ${index}`));
+			}
+			const agents = uris.map(uri => ({ uri, name: 'Friendly Reviewer' }));
+			const original = await toSdkCustomAgents(agents, fileService);
+			await fileService.writeFile(uris[0], VSBuffer.fromString('---\nname: Renamed Reviewer\n---\nUpdated prompt'));
+			const updated = await toSdkCustomAgents(agents, fileService);
+
+			assert.deepStrictEqual({
+				uniqueIds: new Set(original.map(agent => agent.name)).size,
+				opaqueIds: original.every(agent => /^vscode-agent-[0-9a-f]{40}$/.test(agent.name)),
+				displayNames: original.map(agent => agent.displayName),
+				prompts: original.map(agent => agent.prompt),
+				stableIds: updated.map(agent => agent.name),
+				updatedLabel: updated[0].displayName,
+			}, {
+				uniqueIds: 2,
+				opaqueIds: true,
+				displayNames: ['Friendly Reviewer', 'Friendly Reviewer'],
+				prompts: ['Prompt 0', 'Prompt 1'],
+				stableIds: original.map(agent => agent.name),
+				updatedLabel: 'Renamed Reviewer',
+			});
+		});
+
 		test('reads agent files without frontmatter and creates configs', async () => {
 			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/helper.md' });
 			await fileService.writeFile(agentUri, VSBuffer.fromString('You are a helpful assistant'));
@@ -233,7 +273,9 @@ suite('copilotPluginConverters', () => {
 			const result = await toSdkCustomAgents(agents, fileService);
 
 			assert.deepStrictEqual(result, [{
-				name: 'helper',
+				name: getSdkCustomAgentName(agentUri),
+				displayName: 'helper',
+				description: 'helper',
 				tools: null,
 				prompt: 'You are a helpful assistant',
 			}]);
@@ -256,8 +298,9 @@ suite('copilotPluginConverters', () => {
 				{ uri: URI.from({ scheme: Schemas.inMemory, path: '/agents/bad.md' }), name: 'bad' },
 			];
 			const result = await toSdkCustomAgents(agents, fileService);
-			assert.strictEqual(result.length, 1);
-			assert.strictEqual(result[0].name, 'good');
+			assert.deepStrictEqual(result.map(agent => ({ name: agent.name, displayName: agent.displayName })), [{
+				name: getSdkCustomAgentName(goodUri), displayName: 'good',
+			}]);
 		});
 
 		test('parses YAML frontmatter for name, description, tools, and body', async () => {
@@ -278,8 +321,9 @@ suite('copilotPluginConverters', () => {
 			const result = await toSdkCustomAgents(agents, fileService);
 
 			assert.deepStrictEqual(result, [{
-				name: 'code-reviewer',
-				description: 'Reviews code for quality issues',
+				name: getSdkCustomAgentName(agentUri),
+				displayName: 'code-reviewer',
+				description: 'code-reviewer: Reviews code for quality issues',
 				tools: ['read_file', 'grep_search'],
 				prompt: 'You are a meticulous code reviewer.\n',
 			}]);
@@ -361,13 +405,17 @@ suite('copilotPluginConverters', () => {
 
 			assert.deepStrictEqual(result, [
 				{
-					name: 'scalar-model',
+					name: getSdkCustomAgentName(scalarUri),
+					displayName: 'scalar-model',
+					description: 'scalar-model',
 					model: 'claude-haiku-4.5',
 					tools: null,
 					prompt: 'Scalar body.',
 				},
 				{
-					name: 'fallback-models',
+					name: getSdkCustomAgentName(fallbackUri),
+					displayName: 'fallback-models',
+					description: 'fallback-models',
 					model: 'gpt-5.6-sol',
 					tools: null,
 					prompt: 'Fallback body.',
@@ -410,7 +458,9 @@ suite('copilotPluginConverters', () => {
 
 			assert.deepStrictEqual(result, [
 				{
-					name: 'first',
+					name: getSdkCustomAgentName(firstAgentUri),
+					displayName: 'first',
+					description: 'first',
 					tools: null,
 					hooks: {
 						SessionStart: [{ type: 'command', command: 'echo first' }],
@@ -419,7 +469,9 @@ suite('copilotPluginConverters', () => {
 					prompt: 'First agent.',
 				},
 				{
-					name: 'second',
+					name: getSdkCustomAgentName(secondAgentUri),
+					displayName: 'second',
+					description: 'second',
 					tools: null,
 					hooks: {
 						PreToolUse: [{ type: 'command', command: 'deny second' }],
@@ -456,7 +508,9 @@ suite('copilotPluginConverters', () => {
 			const result = await toSdkCustomAgents([{ uri: agentUri, name: 'mixed' }], fileService);
 
 			assert.deepStrictEqual(result, [{
-				name: 'mixed',
+				name: getSdkCustomAgentName(agentUri),
+				displayName: 'mixed',
+				description: 'mixed',
 				tools: null,
 				hooks: {
 					SessionStart: [{ type: 'command', command: 'echo started' }],
@@ -486,8 +540,10 @@ suite('copilotPluginConverters', () => {
 
 			const result = await toSdkCustomAgents(agents, fileService);
 
-			assert.deepStrictEqual(result, reasoningEfforts.map(reasoningEffort => ({
-				name: reasoningEffort,
+			assert.deepStrictEqual(result, reasoningEfforts.map((reasoningEffort, index) => ({
+				name: getSdkCustomAgentName(agents[index].uri),
+				displayName: reasoningEffort,
+				description: reasoningEffort,
 				reasoningEffort,
 				tools: null,
 				prompt: 'Body.',
@@ -517,8 +573,8 @@ suite('copilotPluginConverters', () => {
 			], fileService);
 
 			assert.deepStrictEqual(result, [
-				{ name: 'missing-effort', tools: null, prompt: 'Body.' },
-				{ name: 'unsupported-effort', tools: null, prompt: 'Body.' },
+				{ name: getSdkCustomAgentName(missingUri), displayName: 'missing-effort', description: 'missing-effort', tools: null, prompt: 'Body.' },
+				{ name: getSdkCustomAgentName(unsupportedUri), displayName: 'unsupported-effort', description: 'unsupported-effort', tools: null, prompt: 'Body.' },
 			]);
 		});
 
@@ -539,7 +595,9 @@ suite('copilotPluginConverters', () => {
 			const result = await toSdkCustomAgents(agents, fileService);
 
 			assert.deepStrictEqual(result, [{
-				name: 'skilled',
+				name: getSdkCustomAgentName(agentUri),
+				displayName: 'skilled',
+				description: 'skilled',
 				tools: null,
 				skills: ['baking-cake', 'cooking-pasta'],
 				infer: true,
@@ -573,14 +631,18 @@ suite('copilotPluginConverters', () => {
 
 			assert.deepStrictEqual(result, [
 				{
-					name: 'no-invoke',
+					name: getSdkCustomAgentName(disabledUri),
+					displayName: 'no-invoke',
+					description: 'no-invoke',
 					tools: null,
 					infer: false,
 					disableModelInvocation: true,
 					prompt: 'Body.',
 				},
 				{
-					name: 'legacy-no-invoke',
+					name: getSdkCustomAgentName(legacyUri),
+					displayName: 'legacy-no-invoke',
+					description: 'legacy-no-invoke',
 					tools: null,
 					infer: false,
 					disableModelInvocation: true,
@@ -619,7 +681,9 @@ suite('copilotPluginConverters', () => {
 			const result = await toSdkCustomAgents(agents, fileService);
 
 			assert.deepStrictEqual(result, [{
-				name: 'free-for-all',
+				name: getSdkCustomAgentName(agentUri),
+				displayName: 'free-for-all',
+				description: 'free-for-all',
 				tools: null,
 				prompt: 'Body.',
 			}]);
@@ -638,14 +702,15 @@ suite('copilotPluginConverters', () => {
 			const result = await toSdkCustomAgents(agents, fileService);
 
 			assert.deepStrictEqual(result, [{
-				name: 'resource-name',
-				description: 'Helper without an explicit name',
+				name: getSdkCustomAgentName(agentUri),
+				displayName: 'resource-name',
+				description: 'resource-name: Helper without an explicit name',
 				tools: null,
 				prompt: 'Body only.',
 			}]);
 		});
 
-		test('trims whitespace from frontmatter name to match parsed agent name', async () => {
+		test('trims the authored display name without changing the URI-derived SDK identity', async () => {
 			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/padded.md' });
 			await fileService.writeFile(agentUri, VSBuffer.fromString([
 				'---',
@@ -657,7 +722,9 @@ suite('copilotPluginConverters', () => {
 			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'padded' }];
 			const result = await toSdkCustomAgents(agents, fileService);
 
-			assert.strictEqual(result[0].name, 'Inbox');
+			assert.deepStrictEqual({ name: result[0].name, displayName: result[0].displayName }, {
+				name: getSdkCustomAgentName(agentUri), displayName: 'Inbox',
+			});
 		});
 	});
 
@@ -672,7 +739,7 @@ suite('copilotPluginConverters', () => {
 			const plugins: IPluginAgentsForSdk[] = [{ agents: [{ uri: agentUri, name: 'helper' }] }];
 			const result = await toSdkSessionCustomAgents(plugins, fileService);
 
-			assert.deepStrictEqual(result, [{ name: 'helper', tools: null, prompt: 'Loose agent' }]);
+			assert.deepStrictEqual(result, [{ name: getSdkCustomAgentName(agentUri), displayName: 'helper', description: 'helper', tools: null, prompt: 'Loose agent' }]);
 		});
 
 		test('includes plugin agents and preserves their hooks', async () => {
@@ -701,12 +768,14 @@ suite('copilotPluginConverters', () => {
 
 			assert.deepStrictEqual(result, [
 				{
-					name: 'parent',
+					name: getSdkCustomAgentName(parentUri),
+					displayName: 'parent',
+					description: 'parent',
 					tools: null,
 					hooks: { PreToolUse: [{ type: 'command', command: 'deny parent' }] },
 					prompt: 'Parent agent',
 				},
-				{ name: 'sibling', tools: null, prompt: 'Sibling agent' },
+				{ name: getSdkCustomAgentName(siblingUri), displayName: 'sibling', description: 'sibling', tools: null, prompt: 'Sibling agent' },
 			]);
 		});
 	});
@@ -1011,6 +1080,7 @@ suite('copilotPluginConverters', () => {
 			return {
 				...makePlugin(),
 				pluginDir,
+				sourceUri: URI.parse('client-plugin:/logical-source'),
 				nonce: 'same-content',
 				hooks: [{
 					type: 'SessionStart',
@@ -1043,7 +1113,7 @@ suite('copilotPluginConverters', () => {
 				skills: [{ ...resource('skills/a/SKILL.md'), customization: stubSkillCustomization('a') }],
 				agents: [{ ...resource('agents/a.agent.md'), customization: { type: CustomizationType.Agent, id: 'agent:a', uri: 'file:///agent', name: 'a' } }],
 				instructions: [{ ...resource('rules/a.instructions.md'), customization: { type: CustomizationType.Rule, id: 'rule:a', uri: 'file:///rule', name: 'a' } }],
-			} satisfies IParsedPlugin & { pluginDir: URI; nonce: string };
+			} satisfies IParsedPlugin & { sourceUri: URI; pluginDir: URI; nonce: string };
 		}
 
 		test('compares identical plugin content relative to each materialized root', () => {
@@ -1074,7 +1144,39 @@ suite('copilotPluginConverters', () => {
 				findRelocatedAgentName([applied], [{ ...published, nonce: 'changed-resource-body' }], agentUri),
 				findRelocatedAgentName([applied], [published], 'file:///unknown.agent.md'),
 				findRelocatedAgentName([applied], [{ ...makePlugin(), pluginDir: URI.file('/workspace') }, published], agentUri),
-			], [applied.agents[0].name, undefined, undefined, applied.agents[0].name]);
+			], [getSdkCustomAgentName(applied.agents[0].uri, applied), undefined, undefined, getSdkCustomAgentName(applied.agents[0].uri, applied)]);
+		});
+
+		test('does not confuse different plugin sources with identical content during relocation', () => {
+			const first = relocatedPlugin('/cache/first');
+			const second = { ...relocatedPlugin('/cache/second'), sourceUri: URI.parse('client-plugin:/other-source') };
+			const published = { ...relocatedPlugin('/cache/new'), sourceUri: second.sourceUri };
+			assert.deepStrictEqual({
+				equal: parsedPluginsEqual([first], [second]),
+				selected: findRelocatedAgentName([first, second], [published], published.agents[0].uri.toString()),
+			}, { equal: false, selected: getSdkCustomAgentName(second.agents[0].uri, second) });
+		});
+
+		test('does not normalize logical agent identities that also match the materialized root', () => {
+			const plugin = (name: string) => {
+				const root = URI.parse(`vscode-agent-host-file:/plugins/${name}`);
+				return {
+					...makePlugin(), sourceUri: root, pluginDir: root, nonce: 'identical',
+					agents: [toParsedAgent({ uri: URI.joinPath(root, 'agents', 'reviewer.agent.md'), name: 'Reviewer' })],
+				};
+			};
+			const first = plugin('first');
+			const second = plugin('second');
+			assert.deepStrictEqual({
+				equal: parsedPluginsEqual([first], [second]),
+				relocated: findRelocatedAgentName([first], [second], second.agents[0].uri.toString()),
+			}, { equal: false, relocated: undefined });
+		});
+
+		test('ignores source-only relocation when no forwarded agent identity changes', () => {
+			const first = { ...relocatedPlugin('/cache/first'), agents: [], sourceUri: URI.parse('client-plugin:/first') };
+			const second = { ...relocatedPlugin('/cache/second'), agents: [], sourceUri: URI.parse('client-plugin:/second') };
+			assert.strictEqual(parsedPluginsEqual([first], [second]), true);
 		});
 
 		test('preserves content changes when plugin roots differ', () => {

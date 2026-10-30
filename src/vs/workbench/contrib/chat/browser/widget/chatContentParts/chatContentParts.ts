@@ -71,6 +71,7 @@ export interface IChatContentPartDiffSource {
 export interface IChatContentPartRenderContext {
 	readonly element: IChatRequestViewModel | IChatResponseViewModel;
 	readonly readOnly?: boolean;
+	readonly renderInputRequests?: boolean;
 	readonly elementIndex: number;
 	readonly container: HTMLElement;
 	/** Lazily provides an anchor that clips content overlays below floating list UI such as the sticky header. */

@@ -223,8 +223,8 @@ suite('SessionEnvironmentPicker', () => {
 			toolbar: !!trigger.closest('.monaco-toolbar'),
 			tooltipLabels,
 		}, {
-			order: 'CloudRepository', labels: ['This Computer', 'Cloud'], selected: 'cloud', ariaLabel: 'Choose Environment, Cloud', expanded: 'false', toolbar: true,
-			tooltipLabels: ['Choose Environment, This Computer', 'Choose Environment, Cloud'],
+			order: 'CloudRepository', labels: ['This Computer', 'Cloud'], selected: 'cloud', ariaLabel: 'Environment where the agent runs: Cloud', expanded: 'false', toolbar: true,
+			tooltipLabels: ['Environment where the agent runs: This Computer', 'Environment where the agent runs: Cloud'],
 		});
 	});
 

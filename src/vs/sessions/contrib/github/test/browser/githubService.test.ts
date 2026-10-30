@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../base/common/event.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -26,7 +25,7 @@ import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/
 
 suite('GitHubService', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: GitHubService;
 	let domainCalls: { operation: string; args: readonly unknown[] }[];
 
@@ -74,10 +73,6 @@ suite('GitHubService', () => {
 
 		service = store.add(instantiationService.createInstance(GitHubService));
 	});
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('delegates commit, file, and branch lookup to typed domains and reuses successful branch lookups', async () => {
 		const commit = await service.getCommit('o', 'r', 'abc', CancellationToken.None);

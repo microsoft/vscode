@@ -40,6 +40,7 @@ import { defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/
 import { canvasOwnerKey, type CanvasDefinitionSnapshot, getCanvasDefinitionInstanceId, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService, isCanvasOwner, isOpenableExtensionCanvasDefinition } from '../../../canvases/common/canvas.js';
 import { CanvasDefinitionStore } from '../../../canvases/common/canvasDefinitionStore.js';
 import { AICustomizationManagementCommands } from '../../common/aiCustomizationWorkspaceService.js';
+import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { extensionIcon, pluginIcon, userIcon, workspaceIcon } from './aiCustomizationIcons.js';
 import { IAICustomizationManagementSectionWidget } from './aiCustomizationManagementSectionRegistry.js';
@@ -1428,19 +1429,19 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			return this.extensions;
 		}
 		return this.extensions.flatMap(extension => {
-			const extensionMatches = [
+			const extensionMatches = customizationSearchMatchesAny(query, [
 				extension.extensionName,
 				extension.extensionId,
 				extension.extension?.pluginName,
 				this.getExtensionSource(extension),
-			].some(value => value?.toLowerCase().includes(query));
+			]);
 			const canvases = extensionMatches
 				? extension.canvases
-				: extension.canvases.filter(item => [
+				: extension.canvases.filter(item => customizationSearchMatchesAny(query, [
 					item.canvas.displayName,
 					item.canvas.description,
 					item.canvas.canvasId,
-				].some(value => value.toLowerCase().includes(query)));
+				]));
 			return extensionMatches || canvases.length > 0 ? [{ ...extension, canvases }] : [];
 		});
 	}

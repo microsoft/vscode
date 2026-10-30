@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { nextAutomationCronOccurrence, validateAutomationCron } from '../../node/automationCron.js';
+import { nextAutomationCronOccurrence, validateAutomationCron } from '../../common/automationCron.js';
 
 suite('Automation cron', () => {
 
@@ -28,6 +28,28 @@ suite('Automation cron', () => {
 			nextAutomationCronOccurrence('0 0 15 * MON', 'UTC', new Date('2026-01-12T00:00:00Z')).toISOString(),
 			'2026-01-15T00:00:00.000Z',
 		);
+	});
+
+	test('matches AHP range steps and month-scoped day alternatives', () => {
+		const cases = [
+			['20-59/15 * * * *', '2027-01-01T00:00:00Z', ['2027-01-01T00:20:00.000Z', '2027-01-01T00:35:00.000Z', '2027-01-01T00:50:00.000Z', '2027-01-01T01:20:00.000Z']],
+			['0 9-23/6 * * *', '2027-05-01T08:00:00Z', ['2027-05-01T09:00:00.000Z', '2027-05-01T15:00:00.000Z', '2027-05-01T21:00:00.000Z', '2027-05-02T09:00:00.000Z']],
+			['0 9 5-31/10 * *', '2027-05-01T00:00:00Z', ['2027-05-05T09:00:00.000Z', '2027-05-15T09:00:00.000Z', '2027-05-25T09:00:00.000Z', '2027-06-05T09:00:00.000Z']],
+			['0 9 5 3-12/4 *', '2027-01-01T00:00:00Z', ['2027-03-05T09:00:00.000Z', '2027-07-05T09:00:00.000Z', '2027-11-05T09:00:00.000Z', '2028-03-05T09:00:00.000Z']],
+			['0 9 * * 1-6/2', '2026-10-31T00:00:00Z', ['2026-11-02T09:00:00.000Z', '2026-11-04T09:00:00.000Z', '2026-11-06T09:00:00.000Z', '2026-11-09T09:00:00.000Z']],
+			['3 3 5 5 2', '2026-10-31T00:00:00Z', ['2027-05-04T03:03:00.000Z', '2027-05-05T03:03:00.000Z', '2027-05-11T03:03:00.000Z', '2027-05-18T03:03:00.000Z', '2027-05-25T03:03:00.000Z', '2028-05-02T03:03:00.000Z']],
+		] as const;
+		const actual = cases.map(([expression, after, expected]) => {
+			let cursor = new Date(after);
+			return {
+				expression,
+				occurrences: expected.map(() => {
+					cursor = nextAutomationCronOccurrence(expression, 'UTC', cursor);
+					return cursor.toISOString();
+				}),
+			};
+		});
+		assert.deepStrictEqual(actual, cases.map(([expression, , occurrences]) => ({ expression, occurrences })));
 	});
 
 	test('weekdays skip weekends and retain local time across DST changes', () => {
@@ -87,6 +109,7 @@ suite('Automation cron', () => {
 	test('rejects unsupported grammar and invalid time zones', () => {
 		assert.throws(() => validateAutomationCron('@daily', 'UTC'), /exactly five fields/);
 		assert.throws(() => validateAutomationCron('0 0 ? * *', 'UTC'), /outside 1-31/);
+		assert.throws(() => nextAutomationCronOccurrence('20/15 * * * *', 'UTC', new Date('2027-01-01T00:00:00Z')), /steps require '\*' or a range/);
 		assert.throws(() => validateAutomationCron('0 0 30 2 *', 'UTC'), /cannot match a real calendar date/);
 		assert.throws(() => validateAutomationCron('0 0 * * *', 'Not\/AZone'), /invalid time zone/);
 	});

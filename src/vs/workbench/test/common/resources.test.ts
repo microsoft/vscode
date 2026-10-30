@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
@@ -19,7 +18,7 @@ suite('ResourceGlobMatcher', () => {
 	let contextService: IWorkspaceContextService;
 	let configurationService: TestConfigurationService;
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
 		contextService = new TestContextService();
@@ -29,10 +28,6 @@ suite('ResourceGlobMatcher', () => {
 				'**/*.txt': false
 			}
 		});
-	});
-
-	teardown(() => {
-		disposables.clear();
 	});
 
 	test('Basics', async () => {
@@ -76,5 +71,4 @@ suite('ResourceGlobMatcher', () => {
 		assert.equal(matcher.matches(URI.file('C:/bar/foo.1')), true);
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
 });

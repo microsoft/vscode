@@ -15,6 +15,7 @@ import { CanvasInput } from '../../../../../workbench/contrib/canvases/common/ca
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { WindowCanvasInput } from '../../../../services/canvas/browser/windowCanvasService.js';
 
 const PULL_REQUEST_OVERVIEW_VIEW_TYPE = 'PullRequestOverview';
 const ISSUE_OVERVIEW_VIEW_TYPE = 'IssueOverview';
@@ -64,6 +65,7 @@ export function getFilesDetailsState(editor: EditorInput, workspace: ISessionWor
 export function isEditorWithoutDockedDetails(editor: EditorInput): boolean {
 	return editor instanceof BrowserEditorInput
 		|| editor instanceof CanvasInput
+		|| editor instanceof WindowCanvasInput
 		|| (editor instanceof CustomEditorInput && editor.resource?.scheme !== Schemas.untitled)
 		|| (editor instanceof WebviewInput
 			&& (editor.viewType === PULL_REQUEST_OVERVIEW_VIEW_TYPE

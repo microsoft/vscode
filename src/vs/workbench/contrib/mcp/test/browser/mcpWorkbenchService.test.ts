@@ -23,8 +23,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { FileService } from '../../../../../platform/files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../../../platform/files/test/common/inMemoryFileService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -573,8 +572,7 @@ suite('McpWorkbenchService', () => {
 	});
 
 	test('malformed persisted servers do not prevent healthy siblings from being published or refreshed', async () => {
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.inMemory);
 		const scanner = store.add(new McpResourceScannerService(fileService, store.add(new UriIdentityService(fileService))));
 		const resource = URI.from({ scheme: Schemas.inMemory, path: '/mcp.json' });
 		const servers = {

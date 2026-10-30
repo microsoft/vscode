@@ -525,6 +525,32 @@ suite('CopilotCanvasesWidget', () => {
 		harness.hideMenu();
 	});
 
+	test('search treats dashes and spaces as equivalent separators', async () => {
+		const harness = createHarness({
+			definitions: [
+				definition({ canvasId: 'workspace', extensionId: 'project:workspace', extensionSource: 'project', extensionName: 'Workspace Tools', displayName: 'Workspace Board' }),
+				definition({ canvasId: 'plugin', extensionId: 'plugin:diagram:canvas', extensionSource: 'plugin', extensionName: 'diagram-plugin', displayName: 'Diagram Board' }),
+			],
+		});
+		await timeout(0);
+		const search = harness.container.querySelector<HTMLInputElement>('input[aria-label="Search Canvases"]');
+		assert.ok(search);
+		const results: Record<string, string[]> = {};
+		for (const query of ['workspace-tools', 'diagram plugin', 'diagram-board']) {
+			search.value = query;
+			search.dispatchEvent(new InputEvent('input', { bubbles: true }));
+			await timeout(0);
+			const accessible = harness.widget.getAccessibilityContent();
+			results[query] = ['Workspace Tools', 'diagram-plugin', 'Diagram Board'].filter(label => accessible.includes(label));
+		}
+
+		assert.deepStrictEqual(results, {
+			'workspace-tools': ['Workspace Tools'],
+			'diagram plugin': ['diagram-plugin', 'Diagram Board'],
+			'diagram-board': ['diagram-plugin', 'Diagram Board'],
+		});
+	});
+
 	test('does not restore mutation focus after the user moves to search', async () => {
 		const gate = new DeferredPromise<void>();
 		const harness = createHarness({ mutationGate: gate.p });

@@ -83,6 +83,8 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	readonly cancelRestore?: boolean;
 	/** Keep the current navigation intent when the composer creates or updates its own draft. */
 	readonly preserveNavigation?: boolean;
+	/** Prepare a draft without navigating away from its hosting custom view. */
+	readonly preserveCustomView?: boolean;
 
 	/**
 	 * When `true`, opens the new session (or empty composer slot) to the side
@@ -1621,6 +1623,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private async _openNewSession(options: IOpenNewSessionOptions | undefined, token: CancellationToken, intent: SessionNavigationIntent): Promise<IOpenNewSessionResult> {
+		if (options?.preserveCustomView) {
+			intent = 'automatic';
+		}
 		if (options?.cancelRestore) {
 			this._cancelRestore();
 		}
@@ -1691,7 +1696,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 				if (!folderUri && !options?.preserveNavigation) {
 					this._startOpenSession();
 				}
-				this.customViewService.hideCustomView();
+				if (!options?.preserveCustomView) {
+					this.customViewService.hideCustomView();
+				}
 			}
 			if (intent === 'explicit' && !options?.preserveNavigation) {
 				this._navigation.recordOpened({ kind: 'newSession' });

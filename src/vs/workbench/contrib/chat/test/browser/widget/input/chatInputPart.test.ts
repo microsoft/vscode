@@ -40,11 +40,41 @@ import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import { IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry } from '../../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { createChatReferenceVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { MockChatModel } from '../../../common/model/mockChatModel.js';
+import { ChatQuestionCarouselData } from '../../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
+import { ChatPlanReviewData } from '../../../../common/model/chatProgressTypes/chatPlanReviewData.js';
+import { ChatToolInvocation } from '../../../../common/model/chatProgressTypes/chatToolInvocation.js';
+import { IChatToolInvocation } from '../../../../common/chatService/chatService.js';
+import { ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
+import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { Target } from '../../../../common/promptSyntax/promptTypes.js';
 import '../../../../browser/widget/media/chat.css';
 
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a suppressed input rejects requests routed by other renderers without resolving them', () => {
+		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), { options: { renderInputRequests: false } });
+		const question = new ChatQuestionCarouselData([{ id: 'question', type: 'text', title: 'Choose a direction' }], true);
+		const review = new ChatPlanReviewData('Review plan', 'Approve this plan.', [{ label: 'Implement' }], false);
+		const tool = new ChatToolInvocation(
+			{ invocationMessage: 'Run a check', confirmationMessages: { title: 'Allow check?', message: 'Run this check?' } },
+			{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+			'check', undefined, {},
+		);
+		const factory = () => { throw new Error('Suppressed confirmations must not be constructed'); };
+		input.addToolToConfirmationCarousel(tool, factory);
+		assert.deepStrictEqual({
+			question: input.renderQuestionCarousel(question, undefined, { onSubmit: () => assert.fail('Question submitted') }),
+			review: input.renderPlanReview(review, upcastPartial<IChatContentPartRenderContext>({}), { onSubmit: () => assert.fail('Plan submitted') }),
+			confirmation: input.renderToolConfirmationCarousel(tool, factory),
+			questionUsed: !!question.isUsed,
+			reviewUsed: !!review.isUsed,
+			toolState: tool.state.get().type,
+		}, {
+			question: undefined, review: undefined, confirmation: undefined,
+			questionUsed: false, reviewUsed: false, toolState: IChatToolInvocation.StateKind.WaitingForConfirmation,
+		});
+	});
 
 	for (const theme of [
 		{ name: 'dark', background: 'rgb(14, 99, 156)', foreground: 'rgb(255, 255, 255)', hover: 'rgb(17, 119, 187)' },

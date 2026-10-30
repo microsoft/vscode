@@ -510,8 +510,9 @@ export interface ISessionsProvider {
 	 * Returns `undefined` when the provider cannot handle the given URI
 	 * (e.g. wrong scheme or authority).
 	 * @param workspaceUri The URI of the repository to resolve the workspace for.
+	 * @param options Skip optional metadata allocation and discovery when enumerating a search catalog.
 	 */
-	resolveWorkspace(workspaceUri: URI): ISessionWorkspace | undefined;
+	resolveWorkspace(workspaceUri: URI, options?: { readonly resolveMetadata?: boolean }): ISessionWorkspace | undefined;
 
 	/** An alternate creation context for New Session gestures from an existing session. */
 	getNewSessionTarget?(sessionResource: URI): ISessionCreationTarget | undefined;
@@ -717,9 +718,10 @@ export interface ISessionsProvider {
 	sessionWorktreeExists?(sessionId: string, token?: CancellationToken): Promise<boolean | undefined>;
 
 	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
-	sessionWorktreeCleanup?(sessionId: string, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	readonly supportsForceWorktreeCleanup?: boolean;
+	sessionWorktreeCleanup?(sessionId: string, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
 	listManagedWorktrees?(repositories?: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;
-	cleanupManagedWorktree?(worktree: IAgentHostManagedWorktree): Promise<void>;
+	cleanupManagedWorktree?(worktree: IAgentHostManagedWorktree, force?: boolean): Promise<void>;
 	managedWorktreeExists?(worktree: IAgentHostManagedWorktree): Promise<boolean | undefined>;
 
 	/**
@@ -742,6 +744,14 @@ export interface ISessionsProvider {
 	 * @param isRead `true` to mark the session read, `false` to mark it unread.
 	 */
 	setSessionReadState(sessionId: string, isRead: boolean): Promise<void>;
+
+	/**
+	 * Set the read/unread state of multiple sessions in one provider operation.
+	 * Providers may use this to publish one {@link onDidChangeSessions} event for
+	 * the whole batch instead of one per session. Providers without it receive a
+	 * {@link setSessionReadState} call per session.
+	 */
+	setSessionsReadState?(sessionIds: readonly string[], isRead: boolean): Promise<void>;
 
 	/**
 	 * Set the read/unread state of a chat independently of its owning session.

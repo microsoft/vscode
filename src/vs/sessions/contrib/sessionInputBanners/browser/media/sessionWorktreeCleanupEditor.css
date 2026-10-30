@@ -109,14 +109,33 @@
 }
 
 .session-worktree-cleanup-summary-row.hidden,
+.session-worktree-cleanup-progress.hidden,
+.session-worktree-cleanup-available-heading.hidden,
 .session-worktree-cleanup-list.hidden,
 .session-worktree-cleanup-unavailable.hidden,
 .session-worktree-cleanup-empty.hidden {
 	display: none;
 }
 
+.session-worktree-cleanup-progress,
 .session-worktree-cleanup-unavailable {
 	margin-top: var(--vscode-spacing-size160);
+}
+
+.session-worktree-cleanup-progress h2,
+.session-worktree-cleanup-available-heading {
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	margin: var(--vscode-spacing-size160) 0 var(--vscode-spacing-size80);
+}
+
+.session-worktree-cleanup-row .actions {
+	display: flex;
+	align-items: center;
+}
+
+.session-worktree-cleanup-force-remove {
+	width: auto;
 }
 
 .session-worktree-cleanup-unavailable > summary {

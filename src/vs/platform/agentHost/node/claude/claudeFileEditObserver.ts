@@ -10,7 +10,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
-import { CLAUDE_AGENT_PROVIDER_ID } from '../../common/agent.js';
+import { CLAUDE_AGENT_PROVIDER_ID, type IAgentChatOwnerRef } from '../../common/agent.js';
 import type { ClaudeMapperState } from './claudeMapSessionEvents.js';
 import { getClaudeToolPath, isClaudeFileEditTool } from './claudeToolDisplay.js';
 
@@ -61,7 +61,7 @@ export class ClaudeFileEditObserver extends Disposable {
 	constructor(
 		sessionUri: string,
 		/** The session that owns the chat, read when an edit is attributed. */
-		owner: () => string,
+		owner: IAgentChatOwnerRef,
 		dbRef: IReference<ISessionDatabase>,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -72,7 +72,7 @@ export class ClaudeFileEditObserver extends Disposable {
 		this._editTracker = this._register(instantiationService.createInstance(
 			FileEditTracker,
 			sessionUri,
-			owner,
+			() => owner.get().toString(),
 			CLAUDE_AGENT_PROVIDER_ID,
 		));
 	}
@@ -98,7 +98,7 @@ export class ClaudeFileEditObserver extends Disposable {
 				continue;
 			}
 			this._editToolPaths.set(block.id, { filePath, toolName: block.name, toolInput: block.input, modelId, clientContext, chatUri });
-			void this._editTracker.trackEditStart(filePath, mode).catch(err =>
+			void this._editTracker.trackEditStart(filePath, mode, block.input).catch(err =>
 				this._logService.warn(`[ClaudeFileEditObserver] trackEditStart failed for ${filePath}: ${err}`));
 		}
 	}
@@ -131,7 +131,7 @@ export class ClaudeFileEditObserver extends Disposable {
 			}
 			this._editToolPaths.delete(block.tool_use_id);
 			try {
-				await this._editTracker.completeEdit(tracked.filePath);
+				await this._editTracker.completeEdit(tracked.filePath, tracked.toolInput);
 				const editChatUri = chat?.isSubagent ? chat.uri : tracked.chatUri ?? chat?.uri;
 				const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, tracked.filePath, tracked.toolName, tracked.toolInput, tracked.modelId, chat?.isSubagent ?? false, tracked.clientContext, editChatUri);
 				if (fileEdit) {
