@@ -130,6 +130,7 @@ export const SessionsTitleBarNewSessionEnabledContext = new RawContextKey<boolea
 export const SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT = true;
 export const SessionsListPromoteNewChatActionContext = new RawContextKey<boolean>('sessionsListPromoteNewChatAction', SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, localize('sessionsListPromoteNewChatAction', "Whether New Nested Session replaces Pin or Unpin as the primary action on session rows (A/B experiment)"));
 export const SessionsListRearrangeContext = new RawContextKey<boolean>('sessionsListRearrange', false, localize('sessionsListRearrange', "Whether the sessions list uses the experimental navigation arrangement"));
+export const SessionsHideOpenInEditorForFolderlessSessionsContext = new RawContextKey<boolean>('sessionsHideOpenInEditorForFolderlessSessions', false, localize('sessionsHideOpenInEditorForFolderlessSessions', "Whether the Open in Editor title bar button is hidden while the active chat has no workspace folder (A/B experiment)"));
 
 //#endregion
 

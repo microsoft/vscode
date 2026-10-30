@@ -5,6 +5,7 @@
 
 import { registerAction2 } from '../../platform/actions/common/actions.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../workbench/common/contributions.js';
+import { OpenInEditorExperimentContribution } from '../browser/openInEditorExperiment.js';
 import { OpenSessionInVSCodeAction, OpenInVSCodeWidgetContribution, OpenVSCodeWindowAction, ReturnToVSCodeEditorAction, ShouldShowReturnToVSCodeEditorAction } from './actions/vscodeActions.js';
 
 // Actions
@@ -17,4 +18,5 @@ import { OpenSessionInVSCodeAction, OpenInVSCodeWidgetContribution, OpenVSCodeWi
 
 (function registerWorkbenchContributions(): void {
 	registerWorkbenchContribution2(OpenInVSCodeWidgetContribution.ID, OpenInVSCodeWidgetContribution, WorkbenchPhase.BlockRestore);
+	registerWorkbenchContribution2(OpenInEditorExperimentContribution.ID, OpenInEditorExperimentContribution, WorkbenchPhase.BlockRestore);
 })();

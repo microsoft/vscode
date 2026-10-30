@@ -8,11 +8,11 @@ import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { INativeHostService } from '../../../platform/native/common/native.js';
 import { IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable, isFolderToOpen } from '../../../platform/window/common/window.js';
-import { constObservable } from '../../../base/common/observable.js';
+import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
-import { getChatSessionToOpenInEditor, openSessionInVSCode, returnToVSCodeEditor, shouldShowReturnToVSCodeEditor } from '../../electron-browser/actions/vscodeActions.js';
+import { getChatSessionToOpenInEditor, OpenSessionInVSCodeAction, openSessionInVSCode, OpenVSCodeWindowAction, returnToVSCodeEditor, shouldShowReturnToVSCodeEditor } from '../../electron-browser/actions/vscodeActions.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { IChat } from '../../services/sessions/common/session.js';
+import { IChat, ISessionWorkspace } from '../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../platform/agentHost/common/remoteAgentHostService.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -25,6 +25,14 @@ import { OperatingSystem } from '../../../base/common/platform.js';
 import { splitRecentLabel } from '../../../base/common/labels.js';
 import { ILabelService } from '../../../platform/label/common/label.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
+import { Action2 } from '../../../platform/actions/common/actions.js';
+import { ContextKeyExpression } from '../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { OpenInVSCodeAction } from '../../browser/actions/vscodeActions.js';
+import { SessionsHideOpenInEditorForFolderlessSessionsContext } from '../../common/contextkeys.js';
+import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
+import { createTestActiveSession } from '../browser/sessionViewTestUtils.js';
 
 suite('VS Code Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -109,6 +117,50 @@ suite('VS Code Actions', () => {
 			forceNewWindow: true,
 			chatSessionToOpen: 'test:/multi-folder',
 		}]);
+	});
+
+	test('hides Open in Editor for folderless sessions only in the experiment treatment, keeping Open VS Code Window bound', () => {
+		const desktopOpenInEditor = new OpenSessionInVSCodeAction();
+		const webOpenInEditor = new OpenInVSCodeAction();
+		const openVSCodeWindow = new OpenVSCodeWindowAction().desc;
+		const keybinding = Array.isArray(openVSCodeWindow.keybinding) ? openVSCodeWindow.keybinding[0] : openVSCodeWindow.keybinding;
+		const sessions = {
+			workspace: createActiveSession('workspace', { session: [URI.file('/repo')], chat: [URI.file('/repo')] }),
+			folderless: createActiveSession('folderless', {}),
+			// A chat can work in a folder of its own although its session has none, as in a quick chat.
+			folderlessSessionWithChatFolder: createActiveSession('chat-folder', { chat: [URI.file('/chat')] }),
+		};
+		const evaluate = (session: IActiveSession, hideForFolderlessSessions: boolean) => {
+			const contextKeyService = disposables.add(new MockContextKeyService());
+			setActiveSessionContextKeys(session, contextKeyService, undefined);
+			SessionsHideOpenInEditorForFolderlessSessionsContext.bindTo(contextKeyService).set(hideForFolderlessSessions);
+			const matches = (expression: ContextKeyExpression | null | undefined) => expression?.evaluate({ getValue: key => contextKeyService.getContextKeyValue(key) }) ?? true;
+			const availability = ({ desc }: Action2) => {
+				const menu = Array.isArray(desc.menu) ? desc.menu[0] : desc.menu;
+				return { visible: matches(menu?.when), enabled: matches(desc.precondition) };
+			};
+			return {
+				desktop: availability(desktopOpenInEditor),
+				web: availability(webOpenInEditor),
+				openVSCodeWindowKeybinding: matches(keybinding?.when) ? keybinding?.primary : undefined,
+			};
+		};
+		const evaluateArm = (hideForFolderlessSessions: boolean) => ({
+			workspace: evaluate(sessions.workspace, hideForFolderlessSessions),
+			folderless: evaluate(sessions.folderless, hideForFolderlessSessions),
+			folderlessSessionWithChatFolder: evaluate(sessions.folderlessSessionWithChatFolder, hideForFolderlessSessions),
+		});
+		const openVSCodeWindowKeybinding = KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA;
+		const shown = { desktop: { visible: true, enabled: true }, web: { visible: true, enabled: true }, openVSCodeWindowKeybinding };
+		const hidden = { desktop: { visible: false, enabled: false }, web: { visible: false, enabled: false }, openVSCodeWindowKeybinding };
+
+		assert.deepStrictEqual({
+			control: evaluateArm(false),
+			treatment: evaluateArm(true),
+		}, {
+			control: { workspace: shown, folderless: shown, folderlessSessionWithChatFolder: shown },
+			treatment: { workspace: shown, folderless: hidden, folderlessSessionWithChatFolder: shown },
+		});
 	});
 
 	test('opens an empty editor window when the active chat has no workspace', async () => {
@@ -266,7 +318,35 @@ function createWindow(id: number): IOpenedMainWindow {
 }
 
 function createSession(id: string, isCreated: boolean, folders?: URI[]): IActiveSession {
-	const workspace = constObservable(folders ? {
+	const workspace = createWorkspace(id, folders);
+	const activeChat = new class extends mock<IChat>() {
+		override readonly workspace = workspace;
+	}();
+	return new class extends mock<IActiveSession>() {
+		override readonly resource = URI.from({ scheme: 'test', path: `/${id}` });
+		override readonly providerId = 'test';
+		override readonly isCreated = constObservable(isCreated);
+		override readonly activeChat = constObservable(activeChat);
+	}();
+}
+
+/** Creates an active session complete enough to publish the active-session context keys. */
+function createActiveSession(id: string, folders: { readonly session?: URI[]; readonly chat?: URI[] }): IActiveSession {
+	const session = createTestActiveSession(id);
+	const chat: IChat = { ...session.activeChat.get(), workspace: createWorkspace(id, folders.chat) };
+	return {
+		...session,
+		workspace: createWorkspace(id, folders.session),
+		chats: constObservable([chat]),
+		openChats: constObservable([chat]),
+		visibleChatTabs: constObservable([chat]),
+		activeChat: constObservable(chat),
+		mainChat: constObservable(chat),
+	};
+}
+
+function createWorkspace(id: string, folders: readonly URI[] | undefined): IObservable<ISessionWorkspace | undefined> {
+	return constObservable(folders ? {
 		uri: URI.from({ scheme: 'test', path: `/${id}/workspace` }),
 		label: id,
 		icon: Codicon.folder,
@@ -279,13 +359,4 @@ function createSession(id: string, isCreated: boolean, folders?: URI[]): IActive
 		requiresWorkspaceTrust: false,
 		isVirtualWorkspace: false,
 	} : undefined);
-	const activeChat = new class extends mock<IChat>() {
-		override readonly workspace = workspace;
-	}();
-	return new class extends mock<IActiveSession>() {
-		override readonly resource = URI.from({ scheme: 'test', path: `/${id}` });
-		override readonly providerId = 'test';
-		override readonly isCreated = constObservable(isCreated);
-		override readonly activeChat = constObservable(activeChat);
-	}();
 }
