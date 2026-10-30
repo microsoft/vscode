@@ -1092,7 +1092,7 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 		snapshots.push(context.getContextKeyValue(TUNNEL_HOST_SHARING_KEY));
 		sharing.state.set('enabled', undefined);
 		snapshots.push(context.getContextKeyValue(TUNNEL_HOST_SHARING_KEY));
-		assert.deepStrictEqual({ snapshots, stops: remoteTunnel.stops }, { snapshots: [true, false, false, true], stops: 1 });
+		assert.deepStrictEqual({ snapshots, stops: remoteTunnel.stops }, { snapshots: [true, false, true, true], stops: 1 });
 	});
 
 	test('stops a pending Dev Tunnel activation that completes after switching to GitHub environment', async () => {

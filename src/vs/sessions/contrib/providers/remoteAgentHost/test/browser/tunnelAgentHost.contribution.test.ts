@@ -345,15 +345,17 @@ suite('TunnelAgentHostContribution', () => {
 		const cached = [{ tunnelId: 'tunnel-a' }, { tunnelId: 'tunnel-b' }];
 		assert.deepStrictEqual([
 			resolveLocalTunnelRegistrationId(cached, undefined, { type: 'connected', info: { tunnelId: 'tunnel-a', tunnelName: 'workmac', isAttached: false }, serviceInstallFailed: false }),
-			resolveLocalTunnelRegistrationId(cached, 'tunnel-a', { type: 'connecting', progress: 'Connecting' }),
-			resolveLocalTunnelRegistrationId(cached, 'tunnel-a', { type: 'disconnected' }),
+			resolveLocalTunnelRegistrationId(undefined, 'tunnel-a', { type: 'connecting', progress: 'Connecting' }),
+			resolveLocalTunnelRegistrationId(undefined, 'tunnel-a', { type: 'disconnected' }),
 			resolveLocalTunnelRegistrationId([{ tunnelId: 'tunnel-b' }], 'tunnel-a', { type: 'disconnected' }),
+			resolveLocalTunnelRegistrationId(undefined, 'unknown', { type: 'disconnected' }),
 			resolveLocalTunnelRegistrationId(cached, 'unknown', { type: 'disconnected' }),
 		], [
 			'tunnel-a',
 			'tunnel-a',
 			'tunnel-a',
 			undefined,
+			'unknown',
 			undefined,
 		]);
 	});

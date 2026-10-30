@@ -254,7 +254,7 @@ export class SessionEnvironmentPicker extends Disposable {
 						label: action.label,
 						disabled: !action.enabled,
 						group: { title: '', icon: ThemeIcon.isThemeIcon(action.item.icon) ? action.item.icon : undefined },
-						item: { run: async () => { await action.run(); } },
+						item: { run: async () => { await action.run(); }, checked: action.checked },
 					});
 				}
 			}

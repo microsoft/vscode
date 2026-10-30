@@ -13,7 +13,7 @@ import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost, IMissionControlSharingService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { formatConnectionDiagnosticError, getConnectionDiagnosticError } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { getConnectionTelemetryError, type ConnectionTelemetryErrorClassification, type IConnectionTelemetryError } from '../../../../../platform/agentHost/common/connectionTelemetry.js';
@@ -76,6 +76,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		@IRemoteAgentHostService private readonly _remote: IRemoteAgentHostService,
 		@ITelemetryService private readonly _telemetry: ITelemetryService,
 		@IMissionControlAvailabilityService private readonly _availabilityService: IMissionControlAvailabilityService,
+		@IMissionControlSharingService sharing: IMissionControlSharingService,
 	) {
 		super();
 		this._register(toDisposable(() => this._withdraw()));
@@ -113,8 +114,15 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		}));
 		this._register(_entitlement.onDidChangeSentiment(updateEnabled));
 		this._register(_storage.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(e => {
-			if (this._accountKey && e.key.startsWith(this._storagePrefix)) {
+			if (this._accountKey && e.key === this._ownEnvironmentStorageKey(this._accountKey)) {
+				this.ownEnvironmentId.set(this._storage.get(e.key, StorageScope.PROFILE), undefined);
+			} else if (this._accountKey && e.key.startsWith(this._storagePrefix)) {
 				this._restore();
+			}
+		}));
+		this._register(autorun(reader => {
+			if (sharing.state.read(reader) === 'enabled') {
+				void this._captureOwnEnvironmentId();
 			}
 		}));
 	}
@@ -141,6 +149,18 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 			}
 		}
 		this.ownEnvironmentId.set(environmentId, undefined);
+	}
+
+	private async _captureOwnEnvironmentId(): Promise<void> {
+		const account = this._accountKey;
+		const generation = this._generation;
+		if (!account) {
+			return;
+		}
+		const own = await this._local.getMissionControlEnvironmentId?.();
+		if (own && generation === this._generation && account === this._accountKey) {
+			this._setOwnEnvironmentId(account, own, true);
+		}
 	}
 
 	initialize(): Promise<void> {
@@ -208,7 +228,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		if (account !== currentAccount || refreshGeneration !== this._refreshGeneration) {
 			throw new CancellationError();
 		}
-		const rememberedOwn = this.ownEnvironmentId.get();
+		const rememberedOwn = this.ownEnvironmentId.get() ?? this._storage.get(this._ownEnvironmentStorageKey(account), StorageScope.PROFILE);
 		const rememberedOwnStillExists = rememberedOwn !== undefined
 			&& environments.some(environment => environment.kind === 'user-local' && environment.id === rememberedOwn);
 		const own = activeOwn ?? (rememberedOwnStillExists ? rememberedOwn : undefined);

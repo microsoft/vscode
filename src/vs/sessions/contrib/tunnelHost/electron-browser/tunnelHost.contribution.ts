@@ -34,10 +34,13 @@ export class SessionsTunnelHostTitlebarContribution extends Disposable implement
 		this._register(MenuRegistry.appendMenuItem(Menus.TitleBarRightLayout, {
 			command: {
 				id: TOGGLE_SHARING_FROM_AGENTS_ID,
-				title: localize('toggleSharing', "Allow Remote Connections"),
+				title: localize('turnOnRemoteConnections', "Turn On Remote Connections"),
 				icon: Codicon.radioTower,
 				precondition: ChatContextKeys.enabled,
-				toggled: ContextKeyExpr.equals(TUNNEL_HOST_SHARING_KEY, true),
+				toggled: {
+					condition: ContextKeyExpr.equals(TUNNEL_HOST_SHARING_KEY, true),
+					title: localize('turnOffRemoteConnections', "Turn Off Remote Connections"),
+				},
 			},
 			group: 'navigation',
 			order: 90,
@@ -46,10 +49,13 @@ export class SessionsTunnelHostTitlebarContribution extends Disposable implement
 		this._register(MenuRegistry.appendMenuItem(Menus.SessionWorkspaceManage, {
 			command: {
 				id: TOGGLE_SHARING_FROM_AGENTS_ID,
-				title: localize('toggleSharing', "Allow Remote Connections"),
+				title: localize('turnOnRemoteConnections', "Turn On Remote Connections"),
 				icon: Codicon.radioTower,
 				precondition: ChatContextKeys.enabled,
-				toggled: ContextKeyExpr.equals(TUNNEL_HOST_SHARING_KEY, true),
+				toggled: {
+					condition: ContextKeyExpr.equals(TUNNEL_HOST_SHARING_KEY, true),
+					title: localize('turnOffRemoteConnections', "Turn Off Remote Connections"),
+				},
 			},
 			group: '0_local',
 			order: 1,
@@ -60,9 +66,12 @@ export class SessionsTunnelHostTitlebarContribution extends Disposable implement
 			constructor() {
 				super({
 					id: TOGGLE_SHARING_FROM_AGENTS_ID,
-					title: localize('toggleSharing', "Allow Remote Connections"),
+					title: localize('turnOnRemoteConnections', "Turn On Remote Connections"),
 					icon: Codicon.radioTower,
-					toggled: ContextKeyExpr.equals(TUNNEL_HOST_SHARING_KEY, true),
+					toggled: {
+						condition: ContextKeyExpr.equals(TUNNEL_HOST_SHARING_KEY, true),
+						title: localize('turnOffRemoteConnections', "Turn Off Remote Connections"),
+					},
 				});
 			}
 

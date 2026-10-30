@@ -15,6 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxConnectOptions, ICloudSandboxEnvironment, IMissionControlEnvironment } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { IMissionControlSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, IRemoteAgentHostConnectionInfo, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -71,6 +72,7 @@ suite('Mission Control inventory', () => {
 		let deleting: Promise<void> = Promise.resolve();
 		const deletions: { id: string; account: string; token: CancellationToken }[] = [];
 		let connectionStatus: RemoteAgentHostConnectionStatus | undefined;
+		const sharingState = observableValue<'disabled' | 'connecting' | 'enabled'>('sharingState', 'disabled');
 		instantiation.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
 			override async waitForConnection(address: string) {
 				calls.waits.push(address);
@@ -123,6 +125,9 @@ suite('Mission Control inventory', () => {
 				events.push({ eventName, data });
 			}
 		}());
+		instantiation.stub(IMissionControlSharingService, new class extends mock<IMissionControlSharingService>() {
+			override readonly state = sharingState;
+		}());
 		const service = store.add(instantiation.createInstance(MissionControlEnvironmentService));
 		return {
 			service, storage, calls, configuration, authenticationChanged, events, availability, deletions,
@@ -135,6 +140,7 @@ suite('Mission Control inventory', () => {
 			changeAccount: (value: string | undefined) => { account = value; accountChanged.fire(value); },
 			disableAI: () => { hidden = true; sentimentChanged.fire(); },
 			setOwn: (id: string | undefined) => { own = id; },
+			setSharing: (state: 'disabled' | 'connecting' | 'enabled') => { sharingState.set(state, undefined); },
 			setConnectionStatus: (status: RemoteAgentHostConnectionStatus) => { connectionStatus = status; },
 		};
 	}
@@ -304,6 +310,42 @@ suite('Mission Control inventory', () => {
 		}, {
 			whileOff: 'own',
 			afterDeletion: undefined,
+		});
+	});
+
+	test('persists a registration that becomes ready before sharing is disabled', async () => {
+		const context = fixture();
+		context.setOwn(undefined);
+		await context.service.initialize();
+		context.setOwn('new-own');
+		context.setSharing('enabled');
+		await timeout(0);
+		context.setOwn(undefined);
+		context.setSharing('disabled');
+		assert.deepStrictEqual({
+			ownEnvironmentId: context.service.ownEnvironmentId.get(),
+			stored: context.storage.get(`missionControl.ownEnvironment.v1.${encodeURIComponent(firstAccount)}`, StorageScope.PROFILE),
+		}, {
+			ownEnvironmentId: 'new-own',
+			stored: 'new-own',
+		});
+	});
+
+	test('adopts an own-environment ID persisted by another window before reconciling deletion', async () => {
+		const sharedStorage = store.add(new InMemoryStorageService());
+		const stale = fixture(sharedStorage);
+		stale.setOwn(undefined);
+		await stale.service.initialize();
+		const writer = fixture(sharedStorage);
+		await writer.service.initialize();
+		stale.setList(Promise.resolve([host('remote'), host('own')]));
+		await stale.service.refresh(CancellationToken.None);
+		assert.deepStrictEqual({
+			ownEnvironmentId: stale.service.ownEnvironmentId.get(),
+			stored: sharedStorage.get(`missionControl.ownEnvironment.v1.${encodeURIComponent(firstAccount)}`, StorageScope.PROFILE),
+		}, {
+			ownEnvironmentId: 'own',
+			stored: 'own',
 		});
 	});
 

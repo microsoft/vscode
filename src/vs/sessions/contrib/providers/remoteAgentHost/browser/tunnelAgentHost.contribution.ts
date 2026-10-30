@@ -31,14 +31,17 @@ const STATUS_CHECK_INTERVAL = 5 * 60 * 1000;
 const LOCAL_TUNNEL_REGISTRATION_KEY = 'tunnelAgentHost.localRegistrationTunnelId';
 
 export function resolveLocalTunnelRegistrationId(
-	cachedTunnels: readonly Pick<ITunnelInfo, 'tunnelId'>[],
+	discoveredTunnels: readonly Pick<ITunnelInfo, 'tunnelId'>[] | undefined,
 	rememberedTunnelId: string | undefined,
 	status: TunnelStatus,
 ): string | undefined {
 	if (status.type === 'connected' && status.info.tunnelId) {
 		return status.info.tunnelId;
 	}
-	return rememberedTunnelId && cachedTunnels.some(tunnel => tunnel.tunnelId === rememberedTunnelId)
+	if (!discoveredTunnels) {
+		return rememberedTunnelId;
+	}
+	return rememberedTunnelId && discoveredTunnels.some(tunnel => tunnel.tunnelId === rememberedTunnelId)
 		? rememberedTunnelId
 		: undefined;
 }
@@ -55,6 +58,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	private _lastStatusCheck = 0;
 	private readonly _hostedTunnelSuppressions = new Set<string>();
 	private _remoteTunnelStatus: TunnelStatus = { type: 'uninitialized' };
+	private _lastDiscoveredTunnels: readonly Pick<ITunnelInfo, 'tunnelId'>[] | undefined;
 	private readonly _localRegistrationTunnelId = observableValue<string | undefined>(this, undefined);
 	private _hasReceivedRemoteTunnelStatus = false;
 	/**
@@ -168,7 +172,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		const enabled = this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
 		const available = this._getProviderTunnels();
 		const cached = enabled ? available : [];
-		const localRegistrationTunnelId = resolveLocalTunnelRegistrationId(available, this._localRegistrationTunnelId.get(), this._remoteTunnelStatus);
+		const localRegistrationTunnelId = resolveLocalTunnelRegistrationId(this._lastDiscoveredTunnels, this._localRegistrationTunnelId.get(), this._remoteTunnelStatus);
 		if (localRegistrationTunnelId !== this._localRegistrationTunnelId.get()) {
 			if (localRegistrationTunnelId) {
 				this._storageService.store(LOCAL_TUNNEL_REGISTRATION_KEY, localRegistrationTunnelId, StorageScope.APPLICATION, StorageTarget.MACHINE);
@@ -495,6 +499,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 		const cached = this._tunnelService.getCachedTunnels();
 		if (onlineTunnels) {
+			this._lastDiscoveredTunnels = onlineTunnels;
 			const onlineIds = new Set(onlineTunnels.map(t => t.tunnelId));
 			// Remove cached tunnels that no longer exist on the account
 			for (const tunnel of cached) {

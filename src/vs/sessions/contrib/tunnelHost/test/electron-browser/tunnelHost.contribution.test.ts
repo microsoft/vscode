@@ -11,6 +11,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import type { ContextKeyExpression, ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -64,7 +65,11 @@ suite('Sessions - Tunnel Host Contribution', () => {
 
 		const summarize = (menu: MenuId, id: string) => {
 			const item = findToggle(menu, id);
+			const title = item && (typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
+			const toggledTitle = isICommandActionToggleInfo(item?.command.toggled) ? item.command.toggled.title : undefined;
 			return item && {
+				title,
+				toggledTitle,
 				group: item.group,
 				order: item.order,
 				icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
@@ -74,10 +79,12 @@ suite('Sessions - Tunnel Host Contribution', () => {
 		try {
 			assert.deepStrictEqual({
 				titlebar: summarize(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID),
+				workspaceManage: summarize(Menus.SessionWorkspaceManage, TOGGLE_SHARING_FROM_AGENTS_ID),
 				chatInput: summarize(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID),
 			}, {
-				titlebar: { group: 'navigation', order: 90, icon: Codicon.radioTower.id },
-				chatInput: { group: 'navigation', order: 10, icon: Codicon.radioTower.id },
+				titlebar: { title: 'Turn On Remote Connections', toggledTitle: 'Turn Off Remote Connections', group: 'navigation', order: 90, icon: Codicon.radioTower.id },
+				workspaceManage: { title: 'Turn On Remote Connections', toggledTitle: 'Turn Off Remote Connections', group: '0_local', order: 1, icon: Codicon.radioTower.id },
+				chatInput: { title: 'Turn On Remote Connections', toggledTitle: 'Turn Off Remote Connections', group: 'navigation', order: 10, icon: Codicon.radioTower.id },
 			});
 
 			const titlebarToggle = findToggle(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID);

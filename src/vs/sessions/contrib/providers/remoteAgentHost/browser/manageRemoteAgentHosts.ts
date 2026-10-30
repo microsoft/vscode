@@ -49,12 +49,17 @@ type ManageHostsPickItem = IRemoteHostQuickPickItem | IMenuActionQuickPickItem |
 export interface IThisComputerPresentation {
 	readonly route: LocalAgentHostRegistration;
 	readonly registrationName: string | undefined;
-	readonly isSharing: boolean;
+	readonly sharingState: 'off' | 'connecting' | 'on';
 }
 
 export function getThisComputerDescription(presentation: IThisComputerPresentation): string {
 	const route = getLocalAgentHostRouteLabel(presentation.route);
-	if (presentation.isSharing) {
+	if (presentation.sharingState === 'connecting') {
+		return presentation.registrationName
+			? localize('manageHosts.thisComputer.connectingRegistered', "Starting sharing as {0} via {1}. Select to cancel", presentation.registrationName, route)
+			: localize('manageHosts.thisComputer.connecting', "Starting sharing via {0}. Select to cancel", route);
+	}
+	if (presentation.sharingState === 'on') {
 		return presentation.registrationName
 			? localize('manageHosts.thisComputer.sharedAs', "Shared as {0} via {1}", presentation.registrationName, route)
 			: localize('manageHosts.thisComputer.shared', "Shared via {0}", route);
@@ -148,9 +153,9 @@ registerAction2(class extends Action2 {
 			const usesGitHubEnvironment = isGitHubEnvironmentBackend(configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId));
 			const registration = usesGitHubEnvironment ? 'githubEnvironment' : 'devTunnel';
 			const localProvider = remoteProviders.find(provider => provider.localRegistration?.get() === registration);
-			const isSharing = usesGitHubEnvironment
-				? missionControlSharingService.state.get() === 'enabled'
-				: remoteTunnelStatus.type === 'connected';
+			const sharingState = usesGitHubEnvironment
+				? missionControlSharingService.state.get() === 'enabled' ? 'on' : missionControlSharingService.state.get() === 'connecting' ? 'connecting' : 'off'
+				: remoteTunnelStatus.type === 'connected' ? 'on' : remoteTunnelStatus.type === 'connecting' ? 'connecting' : 'off';
 			const items: (ManageHostsPickItem | IQuickPickSeparator)[] = [];
 			if (!isWeb) {
 				items.push(
@@ -158,8 +163,10 @@ registerAction2(class extends Action2 {
 					{
 						kind: 'local',
 						label: `$(device-desktop) ${localize('manageHosts.thisComputer', "This Computer")}`,
-						description: getThisComputerDescription({ route: registration, registrationName: localProvider?.label, isSharing }),
-						detail: localize('manageHosts.thisComputerDetail', "Sessions run directly here even when sharing is off. Turn sharing on to let other clients connect."),
+						description: getThisComputerDescription({ route: registration, registrationName: localProvider?.label, sharingState }),
+						detail: sharingState === 'connecting'
+							? localize('manageHosts.thisComputerConnectingDetail', "Sharing is starting. Select to cancel. Sessions continue to run directly here.")
+							: localize('manageHosts.thisComputerDetail', "Sessions run directly here even when sharing is off. Turn sharing on to let other clients connect."),
 					}
 				);
 			}
