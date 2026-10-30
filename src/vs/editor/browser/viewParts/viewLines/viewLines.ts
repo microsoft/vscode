@@ -698,9 +698,11 @@ export class ViewLines extends ViewPart implements IViewLines {
 		let boxStartY: number;
 		let boxEndY: number;
 
+		let minLineNumber: number;
+		let maxLineNumber: number;
 		if (selections && selections.length > 0) {
-			let minLineNumber = selections[0].startLineNumber;
-			let maxLineNumber = selections[0].endLineNumber;
+			minLineNumber = selections[0].startLineNumber;
+			maxLineNumber = selections[0].endLineNumber;
 			for (let i = 1, len = selections.length; i < len; i++) {
 				const selection = selections[i];
 				minLineNumber = Math.min(minLineNumber, selection.startLineNumber);
@@ -710,11 +712,21 @@ export class ViewLines extends ViewPart implements IViewLines {
 			boxStartY = this._context.viewLayout.getVerticalOffsetForLineNumber(minLineNumber);
 			boxEndY = this._context.viewLayout.getVerticalOffsetForLineNumber(maxLineNumber) + this._lineHeight;
 		} else if (range) {
+			minLineNumber = range.startLineNumber;
+			maxLineNumber = range.endLineNumber;
 			boxIsSingleRange = true;
-			boxStartY = this._context.viewLayout.getVerticalOffsetForLineNumber(range.startLineNumber);
-			boxEndY = this._context.viewLayout.getVerticalOffsetForLineNumber(range.endLineNumber) + this._lineHeight;
+			boxStartY = this._context.viewLayout.getVerticalOffsetForLineNumber(minLineNumber);
+			boxEndY = this._context.viewLayout.getVerticalOffsetForLineNumber(maxLineNumber) + this._lineHeight;
 		} else {
 			return -1;
+		}
+
+		const editorPadding = this._context.configuration.options.get(EditorOption.padding);
+		if (minLineNumber === 1) {
+			boxStartY = Math.max(0, boxStartY - editorPadding.top);
+		}
+		if (maxLineNumber === this._context.viewModel.getLineCount()) {
+			boxEndY += editorPadding.bottom;
 		}
 
 		const shouldIgnoreScrollOff = (source === 'mouse' || minimalReveal) && this._cursorSurroundingLinesStyle === 'default';
