@@ -52,8 +52,11 @@ export class InstallPluginAction extends Action {
 }
 
 export class UninstallPluginAction extends Action {
-	constructor(private readonly removePlugin: () => Promise<boolean>) {
-		super('agentPlugin.uninstall', localize('uninstall', "Uninstall"), 'extension-action label uninstall', true);
+	constructor(private readonly removePlugin: () => Promise<boolean>, requiredByOrganization = false) {
+		super('agentPlugin.uninstall', localize('uninstall', "Uninstall"), 'extension-action label uninstall', !requiredByOrganization);
+		if (requiredByOrganization) {
+			this.tooltip = getPluginManagedByOrganizationMessage();
+		}
 	}
 
 	override async run(): Promise<void> {
@@ -61,7 +64,7 @@ export class UninstallPluginAction extends Action {
 	}
 
 	runAndGetResult(): Promise<boolean> {
-		return this.removePlugin();
+		return this.enabled ? this.removePlugin() : Promise.resolve(false);
 	}
 }
 
@@ -69,9 +72,13 @@ function isRemovableAgentPlugin(plugin: IAgentPlugin): plugin is IAgentPlugin & 
 	return plugin.remove !== undefined;
 }
 
+/**
+ * Creates the Uninstall action for a removable plugin. A plugin that the
+ * organization requires keeps a visible but disabled action that explains why.
+ */
 export function createUninstallPluginAction(plugin: IAgentPlugin, removePlugin?: () => Promise<boolean>): UninstallPluginAction | undefined {
-	return isRemovableAgentPlugin(plugin) && getPluginPolicyEnablement(plugin) !== true
-		? new UninstallPluginAction(removePlugin ?? (() => plugin.remove()))
+	return isRemovableAgentPlugin(plugin)
+		? new UninstallPluginAction(removePlugin ?? (() => plugin.remove()), isPluginRequiredByPolicy(plugin))
 		: undefined;
 }
 
@@ -125,6 +132,16 @@ export function getPluginPolicyEnablement(plugin: IAgentPlugin, reader?: IReader
 /** Whether the plugin is blocked by enterprise policy and cannot be enabled by the user. */
 export function isPluginPolicyBlocked(plugin: IAgentPlugin): boolean {
 	return getPluginPolicyEnablement(plugin) === false;
+}
+
+/** Whether the plugin is required by enterprise policy and cannot be disabled or uninstalled by the user. */
+export function isPluginRequiredByPolicy(plugin: IAgentPlugin, reader?: IReader): boolean {
+	return getPluginPolicyEnablement(plugin, reader) === true;
+}
+
+/** Explains that a plugin's state is controlled by the user's organization. */
+export function getPluginManagedByOrganizationMessage(): string {
+	return localize('pluginManagedByOrganizationMessage', "This plugin is managed by your organization.");
 }
 
 /** Notifies the user that a plugin is managed by their organization and cannot be enabled. */

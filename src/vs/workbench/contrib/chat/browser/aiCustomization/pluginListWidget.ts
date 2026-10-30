@@ -33,7 +33,7 @@ import { IAgentPlugin, IAgentPluginService, setAgentPluginEnablement } from '../
 import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../common/enablement.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
-import { getInstalledPluginContextMenuActions, getPluginPolicyEnablement, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
+import { getInstalledPluginContextMenuActions, getPluginManagedByOrganizationMessage, getPluginPolicyEnablement, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
@@ -1359,7 +1359,7 @@ export class PluginListWidget extends Disposable {
 			toggle.checked = checked;
 			toggle.setAriaLabel(
 				managed ? localize('pluginManagedByOrganizationAria', "{0} is managed by your organization", item.name) : toggleLabel,
-				managed ? localize('pluginPolicyBlockedSwitch', "This plugin is managed by your organization.") : toggleLabel,
+				managed ? getPluginManagedByOrganizationMessage() : toggleLabel,
 			);
 			row.classList.toggle('disabled', !checked);
 		};
@@ -1775,7 +1775,7 @@ export class PluginListWidget extends Disposable {
 			const accessibleLabel = managed ? localize('pluginManagedByOrganizationAria', "{0} is managed by your organization", item.name) : toggleLabel;
 			toggle.disabled = managed;
 			toggle.checked = checked;
-			toggle.setAriaLabel(accessibleLabel, managed ? localize('pluginPolicyBlockedSwitch', "This plugin is managed by your organization.") : toggleLabel);
+			toggle.setAriaLabel(accessibleLabel, managed ? getPluginManagedByOrganizationMessage() : toggleLabel);
 			row.classList.toggle('disabled', !checked);
 			primaryAction.setAttribute('aria-label', localize('installedPluginRowAriaLabel', "{0}. {1}", item.name, getPluginInclusionLabel(item.plugin)));
 		};

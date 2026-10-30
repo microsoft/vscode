@@ -125,8 +125,23 @@ suite('AgentPluginActions', () => {
 		assert.strictEqual(createUninstallPluginAction(createPlugin()), undefined);
 	});
 
-	test('does not create uninstall action for a force-enabled plugin', () => {
-		assert.strictEqual(createUninstallPluginAction(createPlugin(async () => true, true)), undefined);
+	test('creates a disabled uninstall action that explains organization control for a required plugin', async () => {
+		let removeCount = 0;
+		const action = createUninstallPluginAction(createPlugin(async () => {
+			removeCount++;
+			return true;
+		}, true));
+
+		assert.ok(action);
+		store.add(action);
+		const removed = await action.runAndGetResult();
+		assert.deepStrictEqual({ enabled: action.enabled, label: action.label, tooltip: action.tooltip, removed, removeCount }, {
+			enabled: false,
+			label: 'Uninstall',
+			tooltip: 'This plugin is managed by your organization.',
+			removed: false,
+			removeCount: 0,
+		});
 	});
 
 	test('reads managed plugin enablement in both directions', () => {
