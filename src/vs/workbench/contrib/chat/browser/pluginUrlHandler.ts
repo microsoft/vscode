@@ -13,6 +13,7 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../platform/agentHost/common/agent.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -38,6 +39,7 @@ import { getProviderMarketplaceSourceId } from './aiCustomization/customizationM
 type PluginLinkTarget = IQuickPickItem & (
 	| { readonly id: 'vscode' }
 	| { readonly id: 'copilot'; readonly resource: URI }
+	| { readonly id: 'manual' }
 );
 
 /** Handles confirmed marketplace links for an explicitly selected installation owner on this machine. */
@@ -61,6 +63,7 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
+		@IClipboardService private readonly clipboardService: IClipboardService,
 	) {
 		super();
 		this._register(urlService.registerHandler(this));
@@ -85,13 +88,22 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			if (uri.path === '/install' && (!pluginName || params.getAll('plugin').length !== 1 || /[@\u0000-\u001f\u007f]/.test(pluginName))) {
 				throw new Error(localize('invalidPluginLinkName', "The plugin link must specify a plugin name."));
 			}
+			const requestedHarness = params.get('harness');
+			if (requestedHarness !== null && (params.getAll('harness').length !== 1 || (requestedHarness !== 'copilot' && requestedHarness !== 'vscode'))) {
+				throw new Error(localize('invalidPluginLinkHarness', "The plugin link's harness must be specified once, as 'copilot' or 'vscode'."));
+			}
 
 			await this.hostService.focus(mainWindow);
 			if (isWeb || this.environmentService.remoteAuthority) {
-				throw new Error(localize('pluginLinkLocalOnly', "Plugin links can only change installations on this machine. Open the link in a local VS Code window."));
+				await this.showManualInstructions(ref, pluginName ?? undefined, localize('pluginLinkLocalOnly', "Plugin links can only change installations on this machine. Open the link in a local VS Code window, or install manually in Copilot on the intended machine."));
+				return true;
 			}
-			const target = await this.selectTarget();
+			const target = await this.selectTarget(ref, pluginName ?? undefined, requestedHarness ?? undefined);
 			if (!target) {
+				return true;
+			}
+			if (target.id === 'manual') {
+				await this.showManualInstructions(ref, pluginName ?? undefined);
 				return true;
 			}
 			const { confirmed } = await this.dialogService.confirm({
@@ -175,7 +187,7 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 		}
 	}
 
-	private async selectTarget(): Promise<PluginLinkTarget | undefined> {
+	private async selectTarget(reference: IMarketplaceReference, pluginName: string | undefined, requestedHarness: 'copilot' | 'vscode' | undefined): Promise<PluginLinkTarget | undefined> {
 		const resource = this.harnessService.activeSessionResource.get();
 		const targets: PluginLinkTarget[] = [{
 			id: 'vscode',
@@ -192,11 +204,42 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 				resource,
 			});
 		}
+		if (requestedHarness && !targets.some(target => target.id === requestedHarness)) {
+			await this.showManualInstructions(reference, pluginName, localize('pluginLinkRequestedHarnessUnavailable', "The requested Copilot installation target is unavailable in this window. Open the link in a local window with Copilot Agent Host available, or install manually."));
+			return undefined;
+		}
+		targets.push({
+			id: 'manual',
+			label: localize('pluginLinkManual', "Manual Installation Instructions"),
+			detail: localize('pluginLinkManualDetail', "View and copy Copilot /plugin commands for the intended machine. Does not install anything."),
+		});
 		return this.quickInputService.pick(targets, {
 			title: localize('pluginLinkSelectTarget', "Choose Plugin Installation Target"),
 			placeHolder: localize('pluginLinkSelectTargetPlaceholder', "Choose which installation on this machine to change"),
 			matchOnDetail: true,
-			activeItem: resource.scheme === SessionType.AgentHostCopilot ? targets.find(target => target.id === 'copilot') : targets[0],
+			activeItem: targets.find(target => target.id === (requestedHarness ?? (resource.scheme === SessionType.AgentHostCopilot ? 'copilot' : 'vscode'))),
+		});
+	}
+
+	private async showManualInstructions(reference: IMarketplaceReference, pluginName: string | undefined, reason?: string): Promise<void> {
+		const commands = [
+			`/plugin marketplace add ${reference.rawValue}`,
+			'/plugin marketplace list',
+			...(pluginName ? [`/plugin install ${pluginName}@<marketplace-name>`] : []),
+		].join('\n');
+		await this.dialogService.prompt<void>({
+			type: 'info',
+			message: localize('pluginLinkManualTitle', "Install Manually in Copilot"),
+			detail: [
+				...(reason ? [reason] : []),
+				localize('pluginLinkManualInstructions', "Run these commands in a Copilot session on the intended machine. For installation, replace <marketplace-name> with the registered marketplace name shown by the list command, not the repository name. These are Copilot commands, not native Claude or Codex installation instructions. Trust and managed policies still apply."),
+				commands,
+			].join('\n\n'),
+			buttons: [{
+				label: localize('pluginLinkCopyCommands', "&&Copy Commands"),
+				run: () => this.clipboardService.writeText(commands),
+			}],
+			cancelButton: true,
 		});
 	}
 

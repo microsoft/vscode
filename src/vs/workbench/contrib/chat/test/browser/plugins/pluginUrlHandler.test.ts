@@ -12,11 +12,12 @@ import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { IConfirmation, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IConfirmation, IDialogService, IPrompt } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -61,7 +62,8 @@ suite('PluginUrlHandler', () => {
 		backendFailed?: boolean;
 		failure?: 'list' | 'add' | 'query' | 'install';
 		cancelled?: boolean;
-		target?: 'vscode' | 'copilot' | 'cancel';
+		target?: 'vscode' | 'copilot' | 'manual' | 'cancel';
+		copyManual?: boolean;
 		remoteAuthority?: string;
 		trusted?: boolean;
 		legacyInstallResult?: IInstallPluginFromSourceResult;
@@ -73,6 +75,9 @@ suite('PluginUrlHandler', () => {
 		const errors: string[] = [];
 		const commands: { id: string; args: unknown[] }[] = [];
 		const picks: (readonly IQuickPickItem[])[] = [];
+		const activeItems: (string | undefined)[] = [];
+		const manualPrompts: { message: string; detail: string | undefined }[] = [];
+		const copied: string[] = [];
 		const activeSessionResource = observableValue('activeSession', options.activeResource ?? sessionResource);
 		const confirmations = [...(options.confirmations ?? [true, true])];
 		const fail = (phase: typeof options.failure) => {
@@ -141,10 +146,12 @@ suite('PluginUrlHandler', () => {
 			getDescriptorForSession: () => harness,
 		});
 		instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() { }());
-		instantiationService.stub(IQuickInputService, 'pick', async (items: readonly IQuickPickItem[]) => {
+		instantiationService.stub(IQuickInputService, 'pick', async (items: readonly IQuickPickItem[], pickOptions: { activeItem?: IQuickPickItem }) => {
 			picks.push([...items]);
+			activeItems.push(pickOptions.activeItem?.id);
 			return items.find(item => item.id === (options.target ?? 'copilot'));
 		});
+		instantiationService.stub(IClipboardService, { writeText: async text => { copied.push(text); } });
 		instantiationService.stub(IPluginInstallService, {
 			ensureMarketplaceTrusted: async reference => {
 				calls.push(`trust:${reference.rawValue}`);
@@ -178,6 +185,13 @@ suite('PluginUrlHandler', () => {
 				return { confirmed: options.confirmation ? await options.confirmation : confirmations.shift() ?? false };
 			},
 		});
+		instantiationService.stub(IDialogService, 'prompt', async (prompt: IPrompt<void>) => {
+			manualPrompts.push({ message: prompt.message, detail: typeof prompt.detail === 'string' ? prompt.detail : prompt.detail?.value });
+			if (options.copyManual) {
+				await prompt.buttons?.[0].run({ checkboxChecked: false });
+			}
+			return { result: undefined };
+		});
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.PluginsEnabled]: options.pluginsEnabled ?? true,
 			[ChatConfiguration.PluginMarketplaces]: options.userMarketplaces ?? [],
@@ -201,7 +215,7 @@ suite('PluginUrlHandler', () => {
 		instantiationService.stub(IHostService, { focus: async () => { } });
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(INotificationService, { error: message => { errors.push(String(message)); }, info: () => { } });
-		return { handler: store.add(instantiationService.createInstance(PluginUrlHandler)), calls, dialogs, errors, commands, picks, configurationService, activeSessionResource };
+		return { handler: store.add(instantiationService.createInstance(PluginUrlHandler)), calls, dialogs, errors, commands, picks, activeItems, manualPrompts, copied, configurationService, activeSessionResource };
 	}
 
 	function uri(path = '/add-marketplace', query = 'ref=acme/plugins'): URI {
@@ -445,7 +459,7 @@ suite('PluginUrlHandler', () => {
 			dialogs: fixture.dialogs,
 			commands: fixture.commands,
 		}, {
-			targets: [{ id: 'vscode', description: 'This machine' }, { id: 'copilot', description: 'This machine' }],
+			targets: [{ id: 'vscode', description: 'This machine' }, { id: 'copilot', description: 'This machine' }, { id: 'manual', description: undefined }],
 			calls: [],
 			dialogs: [],
 			commands: [],
@@ -455,9 +469,73 @@ suite('PluginUrlHandler', () => {
 	test('does not offer or mutate a remote-workspace installation', async () => {
 		const fixture = createHandler({ remoteAuthority: 'ssh-remote+host' });
 		await fixture.handler.handleURL(uri());
-		assert.deepStrictEqual({ picks: fixture.picks, dialogs: fixture.dialogs, calls: fixture.calls, errors: fixture.errors.length }, {
-			picks: [], dialogs: [], calls: [], errors: 1,
+		assert.deepStrictEqual({ picks: fixture.picks, dialogs: fixture.dialogs, calls: fixture.calls, errors: fixture.errors, manual: fixture.manualPrompts[0].detail?.includes('intended machine') }, {
+			picks: [], dialogs: [], calls: [], errors: [], manual: true,
 		});
+	});
+
+	for (const harness of ['copilot', 'vscode']) {
+		test(`preselects ${harness} from a link without bypassing target selection`, async () => {
+			const fixture = createHandler({ target: 'cancel' });
+			await fixture.handler.handleURL(uri('/add-marketplace', `ref=acme/plugins&harness=${harness}`));
+			assert.deepStrictEqual({ active: fixture.activeItems, dialogs: fixture.dialogs, calls: fixture.calls }, {
+				active: [harness], dialogs: [], calls: [],
+			});
+		});
+	}
+
+	test('allows the user to override the requested harness before consent', async () => {
+		const fixture = createHandler({ target: 'vscode' });
+		await fixture.handler.handleURL(uri('/install', 'source=acme/plugins&plugin=my-plugin&harness=copilot'));
+		assert.deepStrictEqual({
+			active: fixture.activeItems,
+			calls: fixture.calls,
+			confirmedOwner: fixture.dialogs[0].message.includes('VS Code on This Machine'),
+		}, { active: ['copilot'], calls: ['legacyInstall:acme/plugins:my-plugin'], confirmedOwner: true });
+	});
+
+	for (const harness of ['', 'claude', 'Copilot', 'copilot&harness=vscode', 'copilot&harness=copilot']) {
+		test(`rejects invalid or repeated harness hints: ${harness}`, async () => {
+			const fixture = createHandler();
+			await fixture.handler.handleURL(uri('/add-marketplace', `ref=acme/plugins&harness=${harness}`));
+			assert.deepStrictEqual({ picks: fixture.picks, dialogs: fixture.dialogs, calls: fixture.calls, actionable: fixture.errors[0]?.includes('must be specified once') }, {
+				picks: [], dialogs: [], calls: [], actionable: true,
+			});
+		});
+	}
+
+	test('explains an unavailable requested harness without redirecting the installation', async () => {
+		const fixture = createHandler({ available: false, target: 'vscode' });
+		await fixture.handler.handleURL(uri('/install', 'source=acme/plugins&plugin=my-plugin&harness=copilot'));
+		assert.deepStrictEqual({
+			picks: fixture.picks, calls: fixture.calls, errors: fixture.errors,
+			explanation: fixture.manualPrompts[0].detail?.includes('requested Copilot installation target is unavailable'),
+			copied: fixture.copied,
+		}, { picks: [], calls: [], errors: [], explanation: true, copied: [] });
+	});
+
+	test('copies exact pinned Copilot instructions without guessing the marketplace name or mutating an inventory', async () => {
+		const fixture = createHandler({ target: 'manual', copyManual: true });
+		await fixture.handler.handleURL(uri('/install', `source=${encodeURIComponent(encodeBase64(VSBuffer.fromString('acme/plugins#feature/beta')))}&plugin=my-plugin`));
+		assert.deepStrictEqual({
+			copied: fixture.copied, calls: fixture.calls, commands: fixture.commands, dialogs: fixture.dialogs,
+			scopeExplained: fixture.manualPrompts[0].detail?.includes('not native Claude or Codex'),
+		}, {
+			copied: ['/plugin marketplace add acme/plugins#feature/beta\n/plugin marketplace list\n/plugin install my-plugin@<marketplace-name>'],
+			calls: [], commands: [], dialogs: [], scopeExplained: true,
+		});
+	});
+
+	test('does not copy manual commands when the instructions are dismissed', async () => {
+		const fixture = createHandler({ target: 'manual' });
+		await fixture.handler.handleURL(uri());
+		assert.deepStrictEqual({ prompts: fixture.manualPrompts.length, copied: fixture.copied, calls: fixture.calls }, { prompts: 1, copied: [], calls: [] });
+	});
+
+	test('only copies marketplace commands for an add-only link', async () => {
+		const fixture = createHandler({ target: 'manual', copyManual: true });
+		await fixture.handler.handleURL(uri());
+		assert.deepStrictEqual(fixture.copied, ['/plugin marketplace add acme/plugins\n/plugin marketplace list']);
 	});
 
 	test('keeps the selected Copilot target when the active session changes during consent', async () => {
@@ -508,7 +586,7 @@ suite('PluginUrlHandler', () => {
 		}, {
 			calls: ['trust:acme/plugins#feature/beta'],
 			marketplaces: ['acme/plugins#feature/beta'],
-			targets: ['vscode'],
+			targets: ['vscode', 'manual'],
 			errors: [],
 		});
 	});
