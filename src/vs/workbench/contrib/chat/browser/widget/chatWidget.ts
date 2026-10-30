@@ -1115,16 +1115,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	getViewState(): IChatWidgetViewState {
+		const isAtBottom = this.listWidget.isScrolledToBottom;
 		return {
 			scrollTop: this.listWidget.scrollTop,
-			isAtBottom: this.listWidget.isScrolledToBottom,
+			isAtBottom,
+			scrollAnchor: isAtBottom ? undefined : this.listWidget.getScrollAnchor(),
 		};
 	}
 
 	restoreViewState(state: IChatWidgetViewState): void {
 		if (state.isAtBottom) {
 			this.listWidget.scrollToEnd();
-		} else {
+		} else if (!state.scrollAnchor || !this.listWidget.revealScrollAnchor(state.scrollAnchor)) {
 			this.listWidget.scrollTop = state.scrollTop;
 		}
 	}
