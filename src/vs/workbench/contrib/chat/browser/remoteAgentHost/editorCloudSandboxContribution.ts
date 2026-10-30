@@ -14,6 +14,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { autorun, derived, derivedOpts, IObservable, ISettableObservable, mapObservableArrayCached, observableFromEvent, observableFromPromise, observableSignalFromEvent, observableValue, waitForState } from '../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -29,6 +30,7 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -377,7 +379,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			this._editorChatSessionsService.setOptionGroupsForSessionType(CLOUD_SANDBOX_SESSION_TYPE, 0, this._draftOptionGroups.get());
 			store.add(toDisposable(() => this._editorChatSessionsService.setOptionGroupsForSessionType(CLOUD_SANDBOX_SESSION_TYPE, 0, undefined)));
 		} else {
-			void this._discoverAndSeed();
+			void this._discoverAndSeed({ trigger: 'startup' });
 		}
 	}
 
@@ -644,9 +646,12 @@ export class EditorCloudSandboxContribution extends Disposable implements IWorkb
 	constructor(
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IProductService productService: IProductService,
 	) {
 		super();
-		if (!environmentService.isSessionsWindow) {
+		// Server-web does not ship the GitHub authentication browser bundle needed by discovery (#344852).
+		const isServerWeb = isWeb && productService.embedderIdentifier === 'server-distro';
+		if (!environmentService.isSessionsWindow && !isServerWeb) {
 			this._register(instantiationService.createInstance(EditorCloudSandboxSessionContribution));
 		}
 	}

@@ -946,6 +946,49 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.deepStrictEqual({ bundleCount: bundler.received.length, refs }, { bundleCount: 0, refs: [] });
 	});
 
+	for (const sessionType of [SessionType.AgentHostCopilot, 'agent-host-claude', 'agent-host-codex', 'remote-test-provider']) {
+		test(`excludes unresolved non-workspace MCP configurations from ${sessionType} bundles`, async () => {
+			const bundler = new FakeBundler();
+			const sources = [
+				{ collectionId: 'mcp.config.usrlocal', provenance: McpCollectionProvenance.UserProfile },
+				{ collectionId: 'mcp.config.usrremote', provenance: McpCollectionProvenance.RemoteUser, configTarget: ConfigurationTarget.USER_REMOTE, remoteAuthority: 'ssh-remote+devbox' },
+				{ collectionId: 'claude-desktop', provenance: McpCollectionProvenance.ExternalConfiguration, discoverySource: ExternalDiscoverySource.ClaudeDesktop },
+				{ collectionId: 'publisher.extension/provider', provenance: McpCollectionProvenance.Extension, collectionSource: new ExtensionIdentifier('publisher.extension') },
+			];
+			const launches: McpServerLaunch[] = [
+				stdioLaunchWithInput,
+				{ ...stdioLaunch, env: { TOOL_PATH: '${input:TOOL_PATH}', LITERAL_VAR: '1' } },
+				{ ...stdioLaunch, command: '${command:resolveMcpCommand}' },
+				{ ...stdioLaunch, env: { TOKEN: '${env:MCP_TOKEN}' } },
+				{ type: McpServerTransportType.HTTP, uri: URI.parse('https://example.com/mcp'), headers: [['Authorization', 'Bearer ${input:token}']] },
+			];
+			const servers = sources.flatMap(source => launches.map((launch, index) => makeMcpServer({
+				...source,
+				id: `${source.collectionId}.${index}`,
+				launch,
+			})));
+			servers.push(makeMcpServer({ id: 'literal', collectionId: 'mcp.config.usrlocal', provenance: McpCollectionProvenance.UserProfile, launch: stdioLaunch }));
+
+			await resolveCustomizationRefs(
+				makeFileService(),
+				makePromptsService(new Map()),
+				new FakeSyncProvider(),
+				makeAgentPluginService(),
+				makeMcpService(servers),
+				makeConfigurationResolverService(),
+				toMcpBundlers(bundler),
+				sessionType,
+				undefined,
+			);
+
+			assert.deepStrictEqual(bundler.receivedMcp, [[{
+				name: 'literal',
+				configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined },
+				enablement: globalEnablement(true),
+			}]]);
+		});
+	}
+
 	test('excludes `.vscode/mcp.json` servers with variables that require interaction (e.g. ${input:…})', async () => {
 		const bundler = new FakeBundler();
 		const workingDirectory = URI.file('/ws');

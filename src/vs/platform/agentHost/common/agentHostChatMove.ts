@@ -116,6 +116,24 @@ export const enum AgentChatMoveRefusal {
 	 * credentials than the destination session."
 	 */
 	DifferentCredentialOwner = 'differentCredentialOwner',
+	/**
+	 * Chats with their own agents are on, but the chat's agent is unknown or disabled on the host, so it can't move to a
+	 * session of another agent or become a session of its own agent. Client text: enable the chat's agent. Distinct from
+	 * {@link DifferentProvider}, which means chats with their own agents are off.
+	 */
+	AgentUnavailable = 'agentUnavailable',
+	/**
+	 * Chats with their own agents are on, but the destination's agent can't host chats of other agents, or the chat's
+	 * agent can't join a session of another agent: one of them doesn't support multiple chats. Client text: pick a
+	 * session of an agent that supports chats of other agents.
+	 */
+	AgentWithoutChats = 'agentWithoutChats',
+	/**
+	 * The chat's agent couldn't describe its settings for the chat when it moved into a session of another agent or
+	 * into a new session of its own agent. Transient: client text asks to try again. Distinct from {@link Unsupported}
+	 * (no conversation of its own to take into a new session).
+	 */
+	AgentConfigUnavailable = 'agentConfigUnavailable',
 }
 
 /** A chat move the host refused before changing anything. */

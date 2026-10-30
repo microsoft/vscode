@@ -36,7 +36,7 @@ import { IChat, ISession, SessionStatus } from '../../../../../services/sessions
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { SessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../chat/common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING } from '../../../../chat/common/constants.js';
 import { AgentHostAgentPickerContribution, AgentHostModePickerActionViewItem, createAgentContextPick, isCustomAgentSelected } from '../../browser/agentHostAgentPicker.js';
 import { ModePicker } from '../../../copilotChatSessions/browser/modePicker.js';
 import '../../browser/agentHostSessionConfigPicker.js';
@@ -58,14 +58,14 @@ suite('agentHostAgentPicker', () => {
 			.map(item => item.command.id);
 	}
 
-	test('keeps the new-session agent in the primary toolbar', () => {
+	test('keeps the new-session agent in the session options', () => {
 		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		SessionProviderIdContext.bindTo(context).set(LOCAL_AGENT_HOST_PROVIDER_ID);
 		IsPhoneLayoutContext.bindTo(context).set(false);
 		ChatContextKeys.inAutomationsDialog.bindTo(context).set(false);
 		assert.deepStrictEqual({ newSessionPrimary: controls(context, Menus.NewSessionChatInputToolbar), newSessionSecondary: controls(context, Menus.NewSessionControl) }, {
-			newSessionPrimary: ['sessions.agentHost.agentPicker', 'sessions.modelPicker'],
-			newSessionSecondary: ['sessions.agentHost.newSessionModePicker'],
+			newSessionPrimary: ['sessions.modelPicker'],
+			newSessionSecondary: ['sessions.agentHost.agentPicker', 'sessions.agentHost.newSessionModePicker'],
 		});
 	});
 
@@ -107,29 +107,21 @@ suite('agentHostAgentPicker', () => {
 		});
 	});
 
-	for (const unifiedPicker of [false, true]) {
-		for (const experimentalLayout of [false, true]) {
-			test(`routes the agent toolbar with unified picker ${unifiedPicker} and experimental layout ${experimentalLayout}`, () => {
-				const configuration = new TestConfigurationService({
-					[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedPicker,
-					[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: experimentalLayout,
-				});
-				disposables.add(configuration.onDidChangeConfigurationEmitter);
-				const context = disposables.add(new ContextKeyService(configuration));
-				SessionProviderIdContext.bindTo(context).set(LOCAL_AGENT_HOST_PROVIDER_ID);
-				IsPhoneLayoutContext.bindTo(context).set(false);
-				ChatContextKeys.inAutomationsDialog.bindTo(context).set(false);
-				const experimental = unifiedPicker && experimentalLayout;
-				assert.deepStrictEqual({
-					config: controls(context, Menus.NewSessionChatInputToolbar),
-					control: controls(context, Menus.NewSessionControl),
-				}, {
-					config: experimental ? ['sessions.modelPicker'] : ['sessions.agentHost.agentPicker', 'sessions.modelPicker'],
-					control: experimental ? ['sessions.agentHost.agentPicker', 'sessions.agentHost.newSessionModePicker'] : ['sessions.agentHost.newSessionModePicker'],
-				});
-			});
-		}
-	}
+	test('routes the agent picker to the new session controls', () => {
+		const configuration = new TestConfigurationService();
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
+		const context = disposables.add(new ContextKeyService(configuration));
+		SessionProviderIdContext.bindTo(context).set(LOCAL_AGENT_HOST_PROVIDER_ID);
+		IsPhoneLayoutContext.bindTo(context).set(false);
+		ChatContextKeys.inAutomationsDialog.bindTo(context).set(false);
+		assert.deepStrictEqual({
+			config: controls(context, Menus.NewSessionChatInputToolbar),
+			control: controls(context, Menus.NewSessionControl),
+		}, {
+			config: ['sessions.modelPicker'],
+			control: ['sessions.agentHost.agentPicker', 'sessions.agentHost.newSessionModePicker'],
+		});
+	});
 
 	test('uses the same desktop and phone agent controls in the automation prompt', () => {
 		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
@@ -216,70 +208,74 @@ suite('agentHostAgentPicker', () => {
 	});
 
 	for (const scheme of ['agent-host-copilotcli', 'custom-host']) {
-		test(`restores the last-used agent after an automatic fallback for ${scheme}`, () => {
-			const storage = disposables.add(new TestStorageService());
-			const key = agentHostAgentPickerStorageKey(scheme);
-			storage.store(key, alpha.uri, StorageScope.PROFILE, StorageTarget.MACHINE);
-			const createSession = (id: string, agent: AgentCustomization | undefined, status: SessionStatus) => {
-				const mode = observableValue<ReturnType<ISession['mode']['get']>>('mode', agent ? { id: agent.uri, kind: 'agent' } : undefined);
-				const session = upcastPartial<IActiveSession>({
-					sessionId: id,
-					resource: URI.from({ scheme, path: `/${id}` }),
-					providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
-					status: constObservable(status),
-					mode,
+		for (const rememberedSource of [false, true]) {
+			test(`restores the last-used agent after an automatic fallback for ${scheme}${rememberedSource ? ' using its draft source' : ''}`, () => {
+				const storage = disposables.add(new TestStorageService());
+				const key = agentHostAgentPickerStorageKey(scheme);
+				const rememberedUri = rememberedSource ? 'client-agent:/alpha' : alpha.uri;
+				storage.store(key, rememberedUri, StorageScope.PROFILE, StorageTarget.MACHINE);
+				const createSession = (id: string, agent: AgentCustomization | undefined, status: SessionStatus) => {
+					const mode = observableValue<ReturnType<ISession['mode']['get']>>('mode', agent ? { id: agent.uri, kind: 'agent' } : undefined);
+					const session = upcastPartial<IActiveSession>({
+						sessionId: id,
+						resource: URI.from({ scheme, path: `/${id}` }),
+						providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+						status: constObservable(status),
+						mode,
+					});
+					return { session, mode };
+				};
+				const running = createSession('running', alpha, SessionStatus.Completed);
+				const draft = createSession('draft', undefined, SessionStatus.Untitled);
+				const sessions = new Map([['running', running], ['draft', draft]]);
+				const activeSession = observableValue<IActiveSession | undefined>('activeSession', running.session);
+				const agentsChanged = disposables.add(new Emitter<void>());
+				let availableAgents: readonly AgentCustomization[] = [beta];
+				const provider = upcastPartial<IAgentHostSessionsProvider>({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getCustomAgents: () => availableAgents,
+					resolveCustomAgent: (_id, uri) => rememberedSource && uri === rememberedUri ? availableAgents.find(agent => agent.uri === alpha.uri) : undefined,
+					onDidChangeCustomAgents: agentsChanged.event,
+					setAgent: (id, agent) => sessions.get(id)?.mode.set(agent ? { id: agent.uri, kind: 'agent' } : undefined, undefined),
 				});
-				return { session, mode };
-			};
-			const running = createSession('running', alpha, SessionStatus.Completed);
-			const draft = createSession('draft', undefined, SessionStatus.Untitled);
-			const sessions = new Map([['running', running], ['draft', draft]]);
-			const activeSession = observableValue<IActiveSession | undefined>('activeSession', running.session);
-			const agentsChanged = disposables.add(new Emitter<void>());
-			let availableAgents: readonly AgentCustomization[] = [beta];
-			const provider = upcastPartial<IAgentHostSessionsProvider>({
-				id: LOCAL_AGENT_HOST_PROVIDER_ID,
-				getCustomAgents: () => availableAgents,
-				onDidChangeCustomAgents: agentsChanged.event,
-				setAgent: (id, agent) => sessions.get(id)?.mode.set(agent ? { id: agent.uri, kind: 'agent' } : undefined, undefined),
-			});
-			const configuration = new TestConfigurationService({ [AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING]: true });
-			disposables.add(configuration.onDidChangeConfigurationEmitter);
-			const providers = disposables.add(new SessionsProvidersService(upcastPartial<ILifecycleService>({ willShutdown: false })));
-			disposables.add(providers.registerProvider(provider));
-			disposables.add(new AgentHostAgentPickerContribution(
-				new NullActionViewItemService(),
-				upcastPartial<ISessionsService>({ activeSession }),
-				providers,
-				upcastPartial<IChatService>({ getSession: () => undefined }),
-				upcastPartial<IChatWidgetService>({
-					getWidgetBySessionResource: () => undefined,
-					onDidAddWidget: Event.None,
-					onDidChangeFocusedSession: Event.None,
-				}),
-				storage,
-				new NullLogService(),
-				configuration,
-				disposables.add(new ContextKeyService(configuration)),
-				upcastPartial<IChatContextPickService>({ registerChatContextItem: () => Disposable.None }),
-				new TestExperimentTriggerTelemetryService(),
-			));
-			const snapshot = () => ({
-				mode: activeSession.get()?.mode.get()?.id,
-				remembered: storage.get(key, StorageScope.PROFILE),
-			});
-			const afterFallback = snapshot();
-			activeSession.set(draft.session, undefined);
-			const beforeDiscovery = snapshot();
-			availableAgents = agents;
-			agentsChanged.fire();
+				const configuration = new TestConfigurationService({ [AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING]: true });
+				disposables.add(configuration.onDidChangeConfigurationEmitter);
+				const providers = disposables.add(new SessionsProvidersService(upcastPartial<ILifecycleService>({ willShutdown: false })));
+				disposables.add(providers.registerProvider(provider));
+				disposables.add(new AgentHostAgentPickerContribution(
+					new NullActionViewItemService(),
+					upcastPartial<ISessionsService>({ activeSession }),
+					providers,
+					upcastPartial<IChatService>({ getSession: () => undefined }),
+					upcastPartial<IChatWidgetService>({
+						getWidgetBySessionResource: () => undefined,
+						onDidAddWidget: Event.None,
+						onDidChangeFocusedSession: Event.None,
+					}),
+					storage,
+					new NullLogService(),
+					configuration,
+					disposables.add(new ContextKeyService(configuration)),
+					upcastPartial<IChatContextPickService>({ registerChatContextItem: () => Disposable.None }),
+					new TestExperimentTriggerTelemetryService(),
+				));
+				const snapshot = () => ({
+					mode: activeSession.get()?.mode.get()?.id,
+					remembered: storage.get(key, StorageScope.PROFILE),
+				});
+				const afterFallback = snapshot();
+				activeSession.set(draft.session, undefined);
+				const beforeDiscovery = snapshot();
+				availableAgents = agents;
+				agentsChanged.fire();
 
-			assert.deepStrictEqual({ afterFallback, beforeDiscovery, afterDiscovery: snapshot() }, {
-				afterFallback: { mode: undefined, remembered: alpha.uri },
-				beforeDiscovery: { mode: undefined, remembered: alpha.uri },
-				afterDiscovery: { mode: alpha.uri, remembered: alpha.uri },
+				assert.deepStrictEqual({ afterFallback, beforeDiscovery, afterDiscovery: snapshot() }, {
+					afterFallback: { mode: undefined, remembered: rememberedUri },
+					beforeDiscovery: { mode: undefined, remembered: rememberedUri },
+					afterDiscovery: { mode: alpha.uri, remembered: rememberedUri },
+				});
 			});
-		});
+		}
 	}
 
 	suite('agentHostAgentPickerStorageKey', () => {

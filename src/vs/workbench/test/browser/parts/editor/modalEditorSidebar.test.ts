@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IModalEditorPartOptions, IModalEditorSidebar } from '../../../../../platform/editor/common/editor.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -147,11 +147,7 @@ function stubSidebarContent(): IModalEditorSidebar {
 
 suite('Modal Editor Sidebar', () => {
 
-	const disposables = new DisposableStore();
-
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	// --- option propagation -------------------------------------------------
 

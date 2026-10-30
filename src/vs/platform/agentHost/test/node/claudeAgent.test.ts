@@ -45,7 +45,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, fixedChatOwnerRef } from '../../common/agent.js';
@@ -1164,7 +1164,7 @@ class CapturingLogService extends NullLogService {
 
 function createTestContext(
 	disposables: Pick<DisposableStore, 'add'>,
-	overrides?: { logService?: ILogService; database?: TestSessionDatabase; sessionDataService?: ISessionDataService; rootConfig?: Record<string, unknown>; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService; copilotApiService?: ICopilotApiService; claudeProxyService?: IClaudeProxyService; checkpointService?: IAgentHostCheckpointService; nativeAccount?: AccountInfo; startupPerformance?: IAgentHostStartupPerformance },
+	overrides?: { logService?: ILogService; database?: TestSessionDatabase; sessionDataService?: ISessionDataService; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService; copilotApiService?: ICopilotApiService; claudeProxyService?: IClaudeProxyService; checkpointService?: IAgentHostCheckpointService; nativeAccount?: AccountInfo; startupPerformance?: IAgentHostStartupPerformance },
 ): ITestContext {
 	const proxy = new FakeClaudeProxyService();
 	const api = new FakeCopilotApiService();
@@ -1188,8 +1188,7 @@ function createTestContext(
 
 	// In-memory file service the session's customization scan / agent-name
 	// resolution runs against; exposed so tests can seed `.claude/**` files.
-	const fileService = disposables.add(new FileService(new NullLogService()));
-	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+	const fileService = createInMemoryFileService(disposables, Schemas.file);
 
 	const otelService = new RecordingOTelService();
 	const sdkDownloader = new RecordingAgentSdkDownloader();
@@ -1217,11 +1216,6 @@ function createTestContext(
 		[IAgentHostAuthenticationService, authenticationService],
 	);
 	const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
-	// Seed root config (e.g. `allowSignedOutWhenUsable`) BEFORE the agent
-	// resolves its transport mode in the constructor.
-	if (overrides?.rootConfig) {
-		configService.updateRootConfig(overrides.rootConfig);
-	}
 	const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 	connectAuthentication(agent, authenticationService);
 	// Mirrors exactly what Agent Host stamps on every addressed chat
@@ -1305,8 +1299,7 @@ function forkSourceMessages(sourceId: string): SessionMessage[] {
  * Spread into each test {@link ServiceCollection}.
  */
 function claudeFileEnvServices(disposables: Pick<DisposableStore, 'add'>): [typeof IFileService | typeof INativeEnvironmentService, IFileService | INativeEnvironmentService][] {
-	const fileService = disposables.add(new FileService(new NullLogService()));
-	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+	const fileService = createInMemoryFileService(disposables, Schemas.file);
 	return [
 		[IFileService, fileService],
 		[INativeEnvironmentService, { userHome: URI.file('/mock-home') } as INativeEnvironmentService],
@@ -1351,6 +1344,7 @@ function reducerBackedEnablementService(stateManager: AgentHostStateManager): IC
 		_serviceBrand: undefined,
 		onDidChange: reducerBackedEnablementChangeEvent(stateManager),
 		initializeSession: async () => { },
+		adoptMcpServerOwnership: () => { },
 		getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
 		resolve,
 		applyClientGlobalEnablement: resolve,
@@ -1568,8 +1562,8 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('signed-in probe flips inferred-native to proxy (allowSignedOutWhenUsable)', async () => {
-		// The fix for the startup catch-22: with the exp flag on and the SDK
+	test('signed-in probe flips inferred-native to proxy', async () => {
+		// The fix for the startup catch-22: with the SDK
 		// reporting a Claude account, a signed-OUT user resolves to native — which
 		// still advertises the Copilot resource as not-required so the host can
 		// probe. If the host then silently forwards a GitHub token (the user was
@@ -1577,7 +1571,6 @@ suite('ClaudeAgent', () => {
 		// (rule 2: signed in ⇒ proxy) and flips the transport to proxy, starting
 		// the proxy.
 		const { agent, proxy } = createTestContext(disposables, {
-			rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
 			nativeAccount: NATIVE_ACCOUNT,
 		});
 		// Signed out at startup ⇒ native, Copilot advertised as not-required.
@@ -1706,10 +1699,7 @@ suite('ClaudeAgent', () => {
 
 	test('first sign-in keeps the native catalog published while the proxy catalog enumerates', async () => {
 		// The window gate reads an agent with no models as `Unusable`, so a *first*
-		// sign-in must never blank the bootstrap native catalog: it has no
-		// superseded account to drop, and blanking would close the
-		// `allowSignedOutWhenUsable` gate mid-startup and force the sign-in dialog
-		// on a user who is already signing in.
+		// First sign-in has no superseded account and must preserve usable native models.
 		const { agent, api, sdk } = createTestContext(disposables, { nativeAccount: NATIVE_ACCOUNT });
 		sdk.supportedModelsResult = [
 			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '', supportedEffortLevels: ['high'] },
@@ -1828,7 +1818,6 @@ suite('ClaudeAgent', () => {
 		// to run against — even though the model-less default
 		// (`_defaultTransportMode`) was native right up to this call.
 		const { agent, proxy } = createTestContext(disposables, {
-			rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
 			nativeAccount: NATIVE_ACCOUNT,
 		});
 		const accepted = await agent.authenticate('https://api.github.com', 'tok');
@@ -1844,7 +1833,6 @@ suite('ClaudeAgent', () => {
 		// send, where `_ensureAuthenticated` throws `AHP_AUTH_REQUIRED`. Signing in
 		// is the surviving runtime flip lever (native default → proxy default).
 		const { agent } = createTestContext(disposables, {
-			rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
 			nativeAccount: NATIVE_ACCOUNT,
 		});
 		await agent.authenticate('https://api.github.com', 'tok');
@@ -6766,7 +6754,6 @@ suite('ClaudeAgent — per-session provider', () => {
 		// Copilot mid-conversation would silently drag a running native
 		// (BYO-Anthropic) session onto the proxy on its next rebind.
 		const ctx = createTestContext(disposables, {
-			rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
 			nativeAccount: NATIVE_ACCOUNT,
 		});
 		// The host default only becomes native once the SDK has been *asked* about
@@ -6849,40 +6836,21 @@ suite('ClaudeAgent — per-session provider', () => {
 		});
 	});
 
-	test('the Copilot resource is unconditionally optional, whatever the opt-in or the SDK account report says', async () => {
-		// The load-bearing assertion of the whole feature. `required: false` is what
-		// stops `resolveAgentAuthRequirement` answering `GitHub` for this session
-		// type; when *every* type answers `GitHub`, `resolveSignedOutWindowGate`
-		// puts a non-dismissible sign-in wall over the entire Agents window.
-		//
-		// The full 2x2 is asserted because the behavior it replaces was a 2x2 with
-		// three `true`s in it: neither the opt-in nor the account report may bring
-		// the requirement back. Even with no Claude account the type reads as
-		// `Unusable` rather than `GitHub`, which is what opens the window. The flag
-		// is absent by design — it gates this one level up, in
-		// `resolveSignedOutWindowGate`.
-		const advertisedRequirement = async (inputs: { optIn: boolean; account: boolean }) => {
+	test('the Copilot resource is optional regardless of the SDK account report', async () => {
+		const advertisedRequirement = async (account: boolean) => {
 			const { agent } = createTestContext(disposables, {
-				...(inputs.optIn ? { rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true } } : {}),
-				...(inputs.account ? { nativeAccount: NATIVE_ACCOUNT } : {}),
+				...(account ? { nativeAccount: NATIVE_ACCOUNT } : {}),
 			});
-			// Let the account probe land. The old answer keyed on exactly this fact,
-			// so without the wait both halves of the matrix would be asserting the
-			// same pre-probe state and the test would pass vacuously.
 			await agent.refreshModels();
 			return agent.getProtectedResources().find(r => r.resource === 'https://api.github.com')?.required;
 		};
 
 		assert.deepStrictEqual({
-			optInOnWithAccount: await advertisedRequirement({ optIn: true, account: true }),
-			optInOffWithAccount: await advertisedRequirement({ optIn: false, account: true }),
-			optInOnNoAccount: await advertisedRequirement({ optIn: true, account: false }),
-			optInOffNoAccount: await advertisedRequirement({ optIn: false, account: false }),
+			withAccount: await advertisedRequirement(true),
+			withoutAccount: await advertisedRequirement(false),
 		}, {
-			optInOnWithAccount: false,
-			optInOffWithAccount: false,
-			optInOnNoAccount: false,
-			optInOffNoAccount: false,
+			withAccount: false,
+			withoutAccount: false,
 		});
 	});
 
@@ -6890,7 +6858,6 @@ suite('ClaudeAgent — per-session provider', () => {
 		// `authenticateProtectedResources` matches on `resource` and ignores
 		// `required`, so dropping it would break sign-in forwarding.
 		const optional = createTestContext(disposables, {
-			rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
 			nativeAccount: NATIVE_ACCOUNT,
 		}).agent.getProtectedResources();
 		assert.deepStrictEqual(optional.map(r => ({ resource: r.resource, required: r.required })), [
@@ -8846,8 +8813,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			};
 		};
 
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 
 		const otelService = new RecordingOTelService();
 		const sdkDownloader = new RecordingAgentSdkDownloader();
@@ -8874,6 +8840,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 				onDidChange: reducerBackedEnablementChangeEvent(stateManager),
 				initializeSession: async () => { },
 				getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
+				adoptMcpServerOwnership: () => { },
 				resolve: resolveReducerEnablement,
 				applyClientGlobalEnablement: (session, target, clientEnablement) => {
 					const existing = resolveReducerEnablement(session, target);
@@ -8958,6 +8925,81 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		});
 
 		assert.deepStrictEqual(pm.syncCalls, []);
+	});
+
+	test('active-client customization assignments notify once per assignment, including an empty snapshot', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const handle = getOrCreateActiveClient(agent, defaultChatUri(created.session), 'client-1');
+		const customizations = [makeClientCustomization('https://bundle', 'Bundle')];
+		handle.customizations = customizations;
+		await tick();
+		handle.customizations = [];
+		await tick();
+		assert.deepStrictEqual({ calls: pm.syncCalls, current: handle.customizations }, {
+			calls: [
+				{ clientId: 'client-1', customizations },
+				{ clientId: 'client-1', customizations: [] },
+			],
+			current: [],
+		});
+	});
+
+	test('active-client removal evicts registrations and detaches retained handles', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent, sdk } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const chat = defaultChatUri(created.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		await agent.chats.sendMessage(chat, 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+		const session = agent.getSessionForTesting(created.session)!;
+		const snapshots = [];
+		for (const name of ['first', 'second', 'third']) {
+			const handle = getOrCreateActiveClient(agent, chat, 'client-1');
+			const reused = handle === getOrCreateActiveClient(agent, chat, 'client-1');
+			handle.tools = [{ name, inputSchema: { type: 'object' } }];
+			const before = session.getClientTools('client-1').map(tool => tool.name);
+			agent.removeActiveClient(chat, chatContext(chat), 'client-1');
+			handle.tools = [{ name: 'stale', inputSchema: { type: 'object' } }];
+			handle.customizations = [makeClientCustomization('https://stale', 'Stale')];
+			await tick();
+			snapshots.push({ reused, before, after: session.getClientTools('client-1'), registrations: agent['_activeClientHandles'].size });
+		}
+		assert.deepStrictEqual({ snapshots, syncCalls: pm.syncCalls }, {
+			snapshots: [
+				{ reused: true, before: ['first'], after: [], registrations: 0 },
+				{ reused: true, before: ['second'], after: [], registrations: 0 },
+				{ reused: true, before: ['third'], after: [], registrations: 0 },
+			],
+			syncCalls: [],
+		});
+	});
+
+	test('shutdown and dispose detach active-client subscriptions', async () => {
+		const snapshots = [];
+		for (const terminal of ['shutdown', 'dispose'] as const) {
+			const pm = new FakeAgentPluginManager();
+			const { agent } = buildCtxWith(pm);
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+			const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+			const handle = getOrCreateActiveClient(agent, defaultChatUri(created.session), 'client-1');
+			if (terminal === 'shutdown') {
+				await agent.shutdown();
+			} else {
+				agent.dispose();
+			}
+			handle.tools = [{ name: 'stale', inputSchema: { type: 'object' } }];
+			handle.customizations = [makeClientCustomization('https://stale', 'Stale')];
+			await tick();
+			snapshots.push({ terminal, registrations: agent['_activeClientHandles'].size, syncCalls: pm.syncCalls });
+		}
+		assert.deepStrictEqual(snapshots, [
+			{ terminal: 'shutdown', registrations: 0, syncCalls: [] },
+			{ terminal: 'dispose', registrations: 0, syncCalls: [] },
+		]);
 	});
 
 	test('GitHub MCP is enabled by default and respects customization disablement', async () => {

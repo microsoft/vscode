@@ -8,8 +8,10 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
-import { CustomizationMarketplaceIcon, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceIcon, CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplacePage, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { normalizeMcpGalleryUrl } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
+import { getGitHubMcpRegistryIdentity, getGitHubMcpRegistryResourceIdentity } from './githubMcpRegistryIcons.js';
 import { dirname as dirnamePath } from '../../../../../base/common/path.js';
 
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
@@ -92,8 +94,9 @@ import { showConfigureHooksQuickPick } from '../promptSyntax/hookActions.js';
 import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory, CustomizationLocationPicker } from './customizationCreatorService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { isAgentHostTarget, isRemoteAgentHostTarget } from '../../common/chatSessionsService.js';
+import { isAgentHostTarget, isRemoteAgentHostTarget, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/chatSessionsService.js';
 import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
+import { isRemoteAgentHostSessionType, parseAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -108,7 +111,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { NotificationTelemetryId } from '../../../../../platform/notification/common/notificationTelemetry.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -125,8 +128,9 @@ import { IMcpService, IMcpWorkbenchService, isMcpOAuthClientSecretStorageKey, ty
 import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
-import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
+import { type CustomizationSourceFolderReadiness, ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
 import { AICustomizationWelcomePage, type ICustomizationMarketplaceOrigin, type ICustomizationMigrationCategorySummary, type IInstalledCustomizationTarget } from './aiCustomizationWelcomePage.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { createCustomizationMigrationAgentPrompt, getCustomizationMigrationConflictTarget, type CustomizationMigrationTargetFolders, type ICustomizationMigrationFailure, type ICustomizationMigrationNameConflict, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations, resolveWorkspaceMigrationTargetFolder } from './customizationMigration.js';
@@ -270,6 +274,13 @@ interface ISectionItem {
 	badge?: string;
 }
 
+const SECTION_ITEM_HEIGHT = 26;
+const SECTION_ITEM_SEPARATOR_SPACING = 8;
+
+function getSectionItemHeight(element: ISectionItem): number {
+	return SECTION_ITEM_HEIGHT + (element.separatorBefore ? SECTION_ITEM_SEPARATOR_SPACING : 0);
+}
+
 interface ISaveTargetQuickPickItem extends IQuickPickItem {
 	readonly target: 'workspace' | 'user' | 'cancel';
 	readonly folder?: URI;
@@ -300,8 +311,8 @@ interface IExistingCustomizationSaveRequest {
 }
 
 class SectionItemDelegate implements IListVirtualDelegate<ISectionItem> {
-	getHeight(): number {
-		return 26;
+	getHeight(element: ISectionItem): number {
+		return getSectionItemHeight(element);
 	}
 
 	getTemplateId(): string {
@@ -808,6 +819,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				} : s);
 			}
 		}
+		this.updateSidebarMigrationSeparator();
 
 		// Update the list widget if it exists
 		if (this.sectionsList) {
@@ -974,7 +986,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			? (this.migrationShortcutContainer?.offsetHeight ?? 0)
 			: 0;
 		const availableListHeight = Math.max(0, height - 8 - headerHeight - migrationHeight);
-		const listHeight = Math.min(availableListHeight, this.sections.length * 26);
+		const listHeight = Math.min(availableListHeight, this.sections.reduce((height, section) => height + getSectionItemHeight(section), 0));
 		this.sectionsListContainer.style.height = `${listHeight}px`;
 		this.sectionsList.layout(listHeight, width);
 	}
@@ -1029,6 +1041,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		container.style.display = 'none';
 
 		DOM.append(container, $('div.sidebar-migration-separator'));
+		this.updateSidebarMigrationSeparator();
 
 		const button = this.migrationShortcutButton = DOM.append(container, $('button.sidebar-migration-button')) as HTMLButtonElement;
 		button.type = 'button';
@@ -1047,6 +1060,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 	}
 
+	private updateSidebarMigrationSeparator(): void {
+		this.migrationShortcutContainer?.classList.toggle('show-separator', !this.sections.some(section => section.separatorBefore));
+	}
+
 	private createWelcomePage(parent: HTMLElement): void {
 		this.welcomePage = this.editorDisposables.add(this.instantiationService.createInstance(
 			AICustomizationWelcomePage,
@@ -1060,6 +1077,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				openMarketplaceItem: (resource, origin) => {
 					this.showMarketplaceDetail(resource, origin);
 				},
+				marketplaceNavigationChanged: () => this.contentNavigationGeneration++,
 				closeEditor: () => {
 					if (this.input) {
 						this.group.closeEditor(this.input);
@@ -3267,7 +3285,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				const matchingFolders = this.getCustomizationMigrationFolders(targetType, storage, availableFolders);
 				const selectedFolder = this.selectedCustomizationMigrationTargets.get(this.getCustomizationMigrationTargetKey(targetType, storage));
 				if (matchingFolders.length === 0 && !selectedFolder) {
-					this.notificationService.error(this.getMissingMigrationTargetFolderMessage(targetType, storage));
+					this.showMissingMigrationTargetFolderNotification(targetType, storage, sessionResource);
 					return undefined;
 				}
 
@@ -3302,25 +3320,71 @@ export class AICustomizationManagementEditor extends EditorPane {
 		return isEqual(sessionResource, this.harnessService.activeSessionResource.get());
 	}
 
-	private getMissingMigrationTargetFolderMessage(targetType: PromptsType, storage: PromptsStorage): string {
-		if (storage === PromptsStorage.local) {
-			switch (targetType) {
-				case PromptsType.skill:
-					return localize('migrationNoWorkspaceSkillFolder', "No workspace skills folder is configured for the active harness.");
-				case PromptsType.agent:
-					return localize('migrationNoWorkspaceAgentFolder', "No workspace agents folder is configured for the active harness.");
-				default:
-					return localize('migrationNoWorkspaceInstructionsFolder', "No workspace instructions folder is configured for the active harness.");
-			}
+	private showMissingMigrationTargetFolderNotification(targetType: PromptsType, storage: PromptsStorage, sessionResource: URI): void {
+		const targetLabel = targetType === PromptsType.skill
+			? localize('migrationSkillFolderType', "skills")
+			: targetType === PromptsType.agent
+				? localize('migrationAgentFolderType', "agents")
+				: localize('migrationInstructionsFolderType', "instructions");
+		const harnessLabel = this.getActiveHarnessLabel();
+		if (isUntitledChatSession(sessionResource)) {
+			const message = storage === PromptsStorage.local
+				? localize(
+					'migrationWorkspaceTargetNeedsSession',
+					"{0} needs an active session before it can report a writable {1} folder for this workspace. Start a new session, send a message, then try the migration again.",
+					harnessLabel,
+					targetLabel,
+				)
+				: localize(
+					'migrationUserTargetNeedsSession',
+					"{0} needs an active session before it can report a writable {1} folder for your user profile. Start a new session, send a message, then try the migration again.",
+					harnessLabel,
+					targetLabel,
+				);
+			this.notificationService.prompt(Severity.Error, message, [{
+				label: localize('startNewHarnessSession', "Start new session"),
+				run: () => this.openMigrationHarnessSession(sessionResource),
+			}]);
+			return;
 		}
-		switch (targetType) {
-			case PromptsType.skill:
-				return localize('migrationNoGlobalSkillFolder', "No global skills folder is configured for the active harness.");
-			case PromptsType.agent:
-				return localize('migrationNoGlobalAgentFolder', "No global agents folder is configured for the active harness.");
-			default:
-				return localize('migrationNoGlobalInstructionsFolder', "No global instructions folder is configured for the active harness.");
+
+		const provider = this.harnessService.findHarnessById(getChatSessionType(sessionResource))?.itemProvider;
+		const readiness: CustomizationSourceFolderReadiness = provider?.getSourceFolderReadiness?.(sessionResource) ?? 'ready';
+		if (readiness !== 'ready') {
+			const message = readiness === 'loading'
+				? storage === PromptsStorage.local
+					? localize('migrationWorkspaceTargetLoading', "{0} is still loading writable {1} folders for this workspace. Wait for the session to finish starting, then try again.", harnessLabel, targetLabel)
+					: localize('migrationUserTargetLoading', "{0} is still loading writable {1} folders for your user profile. Wait for the session to finish starting, then try again.", harnessLabel, targetLabel)
+				: storage === PromptsStorage.local
+					? localize('migrationWorkspaceTargetUnavailable', "Could not load writable {0} folders from {1} for this workspace. Check the active agent connection, then try again.", targetLabel, harnessLabel)
+					: localize('migrationUserTargetUnavailable', "Could not load writable {0} folders from {1} for your user profile. Check the active agent connection, then try again.", targetLabel, harnessLabel);
+			this.notificationService.prompt(Severity.Error, message, [{
+				label: localize('retryMigrationDestinations', "Retry"),
+				run: () => this.refreshCustomizationMigrationInfo(),
+			}]);
+			return;
 		}
+
+		const message = storage === PromptsStorage.local
+			? localize('migrationWorkspaceTargetUnsupported', "{0} does not provide a writable {1} folder for this workspace. Select a different agent target or configure a supported destination before migrating.", harnessLabel, targetLabel)
+			: localize('migrationUserTargetUnsupported', "{0} does not provide a writable {1} folder for your user profile. Select a different agent target or configure a supported destination before migrating.", harnessLabel, targetLabel);
+		this.notificationService.error(message);
+	}
+
+	private async openMigrationHarnessSession(sessionResource: URI): Promise<void> {
+		if (!await this.closeCustomizationEditor()) {
+			return;
+		}
+		const sessionType = getChatSessionType(sessionResource);
+		if (this.workspaceService.isSessionsWindow) {
+			const provider = isRemoteAgentHostSessionType(sessionType) ? undefined : parseAgentHostHarness(sessionType);
+			await this.commandService.executeCommand(
+				NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID,
+				...(provider ? [{ agentHostProvider: provider }] : []),
+			);
+			return;
+		}
+		await this.commandService.executeCommand(`workbench.action.chat.openNewSessionSidebar.${sessionType}`);
 	}
 
 	private async pickCustomizationMigrationTargetFolder(sourceFolders: readonly ICustomizationSourceFolder[], targetType: PromptsType, selectsMultipleTypes: boolean): Promise<ICustomizationSourceFolder | undefined> {
@@ -3459,22 +3523,24 @@ export class AICustomizationManagementEditor extends EditorPane {
 			: localize('backToList', "Back to list");
 	}
 
-	private async restoreDetailOrigin(origin: CustomizationDetailOrigin | undefined): Promise<void> {
+	private async restoreDetailOrigin(origin: CustomizationDetailOrigin | undefined, preserveFocus?: boolean): Promise<void> {
 		if (!origin || origin.kind === 'discover') {
 			this.viewMode = 'list';
 			this.selectedSection = undefined;
 			this.sectionContextKey.set('');
 			this.storageService.remove(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, StorageScope.PROFILE);
-			this.welcomePage?.reset();
+			this.welcomePage?.reset(preserveFocus);
 			this.updateContentVisibility();
 			this.ensureSectionsListReflectsActiveSection(undefined);
 			if (this.dimension) {
 				this.layout(this.dimension);
 			}
-			if (origin?.marketplaceOrigin) {
-				this.welcomePage?.restoreMarketplaceItemFocus(origin.marketplaceOrigin);
-			} else {
-				this.welcomePage?.focus();
+			if (!preserveFocus) {
+				if (origin?.marketplaceOrigin) {
+					this.welcomePage?.restoreMarketplaceItemFocus(origin.marketplaceOrigin);
+				} else {
+					this.welcomePage?.focus();
+				}
 			}
 			return;
 		}
@@ -3487,29 +3553,33 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (this.dimension) {
 				this.layout(this.dimension);
 			}
-			this.migrationDashboard?.focus();
+			if (!preserveFocus) {
+				this.migrationDashboard?.focus();
+			}
 			return;
 		}
 
 		if (origin.kind === 'pluginDetail') {
-			await this.showEmbeddedPluginDetail(origin.item, origin.origin);
+			await this.showEmbeddedPluginDetail(origin.item, origin.origin, preserveFocus);
 			return;
 		}
 
 		this.viewMode = 'list';
 		this.updateContentVisibility();
-		this.selectSection(origin.section);
+		this.selectSection(origin.section, { preserveFocus });
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
-		if (this.isPromptsSection(origin.section)) {
-			this.listWidget?.focusSearch();
-		} else if (origin.section === AICustomizationManagementSection.McpServers) {
-			this.mcpListWidget?.focusSearch();
-		} else if (origin.section === AICustomizationManagementSection.Plugins) {
-			this.pluginListWidget?.focusSearch();
-		} else if (origin.section === AICustomizationManagementSection.Tools) {
-			this.toolsListWidget?.focusSearch();
+		if (!preserveFocus) {
+			if (this.isPromptsSection(origin.section)) {
+				this.listWidget?.focusSearch();
+			} else if (origin.section === AICustomizationManagementSection.McpServers) {
+				this.mcpListWidget?.focusSearch();
+			} else if (origin.section === AICustomizationManagementSection.Plugins) {
+				this.pluginListWidget?.focusSearch();
+			} else if (origin.section === AICustomizationManagementSection.Tools) {
+				this.toolsListWidget?.focusSearch();
+			}
 		}
 	}
 
@@ -3571,26 +3641,36 @@ export class AICustomizationManagementEditor extends EditorPane {
 	//#endregion
 
 	/**
+	 * Opens Discover with fresh filters and optionally applies a search query.
+	 */
+	public showDiscover(searchQuery?: string): void {
+		this.showWelcomePage({ resetFilters: true });
+		if (searchQuery !== undefined) {
+			this.setSearchQuery(searchQuery);
+		}
+	}
+
+	/**
 	 * Navigates to the welcome page (no section selected).
 	 */
-	public showWelcomePage(options?: { resetFilters?: boolean }): void {
+	public showWelcomePage(options?: { resetFilters?: boolean; preserveFocus?: boolean }): void {
 		if (this.viewMode === 'marketplaceDetail') {
-			this.goBackFromMarketplaceDetail();
+			this.goBackFromMarketplaceDetail(options?.preserveFocus);
 		}
 		if (this.viewMode === 'editor') {
-			this.goBackToList();
+			this.goBackToList(options?.preserveFocus);
 		}
 		if (this.viewMode === 'migration') {
 			this.viewMode = 'list';
 		}
 		if (this.viewMode === 'mcpDetail') {
-			this.goBackFromMcpDetail();
+			this.goBackFromMcpDetail(options?.preserveFocus);
 		}
 		if (this.viewMode === 'connectorDetail') {
-			this.goBackFromConnectorDetail();
+			this.goBackFromConnectorDetail(options?.preserveFocus);
 		}
 		if (this.viewMode === 'pluginDetail') {
-			this.goBackFromPluginDetail();
+			this.goBackFromPluginDetail(options?.preserveFocus);
 		}
 		this.selectedSection = undefined;
 		this.sectionContextKey.set('');
@@ -3601,10 +3681,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (options?.resetFilters) {
 			this.welcomePage?.resetFilters();
 		}
-		this.welcomePage?.reset();
+		this.welcomePage?.reset(options?.preserveFocus);
 		this.updateContentVisibility();
 		this.ensureSectionsListReflectsActiveSection(undefined);
-		this.welcomePage?.focus();
+		if (!options?.preserveFocus) {
+			this.welcomePage?.focus();
+		}
 	}
 
 	private async createCustomization(section: AICustomizationManagementSection): Promise<void> {
@@ -3635,7 +3717,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	private selectSection(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string }): void {
+	private selectSection(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string; preserveFocus?: boolean }): void {
 		if (this.showMarketplaceInDiscover(section, options)) {
 			return;
 		}
@@ -3649,22 +3731,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 		});
 
 		if (this.viewMode === 'marketplaceDetail') {
-			this.goBackFromMarketplaceDetail();
+			this.goBackFromMarketplaceDetail(options?.preserveFocus);
 		}
 		if (this.viewMode === 'editor') {
-			this.goBackToList();
+			this.goBackToList(options?.preserveFocus);
 		}
 		if (this.viewMode === 'migration') {
 			this.viewMode = 'list';
 		}
 		if (this.viewMode === 'mcpDetail') {
-			this.goBackFromMcpDetail();
+			this.goBackFromMcpDetail(options?.preserveFocus);
 		}
 		if (this.viewMode === 'connectorDetail') {
-			this.goBackFromConnectorDetail();
+			this.goBackFromConnectorDetail(options?.preserveFocus);
 		}
 		if (this.viewMode === 'pluginDetail') {
-			this.goBackFromPluginDetail();
+			this.goBackFromPluginDetail(options?.preserveFocus);
 		}
 		this.selectedSection = section;
 		this.sectionContextKey.set(section);
@@ -3700,18 +3782,20 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Move focus to the search input so keyboard users can immediately
 		// filter without extra Tab traversal (parity with mouse-click flow).
-		if (section === AICustomizationManagementSection.McpServers) {
-			this.mcpListWidget?.focusSearch();
-		} else if (section === AICustomizationManagementSection.Plugins) {
-			this.pluginListWidget?.focusSearch();
-		} else if (section === AICustomizationManagementSection.Models) {
-			this.modelsWidget?.focusSearch();
-		} else if (section === AICustomizationManagementSection.Tools) {
-			this.toolsListWidget?.focusSearch();
-		} else if (this.contributedSectionContainers.has(section)) {
-			this.ensureContributedSectionWidget(section)?.focus?.();
-		} else {
-			this.listWidget?.focusSearch();
+		if (!options?.preserveFocus) {
+			if (section === AICustomizationManagementSection.McpServers) {
+				this.mcpListWidget?.focusSearch();
+			} else if (section === AICustomizationManagementSection.Plugins) {
+				this.pluginListWidget?.focusSearch();
+			} else if (section === AICustomizationManagementSection.Models) {
+				this.modelsWidget?.focusSearch();
+			} else if (section === AICustomizationManagementSection.Tools) {
+				this.toolsListWidget?.focusSearch();
+			} else if (this.contributedSectionContainers.has(section)) {
+				this.ensureContributedSectionWidget(section)?.focus?.();
+			} else {
+				this.listWidget?.focusSearch();
+			}
 		}
 	}
 
@@ -4234,7 +4318,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	/**
 	 * Selects a specific section programmatically.
 	 */
-	public selectSectionById(sectionId: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string }): boolean {
+	public selectSectionById(sectionId: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string; preserveFocus?: boolean }): boolean {
 		if (this.showMarketplaceInDiscover(sectionId, options)) {
 			return true;
 		}
@@ -4286,7 +4370,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		return false;
 	}
 
-	private showMarketplaceInDiscover(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string }): boolean {
+	private showMarketplaceInDiscover(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string; preserveFocus?: boolean }): boolean {
 		if (!options?.showMarketplace ||
 			!isCustomizationDiscoveryAvailable(this.configurationService, this.marketplaceService)) {
 			return false;
@@ -4298,8 +4382,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (!type) {
 			return false;
 		}
-		this.showWelcomePage();
-		this.welcomePage?.showMarketplace(`@type:${type}`, options.marketplaceSourceId);
+		this.showWelcomePage({ preserveFocus: options.preserveFocus });
+		this.welcomePage?.showMarketplace(`@type:${type}`, options.marketplaceSourceId, options.preserveFocus);
 		return true;
 	}
 
@@ -4355,9 +4439,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.listWidget.refresh();
 	}
 
-	public setSearchQuery(query: string): void {
+	public setSearchQuery(query: string, preserveFocus?: boolean): void {
 		if (this.selectedSection === undefined) {
-			this.welcomePage?.setSearchQuery(query);
+			this.welcomePage?.setSearchQuery(query, preserveFocus);
 		} else if (this.selectedSection === AICustomizationManagementSection.McpServers) {
 			this.mcpListWidget?.setSearchQuery(query);
 		} else if (this.selectedSection === AICustomizationManagementSection.Plugins) {
@@ -4429,6 +4513,77 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.selectSectionById(AICustomizationManagementSection.McpServers);
 		this.showEmbeddedConnectorDetail(connector);
 		return CopilotConnectorDetailOpenResult.Opened;
+	}
+
+	public async showMcpMarketplaceDetail(name: string, registryUrl?: string, preserveFocus?: boolean): Promise<void> {
+		this.selectSectionById(AICustomizationManagementSection.McpServers, { showMarketplace: true, preserveFocus });
+		const navigationGeneration = this.contentNavigationGeneration;
+		const input = this.input;
+		const isCurrent = () => isCurrentConnectorDetailNavigation(navigationGeneration, this.contentNavigationGeneration, input, this.input);
+		const sources = getVisibleCustomizationMarketplaceSources(this.configurationService, this.marketplaceService.sources);
+		const githubRegistry = !registryUrl || URI.parse(registryUrl).authority === 'api.mcp.github.com';
+		const sourceIds = (githubRegistry
+			? [CustomizationMarketplaceSources.AgentFinderPublicFeed.id, CustomizationMarketplaceSources.McpGallery.id]
+			: [CustomizationMarketplaceSources.McpGallery.id])
+			.filter(id => sources.some(source => source.id === id));
+
+		for (const sourceId of sourceIds) {
+			const isSourceVisible = () => getVisibleCustomizationMarketplaceSources(this.configurationService, this.marketplaceService.sources).some(source => source.id === sourceId);
+			let cursor: ICustomizationMarketplaceCursor | undefined;
+			do {
+				if (!isSourceVisible()) {
+					break;
+				}
+				let page: ICustomizationMarketplacePage;
+				try {
+					page = await this.marketplaceService.query({
+						query: name,
+						mediaType: CustomizationMarketplaceMediaType.McpServer,
+						sourceIds: [sourceId],
+						cursor,
+					}, CancellationToken.None);
+				} catch (error) {
+					if (!isCurrent()) {
+						return;
+					}
+					if (!isCancellationError(error)) {
+						this.notificationService.warn(localize('mcpLinkLookupFailed', "Could not search for the linked MCP server: {0}", getErrorMessage(error)));
+					}
+					break;
+				}
+				if (!isCurrent()) {
+					return;
+				}
+				if (!isSourceVisible()) {
+					break;
+				}
+				if (page.sourceErrors?.length) {
+					this.notificationService.warn(localize('mcpLinkSourceError', "Could not search for the linked MCP server: {0}", page.sourceErrors.map(error => error.message).join('\n')));
+				}
+				const resource = page.items.find(item => {
+					if (item.mediaType !== CustomizationMarketplaceMediaType.McpServer) {
+						return false;
+					}
+					const installation = item.installation;
+					if (sourceId === CustomizationMarketplaceSources.McpGallery.id) {
+						return installation?.kind === 'mcpGallery' && installation.name === name
+							&& (!registryUrl || normalizeMcpGalleryUrl(installation.registryUrl) === normalizeMcpGalleryUrl(registryUrl));
+					}
+					return (getGitHubMcpRegistryResourceIdentity(item.identifier)
+						?? getGitHubMcpRegistryIdentity(installation?.kind === 'providerCatalog' ? installation.itemUrl : undefined)) === name;
+				});
+				if (resource) {
+					this.showMarketplaceDetail(resource, { resourceKey: getCustomizationMarketplaceResourceKey(resource), mode: 'browse' }, preserveFocus);
+					return;
+				}
+				// Catalog searches can return broad matches; do not exhaust the feed before trying the registry.
+				cursor = sourceId === CustomizationMarketplaceSources.McpGallery.id ? page.nextCursor : undefined;
+			} while (cursor);
+		}
+		if (isCurrent()) {
+			this.setSearchQuery(`@type:mcp ${name}`, preserveFocus);
+			this.notificationService.info(localize('mcpLinkNotFound', "The MCP server '{0}' is not available in the enabled marketplace sources. You can browse MCP servers in Customizations.", name));
+		}
 	}
 
 	/**
@@ -4715,7 +4870,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		});
 	}
 
-	private goBackToList(): void {
+	private goBackToList(preserveFocus?: boolean): void {
 		const returnViewMode = this.editorReturnViewMode;
 		const detailOrigin = this.currentCustomizationDetail ? this.customizationDetailOrigin : undefined;
 		this.editorReturnViewMode = 'list';
@@ -4759,7 +4914,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateMigrationDetailActions();
 		this.embeddedEditor?.setModel(null);
 		if (detailOrigin) {
-			void this.restoreDetailOrigin(detailOrigin);
+			void this.restoreDetailOrigin(detailOrigin, preserveFocus);
 		} else {
 			this.viewMode = returnViewMode;
 			this.updateContentVisibility();
@@ -4774,10 +4929,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (this.dimension) {
 				this.layout(this.dimension);
 			}
-			if (returnViewMode === 'migration') {
-				this.migrationDashboard?.focus();
-			} else {
-				this.listWidget?.focusSearch();
+			if (!preserveFocus) {
+				if (returnViewMode === 'migration') {
+					this.migrationDashboard?.focus();
+				} else {
+					this.listWidget?.focusSearch();
+				}
 			}
 		}
 
@@ -5554,8 +5711,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 	}
 
-	private showMarketplaceDetail(resource: ICustomizationMarketplaceResource, origin: ICustomizationMarketplaceOrigin): void {
-		this.showGenericMarketplaceDetail(resource, origin);
+	private showMarketplaceDetail(resource: ICustomizationMarketplaceResource, origin: ICustomizationMarketplaceOrigin, preserveFocus?: boolean): void {
+		this.showGenericMarketplaceDetail(resource, origin, preserveFocus);
 	}
 
 	private ensureMarketplaceDetailInstallState(): void {
@@ -5569,7 +5726,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.showGenericMarketplaceDetail(this.marketplaceDetailResource, this.marketplaceDetailOrigin);
 	}
 
-	private showGenericMarketplaceDetail(resource: ICustomizationMarketplaceResource, origin: ICustomizationMarketplaceOrigin): void {
+	private showGenericMarketplaceDetail(resource: ICustomizationMarketplaceResource, origin: ICustomizationMarketplaceOrigin, preserveFocus?: boolean): void {
 		this.marketplaceDetailResource = resource;
 		this.marketplaceDetailOrigin = origin;
 		this.viewMode = 'marketplaceDetail';
@@ -5580,10 +5737,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
-		this.focusDetailPage();
+		if (!preserveFocus) {
+			this.focusDetailPage();
+		}
 	}
 
-	private goBackFromMarketplaceDetail(): void {
+	private goBackFromMarketplaceDetail(preserveFocus?: boolean): void {
 		const origin = this.marketplaceDetailOrigin;
 		this.marketplaceDetailOrigin = undefined;
 		this.marketplaceDetailResource = undefined;
@@ -5593,10 +5752,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
-		if (origin) {
-			this.welcomePage?.restoreMarketplaceItemFocus(origin);
-		} else {
-			this.welcomePage?.focus();
+		if (!preserveFocus) {
+			if (origin) {
+				this.welcomePage?.restoreMarketplaceItemFocus(origin);
+			} else {
+				this.welcomePage?.focus();
+			}
 		}
 	}
 
@@ -5690,7 +5851,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.focusDetailPage();
 	}
 
-	private goBackFromMcpDetail(): void {
+	private goBackFromMcpDetail(preserveFocus?: boolean): void {
 		const origin = this.mcpDetailOrigin;
 		this.mcpDetailOrigin = undefined;
 		this.currentMigrationDetail = undefined;
@@ -5698,7 +5859,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.mcpDetailInput = undefined;
 		this.embeddedMcpDetail?.clearInput();
 		this.updateMigrationDetailActions();
-		void this.restoreDetailOrigin(origin);
+		void this.restoreDetailOrigin(origin, preserveFocus);
 	}
 
 	/** Keeps an open MCP detail in sync when the agent host reports new metadata for its server. */
@@ -5853,14 +6014,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.focusDetailPage();
 	}
 
-	private goBackFromConnectorDetail(): void {
+	private goBackFromConnectorDetail(preserveFocus?: boolean): void {
 		this.embeddedConnectorDetail?.clearInput();
 		this.viewMode = 'list';
 		this.updateContentVisibility();
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
-		this.mcpListWidget?.focusSearch();
+		if (!preserveFocus) {
+			this.mcpListWidget?.focusSearch();
+		}
 	}
 
 	//#endregion
@@ -5966,7 +6129,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 	}
 
-	private async showEmbeddedPluginDetail(item: IAgentPluginItem, origin: CustomizationDetailBaseOrigin = this.getCurrentDetailBaseOrigin()): Promise<void> {
+	private async showEmbeddedPluginDetail(item: IAgentPluginItem, origin: CustomizationDetailBaseOrigin = this.getCurrentDetailBaseOrigin(), preserveFocus?: boolean): Promise<void> {
 		if (!this.embeddedPluginDetail) {
 			return;
 		}
@@ -5984,7 +6147,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
-		this.focusDetailPage();
+		if (!preserveFocus) {
+			this.focusDetailPage();
+		}
 	}
 
 	private updatePluginDetailBackButton(): void {
@@ -6048,7 +6213,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		await this.showEmbeddedPluginDetail(item);
 	}
 
-	private goBackFromPluginDetail(): void {
+	private goBackFromPluginDetail(preserveFocus?: boolean): void {
 		const origin = this.pluginDetailOrigin;
 		this.pluginDetailDisposables.clear();
 		this.embeddedPluginDetail?.clearInput();
@@ -6057,7 +6222,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.marketplaceDetailOrigin = undefined;
 		this.marketplaceDetailResource = undefined;
 		this.embeddedMarketplaceDetail?.clearInput();
-		void this.restoreDetailOrigin(origin);
+		void this.restoreDetailOrigin(origin, preserveFocus);
 	}
 
 	//#endregion

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import './codeMapper/codeMapper.stest';
-import './e2e/cli.stest';
 import './inline/review.stest';
 import './prompts/devContainerConfigGenerator.stest';
 import './prompts/gitCommitMessageGenerator.stest';

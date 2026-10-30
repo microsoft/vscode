@@ -19,10 +19,7 @@ steps:
   - ${{ if gt(length(parameters.VSCODE_TEST_IDS), 0) }}:
     - template: ../../common/ensure-test-artifact-directories.yml@self
 
-  - task: NodeTool@0
-    inputs:
-      versionSource: fromFile
-      versionFilePath: .nvmrc
+  - template: ../../common/setup-node.yml@self
 
   - template: ../../distro/download-distro.yml@self
 
@@ -118,6 +115,17 @@ steps:
       GYP_DEFINES: "kerberos_use_rtld=false"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  # NuGetAuthenticate@1 and PipAuthenticate@1 expose their access token to all
+  # later steps, as VSS_NUGET_ACCESSTOKEN and inside PIP_INDEX_URL, from where
+  # tests can write it to published logs and crash dumps. Only installing
+  # dependencies needs it, so clear both now. This runs in every build so that
+  # it can't fall out of sync with the conditions of the authentication steps.
+  - script: |
+      echo "##vso[task.setvariable variable=VSS_NUGET_ACCESSTOKEN]"
+      echo "##vso[task.setvariable variable=PIP_INDEX_URL]"
+    displayName: Clear package feed credentials
+    condition: always()
 
   - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
     displayName: Verify native optional dependency binaries

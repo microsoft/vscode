@@ -36,7 +36,7 @@ import { ISessionContext } from '../../../../services/sessions/browser/sessionCo
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING } from '../../../chat/common/constants.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IChatContextPickService, IChatContextValueItem } from '../../../../../workbench/contrib/chat/browser/attachments/chatContextPickService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -117,25 +117,12 @@ registerAction2(class extends Action2 {
 				order: -1,
 				when: ContextKeyExpr.and(
 					IsActiveSessionAgentHost, IsPhoneLayoutContext.negate(), ChatContextKeys.inAutomationsDialog.negate(),
-					ContextKeyExpr.has(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`),
-					ContextKeyExpr.has(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`),
 				),
 			}, {
 				id: Menus.AutomationsDialogInputToolbar,
 				group: 'navigation',
 				order: -1,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inAutomationsDialog, IsActiveSessionAgentHost, IsPhoneLayoutContext.negate()),
-			}, {
-				id: Menus.NewSessionChatInputToolbar,
-				group: 'navigation',
-				order: 0,
-				when: ContextKeyExpr.and(
-					IsActiveSessionAgentHost, IsPhoneLayoutContext.negate(),
-					ContextKeyExpr.or(
-						ContextKeyExpr.not(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`),
-						ContextKeyExpr.not(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`),
-					),
-				),
 			}, {
 				// Running-session input bar — only inside the dedicated
 				// Agents Window. The regular VS Code chat editor uses the
@@ -395,7 +382,8 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 		const storedUri = isUntitled
 			? this.storageService.get(agentHostAgentPickerStorageKey(session.resource.scheme), StorageScope.PROFILE)
 			: undefined;
-		const resolved = resolveAgentHostAgent(agents, selectedAgentUri, storedUri);
+		const canonicalUri = (uri: string | undefined) => uri ? provider.resolveCustomAgent?.(session.sessionId, uri)?.uri ?? uri : undefined;
+		const resolved = resolveAgentHostAgent(agents, canonicalUri(selectedAgentUri), canonicalUri(storedUri));
 
 		if (!selectedAgentUri && isUntitled && resolved) {
 			beginInternalSet();

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { getZoomFactor, setZoomFactor } from '../../../base/browser/browser.js';
 import { $, append } from '../../../base/browser/dom.js';
+import { ButtonBar } from '../../../base/browser/ui/button/button.js';
 import { Direction, Grid, IView, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { Event } from '../../../base/common/event.js';
@@ -154,6 +155,7 @@ suite('Sessions - Titlebar Part', () => {
 				const commandCenter = append(windowTitle, $('.command-center'));
 				const centerActions = append(center, $('.titlebar-actions-container.titlebar-center-actions-container'));
 				const right = append(content, $('.titlebar-right'));
+				const screenReaderToolbar = append(right, $('.titlebar-actions-container.titlebar-screen-reader-container'));
 				const rightToolbar = append(right, $('.titlebar-actions-container.titlebar-right-layout-container'));
 				const actions = [leftToolbar, navigation, commandCenter, centerActions, rightToolbar].map(container => {
 					const toolbar = append(container, $('.monaco-toolbar'));
@@ -165,6 +167,10 @@ suite('Sessions - Titlebar Part', () => {
 					const item = append(actionContainer, $('li.action-item'));
 					return append(item, $('a.action-label.codicon'));
 				});
+				const screenReaderButtonBar = store.add(new ButtonBar(screenReaderToolbar));
+				const screenReaderButton = screenReaderButtonBar.addButton({});
+				screenReaderButton.label = 'Screen Reader Optimized';
+				actions.push(screenReaderButton.element);
 
 				const states = [false, true].flatMap(modernUI => {
 					root.classList.toggle('modern-ui', modernUI);

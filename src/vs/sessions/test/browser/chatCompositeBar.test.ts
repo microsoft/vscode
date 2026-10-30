@@ -13,7 +13,7 @@ import { timeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
-import { constObservable, IObservable, ISettableObservable, observableValue, transaction } from '../../../base/common/observable.js';
+import { constObservable, IObservable, IReader, ISettableObservable, observableValue, transaction } from '../../../base/common/observable.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
@@ -131,10 +131,11 @@ class TestEditorGroupsService extends mock<IEditorGroupsService>() {
 	}
 }
 
-function createChat(id: string, title: string, status: SessionStatus = SessionStatus.Completed, options?: { readonly isArchived?: boolean; readonly isRead?: boolean; readonly canArchive?: boolean }): IChat {
+function createChat(id: string, title: string, status: SessionStatus = SessionStatus.Completed, options?: { readonly isArchived?: boolean; readonly isRead?: boolean; readonly canArchive?: boolean; readonly harness?: string }): IChat {
 	const resource = URI.parse(`test-chat://${id}`);
 	return new class extends mock<IChat>() {
 		override readonly resource = resource;
+		override readonly harness = options?.harness;
 		override readonly title: IObservable<string> = constObservable(title);
 		override readonly status: IObservable<SessionStatus> = constObservable(status);
 		override readonly isArchived: IObservable<boolean> = constObservable(options?.isArchived ?? false);
@@ -148,6 +149,7 @@ function createSession(chats: readonly IChat[], activeChat: IChat, isQuickChat =
 	const resource = URI.parse('test-session://session');
 	return new class extends mock<IActiveSession>() {
 		override readonly sessionId = 'session';
+		override readonly harness = 'copilot';
 		override readonly resource = resource;
 		override readonly providerId = 'test';
 		override readonly title = observableValue(this, 'Parent Session');
@@ -182,7 +184,7 @@ interface IChatCompositeBarHarness {
 	readonly showSessionActions: ISettableObservable<boolean>;
 }
 
-function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isAgentHost?: boolean; readonly isQuickChat?: boolean; readonly standaloneChat?: boolean; readonly resizeObserverCtor?: typeof ResizeObserver; readonly mainIsRead?: boolean; readonly secondaryIsRead?: boolean; readonly secondaryArchived?: boolean; readonly secondaryCanArchive?: boolean; readonly terminalControls?: boolean; readonly sessionSupportsRename?: boolean; readonly accessibilityService?: IAccessibilityService }): IChatCompositeBarHarness {
+function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isAgentHost?: boolean; readonly isQuickChat?: boolean; readonly standaloneChat?: boolean; readonly resizeObserverCtor?: typeof ResizeObserver; readonly mainIsRead?: boolean; readonly secondaryIsRead?: boolean; readonly secondaryArchived?: boolean; readonly secondaryCanArchive?: boolean; readonly terminalControls?: boolean; readonly sessionSupportsRename?: boolean; readonly secondaryHarness?: string; readonly knownHarnesses?: IObservable<readonly string[]>; readonly accessibilityService?: IAccessibilityService }): IChatCompositeBarHarness {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const commandService = new TestCommandService();
@@ -190,7 +192,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const sessionsService = new TestSessionsService();
 	const editorGroupsService = store.add(new TestEditorGroupsService());
 	const mainChat = createChat('main', 'Main Chat', SessionStatus.Completed, { isRead: options?.mainIsRead });
-	const secondaryChat = createChat('secondary', 'Secondary Chat', SessionStatus.Completed, { isArchived: options?.secondaryArchived, isRead: options?.secondaryIsRead, canArchive: options?.secondaryCanArchive });
+	const secondaryChat = createChat('secondary', 'Secondary Chat', SessionStatus.Completed, { isArchived: options?.secondaryArchived, isRead: options?.secondaryIsRead, canArchive: options?.secondaryCanArchive, harness: options?.secondaryHarness });
 	const baseSession = createSession([mainChat, secondaryChat], mainChat, options?.isQuickChat, options?.sessionSupportsRename);
 	const session = options?.standaloneChat ? { ...baseSession, scopedChatResource: secondaryChat.resource } : baseSession;
 	const chats = observableValue<readonly IChat[]>('test.chats', [mainChat, secondaryChat]);
@@ -200,6 +202,10 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const showSessionActions = observableValue('test.showSessionActions', true);
 	const provider = options?.isAgentHost ? new class extends mock<ISessionsProvider>() {
 		override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+		override getHarnessPresentation(harness: string, reader?: IReader) {
+			const known = options?.knownHarnesses?.read(reader) ?? ['claude'];
+			return harness === 'claude' && known.includes(harness) ? { label: 'Claude', icon: Codicon.claude } : undefined;
+		}
 	}() : undefined;
 
 	instantiationService.stub(ICommandService, commandService);
@@ -977,6 +983,32 @@ suite('Sessions - ChatCompositeBar', () => {
 		});
 	});
 
+	test('names a chat\'s harness that differs from the main chat\'s in its label, without an icon', () => {
+		const { tabs } = createHarness(disposables, { isAgentHost: true, secondaryHarness: 'claude' });
+
+		assert.deepStrictEqual(tabs.map(tab => ({
+			harnessIcon: !!tab.querySelector('.codicon-claude, .codicon-agent'),
+			ariaLabel: tab.getAttribute('aria-label'),
+		})), [
+			{ harnessIcon: false, ariaLabel: 'Main Chat, State: Completed' },
+			{ harnessIcon: false, ariaLabel: 'Parent Session / Secondary Chat, State: Completed, uses harness Claude' },
+		]);
+	});
+
+	test('presents a restored chat\'s harness generically until its provider learns it', () => {
+		const knownHarnesses = observableValue<readonly string[]>('knownHarnesses', []);
+		const { tabs } = createHarness(disposables, { isAgentHost: true, secondaryHarness: 'claude', knownHarnesses });
+		const snapshot = () => tabs[1].getAttribute('aria-label');
+
+		const cold = snapshot();
+		knownHarnesses.set(['claude'], undefined);
+
+		assert.deepStrictEqual({ cold, loaded: snapshot() }, {
+			cold: 'Parent Session / Secondary Chat, State: Completed, uses harness Other Harness',
+			loaded: 'Parent Session / Secondary Chat, State: Completed, uses harness Claude',
+		});
+	});
+
 	test('renders unread state from each chat', () => {
 		const { tabs, activeChatResource } = createHarness(disposables, { mainIsRead: false, secondaryIsRead: false });
 		const snapshot = () => tabs.map(tab => ({
@@ -1519,6 +1551,39 @@ suite('Sessions - ChatCompositeBar', () => {
 			mouseDownDefaultPrevented: false,
 			mouseUpDefaultPrevented: false,
 			auxClickDefaultPrevented: false,
+		});
+	});
+
+	test('rename input lets clipboard and editing shortcuts reach the workbench keybinding dispatcher without driving the tab', () => {
+		const { container, sessionsService, tabs } = createHarness(disposables);
+		const bubbled: string[] = [];
+		container.addEventListener(EventType.KEY_DOWN, e => bubbled.push(e.code));
+		tabs[1].dispatchEvent(new MouseEvent(EventType.DBLCLICK, { bubbles: true, button: 0, cancelable: true }));
+		const input = tabs[1].querySelector<HTMLInputElement>('.chat-composite-bar-tab-input input')!;
+		const openedBefore = sessionsService.openedChats.length;
+
+		for (const code of ['KeyV', 'KeyC', 'KeyX', 'KeyA', 'KeyZ']) {
+			input.dispatchEvent(new KeyboardEvent(EventType.KEY_DOWN, { code, key: code.slice(-1).toLowerCase(), ctrlKey: true, metaKey: true, bubbles: true, cancelable: true }));
+		}
+		const typingDefaultPrevented: boolean[] = [];
+		for (const [code, key, keyCode] of [['Space', ' ', 32], ['ArrowLeft', 'ArrowLeft', 37], ['Home', 'Home', 36]] as const) {
+			const keyDown = new KeyboardEvent(EventType.KEY_DOWN, { code, key, keyCode, bubbles: true, cancelable: true });
+			const keyUp = new KeyboardEvent(EventType.KEY_UP, { code, key, keyCode, bubbles: true, cancelable: true });
+			input.dispatchEvent(keyDown);
+			input.dispatchEvent(keyUp);
+			typingDefaultPrevented.push(keyDown.defaultPrevented || keyUp.defaultPrevented);
+		}
+
+		assert.deepStrictEqual({
+			bubbled,
+			typingDefaultPrevented,
+			openedChatsDuringRename: sessionsService.openedChats.length - openedBefore,
+			stillEditing: tabs[1].querySelector('.chat-composite-bar-tab-input input') === input,
+		}, {
+			bubbled: ['KeyV', 'KeyC', 'KeyX', 'KeyA', 'KeyZ', 'Space', 'ArrowLeft', 'Home'],
+			typingDefaultPrevented: [false, false, false],
+			openedChatsDuringRename: 0,
+			stillEditing: true,
 		});
 	});
 

@@ -75,6 +75,11 @@ export interface IChatPillEntry {
 		readonly resource: URI;
 		readonly mimeType: string;
 	};
+	/** Plays a muted video above the resource location in the entry's hover. */
+	readonly videoPreview?: {
+		readonly resource: URI;
+		readonly mimeType: string;
+	};
 	/** Actions shown at the trailing edge of the entry's dropdown row. */
 	readonly toolbarActions?: readonly IChatPillAction[];
 	/** Additional actions shown only in the rich hover footer. */
@@ -97,7 +102,11 @@ export interface IChatPillEntry {
 	readonly tooltip?: string;
 	/** Rich hover content for the pill when this is the only entry. */
 	readonly pillHover?: IManagedHoverContent;
-	/** Optional structured rendering when this entry is the only item. The entry's owner owns its lifetime. */
+	/**
+	 * Optional structured rendering when this entry is the only item. The entry's owner owns its lifetime. Its view
+	 * item receives {@link IChatInlinePillViewItemOptions}, so it can show the entry's promoted action like the other
+	 * renderings of a lone entry do.
+	 */
 	readonly inlinePill?: IChatPill;
 	/** Starts resolving metadata for this entry without opening it. */
 	readonly prefetch?: () => void;
@@ -107,6 +116,16 @@ export interface IChatPillEntry {
 export interface IChatPillAction extends IAction {
 	/** Concise label used in the hover footer; the full label remains the row-action tooltip. */
 	readonly hoverLabel?: string;
+}
+
+/** View item options of an entry's {@link IChatPillEntry.inlinePill}. */
+export interface IChatInlinePillViewItemOptions extends IActionViewItemOptions {
+	/**
+	 * The entry's {@link IChatPillEntry.promotedAction}, such as Unpin, to show as the pill's trailing button with
+	 * {@link promotedActionIcon}. Present when the pill showing the entry shows its promoted action.
+	 */
+	readonly promotedAction?: IObservable<IChatPillAction | undefined>;
+	readonly promotedActionIcon?: ThemeIcon;
 }
 
 export type ChatReferenceKind = 'pullRequest' | 'issue';
@@ -156,15 +175,17 @@ export function getChatPillLocationHover(location: string): IActionListItemHover
 	};
 }
 
-export interface IChatPillImagePreview {
+export interface IChatPillMediaPreview {
 	readonly element: HTMLElement;
 	readonly disposable: IDisposable;
+	/** Controls in the preview a keyboard user can reach, such as a video's playback controls. */
+	readonly getTabbableElements?: () => readonly HTMLElement[];
 }
 
 const MAX_CHAT_PILL_IMAGE_PREVIEW_FILE_SIZE = 20 * 1024 * 1024;
 
 /** Creates the visual preview shared by direct image pills and image rows in a dropdown. */
-export function createChatPillImagePreview(entry: IChatPillEntry & { readonly imagePreview: NonNullable<IChatPillEntry['imagePreview']> }, fileService: IFileService, token = CancellationToken.None): IChatPillImagePreview {
+export function createChatPillImagePreview(entry: IChatPillEntry & { readonly imagePreview: NonNullable<IChatPillEntry['imagePreview']> }, fileService: IFileService, token = CancellationToken.None): IChatPillMediaPreview {
 	const preview = entry.imagePreview;
 	const container = createChatPillHoverElement('chat-pill-image-preview');
 	container.setAttribute('aria-busy', 'true');
@@ -217,6 +238,107 @@ export function createChatPillImagePreview(entry: IChatPillEntry & { readonly im
 	return { element: container, disposable: disposables };
 }
 
+/** Options for {@link createChatPillMediaPreview}. */
+export interface IChatPillMediaPreviewOptions {
+	/**
+	 * Whether motion is reduced. Read each time a preview is created, so a change
+	 * to the preference applies the next time the hover opens. When reduced, a
+	 * video does not play on its own and shows its controls instead.
+	 */
+	readonly isMotionReduced?: () => boolean;
+}
+
+/** Creates the visual preview of an entry's image or video, or `undefined` when it has neither. */
+export function createChatPillMediaPreview(entry: IChatPillEntry, fileService: IFileService, token = CancellationToken.None, options?: IChatPillMediaPreviewOptions): IChatPillMediaPreview | undefined {
+	if (entry.imagePreview) {
+		return createChatPillImagePreview({ ...entry, imagePreview: entry.imagePreview }, fileService, token);
+	}
+	if (entry.videoPreview) {
+		return createChatPillVideoPreview({ ...entry, videoPreview: entry.videoPreview }, fileService, token, !(options?.isMotionReduced?.() ?? false));
+	}
+	return undefined;
+}
+
+/** Whether an entry previews its image or video in its hover. */
+export function hasChatPillMediaPreview(entry: IChatPillEntry): boolean {
+	return !!entry.imagePreview || !!entry.videoPreview;
+}
+
+const MAX_CHAT_PILL_VIDEO_PREVIEW_FILE_SIZE = 64 * 1024 * 1024;
+
+/**
+ * Creates a muted, looping video preview. The bytes are read through the file
+ * service, so remote videos preview like local ones.
+ */
+export function createChatPillVideoPreview(entry: IChatPillEntry & { readonly videoPreview: NonNullable<IChatPillEntry['videoPreview']> }, fileService: IFileService, token = CancellationToken.None, autoPlay = true): IChatPillMediaPreview {
+	const preview = entry.videoPreview;
+	const location = entry.ariaDescription ?? entry.tooltip ?? preview.resource.toString(true);
+	const container = createChatPillHoverElement('chat-pill-image-preview');
+	container.classList.add('chat-pill-video-preview');
+	container.setAttribute('aria-busy', 'true');
+	const disposables = new DisposableStore();
+	const readToken = cancelOnDispose(disposables);
+	let video: HTMLVideoElement | undefined;
+	disposables.add(token.onCancellationRequested(() => disposables.dispose()));
+	if (token.isCancellationRequested) {
+		disposables.dispose();
+		return { element: container, disposable: disposables };
+	}
+	const showUnavailable = () => {
+		if (disposables.isDisposed) {
+			return;
+		}
+		container.setAttribute('aria-busy', 'false');
+		container.replaceChildren(
+			$('.chat-pill-image-preview-unavailable', undefined, localize('chatPills.videoPreviewUnavailable', "Video preview unavailable.")),
+			$('.chat-image-hover-location', undefined, location),
+		);
+	};
+
+	void fileService.readFile(preview.resource, { limits: { size: MAX_CHAT_PILL_VIDEO_PREVIEW_FILE_SIZE } }, readToken).then(content => {
+		if (disposables.isDisposed) {
+			return;
+		}
+		const url = URL.createObjectURL(new Blob([content.value.buffer as Uint8Array<ArrayBuffer>], { type: preview.mimeType }));
+		const element = video = $<HTMLVideoElement>('video.chat-image-hover-image.chat-pill-video', {
+			'aria-label': localize('chatPills.videoPreviewLabel', "Preview of {0}", entry.label),
+		});
+		element.muted = true;
+		element.loop = true;
+		element.playsInline = true;
+		element.autoplay = autoPlay;
+		element.controls = !autoPlay;
+		disposables.add({
+			dispose: () => {
+				element.pause();
+				element.removeAttribute('src');
+				element.load();
+				URL.revokeObjectURL(url);
+			},
+		});
+		disposables.add(addDisposableListener(element, 'loadeddata', () => {
+			container.setAttribute('aria-busy', 'false');
+			container.classList.add('loaded');
+		}));
+		disposables.add(addDisposableListener(element, EventType.ERROR, showUnavailable));
+		element.src = url;
+		container.replaceChildren($('.chat-image-hover', undefined,
+			$('.chat-image-hover-image-container', undefined, element),
+			$('.chat-image-hover-location-separator'),
+			$('.chat-image-hover-location.chat-pill-location-hover', undefined, location),
+		));
+	}, () => {
+		showUnavailable();
+	});
+
+	return {
+		element: container,
+		disposable: disposables,
+		// Playback controls only exist when the video does not play on its own.
+		getTabbableElements: () => video?.controls && container.contains(video) && !disposables.isDisposed ? [video] : [],
+	};
+}
+
 /** Row actions for an entry: its {@link IChatPillEntry.toolbarActions} followed by any {@link IChatPillEntry.promotedAction}. */
 export function getChatPillEntryToolbarActions(entry: IChatPillEntry): readonly IChatPillAction[] {
 	const actions = [...entry.toolbarActions ?? []];
@@ -235,18 +357,17 @@ export function getChatPillEntryHoverActions(entry: IChatPillEntry): readonly IC
 	return actions;
 }
 
-export function getChatPillEntryHoverContents(entry: IChatPillEntry | undefined, fileService: IFileService, imageContents: WeakMap<IChatPillEntry, IManagedHoverContent>): IManagedHoverContent | undefined {
-	if (!entry?.imagePreview) {
+export function getChatPillEntryHoverContents(entry: IChatPillEntry | undefined, fileService: IFileService, mediaContents: WeakMap<IChatPillEntry, IManagedHoverContent>, options?: IChatPillMediaPreviewOptions): IManagedHoverContent | undefined {
+	if (!entry || !hasChatPillMediaPreview(entry)) {
 		return entry?.pillHover;
 	}
-	const imagePreview = entry.imagePreview;
-	let content = imageContents.get(entry);
+	let content = mediaContents.get(entry);
 	if (!content) {
 		content = {
-			element: token => createChatPillImagePreview({ ...entry, imagePreview }, fileService, token).element,
+			element: token => createChatPillMediaPreview(entry, fileService, token, options)!.element,
 			contentOwnsPadding: true,
 		};
-		imageContents.set(entry, content);
+		mediaContents.set(entry, content);
 	}
 	return content;
 }

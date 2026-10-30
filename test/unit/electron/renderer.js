@@ -286,6 +286,8 @@ async function loadTests(opts) {
 	//#endregion
 
 	const { assertCleanState } = await loadFn('vs/workbench/test/common/utils');
+	const { installRegistryLeakCheck } = await loadFn('vs/platform/actions/test/common/registryLeakCheck');
+	installRegistryLeakCheck(mocha.suite);
 
 	suite('Tests are using suiteSetup and setup correctly', () => {
 		test('assertCleanState - check that registries are clean at the start of test running', () => {

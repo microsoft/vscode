@@ -12,12 +12,15 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, observableValue, type IReader } from '../../../../../base/common/observable.js';
-import { isWeb } from '../../../../../base/common/platform.js';
+import { isMacintosh, isWeb, isWindows } from '../../../../../base/common/platform.js';
+import { basename, extname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ArtifactIntegrationsSettingId, IArtifactModel } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { LOCAL_AGENT_HOST_AUTHORITY, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { ArtifactIntegrationsSettingId, ArtifactRun, ArtifactSnapshot, IArtifactModel } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
@@ -30,8 +33,9 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { GitHubCommit } from '../../../../../platform/github/common/githubQueryService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { NullSharedWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
-import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
+import { getChatPillEntryHoverActions, type IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
 import { ChatPillHoverCache } from '../../../../../workbench/browser/chatPillHover.js';
+import { FileDownload } from '../../../../../workbench/contrib/files/browser/fileImportExport.js';
 import { IChatImageCarouselOptions, IChatImageCarouselService } from '../../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatResponseModelChangeReason, ChatResponseResource, IChatChangeEvent, IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatResponseModel, IResponse } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -66,7 +70,27 @@ suite('Session Artifacts', () => {
 		},
 	};
 
-	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo, commit?: GitHubCommit, getCommit?: ISessionsGitHubService['getCommit'], fromChat = false, workbenchGitHubService?: IWorkbenchGitHubService, followChat = false, withIntegrations = false) {
+	/**
+	 * A record whose main integration presents it, in a pill of its own when the integration assigns a group ID. Records
+	 * bound to the same resource key are aliases, and runs give a record state of its own.
+	 */
+	function integratedSnapshot(id: string, groupId: string | undefined, changes: { readonly resourceKey?: string; readonly runs?: number } = {}): ArtifactSnapshot {
+		return {
+			authority: { id: 'client', targetHost: 'host', location: 'client' }, session: 'session',
+			artifact: { id, label: id, resource: `https://example.test/${id}` },
+			mainIntegrationId: 'integration',
+			contributions: [{
+				integrationId: 'integration', label: 'Integration', actions: [], options: [],
+				configuration: { revision: 0, values: {}, generations: {}, disablements: {} },
+				...(changes.resourceKey ? { resourceKey: changes.resourceKey } : {}),
+				view: { availability: { kind: 'available' }, ...(groupId ? { groupId } : {}), sections: [], stateActions: [], generalActions: [], automationAvailability: [] },
+			}],
+			runs: Array.from({ length: changes.runs ?? 0 }, () => upcastPartial<ArtifactRun>({})),
+		};
+	}
+
+	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo, commit?: GitHubCommit, getCommit?: ISessionsGitHubService['getCommit'], fromChat = false, workbenchGitHubService?: IWorkbenchGitHubService, followChat = false, integrations: boolean | ((artifactId: string) => ArtifactSnapshot) = false) {
+		const withIntegrations = !!integrations;
 		const artifacts = observableValue('artifacts', entries);
 		const loading = observableValue('loading', false);
 		const removed: string[] = [];
@@ -78,11 +102,14 @@ suite('Session Artifacts', () => {
 		const openedResources: URI[] = [];
 		const downloadedResources: URI[] = [];
 		const savedImages: { resource: URI; data: string }[] = [];
+		const executedCommands: { id: string; args: unknown[] }[] = [];
+		const resourceDownloads: { resource: URI; name: string; isDirectory: boolean }[][] = [];
 		let cancelDownload = false;
 		let downloadError: Error | undefined;
 		const telemetryEvents: { readonly name: string | undefined; readonly data: unknown }[] = [];
 		let removalError: Error | undefined;
 		const gitHubInfo = observableValue<IGitHubInfo | undefined>('gitHubInfo', info);
+		const browserUrls = observableValue<ReadonlySet<string>>('browserUrls', new Set());
 		const root = URI.file('/repo');
 		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', {
 			uri: root,
@@ -117,7 +144,7 @@ suite('Session Artifacts', () => {
 		const presentation = disposables.add(new SessionArtifacts(
 			session,
 			chat,
-			constObservable(new Set<string>()),
+			browserUrls,
 			gitHubReferences,
 			{ id: 'test-artifact-details', selected: constObservable(undefined), toggle() { }, release() { } },
 			new class extends mock<IClipboardService>() { }(),
@@ -134,7 +161,9 @@ suite('Session Artifacts', () => {
 			}(),
 			new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = Event.None;
-				override async acquireArtifactIntegration() { return withIntegrations ? { object: upcastPartial<IArtifactModel>({}), dispose() { } } : undefined; }
+				override async acquireArtifactIntegration(_session: IActiveSession, artifactId: string) {
+					return withIntegrations ? { object: upcastPartial<IArtifactModel>({ snapshot: constObservable(typeof integrations === 'function' ? integrations(artifactId) : integratedSnapshot(artifactId, 'integration')) }), dispose() { } } : undefined;
+				}
 				override async removeSessionArtifact(_session: IActiveSession, artifactId: string): Promise<void> {
 					removed.push(artifactId);
 					if (removalError) {
@@ -148,12 +177,14 @@ suite('Session Artifacts', () => {
 			}(),
 			upcastPartial<ISessionsGitHubService>({ getCommit: getCommit ?? (() => commit ? Promise.resolve(commit) : new Promise(() => { })) }),
 			new class extends mock<IInstantiationService>() {
-				// Stands in for an integration presentation that contributes to its artifact.
-				override createInstance = (() => ({
-					snapshot: constObservable({ contributions: [{}] }),
+				// Stands in for an integration presentation that contributes to its artifact, or for a file download.
+				override createInstance = ((ctor: unknown, model?: IArtifactModel) => ctor === FileDownload ? {
+					download: async (sources: { resource: URI; name: string; isDirectory: boolean }[]) => { resourceDownloads.push(sources); },
+				} : {
+					snapshot: model?.snapshot,
 					decorate: (entry: IChatPillEntry) => entry,
 					dispose() { },
-				})) as IInstantiationService['createInstance'];
+				}) as IInstantiationService['createInstance'];
 			}(),
 			workbenchGitHubService ?? upcastPartial<IWorkbenchGitHubService>({ onDidChangeDefaultClient: Event.None, acquireDefaultAccountClient: () => new Promise(() => { }) }),
 			new NullLogService(),
@@ -174,6 +205,7 @@ suite('Session Artifacts', () => {
 					}
 					return upcastPartial<IFileContent>({ value: VSBuffer.fromString('original image bytes') });
 				},
+				resolve: async resource => upcastPartial<IFileStatWithMetadata>({ resource, name: basename(resource), isDirectory: !extname(resource) }),
 				writeFile: async (resource, content) => {
 					assert.ok(content instanceof VSBuffer);
 					savedImages.push({ resource, data: content.toString() });
@@ -185,9 +217,15 @@ suite('Session Artifacts', () => {
 				showSaveDialog: async options => cancelDownload ? undefined : options.defaultUri,
 			}),
 			new NullSharedWebContentExtractorService(),
+			new class extends mock<ICommandService>() {
+				override async executeCommand<R>(id: string, ...args: unknown[]): Promise<R | undefined> {
+					executedCommands.push({ id, args });
+					return undefined;
+				}
+			}(),
 		));
 		return {
-			presentation, session, chat, chatModels, openedImages, openedResources, configurationService, artifacts, loading, workspace, gitHubInfo, gitHubReferences, removed, errors, telemetryEvents, downloadedResources, savedImages,
+			presentation, session, chat, chatModels, openedImages, openedResources, configurationService, artifacts, loading, workspace, gitHubInfo, gitHubReferences, browserUrls, removed, errors, telemetryEvents, downloadedResources, savedImages, executedCommands, resourceDownloads,
 			setRemovalError: (error: Error | undefined) => { removalError = error; },
 			setCancelDownload: () => { cancelDownload = true; },
 			setDownloadError: (error: Error) => { downloadError = error; },
@@ -473,15 +511,95 @@ suite('Session Artifacts', () => {
 			downloadImage: async (uri, name) => { downloaded.push({ uri, name }); },
 		}, labelService, false, new Set()).flatMap(section => section.entries);
 		for (const entry of entries) {
-			await entry.toolbarActions?.find(action => action.label === 'Download Image')?.run();
+			await entry.toolbarActions?.find(action => action.label === 'Download...')?.run();
 		}
 
 		assert.deepStrictEqual({
 			actions: entries.map(entry => [entry.id, entry.toolbarActions?.map(action => action.label)]),
 			downloaded,
 		}, {
-			actions: [['image', ['Download Image', 'Copy Path']], ['reference', ['Download Image', 'Copy Path']], ['file', ['Copy Path']]],
+			actions: [['image', ['Download...', 'Copy Path']], ['reference', ['Download...', 'Copy Path']], ['file', ['Copy Path']]],
 			downloaded: [{ uri: artifacts[0].uri, name: 'image.png' }, { uri: artifacts[1].uri, name: 'reference.jpg' }],
+		});
+	});
+
+	test('reveals files on this device and downloads files from remote devices', async () => {
+		const revealLabel = isWindows ? 'Reveal in File Explorer' : isMacintosh ? 'Reveal in Finder' : 'Open Containing Folder';
+		const revealed: URI[] = [];
+		const downloaded: { uri: URI; name: string }[] = [];
+		const downloadedImages: URI[] = [];
+		const localFile = URI.file('/home/alice/repo/report.md');
+		const remoteVideo = toAgentHostUri(URI.file('/home/bob/demo.mp4'), 'my-server');
+		const artifacts: ISessionArtifact[] = [
+			{ id: 'local-file', kind: SessionArtifactKind.File, label: 'report.md', uri: localFile, isArtifact: true },
+			{ id: 'local-agent-host-folder', kind: SessionArtifactKind.File, label: 'out', uri: toAgentHostUri(URI.file('/home/alice/repo/out'), LOCAL_AGENT_HOST_AUTHORITY), isArtifact: true },
+			{ id: 'remote-video', kind: SessionArtifactKind.File, label: 'demo.mp4', uri: remoteVideo, isArtifact: true },
+			{ id: 'ssh-folder', kind: SessionArtifactKind.File, label: 'logs', uri: URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+box', path: '/home/bob/logs' }), isArtifact: true },
+			{ id: 'local-image', kind: SessionArtifactKind.File, label: 'shot.png', uri: URI.file('/home/alice/shot.png'), isArtifact: true },
+			{ id: 'remote-image', kind: SessionArtifactKind.File, label: 'chart.png', uri: toAgentHostUri(URI.file('/home/bob/chart.png'), 'my-server'), isArtifact: true },
+			{ id: 'local-resource', kind: SessionArtifactKind.Resource, label: 'Build Output', uri: URI.file('/home/alice/repo/dist'), isArtifact: true },
+			{ id: 'web-resource', kind: SessionArtifactKind.Resource, label: 'Dashboard', uri: URI.parse('https://example.com/dashboard'), isArtifact: true },
+		];
+		const entries = buildSessionArtifactSections(artifacts, {
+			...actions,
+			revealInOS: uri => revealed.push(uri),
+			downloadResource: async (uri, name) => { downloaded.push({ uri, name }); },
+			downloadImage: async uri => { downloadedImages.push(uri); },
+		}, labelService, true, new Set()).flatMap(section => section.entries);
+		for (const entry of entries) {
+			await entry.toolbarActions?.[0].run();
+		}
+		const [onlyEntry] = buildSessionArtifactSections([artifacts[2]], { ...actions, downloadResource: async () => { } }, labelService, true, new Set()).flatMap(section => section.entries);
+
+		assert.deepStrictEqual({
+			rowActions: entries.map(entry => [entry.id, entry.toolbarActions?.map(action => action.label)]),
+			singleEntryContextMenu: getChatPillEntryHoverActions(onlyEntry).map(action => action.label),
+			revealed: revealed.map(uri => uri.toString()),
+			downloaded: downloaded.map(({ uri, name }) => [uri.toString(), name]),
+			downloadedImages: downloadedImages.map(uri => uri.toString()),
+		}, {
+			rowActions: [
+				['local-image', [revealLabel, 'Copy Path']],
+				['remote-image', ['Download...', 'Copy Path']],
+				['local-file', [revealLabel, 'Copy Path']],
+				['local-agent-host-folder', [revealLabel, 'Copy Path']],
+				['remote-video', ['Download...', 'Copy Path']],
+				['ssh-folder', ['Download...', 'Copy Path']],
+				['local-resource', [revealLabel, 'Copy URI']],
+				['web-resource', ['Copy URI']],
+			],
+			singleEntryContextMenu: ['Download...', 'Copy Path', 'Copy Relative Path'],
+			revealed: [
+				URI.file('/home/alice/shot.png').toString(),
+				localFile.toString(),
+				URI.file('/home/alice/repo/out').toString(),
+				URI.file('/home/alice/repo/dist').toString(),
+			],
+			downloaded: [
+				[remoteVideo.toString(), 'demo.mp4'],
+				['vscode-remote://ssh-remote%2Bbox/home/bob/logs', 'logs'],
+			],
+			downloadedImages: [toAgentHostUri(URI.file('/home/bob/chart.png'), 'my-server').toString()],
+		});
+	});
+
+	(isWeb ? test.skip : test)('reveals local artifacts through the OS and downloads remote ones with their file kind', async () => {
+		const harness = createPresentation([
+			{ id: 'local', kind: SessionArtifactKind.File, label: 'report.md', uri: URI.file('/repo/report.md'), isArtifact: true },
+			{ id: 'remote', kind: SessionArtifactKind.File, label: 'out', uri: toAgentHostUri(URI.file('/home/bob/out'), 'my-server'), isArtifact: true },
+		]);
+		for (const entry of harness.presentation.sections.get().flatMap(section => section.entries)) {
+			await entry.toolbarActions![0].run();
+		}
+
+		assert.deepStrictEqual({
+			commands: harness.executedCommands.map(({ id, args }) => [id, args.map(arg => String(arg))]),
+			downloads: harness.resourceDownloads.map(sources => sources.map(({ resource, name, isDirectory }) => [resource.toString(), name, isDirectory])),
+			errors: harness.errors,
+		}, {
+			commands: [['revealFileInOS', [URI.file('/repo/report.md').toString()]]],
+			downloads: [[[toAgentHostUri(URI.file('/home/bob/out'), 'my-server').toString(), 'out', true]]],
+			errors: [],
 		});
 	});
 
@@ -503,7 +621,7 @@ suite('Session Artifacts', () => {
 			}
 			const entry = harness.presentation.sections.get()[0].entries[0];
 
-			await entry.toolbarActions!.find(action => action.label === 'Download Image')!.run();
+			await entry.toolbarActions!.find(action => action.label === 'Download...')!.run();
 
 			assert.deepStrictEqual({
 				reads: harness.downloadedResources,
@@ -600,38 +718,33 @@ suite('Session Artifacts', () => {
 		]);
 	});
 
-	test('adds image previews to references without changing image artifacts', () => {
+	test('previews images and videos of artifacts and references in their hovers', () => {
 		const referenceUri = URI.file('/home/alice/references/design.png');
 		const artifactUri = URI.file('/home/alice/artifacts/result.jpg');
+		const videoUri = toAgentHostUri(URI.file('/home/bob/demo.mp4'), 'my-server');
 		const sections = buildSessionArtifactSections([
 			{ id: 'reference', kind: SessionArtifactKind.File, label: 'Design', isArtifact: false, uri: referenceUri },
 			{ id: 'artifact', kind: SessionArtifactKind.File, label: 'Result', isArtifact: true, uri: artifactUri },
+			{ id: 'video', kind: SessionArtifactKind.File, label: 'Demo', isArtifact: true, uri: videoUri },
+			{ id: 'file', kind: SessionArtifactKind.File, label: 'Notes', isArtifact: true, uri: URI.file('/home/alice/notes.md') },
 		], actions, labelService, true, new Set());
 
+		const preview = (value: { resource: URI; mimeType: string } | undefined) => value && [value.resource.toString(), value.mimeType];
 		assert.deepStrictEqual(sections.map(section => ({
 			title: section.title,
-			entries: section.entries.map(entry => ({
-				id: entry.id,
-				imagePreview: entry.imagePreview && {
-					resource: entry.imagePreview.resource.toString(),
-					mimeType: entry.imagePreview.mimeType,
-				},
-				ariaDescription: entry.ariaDescription,
-			})),
+			entries: section.entries.map(entry => [entry.id, preview(entry.imagePreview), preview(entry.videoPreview)]),
 		})), [{
 			title: 'Images',
-			entries: [{
-				id: 'reference',
-				imagePreview: {
-					resource: referenceUri.toString(),
-					mimeType: 'image/png',
-				},
-				ariaDescription: '~/references/design.png',
-			}, {
-				id: 'artifact',
-				imagePreview: undefined,
-				ariaDescription: '~/artifacts/result.jpg',
-			}],
+			entries: [
+				['reference', [referenceUri.toString(), 'image/png'], undefined],
+				['artifact', [artifactUri.toString(), 'image/jpg'], undefined],
+			],
+		}, {
+			title: 'Files',
+			entries: [
+				['video', undefined, [videoUri.toString(), 'video/mp4']],
+				['file', undefined, undefined],
+			],
 		}]);
 	});
 
@@ -888,6 +1001,34 @@ suite('Session Artifacts', () => {
 			// The pull request and issue are promoted into their own pills.
 			artifacts: ['upper-site', 'lower-site', 'upper-file', 'lower-file'],
 			integrated: ['pr', 'issue', 'upper-file', 'lower-file', 'upper-site', 'lower-site'],
+		});
+	});
+
+	test('lists integrated records without a group ID in the artifacts and references pills, once per resource, even when a browser shows them', async () => {
+		const site = (id: string, isArtifact: boolean): ISessionArtifact => ({ id, kind: SessionArtifactKind.Website, label: id, isArtifact, link: URI.parse(`https://example.test/${id}`) });
+		const snapshots: Record<string, ArtifactSnapshot> = {
+			grouped: integratedSnapshot('grouped', 'experiments'),
+			scorecard: integratedSnapshot('scorecard', undefined, { resourceKey: 'step' }),
+			step: integratedSnapshot('step', undefined, { resourceKey: 'step' }),
+			active: integratedSnapshot('active', undefined, { resourceKey: 'step', runs: 1 }),
+			docs: integratedSnapshot('docs', undefined, { resourceKey: 'docs' }),
+			plain: { ...integratedSnapshot('plain', undefined), contributions: [], mainIntegrationId: undefined },
+		};
+		const { presentation, browserUrls } = createPresentation(Object.keys(snapshots).map(id => site(id, id !== 'scorecard' && id !== 'active' && id !== 'docs')),
+			undefined, undefined, undefined, false, undefined, false, id => snapshots[id]);
+		await timeout(0);
+		const listed = { integrated: presentation.integratedEntries.get().map(entry => entry.id), ...visibleEntries(presentation) };
+		// The browsers pill only opens a page, so integrated records stay where their details are reached.
+		browserUrls.set(new Set(['https://example.test/docs', 'https://example.test/plain']), undefined);
+
+		assert.deepStrictEqual({ listed, inBrowser: visibleEntries(presentation) }, {
+			listed: {
+				integrated: ['grouped'],
+				// The step artifact stands in for the scorecard reference bound to the same resource; a record with activity stays.
+				artifacts: ['step', 'plain'],
+				references: ['active', 'docs'],
+			},
+			inBrowser: { artifacts: ['step'], references: ['active', 'docs'] },
 		});
 	});
 

@@ -38,7 +38,6 @@ import { Menus } from '../../../../../browser/menus.js';
 import { RemoteAgentHostCommandIds } from '../../browser/remoteAgentHostActions.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
-import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../chat/common/constants.js';
 import { getRemoteAgentHostPickerKey } from '../../browser/remoteAgentHostPickerVisibility.js';
 
 class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
@@ -278,22 +277,18 @@ suite('Mission Control native provider inventory', () => {
 		});
 	});
 
-	test('publishes only local-disk picker recents and updates them when history or picker settings change', async () => {
+	test('publishes only local-disk picker recents and updates them when history or providers change', () => {
 		const f = fixture();
 		const first = URI.file('/home/test/code/first');
 		const second = URI.file('/another-drive/second');
 		f.setRecentFolders([first, URI.parse('vscode-agent-host://remote/remote-folder'), URI.parse('vscode-remote://ssh-remote+host/folder'), second]);
 		f.setRecentFolders([second]);
 		f.providerChanges.fire({ added: [], removed: [] });
-		await f.configuration.setUserConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING, true);
-		f.configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
-			affectsConfiguration: section => section === UNIFIED_WORKSPACE_PICKER_SETTING,
-		}));
 		assert.deepStrictEqual({
 			projects: f.sharedProjects,
 			lastQuery: f.recentQueries.at(-1),
 		}, {
-			projects: [[], [first.toString(), second.toString()], [second.toString()], [second.toString()], [second.toString()]],
+			projects: [[], [first.toString(), second.toString()], [second.toString()], [second.toString()]],
 			lastQuery: { includeVSCode: true, collapseWorktrees: true },
 		});
 	});

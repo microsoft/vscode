@@ -171,6 +171,7 @@ function isAuthenticationAvailability(value: unknown): boolean {
 function isContribution(value: unknown): value is ArtifactContributionSnapshot {
 	return isRecord(value) && strings(value, 'integrationId', 'label') && isArtifactConfiguration(value.configuration)
 		&& (value.groupLabel === undefined || isArtifactIntegrationLabel(value.groupLabel))
+		&& (value.resourceKey === undefined || (typeof value.resourceKey === 'string' && value.resourceKey.length > 0))
 		&& (value.authority === undefined || isAuthority(value.authority))
 		&& (value.authentication === undefined || isAuthenticationAvailability(value.authentication))
 		&& Array.isArray(value.options) && value.options.every(isArtifactAutomationOption)

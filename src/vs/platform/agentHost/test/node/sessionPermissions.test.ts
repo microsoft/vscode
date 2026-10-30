@@ -18,7 +18,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprove
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, getChatSensitiveEditLocations, mergeChatEditAutoApprovePatterns } from '../../../chat/common/chatSettings.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageKind, SessionStatus, ToolCallConfirmationReason, type SessionSummary } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageAttachmentKind, MessageKind, SessionStatus, ToolCallConfirmationReason, type SessionSummary } from '../../common/state/sessionState.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
@@ -137,6 +137,37 @@ suite('SessionPermissionManager', () => {
 		]);
 
 		assert.deepStrictEqual(results, [ToolCallConfirmationReason.NotNeeded, undefined]);
+	});
+
+	test('auto-approves reads of the local files and folders the user attached to the chat, and nothing else', async () => {
+		const chat = buildDefaultChatUri(sessionUri);
+		const attachedFile = join(outsideDir, 'Desktop', 'mockup.txt');
+		const attachedFolder = join(outsideDir, 'notes');
+		mkdirSync(join(outsideDir, 'Desktop'), { recursive: true });
+		mkdirSync(join(attachedFolder, 'nested'), { recursive: true });
+		mkdirSync(join(outsideDir, 'secret'), { recursive: true });
+		symlinkSync(join(outsideDir, 'secret'), join(attachedFolder, 'escape'), directoryLinkType);
+		manager.dispatchServerAction(chat, {
+			type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date().toISOString(), message: {
+				text: 'summarize', origin: { kind: MessageKind.User }, attachments: [
+					{ type: MessageAttachmentKind.Resource, uri: URI.file(attachedFile).toString(), label: 'mockup.txt', displayKind: 'file' },
+					{ type: MessageAttachmentKind.Resource, uri: URI.file(attachedFolder).toString(), label: 'notes', displayKind: 'directory' },
+				]
+			}
+		});
+
+		const reads = await Promise.all([
+			attachedFile,
+			join(attachedFolder, 'nested', 'a.txt'),
+			join(outsideDir, 'Desktop', 'other.txt'),
+			join(attachedFolder, 'escape', 'key.txt'),
+		].map(path => permissions.getAutoApproval(readEvent(path, chat), chat)));
+		const write = await permissions.getAutoApproval(writeEvent(attachedFile), chat);
+
+		assert.deepStrictEqual({ reads, write }, {
+			reads: [ToolCallConfirmationReason.NotNeeded, ToolCallConfirmationReason.NotNeeded, undefined, undefined],
+			write: undefined,
+		});
 	});
 
 	test('a moved peer chat reads the attachments of its owner, its own storage and the session it came from (Block 4)', async () => {
