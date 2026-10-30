@@ -1765,6 +1765,12 @@ export class ListView<T> implements IListView<T> {
 					}
 
 					if (anchorAtBottom) {
+						// Position the rows rendered above at the bottom. Setting the scroll position emits no scroll event to do so when
+						// it already is the bottom, e.g. when a replacement measures to the previous content height.
+						if (renderTop !== this.lastRenderTop) {
+							this.rowsContainer.style.top = `-${renderTop}px`;
+							this.lastRenderTop = renderTop;
+						}
 						this.setScrollTop(renderTop, inSmoothScrolling);
 					} else if (typeof anchorElementIndex === 'number') {
 						// To compute a destination scroll top, we need to take into account the current smooth scrolling

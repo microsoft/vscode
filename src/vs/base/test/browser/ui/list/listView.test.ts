@@ -567,6 +567,38 @@ suite('ListView', function () {
 		}
 	});
 
+	test('renders the bottom when an anchored replacement ends at the previous scroll position', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		type Element = { id: string; height: number };
+		const renderer: IListRenderer<Element, HTMLElement> = {
+			templateId: 'template',
+			renderTemplate: container => container,
+			renderElement(element, _index, container) { container.textContent = element.id; },
+			disposeTemplate() { },
+		};
+		// Rows are estimated at half their measured height, so a replacement is first rendered at an estimated bottom.
+		const list = store.add(new ListView<Element>(container, {
+			getHeight: () => 200,
+			getTemplateId: () => 'template',
+			hasDynamicHeight: () => true,
+			getDynamicHeight: element => element.height,
+		}, [renderer], { supportDynamicHeights: true }));
+		try {
+			list.layout(100, 200);
+			list.withScrollAnchorAtBottom(() => list.splice(0, 0, [{ id: 'a', height: 400 }]));
+			// The replacement measures to the previous content height, so its final scroll position emits no scroll event.
+			list.withScrollAnchorAtBottom(() => list.splice(0, 1, [{ id: 'b', height: 400 }]));
+			assert.deepStrictEqual({
+				scrollTop: list.scrollTop,
+				rowsTop: container.querySelector<HTMLElement>('.monaco-list-rows')?.style.top,
+				row: list.domElement(0)?.textContent,
+			}, { scrollTop: 300, rowsTop: '-300px', row: 'b' });
+		} finally {
+			container.remove();
+		}
+	});
+
 	test('reuses a bounded row pool while measuring appended rows', function () {
 		const container = document.createElement('div');
 		document.body.appendChild(container);
