@@ -2669,7 +2669,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('manages plugin marketplaces through the SDK server API', async () => {
+	test('preserves marketplace revisions through the SDK server API', async () => {
 		const client = new TestCopilotClient([]);
 		const session = URI.parse('agent-host-copilotcli:/marketplace-session');
 		const chat = URI.parse('vendor-chat:/marketplace-peer');
@@ -2696,7 +2696,7 @@ suite('CopilotAgent', () => {
 		chatBackings(agent).set(chat.toString(), { sdkSessionId: 'unrelated-live-session' });
 		try {
 			const listed = await agent.listPluginMarketplaces(session, chat);
-			const added = await agent.addPluginMarketplace(session, 'owner/repository', chat);
+			const added = await agent.addPluginMarketplace(session, 'owner/repository#feature/beta', chat);
 			const browsed = await agent.browsePluginMarketplace(session, 'marketplace', chat);
 			const removed = await agent.removePluginMarketplace(session, 'marketplace', true, chat);
 			const refreshed = await agent.refreshPluginMarketplaces(session, 'marketplace', chat);
@@ -2729,7 +2729,7 @@ suite('CopilotAgent', () => {
 				browsed: [{ name: 'plugin', description: 'Plugin description' }],
 				removed: { removed: false, dependentPlugins: ['plugin'] },
 				refreshed: [{ name: 'marketplace', success: true, error: undefined }],
-				addRequests: [{ source: 'owner/repository' }],
+				addRequests: [{ source: 'owner/repository#feature/beta' }],
 				browseRequests: [{ name: 'marketplace' }],
 				removeRequests: [{ name: 'marketplace', force: true }],
 				refreshRequests: [{ name: 'marketplace' }],
@@ -2760,7 +2760,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('prefers a live session for plugin marketplace operations', async () => {
+	test('prefers a live session and preserves marketplace revisions', async () => {
 		const client = new TestCopilotClient([]);
 		const session = URI.parse('agent-host-copilotcli:/marketplace-session');
 		const chat = URI.parse('agent-host-copilotcli:/marketplace-session#peer');
@@ -2802,7 +2802,7 @@ suite('CopilotAgent', () => {
 			await agent.installPlugin({ source: 'plugin@marketplace' }, session, chat);
 			await agent.uninstallPlugin({ name: 'plugin', marketplace: 'marketplace' }, session, chat);
 			const listed = await agent.listPluginMarketplaces(session, chat);
-			const added = await agent.addPluginMarketplace(session, 'owner/repository', chat);
+			const added = await agent.addPluginMarketplace(session, 'owner/repository#feature/beta', chat);
 			const browsed = await agent.browsePluginMarketplace(session, 'marketplace', chat);
 			const removed = await agent.removePluginMarketplace(session, 'marketplace', true, chat);
 			const refreshed = await agent.refreshPluginMarketplaces(session, 'marketplace', chat);
@@ -2844,7 +2844,7 @@ suite('CopilotAgent', () => {
 					['install', 'plugin@marketplace'],
 					['uninstall', 'plugin@marketplace', undefined],
 					['reload', 'uninstall'],
-					['add', 'owner/repository'],
+					['add', 'owner/repository#feature/beta'],
 					['browse', 'marketplace'],
 					['remove', 'marketplace', true],
 					['refresh', 'marketplace'],

@@ -204,7 +204,14 @@ suite('PluginUrlHandler', () => {
 		], [false, false]);
 	});
 
-	for (const source of ['acme/plugins', encodeBase64(VSBuffer.fromString('acme/plugins')), 'https://github.com/acme/plugins.git']) {
+	for (const [source, expectedSource] of [
+		['acme/plugins', 'acme/plugins'],
+		[encodeBase64(VSBuffer.fromString('acme/plugins')), 'acme/plugins'],
+		['https://github.com/acme/plugins.git', 'https://github.com/acme/plugins.git'],
+		['acme/plugins#feature/beta', 'acme/plugins#feature/beta'],
+		[encodeBase64(VSBuffer.fromString('acme/plugins#feature/beta')), 'acme/plugins#feature/beta'],
+		['https://github.com/acme/plugins.git#v1.2.3', 'https://github.com/acme/plugins.git#v1.2.3'],
+	]) {
 		test(`adds marketplace through the active harness: ${source}`, async () => {
 			const fixture = createHandler();
 			assert.strictEqual(await fixture.handler.handleURL(uri('/add-marketplace', `ref=${encodeURIComponent(source)}`)), true);
@@ -214,7 +221,7 @@ suite('PluginUrlHandler', () => {
 				errors: fixture.errors,
 				commands: fixture.commands,
 			}, {
-				calls: [`add:${sessionResource}:${source.startsWith('https:') ? source : 'acme/plugins'}`],
+				calls: [`add:${sessionResource}:${expectedSource}`],
 				dialogs: 1,
 				errors: [],
 				commands: [{
@@ -236,6 +243,30 @@ suite('PluginUrlHandler', () => {
 		]);
 		assert.ok(fixture.dialogs[0].message.includes('my-plugin'));
 		assert.deepStrictEqual(fixture.errors, []);
+	});
+
+	for (const existingMarketplaceSource of ['GitHub: acme/plugins', 'GitHub: acme/plugins#other']) {
+		test(`registers the requested revision before installing from ${existingMarketplaceSource}`, async () => {
+			const fixture = createHandler({ existingMarketplaceSource });
+			await fixture.handler.handleURL(uri('/install', 'source=acme%2Fplugins%23feature%2Fbeta&plugin=my-plugin'));
+			assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors }, {
+				calls: [
+					`add:${sessionResource}:acme/plugins#feature/beta`,
+					`query:${sessionResource}:catalog:`,
+					`install:${sessionResource}:catalog/my-plugin`,
+				],
+				errors: [],
+			});
+		});
+	}
+
+	test('reuses an exact registered revision', async () => {
+		const fixture = createHandler({ existingMarketplaceSource: 'GitHub: acme/plugins#feature/beta' });
+		await fixture.handler.handleURL(uri('/install', 'source=acme%2Fplugins%23feature%2Fbeta&plugin=my-plugin'));
+		assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors }, {
+			calls: [`query:${sessionResource}:catalog:`, `install:${sessionResource}:catalog/my-plugin`],
+			errors: [],
+		});
 	});
 
 	for (const existingMarketplaceSource of ['acme/plugins', 'https://github.com/ACME/plugins.git', 'GitHub: acme/plugins', 'URL: https://github.com/ACME/plugins.git']) {
