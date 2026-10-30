@@ -7700,7 +7700,7 @@ export class CopilotAgentSession extends Disposable {
 			const permissionDisplay = getPermissionDisplay(request, this._workingDirectory, isNewFile, this._appliedAdditionalDirectories, trackedToolCall?.parameters);
 			// A server tool's confirmation as its group builds it with the host's state (e.g. linking only known sessions).
 			const serverConfirmation = serverToolName && request.kind === 'custom-tool' ? serverToolHost?.getConfirmationDisplay(serverToolName, request.args) : undefined;
-			const { permissionKind, permissionPath, shellCommand } = permissionDisplay;
+			const { permissionKind, permissionPath, permissionUrl, shellCommand } = permissionDisplay;
 			const confirmationTitle = serverConfirmation?.confirmationTitle ?? permissionDisplay.confirmationTitle;
 			const invocationMessage = serverConfirmation?.confirmationMessage ?? permissionDisplay.invocationMessage;
 			const toolInput = serverConfirmation?.hideConfirmationInput ? undefined : permissionDisplay.toolInput;
@@ -7753,6 +7753,7 @@ export class CopilotAgentSession extends Disposable {
 				},
 				permissionKind,
 				permissionPath,
+				permissionUrl,
 				managedApprovalRequired,
 				requestSandboxBypass,
 				requestSandboxPermissive,

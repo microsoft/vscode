@@ -418,6 +418,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			description: agent.description,
 			connection: this._agentHostService,
 			connectionAuthority: this._connectionAuthority,
+			mirrorsPermissionGrants: this._isLocalAgentHost,
 			supportsCanvasPresentation: this._isLocalAgentHost && agent.provider === 'copilotcli',
 			supportsManagedPluginRetry: this._isLocalAgentHost && agent.provider === 'copilotcli' && !!this._agentHostService.retryManagedPlugins,
 			supportsComputerUseSetup: this._isLocalAgentHost && agent.provider === 'copilotcli' && isComputerUseSetupPlatform(),

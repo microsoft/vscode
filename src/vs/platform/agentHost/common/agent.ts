@@ -1413,6 +1413,23 @@ export interface IAgentModelCallFinishedSignal {
 	readonly parentToolCallId?: string;
 }
 
+/** Host-owned permission categories used for tool confirmation and auto-approval. */
+export const enum AgentPermissionKind {
+	Shell = 'shell',
+	Write = 'write',
+	Mcp = 'mcp',
+	Read = 'read',
+	Url = 'url',
+	Skill = 'skill',
+	CustomTool = 'custom-tool',
+	Hook = 'hook',
+	Memory = 'memory',
+	Workflow = 'workflow',
+	ExtensionManagement = 'extension-management',
+	ExtensionPermissionAccess = 'extension-permission-access',
+	ExtensionEnvAccess = 'extension-env-access',
+}
+
 /**
  * A tool has finished collecting parameters and needs the host to decide
  * whether it should run (or, mid-execution, re-confirm). The host applies
@@ -1434,9 +1451,11 @@ export interface IAgentToolPendingConfirmationSignal {
 	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `ChatToolCallReady`. */
 	readonly state: ToolCallPendingConfirmationState;
 	/** Host-only auto-approval kind (not part of the dispatched action). */
-	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'workflow' | 'extension-management' | 'extension-permission-access' | 'extension-env-access';
+	readonly permissionKind?: AgentPermissionKind;
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
+	/** Host-only URL target for request approval (not part of the dispatched action). */
+	readonly permissionUrl?: string;
 	/** Host-only command for shell approval when the displayed tool input contains structured arguments. */
 	readonly shellCommand?: string;
 	/**

@@ -8,19 +8,25 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { isObject } from '../../../../../../base/common/types.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { getGlobalConfigurationValue } from '../../../../../../platform/agentHost/common/agentHostConfigurationSync.js';
+import { getGlobalConfigurationValue, inspectValue } from '../../../../../../platform/agentHost/common/agentHostConfigurationSync.js';
+import { AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey, platformRootSchema, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, URL_AUTO_APPROVE_SETTING_ID } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { isWebFetchRule, urlApprovalsToWebFetchRules } from '../../../../../../platform/agentHost/common/permissionRules.js';
+import { isShellRule, terminalRulesToShellPermissions } from '../../../../../../platform/agentHost/common/terminalPermissionRules.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, normalizeToolSearchDeferThreshold, type AgentHostHydraFusionSettingValue, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { LocalModelEnabledSettingId, LocalModelLlamaServerPathSettingId, LocalModelUseInAutoSettingId } from '../../../../../../platform/agentHost/common/localModel.js';
 import { IConfigurationService, isConfigured } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { type IUrlApprovalSettings } from '../../../../../../platform/url/common/urlApprovalPatterns.js';
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { AgentHostRootConfigForwarder, type IForwardedRootConfigKey } from './agentHostRootConfigForwarder.js';
 
 /**
  * Forwards Copilot-CLI settings into the **local** agent host's root config so
- * `CopilotAgent` and `CopilotSessionLauncher` can read them. Gated on
+ * `CopilotAgent` and `CopilotSessionLauncher` can read them, and keeps
+ * host URL and terminal permissions in sync with VS Code's user approvals. Gated on
  * Agent Host runtime availability. The schema-gate / hydration-retry / loop-guard
  * machinery lives in the shared
  * {@link AgentHostRootConfigForwarder}; this contribution only declares the keys.
@@ -40,6 +46,34 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 		super();
 
 		const keys: readonly IForwardedRootConfigKey[] = [
+			{
+				key: SessionConfigKey.Permissions,
+				computeValue: () => {
+					const rootState = agentHostService.rootState.value;
+					if (!rootState || rootState instanceof Error || !rootState.config) {
+						return undefined;
+					}
+					const stored = rootState.config.values[SessionConfigKey.Permissions];
+					const permissions = platformRootSchema.validate(SessionConfigKey.Permissions, stored) ? stored : undefined;
+					const approvals = getGlobalConfigurationValue<Record<string, boolean | IUrlApprovalSettings>>(this._configurationService, URL_AUTO_APPROVE_SETTING_ID) ?? {};
+					const userRules = inspectValue<Record<string, boolean | null | { approve: boolean; matchCommandLine?: boolean }>>(this._configurationService, TERMINAL_AUTO_APPROVE_SETTING_ID)?.[0] ?? {};
+					const shellPermissions = terminalRulesToShellPermissions(userRules);
+					return {
+						allow: [...(permissions?.allow ?? []).filter(rule => !isWebFetchRule(rule) && !isShellRule(rule)), ...urlApprovalsToWebFetchRules(approvals), ...shellPermissions.allow],
+						ask: [...(permissions?.ask ?? []).filter(rule => !isShellRule(rule)), ...shellPermissions.ask],
+						deny: permissions?.deny ?? [],
+					};
+				},
+				registerTriggers: (store, push) => {
+					this._pushOnSettingChange(store, push, URL_AUTO_APPROVE_SETTING_ID);
+					this._pushOnSettingChange(store, push, TERMINAL_AUTO_APPROVE_SETTING_ID);
+				},
+			},
+			{
+				key: AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey,
+				computeValue: () => getGlobalConfigurationValue<boolean>(this._configurationService, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID) === true,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID),
+			},
 			{
 				key: CopilotCliConfigKey.CopilotSdkLogLevel,
 				computeValue: () => this._configurationService.getValue<CopilotSdkLogLevelSetting>(AgentHostCopilotSdkLogLevelSettingId) ?? 'info',

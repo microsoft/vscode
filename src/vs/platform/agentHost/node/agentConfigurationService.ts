@@ -876,7 +876,10 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			})
 			.then(async () => {
 				await fs.promises.mkdir(dirname(resource.fsPath), { recursive: true });
-				await fs.promises.writeFile(resource.fsPath, `${content}\n`, 'utf8');
+				// Write then rename so a host starting while another persists never reads a truncated file.
+				const tempPath = `${resource.fsPath}.${process.pid}.tmp`;
+				await fs.promises.writeFile(tempPath, `${content}\n`, 'utf8');
+				await fs.promises.rename(tempPath, resource.fsPath);
 			})
 			.catch(err => {
 				this._logService.error(`[AgentConfigurationService] Failed to persist host config to ${resource.fsPath}`, err);

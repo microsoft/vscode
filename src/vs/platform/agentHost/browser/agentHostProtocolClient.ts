@@ -74,7 +74,7 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { ITelemetryService, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostWorkspaceTrustConfigKey, getAgentHostTerminalAutoApproveRulesConfig, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostWorkspaceTrustConfigKey, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { addAgentHostConfigurationSyncValue, formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, getGlobalConfigurationValue, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
 import { AgentMergeSettingId } from '../common/agentMerge.js';
 import { AgentHostDynamicAutoTiersEnabledSettingId, CopilotCliConfigKey } from '../common/copilotCliConfig.js';
@@ -657,9 +657,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 			if (e.affectsConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID)) {
 				this._updateTerminalAutoApproveEnabled();
-			}
-			if (e.affectsConfiguration(TERMINAL_AUTO_APPROVE_SETTING_ID) || e.affectsConfiguration(TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID)) {
-				this._updateTerminalAutoApproveRules();
 			}
 			if (e.affectsConfiguration(DISABLE_REPO_INFO_TELEMETRY_SETTING_ID)) {
 				this._updateDisableRepoInfoTelemetry();
@@ -1522,7 +1519,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._updateDynamicAutoTiers();
 		this._updateTelemetryLevel();
 		this._updateTerminalAutoApproveEnabled();
-		this._updateTerminalAutoApproveRules();
 		this._updateAutoApprovePolicyRestriction();
 		this._updateWorkspaceTrust();
 		this._updateDisableRepoInfoTelemetry();
@@ -3299,17 +3295,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private _updateTerminalAutoApproveEnabled(): void {
-		// Deliberately on the manual, workspace-aware path rather than declaring
-		// `agentHost` on its schema: the setting is `restricted` and settable per
-		// workspace, and its companion rule set (`terminalAutoApproveRules`) is
-		// workspace-aware too. Resolving only the global value here would let a
-		// workspace that turned auto-approval off still have it applied.
+		// Preserve workspace opt-outs; the globally shared permission rules do not override this toggle.
 		const enabled = this._configurationService.getValue<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID) !== false;
 		this._dispatchRootConfig({ [AgentHostTerminalAutoApproveEnabledConfigKey]: enabled });
-	}
-
-	private _updateTerminalAutoApproveRules(): void {
-		this._dispatchRootConfig({ [AgentHostTerminalAutoApproveRulesConfigKey]: getAgentHostTerminalAutoApproveRulesConfig(this._configurationService) });
 	}
 
 	private _updateManagedSettingsPermissions(sendDuringReconnect = false): void {

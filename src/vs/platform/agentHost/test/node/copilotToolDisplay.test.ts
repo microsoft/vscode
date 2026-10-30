@@ -8,6 +8,7 @@ import type { PermissionRequest } from '@github/copilot-sdk';
 import * as marked from '../../../../base/common/marked/marked.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { AgentPermissionKind } from '../../common/agent.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
 
 type CopilotShellPermissionRequest = Extract<PermissionRequest, { kind: 'shell' }>;
@@ -352,7 +353,7 @@ suite('getPermissionDisplay — server tool confirmation', () => {
 				confirmationTitle: 'Change Workspace to app?',
 				invocationMessage: 'Change this chat\'s workspace to /workspace/app and make changes directly in that folder? Other chats keep their workspaces.',
 				toolInput: undefined,
-				permissionKind: 'custom-tool',
+				permissionKind: AgentPermissionKind.CustomTool,
 				permissionPath: undefined,
 			},
 		);
@@ -381,7 +382,7 @@ suite('getPermissionDisplay — MCP tool confirmation', () => {
 				confirmationTitle: 'Allow tool from GitHub?',
 				invocationMessage: 'GitHub: Read issue',
 				toolInput: '{"serverName":"GitHub","toolName":"issue_read"}',
-				permissionKind: 'mcp',
+				permissionKind: AgentPermissionKind.Mcp,
 				permissionPath: undefined,
 			},
 			fallback: 'GitHub: issue_read',
@@ -405,7 +406,7 @@ suite('getPermissionDisplay — workflow confirmation', () => {
 			phases: [{ title: 'Review' }],
 		};
 
-		assert.strictEqual(getPermissionDisplay(request).permissionKind, 'workflow');
+		assert.strictEqual(getPermissionDisplay(request).permissionKind, AgentPermissionKind.Workflow);
 	});
 });
 
@@ -419,7 +420,7 @@ suite('getPermissionDisplay — cd-prefix stripping', () => {
 		const request = shellPermissionRequest('cd /repo/project && npm test');
 		const display = getPermissionDisplay(request, wd);
 		assert.strictEqual(display.toolInput, JSON.stringify({ command: 'npm test' }, null, 2));
-		assert.strictEqual(display.permissionKind, 'shell');
+		assert.strictEqual(display.permissionKind, AgentPermissionKind.Shell);
 	});
 
 	test('leaves shell command alone when cd target differs from working directory', () => {
@@ -438,7 +439,7 @@ suite('getPermissionDisplay — cd-prefix stripping', () => {
 		const request = customToolPermissionRequest('bash', { command: 'cd /repo/project && echo hi' });
 		const display = getPermissionDisplay(request, wd);
 		assert.strictEqual(display.toolInput, JSON.stringify({ command: 'echo hi' }, null, 2));
-		assert.strictEqual(display.permissionKind, 'shell');
+		assert.strictEqual(display.permissionKind, AgentPermissionKind.Shell);
 	});
 
 	test('does not affect non-shell custom-tool requests', () => {
@@ -446,7 +447,7 @@ suite('getPermissionDisplay — cd-prefix stripping', () => {
 		const display = getPermissionDisplay(request, wd);
 		// Falls through to the generic branch — toolInput is the JSON-stringified args.
 		assert.ok(display.toolInput?.includes('cd /repo/project'), `expected unrewritten args, got: ${display.toolInput}`);
-		assert.strictEqual(display.permissionKind, 'custom-tool');
+		assert.strictEqual(display.permissionKind, AgentPermissionKind.CustomTool);
 	});
 
 	test('handles powershell custom-tool with semicolon separator', () => {
@@ -473,6 +474,17 @@ suite('getPermissionDisplay — read permission display', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('URL permission displays expose the normalized URL separately from file paths', () => {
+		const display = getPermissionDisplay({ kind: 'url', url: 'https://ExAmPlE.com:443/path', intention: 'Fetch content' });
+		assert.deepStrictEqual(display, {
+			confirmationTitle: 'Fetch URL?',
+			invocationMessage: { markdown: 'Allow fetching web content?' },
+			toolInput: '{"url":"https://example.com/path"}',
+			permissionKind: AgentPermissionKind.Url,
+			permissionUrl: 'https://example.com/path',
+		});
+	});
+
 	test('uses the view-tool invocation message for read permissions', () => {
 		const display = getPermissionDisplay({
 			kind: 'read',
@@ -488,7 +500,7 @@ suite('getPermissionDisplay — read permission display', () => {
 		}, {
 			invocationMessage: { markdown: 'Read [context7-copilot-debug-main.json](file:///Users/connor/Downloads/context7-copilot-debug-main.json)' },
 			toolInput: undefined,
-			permissionKind: 'read',
+			permissionKind: AgentPermissionKind.Read,
 			permissionPath: '/Users/connor/Downloads/context7-copilot-debug-main.json',
 		});
 	});
@@ -515,14 +527,14 @@ suite('getPermissionDisplay — write permission display', () => {
 				confirmationTitle: 'Create file?',
 				invocationMessage: { markdown: 'Create [package.json](file:///repo/project/package.json)' },
 				toolInput: '{"path":"/repo/project/package.json"}',
-				permissionKind: 'write',
+				permissionKind: AgentPermissionKind.Write,
 				permissionPath: '/repo/project/package.json',
 			},
 			edit: {
 				confirmationTitle: 'Write file?',
 				invocationMessage: { markdown: 'Edit [package.json](file:///repo/project/package.json)' },
 				toolInput: '{"path":"/repo/project/package.json"}',
-				permissionKind: 'write',
+				permissionKind: AgentPermissionKind.Write,
 				permissionPath: '/repo/project/package.json',
 			},
 		});
