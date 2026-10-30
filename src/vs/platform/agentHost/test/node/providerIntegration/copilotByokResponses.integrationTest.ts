@@ -10,7 +10,7 @@ import { CopilotClient, defineTool } from '@github/copilot-sdk';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmModelInfo } from '../../../common/agentHostByokLm.js';
+import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmModelInfo, IByokLmStreamDelta, IByokLmStreamDeltaBody } from '../../../common/agentHostByokLm.js';
 import { ByokLmBridgeRegistry } from '../../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService } from '../../../node/copilot/byokLmProxyService.js';
 import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
@@ -25,13 +25,34 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 
 	/**
 	 * Runs the bundled SDK against the BYOK proxy, with {@link chat} playing the
-	 * renderer bridge for model `acme/test-model`.
+	 * renderer bridge for model `acme/test-model`. `streamDeltas` plays the
+	 * renderer's incremental half: when it returns deltas, the proxy sees them
+	 * before `chat` resolves and relays them as the response is produced.
 	 */
-	async function withSdkSession(sessionId: string, chat: IByokLmBridgeConnection['chat'], run: (session: SdkSession) => Promise<void>, sessionOptions: Pick<SdkSessionOptions, 'tools' | 'availableTools'> = {}): Promise<void> {
+	async function withSdkSession(
+		sessionId: string,
+		chat: IByokLmBridgeConnection['chat'],
+		run: (session: SdkSession) => Promise<void>,
+		sessionOptions: Pick<SdkSessionOptions, 'tools' | 'availableTools'> = {},
+		streamDeltas?: () => readonly IByokLmStreamDeltaBody[],
+	): Promise<void> {
 		const baseDirectory = await mkdtemp(`${tmpdir()}/byok-responses-sdk-`);
 		const models = store.add(new Emitter<IByokLmModelInfo[]>());
+		const deltas = store.add(new Emitter<IByokLmStreamDelta>());
 		const registry = new ByokLmBridgeRegistry();
-		const registration = registry.register('client', { chat, onDidChangeModels: models.event });
+		const registration = registry.register('client', {
+			chat: async request => {
+				if (request.requestId !== undefined) {
+					for (const delta of streamDeltas?.() ?? []) {
+						deltas.fire({ ...delta, requestId: request.requestId });
+						await new Promise(resolve => setTimeout(resolve, 1));
+					}
+				}
+				return chat(request);
+			},
+			onDidChangeModels: models.event,
+			onDidDelta: deltas.event,
+		});
 		models.fire([{ vendor: 'acme', id: 'test-model' }]);
 
 		const proxy = new ByokLmProxyService(new NullLogService(), registry);
@@ -148,7 +169,12 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 					encryptedContent: 'opaque',
 				},
 			});
-		});
+		}, {}, () => captured.length === 0
+			? [
+				{ kind: 'reasoning', id: 'rs_provider', delta: 'considered options', newSummaryPart: true, encryptedContent: 'opaque' },
+				{ kind: 'text', delta: 'hello' },
+			]
+			: [{ kind: 'text', delta: 'second' }]);
 	});
 
 	test('bundled SDK preserves provider state through a tool continuation', async function () {
