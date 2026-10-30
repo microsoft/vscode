@@ -32,7 +32,7 @@ import { GlobalExtensionEnablementService } from '../../../platform/extensionMan
 import { ExtensionGalleryService } from '../../../platform/extensionManagement/common/extensionGalleryService.js';
 import { IAllowedExtensionsService, IExtensionGalleryService, IExtensionManagementService, IExtensionTipsService, IGlobalExtensionEnablementService } from '../../../platform/extensionManagement/common/extensionManagement.js';
 import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from '../../../platform/extensionManagement/node/extensionSignatureVerificationService.js';
-import { ExtensionManagementChannel, ExtensionTipsChannel } from '../../../platform/extensionManagement/common/extensionManagementIpc.js';
+import { createExtensionsProfileScannerChannel, ExtensionManagementChannel, ExtensionTipsChannel } from '../../../platform/extensionManagement/common/extensionManagementIpc.js';
 import { ExtensionManagementService, INativeServerExtensionManagementService } from '../../../platform/extensionManagement/node/extensionManagementService.js';
 import { IExtensionRecommendationNotificationService } from '../../../platform/extensionRecommendations/common/extensionRecommendations.js';
 import { IFileService } from '../../../platform/files/common/files.js';
@@ -453,6 +453,13 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Extensions Management
 		const channel = new ExtensionManagementChannel(accessor.get(IExtensionManagementService), () => null);
 		this.server.registerChannel('extensions', channel);
+		const profiles = accessor.get(IExtensionsProfileScannerService);
+		this.server.registerChannel('extensionsProfileScanner', createExtensionsProfileScannerChannel(profiles, this._store));
+		const scanner = accessor.get(IExtensionsScannerService);
+		this.server.registerChannel('extensionsScannerMutations', ProxyChannel.fromService({
+			initializeDefaultProfileExtensions: () => scanner.initializeDefaultProfileExtensions(),
+			updateManifestMetadata: scanner.updateManifestMetadata.bind(scanner),
+		}, this._store));
 
 		// Mcp Management
 		const mcpManagementChannel = new McpManagementChannel(accessor.get(IMcpManagementService), () => null);

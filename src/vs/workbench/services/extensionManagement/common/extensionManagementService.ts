@@ -12,6 +12,7 @@ import {
 	UninstallExtensionInfo,
 	IAllowedExtensionsService,
 	EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT,
+	IExtensionManagementService,
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { DidChangeProfileForServerEvent, DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IPublisherInfo, IResourceExtension, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from './extensionManagement.js';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getWorkspaceSupportTypeMessage, TargetPlatform } from '../../../../platform/extensions/common/extensions.js';
@@ -49,6 +50,7 @@ import { verifiedPublisherIcon } from './extensionsIcons.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { CommontExtensionManagementService } from '../../../../platform/extensionManagement/common/abstractExtensionManagementService.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 
 const TrustedPublishersStorageKey = 'extensions.trustedPublishers';
 
@@ -91,6 +93,9 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 	protected readonly servers: IExtensionManagementServer[] = [];
 
 	private readonly workspaceExtensionManagementService: WorkspaceExtensionsManagementService;
+	private readonly coordinatedUninstallRecovery: Promise<void>;
+	private readonly activeCoordinatedUninstalls = new Set<string>();
+	private coordinatedUninstallIdentity: Promise<string> | undefined;
 
 	constructor(
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
@@ -111,6 +116,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super(productService, allowedExtensionsService);
 
@@ -184,6 +190,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 				this.trustPublishers(...untrustedPublishers.values());
 			}
 		}));
+		this.coordinatedUninstallRecovery = this.recoverCoordinatedUninstalls().catch(error => this.logService.error('Recovering coordinated extension uninstall', error));
 	}
 
 	async getInstalled(type?: ExtensionType, profileLocation?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]> {
@@ -242,8 +249,20 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 		for (const workspaceExtension of workspaceExtensions) {
 			promises.push(this.uninstallExtensionFromWorkspace(workspaceExtension));
 		}
+		const localServer = this.extensionManagementServerService.localExtensionManagementServer;
+		const remoteServer = this.extensionManagementServerService.remoteExtensionManagementServer;
+		const remoteExtensions = remoteServer && groupedExtensions.get(remoteServer);
+		// A mixed batch must finish its remote mutations before reserving that store for local removal.
+		const remoteUninstall = localServer && groupedExtensions.has(localServer) && remoteServer && remoteExtensions
+			? this.uninstallInServer(remoteServer, remoteExtensions) : undefined;
 		for (const [server, extensions] of groupedExtensions.entries()) {
-			promises.push(this.uninstallInServer(server, extensions));
+			if (remoteUninstall && server === remoteServer) {
+				promises.push(remoteUninstall);
+			} else if (remoteUninstall && server === localServer) {
+				promises.push(remoteUninstall.catch(() => undefined).then(() => this.uninstallInServer(server, extensions)));
+			} else {
+				promises.push(this.uninstallInServer(server, extensions));
+			}
 		}
 
 		const result = await Promise.allSettled(promises);
@@ -254,17 +273,96 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 	}
 
 	private async uninstallInServer(server: IExtensionManagementServer, extensions: UninstallExtensionInfo[]): Promise<void> {
-		if (server === this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
+		if (extensions.length && server === this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
+			const checkForRemoteDependents = (installedExtensions: ILocalExtension[]): void => {
+				for (const { extension } of extensions) {
+					const dependentNonUIExtensions = installedExtensions.filter(i => !this.extensionManifestPropertiesService.prefersExecuteOnUI(i.manifest)
+						&& i.manifest.extensionDependencies && i.manifest.extensionDependencies.some(id => areSameExtensions({ id }, extension.identifier)));
+					if (dependentNonUIExtensions.length) {
+						throw (new Error(this.getDependentsErrorMessage(extension, dependentNonUIExtensions)));
+					}
+				}
+			};
+			const local = server.extensionManagementService;
+			const remote = this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService;
+			await this.coordinatedUninstallRecovery;
+			try {
+				if (await local.supportsCoordinatedUninstall?.() && await remote.supportsCoordinatedUninstall?.()) {
+					const remoteIdentity = await this.getCachedCoordinatedUninstallIdentity(remote);
+					await this.recoverCoordinatedUninstalls(remoteIdentity);
+					const id = generateUuid();
+					const profileLocation = this.userDataProfileService.currentProfile.extensionsResource;
+					const batch = extensions.map(({ extension, options }) => ({ extension, options: { ...options, profileLocation: options?.profileLocation ?? profileLocation } }));
+					this.activeCoordinatedUninstalls.add(id);
+					let commitConfirmed = false;
+					try {
+						try {
+							await local.prepareLocalUninstall!(id, batch, this.coordinatedUninstallTarget(remoteIdentity));
+							checkForRemoteDependents(await remote.reserveLocalUninstall!(id, profileLocation, remoteIdentity));
+							await local.commitLocalUninstall!(id);
+							commitConfirmed = true;
+						} finally {
+							await this.finishCoordinatedUninstall(id, local, remote, remoteIdentity, commitConfirmed);
+						}
+					} finally {
+						this.activeCoordinatedUninstalls.delete(id);
+					}
+					return;
+				}
+			} catch (error) {
+				this.coordinatedUninstallIdentity = undefined;
+				throw error;
+			}
+			// Older backends retain the original ordered checks without snapshot reuse.
 			for (const { extension } of extensions) {
-				const installedExtensions = await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.getInstalled(ExtensionType.User);
-				const dependentNonUIExtensions = installedExtensions.filter(i => !this.extensionManifestPropertiesService.prefersExecuteOnUI(i.manifest)
-					&& i.manifest.extensionDependencies && i.manifest.extensionDependencies.some(id => areSameExtensions({ id }, extension.identifier)));
-				if (dependentNonUIExtensions.length) {
-					throw (new Error(this.getDependentsErrorMessage(extension, dependentNonUIExtensions)));
+				const installed = await remote.getInstalled(ExtensionType.User);
+				const dependents = installed.filter(i => !this.extensionManifestPropertiesService.prefersExecuteOnUI(i.manifest)
+					&& i.manifest.extensionDependencies?.some(id => areSameExtensions({ id }, extension.identifier)));
+				if (dependents.length) {
+					throw new Error(this.getDependentsErrorMessage(extension, dependents));
 				}
 			}
 		}
 		return server.extensionManagementService.uninstallExtensions(extensions);
+	}
+
+	private getCachedCoordinatedUninstallIdentity(remote: IExtensionManagementService): Promise<string> {
+		// Reserve and release verify this identity in their transaction, including after reconnect.
+		return this.coordinatedUninstallIdentity ??= remote.getCoordinatedUninstallIdentity!();
+	}
+
+	private coordinatedUninstallTarget(remoteIdentity: string): string {
+		return JSON.stringify([remoteIdentity, this.workspaceContextService.getWorkspace().id, this.userDataProfileService.currentProfile.location.toString()]);
+	}
+
+	private async recoverCoordinatedUninstalls(remoteIdentity?: string): Promise<void> {
+		try {
+			const local = this.extensionManagementServerService.localExtensionManagementServer?.extensionManagementService;
+			const remote = this.extensionManagementServerService.remoteExtensionManagementServer?.extensionManagementService;
+			if (!local || !remote || !await local.supportsCoordinatedUninstall?.() || !await remote.supportsCoordinatedUninstall?.()) {
+				return;
+			}
+			remoteIdentity ??= await this.getCachedCoordinatedUninstallIdentity(remote);
+			const ids = await local.getPendingLocalUninstalls!(this.coordinatedUninstallTarget(remoteIdentity));
+			for (const id of ids) {
+				if (!this.activeCoordinatedUninstalls.has(id)) {
+					await this.finishCoordinatedUninstall(id, local, remote, remoteIdentity);
+				}
+			}
+		} catch (error) {
+			this.coordinatedUninstallIdentity = undefined;
+			throw error;
+		}
+	}
+
+	private async finishCoordinatedUninstall(id: string, local: IExtensionManagementService, remote: IExtensionManagementService, remoteIdentity: string, commitConfirmed = false): Promise<void> {
+		// Fencing waits for in-flight backend work and prevents a delayed commit from restarting it.
+		// A confirmed commit already persisted its terminal fence before replying.
+		if (!commitConfirmed) {
+			await local.abortLocalUninstall!(id);
+		}
+		await remote.releaseLocalUninstall!(id, remoteIdentity);
+		await local.acknowledgeLocalUninstall!(id);
 	}
 
 	private getDependentsErrorMessage(extension: ILocalExtension, dependents: ILocalExtension[]): string {

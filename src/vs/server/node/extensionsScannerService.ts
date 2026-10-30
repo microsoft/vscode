@@ -15,8 +15,13 @@ import { IProductService } from '../../platform/product/common/productService.js
 import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfile.js';
 import { getNLSConfiguration } from './remoteLanguagePacks.js';
+import { getExtensionManagementStoreCoordinator } from '../../platform/extensionManagement/node/extensionManagementStoreCoordinator.js';
 
 export class ExtensionsScannerService extends AbstractExtensionsScannerService implements IExtensionsScannerService {
+
+	protected override withStoreMutation<T>(task: () => Promise<T>): Promise<T> {
+		return getExtensionManagementStoreCoordinator().withMutation(task);
+	}
 
 	constructor(
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,

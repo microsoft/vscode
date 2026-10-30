@@ -782,13 +782,24 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 		return `${identifier.id.toLowerCase()}${version ? `-${version}` : ''}@${profileLocation.toString()}`;
 	}
 
+	protected async waitForExtensionTasks(): Promise<void> {
+		await Promise.allSettled([
+			...[...this.installingExtensions.values()].map(({ task }) => task.waitUntilTaskIsFinished()),
+			...[...this.uninstallingExtensions.values()].map(task => task.waitUntilTaskIsFinished())
+		]);
+	}
+
+	protected waitForInstallTaskBeforeUninstall(): boolean {
+		return true;
+	}
+
 	async uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void> {
 
 		const getUninstallExtensionTaskKey = (extension: ILocalExtension, uninstallOptions: UninstallExtensionTaskOptions) => this.getUninstallExtensionTaskKey(extension.identifier, uninstallOptions.profileLocation, uninstallOptions.versionOnly ? extension.manifest.version : undefined);
 
 		const createUninstallExtensionTask = (extension: ILocalExtension, uninstallOptions: UninstallExtensionTaskOptions): void => {
 			let installTaskToWaitFor: IInstallExtensionTask | undefined;
-			for (const { task } of this.installingExtensions.values()) {
+			for (const { task } of this.waitForInstallTaskBeforeUninstall() ? this.installingExtensions.values() : []) {
 				if (!(task.source instanceof URI) && areSameExtensions(task.identifier, extension.identifier) && this.uriIdentityService.extUri.isEqual(task.options.profileLocation, uninstallOptions.profileLocation)) {
 					installTaskToWaitFor = task;
 					break;

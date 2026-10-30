@@ -805,7 +805,7 @@ registerAction2(class extends Action2 {
 
 //#region Actions
 
-class AICustomizationManagementActionsContribution extends Disposable implements IWorkbenchContribution {
+export class AICustomizationManagementActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.aiCustomizationManagementActions';
 	private readonly chatCustomizationExtensionNotInstalledContext: IContextKey<boolean>;
@@ -818,8 +818,16 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 		this.chatCustomizationExtensionNotInstalledContext = CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED_CONTEXT.bindTo(contextKeyService);
 
 		const refreshExtensionContext = () => this.updateChatCustomizationExtensionContext();
-		this._register(this.extensionManagementService.onProfileAwareDidInstallExtensions(refreshExtensionContext));
-		this._register(this.extensionManagementService.onProfileAwareDidUninstallExtension(refreshExtensionContext));
+		this._register(this.extensionManagementService.onProfileAwareDidInstallExtensions(results => {
+			if (results.some(result => ExtensionIdentifier.equals(result.identifier.id, CHAT_CUSTOMIZATION_EXTENSION_ID))) {
+				refreshExtensionContext();
+			}
+		}));
+		this._register(this.extensionManagementService.onProfileAwareDidUninstallExtension(event => {
+			if (ExtensionIdentifier.equals(event.identifier.id, CHAT_CUSTOMIZATION_EXTENSION_ID)) {
+				refreshExtensionContext();
+			}
+		}));
 		this._register(this.extensionManagementService.onDidChangeProfile(refreshExtensionContext));
 		this.updateChatCustomizationExtensionContext();
 		this.registerActions();

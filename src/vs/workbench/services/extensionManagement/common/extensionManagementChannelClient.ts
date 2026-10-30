@@ -127,6 +127,19 @@ export abstract class ProfileAwareExtensionManagementChannelClient extends BaseE
 		return super.getInstalled(type, await this.getProfileLocation(extensionsProfileResource), productVersion);
 	}
 
+	override async reserveLocalUninstall(id: string, profileLocation: URI | undefined, remoteIdentity: string): Promise<ILocalExtension[]> {
+		return super.reserveLocalUninstall(id, await this.getProfileLocation(profileLocation), remoteIdentity);
+	}
+
+	override async prepareLocalUninstall(id: string, extensions: UninstallExtensionInfo[], recoveryTarget: string): Promise<void> {
+		const profileLocation = this.userDataProfileService.currentProfile.extensionsResource;
+		const infos: UninstallExtensionInfo[] = [];
+		for (const { extension, options } of extensions) {
+			infos.push({ extension, options: { ...options, profileLocation: await this.getProfileLocation(options?.profileLocation ?? profileLocation) } });
+		}
+		return super.prepareLocalUninstall(id, infos, recoveryTarget);
+	}
+
 	override async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, extensionsProfileResource?: URI): Promise<ILocalExtension> {
 		return super.updateMetadata(local, metadata, await this.getProfileLocation(extensionsProfileResource));
 	}

@@ -166,6 +166,10 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 
 	protected abstract getTranslations(language: string): Promise<Translations>;
 
+	protected withStoreMutation<T>(task: () => Promise<T>): Promise<T> {
+		return task();
+	}
+
 	private readonly _onDidChangeCache = this._register(new Emitter<ExtensionType>());
 	readonly onDidChangeCache = this._onDidChangeCache.event;
 
@@ -302,12 +306,14 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 	}
 
 	async updateManifestMetadata(extensionLocation: URI, metaData: ManifestMetadata): Promise<void> {
-		const manifestLocation = joinPath(extensionLocation, 'package.json');
-		const content = (await this.fileService.readFile(manifestLocation)).value.toString();
-		const manifest: IScannedExtensionManifest = JSON.parse(content);
-		manifest.__metadata = { ...manifest.__metadata, ...metaData };
+		await this.withStoreMutation(async () => {
+			const manifestLocation = joinPath(extensionLocation, 'package.json');
+			const content = (await this.fileService.readFile(manifestLocation)).value.toString();
+			const manifest: IScannedExtensionManifest = JSON.parse(content);
+			manifest.__metadata = { ...manifest.__metadata, ...metaData };
 
-		await this.fileService.writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(manifest, null, '\t')));
+			await this.fileService.writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(manifest, null, '\t')));
+		});
 	}
 
 	async initializeDefaultProfileExtensions(): Promise<void> {
@@ -315,7 +321,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 			await this.extensionsProfileScannerService.scanProfileExtensions(this.userDataProfilesService.defaultProfile.extensionsResource, { bailOutWhenFileNotFound: true });
 		} catch (error) {
 			if (error instanceof ExtensionsProfileScanningError && error.code === ExtensionsProfileScanningErrorCode.ERROR_PROFILE_NOT_FOUND) {
-				await this.doInitializeDefaultProfileExtensions();
+				await this.withStoreMutation(() => this.doInitializeDefaultProfileExtensions());
 			} else {
 				throw error;
 			}

@@ -4,17 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { InstallExtensionResult, InstallOperation, ILocalExtension } from '../../../../../../platform/extensionManagement/common/extensionManagement.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import '../../../browser/aiCustomization/aiCustomizationManagement.contribution.js';
+import { AICustomizationManagementActionsContribution } from '../../../browser/aiCustomization/aiCustomizationManagement.contribution.js';
 import {
 	AICustomizationManagementItemMenuId,
 	AICustomizationManagementSyntheticItemMenuId,
@@ -28,6 +30,7 @@ import { AICustomizationManagementSection } from '../../../common/aiCustomizatio
 import { createCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../common/customizationMarketplaceInstallService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { DidChangeProfileForServerEvent, DidUninstallExtensionOnServerEvent, IWorkbenchExtensionManagementService } from '../../../../../services/extensionManagement/common/extensionManagement.js';
 
 suite('AI customization management contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -115,6 +118,72 @@ suite('AI customization management contribution', () => {
 			});
 		} finally {
 			disposables.dispose();
+		}
+	});
+
+	test('refreshes the customization extension context only for relevant extension and profile changes', async () => {
+		const installedExtensions: ILocalExtension[] = [];
+		let scans = 0;
+		let inventoryFails = false;
+		const didInstall = new Emitter<readonly InstallExtensionResult[]>();
+		const didUninstall = new Emitter<DidUninstallExtensionOnServerEvent>();
+		const didChangeProfile = new Emitter<DidChangeProfileForServerEvent>();
+		const extensionManagementService = upcastPartial<IWorkbenchExtensionManagementService>({
+			getInstalled: async () => {
+				scans++;
+				if (inventoryFails) {
+					throw new Error('inventory unavailable');
+				}
+				return installedExtensions;
+			},
+			onProfileAwareDidInstallExtensions: didInstall.event,
+			onProfileAwareDidUninstallExtension: didUninstall.event,
+			onDidChangeProfile: didChangeProfile.event,
+		});
+		const contextKeyService = new MockContextKeyService();
+		const contribution = new AICustomizationManagementActionsContribution(contextKeyService, extensionManagementService);
+		try {
+			await Promise.resolve();
+			assert.deepStrictEqual({ scans, notInstalled: contextKeyService.getContextKeyValue('chat.customizationExtensionNotInstalled') }, { scans: 1, notInstalled: true });
+
+			didInstall.fire([upcastPartial<InstallExtensionResult>({ identifier: { id: 'publisher.unrelated' }, operation: InstallOperation.Install })]);
+			assert.strictEqual(scans, 1);
+
+			installedExtensions.push(upcastPartial<ILocalExtension>({ identifier: { id: 'MS-VSCODE.VSCODE-CHAT-CUSTOMIZATIONS-EVALUATIONS' } }));
+			didInstall.fire([
+				upcastPartial<InstallExtensionResult>({ identifier: { id: 'publisher.unrelated' }, operation: InstallOperation.Install }),
+				upcastPartial<InstallExtensionResult>({ identifier: { id: installedExtensions[0].identifier.id }, operation: InstallOperation.Install }),
+			]);
+			await Promise.resolve();
+			assert.deepStrictEqual({ scans, notInstalled: contextKeyService.getContextKeyValue('chat.customizationExtensionNotInstalled') }, { scans: 2, notInstalled: false });
+
+			didUninstall.fire(upcastPartial<DidUninstallExtensionOnServerEvent>({ identifier: { id: 'publisher.unrelated' } }));
+			assert.strictEqual(scans, 2);
+			installedExtensions.length = 0;
+			didUninstall.fire(upcastPartial<DidUninstallExtensionOnServerEvent>({ identifier: { id: 'MS-VSCODE.VSCODE-CHAT-CUSTOMIZATIONS-EVALUATIONS' } }));
+			await Promise.resolve();
+			assert.deepStrictEqual({ scans, notInstalled: contextKeyService.getContextKeyValue('chat.customizationExtensionNotInstalled') }, { scans: 3, notInstalled: true });
+
+			installedExtensions.push(upcastPartial<ILocalExtension>({ identifier: { id: 'ms-vscode.vscode-chat-customizations-evaluations' } }));
+			didChangeProfile.fire(upcastPartial<DidChangeProfileForServerEvent>({ added: [], removed: [] }));
+			await Promise.resolve();
+			assert.deepStrictEqual({ scans, notInstalled: contextKeyService.getContextKeyValue('chat.customizationExtensionNotInstalled') }, { scans: 4, notInstalled: false });
+
+			inventoryFails = true;
+			didChangeProfile.fire(upcastPartial<DidChangeProfileForServerEvent>({ added: [], removed: [] }));
+			await Promise.resolve();
+			assert.deepStrictEqual({ scans, notInstalled: contextKeyService.getContextKeyValue('chat.customizationExtensionNotInstalled') }, { scans: 5, notInstalled: true });
+
+			contribution.dispose();
+			didInstall.fire([upcastPartial<InstallExtensionResult>({ identifier: { id: 'MS-VSCODE.VSCODE-CHAT-CUSTOMIZATIONS-EVALUATIONS' }, operation: InstallOperation.Install })]);
+			didUninstall.fire(upcastPartial<DidUninstallExtensionOnServerEvent>({ identifier: { id: 'MS-VSCODE.VSCODE-CHAT-CUSTOMIZATIONS-EVALUATIONS' } }));
+			didChangeProfile.fire(upcastPartial<DidChangeProfileForServerEvent>({ added: [], removed: [] }));
+			assert.strictEqual(scans, 5);
+		} finally {
+			contribution.dispose();
+			didInstall.dispose();
+			didUninstall.dispose();
+			didChangeProfile.dispose();
 		}
 	});
 });
