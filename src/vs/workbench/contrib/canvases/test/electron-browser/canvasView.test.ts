@@ -23,6 +23,45 @@ import { CanvasView, ICanvasViewInput } from '../../electron-browser/canvasView.
 suite('CanvasView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('lays out its status message while no canvas page is attached', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(ICanvasService, {
+			enabled: constObservable(true),
+			// Like a restored pin that has not reconnected yet, the canvas cannot be attached.
+			isPresentable: () => false,
+			resolveCanvasModel: async () => { throw new Error('No canvas page should be requested'); },
+		});
+		instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
+		instantiationService.stub(IAccessibleViewService, {});
+		instantiationService.stubInstance(WebContentsViewHost, {
+			screenshotElement: $('div'), pauseElement: $('div'),
+			onContainerCreated: () => { },
+			setModel: () => { },
+			setVisible: () => { },
+			layout: () => { },
+			tryFocus: () => false,
+			dispose: () => { },
+		});
+		const parent = $('.canvas-view-status');
+		parent.style.width = '400px';
+		parent.style.height = '200px';
+		getWindow(parent).document.body.appendChild(parent);
+		store.add(toDisposable(() => parent.remove()));
+		const view = store.add(instantiationService.createInstance(CanvasView, parent, getWindow(parent), {
+			logPrefix: '[test]',
+			notPresentableMessage: constObservable('Reconnecting to this canvas…'),
+			getHelpContent: () => '',
+		}));
+		const reference: ICanvasReference = { providerId: 'local', session: URI.parse('session:/a'), chat: URI.parse('chat:/a'), canvas: URI.parse('canvas:/plan') };
+		view.setInput({ reference, canvas: constObservable(undefined), membershipPending: constObservable(true) });
+		view.setVisible(true);
+		view.layout();
+
+		const message = parent.querySelector<HTMLElement>('.session-canvas-message')!;
+		const { width, height } = message.getBoundingClientRect();
+		assert.deepStrictEqual({ text: message.textContent, shown: width > 0 && height > 0 }, { text: 'Reconnecting to this canvas…', shown: true });
+	});
+
 	test('attaches a live canvas to one view at a time and lets a hidden view take it back once shown', async () => {
 		const attached: string[] = [];
 		const model = upcastPartial<IBrowserViewModel>({

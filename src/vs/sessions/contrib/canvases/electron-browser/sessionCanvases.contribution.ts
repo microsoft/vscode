@@ -19,6 +19,7 @@ import { ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
 import { registerSessionCanvasActions } from './sessionCanvasActions.js';
 import { SessionCanvasContextService, SessionCanvasRegistryService } from './sessionCanvasService.js';
 import { SessionCanvasSerializer } from './sessionCanvasSerializer.js';
+import { PinnedCanvasPageContribution } from './pinnedCanvasPage.js';
 
 registerSingleton(ICanvasContextService, SessionCanvasContextService, InstantiationType.Delayed);
 registerSingleton(ISessionCanvasRegistryService, SessionCanvasRegistryService, InstantiationType.Delayed);
@@ -43,3 +44,4 @@ class SessionCanvasAddTabContribution extends Disposable implements IWorkbenchCo
 }
 
 registerWorkbenchContribution2(SessionCanvasAddTabContribution.ID, SessionCanvasAddTabContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(PinnedCanvasPageContribution.ID, PinnedCanvasPageContribution, WorkbenchPhase.BlockRestore);

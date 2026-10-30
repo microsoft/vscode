@@ -375,17 +375,18 @@ export class CanvasView extends Disposable {
 	}
 
 	layout(): void {
+		const { rect, bounds, visible } = this._measure();
+		// Status messages live in the container, so it takes its bounds even while no page is attached.
+		this.container.style.left = `${bounds.x - rect.left}px`;
+		this.container.style.top = `${bounds.y - rect.top}px`;
+		this.container.style.width = `${bounds.width}px`;
+		this.container.style.height = `${bounds.height}px`;
 		const model = this.model;
 		if (!model) {
 			this._reclaimIfVisible();
 			return;
 		}
 		const sequence = ++this.layoutSequence;
-		const { rect, bounds, visible } = this._measure();
-		this.container.style.left = `${bounds.x - rect.left}px`;
-		this.container.style.top = `${bounds.y - rect.top}px`;
-		this.container.style.width = `${bounds.width}px`;
-		this.container.style.height = `${bounds.height}px`;
 		if (!visible) {
 			// Keep the last valid native bounds; empty or off-screen bounds must never be revealed.
 			this._presentationVisible.set(false, undefined);
