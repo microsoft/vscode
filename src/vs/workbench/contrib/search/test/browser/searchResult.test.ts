@@ -7,6 +7,7 @@ import * as sinon from 'sinon';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { SearchModelImpl } from '../../browser/searchTreeModel/searchModel.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { IFileMatch, TextSearchMatch, OneLineRange, ITextSearchMatch, QueryType } from '../../../../services/search/common/search.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -38,7 +39,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CellMatch, NotebookCompatibleFileMatch } from '../../browser/notebookSearch/notebookSearchModel.js';
 import { INotebookFileInstanceMatch } from '../../browser/notebookSearch/notebookSearchModelBase.js';
-import { ISearchResult, ISearchTreeFolderMatch, isSearchTreeFolderMatchNoRoot, MATCH_PREFIX } from '../../browser/searchTreeModel/searchTreeCommon.js';
+import { IChangeEvent, ISearchResult, ISearchTreeFolderMatch, isSearchTreeFolderMatchNoRoot, MATCH_PREFIX } from '../../browser/searchTreeModel/searchTreeCommon.js';
 import { FolderMatchImpl } from '../../browser/searchTreeModel/folderMatch.js';
 import { SearchResultImpl } from '../../browser/searchTreeModel/searchResult.js';
 import { MatchImpl } from '../../browser/searchTreeModel/match.js';
@@ -401,6 +402,59 @@ suite('SearchResult', () => {
 		testObject.replaceAll(null!);
 
 		return voidPromise.then(() => assert.ok(testObject.isEmpty()));
+	});
+
+	test('replaceAll should not fire change events for files in nested folders while replacing', async function () {
+		const replaceDone = new DeferredPromise<void>();
+		instantiationService.stub(IReplaceService, 'replace', () => replaceDone.p);
+		const testObject = aSearchResult();
+		addToSearchResult(testObject, [
+			aRawMatch('/nested/folder/file.a',
+				new TextSearchMatch('preview 1', lineOneRange)),
+			aRawMatch('/file.b',
+				new TextSearchMatch('preview 2', lineOneRange))]);
+		const nestedFileMatch = testObject.matches().find(match => match.resource.path.endsWith('/nested/folder/file.a'))!;
+		const target = sinon.spy();
+		store.add(testObject.onChange(target));
+
+		const replaceAll = testObject.replaceAll(null!);
+		// e.g. the file's model was edited by the replace and its matches were recomputed
+		nestedFileMatch.remove(nestedFileMatch.matches());
+
+		assert.ok(target.notCalled);
+		replaceDone.complete();
+		await replaceAll;
+		assert.ok(testObject.isEmpty());
+	});
+
+	test('failed replaceAll prunes emptied nested folders and refreshes once', async function () {
+		const replaceDone = new DeferredPromise<void>();
+		instantiationService.stub(IReplaceService, 'replace', () => replaceDone.p);
+		const testObject = aSearchResult();
+		addToSearchResult(testObject, [
+			aRawMatch('/nested/folder/file.a',
+				new TextSearchMatch('preview 1', lineOneRange)),
+			aRawMatch('/file.b',
+				new TextSearchMatch('preview 2', lineOneRange))]);
+		const nestedFileMatch = testObject.matches().find(match => match.resource.path.endsWith('/nested/folder/file.a'))!;
+		const target = sinon.spy();
+		store.add(testObject.onChange(target));
+
+		const replaceAll = testObject.replaceAll(null!);
+		nestedFileMatch.remove(nestedFileMatch.matches());
+		replaceDone.error(new Error('replace failed'));
+		await replaceAll;
+
+		const root = testObject.folderMatches()[0];
+		assert.deepStrictEqual({
+			events: target.args.map(([event]: IChangeEvent[]) => ({ removed: event.removed, files: event.elements.map(match => match.name()) })),
+			files: testObject.matches().map(match => match.name()),
+			nestedFolders: [...root.folderMatchesIterator()].length,
+		}, {
+			events: [{ removed: true, files: ['file.b'] }],
+			files: ['file.b'],
+			nestedFolders: 0,
+		});
 	});
 
 	test('batchRemove should trigger the onChange event correctly', function () {
