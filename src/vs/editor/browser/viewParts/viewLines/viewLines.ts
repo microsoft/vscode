@@ -721,14 +721,6 @@ export class ViewLines extends ViewPart implements IViewLines {
 			return -1;
 		}
 
-		const editorPadding = this._context.configuration.options.get(EditorOption.padding);
-		if (minLineNumber === 1) {
-			boxStartY = Math.max(0, boxStartY - editorPadding.top);
-		}
-		if (maxLineNumber === this._context.viewModel.getLineCount()) {
-			boxEndY += editorPadding.bottom;
-		}
-
 		const shouldIgnoreScrollOff = (source === 'mouse' || minimalReveal) && this._cursorSurroundingLinesStyle === 'default';
 
 		let paddingTop: number = 0;
@@ -755,6 +747,28 @@ export class ViewLines extends ViewPart implements IViewLines {
 
 		boxStartY -= paddingTop;
 		boxEndY += paddingBottom;
+
+		const isCenteredReveal = (
+			verticalType === viewEvents.VerticalRevealType.Center ||
+			verticalType === viewEvents.VerticalRevealType.CenterIfOutsideViewport
+		);
+
+		if (!isCenteredReveal) {
+			const editorPadding = this._context.configuration.options.get(EditorOption.padding);
+			if (minLineNumber === 1 && editorPadding.top > 0) {
+				const availableSpace = viewportHeight - (boxEndY - boxStartY);
+				if (availableSpace > 0) {
+					boxStartY = Math.max(0, boxStartY - Math.min(editorPadding.top, availableSpace));
+				}
+			}
+			if (maxLineNumber === this._context.viewModel.getLineCount() && editorPadding.bottom > 0) {
+				const availableSpace = viewportHeight - (boxEndY - boxStartY);
+				if (availableSpace > 0) {
+					boxEndY += Math.min(editorPadding.bottom, availableSpace);
+				}
+			}
+		}
+
 		let newScrollTop: number;
 
 		if (boxEndY - boxStartY > viewportHeight) {
