@@ -14,6 +14,12 @@ Mobile components are presentation adapters over shared Sessions services. They 
 
 Alternative web entry points can supply a workbench factory and presentation services without changing the existing entries. `ISessionsPresentation` owns optional Sessions headers, list decoration, naming, repository selection, and diff-text access. Its default is a no-op; providers retain authentication and repository handling. Shared chat input and edit presenters likewise fall back to their existing UI. Concrete replacements and their styles belong to the entry that opts in, never to these shared contracts.
 
+## Isolated web composition
+
+The experimental `sessions.web.mobile.main.internal.ts` entry composes the shared core with an explicit set of contributions, a fixed phone workbench, and entry-owned presentation services. Existing desktop and web entries neither import its implementations nor activate its defaults. The source entry is not registered in production build targets.
+
+After transpiling the checkout, `node scripts/code-sessions-web.js --mobile --no-open` serves this entry locally. Add `--mock` for the mock-services entry. This source launcher does not publish an artifact.
+
 ## Viewport classification
 
 The Agents Window derives phone layout from the current viewport and platform environment. Mobile context keys are declarative inputs for menus, view registration, and presentation selection; they are not the source of truth for model or provider behavior.

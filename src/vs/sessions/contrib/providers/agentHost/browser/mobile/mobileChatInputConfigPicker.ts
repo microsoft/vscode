@@ -92,6 +92,15 @@ class MobileChatInputConfigPicker extends Disposable {
 			open: () => { void this._showSheet(); },
 			switchToModel: modelIdentifier => this._switchToModel(modelIdentifier),
 		}));
+		this._register(autorun(reader => {
+			this._phonePresenter.enabled.read(reader);
+			if (this._phonePresenter.supportsUnifiedConfiguration) {
+				reader.store.add(this._phonePresenter.registerSessionModelPicker({
+					getSessionContext: () => createChatPhoneInputSessionContext(this._session.read(undefined)),
+					selectModel: identifier => this._switchToModel(identifier),
+				}));
+			}
+		}));
 
 		// Re-render the trigger whenever the active session, its config,
 		// its model, or the available language models change. The

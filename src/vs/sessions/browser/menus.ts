@@ -32,6 +32,8 @@ export const Menus = {
 	BlockedSessionsItem: new MenuId('SessionsBlockedSessionsItem'),
 	TitleBarRightLayout: new MenuId('SessionsTitleBarRightLayout'),
 	MobileTitleBarCenter: new MenuId('SessionsMobileTitleBarCenter'),
+	MobileSessionsDrawerHeader: new MenuId('SessionsMobileSessionsDrawerHeader'),
+	NewSessionPlace: new MenuId('SessionsNewSessionPlace'),
 	PanelTitle: new MenuId('SessionsPanelTitle'),
 	SidebarTitle: new MenuId('SessionsSidebarTitle'),
 	SidebarSessionsHeader: new MenuId('SessionsSidebarSessionsHeader'),
