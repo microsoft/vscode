@@ -4,9 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
 import * as assert from 'assert';
+import * as cp from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { LogOutputChannel, window } from 'vscode';
+import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
 import { splitInChunks } from '../util';
 
 suite('git', () => {
@@ -795,6 +799,47 @@ suite('git', () => {
 				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 9)],
 				[['0', '01', '012', '0', '01'], ['012', '0', '01', '012']]
 			);
+		});
+	});
+
+	suite('revert', () => {
+		let git: Git;
+		let logger: LogOutputChannel;
+		let testDir: string;
+
+		suiteSetup(async () => {
+			logger = window.createOutputChannel('git revert test', { log: true });
+			const foundGit = await findGit(['git'], () => true, logger);
+			git = new Git({ gitPath: foundGit.path, userAgent: 'git-revert-test', version: foundGit.version });
+		});
+
+		suiteTeardown(() => {
+			logger?.dispose();
+		});
+
+		setup(() => {
+			testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-git-revert-test-'));
+			cp.execSync('git init', { cwd: testDir });
+		});
+
+		teardown(() => {
+			fs.rmSync(testDir, { recursive: true, force: true });
+		});
+
+		test('unstages modified staged file in repository without commits', async () => {
+			const filePath = path.join(testDir, 'test.txt');
+			fs.writeFileSync(filePath, 'staged content', 'utf8');
+			cp.execSync('git add test.txt', { cwd: testDir });
+			fs.writeFileSync(filePath, 'modified content after stage', 'utf8');
+
+			const dotGit = await git.getRepositoryDotGit(testDir);
+			const repository = git.open(testDir, undefined, dotGit, logger);
+
+			await repository.revert('HEAD', [filePath]);
+
+			const status = cp.execSync('git status --short', { cwd: testDir }).toString().trim();
+			assert.strictEqual(status, '?? test.txt');
+			assert.strictEqual(fs.readFileSync(filePath, 'utf8'), 'modified content after stage');
 		});
 	});
 });
