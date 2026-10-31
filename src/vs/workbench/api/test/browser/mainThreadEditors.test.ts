@@ -336,13 +336,15 @@ suite('MainThreadEditors', () => {
 			edits: [
 				{ oldResource: resource, newResource: resource, options: undefined },
 				{ oldResource: undefined, newResource: resource, options: undefined },
-				{ oldResource: resource, newResource: undefined, options: undefined }
+				{ oldResource: resource, newResource: undefined, options: undefined },
+				{ oldResource: resource, newResource: resource, options: { copy: true } }
 			]
 		})).then((result) => {
 			assert.strictEqual(result, true);
 			assert.strictEqual(movedResources.get(resource), resource);
 			assert.strictEqual(createdResources.has(resource), true);
 			assert.strictEqual(deletedResources.has(resource), true);
+			assert.strictEqual(copiedResources.has(resource), true);
 		});
 	});
 
