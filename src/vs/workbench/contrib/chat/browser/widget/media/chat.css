@@ -3893,7 +3893,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	will-change: auto;
 }
 
-.interactive-item-container.chat-persistent-progress .codicon-modifier-spin:not(.chat-working-progress-icon-stable):not(.chat-working-progress-icon-insiders):not(.chat-subagent-pill-widget *):not(.chat-terminal-progress-row *):not(.chat-terminal-thinking-collapsible *) {
+.interactive-item-container.chat-persistent-progress .codicon-modifier-spin:not(.chat-working-progress-icon-stable):not(.chat-working-progress-icon-insiders):not(.chat-subagent-pill-widget *):not(.chat-terminal-progress-row *):not(.chat-terminal-thinking-collapsible *):not(.chat-mcp-servers-interaction *) {
 	animation: none;
 }
 
