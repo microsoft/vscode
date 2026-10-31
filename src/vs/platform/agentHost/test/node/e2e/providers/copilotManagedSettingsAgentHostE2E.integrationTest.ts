@@ -11,9 +11,11 @@ import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../common/agent.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE, type IAgentExtensionInventory } from '../../../../common/agent.js';
 import type { IAgentHostManagedSettingsDiagnostics } from '../../../../common/agentService.js';
+import { ListAgentExtensionsExtensionMethod } from '../../../../common/agentHostExtensionProtocol.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../../../common/agentHostManagedSettings.js';
+import { AgentHostCanvasesEnabledConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../../../common/agentHostSchema.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../../../common/meta/clientPluginCustomizationMeta.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
 import type { ListSessionsResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
@@ -320,6 +322,7 @@ suite('Agent Host E2E — Copilot customization lockdown', function () {
 		readonly workspace: string;
 		readonly plugin: ClientPluginCustomization;
 		readonly standalone: ClientPluginCustomization;
+		readonly extensionStartedFile: string;
 	}
 
 	interface IRuntimeCustomizations {
@@ -332,12 +335,15 @@ suite('Agent Host E2E — Copilot customization lockdown', function () {
 		const workspace = join(directory, 'workspace');
 		const pluginDirectory = join(directory, 'plugin');
 		const standaloneDirectory = join(directory, 'standalone');
+		const extensionDirectory = join(workspace, '.github', 'extensions', 'lockdown-extension');
+		const extensionStartedFile = join(extensionDirectory, 'started');
 		for (const folder of [
 			workspace,
 			join(pluginDirectory, '.plugin'),
 			join(pluginDirectory, 'skills', 'lockdown-plugin-skill'),
 			join(standaloneDirectory, '.plugin'),
 			join(standaloneDirectory, 'skills', 'lockdown-standalone-skill'),
+			extensionDirectory,
 		]) {
 			await mkdir(folder, { recursive: true });
 		}
@@ -363,6 +369,12 @@ suite('Agent Host E2E — Copilot customization lockdown', function () {
 				'lockdown-standalone-server': { command: process.execPath, args: [serverScript], env: { ELECTRON_RUN_AS_NODE: '1' } },
 			},
 		}));
+		await writeFile(join(extensionDirectory, 'extension.mjs'), `
+import { writeFileSync } from 'node:fs';
+import { joinSession } from '@github/copilot-sdk/extension';
+writeFileSync(new URL('./started', import.meta.url), 'started');
+await joinSession({ tools: [] });
+`, 'utf8');
 		const toCustomization = (folder: string, name: string, meta?: Record<string, unknown>): ClientPluginCustomization => {
 			const uri = URI.file(folder).toString();
 			return {
@@ -383,6 +395,7 @@ suite('Agent Host E2E — Copilot customization lockdown', function () {
 				...toClientPluginStandaloneMeta(),
 				...toClientPluginMcpDefaultCwdsMeta({ 'lockdown-standalone-server': null }),
 			}),
+			extensionStartedFile,
 		};
 	}
 
@@ -419,7 +432,7 @@ suite('Agent Host E2E — Copilot customization lockdown', function () {
 		};
 	}
 
-	async function createReadySession(client: TestProtocolClient, clientId: string, workspace: string, createdSessions: string[]): Promise<string> {
+	async function createReadySession(client: TestProtocolClient, clientId: string, workspace: string, createdSessions: string[], canvasesEnabled = false): Promise<string> {
 		return createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workspace), async () => {
 			// A freshly started host opens Copilot sessions only after the runtime publishes its model catalog.
 			await client.waitForNotification(n => {
@@ -430,6 +443,23 @@ suite('Agent Host E2E — Copilot customization lockdown', function () {
 				return action.type === ActionType.RootAgentsChanged
 					&& action.agents.some(agent => agent.provider === COPILOT_CONFIG.provider && agent.models.length > 0);
 			});
+			if (canvasesEnabled) {
+				client.dispatch({
+					channel: ROOT_STATE_URI,
+					clientSeq: 1,
+					action: {
+						type: ActionType.RootConfigChanged,
+						config: {
+							[AgentHostCanvasesEnabledConfigKey]: true,
+							[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(workspace).toString()] },
+						},
+					},
+				});
+				await client.waitForNotification(n =>
+					isActionNotification(n, ActionType.RootConfigChanged)
+					&& getActionEnvelope(n).action.type === ActionType.RootConfigChanged,
+				);
+			}
 		}, async () => {
 			await client.call('subscribe', { channel: ROOT_STATE_URI });
 		});
@@ -467,6 +497,68 @@ suite('Agent Host E2E — Copilot customization lockdown', function () {
 			assert.deepStrictEqual({ locked, unlocked }, {
 				locked: { pluginSkill: true, standaloneSkill: false, standaloneServer: false },
 				unlocked: { pluginSkill: true, standaloneSkill: true, standaloneServer: true },
+			});
+		} catch (error) {
+			lease.dumpRuntimeLogsOnFailure(this.test!.title);
+			throw error;
+		} finally {
+			try {
+				await lease.release(createdSessions, this.test?.state === 'failed');
+			} finally {
+				try {
+					await lease.dispose();
+				} finally {
+					await removeTempDirs([directory]);
+				}
+			}
+		}
+	});
+
+	test('extension lockdown blocks project extensions without broadening the existing four-category array', async function () {
+		this.timeout(240_000);
+		const directory = createTestDirectory(join(tmpdir(), 'copilot-extension-lockdown-'));
+		const lease = new AgentHostE2EServerLease(COPILOT_CONFIG, {
+			env: {
+				COPILOT_CACHE_HOME: join(directory, 'cache'),
+				COPILOT_MANAGED_SETTINGS_CACHE: '0',
+			},
+		});
+		const createdSessions: string[] = [];
+		try {
+			const fixture = await createFixture(directory);
+			let { client, server } = await lease.acquire(this.test!.title, 'none');
+			assert.ok(server.capiReplay);
+			server.capiReplay.setManagedSettings({ strictPluginOnlyCustomization: ['extensions'] });
+
+			const lockedSession = await createReadySession(client, 'extension-lockdown-locked', fixture.workspace, createdSessions, true);
+			await driveTurnToCompletion(client, lockedSession, 'turn-extension-lockdown-locked', '/env', 1);
+			const lockedInventory = await client.call<IAgentExtensionInventory>(ListAgentExtensionsExtensionMethod, { session: lockedSession });
+			assert.deepStrictEqual({
+				extension: lockedInventory.extensions.find(extension => extension.id === 'project:lockdown-extension'),
+				started: existsSync(fixture.extensionStartedFile),
+			}, {
+				extension: undefined,
+				started: false,
+			});
+			await client.call('disposeSession', { channel: lockedSession });
+			createdSessions.splice(createdSessions.indexOf(lockedSession), 1);
+
+			server.capiReplay.setManagedSettings({ strictPluginOnlyCustomization: ['skills', 'agents', 'hooks', 'mcp'] });
+			client = await lease.restart();
+			const existingCategoriesSession = await createReadySession(client, 'extension-lockdown-existing-categories', fixture.workspace, createdSessions, true);
+			await driveTurnToCompletion(client, existingCategoriesSession, 'turn-extension-lockdown-existing-categories', '/env', 1);
+			const existingCategories = await retry(async () => {
+				const inventory = await client.call<IAgentExtensionInventory>(ListAgentExtensionsExtensionMethod, { session: existingCategoriesSession });
+				const extension = inventory.extensions.find(extension => extension.id === 'project:lockdown-extension');
+				assert.ok(extension?.status === 'running', JSON.stringify({ inventory, started: existsSync(fixture.extensionStartedFile) }));
+				assert.ok(existsSync(fixture.extensionStartedFile), JSON.stringify(inventory));
+				return { id: extension.id, source: extension.source, status: extension.status };
+			}, 100, 300);
+
+			assert.deepStrictEqual(existingCategories, {
+				id: 'project:lockdown-extension',
+				source: 'project',
+				status: 'running',
 			});
 		} catch (error) {
 			lease.dumpRuntimeLogsOnFailure(this.test!.title);
