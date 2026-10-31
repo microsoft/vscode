@@ -2391,4 +2391,23 @@ suite('FindModel', () => {
 		});
 	});
 
+	test('issue #211426: match index is restored when the editor view state is restored', () => {
+		withTestCodeEditor(['start', 'hello', 'hello', 'hello', 'hello'], {}, (_editor) => {
+			const editor = _editor as IActiveCodeEditor;
+
+			editor.setSelection(new Selection(3, 1, 3, 6));
+			const viewState = editor.saveViewState();
+			editor.setSelection(new Selection(1, 1, 1, 1));
+
+			const findState = disposables.add(new FindReplaceState());
+			findState.change({ searchString: 'hello' }, false);
+			disposables.add(new FindModelBoundToEditorModel(editor, findState));
+			assert.strictEqual(findState.matchesCount, 4);
+			assert.strictEqual(findState.matchesPosition, 0);
+
+			editor.restoreViewState(viewState);
+			assert.strictEqual(findState.matchesPosition, 2);
+		});
+	});
+
 });
