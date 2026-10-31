@@ -86,12 +86,13 @@ suite('Copilot SDK managed model configuration', function () {
 				if (stub) {
 					response.writeHead(stub.status, stub.headers);
 					let content = stub.body.replaceAll('${capi}', baseUrl);
-					if (path === '/models' && modelEfforts) {
-						const catalog: { data: { id: string; capabilities: { supports: { reasoning_effort?: string[] } } }[] } = JSON.parse(content);
+					if ((path === '/models' || path === '/meta') && modelEfforts) {
+						const envelope = JSON.parse(content);
+						const catalog: { data: { id: string; capabilities: { supports: { reasoning_effort?: string[] } } }[] } = path === '/meta' ? envelope.models : envelope;
 						const model = catalog.data.find(model => model.id === 'gpt-5');
 						assert.ok(model);
 						model.capabilities.supports.reasoning_effort = modelEfforts;
-						content = JSON.stringify(catalog);
+						content = JSON.stringify(envelope);
 					}
 					response.end(content);
 				} else {

@@ -155,7 +155,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			channel: defaultChatChannel(session),
 			turnId,
 			toolNames: ['ask_user'],
-			expected: [/\bfruit:\s*Apple\b/, /\bcolor:\s*Blue\b/],
+			expected: [/\bFruit:\s*Apple\b/, /\bColor:\s*Blue\b/],
 			success: true,
 		});
 		assert.deepStrictEqual({
