@@ -163,6 +163,17 @@ const webResourcePatterns = [
 	'vs/workbench/services/extensionManagement/common/media/*.png',
 ];
 
+const mobilePreviewResourcePatterns = [
+	...commonResourcePatterns,
+	'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
+	'vs/workbench/contrib/webview/browser/pre/*.html',
+	'vs/workbench/contrib/webview/browser/pre/*.js',
+	'vs/platform/accessibilitySignal/browser/media/*.mp3',
+	'vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
+	'vs/workbench/services/extensionManagement/common/media/*.{svg,png}',
+	'vs/workbench/contrib/extensions/browser/media/*.{svg,png}',
+];
+
 function getResourcePatternsForTarget(target: BuildTarget): string[] {
 	switch (target) {
 		case 'desktop':
@@ -173,6 +184,8 @@ function getResourcePatternsForTarget(target: BuildTarget): string[] {
 			return serverWebResourcePatterns;
 		case 'web':
 			return webResourcePatterns;
+		case 'mobile-preview':
+			return mobilePreviewResourcePatterns;
 		default:
 			throw new Error(`Unknown target: ${target}`);
 	}

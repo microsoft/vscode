@@ -8,7 +8,7 @@ import * as path from 'path';
 
 const root = path.resolve(import.meta.dirname, '../..');
 
-export type BuildTarget = 'desktop' | 'server' | 'server-web' | 'web';
+export type BuildTarget = 'desktop' | 'server' | 'server-web' | 'web' | 'mobile-preview';
 
 export function getBootstrapEntryPointsForTarget(target: BuildTarget): string[] {
 	switch (target) {
@@ -18,6 +18,7 @@ export function getBootstrapEntryPointsForTarget(target: BuildTarget): string[] 
 		case 'server-web':
 			return ['server-main', 'server-cli', 'bootstrap-fork'];
 		case 'web':
+		case 'mobile-preview':
 			return [];
 		default:
 			throw new Error(`Unknown target: ${target}`);
