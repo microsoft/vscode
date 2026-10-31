@@ -2746,6 +2746,7 @@ interface ITerminalLabelTemplateProperties {
 	workspaceFolderName?: string | null | undefined;
 	workspaceFolder?: string | null | undefined;
 	local?: string | null | undefined;
+	host?: string | null | undefined;
 	process?: string | null | undefined;
 	sequence?: string | null | undefined;
 	progress?: string | null | undefined;
@@ -2826,6 +2827,7 @@ export class TerminalLabelComputer extends Disposable {
 			workspaceFolderName: instance.workspaceFolder?.name,
 			workspaceFolder: instance.workspaceFolder ? path.basename(instance.workspaceFolder.uri.fsPath) : undefined,
 			local: type === 'Local' ? terminalStrings.typeLocal : undefined,
+			host: instance.shellLaunchConfig.hostLabel,
 			process: instance.processName,
 			sequence: instance.sequence,
 			task: type === 'Task' ? terminalStrings.typeTask : undefined,

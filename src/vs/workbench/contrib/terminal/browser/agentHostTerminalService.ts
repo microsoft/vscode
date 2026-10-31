@@ -39,6 +39,11 @@ export interface IAgentHostEntry {
 	readonly address: string;
 	/** Getter for the connection (may be lazily resolved). */
 	readonly getConnection: () => IAgentConnection | undefined;
+	/**
+	 * The name to show for the host on its terminals, through the `${host}` variable in
+	 * terminal titles and descriptions. Leave unset for a host on this computer.
+	 */
+	readonly terminalHostLabel?: string;
 }
 
 export interface IAgentHostTerminalProfileInfo {
@@ -359,6 +364,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 						return pty;
 					},
 					name,
+					hostLabel: this._getHostLabel(connection),
 					isFeatureTerminal: false,
 				},
 				location: options?.location,
@@ -422,6 +428,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 					return pty;
 				},
 				icon: ThemeIcon.fromId(Codicon.chatSparkle.id),
+				hostLabel: this._getHostLabel(connection),
 				isFeatureTerminal: true,
 				hideFromUser: true,
 			},
@@ -501,6 +508,11 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		// Reconnection moves the terminal's PTY to the new connection.
 		const clientId = this._activePtys.get(registration.key)?.clientId ?? registration.clientId;
 		return this._entries.find(entry => entry.getConnection()?.clientId === clientId)?.address;
+	}
+
+	/** The label of the host that owns the given connection, for the terminals created on it. */
+	private _getHostLabel(connection: IAgentConnection): string | undefined {
+		return this._entries.find(entry => entry.getConnection()?.clientId === connection.clientId)?.terminalHostLabel;
 	}
 
 	isCommandExecuting(instance: ITerminalInstance): boolean | undefined {
