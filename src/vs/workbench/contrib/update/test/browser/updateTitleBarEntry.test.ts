@@ -202,4 +202,17 @@ suite('UpdateTooltip', () => {
 			],
 		);
 	});
+
+	test('explains when installing an available update requires administrator privileges', () => {
+		const tooltip = createTooltip();
+		const update = { version: 'next', productVersion: '1.135.0' };
+		const messageNode = tooltip.domNode.querySelector<HTMLElement>('.state-message')!;
+
+		const messages = [State.AvailableForDownload(update), State.AvailableForDownload(update, true)].map(state => {
+			tooltip.renderState(state);
+			return messageNode.style.display === 'none' ? undefined : messageNode.textContent;
+		});
+
+		assert.deepStrictEqual(messages, [undefined, 'Installing this update requires administrator privileges.']);
+	});
 });
