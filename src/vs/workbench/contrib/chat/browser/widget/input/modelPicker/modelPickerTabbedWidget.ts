@@ -808,11 +808,13 @@ export class TabbedModelPicker extends Disposable {
 		const actions: ITabBarAction[] = [];
 		const comparison = context.comparison;
 		if (comparison?.available.get()) {
+			const label = this._labelWithKeybinding(comparison.label, comparison.startCommandId);
+			const description = comparison.description?.get();
 			// Grouped with Search at the end of the tab bar, away from the provider tabs.
 			actions.push({
 				id: 'comparison',
 				icon: Codicon.compare,
-				tooltip: this._labelWithKeybinding(comparison.label, comparison.startCommandId),
+				tooltip: description ? localize('comparisonTooltip', "{0}\n\n{1}", label, description) : label,
 				alignEnd: true,
 				useManagedHover: true,
 				checked: !!comparison.state.get(),
@@ -1145,6 +1147,11 @@ export class TabbedModelPicker extends Disposable {
 
 	/** HydraFusion's rows: one standing for its tiers when it has them, else one per model. */
 	private _hydraFusionRowModels(context: ITabbedModelPickerContext): readonly ILanguageModelChatMetadataAndIdentifier[] {
+		// HydraFusion is one of Fusion's effort levels, so a Fusion that offers none here, as in inline chat, offers no HydraFusion either.
+		const auto = this._autoModel(context);
+		if (auto?.metadata.autoModelFusion && !getModelConfigProperty(auto, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT)) {
+			return [];
+		}
 		const tiers = this._hydraFusionTiers(context);
 		return tiers.length ? [this._hydraFusionRowModel(tiers, context)] : this._hydraFusionModels(context);
 	}

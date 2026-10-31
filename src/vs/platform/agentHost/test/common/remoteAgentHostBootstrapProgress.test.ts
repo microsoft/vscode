@@ -6,16 +6,13 @@
 import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { redactToken, RemoteAgentHostBootstrapProgressReporter, type IRemoteAgentHostBootstrapProgress } from '../../common/remoteAgentHostBootstrapProgress.js';
 
 suite('RemoteAgentHostBootstrapProgressReporter', () => {
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('parses a server download progress line', () => {
 		const reporter = disposables.add(new RemoteAgentHostBootstrapProgressReporter());

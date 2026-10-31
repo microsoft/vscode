@@ -43,14 +43,17 @@ export interface IRemoteAgentHostConnectionCustomization {
 	/** Whether this managed connection requires workspace trust. Defaults to true. */
 	readonly requiresWorkspaceTrust?: boolean;
 
+	/** Optional provider-specific input hint supplied by the connection owner. */
+	readonly inputPlaceholder?: (provider: string) => string | undefined;
+
 	/**
 	 * Transform the outgoing `authenticate` request before it is sent. Must fail closed: throw rather
 	 * than forward a value that does not meet the host's contract. An expired challenge requires renewal.
 	 */
 	readonly authenticate?: (request: IAgentHostAuthenticateRequest, reason?: AuthRequiredReason) => Promise<IAgentHostAuthenticateRequest>;
 
-	/** Resolves a fresh connection-owned credential for an expired challenge without requiring a new user sign-in. */
-	readonly renewAuthentication?: (resource: ProtectedResourceMetadata) => Promise<IAgentHostAuthenticateRequest>;
+	/** Resolves a fresh connection-owned credential, or returns undefined for resources using normal provider recovery. */
+	readonly renewAuthentication?: (resource: ProtectedResourceMetadata) => Promise<IAgentHostAuthenticateRequest | undefined>;
 
 	/**
 	 * The backend session URI scheme for an agent provider when it differs from the provider itself.

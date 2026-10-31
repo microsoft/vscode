@@ -1,0 +1,14 @@
+# Restores the browsers that `npm run playwright-install` downloads, keyed on the
+# pinned Playwright version, so a Playwright CDN outage doesn't fail the test
+# jobs. On a hit, the install finds the browsers and downloads nothing. On a
+# miss, it downloads them as before and the cache saves them after the job.
+steps:
+  - script: node -e "console.log('##vso[task.setvariable variable=PLAYWRIGHT_BROWSERS_PATH]' + require('path').join(process.env.BUILD_SOURCESDIRECTORY, '.build', 'ms-playwright'))"
+    displayName: Set Playwright browsers path
+
+  - task: Cache@2
+    inputs:
+      key: '"playwright" | "$(Agent.OS)" | "$(VSCODE_ARCH)" | node_modules/playwright/package.json'
+      path: .build/ms-playwright
+    displayName: Restore Playwright browsers cache
+    retryCountOnTaskFailure: 2

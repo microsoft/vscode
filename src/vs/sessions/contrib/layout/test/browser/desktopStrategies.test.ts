@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { spy } from 'sinon';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -17,10 +18,12 @@ import { GroupModelChangeKind } from '../../../../../workbench/common/editor.js'
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { CanvasInput } from '../../../../../workbench/contrib/canvases/common/canvas.js';
+import { IWindowCanvas, WindowCanvasInput } from '../../../../services/canvas/browser/windowCanvasService.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { DesktopDetailPanelCoordinator } from '../../browser/desktop/desktopDetailPanelCoordinator.js';
@@ -292,6 +295,33 @@ suite('Desktop layout strategies', () => {
 			],
 		});
 	});
+
+	for (const isCreated of [false, true]) {
+		test(`native canvas hides docked Details even when maximized (${isCreated ? 'existing' : 'draft'} session)`, () => {
+			harness = createTestHarness(store);
+			const { ctx } = createStrategyTestContext(store, harness);
+			const session = makeSession(URI.parse('session:/native-canvas'), { isCreated });
+			const editor = store.add(harness.instaService.createInstance(WindowCanvasInput, {
+				id: 'test.inbox', title: 'Inbox', icon: Codicon.inbox,
+				ctor: new SyncDescriptor(class extends mock<IWindowCanvas>() { }),
+			}));
+			harness.activeGroupEditors.push(editor);
+			harness.activeEditorInput = editor;
+			harness.editorMaximized = true;
+			harness.partVisibility.set(Parts.EDITOR_PART, true);
+			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+			activate(session);
+			if (isCreated) {
+				store.add(harness.instaService.createInstance(DesktopExistingSessionStrategy, ctx, createVisibilityStore(), createDetailPanel()));
+			} else {
+				store.add(harness.instaService.createInstance(DesktopDraftSessionStrategy, ctx, createDetailPanel(), createVisibilityStore()));
+			}
+			assert.deepStrictEqual({
+				editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+				detailsVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			}, { editorVisible: true, detailsVisible: false });
+		});
+	}
 
 	test('Existing Session hides Files Details after initial restoration settles with a canvas editor', () => {
 		harness = createTestHarness(store);
@@ -910,7 +940,7 @@ suite('Desktop layout strategies', () => {
 		});
 	});
 
-	test('Existing Session restores its composition when another mounted session is hidden', () => {
+	test('Existing Session keeps a docked-only composition hidden when another mounted session is hidden', () => {
 		const ctx = setup({}, { multipleChatsVisible: false });
 		ctx.chatLayoutActive = () => true;
 		const initialSession = makeSession(URI.parse('session:/initial'));
@@ -934,7 +964,7 @@ suite('Desktop layout strategies', () => {
 			auxiliaryBar: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
 		}, {
 			editor: false,
-			auxiliaryBar: true,
+			auxiliaryBar: false,
 		});
 	});
 

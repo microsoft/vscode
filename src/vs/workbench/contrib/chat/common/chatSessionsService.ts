@@ -279,6 +279,8 @@ export interface IChatSessionItem {
 		readonly deletions: number;
 	} | readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[];
 	readonly archived?: boolean;
+	/** Whether a child chat supports archiving independently of its parent. */
+	readonly canArchive?: boolean;
 	/**
 	 * Authoritative read state, set by controllers that own it (see
 	 * {@link IChatSessionItemController.setChatSessionItemRead}). Otherwise
@@ -404,6 +406,8 @@ export interface IChatSessionServerRequest {
 	readonly isTerminalRequest?: boolean;
 	/** Reopen the existing request with this id instead of adding another request. */
 	readonly resume?: boolean;
+	/** An earlier request that the provider removed and this request replaces; it is removed when this request is added. */
+	readonly replacesRequestId?: string;
 	readonly origin?: IChatRequestOrigin;
 }
 

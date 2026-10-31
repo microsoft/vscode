@@ -176,7 +176,7 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 				AgentHostProtocolClient,
 				entry.connection.address,
 				connection.transportFactory,
-				{ clientInfo: agentsWindowAgentHostClientInfo, reconnectPolicy: getEntryTypeConfig(RemoteAgentHostEntryType.DevContainer).reconnect },
+				{ clientInfo: agentsWindowAgentHostClientInfo, reconnectPolicy: getEntryTypeConfig(RemoteAgentHostEntryType.DevContainer).reconnect, clientCertificates: connection.clientCertificates },
 			);
 			staged.initialConnection = undefined;
 			staged.sandboxSupported = connection.sandboxSupported;
@@ -502,6 +502,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			address,
 			name,
 			devContainerSourceWorkspaceUri: workspaceUri,
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- keys the Dev Container worktree scope by the source host filesystem URI before connecting
 			devContainerWorktreeScope: findDevContainerSample(workspaceUri) ? undefined : getComparisonKey(fromAgentHostUri(workspaceUri)),
 			resolveDevContainerWorktreeConnection: workspaceUri.scheme === AGENT_HOST_SCHEME
 				? () => resolveDevContainerSourceConnection(workspaceUri, this._remoteAgentHostService, this._sessionsProvidersService, CancellationToken.None)

@@ -257,6 +257,10 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			this._addSubscription(parsed.ownerUri, resourceStr);
 			if (sessionLoaded) {
 				void this._changesets.computeUncommittedChangeset(parsed.ownerUri);
+				// Catch up Git state missed while the changeset was unobserved.
+				if (!this._isSubagentChat(parsed.ownerUri)) {
+					void this._gitStateService.refreshSessionGitState(parsed.ownerUri);
+				}
 			}
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.ownerUri);
 			return;
@@ -696,9 +700,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this._changesetOperationService.scheduleRelatedOperationsUpdate(sessionStr);
 		if (this._changesetSubscriptions.getSessionSubscriptions(sessionStr).has(sessionStr)
 			&& getSummaryChangesetKind(this._stateManager.getSessionState(sessionStr)?.config?.values) === ChangesetKind.Branch) {
-			for (const chat of this._getChatsAffectedBySessionWorkingDirectoryChange(sessionStr)) {
-				this._ensureBranchSummarySubscription(chat.resource);
-			}
+			this._reconcileBranchSummaryResources(sessionStr);
 		} else {
 			this._changesets.recomputeSubscribedChangesets(sessionStr);
 		}

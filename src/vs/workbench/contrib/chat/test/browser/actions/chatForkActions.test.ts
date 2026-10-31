@@ -7,9 +7,12 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
+import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -23,7 +26,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
-import { ForkConversationAction, IForkConversationOptions } from '../../../browser/actions/chatForkActions.js';
+import { captureForkPromptSourceInput, ForkConversationAction, IForkConversationOptions } from '../../../browser/actions/chatForkActions.js';
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { IChatPetService } from '../../../browser/chatPetService.js';
 import { ChatSlashCommandsContribution } from '../../../browser/chatSlashCommands.js';
@@ -35,6 +38,7 @@ import { IChatModel, IChatRequestModel, ISerializableChatData } from '../../../c
 import { IChatRequestViewModel, IChatViewModel } from '../../../common/model/chatViewModel.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatSlashCallback, IChatSlashCommandService, IChatSlashData } from '../../../common/participants/chatSlashCommands.js';
+import { ChatRequestSlashCommandPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 
 class TestForkConversationAction extends ForkConversationAction {
 	openForkedSession(instantiationService: TestInstantiationService, parentSessionResource: URI, forkedSessionResource: URI, options?: IForkConversationOptions): Promise<void> {
@@ -127,6 +131,65 @@ suite('ForkConversationAction', () => {
 			undefined,
 			{ title: 'prompt legacy title' },
 		]);
+	});
+
+	test('fork prompt source input retains the source chat until the fork outcome is known', () => {
+		// Opening the fork releases the source chat, which persists its draft
+		// when no reference remains. The captured input must outlive that release.
+		const inputText = '/fork prompt keep the source alive';
+		const state = observableValue('sourceInput', { inputText, attachments: [] });
+		const events: string[] = [];
+		const widget = {
+			viewModel: {
+				sessionResource: URI.parse('agent-host-copilot:/source'),
+				model: {
+					inputModel: {
+						state,
+						setState: (change: Partial<ReturnType<typeof state.get>>) => {
+							events.push(`setState ${JSON.stringify(change)}`);
+							state.set({ ...state.get(), ...change }, undefined);
+						},
+					},
+				},
+			},
+			getInput: () => state.get().inputText,
+			input: { attachmentModel: { get attachments() { return state.get().attachments; } } },
+			parsedInput: upcastPartial<IParsedChatRequest>({
+				parts: [new ChatRequestSlashCommandPart(new OffsetRange(0, 5), new Range(1, 1, 1, 6), { command: 'fork', detail: 'Fork', locations: [ChatAgentLocation.Chat] })],
+			}),
+		} as unknown as IChatWidget;
+		const chatService = upcastPartial<IChatService>({
+			acquireExistingSession: (resource: URI) => {
+				events.push(`acquire ${resource.toString()}`);
+				return upcastPartial<IChatModelReference>({ dispose: () => { events.push('release'); } });
+			},
+		});
+
+		const succeeded = captureForkPromptSourceInput(widget, chatService)!;
+		events.push('fork succeeded');
+		succeeded.clear();
+		succeeded.dispose();
+		const succeededState = state.get();
+
+		state.set({ inputText, attachments: [] }, undefined);
+		const failed = captureForkPromptSourceInput(widget, chatService)!;
+		events.push('fork failed');
+		failed.dispose();
+		failed.dispose();
+
+		assert.deepStrictEqual({ events, succeededState, failedState: state.get() }, {
+			events: [
+				'acquire agent-host-copilot:/source',
+				'fork succeeded',
+				'setState {"inputText":"","attachments":[]}',
+				'release',
+				'acquire agent-host-copilot:/source',
+				'fork failed',
+				'release',
+			],
+			succeededState: { inputText: '', attachments: [] },
+			failedState: { inputText, attachments: [] },
+		});
 	});
 
 	test('retains the created target when opening an initial-message fork fails', async () => {

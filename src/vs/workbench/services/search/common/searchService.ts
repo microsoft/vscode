@@ -22,7 +22,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
 import { IEditorService } from '../../editor/common/editorService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
-import { DEFAULT_MAX_SEARCH_RESULTS, deserializeSearchError, FileMatch, IAITextQuery, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, isAIKeyword, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SEARCH_RESULT_LANGUAGE_ID, SearchError, SearchErrorCode, SearchProviderType } from './search.js';
+import { DEFAULT_MAX_SEARCH_RESULTS, deserializeSearchError, FileMatch, IAITextQuery, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, isAIKeyword, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, getExcludeExceptionCounts, QueryType, SEARCH_RESULT_LANGUAGE_ID, SearchError, SearchErrorCode, SearchProviderType } from './search.js';
 import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from './searchHelpers.js';
 
 export class SearchService extends Disposable implements ISearchService {
@@ -425,6 +425,10 @@ export class SearchService extends Disposable implements ISearchService {
 					cmdTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The amount of time spent running the search command' };
 					cmdResultCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of results returned from the search command' };
 					scheme: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The uri scheme of the folder searched in' };
+					excludeExceptionCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of enabled exclude exceptions (`!`-prefixed exclude patterns) in the query' };
+					unanchoredExcludeExceptionCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of exclude exceptions that can match at any depth and therefore require a full walk' };
+					excludeExceptionRuns?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of additional search command runs for exclude exceptions' };
+					excludeExceptionTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The time in milliseconds spent in the additional search command runs for exclude exceptions' };
 				};
 				type SearchCompleteEvent = {
 					reason?: string;
@@ -438,7 +442,10 @@ export class SearchService extends Disposable implements ISearchService {
 					cmdTime: number;
 					cmdResultCount?: number;
 					scheme: string;
-
+					excludeExceptionCount: number;
+					unanchoredExcludeExceptionCount: number;
+					excludeExceptionRuns?: number;
+					excludeExceptionTime?: number;
 				};
 
 				this.telemetryService.publicLog2<SearchCompleteEvent, SearchCompleteClassification>('searchComplete', {
@@ -452,7 +459,10 @@ export class SearchService extends Disposable implements ISearchService {
 					filesWalked: searchEngineStats.filesWalked,
 					cmdTime: searchEngineStats.cmdTime,
 					cmdResultCount: searchEngineStats.cmdResultCount,
-					scheme
+					scheme,
+					...getExcludeExceptionCounts(query),
+					excludeExceptionRuns: searchEngineStats.excludeExceptionRuns,
+					excludeExceptionTime: searchEngineStats.excludeExceptionTime
 				});
 			}
 		} else if (query.type === QueryType.Text) {
@@ -475,6 +485,8 @@ export class SearchService extends Disposable implements ISearchService {
 				endToEndTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The total search time' };
 				scheme: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The uri scheme of the folder searched in' };
 				error?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of the error, if any' };
+				excludeExceptionCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of enabled exclude exceptions (`!`-prefixed exclude patterns) in the query' };
+				unanchoredExcludeExceptionCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of exclude exceptions that can match at any depth and therefore require a full walk' };
 			};
 			type TextSearchCompleteEvent = {
 				reason?: string;
@@ -482,6 +494,8 @@ export class SearchService extends Disposable implements ISearchService {
 				endToEndTime: number;
 				scheme: string;
 				error?: string;
+				excludeExceptionCount: number;
+				unanchoredExcludeExceptionCount: number;
 			};
 			this.telemetryService.publicLog2<TextSearchCompleteEvent, TextSearchCompleteClassification>('textSearchComplete', {
 				reason: query._reason,
@@ -489,6 +503,7 @@ export class SearchService extends Disposable implements ISearchService {
 				endToEndTime: endToEndTime,
 				scheme,
 				error: errorType,
+				...getExcludeExceptionCounts(query),
 			});
 		}
 	}

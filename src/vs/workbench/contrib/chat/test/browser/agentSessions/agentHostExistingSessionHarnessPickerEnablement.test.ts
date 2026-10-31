@@ -6,17 +6,16 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY, AgentHostExistingSessionHarnessPickerEnabledSettingId } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
 import { AgentHostExistingSessionHarnessPickerEnablement } from '../../../browser/agentSessions/agentHost/agentHostExistingSessionHarnessPickerEnablement.js';
+import { TestWarningLogService } from '../../../../../../platform/log/test/common/testWarningLogService.js';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 const settingSchema = configurationRegistry.getExcludedConfigurationProperties()[AgentHostExistingSessionHarnessPickerEnabledSettingId];
@@ -47,14 +46,6 @@ class TestAssignmentService extends NullWorkbenchAssignmentService {
 	}
 }
 
-class TestLogService extends NullLogService {
-	readonly warnings: string[] = [];
-
-	override warn(message: string): void {
-		this.warnings.push(message);
-	}
-}
-
 function fireConfigurationChange(configurationService: TestConfigurationService): void {
 	configurationService.onDidChangeConfigurationEmitter.fire({
 		source: ConfigurationTarget.USER,
@@ -70,17 +61,15 @@ async function flush(): Promise<void> {
 }
 
 suite('AgentHostExistingSessionHarnessPickerEnablement', () => {
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function setup(treatment?: boolean | Promise<boolean | undefined>, settings: Record<string, unknown> = {}) {
 		const configurationService = new TestConfigurationService(settings);
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		const contextKeyService = disposables.add(new MockContextKeyService());
 		const assignmentService = disposables.add(new TestAssignmentService(treatment));
-		const logService = disposables.add(new TestLogService());
+		const logService = disposables.add(new TestWarningLogService());
 		disposables.add(new AgentHostExistingSessionHarnessPickerEnablement(configurationService, contextKeyService, assignmentService, logService));
 		return {
 			assignmentService,

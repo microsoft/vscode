@@ -6,8 +6,14 @@
 import assert from 'assert';
 import fs from 'fs';
 import path from 'path';
-import { ConsoleMessage, Page, Request, Response } from 'playwright';
+import { Page } from 'playwright';
+import zlib from 'zlib';
 import { TestContext } from './context.js';
+import { GalleryRequestMonitor } from './galleryDiagnostics.js';
+import { WebviewDiagnostics } from './webviewDiagnostics.js';
+
+/** NetLogs larger than this are not uploaded. */
+const maxNetLogBytes = 200 * 1024 * 1024;
 
 /**
  * UI Test helper class to perform common UI actions and verifications.
@@ -16,6 +22,13 @@ export class UITest {
 	private _extensionsDir: string | undefined;
 	private _workspaceDir: string | undefined;
 	private _userDataDir: string | undefined;
+	private _netLogPath: string | undefined;
+
+	/**
+	 * Resolves the proxy that the app uses for a URL, in PAC format (such as `PROXY host:port` or
+	 * `DIRECT`), so failed gallery preflights can also be replayed through it.
+	 */
+	public resolveProxy: ((url: string) => Promise<string>) | undefined;
 
 	constructor(
 		protected readonly context: TestContext,
@@ -49,6 +62,13 @@ export class UITest {
 	}
 
 	/**
+	 * Where the desktop app writes its Chromium NetLog when launched with `--log-net-log`.
+	 */
+	public get netLogPath(): string {
+		return this._netLogPath ??= path.join(this.context.createTempDir(), 'netlog.json');
+	}
+
+	/**
 	 * Run the UI test actions.
 	 */
 	public async run(page: Page) {
@@ -71,6 +91,32 @@ export class UITest {
 	 */
 	public captureAppLogs() {
 		this.context.captureLogs(path.join(this.userDataDir, 'logs'));
+		this.captureNetLog();
+	}
+
+	/**
+	 * Uploads the gzipped NetLog, if the app was launched with one. It records the status and
+	 * headers of requests that the renderer only reports as `Failed to fetch`.
+	 */
+	private captureNetLog() {
+		if (!this._netLogPath) {
+			return;
+		}
+
+		try {
+			if (!fs.existsSync(this._netLogPath)) {
+				this.context.warn(`No NetLog found at ${this._netLogPath}`);
+				return;
+			}
+			const size = fs.statSync(this._netLogPath).size;
+			if (size > maxNetLogBytes) {
+				this.context.warn(`Not capturing the NetLog: ${size} bytes is over the ${maxNetLogBytes} byte limit`);
+				return;
+			}
+			this.context.writeDiagnostics('netlog.json.gz', zlib.gzipSync(fs.readFileSync(this._netLogPath)));
+		} catch (e) {
+			this.context.warn(`Failed to capture the NetLog: ${e instanceof Error ? e.message : String(e)}`);
+		}
 	}
 
 	/**
@@ -146,30 +192,7 @@ export class UITest {
 	 * being rejected with 401 (#341396).
 	 */
 	private async openMarkdownPreview(page: Page) {
-		const failedResources: string[] = [];
-		const diagnostics: string[] = [];
-		const onResponse = (response: Response) => {
-			if (response.status() >= 400 && response.url().includes('.vscode-resource.')) {
-				this.context.log(`Webview resource failed with ${response.status()}: ${response.url()}`);
-				failedResources.push(`${response.status()} ${response.url()}`);
-			}
-		};
-		const onRequestFailed = (request: Request) => {
-			if (/\.vscode-resource\.|vscode-cdn\.net/.test(request.url())) {
-				const message = `Webview request failed with ${request.failure()?.errorText}: ${request.url()}`;
-				this.context.log(message);
-				diagnostics.push(message);
-			}
-		};
-		const onConsole = (message: ConsoleMessage) => {
-			if (message.type() === 'error') {
-				diagnostics.push(`Console error: ${message.text()}`);
-			}
-		};
-
-		page.on('response', onResponse);
-		page.on('requestfailed', onRequestFailed);
-		page.on('console', onConsole);
+		const monitor = new WebviewDiagnostics(page, message => this.context.log(message));
 		try {
 			await this.createFile(page, 'preview.md', '# Webview Sanity');
 			await this.runCommand(page, 'Markdown: Open Preview');
@@ -179,7 +202,7 @@ export class UITest {
 				.frameLocator('iframe.webview.ready[src*="extensionId=vscode.markdown-language-features"]')
 				.frameLocator('#active-frame');
 			try {
-				await preview.getByRole('heading', { name: 'Webview Sanity' }).waitFor({ timeout: 60_000 });
+				await monitor.waitFor(preview.getByRole('heading', { name: 'Webview Sanity' }).waitFor({ timeout: 60_000 }));
 
 				// The heading can appear before asynchronous preview scripts finish loading.
 				const previewElement = await preview.owner().elementHandle();
@@ -187,36 +210,30 @@ export class UITest {
 				try {
 					const frame = await previewElement.contentFrame();
 					assert.ok(frame, 'Markdown preview frame is detached');
-					await frame.waitForLoadState('load', { timeout: 60_000 });
+					await monitor.waitFor(frame.waitForLoadState('load', { timeout: 60_000 }));
 				} finally {
 					await previewElement.dispose();
 				}
 			} catch (error) {
 				// Some browsers, such as Chromium on Debian 12, refuse to register the webview service worker,
 				// so no webview can load there at all. That is a property of the browser, not a resource loading failure.
-				if (failedResources.length === 0 && diagnostics.some(message => message.includes('NotSupportedError: Failed to register a ServiceWorker'))) {
+				if (monitor.failedResources.length === 0 && monitor.diagnostics.some(message => message.includes('NotSupportedError: Failed to register a ServiceWorker'))) {
 					this.context.warn('Skipping the Markdown preview check: this browser does not allow webviews to register their service worker');
 					await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
 					return;
 				}
 
-				throw new Error([
-					'Markdown preview did not render.',
-					`Failed webview resources: ${failedResources.join(', ') || 'none observed'}`,
-					...diagnostics.slice(0, 20),
-				].join('\n'), { cause: error });
+				throw new Error(monitor.formatFailure(), { cause: error });
 			}
 
 			// Keyboard focus is now inside the preview webview; return it to the workbench before later steps press F1.
 			this.context.log('Returning focus to the workbench');
 			await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
 		} finally {
-			page.off('response', onResponse);
-			page.off('requestfailed', onRequestFailed);
-			page.off('console', onConsole);
+			monitor.dispose();
 		}
 
-		assert.deepStrictEqual(failedResources, [], 'Markdown preview failed to load some webview resources');
+		assert.deepStrictEqual(monitor.failedResources, [], 'Markdown preview failed to load some webview resources');
 	}
 
 	/**
@@ -263,9 +280,26 @@ export class UITest {
 	}
 
 	/**
-	 * Install GitHub Pull Requests extension from the Extensions view.
+	 * Install GitHub Pull Requests extension from the Extensions view. If that fails, saves the
+	 * app's failed gallery requests and a Node-side replay of each of them, which tells a
+	 * Marketplace or CDN response apart from a failure in the app's own request.
 	 */
 	private async installExtension(page: Page) {
+		const gallery = new GalleryRequestMonitor(this.context, page, this.resolveProxy);
+		try {
+			await this.installExtensionFromGallery(page);
+		} catch (error) {
+			await gallery.save();
+			throw error;
+		} finally {
+			gallery.dispose();
+		}
+	}
+
+	/**
+	 * Install GitHub Pull Requests extension from the Extensions view.
+	 */
+	private async installExtensionFromGallery(page: Page) {
 		await this.runCommand(page, 'View: Show Extensions');
 
 		this.context.log('Typing extension name to search for');

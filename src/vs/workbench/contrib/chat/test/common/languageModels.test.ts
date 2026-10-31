@@ -1980,6 +1980,25 @@ suite('LanguageModels - Duplicate configuration-only groups', () => {
 		assert.deepStrictEqual(service.getModelConfiguration(modelId, false), { thinkingLevel: 'medium', contextSize: 272000 });
 	});
 
+	test('undefined resets remove shared overrides even when host defaults are tracked explicitly', async () => {
+		configurationDefaultKeys = ['thinkingLevel', 'contextSize'];
+		modelChanges.fire();
+		await service.selectLanguageModels({ vendor });
+		await service.setModelConfiguration(modelId, { thinkingLevel: undefined, contextSize: undefined });
+		assert.deepStrictEqual({
+			cached: service.getModelConfiguration(modelId, false),
+			effective: service.getModelConfiguration(modelId),
+			groups,
+		}, {
+			cached: undefined,
+			effective: { thinkingLevel: 'medium', contextSize: 272000 },
+			groups: [
+				{ vendor, name: 'Copilot CLI', settings: { other: { thinkingLevel: 'high' } } },
+				{ vendor: 'other-vendor', name: 'Other', settings: { 'test-model': { thinkingLevel: 'high' } } },
+			],
+		});
+	});
+
 	test('locked host defaults override saved preferences without replacing them', async () => {
 		configurationDefaultKeys = ['thinkingLevel', 'contextSize'];
 		thinkingLevelPolicy = { default: 'high', readOnly: true };
@@ -2233,13 +2252,7 @@ suite('LanguageModels - Provider Group Management', function () {
 
 suite('LanguageModels - Provider Group Detail Fallback', function () {
 
-	const disposables = new DisposableStore();
-
-	teardown(function () {
-		disposables.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('model.detail falls back to the group name so multiple instances of the same vendor are distinguishable', async function () {
 		const languageModelsService = disposables.add(new LanguageModelsService(
@@ -2456,13 +2469,7 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 
 suite('LanguageModels - Provider Deprecation Notice', function () {
 
-	const disposables = new DisposableStore();
-
-	teardown(function () {
-		disposables.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	class RecordingNotificationService extends TestNotificationService {
 		readonly prompts: { message: string; choices: IPromptChoice[]; options?: IPromptOptions }[] = [];
@@ -2655,13 +2662,7 @@ suite('createModelConfigurationActions', function () {
 
 suite('LanguageModels - provider usage telemetry', function () {
 
-	const disposables = new DisposableStore();
-
-	teardown(function () {
-		disposables.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	class CapturingTelemetryService implements Partial<ITelemetryService> {
 		readonly events: { eventName: string; data: any }[] = [];
@@ -2772,13 +2773,7 @@ suite('LanguageModels - provider usage telemetry', function () {
 
 suite('LanguageModels - pin telemetry', function () {
 
-	const disposables = new DisposableStore();
-
-	teardown(function () {
-		disposables.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('reports only real pin changes, naming built-in models wherever they are relayed from', async function () {
 		const events: { eventName: string; data: unknown }[] = [];

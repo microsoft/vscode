@@ -132,7 +132,17 @@ export interface ICustomizationMarketplaceRefreshResult {
 }
 
 export interface ICustomizationMarketplaceManagementProvider {
+	/**
+	 * Fires when provider state that may affect the marketplace list changes. Consumers should
+	 * list marketplaces again and treat an identical list as unchanged, because this also fires
+	 * for unrelated customization activity such as MCP server status changes.
+	 */
 	readonly onDidChange: Event<void>;
+	/**
+	 * Fires when marketplace contents may have changed even if the marketplace list is identical,
+	 * for example after a marketplace is added, removed, or refreshed.
+	 */
+	readonly onDidChangeMarketplaces: Event<void>;
 	list(sessionResource: URI): Promise<readonly ICustomizationMarketplaceInfo[]>;
 	add(sessionResource: URI, source: string): Promise<ICustomizationMarketplaceInfo>;
 	queryMarketplace(sessionResource: URI, marketplace: ICustomizationMarketplaceInfo, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage>;
@@ -368,10 +378,18 @@ export interface ICustomizationItemProvider {
 	provideSourceFolders?(sessionResource: URI, type: PromptsType, token: CancellationToken): Promise<readonly ICustomizationSourceFolder[] | undefined>;
 
 	/**
+	 * Returns the readiness of the most recent source-folder discovery for this session.
+	 * Providers that do not expose this treat a completed empty result as authoritative.
+	 */
+	getSourceFolderReadiness?(sessionResource: URI): CustomizationSourceFolderReadiness;
+
+	/**
 	 * Returns the opaque workspace group containing a customization.
 	 */
 	getWorkspaceGroupId?(sessionResource: URI, resource: URI): string | undefined;
 }
+
+export type CustomizationSourceFolderReadiness = 'loading' | 'ready' | 'unavailable';
 
 /**
  * A directory where new customization files of a given type can be created.

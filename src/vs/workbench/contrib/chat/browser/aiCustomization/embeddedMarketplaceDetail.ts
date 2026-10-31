@@ -6,6 +6,7 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { getErrorMessage, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -16,6 +17,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -69,6 +71,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 	private primaryActionButton: Button | undefined;
 	private locationFactEl: HTMLElement | undefined;
 	private readmeContent: string | undefined;
+	private readonly factHoverGroupId = generateUuid();
 
 	constructor(
 		parent: HTMLElement,
@@ -456,6 +459,18 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		button.label = label;
 		button.enabled = action !== undefined;
 		button.element.setAttribute('aria-busy', String(state.kind === 'installing' || state.kind === 'checking' || state.kind === 'repairing' || state.kind === 'uninstalling'));
+		if (state.kind === 'installing' || state.kind === 'repairing') {
+			const cancel = this.installActionDisposables.add(new Button(this.titleActionsEl, {
+				...defaultButtonStyles,
+				secondary: true,
+				ariaLabel: state.kind === 'installing'
+					? localize('marketplaceDetail.cancelConnectingAria', "Cancel connecting {0}", resource.displayName)
+					: localize('marketplaceDetail.cancelReconnectingAria', "Cancel reconnecting {0}", resource.displayName),
+			}));
+			this.primaryActionButton = cancel;
+			cancel.label = localize('marketplaceDetail.cancel', "Cancel");
+			this.installActionDisposables.add(cancel.onDidClick(() => this.installService.cancelConnectorOperation(resource)));
+		}
 		if (!action) {
 			return;
 		}
@@ -470,6 +485,12 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 					status(localize('marketplaceDetail.connectedStatus', "Connected {0}.", resource.displayName));
 				}
 			} catch (error) {
+				if (isCancellationError(error)) {
+					status(state.kind === 'missing'
+						? localize('marketplaceDetail.reconnectCancelledStatus', "Reconnection cancelled for {0}.", resource.displayName)
+						: localize('marketplaceDetail.connectCancelledStatus', "Connection cancelled for {0}.", resource.displayName));
+					return;
+				}
 				const message = state.kind === 'installed'
 					? localize('marketplaceDetail.disconnectError', "Could not disconnect {0}. {1}", resource.displayName, getErrorMessage(error))
 					: state.kind === 'missing'
@@ -502,6 +523,10 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		const link = $('a.embedded-detail-fact-link') as HTMLAnchorElement;
 		link.href = typeof resource === 'string' ? resource : resource.toString();
 		link.textContent = label;
+		this.renderDisposables.add(this.hoverService.setupDelayedHover(link, {
+			content: label,
+			style: HoverStyle.Pointer,
+		}, { groupId: this.factHoverGroupId }));
 		this.renderDisposables.add(DOM.addDisposableListener(link, DOM.EventType.CLICK, event => {
 			event.preventDefault();
 			void this.options.openExternal(resource);
