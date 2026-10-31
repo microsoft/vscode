@@ -44,6 +44,7 @@ import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as Prot
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionScratchFolders, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { chatTurnComplete } from '../../../../../../platform/agentHost/test/common/chatActionBuilders.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import type { AgentChatMoveDestination } from '../../../../../../platform/agentHost/common/agentHostChatMove.js';
 import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
@@ -9831,7 +9832,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		];
 		agentHost.fireAction({
 			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'active-client-tools').toString()),
-			action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
+			action: chatTurnComplete('turn-1', 1000),
 			serverSeq: 1,
 			origin: undefined,
 		});
@@ -14760,11 +14761,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 			agentHost.fireAction({
 				channel: subagentChat,
-				action: {
-					type: ActionType.ChatTurnComplete,
-					turnId: 'turn-1',
-					duration: 1000,
-				},
+				action: chatTurnComplete('turn-1', 1000),
 				serverSeq: 1,
 				origin: undefined,
 			} as ActionEnvelope);
@@ -14887,11 +14884,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		agentHost.fireAction({
 			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'turn-sess').toString()),
-			action: {
-				type: ActionType.ChatTurnComplete,
-				turnId: 'turn-1',
-				duration: 1000,
-			},
+			action: chatTurnComplete('turn-1', 1000),
 			serverSeq: 1,
 			origin: undefined,
 		} as ActionEnvelope);

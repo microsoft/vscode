@@ -45,6 +45,7 @@ import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/er
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 import { isActionKnownToVersion, PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { ActionType, AuthRequiredReason, type ActionEnvelope, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { chatReducer } from '../../common/state/sessionReducers.js';
 import { AuthenticateTargetKind, ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -7970,7 +7971,7 @@ suite('AgentHostProtocolClient', () => {
 					});
 					transport.fireMessage({
 						jsonrpc: '2.0', method: 'action',
-						params: { channel: chatUri.toString(), serverSeq: 10, origin: undefined, action: { type: ActionType.ChatTurnComplete, turnId: 'resumed-turn', duration: 1000 } },
+						params: { channel: chatUri.toString(), serverSeq: 10, origin: undefined, action: chatTurnComplete('resumed-turn', 1000) },
 					});
 					const state = chat.object.value;
 					assert.ok(state && !(state instanceof Error));
@@ -8010,10 +8011,7 @@ suite('AgentHostProtocolClient', () => {
 					},
 				});
 				await flushMicrotasks();
-				client.dispatch(chatUri.toString(), {
-					type: ActionType.ChatTurnStarted, turnId: 'pending-turn', startedAt: '2026-10-02T00:01:00.000Z',
-					message: { text: 'Continue', origin: { kind: MessageKind.User } },
-				});
+				client.dispatch(chatUri.toString(), chatTurnStarted('pending-turn', 'Continue', '2026-10-02T00:01:00.000Z'));
 				const { transport, request } = await beginRecovery(client, transports);
 				transport.fireMessage({
 					jsonrpc: '2.0', id: request.id,
@@ -8077,12 +8075,7 @@ suite('AgentHostProtocolClient', () => {
 			await authentication;
 			await flushMicrotasks();
 
-			client.dispatch(chatUri.toString(), {
-				type: ActionType.ChatTurnStarted,
-				turnId: 'turn-after-restart',
-				startedAt: '2026-08-09T00:00:00.000Z',
-				message: { text: 'Continue', origin: { kind: MessageKind.User } },
-			});
+			client.dispatch(chatUri.toString(), chatTurnStarted('turn-after-restart', 'Continue', '2026-08-09T00:00:00.000Z'));
 			const initialDispatch = findDispatchAction(transports[0], ActionType.ChatTurnStarted);
 			assert.ok(initialDispatch);
 			client.dispatch(annotationsUri.toString(), {
@@ -8359,7 +8352,7 @@ suite('AgentHostProtocolClient', () => {
 			// the snapshot being computed can reach the client first. It must
 			// survive the older snapshot that follows.
 			const restoreSubscribe = await waitForRequestAtWithin(reconnectTransport, 'subscribe', 0);
-			const completion: ChatTurnCompleteAction = { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 10 };
+			const completion: ChatTurnCompleteAction = chatTurnComplete('turn-1', 10);
 			reconnectTransport.fireMessage({
 				jsonrpc: '2.0',
 				method: 'action',
@@ -8737,19 +8730,14 @@ suite('AgentHostProtocolClient', () => {
 						});
 						await flushMicrotasks();
 
-						const start: ChatTurnStartedAction = {
-							type: ActionType.ChatTurnStarted,
-							turnId: 'accepted-turn',
-							startedAt: '2026-09-25T00:00:01.000Z',
-							message: { text: 'Continue this session', origin: { kind: MessageKind.User } },
-						};
+						const start: ChatTurnStartedAction = chatTurnStarted('accepted-turn', 'Continue this session', '2026-09-25T00:00:01.000Z');
 						client.dispatch(chatUri.toString(), start);
 						const dispatch = findDispatchAction(transports[0], ActionType.ChatTurnStarted)!;
 						const origin = { clientId: client.clientId, clientSeq: (dispatch.params as { clientSeq: number }).clientSeq };
 						const actions: ActionEnvelope[] = [{ channel: chatUri.toString(), action: start, serverSeq: 6, origin }];
 						let authoritative = chatReducer(initial, start);
 						if (completed) {
-							const finish: ChatTurnCompleteAction = { type: ActionType.ChatTurnComplete, turnId: start.turnId, duration: 1000 };
+							const finish: ChatTurnCompleteAction = chatTurnComplete(start.turnId, 1000);
 							actions.push({ channel: chatUri.toString(), action: finish, serverSeq: 7, origin: undefined });
 							authoritative = chatReducer(authoritative, finish);
 						}

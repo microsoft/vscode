@@ -39,6 +39,7 @@ import { SessionArtifactType, withSessionArtifacts } from '../../../../../../pla
 import { ResourceType, type ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatOriginKind, ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, SessionOriginKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { chatTurnComplete } from '../../../../../../platform/agentHost/test/common/chatActionBuilders.js';
 import { buildDefaultChatUri, createActiveTurn, createChatState, isAhpAutomationCatalogChannel, readSessionWorkspaceless, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionExternal, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { RootStateSubscription, type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
@@ -4112,11 +4113,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		// Trigger refresh via turnComplete action (simulates what happens on reload)
 		connection.fireAction({
 			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'persist-sess').toString()),
-			action: {
-				type: ActionType.ChatTurnComplete,
-				turnId: 'turn-1',
-				duration: 1000,
-			},
+			action: chatTurnComplete('turn-1', 1000),
 			serverSeq: 1,
 			origin: undefined,
 		} as ActionEnvelope);
@@ -4603,11 +4600,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		connection.fireAction({
 			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'turn-sess').toString()),
-			action: {
-				type: ActionType.ChatTurnComplete,
-				turnId: 'turn-1',
-				duration: 1000,
-			},
+			action: chatTurnComplete('turn-1', 1000),
 			serverSeq: 1,
 			origin: undefined,
 		} as ActionEnvelope);
@@ -7437,7 +7430,7 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 	async function refreshViaTurnComplete(connection: MockAgentConnection, rawId: string): Promise<void> {
 		connection.fireAction({
 			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', rawId).toString()),
-			action: { type: ActionType.ChatTurnComplete, turnId: 'turn-refresh', duration: 1 },
+			action: chatTurnComplete('turn-refresh', 1),
 			serverSeq: 1,
 			origin: undefined,
 		} as ActionEnvelope);

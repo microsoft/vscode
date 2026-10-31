@@ -33,6 +33,7 @@ import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtil
 import { AgentSession, AgentWorkingDirectoryChangedError, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentMaterializeChatEvent, fixedChatOwnerRef } from '../../../common/agent.js';
 import { buildChatUri, buildDefaultChatUri, MessageAttachmentKind, MessageKind, ResponsePartKind, SessionStatus } from '../../../common/state/sessionState.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
+import { chatTurnComplete, chatTurnStarted } from '../../common/chatActionBuilders.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../../common/agentServerTools.js';
 import { CodexSessionConfigKey, type CodexPermissionsPreset } from '../../../common/codexSessionConfigKeys.js';
@@ -3952,10 +3953,7 @@ suite('CodexAgent exact chat routing', () => {
 		const start = await readNextRequest(peer.outbound);
 		peer.push({ id: start.id, result: { thread: { id: 'artifact-thread', cwd: folder.fsPath } } });
 		await agent['_sessions'].get('artifact-tools')!.materializePromise;
-		stateManager.dispatchServerAction(chat.toString(), {
-			type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date(0).toISOString(),
-			message: { text: 'Manage the recorded artifacts', origin: { kind: MessageKind.User } },
-		});
+		stateManager.dispatchServerAction(chat.toString(), chatTurnStarted('turn', 'Manage the recorded artifacts', new Date(0).toISOString()));
 
 		let requestId = 9000;
 		const call = async (tool: string, args: object = {}) => {
@@ -4660,7 +4658,7 @@ suite('CodexAgent chat backing durability', () => {
 				turnMappings: [['prior-host-turn', 'prior-codex-turn']],
 				actions: [
 					{ chat: chat.toString(), action: { type: ActionType.ChatError, turnId: 'blocked-turn', duration: 0, part: { kind: ResponsePartKind.Error, error: { errorType, message } } } },
-					{ chat: chat.toString(), action: { type: ActionType.ChatTurnComplete, turnId: 'blocked-turn', duration: 0 } },
+					{ chat: chat.toString(), action: chatTurnComplete('blocked-turn', 0) },
 				],
 			});
 		});

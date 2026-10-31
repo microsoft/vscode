@@ -25,6 +25,7 @@ import { createUnknownAgentHostClientTelemetryContext } from '../../common/agent
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
+import { chatToolCallComplete, chatToolCallReady, chatToolCallStart, chatTurnComplete } from '../common/chatActionBuilders.js';
 import { buildDefaultChatUri, buildSubagentChatUri, ChatInputQuestionKind, MessageKind, ResponsePartKind, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
@@ -350,7 +351,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			startTurn('turn');
 			agent.captureTurnTelemetryContext = () => { throw new Error('Unexpected context read after admission'); };
 			await timeout(TURN_HANG_THRESHOLD_MS + 1);
-			fire({ type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 1 });
+			fire(chatTurnComplete('turn', 1));
 			const expected = provider === 'codex' ? snapshot : {};
 			assert.deepStrictEqual(telemetry.events.map(event => ({
 				name: event.eventName,
@@ -427,7 +428,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			await timeout(TURN_HANG_THRESHOLD_MS - 1000);
 			delta('turn-busy', `chunk-${i}`);
 		}
-		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-busy', duration: 1000 });
+		fire(chatTurnComplete('turn-busy', 1000));
 
 		assert.deepStrictEqual({ hangs: hangEvents(), recoveries: hangRecoveryEvents() }, { hangs: [], recoveries: [] });
 	}));
@@ -435,20 +436,8 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 	test('tags a turn blocked on a tool confirmation as an expected wait on the user', () => runWithFakedTimers({}, async () => {
 		setupSession();
 		startTurn('turn-confirm');
-		fire({
-			type: ActionType.ChatToolCallStart,
-			turnId: 'turn-confirm',
-			toolCallId: 'tc-confirm',
-			toolName: 'write',
-			displayName: 'write',
-		});
-		fire({
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-confirm',
-			toolCallId: 'tc-confirm',
-			invocationMessage: 'Write file',
-			confirmationTitle: 'Write file',
-		});
+		fire(chatToolCallStart('turn-confirm', 'tc-confirm', 'write', 'write'));
+		fire(chatToolCallReady('turn-confirm', 'tc-confirm', 'Write file', { confirmationTitle: 'Write file' }));
 		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual(hangEvents().map(e => ({
@@ -471,16 +460,8 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 	test('Fusion phase progress does not count as an in-flight tool for hang classification', () => runWithFakedTimers({}, async () => {
 		setupSession();
 		startTurn('turn-fusion');
-		fire({
-			type: ActionType.ChatToolCallStart, turnId: 'turn-fusion',
-			toolCallId: 'fusion:workflow:phase', toolName: 'hydrafusion_phase', displayName: 'Main pass',
-			_meta: { toolKind: 'fusionPhase' },
-		});
-		fire({
-			type: ActionType.ChatToolCallReady, turnId: 'turn-fusion', toolCallId: 'fusion:workflow:phase',
-			invocationMessage: 'Main pass', confirmed: ToolCallConfirmationReason.NotNeeded,
-			_meta: { toolKind: 'fusionPhase' },
-		});
+		fire(chatToolCallStart('turn-fusion', 'fusion:workflow:phase', 'hydrafusion_phase', 'Main pass', { _meta: { toolKind: 'fusionPhase' } }));
+		fire(chatToolCallReady('turn-fusion', 'fusion:workflow:phase', 'Main pass', { confirmed: ToolCallConfirmationReason.NotNeeded, _meta: { toolKind: 'fusionPhase' } }));
 		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual(hangEvents().map(event => ({
@@ -493,25 +474,13 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 	test('tags a silent long-running tool call as runningTool, then reports a real stall once it completes', () => runWithFakedTimers({}, async () => {
 		setupSession();
 		startTurn('turn-tool');
-		fire({
-			type: ActionType.ChatToolCallStart,
-			turnId: 'turn-tool',
-			toolCallId: 'tc-slow',
-			toolName: 'bash',
-			displayName: 'bash',
-		});
-		fire({
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-tool',
-			toolCallId: 'tc-slow',
-			invocationMessage: 'Run build',
-			confirmed: ToolCallConfirmationReason.NotNeeded,
-		});
+		fire(chatToolCallStart('turn-tool', 'tc-slow', 'bash', 'bash'));
+		fire(chatToolCallReady('turn-tool', 'tc-slow', 'Run build', { confirmed: ToolCallConfirmationReason.NotNeeded }));
 		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		// The tool finally returns, but the agent loop never picks the turn
 		// back up — the second report distinguishes that from the first.
-		fire({ type: ActionType.ChatToolCallComplete, turnId: 'turn-tool', toolCallId: 'tc-slow', result: { success: true, pastTenseMessage: 'built' } });
+		fire(chatToolCallComplete('turn-tool', 'tc-slow', { success: true, pastTenseMessage: 'built' }));
 		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual(hangEvents().map(e => ({
@@ -540,7 +509,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		setupSession(true);
 		startTurn('turn-recovered');
 		await timeout(TURN_HANG_THRESHOLD_MS);
-		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-recovered', duration: 1000 });
+		fire(chatTurnComplete('turn-recovered', 1000));
 
 		assert.deepStrictEqual(hangRecoveryEvents(), [{
 			eventName: 'agentHost.hungTurnCompleted',
@@ -565,7 +534,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		startTurn('turn-quick');
 		responsePart('turn-quick');
 		delta('turn-quick', 'hi');
-		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-quick', duration: 1000 });
+		fire(chatTurnComplete('turn-quick', 1000));
 		await timeout(2 * TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual({ hangs: hangEvents(), recoveries: hangRecoveryEvents() }, { hangs: [], recoveries: [] });
@@ -742,20 +711,8 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 	test('reports provider stage for new and resumed subagent turns', () => runWithFakedTimers({}, async () => {
 		setupSession();
 		startTurn('turn-parent');
-		fire({
-			type: ActionType.ChatToolCallStart,
-			turnId: 'turn-parent',
-			toolCallId: 'tc-subagent',
-			toolName: 'task',
-			displayName: 'Task',
-		});
-		fire({
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-parent',
-			toolCallId: 'tc-subagent',
-			invocationMessage: 'Exploring code',
-			confirmed: ToolCallConfirmationReason.NotNeeded,
-		});
+		fire(chatToolCallStart('turn-parent', 'tc-subagent', 'task', 'Task'));
+		fire(chatToolCallReady('turn-parent', 'tc-subagent', 'Exploring code', { confirmed: ToolCallConfirmationReason.NotNeeded }));
 		agent.fireProgress({
 			kind: 'subagent_started',
 			chat: URI.parse(defaultChatUri),
@@ -774,7 +731,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		agent.fireProgress({
 			kind: 'action',
 			resource: URI.parse(subagentChat),
-			action: { type: ActionType.ChatTurnComplete, turnId: firstTurnId, duration: TURN_HANG_THRESHOLD_MS },
+			action: chatTurnComplete(firstTurnId, TURN_HANG_THRESHOLD_MS),
 		});
 		agent.fireProgress({
 			kind: 'subagent_started',
@@ -835,20 +792,8 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 	test('keeps watching a turn after the user answers a confirmation it had hung on', () => runWithFakedTimers({}, async () => {
 		setupSession();
 		startTurn('turn-answered');
-		fire({
-			type: ActionType.ChatToolCallStart,
-			turnId: 'turn-answered',
-			toolCallId: 'tc-answered',
-			toolName: 'write',
-			displayName: 'write',
-		});
-		fire({
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-answered',
-			toolCallId: 'tc-answered',
-			invocationMessage: 'Write file',
-			confirmationTitle: 'Write file',
-		});
+		fire(chatToolCallStart('turn-answered', 'tc-answered', 'write', 'write'));
+		fire(chatToolCallReady('turn-answered', 'tc-answered', 'Write file', { confirmationTitle: 'Write file' }));
 		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		const confirmed: ChatAction = {
@@ -860,7 +805,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		};
 		stateManager.dispatchClientAction(defaultChatUri, confirmed, { clientId: 'test', clientSeq: 2 });
 		sideEffects.handleAction(defaultChatUri, confirmed);
-		fire({ type: ActionType.ChatToolCallComplete, turnId: 'turn-answered', toolCallId: 'tc-answered', result: { success: true, pastTenseMessage: 'wrote file' } });
+		fire(chatToolCallComplete('turn-answered', 'tc-answered', { success: true, pastTenseMessage: 'wrote file' }));
 
 		// The tool is done and nothing is blocking, but the agent loop
 		// never picks the turn back up.
@@ -875,24 +820,11 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 	test('tags a client-executed tool as runningTool, not as a wait on the user', () => runWithFakedTimers({}, async () => {
 		setupSession();
 		startTurn('turn-client');
-		fire({
-			type: ActionType.ChatToolCallStart,
-			turnId: 'turn-client',
-			toolCallId: 'tc-client',
-			toolName: 'run_tests',
-			displayName: 'run_tests',
-			contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-1' },
-		});
+		fire(chatToolCallStart('turn-client', 'tc-client', 'run_tests', 'run_tests', { contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-1' } }));
 		// Confirmation is not needed, so the call goes straight to running
 		// and is surfaced as a `toolClientExecution` input request. That is
 		// delegated work, not a prompt — the turn is not waiting on a human.
-		fire({
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-client',
-			toolCallId: 'tc-client',
-			invocationMessage: 'Run tests',
-			confirmed: ToolCallConfirmationReason.NotNeeded,
-		});
+		fire(chatToolCallReady('turn-client', 'tc-client', 'Run tests', { confirmed: ToolCallConfirmationReason.NotNeeded }));
 		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual(hangEvents().map(e => ({
@@ -915,8 +847,8 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 	test('names the longest-running tool when several are in flight', () => runWithFakedTimers({}, async () => {
 		setupSession();
 		startTurn('turn-parallel');
-		fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-parallel', toolCallId: 'tc-a', toolName: 'bash', displayName: 'bash' });
-		fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-parallel', toolCallId: 'tc-b', toolName: 'read_file', displayName: 'read_file' });
+		fire(chatToolCallStart('turn-parallel', 'tc-a', 'bash', 'bash'));
+		fire(chatToolCallStart('turn-parallel', 'tc-b', 'read_file', 'read_file'));
 		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		// `toolId` is a best guess among parallel calls; `inFlightToolCallCount`
@@ -931,7 +863,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		setupSession();
 		startTurn('turn-refined');
 		// The start signal carries no contributor; `ready` supplies it.
-		fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-refined', toolCallId: 'tc-refined', toolName: 'lookup', displayName: 'lookup' });
+		fire(chatToolCallStart('turn-refined', 'tc-refined', 'lookup', 'lookup'));
 		fire({
 			type: ActionType.ChatToolCallReady,
 			turnId: 'turn-refined',
@@ -953,24 +885,12 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		startTurn('turn-mixed');
 		// A long-running tool starts first, so it is the earliest entry in
 		// the in-flight set...
-		fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-mixed', toolCallId: 'tc-running', toolName: 'bash', displayName: 'bash' });
-		fire({
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-mixed',
-			toolCallId: 'tc-running',
-			invocationMessage: 'Run build',
-			confirmed: ToolCallConfirmationReason.NotNeeded,
-		});
+		fire(chatToolCallStart('turn-mixed', 'tc-running', 'bash', 'bash'));
+		fire(chatToolCallReady('turn-mixed', 'tc-running', 'Run build', { confirmed: ToolCallConfirmationReason.NotNeeded }));
 		// ...but a second tool is what actually blocks on the user, so that
 		// is the one the report must name.
-		fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-mixed', toolCallId: 'tc-gated', toolName: 'write', displayName: 'write' });
-		fire({
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-mixed',
-			toolCallId: 'tc-gated',
-			invocationMessage: 'Write file',
-			confirmationTitle: 'Write file',
-		});
+		fire(chatToolCallStart('turn-mixed', 'tc-gated', 'write', 'write'));
+		fire(chatToolCallReady('turn-mixed', 'tc-gated', 'Write file', { confirmationTitle: 'Write file' }));
 		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual(hangEvents().map(e => ({
@@ -987,30 +907,12 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 	test('leaves the tool unnamed when the user is reviewing a completed result', () => runWithFakedTimers({}, async () => {
 		setupSession();
 		startTurn('turn-result');
-		fire({
-			type: ActionType.ChatToolCallStart,
-			turnId: 'turn-result',
-			toolCallId: 'tc-result',
-			toolName: 'write',
-			displayName: 'write',
-		});
-		fire({
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-result',
-			toolCallId: 'tc-result',
-			invocationMessage: 'Write file',
-			confirmed: ToolCallConfirmationReason.NotNeeded,
-		});
+		fire(chatToolCallStart('turn-result', 'tc-result', 'write', 'write'));
+		fire(chatToolCallReady('turn-result', 'tc-result', 'Write file', { confirmed: ToolCallConfirmationReason.NotNeeded }));
 		// The tool ran to completion and is now awaiting *result* review, so
 		// it has left the in-flight set. The turn waits on the user reading
 		// a result, not on a tool — `toolId` is deliberately undefined.
-		fire({
-			type: ActionType.ChatToolCallComplete,
-			turnId: 'turn-result',
-			toolCallId: 'tc-result',
-			result: { success: true, pastTenseMessage: 'wrote file' },
-			requiresResultConfirmation: true,
-		});
+		fire(chatToolCallComplete('turn-result', 'tc-result', { success: true, pastTenseMessage: 'wrote file' }, { requiresResultConfirmation: true }));
 		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual(hangEvents().map(e => ({
@@ -1062,20 +964,8 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 	test('reports a real stall when the agent goes quiet after a denied confirmation', () => runWithFakedTimers({}, async () => {
 		setupSession();
 		startTurn('turn-denied');
-		fire({
-			type: ActionType.ChatToolCallStart,
-			turnId: 'turn-denied',
-			toolCallId: 'tc-denied',
-			toolName: 'write',
-			displayName: 'write',
-		});
-		fire({
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-denied',
-			toolCallId: 'tc-denied',
-			invocationMessage: 'Write file',
-			confirmationTitle: 'Write file',
-		});
+		fire(chatToolCallStart('turn-denied', 'tc-denied', 'write', 'write'));
+		fire(chatToolCallReady('turn-denied', 'tc-denied', 'Write file', { confirmationTitle: 'Write file' }));
 
 		// Denial is terminal — no `ChatToolCallComplete` follows, so the
 		// tool must not stay in the turn's in-flight set.
