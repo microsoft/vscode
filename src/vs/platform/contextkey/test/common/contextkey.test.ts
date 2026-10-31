@@ -221,6 +221,39 @@ suite('ContextKeyExpr', () => {
 		}
 	});
 
+	test('issue #338834: distributing an OR that collapses to a single AND produces a flat AND', () => {
+		// `b && !b` is false, so `b && (!b || a && c)` collapses to `a && b && c`
+		const actual = ContextKeyExpr.and(
+			ContextKeyExpr.has('a'),
+			ContextKeyExpr.has('b'),
+			ContextKeyExpr.or(
+				ContextKeyExpr.not('b'),
+				ContextKeyExpr.and(ContextKeyExpr.has('a'), ContextKeyExpr.has('c'))
+			)
+		)!;
+		assert.deepStrictEqual({
+			serialized: actual.serialize(),
+			equalsFlat: actual.equals(ContextKeyExpr.and(ContextKeyExpr.has('a'), ContextKeyExpr.has('b'), ContextKeyExpr.has('c'))!),
+			equalsParsed: actual.equals(ContextKeyExpr.deserialize(actual.serialize())!),
+		}, {
+			serialized: 'a && b && c',
+			equalsFlat: true,
+			equalsParsed: true,
+		});
+	});
+
+	test('distributing AND over OR is not affected by `in` and comparison terms', () => {
+		assert.deepStrictEqual([
+			ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.has('a'), ContextKeyExpr.has('b')), ContextKeyExpr.greater('c', 1))!.serialize(),
+			ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.has('a'), ContextKeyExpr.has('b')), ContextKeyExpr.in('c', 'd'))!.serialize(),
+			ContextKeyExpr.and(ContextKeyExpr.has('a'), ContextKeyExpr.has('b'), ContextKeyExpr.or(ContextKeyExpr.not('b'), ContextKeyExpr.and(ContextKeyExpr.not('b'), ContextKeyExpr.has('c'))))!.serialize(),
+		], [
+			'a && c > 1 || b && c > 1',
+			'a && c in \'d\' || b && c in \'d\'',
+			'false',
+		]);
+	});
+
 	test('issue #106524: distributing AND should normalize', () => {
 		const actual = ContextKeyExpr.and(
 			ContextKeyExpr.or(
