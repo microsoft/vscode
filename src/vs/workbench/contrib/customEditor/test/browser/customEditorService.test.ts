@@ -10,6 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { RedoCommand, UndoCommand } from '../../../../../editor/browser/editorExtensions.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { ContextKeyValue, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -100,6 +101,12 @@ suite('CustomEditorService', () => {
 			get: <T>(id: any): T => {
 				if (id === IWebviewService) {
 					return webviewService as unknown as T;
+				}
+				if (id === ICodeEditorService) {
+					return new class extends mock<ICodeEditorService>() {
+						override getFocusedCodeEditor() { return null; }
+						override getActiveCodeEditor() { return null; }
+					}() as unknown as T;
 				}
 				if (id === ILogService) {
 					return new class extends mock<ILogService>() {
