@@ -76,6 +76,19 @@ export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, m
 }
 
 /**
+ * The selected model id when it no longer exists among the agent's models, else `undefined`.
+ *
+ * On agents with protected resources, an unknown id is otherwise indistinguishable from
+ * "needs sign-in" and would surface a sign-in prompt instead of a clear "model unavailable" error.
+ */
+export function getStaleSelectedModelId(agent: AgentInfo | undefined, model: ModelSelection | undefined): string | undefined {
+	if (!agent?.protectedResources?.length || !model) {
+		return undefined;
+	}
+	return agent.models.some(candidate => candidate.id === model.id) ? undefined : model.id;
+}
+
+/**
  * Tracks the last bearer token pushed to a given agent host connection
  * for each protected resource, so that redundant `authenticate` RPCs can
  * be suppressed when neither the resource nor the token has changed.
