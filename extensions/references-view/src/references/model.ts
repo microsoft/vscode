@@ -23,13 +23,17 @@ export class ReferencesTreeInput implements SymbolTreeInput<FileItem | Reference
 	async resolve(): Promise<SymbolTreeModel<FileItem | ReferenceItem> | undefined> {
 
 		let model: ReferencesModel;
-		const definitions = this._command === 'vscode.executeReferenceProvider'
-			? await this._resolveDefinitions()
-			: undefined;
+		// request definitions and references concurrently, definitions are optional annotations
+		const definitionsPromise = this._command === 'vscode.executeReferenceProvider'
+			? this._resolveDefinitions()
+			: Promise.resolve(undefined);
 		if (this._result) {
-			model = new ReferencesModel(this._result, definitions);
+			model = new ReferencesModel(this._result, await definitionsPromise);
 		} else {
-			const resut = await Promise.resolve(vscode.commands.executeCommand<vscode.Location[] | vscode.LocationLink[]>(this._command, this.location.uri, this.location.range.start));
+			const [resut, definitions] = await Promise.all([
+				Promise.resolve(vscode.commands.executeCommand<vscode.Location[] | vscode.LocationLink[]>(this._command, this.location.uri, this.location.range.start)),
+				definitionsPromise
+			]);
 			model = new ReferencesModel(resut ?? [], definitions);
 		}
 
@@ -50,10 +54,14 @@ export class ReferencesTreeInput implements SymbolTreeInput<FileItem | Reference
 		};
 	}
 
-	private async _resolveDefinitions(): Promise<vscode.Location[] | undefined> {
+	private async _resolveDefinitions(): Promise<DefinitionLocation[] | undefined> {
 		try {
 			const result = await Promise.resolve(vscode.commands.executeCommand<vscode.Location[] | vscode.LocationLink[]>('vscode.executeDefinitionProvider', this.location.uri, this.location.range.start));
-			return result?.map(item => item instanceof vscode.Location ? item : new vscode.Location(item.targetUri, item.targetSelectionRange ?? item.targetRange));
+			// only a symbol (selection) range identifies the definition itself, a full
+			// declaration range (`targetRange`) is only used to mark the containing file
+			return result?.map(item => item instanceof vscode.Location
+				? { uri: item.uri, range: item.range }
+				: { uri: item.targetUri, range: item.targetSelectionRange });
 		} catch {
 			return undefined;
 		}
@@ -64,6 +72,11 @@ export class ReferencesTreeInput implements SymbolTreeInput<FileItem | Reference
 	}
 }
 
+interface DefinitionLocation {
+	readonly uri: vscode.Uri;
+	readonly range: vscode.Range | undefined;
+}
+
 export class ReferencesModel implements SymbolItemNavigation<FileItem | ReferenceItem>, SymbolItemEditorHighlights<FileItem | ReferenceItem>, SymbolItemDragAndDrop<FileItem | ReferenceItem> {
 
 	private _onDidChange = new vscode.EventEmitter<FileItem | ReferenceItem | undefined>();
@@ -71,7 +84,7 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 
 	readonly items: FileItem[] = [];
 
-	constructor(locations: vscode.Location[] | vscode.LocationLink[], definitions?: vscode.Location[]) {
+	constructor(locations: vscode.Location[] | vscode.LocationLink[], definitions?: DefinitionLocation[]) {
 		let last: FileItem | undefined;
 		for (const item of locations.sort(ReferencesModel._compareLocations)) {
 			const loc = item instanceof vscode.Location
@@ -80,13 +93,12 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 
 			if (!last || ReferencesModel._compareUriIgnoreFragment(last.uri, loc.uri) !== 0) {
 				last = new FileItem(loc.uri.with({ fragment: '' }), [], this);
+				// mark the declaring file even when the definition itself is not among the references
+				last.containsDefinition = !!definitions?.some(def => ReferencesModel._compareUriIgnoreFragment(def.uri, loc.uri) === 0);
 				this.items.push(last);
 			}
-			const isDefinition = !!definitions?.some(def => ReferencesModel._compareUriIgnoreFragment(def.uri, loc.uri) === 0 && def.range.intersection(loc.range) !== undefined);
+			const isDefinition = !!definitions?.some(def => def.range !== undefined && ReferencesModel._compareUriIgnoreFragment(def.uri, loc.uri) === 0 && def.range.intersection(loc.range) !== undefined);
 			last.references.push(new ReferenceItem(loc, last, isDefinition));
-			if (isDefinition) {
-				last.containsDefinition = true;
-			}
 		}
 	}
 
