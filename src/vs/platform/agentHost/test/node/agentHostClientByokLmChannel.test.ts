@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, raceCancellationError } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import type { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { ChannelClient, ChannelServer } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentHostByokLmHandler, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
@@ -27,24 +31,16 @@ suite('agentHostClientByokLmChannel', () => {
 	const flush = () => new Promise<void>(resolve => setTimeout(resolve, 0));
 
 	/**
-	 * Wire the node-side connection straight to the renderer server channel,
-	 * standing in for the MessagePort transport so the full request → handler →
-	 * response round-trip can be exercised without the renderer or the SDK.
+	 * Wire the node-side connection to the renderer server channel through the
+	 * real IPC serializer and cancellation protocol without the renderer or SDK.
 	 */
 	function bridge(handler: IAgentHostByokLmHandler) {
-		const server = new AgentHostClientByokLmChannel(handler, new NullLogService());
-		const channel: IChannel = {
-			call<T>(command: string, arg?: unknown): Promise<T> {
-				return server.call<T>(null, command, arg);
-			},
-			listen<T>(event: string): Event<T> {
-				// Mirror ChannelClient.listen: defer to the server channel only when
-				// the returned event is actually subscribed (lazy), so a connection
-				// that never listens allocates nothing.
-				return (listener, thisArgs?, disposables?) => server.listen<T>(null, event)(listener, thisArgs, disposables);
-			},
-		};
-		return createAgentHostClientByokLmConnection(channel);
+		const toRenderer = store.add(new Emitter<VSBuffer>());
+		const toHost = store.add(new Emitter<VSBuffer>());
+		const client = store.add(new ChannelClient({ onMessage: toHost.event, send: buffer => toRenderer.fire(buffer) }));
+		const server = store.add(new ChannelServer({ onMessage: toRenderer.event, send: buffer => toHost.fire(buffer) }, undefined));
+		server.registerChannel('byok', new AgentHostClientByokLmChannel(handler, new NullLogService()));
+		return { ...createAgentHostClientByokLmConnection(client.getChannel('byok')), client, server };
 	}
 
 	test('round-trips a Responses request to the handler and back', async () => {
@@ -81,6 +77,121 @@ suite('agentHostClientByokLmChannel', () => {
 				{ type: 'function_call', callId: 'c1', name: 'noop', argumentsJson: '{}' },
 			],
 		});
+	});
+
+	test('forwards request cancellation to the renderer handler', async () => {
+		const source = store.add(new CancellationTokenSource());
+		const started = new DeferredPromise<CancellationToken>();
+		const late = new DeferredPromise<IByokLmChatResult>();
+		const connection = bridge({
+			_serviceBrand: undefined,
+			listModels: async () => [],
+			chat: async (_request, token) => {
+				started.complete(token);
+				return raceCancellationError(late.p, token);
+			},
+		});
+		const pending = connection.chat({ vendor: 'v', modelId: 'm', input: [] }, source.token);
+		const rejected = assert.rejects(pending, isCancellationError);
+		const token = await started.p;
+		source.cancel();
+		await rejected;
+		late.complete({ output: [] });
+		assert.strictEqual(token.isCancellationRequested, true);
+	});
+
+	test('cancels only the selected concurrent request and ignores its late response', async () => {
+		const source = store.add(new CancellationTokenSource());
+		const started = new DeferredPromise<void>();
+		const keptStarted = new DeferredPromise<CancellationToken>();
+		const kept = new DeferredPromise<IByokLmChatResult>();
+		const late = new DeferredPromise<IByokLmChatResult>();
+		const connection = bridge({
+			_serviceBrand: undefined,
+			listModels: async () => [],
+			chat: async (request, token) => {
+				if (request.modelId === 'cancel') {
+					started.complete();
+					return late.p;
+				}
+				keptStarted.complete(token);
+				return kept.p;
+			},
+		});
+		const pending = connection.chat({ vendor: 'v', modelId: 'cancel', input: [] }, source.token);
+		const rejected = assert.rejects(pending, isCancellationError);
+		const surviving = connection.chat({ vendor: 'v', modelId: 'keep', input: [] });
+		await started.p;
+		const keptToken = await keptStarted.p;
+		source.cancel();
+		await rejected;
+		assert.strictEqual(keptToken.isCancellationRequested, false);
+		kept.complete({ output: [], responseId: 'kept' });
+		late.complete({ output: [], responseId: 'late' });
+		assert.strictEqual((await surviving).responseId, 'kept');
+		await flush();
+		assert.deepStrictEqual({
+			handlers: Reflect.get(connection.client, 'handlers').size,
+			activeRequests: Reflect.get(connection.server, 'activeRequests').size,
+			pendingRequests: Reflect.get(connection.server, 'pendingRequests').size,
+		}, { handlers: 0, activeRequests: 0, pendingRequests: 0 });
+	});
+
+	for (const side of ['client', 'server'] as const) {
+		test(`cancels a pending renderer invocation when the ${side} is disposed`, async () => {
+			const started = new DeferredPromise<CancellationToken>();
+			const connection = bridge({
+				_serviceBrand: undefined,
+				listModels: async () => [],
+				chat: async (_request, token) => {
+					started.complete(token);
+					return raceCancellationError(new Promise<IByokLmChatResult>(() => {}), token);
+				},
+			});
+			const rejected = assert.rejects(connection.chat({ vendor: 'v', modelId: 'm', input: [] }), isCancellationError);
+			const token = await started.p;
+			connection[side].dispose();
+			await rejected;
+			assert.strictEqual(token.isCancellationRequested, true);
+		});
+	}
+
+	test('does not invoke the renderer for an already cancelled request', async () => {
+		let invoked = false;
+		const connection = bridge(handlerOf(async () => {
+			invoked = true;
+			return { output: [] };
+		}));
+		await assert.rejects(connection.chat({ vendor: 'v', modelId: 'm', input: [] }, CancellationToken.Cancelled), isCancellationError);
+		assert.strictEqual(invoked, false);
+	});
+
+	test('cancels while the reverse IPC client is still initializing', async () => {
+		const source = store.add(new CancellationTokenSource());
+		const toRenderer = store.add(new Emitter<VSBuffer>());
+		const toHost = store.add(new Emitter<VSBuffer>());
+		const client = store.add(new ChannelClient({ onMessage: toHost.event, send: buffer => toRenderer.fire(buffer) }));
+		const connection = createAgentHostClientByokLmConnection(client.getChannel('byok'));
+		const rejected = assert.rejects(connection.chat({ vendor: 'v', modelId: 'm', input: [] }, source.token), isCancellationError);
+		source.cancel();
+		await rejected;
+		let invoked = false;
+		const server = store.add(new ChannelServer({ onMessage: toRenderer.event, send: buffer => toHost.fire(buffer) }, undefined));
+		server.registerChannel('byok', new AgentHostClientByokLmChannel(handlerOf(async () => {
+			invoked = true;
+			return { output: [] };
+		}), new NullLogService()));
+		await flush();
+		assert.strictEqual(invoked, false);
+	});
+
+	test('cancellation after completion does not affect a subsequent request', async () => {
+		const source = store.add(new CancellationTokenSource());
+		const connection = bridge(handlerOf(async () => ({ output: [], responseId: 'complete' })));
+		const first = await connection.chat({ vendor: 'v', modelId: 'm', input: [] }, source.token);
+		source.cancel();
+		const second = await connection.chat({ vendor: 'v', modelId: 'm', input: [] });
+		assert.deepStrictEqual([first.responseId, second.responseId], ['complete', 'complete']);
 	});
 
 	test('forwards a bridge error result unchanged', async () => {
