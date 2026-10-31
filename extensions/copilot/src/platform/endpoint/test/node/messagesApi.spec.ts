@@ -813,9 +813,19 @@ suite('addToolsAndSystemCacheControl', function () {
 
 suite('modelSupportsExtendedCacheTtl', function () {
 
-	test('matches Fable 5, Opus 4.5/4.6/4.7/4.8, Sonnet 4.5/4.6, and Haiku 4.5 variants and rejects everything else', function () {
+	test('matches Fable 5.x, Opus 5.x/4.5/4.6/4.7/4.8, Sonnet 5.x/4.5/4.6, and Haiku 5.x/4.5 variants and rejects everything else', function () {
 		expect({
 			'claude-fable-5': modelSupportsExtendedCacheTtl('claude-fable-5'),
+			'claude-fable-5.1': modelSupportsExtendedCacheTtl('claude-fable-5.1'),
+			'claude-fable-5-1': modelSupportsExtendedCacheTtl('claude-fable-5-1'),
+			'claude-opus-5': modelSupportsExtendedCacheTtl('claude-opus-5'),
+			'claude-opus-5.5': modelSupportsExtendedCacheTtl('claude-opus-5.5'),
+			'claude-opus-5-5': modelSupportsExtendedCacheTtl('claude-opus-5-5'),
+			'claude-sonnet-5': modelSupportsExtendedCacheTtl('claude-sonnet-5'),
+			'claude-sonnet-5.5': modelSupportsExtendedCacheTtl('claude-sonnet-5.5'),
+			'claude-sonnet-5-5': modelSupportsExtendedCacheTtl('claude-sonnet-5-5'),
+			'claude-haiku-5.5': modelSupportsExtendedCacheTtl('claude-haiku-5.5'),
+			'claude-haiku-5-5': modelSupportsExtendedCacheTtl('claude-haiku-5-5'),
 			'claude-opus-4.8': modelSupportsExtendedCacheTtl('claude-opus-4.8'),
 			'claude-opus-4-8': modelSupportsExtendedCacheTtl('claude-opus-4-8'),
 			'claude-opus-4-8-1m': modelSupportsExtendedCacheTtl('claude-opus-4-8-1m'),
@@ -835,6 +845,16 @@ suite('modelSupportsExtendedCacheTtl', function () {
 			'gpt-5': modelSupportsExtendedCacheTtl('gpt-5'),
 		}).toEqual({
 			'claude-fable-5': true,
+			'claude-fable-5.1': true,
+			'claude-fable-5-1': true,
+			'claude-opus-5': true,
+			'claude-opus-5.5': true,
+			'claude-opus-5-5': true,
+			'claude-sonnet-5': true,
+			'claude-sonnet-5.5': true,
+			'claude-sonnet-5-5': true,
+			'claude-haiku-5.5': true,
+			'claude-haiku-5-5': true,
 			'claude-opus-4.8': true,
 			'claude-opus-4-8': true,
 			'claude-opus-4-8-1m': true,
@@ -860,11 +880,13 @@ suite('modelSupportsExtendedCacheTtl', function () {
 		expect({
 			'preview-id + family=claude-opus-4.7': modelSupportsExtendedCacheTtl(fake('claude-opus-4.7', 'preview-opus-internal')),
 			'preview-id + family=claude-sonnet-4.5': modelSupportsExtendedCacheTtl(fake('claude-sonnet-4.5', 'preview-sonnet-internal')),
+			'preview-id + family=claude-opus-5.5': modelSupportsExtendedCacheTtl(fake('claude-opus-5.5', 'preview-opus-internal')),
 			'preview-id + family=claude-opus-4 (unsupported)': modelSupportsExtendedCacheTtl(fake('claude-opus-4', 'preview-opus-old')),
 			'preview-id + family=mystery': modelSupportsExtendedCacheTtl(fake('mystery-family', 'preview-anything')),
 		}).toEqual({
 			'preview-id + family=claude-opus-4.7': true,
 			'preview-id + family=claude-sonnet-4.5': true,
+			'preview-id + family=claude-opus-5.5': true,
 			'preview-id + family=claude-opus-4 (unsupported)': false,
 			'preview-id + family=mystery': false,
 		});
