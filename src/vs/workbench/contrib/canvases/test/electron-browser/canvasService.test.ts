@@ -407,6 +407,78 @@ suite('CanvasService', () => {
 		});
 	});
 
+	test('does not foreground a completed historical request loaded during recovery', async () => {
+		const harness = createHarness();
+		harness.visible.set(new Set(), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'historical-request', succeeded: true }]]), undefined);
+		harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			opened: harness.opened.length,
+			options: harness.openOptions,
+		}, {
+			opened: 1,
+			options: [{
+				pinned: true,
+				preserveFocus: true,
+				inactive: true,
+				activation: EditorActivation.PRESERVE,
+			}],
+		});
+	});
+
+	test('does not foreground a completed historical request loaded before an outage', async () => {
+		const harness = createHarness();
+		harness.visible.set(new Set(), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'historical-request', succeeded: true }]]), undefined);
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			opened: harness.opened.length,
+			options: harness.openOptions,
+		}, {
+			opened: 1,
+			options: [{
+				pinned: true,
+				preserveFocus: true,
+				inactive: true,
+				activation: EditorActivation.PRESERVE,
+			}],
+		});
+	});
+
+	test('does not let a stale reveal clear newer recovery intent after a foreground open', async () => {
+		const harness = createHarness();
+		const pending = harness.delayOpen();
+		harness.canvases.set([harness.canvas], undefined);
+		const firstReveal = harness.service.revealCanvas({ ...harness.owner, canvas: harness.canvas.resource });
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		await harness.service.revealCanvas({ ...harness.owner, canvas: harness.canvas.resource });
+		await pending.complete();
+		await firstReveal;
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			opened: harness.opened.length,
+			options: harness.openOptions,
+		}, {
+			opened: 2,
+			options: [
+				{ pinned: true, revealIfOpened: true, preserveFocus: false },
+				{ pinned: true, revealIfOpened: true, preserveFocus: false },
+			],
+		});
+	});
+
 	test('upgrades an in-flight recovery when a new request arrives', async () => {
 		const harness = createHarness();
 		harness.visible.set(new Set(), undefined);

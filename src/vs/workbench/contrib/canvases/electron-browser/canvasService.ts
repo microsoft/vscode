@@ -275,13 +275,16 @@ export class CanvasService extends Disposable implements ICanvasService {
 		const sourceState = this.sourceStates.get(key) ?? this.updateSourceState(key, reference, canvas, undefined);
 		sourceState.foregroundRecovery = true;
 		let recoveryGeneration = sourceState.recoveryGeneration;
+		const requestId = this.requests.get(key);
 		const pending = this.opening.get(input);
 		if (pending) {
 			await pending.value;
 			const currentState = this.sourceStates.get(key);
 			if (!pending.restore) {
-				this.consumeForegroundIntent(currentState, this.requests.get(key));
-				this.completeSourceRecovery(key, currentState?.recoveryGeneration);
+				if (currentState?.recoveryGeneration === recoveryGeneration) {
+					this.consumeForegroundIntent(currentState, requestId);
+					this.completeSourceRecovery(key, recoveryGeneration);
+				}
 				return;
 			}
 			if (this.inputs.get(key) !== input || input.isDisposed() || input.canvas.get()?.source === undefined
@@ -290,7 +293,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 			}
 			recoveryGeneration = currentState?.recoveryGeneration ?? recoveryGeneration;
 		}
-		this.consumeForegroundIntent(this.sourceStates.get(key), this.requests.get(key));
+		this.consumeForegroundIntent(this.sourceStates.get(key), requestId);
 		try {
 			await this.openInput(key, input);
 		} finally {
@@ -604,7 +607,8 @@ export class CanvasService extends Disposable implements ICanvasService {
 		}
 		if (request && request.id !== state.observedRequestId) {
 			state.observedRequestId = request.id;
-			state.foregroundRequestId = request.pending || request.succeeded ? request.id : undefined;
+			// A completed request can appear later through history hydration; only a running call proves live intent.
+			state.foregroundRequestId = request.pending ? request.id : undefined;
 		} else if (request && !request.pending && !request.succeeded && state.foregroundRequestId === request.id) {
 			state.foregroundRequestId = undefined;
 		}
