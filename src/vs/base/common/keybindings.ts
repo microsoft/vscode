@@ -234,6 +234,8 @@ export class ResolvedChord {
 
 export type SingleModifierChord = 'ctrl' | 'shift' | 'alt' | 'meta';
 
+export type ElectronAcceleratorPurpose = 'menu' | 'globalShortcut';
+
 /**
  * A resolved keybinding. Consists of one or multiple chords.
  */
@@ -248,9 +250,11 @@ export abstract class ResolvedKeybinding {
 	public abstract getAriaLabel(): string | null;
 	/**
 	 * This prints the binding in a format suitable for electron's accelerators.
+	 * Menu accelerators (the default) may use layout-dependent characters that
+	 * cannot preserve physical key/modifier matching for global shortcuts.
 	 * See https://github.com/electron/electron/blob/master/docs/api/accelerator.md
 	 */
-	public abstract getElectronAccelerator(): string | null;
+	public abstract getElectronAccelerator(purpose?: ElectronAcceleratorPurpose): string | null;
 	/**
 	 * This prints the binding in a format suitable for user settings.
 	 */
