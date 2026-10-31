@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Value } from '@sinclair/typebox/value';
+import { computeMatchSource } from '../../../../../../platform/snippy/common/snippyCompute';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../util/vs/platform/instantiation/common/instantiation';
 import { ICompletionsCitationManager } from '../citationManager';
 import { ICompletionsLogTargetService } from '../logger';
 import { ICompletionsTextDocumentManagerService } from '../textDocumentManager';
 import * as Snippy from './';
-import * as SnippyCompute from './compute';
 import { codeReferenceLogger } from './logger';
 import { MatchError } from './snippy.proto';
 import { snippyTelemetry } from './telemetryHandlers';
@@ -52,7 +52,7 @@ export async function fetchCitations(accessor: ServicesAccessor, uri: string, co
 		return;
 	}
 
-	const sourceToCheck = SnippyCompute.computeMatchSource(insertionDoc.getText().slice(0, insertionOffset), completionText);
+	const sourceToCheck = computeMatchSource(insertionDoc.getText().slice(0, insertionOffset), completionText);
 	if ('reason' in sourceToCheck) {
 		codeReferenceLogger.debug(logTarget, `Skipping Snippy check: ${sourceToCheck.reason}`);
 		return;
