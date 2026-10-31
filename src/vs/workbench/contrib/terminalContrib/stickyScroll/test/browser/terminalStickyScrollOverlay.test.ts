@@ -5,7 +5,7 @@
 
 import type { Terminal } from '@xterm/xterm';
 import { deepStrictEqual, ok } from 'assert';
-import { SinonFakeTimersConfig, useFakeTimers } from 'sinon';
+import { SinonFakeTimersConfig, stub, useFakeTimers } from 'sinon';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { $, getWindow } from '../../../../../../base/browser/dom.js';
 import { Orientation, SplitView } from '../../../../../../base/browser/ui/splitview/splitview.js';
@@ -13,6 +13,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandDetectionCapability, ITerminalCommand, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
@@ -22,7 +23,8 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../../../co
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { ITerminalInstance, IXtermTerminal } from '../../../../terminal/browser/terminal.js';
 import { ITerminalContributionContext } from '../../../../terminal/browser/terminalExtensions.js';
-import { XtermAddonImporter } from '../../../../terminal/browser/xterm/xtermAddonImporter.js';
+import { type IXtermAddonNameToCtor, XtermAddonImporter } from '../../../../terminal/browser/xterm/xtermAddonImporter.js';
+import { TestWebglAddon } from '../../../../terminal/test/browser/xterm/xtermTestUtils.js';
 import { TerminalStickyScrollContribution } from '../../browser/terminalStickyScrollContribution.js';
 import '../../../../terminal/browser/media/terminal.css';
 import '../../../../terminal/browser/media/xterm.css';
@@ -42,17 +44,19 @@ suite('TerminalStickyScrollOverlay', () => {
 		promptRowCount = 1,
 		show = true,
 		location = 'panel',
-		fontSize = 14
+		fontSize = 14,
+		gpuAcceleration = 'off'
 	}: {
 		promptRowCount?: number;
 		show?: boolean;
 		location?: 'panel' | 'side' | 'editor' | 'fixed' | 'upper split';
 		fontSize?: number;
+		gpuAcceleration?: 'auto' | 'on' | 'off';
 	} = {}) {
 		const configurationService = new TestConfigurationService({
 			terminal: {
 				integrated: {
-					gpuAcceleration: 'off',
+					gpuAcceleration,
 					stickyScroll: { enabled: true, maxLineCount: 5, ignoredCommands: [] }
 				}
 			}
@@ -171,8 +175,69 @@ suite('TerminalStickyScrollOverlay', () => {
 			contribution.layout();
 		}
 
-		return { raw, contribution, root, pane, element, screen, terminalScreen: raw.screenElement, endMarker, clock, write, layout };
+		return { raw, contribution, configurationService, root, pane, element, screen, terminalScreen: raw.screenElement, endMarker, clock, write, layout };
 	}
+
+	function stubWebglAddon() {
+		const importAddon = XtermAddonImporter.prototype.importAddon;
+		const importStub = stub(XtermAddonImporter.prototype, 'importAddon').callsFake(function (this: XtermAddonImporter, name) {
+			return name === 'webgl' ? Promise.resolve(TestWebglAddon as unknown as IXtermAddonNameToCtor['webgl']) : importAddon.call(this, name);
+		});
+		store.add(toDisposable(() => {
+			importStub.restore();
+			TestWebglAddon.shouldThrow = false;
+			TestWebglAddon.isEnabled = false;
+			TestWebglAddon.customGlyphOptions.length = 0;
+			TestWebglAddon.lastInstance = undefined;
+		}));
+	}
+
+	function getWebglState() {
+		return { created: TestWebglAddon.customGlyphOptions.length, enabled: TestWebglAddon.isEnabled };
+	}
+
+	async function changeTerminalConfiguration(configurationService: TestConfigurationService, clock: { tickAsync(ms: number): Promise<unknown> }) {
+		TestWebglAddon.shouldThrow = false;
+		await configurationService.setUserConfiguration('terminal', { integrated: { gpuAcceleration: 'on', fontSize: 15, stickyScroll: { enabled: true, maxLineCount: 5, ignoredCommands: [] } } });
+		configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string) { return section === 'terminal.integrated' || section === 'terminal.integrated.fontSize'; }
+		});
+		await clock.tickAsync(100);
+	}
+
+	test('falls back to the DOM renderer when the WebGL context is lost until the configuration changes', async () => {
+		stubWebglAddon();
+		const { raw, configurationService, clock } = await createOverlay(false, { gpuAcceleration: 'on' });
+		const loaded = getWebglState();
+
+		TestWebglAddon.lastInstance?.fireContextLoss();
+		// Resizing syncs the overlay options, which used to recreate the addon on the lost context
+		raw.resize(81, raw.rows);
+		await clock.tickAsync(100);
+		const lost = getWebglState();
+
+		await changeTerminalConfiguration(configurationService, clock);
+		deepStrictEqual({ loaded, lost, changed: getWebglState() }, {
+			loaded: { created: 1, enabled: true },
+			lost: { created: 1, enabled: false },
+			changed: { created: 2, enabled: true }
+		});
+	});
+
+	test('falls back to the DOM renderer when the WebGL addon fails to load until the configuration changes', async () => {
+		stubWebglAddon();
+		TestWebglAddon.shouldThrow = true;
+		const { raw, configurationService, clock } = await createOverlay(false, { gpuAcceleration: 'on' });
+		raw.resize(81, raw.rows);
+		await clock.tickAsync(100);
+		const failed = getWebglState();
+
+		await changeTerminalConfiguration(configurationService, clock);
+		deepStrictEqual({ failed, changed: getWebglState() }, {
+			failed: { created: 1, enabled: false },
+			changed: { created: 2, enabled: true }
+		});
+	});
 
 	for (const modernUI of [false, true]) {
 		suite(modernUI ? 'Modern UI' : 'Classic UI', () => {
