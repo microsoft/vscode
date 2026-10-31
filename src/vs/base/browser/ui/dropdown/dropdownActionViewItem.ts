@@ -40,7 +40,6 @@ export interface IDropdownMenuActionViewItemOptions extends IBaseActionViewItemO
 	readonly getAnchor?: () => HTMLElement;
 	readonly anchorAlignmentProvider?: IAnchorAlignmentProvider;
 	readonly menuAsChild?: boolean;
-	readonly menuAsPopover?: boolean;
 	readonly skipTelemetry?: boolean;
 }
 
@@ -87,7 +86,6 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 			labelRenderer: labelRenderer,
 			isEnabled: () => this.action.enabled,
 			menuAsChild: this.options.menuAsChild,
-			menuAsPopover: this.options.menuAsPopover,
 			actions: isActionsArray ? this.menuActionsOrProvider as IAction[] : undefined,
 			actionProvider: isActionsArray ? undefined : this.menuActionsOrProvider as IActionProvider,
 			menuClassName: this.options.menuClassName,

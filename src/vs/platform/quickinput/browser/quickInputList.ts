@@ -425,8 +425,7 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> extends D
 			...(this.hoverDelegate ? { hoverDelegate: this.hoverDelegate } : undefined),
 			actionViewItemProvider: createToggleActionViewItemProvider(this.toggleStyles),
 			icon: true,
-			label: false,
-			renderDropdownAsPopover: true
+			label: false
 		});
 		data.toolBar.getElement().classList.add('quick-input-list-entry-action-bar');
 		data.toDisposeTemplate.add(data.toolBar);

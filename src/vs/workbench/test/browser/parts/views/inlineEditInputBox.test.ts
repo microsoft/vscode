@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ContextView, ContextViewDOMPosition } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -146,31 +145,6 @@ suite('InlineEditInputBox', () => {
 		const finishedWhileMenuOpen = [...finished];
 
 		const didFinish = Event.toPromise(onDidFinish.event);
-		elsewhere.focus();
-		onDidHideContextMenu.fire();
-		await didFinish;
-
-		assert.deepStrictEqual({ finishedWhileMenuOpen, finished }, { finishedWhileMenuOpen: [], finished: [['name', true]] });
-	});
-
-	test('keeps editing while a context menu hosted next to the input in a shadow root is open', async () => {
-		const inputBox = createInputBox({}, { ariaLabel: 'Rename', value: 'name' });
-		const elsewhere = appendButton(container);
-		// Like the text input context menu, hosted as a shadow root popover in the input's parent
-		const contextView = store.add(new ContextView(inputBox.inputBox.inputElement.parentElement!, ContextViewDOMPosition.POPOVER_SHADOW));
-		let item: HTMLElement | undefined;
-		contextView.show({
-			getAnchor: () => inputBox.inputBox.inputElement,
-			render: view => { item = appendButton(view); return null; },
-			focus: () => item!.focus(),
-		});
-
-		inputBox.inputBox.inputElement.dispatchEvent(new FocusEvent('blur'));
-		await timeout(0);
-		const finishedWhileMenuOpen = [...finished];
-
-		const didFinish = Event.toPromise(onDidFinish.event);
-		contextView.hide();
 		elsewhere.focus();
 		onDidHideContextMenu.fire();
 		await didFinish;
