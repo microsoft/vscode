@@ -398,6 +398,27 @@ suite('Workbench - Titlebar Part', () => {
 			compactTop: { count: 0, compact: false },
 		});
 	});
+
+	test('titlebar-owned compact menu opens rightward even when the sidebar is on the right', function () {
+		const compactSupported = getMenuBarVisibility(new TestConfigurationService({ window: { menuBarVisibility: 'compact' } })) === 'compact';
+		const customSupported = !hasNativeMenu(new TestConfigurationService({ window: { menuBarVisibility: 'classic' } })) && (!isMacintosh || isWeb);
+		if (!compactSupported || !customSupported) {
+			this.skip();
+		}
+		const configurationService = new TestConfigurationService({
+			window: { menuBarVisibility: 'compact' },
+			workbench: { activityBar: { location: ActivityBarPosition.TOP }, sideBar: { location: 'right' } }
+		});
+		const { part, container } = createTitlebar(configurationService);
+
+		const button = container.querySelector<HTMLElement>('.menubar .menubar-menu-button');
+		button?.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+		const holder = container.querySelector<HTMLElement>('.menubar-menu-items-holder');
+		const result = { opened: !!holder, opensLeftward: holder?.style.left === 'auto' };
+		part.dispose();
+
+		assert.deepStrictEqual(result, { opened: true, opensLeftward: false });
+	});
 });
 
 function createMeasuredElement(clientWidth: () => number, scrollWidth: () => number): HTMLElement {
