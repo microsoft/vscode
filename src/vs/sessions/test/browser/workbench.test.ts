@@ -150,6 +150,15 @@ suite('Sessions - Workbench', () => {
 	const layoutGrid = Reflect.get(Workbench.prototype, '_layoutGrid') as (this: IContainerResizeTestHarness) => void;
 	const layoutDesktopGrid = Reflect.get(DesktopWorkbench.prototype, '_layoutGrid') as (this: IContainerResizeTestHarness) => void;
 	const preserveSessionsEditorRatio = Reflect.get(DesktopWorkbench.prototype, '_preserveSessionsEditorRatio') as (this: IProportionalResizeTestHarness, previousSessionsWidth: number, previousEditorWidth: number) => void;
+	const registerEditorPartFocus = Reflect.get(Workbench.prototype, 'registerEditorPartFocus') as (this: {
+		editorGroupService: {
+			mainPart: {
+				readonly onDidFocus: BaseEvent<void>;
+			};
+		};
+		_register<T extends IDisposable>(disposable: T): T;
+		_restoreEditorPartOnActivation(): void;
+	}) => void;
 	const registerNotificationRowHeight = Reflect.get(Workbench.prototype, 'registerNotificationRowHeight') as (this: {
 		layoutPolicy: { isPhoneLayout: IObservable<boolean> };
 		_register<T extends IDisposable>(disposable: T): T;
@@ -770,6 +779,31 @@ suite('Sessions - Workbench', () => {
 			[],
 			[],
 		]);
+	});
+
+	test('restores a minimized Editor when the main editor part receives focus', () => {
+		const disposables = store.add(new DisposableStore());
+		const editorPartFocused = store.add(new Emitter<void>());
+		let restores = 0;
+		const restoreCounts: number[] = [];
+		const host = {
+			editorGroupService: {
+				mainPart: {
+					onDidFocus: editorPartFocused.event,
+				},
+			},
+			_register: <T extends IDisposable>(disposable: T) => disposables.add(disposable),
+			_restoreEditorPartOnActivation: () => restores++,
+		};
+
+		registerEditorPartFocus.call(host);
+		editorPartFocused.fire();
+		restoreCounts.push(restores);
+		disposables.dispose();
+		editorPartFocused.fire();
+		restoreCounts.push(restores);
+
+		assert.deepStrictEqual(restoreCounts, [1, 1]);
 	});
 
 	test('tracks editor pane visibility across editor and auxiliary bar changes', () => {

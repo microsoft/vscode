@@ -1232,11 +1232,18 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this._register(this.editorGroupService.onDidChangeEditorPartOptions(updateCompactHeight));
 	}
 
+	private registerEditorPartFocus(): void {
+		// Browser and Canvas focus can remain in a native WebContentsView, so restore from the
+		// editor part's focus event instead of waiting for their deferred DOM focus proxy.
+		this._register(this.editorGroupService.mainPart.onDidFocus(() => this._restoreEditorPartOnActivation()));
+	}
+
 	initLayout(accessor: ServicesAccessor): void {
 		// Services - accessing these triggers their instantiation
 		// which creates and registers the parts
 		this.editorGroupService = accessor.get(IEditorGroupsService);
 		this.registerEditorTabHeightClass();
+		this.registerEditorPartFocus();
 		this.editorService = accessor.get(IEditorService);
 		this.paneCompositeService = accessor.get(IPaneCompositePartService);
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
