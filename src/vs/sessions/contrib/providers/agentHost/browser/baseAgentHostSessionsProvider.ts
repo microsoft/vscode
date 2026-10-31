@@ -5546,13 +5546,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected _reportAdoptableRowOpen(resource: URI, reason: SessionResourceResolveReason | undefined, telemetryService: ITelemetryService): boolean {
 		this._ensureSessionCache();
 		let rawId: string | undefined;
+		let backendSession: URI | undefined;
 		for (const [key, cached] of this._sessionCache) {
 			if (isEqual(cached.resource, resource)) {
 				rawId = key;
+				backendSession = cached.backendUri;
 				break;
 			}
 		}
-		if (rawId === undefined || !readSessionEhcliAdoptable(this._metadataBySession.get(rawId)?._meta)) {
+		if (rawId === undefined || backendSession === undefined || !readSessionEhcliAdoptable(this._metadataBySession.get(rawId)?._meta)) {
 			return false;
 		}
 		if (this._adoptableRowOpens.has(rawId)) {
@@ -5561,11 +5563,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const key = rawId;
 		const source = reason ?? 'open';
+		const row = { entry: 'agentHostRow', backendSession } as const;
 		const store = new DisposableStore();
 		this._adoptableRowOpens.set(key, store);
 		const settle = (adopted: boolean) => {
 			this._adoptableRowOpens.deleteAndDispose(key);
-			reportLegacyMigrationOpen(telemetryService, source, resource, adopted, undefined, 'agentHostRow');
+			reportLegacyMigrationOpen(telemetryService, source, resource, adopted, undefined, row);
 		};
 		store.add(disposableTimeout(() => settle(false), source === 'restore' ? LEGACY_MIGRATION_RESTORE_TIMEOUT_MS : LEGACY_MIGRATION_OPEN_TIMEOUT_MS));
 		store.add(this._onDidChangeSessionsImmediately(() => {

@@ -1675,7 +1675,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('reports opening an un-adopted row of its own list once the host adopts it', async () => {
+	test('reports opening an un-adopted row of its own list once the host adopts it, correlated by the exact backend session', async () => {
 		const events: Record<string, unknown>[] = [];
 		const telemetryService = new class extends NullTelemetryServiceShape {
 			override publicLog2(name?: string, data?: unknown): void {
@@ -1684,28 +1684,33 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				}
 			}
 		};
+		// The host hashes the session URI it uses, which need not be `copilotcli:/<id>`.
+		const backends = [AgentSession.uri('copilotcli', 'remote-adoptable'), URI.parse('ahp-session://tenant/opaque-adoptable')];
 		connection.addSession(createSession('remote-adoptable', { _meta: withSessionEhcliAdoptable(undefined) }));
+		connection.addSession(createSession('opaque-adoptable', { session: backends[1], _meta: withSessionEhcliAdoptable(undefined) }));
 		const provider = createProvider(disposables, connection, { telemetryService });
 		await timeout(0);
-		const resource = provider.getSessions()[0].resource;
+		const resources = provider.getSessions().map(session => session.resource);
 
-		const resolved = await provider.resolveSessionResource(resource, 'open');
+		const resolved = await Promise.all(resources.map(resource => provider.resolveSessionResource(resource, 'open')));
 		const beforeAdoption = events.length;
-		connection.fireNotification({
-			channel: 'ahp-root://',
-			type: NotificationType.SessionSummaryChanged,
-			session: AgentSession.uri('copilotcli', 'remote-adoptable').toString(),
-			changes: { _meta: undefined },
-		});
+		for (const backend of backends) {
+			connection.fireNotification({
+				channel: 'ahp-root://',
+				type: NotificationType.SessionSummaryChanged,
+				session: backend.toString(),
+				changes: { _meta: undefined },
+			});
+		}
 
 		assert.deepStrictEqual({
-			resolved: resolved?.toString(),
+			resolved: resolved.map(resource => resource?.toString()),
 			beforeAdoption,
 			reported: events.map(event => ({ id: event.migrationSessionId, source: event.source, entry: event.entry, surfaced: event.surfaced })),
 		}, {
-			resolved: resource.toString(),
+			resolved: resources.map(resource => resource.toString()),
 			beforeAdoption: 0,
-			reported: [{ id: getTelemetryMigrationSessionId(AgentSession.uri('copilotcli', 'remote-adoptable')), source: 'open', entry: 'agentHostRow', surfaced: true }],
+			reported: backends.map(backend => ({ id: getTelemetryMigrationSessionId(backend), source: 'open', entry: 'agentHostRow', surfaced: true })),
 		});
 	});
 

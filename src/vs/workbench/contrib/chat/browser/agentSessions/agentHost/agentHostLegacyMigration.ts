@@ -185,12 +185,18 @@ export async function adoptLegacyCopilotCliResource(
 	}
 }
 
-/** Which list row a migration open started from. */
-export type LegacyMigrationOpenEntry = 'legacyRow' | 'agentHostRow';
+/**
+ * Which list row a migration open started from. An agent-host row carries the
+ * exact backend session URI, so its report correlates with the host's event
+ * however the host addresses the session.
+ */
+export type LegacyMigrationOpenRow =
+	| { readonly entry: 'legacyRow' }
+	| { readonly entry: 'agentHostRow'; readonly backendSession: URI };
 
 type LegacyMigrationOpenEvent = {
 	source: string;
-	entry: LegacyMigrationOpenEntry;
+	entry: LegacyMigrationOpenRow['entry'];
 	surfaced: boolean;
 	migrationSessionId: string | undefined;
 	reason: 'surfaced' | 'sessionNotSurfaced' | 'resolveFailed';
@@ -215,13 +221,15 @@ type LegacyMigrationOpenClassification = {
  * succeeding does not mean the caller could open it, and that fallback is the
  * failure this telemetry exists to catch.
  */
-export function reportLegacyMigrationOpen(telemetryService: ITelemetryService, source: LegacyMigrationProbeSource, resource: URI, surfaced: boolean, error?: unknown, entry: LegacyMigrationOpenEntry = 'legacyRow'): void {
+export function reportLegacyMigrationOpen(telemetryService: ITelemetryService, source: LegacyMigrationProbeSource, resource: URI, surfaced: boolean, error?: unknown, row: LegacyMigrationOpenRow = { entry: 'legacyRow' }): void {
 	const rawId = getCopilotCliSessionRawId(resource);
 	const data: LegacyMigrationOpenEvent = {
 		source,
-		entry,
+		entry: row.entry,
 		surfaced,
-		migrationSessionId: rawId ? getTelemetryMigrationSessionId(AgentSession.uri(COPILOT_CLI_AGENT_PROVIDER, rawId)) : undefined,
+		migrationSessionId: row.entry === 'agentHostRow'
+			? getTelemetryMigrationSessionId(row.backendSession)
+			: rawId ? getTelemetryMigrationSessionId(AgentSession.uri(COPILOT_CLI_AGENT_PROVIDER, rawId)) : undefined,
 		reason: error !== undefined ? 'resolveFailed' : surfaced ? 'surfaced' : 'sessionNotSurfaced',
 		errorCode: getErrorCode(error),
 		errorMessage: getTelemetryMigrationErrorMessage(error, resource),
