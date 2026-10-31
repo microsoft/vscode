@@ -584,6 +584,167 @@ suite('ChatSessionsService - getChatSessionItems availability', () => {
 	});
 });
 
+suite('ChatSessionsService - retryable initialization', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const type = 'retry-provider';
+	const item: IChatSessionItem = {
+		resource: URI.from({ scheme: type, path: '/session-1' }),
+		label: 'Recovered session',
+		timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined },
+	};
+	let service: ChatSessionsService;
+	let initial: DeferredPromise<void>;
+	let refresh: (token: CancellationToken) => Promise<void>;
+	let refreshCalls: number;
+	let created: number;
+	let deleted: number;
+	let changed: Emitter<IChatSessionItemsDelta>;
+	let registration: IDisposable;
+
+	setup(() => {
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		service = store.add(instantiationService.createInstance(ChatSessionsService));
+		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '' }));
+		initial = new DeferredPromise<void>();
+		refresh = async () => { };
+		refreshCalls = created = deleted = 0;
+		changed = store.add(new Emitter<IChatSessionItemsDelta>());
+		registration = store.add(service.registerChatSessionItemController(type, {
+			onDidChangeChatSessionItems: changed.event,
+			items: [item],
+			refresh: token => ++refreshCalls === 1 ? initial.p : refresh(token),
+			async newChatSessionItem() { created++; return item; },
+			async deleteChatSessionItem() { deleted++; },
+		}));
+	});
+
+	async function list(token = CancellationToken.None, onError?: (error: unknown) => void): Promise<IChatSessionItem[]> {
+		const result: IChatSessionItem[] = [];
+		for await (const { items } of service.getChatSessionItems([type], token, onError)) {
+			result.push(...items);
+		}
+		return result;
+	}
+
+	async function failInitialRefresh(): Promise<void> {
+		const errors: unknown[] = [];
+		const pending = list(CancellationToken.None, error => errors.push(error));
+		await timeout(0);
+		const failure = new Error('authentication unavailable');
+		await initial.error(failure);
+		assert.deepStrictEqual(await pending, []);
+		assert.deepStrictEqual(errors, [failure]);
+	}
+
+	test('retries a failed startup refresh when listing sessions', async () => {
+		await failInitialRefresh();
+		assert.deepStrictEqual(await list(), [item]);
+		assert.deepStrictEqual(await list(), [item]);
+		assert.strictEqual(refreshCalls, 2);
+	});
+
+	test('explicit refresh recovers a failed startup refresh', async () => {
+		await failInitialRefresh();
+		await service.refreshChatSessionItems([type], CancellationToken.None);
+		assert.deepStrictEqual(await list(), [item]);
+		assert.strictEqual(refreshCalls, 2);
+	});
+
+	test('a provider-originated update can recover through initialization', async () => {
+		await failInitialRefresh();
+		changed.fire({ addedOrUpdated: [item] });
+		assert.deepStrictEqual(await list(), [item]);
+		assert.strictEqual(refreshCalls, 2);
+	});
+
+	test('listing, creation and deletion share one pending retry', async () => {
+		await failInitialRefresh();
+		const retry = new DeferredPromise<void>();
+		refresh = () => retry.p;
+		const listing = list();
+		const creation = service.createNewChatSessionItem(type, { prompt: 'hello' }, CancellationToken.None);
+		const deletion = service.deleteChatSessionItem(item.resource, CancellationToken.None);
+		await timeout(0);
+		assert.deepStrictEqual({ refreshCalls, created, deleted }, { refreshCalls: 2, created: 0, deleted: 0 });
+		await retry.complete();
+		assert.deepStrictEqual(await listing, [item]);
+		assert.strictEqual(await creation, item);
+		await deletion;
+		assert.deepStrictEqual({ refreshCalls, created, deleted }, { refreshCalls: 2, created: 1, deleted: 1 });
+	});
+
+	test('reports each failed retry without retrying indefinitely', async () => {
+		await failInitialRefresh();
+		const failure = new Error('still unavailable');
+		refresh = async () => { throw failure; };
+		const errors: unknown[] = [];
+		assert.deepStrictEqual(await list(CancellationToken.None, error => errors.push(error)), []);
+		await assert.rejects(service.createNewChatSessionItem(type, { prompt: 'hello' }, CancellationToken.None), failure);
+		await assert.rejects(service.deleteChatSessionItem(item.resource, CancellationToken.None), failure);
+		assert.deepStrictEqual(errors, [failure]);
+		assert.deepStrictEqual({ refreshCalls, created, deleted }, { refreshCalls: 4, created: 0, deleted: 0 });
+	});
+
+	test('cancelling one caller does not cancel a shared initialization retry', async () => {
+		await failInitialRefresh();
+		const retry = new DeferredPromise<void>();
+		refresh = () => retry.p;
+		const cts = store.add(new CancellationTokenSource());
+		const cancelled = assert.rejects(service.createNewChatSessionItem(type, { prompt: 'hello' }, cts.token), isCancellationError);
+		const listing = list();
+		await timeout(0);
+		cts.cancel();
+		await cancelled;
+		await retry.complete();
+		assert.deepStrictEqual(await listing, [item]);
+		assert.deepStrictEqual({ refreshCalls, created }, { refreshCalls: 2, created: 0 });
+	});
+
+	test('disposing a registration cancels its pending retry', async () => {
+		await failInitialRefresh();
+		const retry = new DeferredPromise<void>();
+		let retryToken = CancellationToken.None;
+		refresh = token => { retryToken = token; return retry.p; };
+		const deletion = assert.rejects(service.deleteChatSessionItem(item.resource, CancellationToken.None), isCancellationError);
+		registration.dispose();
+		await deletion;
+		await retry.complete();
+		assert.strictEqual(retryToken.isCancellationRequested, true);
+		assert.strictEqual(deleted, 0);
+	});
+
+	test('a replaced controller cannot complete a pending creation', async () => {
+		await failInitialRefresh();
+		const retry = new DeferredPromise<void>();
+		refresh = () => retry.p;
+		const creation = assert.rejects(service.createNewChatSessionItem(type, { prompt: 'hello' }, CancellationToken.None), isCancellationError);
+		const replacementItem = { ...item, label: 'Replacement session' };
+		store.add(service.registerChatSessionItemController(type, {
+			onDidChangeChatSessionItems: Event.None,
+			items: [replacementItem],
+			async refresh() { },
+		}));
+		await retry.complete();
+		await creation;
+		registration.dispose();
+		assert.deepStrictEqual(await list(), [replacementItem]);
+		assert.strictEqual(created, 0);
+	});
+
+	test('a late startup failure does not undo a successful explicit refresh', async () => {
+		const errors: unknown[] = [];
+		const pending = list(CancellationToken.None, error => errors.push(error));
+		await timeout(0);
+		await service.refreshChatSessionItems([type], CancellationToken.None);
+		const failure = new Error('stale startup failure');
+		await initial.error(failure);
+		await pending;
+		assert.deepStrictEqual(errors, [failure]);
+		assert.deepStrictEqual(await list(), [item]);
+		assert.strictEqual(refreshCalls, 2);
+	});
+});
+
 suite('ChatSessionsService - in-progress lifecycle', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
