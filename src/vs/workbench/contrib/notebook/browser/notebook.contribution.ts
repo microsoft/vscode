@@ -52,6 +52,8 @@ import { IWorkingCopyIdentifier } from '../../../services/workingCopy/common/wor
 import { IResourceEditorInput } from '../../../../platform/editor/common/editor.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from '../../../services/workingCopy/common/workingCopyEditorService.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { NotebookUnsavedFileSystemProvider } from '../common/notebookUnsavedFileSystemProvider.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -812,9 +814,13 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkingCopyEditorService private readonly _workingCopyEditorService: IWorkingCopyEditorService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@INotebookService private readonly _notebookService: INotebookService
+		@INotebookService private readonly _notebookService: INotebookService,
+		@IFileService fileService: IFileService
 	) {
 		super();
+
+		// Serves notebooks with their unsaved changes as text, e.g. to compare them with the file on disk
+		this._register(fileService.registerProvider(NotebookUnsavedFileSystemProvider.SCHEME, this._register(new NotebookUnsavedFileSystemProvider(_notebookService))));
 
 		this._installHandler();
 	}
@@ -847,6 +853,14 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 
 	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput {
 		return NotebookEditorInput.getOrCreate(this._instantiationService, workingCopy.resource, undefined, this._getViewType(workingCopy)!);
+	}
+
+	getUnsavedTextResource(workingCopy: IWorkingCopyIdentifier): URI | undefined {
+		if (!this.handlesSync(workingCopy)) {
+			return undefined;
+		}
+
+		return NotebookUnsavedFileSystemProvider.toUnsaved(workingCopy.resource);
 	}
 
 	private async _installHandler(): Promise<void> {

@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ETAG_DISABLED, FileOperationError, FileOperationResult, IFileReadLimits, IFileService, IFileStatWithMetadata, IFileStreamContent, IWriteFileOptions, NotModifiedSinceFileOperationError } from '../../../../platform/files/common/files.js';
-import { ISaveOptions, IRevertOptions, SaveReason } from '../../../common/editor.js';
+import { DEFAULT_EDITOR_ASSOCIATION, IResourceDiffEditorInput, ISaveOptions, IRevertOptions, SaveReason } from '../../../common/editor.js';
 import { IWorkingCopyService } from './workingCopyService.js';
 import { IWorkingCopyBackup, IWorkingCopyBackupMeta, IWorkingCopySaveEvent, WorkingCopyCapabilities } from './workingCopy.js';
 import { raceCancellation, TaskSequentializer, timeout } from '../../../../base/common/async.js';
@@ -1154,7 +1154,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		if (fileOperationError.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
 			message = localize('staleSaveError', "Failed to save '{0}': The content of the file is newer. Do you want to overwrite the file with your changes?", this.name);
 
-			if (this.getCompareEditorId()) {
+			if (this.getCompareEditor()) {
 				primaryActions.push(toAction({ id: 'fileWorkingCopy.compare', label: localize('compareChanges', "Compare"), run: () => this.compareWithFileOnDisk(error, options) }));
 			}
 			primaryActions.push(toAction({ id: 'fileWorkingCopy.overwrite', label: localize('overwrite', "Overwrite"), run: () => this.save({ ...options, ignoreModifiedSince: true, reason: SaveReason.EXPLICIT }) }));
@@ -1241,42 +1241,56 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	}
 
 	/**
-	 * Only the editor of this working copy can show its unsaved contents in a diff, so it must be able to open one.
+	 * Compare the file on disk with the editor of this working copy if it can open a diff editor, since
+	 * only that editor shows the unsaved contents. Otherwise compare as text with the unsaved contents
+	 * as they would be saved, if available.
 	 */
-	private getCompareEditorId(): string | undefined {
-		if (!this.fileService.hasProvider(FileOnDiskFileSystemProvider.toFileOnDisk(this.resource))) {
+	private getCompareEditor(): IResourceDiffEditorInput | undefined {
+		const fileOnDiskResource = FileOnDiskFileSystemProvider.toFileOnDisk(this.resource);
+		if (!this.fileService.hasProvider(fileOnDiskResource)) {
 			return undefined;
 		}
 
 		const editorId = this.workingCopyEditorService.findEditor(this)?.editor.editorId;
-		if (!editorId || !this.editorResolverService.getEditors({ isDiffEditor: true }).some(editor => editor.id === editorId)) {
-			return undefined;
-		}
-
-		return editorId;
-	}
-
-	private async compareWithFileOnDisk(error: Error, options: IStoredFileWorkingCopySaveAsOptions): Promise<void> {
-		try {
-			const editorId = this.getCompareEditorId();
-			if (!editorId) {
-				return;
-			}
-
-			// Reload a comparison that is already open so that it shows the current file on disk
-			const fileOnDiskResource = FileOnDiskFileSystemProvider.toFileOnDisk(this.resource);
-			for (const workingCopy of this.workingCopyService.getAll(fileOnDiskResource) ?? []) {
-				if (workingCopy instanceof StoredFileWorkingCopy) {
-					await workingCopy.resolve();
-				}
-			}
-
-			await this.editorService.openEditor({
+		if (editorId && this.editorResolverService.getEditors({ isDiffEditor: true }).some(editor => editor.id === editorId)) {
+			return {
 				original: { resource: fileOnDiskResource },
 				modified: { resource: this.resource },
 				label: localize('saveConflictDiffLabel', "{0} (in file) ↔ {1} - Resolve save conflict", this.name, this.name),
 				options: { pinned: true, override: editorId }
-			});
+			};
+		}
+
+		const unsavedTextResource = this.workingCopyEditorService.getUnsavedTextResource(this);
+		if (unsavedTextResource) {
+			return {
+				original: { resource: fileOnDiskResource },
+				modified: { resource: unsavedTextResource },
+				label: localize('saveConflictTextDiffLabel', "{0} (in file) ↔ {1} (unsaved) - Resolve save conflict", this.name, this.name),
+				options: { pinned: true, override: DEFAULT_EDITOR_ASSOCIATION.id }
+			};
+		}
+
+		return undefined;
+	}
+
+	private async compareWithFileOnDisk(error: Error, options: IStoredFileWorkingCopySaveAsOptions): Promise<void> {
+		try {
+			const compareEditor = this.getCompareEditor();
+			if (!compareEditor) {
+				return;
+			}
+
+			// Reload a comparison that is already open so that it shows the current file on disk
+			for (const workingCopy of this.workingCopyService.getAll(FileOnDiskFileSystemProvider.toFileOnDisk(this.resource)) ?? []) {
+				if (workingCopy instanceof StoredFileWorkingCopy) {
+					await workingCopy.resolve();
+				} else if (!workingCopy.isDirty()) {
+					await workingCopy.revert(); // e.g. the text of the file on disk, which reverts by reloading
+				}
+			}
+
+			await this.editorService.openEditor(compareEditor);
 		} finally {
 
 			// Keep the choice to overwrite or revert available next to the diff

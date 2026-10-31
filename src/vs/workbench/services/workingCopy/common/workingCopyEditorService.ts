@@ -11,6 +11,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IWorkingCopy, IWorkingCopyIdentifier } from './workingCopy.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IEditorService } from '../../editor/common/editorService.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export const IWorkingCopyEditorService = createDecorator<IWorkingCopyEditorService>('workingCopyEditorService');
 
@@ -31,6 +32,13 @@ export interface IWorkingCopyEditorHandler {
 	 * Create an editor that is suitable of opening the provided working copy.
 	 */
 	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput | Promise<EditorInput>;
+
+	/**
+	 * Optionally, a readonly resource with the contents of the working copy as text, as they would
+	 * be saved. Allows to compare them with the file on disk in a text diff editor when the editor
+	 * of the working copy cannot open a diff editor.
+	 */
+	getUnsavedTextResource?(workingCopy: IWorkingCopyIdentifier): URI | undefined;
 }
 
 export interface IWorkingCopyEditorService {
@@ -51,6 +59,11 @@ export interface IWorkingCopyEditorService {
 	 * Finds the first editor that can handle the provided working copy.
 	 */
 	findEditor(workingCopy: IWorkingCopy): IEditorIdentifier | undefined;
+
+	/**
+	 * Finds a readonly resource with the contents of the working copy as text, as they would be saved.
+	 */
+	getUnsavedTextResource(workingCopy: IWorkingCopyIdentifier): URI | undefined;
 }
 
 export class WorkingCopyEditorService extends Disposable implements IWorkingCopyEditorService {
@@ -79,6 +92,17 @@ export class WorkingCopyEditorService extends Disposable implements IWorkingCopy
 		for (const editorIdentifier of this.editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
 			if (this.isOpen(workingCopy, editorIdentifier.editor)) {
 				return editorIdentifier;
+			}
+		}
+
+		return undefined;
+	}
+
+	getUnsavedTextResource(workingCopy: IWorkingCopyIdentifier): URI | undefined {
+		for (const handler of this.handlers) {
+			const resource = handler.getUnsavedTextResource?.(workingCopy);
+			if (resource) {
+				return resource;
 			}
 		}
 

@@ -15,7 +15,7 @@ import { getLastResolvedFileStat, TestServiceAccessor, workbenchInstantiationSer
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, IFileStatWithMetadata, IWriteFileOptions, NotModifiedSinceFileOperationError } from '../../../../../platform/files/common/files.js';
-import { SaveReason, SaveSourceRegistry, IResourceDiffEditorInput, IEditorIdentifier } from '../../../../common/editor.js';
+import { SaveReason, SaveSourceRegistry, IResourceDiffEditorInput, IEditorIdentifier, DEFAULT_EDITOR_ASSOCIATION } from '../../../../common/editor.js';
 import { Promises, timeout } from '../../../../../base/common/async.js';
 import { consumeReadable, consumeStream, isReadableStream } from '../../../../../base/common/stream.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -937,6 +937,29 @@ suite('StoredFileWorkingCopy', function () {
 		disposables.add(accessor.fileService.registerProvider(FileOnDiskFileSystemProvider.SCHEME, disposables.add(new FileOnDiskFileSystemProvider(accessor.fileService))));
 
 		assert.deepStrictEqual((await saveWithConflict()).map(action => action.id), ['fileWorkingCopy.overwrite', 'fileWorkingCopy.revert']);
+	});
+
+	test('save (errors, conflict offers to compare as text with the unsaved contents when the editor cannot open a diff editor)', async () => {
+		const { notifications, openEditor, saveWithConflict } = setupSaveConflict(false);
+		const unsavedTextResource = URI.from({ scheme: 'unsaved-text', path: resource.path });
+		sinon.stub(accessor.workingCopyEditorService, 'getUnsavedTextResource').returns(unsavedTextResource);
+
+		await workingCopy.resolve();
+		disposables.add(accessor.fileService.registerProvider(FileOnDiskFileSystemProvider.SCHEME, disposables.add(new FileOnDiskFileSystemProvider(accessor.fileService))));
+
+		const actions = await saveWithConflict();
+		assert.deepStrictEqual(actions.map(action => action.id), ['fileWorkingCopy.compare', 'fileWorkingCopy.overwrite', 'fileWorkingCopy.revert']);
+
+		const notificationCount = notifications.length;
+		await actions[0].run();
+
+		const diff = openEditor.firstCall.args[0] as IResourceDiffEditorInput;
+		assert.deepStrictEqual(
+			{ original: diff.original.resource?.toString(), modified: diff.modified.resource?.toString(), label: diff.label, options: diff.options },
+			{ original: FileOnDiskFileSystemProvider.toFileOnDisk(resource).toString(), modified: unsavedTextResource.toString(), label: 'resource (in file) ↔ resource (unsaved) - Resolve save conflict', options: { pinned: true, override: DEFAULT_EDITOR_ASSOCIATION.id } }
+		);
+		assert.strictEqual(notifications.length, notificationCount + 1);
+		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.CONFLICT), true);
 	});
 
 	test('save (errors, bubbles up with `ignoreErrorHandler`)', async () => {
