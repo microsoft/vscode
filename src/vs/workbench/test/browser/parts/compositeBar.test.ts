@@ -198,7 +198,7 @@ suite('CompositeBar overflow', () => {
 		const actions = menu.getActions();
 		assert.deepStrictEqual({
 			overflowAction: { id: overflowAction.id, label: overflowAction.label },
-			checkedRepresentation: menu.getCheckedActionsRepresentation?.(),
+			checkedRepresentation: menu.getCheckedActionsRepresentation?.(actions[0]),
 			menu: actions.map(action => ({ id: action.id, label: action.label, checked: !!action.checked })),
 		}, {
 			overflowAction: { id: 'additionalComposites.action', label: 'Additional Views' },
