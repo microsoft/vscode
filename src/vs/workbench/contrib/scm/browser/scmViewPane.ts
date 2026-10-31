@@ -35,6 +35,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
+import { SortOrder } from '../../files/common/files.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { FuzzyScore, createMatches, IMatch } from '../../../../base/common/filters.js';
 import { IViewDescriptorService } from '../../../common/views.js';
@@ -727,7 +728,8 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 
 	constructor(
 		private readonly viewMode: () => ViewMode,
-		private readonly viewSortKey: () => ViewSortKey) { }
+		private readonly viewSortKey: () => ViewSortKey,
+		private readonly explorerSortOrder: () => SortOrder = () => SortOrder.Default) { }
 
 	compare(one: TreeElement, other: TreeElement): number {
 		if (isSCMRepository(one)) {
@@ -786,7 +788,15 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 		const otherIsDirectory = ResourceTree.isResourceNode(other);
 
 		if (oneIsDirectory !== otherIsDirectory) {
-			return oneIsDirectory ? -1 : 1;
+			const sortOrder = this.explorerSortOrder();
+			if (sortOrder === SortOrder.FilesFirst) {
+				// Files before directories
+				return oneIsDirectory ? 1 : -1;
+			} else if (sortOrder !== SortOrder.Mixed) {
+				// Default / all other values: directories before files
+				return oneIsDirectory ? -1 : 1;
+			}
+			// Mixed: fall through to name comparison
 		}
 
 		const oneName = ResourceTree.isResourceNode(one) ? one.name : basename((one as ISCMResource).sourceUri);
@@ -1633,7 +1643,7 @@ export class SCMViewPane extends ViewPane {
 				filter: new SCMTreeFilter(),
 				dnd: new SCMTreeDragAndDrop(this.instantiationService),
 				identityProvider: new SCMResourceIdentityProvider(),
-				sorter: new SCMTreeSorter(() => this.viewMode, () => this.viewSortKey),
+				sorter: new SCMTreeSorter(() => this.viewMode, () => this.viewSortKey, () => this.configurationService.getValue<SortOrder>('explorer.sortOrder') ?? SortOrder.Default),
 				keyboardNavigationLabelProvider: this.instantiationService.createInstance(SCMTreeKeyboardNavigationLabelProvider, () => this.viewMode),
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				compressionEnabled: compressionEnabled.get(),
