@@ -88,23 +88,23 @@ suite('Task system readiness', function () {
 		const { taskService } = createTaskService('test-remote');
 		let ready = false;
 		const readiness = taskService.whenTaskSystemReady.then(() => ready = true);
-		taskService.registerTaskSystem(Schemas.file, taskSystemInfo(Platform.Platform.Windows));
+		store.add(taskService.registerTaskSystem(Schemas.file, taskSystemInfo(Platform.Platform.Windows)));
 		taskService.removeTaskSystem(Schemas.file);
 		await timeout(0);
 		assert.deepStrictEqual({ ready, hasTaskSystemInfo: taskService.hasTaskSystemInfo }, { ready: false, hasTaskSystemInfo: false });
 
-		taskService.registerTaskSystem(Schemas.vscodeRemote, taskSystemInfo(Platform.Platform.Linux));
+		store.add(taskService.registerTaskSystem(Schemas.vscodeRemote, taskSystemInfo(Platform.Platform.Linux)));
 		await timeout(0);
 		assert.deepStrictEqual({ ready, hasTaskSystemInfo: taskService.hasTaskSystemInfo }, { ready: false, hasTaskSystemInfo: false });
 
-		taskService.registerTaskSystem(Schemas.file, taskSystemInfo(Platform.Platform.Windows));
+		store.add(taskService.registerTaskSystem(Schemas.file, taskSystemInfo(Platform.Platform.Windows)));
 		await readiness;
 		assert.deepStrictEqual({ ready, hasTaskSystemInfo: taskService.hasTaskSystemInfo }, { ready: true, hasTaskSystemInfo: true });
 	});
 
 	test('local readiness resolves on the first task system registration', async () => {
 		const { taskService } = createTaskService(undefined);
-		taskService.registerTaskSystem(Schemas.file, taskSystemInfo(Platform.Platform.Linux));
+		store.add(taskService.registerTaskSystem(Schemas.file, taskSystemInfo(Platform.Platform.Linux)));
 		await taskService.whenTaskSystemReady;
 		assert.strictEqual(taskService.hasTaskSystemInfo, true);
 	});
@@ -115,21 +115,21 @@ suite('Task system readiness', function () {
 		const workspaceTasks = new DeferredPromise<Map<string, IWorkspaceFolderTaskResult>>();
 		const getWorkspaceTasks = sinon.stub(taskService, 'getWorkspaceTasks').returns(workspaceTasks.p);
 		store.add(instantiationService.createInstance(RunAutomaticTasks));
-		taskService.registerTaskSystem(Schemas.file, taskSystemInfo(Platform.Platform.Windows));
+		store.add(taskService.registerTaskSystem(Schemas.file, taskSystemInfo(Platform.Platform.Windows)));
 		taskService.removeTaskSystem(Schemas.file);
 		await timeout(0);
 		assert.strictEqual(getWorkspaceTasks.callCount, 0);
 
-		taskService.registerTaskSystem(Schemas.vscodeRemote, taskSystemInfo(Platform.Platform.Linux));
+		store.add(taskService.registerTaskSystem(Schemas.vscodeRemote, taskSystemInfo(Platform.Platform.Linux)));
 		await timeout(0);
 		assert.strictEqual(getWorkspaceTasks.callCount, 0);
 
-		taskService.registerTaskSystem(Schemas.file, taskSystemInfo(Platform.Platform.Windows));
+		store.add(taskService.registerTaskSystem(Schemas.file, taskSystemInfo(Platform.Platform.Windows)));
 		taskService.removeTaskSystem(Schemas.file);
 		await timeout(0);
 		assert.strictEqual(getWorkspaceTasks.callCount, 0);
 
-		taskService.registerTaskSystem(Schemas.file, taskSystemInfo(Platform.Platform.Windows));
+		store.add(taskService.registerTaskSystem(Schemas.file, taskSystemInfo(Platform.Platform.Windows)));
 		await timeout(0);
 		assert.strictEqual(getWorkspaceTasks.callCount, 1);
 	});
@@ -153,8 +153,8 @@ suite('Task system readiness', function () {
 			const automaticTasks = store.add(instantiationService.createInstance(RunAutomaticTasks));
 			assert.strictEqual(eventListeners, 1);
 			if (readinessBeforeDisposal !== 'waiting') {
-				taskService.registerTaskSystem(Schemas.file, taskSystemInfo(Platform.Platform.Windows));
-				taskService.registerTaskSystem(Schemas.vscodeRemote, taskSystemInfo(Platform.Platform.Linux));
+				store.add(taskService.registerTaskSystem(Schemas.file, taskSystemInfo(Platform.Platform.Windows)));
+				store.add(taskService.registerTaskSystem(Schemas.vscodeRemote, taskSystemInfo(Platform.Platform.Linux)));
 				if (readinessBeforeDisposal === 'lost') {
 					taskService.removeTaskSystem(Schemas.file);
 				}
