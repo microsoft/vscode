@@ -7,7 +7,9 @@ name: node_modules restore benchmark
 # `all` variant runs today's `npm run install-fast`, which reinstalls every folder when any input
 # changed, and the `changed` variant only reinstalls the folders whose hashes differ from the
 # install state that main saved in node_modules/.postinstall-state. The reference jobs run today's
-# `npm ci` of the same merge commit, and the last job compares the installed packages.
+# `npm ci` of the same merge commit, and the last job compares the installed packages. Run 11 fills
+# the caches of tools that an image would hold before it times, and turns off the audit of npm,
+# which costs 20-40 s of CPU per npm process on a new runner whose npm cache is empty.
 #
 # Run 9 confirmed the Windows image: node_modules with the copies of the same content cloned by
 # CopyFile on ReFS, and a seeded .git: the objects of an older commit of main with a tag, so that
@@ -652,11 +654,25 @@ jobs:
           set -euo pipefail
           node "$RUNNER_TEMP/nmb-scripts/mutate.ts" patch-postinstall --root .
           echo 'VSCODE_INSTALL_CHANGED_DIRS_ONLY=1' >> "$GITHUB_ENV"
+      - name: Fill the tool caches that an image would hold
+        # The headers that node-gyp downloads; run 10 timed them in the next step
+        shell: pwsh
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          npm_config_foreground_scripts: 'true'
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = 'Stop'
+          exec { node build/npm/preinstall.ts }
       - name: Bring node_modules to the pull request
         shell: pwsh
         env:
           npm_config_arch: ${{ env.NPM_ARCH }}
           npm_config_foreground_scripts: 'true'
+          # The audit of npm costs 20-40 s of CPU on a new runner, whose npm cache is empty
+          npm_config_audit: 'false'
+          npm_config_fund: 'false'
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -765,9 +781,21 @@ jobs:
       - *checkout-pr
       - *install-state
       - *changed-only
+      - name: Fill the tool caches that an image would hold
+        # The sysroots, compilers and headers that run 10 timed in the next step
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          source ./build/azure-pipelines/linux/setup-env.sh
+          node build/npm/preinstall.ts
       - name: Bring node_modules to the pull request
         env:
           npm_config_arch: ${{ env.NPM_ARCH }}
+          # The audit of npm costs 20-40 s of CPU on a new runner, whose npm cache is empty
+          npm_config_audit: 'false'
+          npm_config_fund: 'false'
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -825,9 +853,22 @@ jobs:
       - *checkout-pr
       - *install-state
       - *changed-only
+      - name: Fill the tool caches that an image would hold
+        # The headers that run 10 timed in the next step
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GYP_DEFINES: 'kerberos_use_rtld=false'
+        run: |
+          set -e
+          python3 -m pip install --break-system-packages setuptools
+          node build/npm/preinstall.ts
       - name: Bring node_modules to the pull request
         env:
           npm_config_arch: ${{ env.NPM_ARCH }}
+          # The audit of npm costs 20-40 s of CPU on a new runner, whose npm cache is empty
+          npm_config_audit: 'false'
+          npm_config_fund: 'false'
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -852,9 +893,10 @@ jobs:
       - *transpile
       - *compile-extensions
 
-  # Today's `npm ci` of the same merge commit, as on a cache miss, to compare the packages with
+  # Today's `npm ci` of the same merge commit, as on a cache miss, to compare the packages with. Run 10
+  # timed it as today; run 11 times it without the audit of npm.
   windows-reference:
-    name: 'Windows: npm ci of #345378, as today'
+    name: 'Windows: npm ci of #345378, without audit'
     needs: scripts
     runs-on: vscode-large-runners-windows-8-core
     timeout-minutes: 60
@@ -876,6 +918,8 @@ jobs:
         env:
           npm_config_arch: ${{ env.NPM_ARCH }}
           npm_config_foreground_scripts: 'true'
+          npm_config_audit: 'false'
+          npm_config_fund: 'false'
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -900,7 +944,7 @@ jobs:
         with: { name: 'nmb-manifest-${{ runner.os }}-345378-reference', path: '${{ runner.temp }}/nmb-manifest/', retention-days: 3, if-no-files-found: warn }
 
   linux-reference:
-    name: 'Linux: npm ci of #345378, as today'
+    name: 'Linux: npm ci of #345378, without audit'
     needs: scripts
     runs-on: vscode-large-runners-ubuntu-8-core
     timeout-minutes: 60
@@ -921,6 +965,8 @@ jobs:
         working-directory: build
         run: npm ci
         env:
+          npm_config_audit: 'false'
+          npm_config_fund: 'false'
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Install dependencies
         # Same as in pr-linux-test.yml, without the retries
@@ -930,6 +976,8 @@ jobs:
           npm ci
         env:
           npm_config_arch: ${{ env.NPM_ARCH }}
+          npm_config_audit: 'false'
+          npm_config_fund: 'false'
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -938,7 +986,7 @@ jobs:
       - *upload-reference
 
   macos-reference:
-    name: 'macOS: npm ci of #345378, as today'
+    name: 'macOS: npm ci of #345378, without audit'
     needs: scripts
     runs-on: vscode-large-runners-macos-5-core-0
     timeout-minutes: 60
@@ -961,6 +1009,8 @@ jobs:
           npm ci
         env:
           npm_config_arch: ${{ env.NPM_ARCH }}
+          npm_config_audit: 'false'
+          npm_config_fund: 'false'
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
