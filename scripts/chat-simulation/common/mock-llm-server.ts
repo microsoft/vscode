@@ -737,6 +737,10 @@ function handleRequest(req: import('http').IncomingMessage, res: import('http').
 		json(200, { data: ALL_MODELS });
 		return;
 	}
+	if (path === '/meta' && req.method === 'GET') {
+		json(200, { models: { data: ALL_MODELS } });
+		return;
+	}
 
 	// -- Model by ID (DomainService.capiModelsURL/{id}) --------------
 	if (path.startsWith('/models/') && req.method === 'GET') {

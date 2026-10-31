@@ -153,6 +153,21 @@ export function getAncillaryStub(method: string, path: string, body?: string): I
 	if (path === '/models' && method === 'GET') {
 		return { status: 200, headers: JSON_HEADERS, body: JSON.stringify({ data: STUB_MODELS.map(expandModel), object: 'list' }) };
 	}
+	if (path === '/meta' && method === 'GET') {
+		return {
+			status: 200, headers: JSON_HEADERS, body: JSON.stringify({
+				models: { data: STUB_MODELS.map(expandModel), object: 'list' },
+				auto: {
+					default_tier: 'balance',
+					tiers: [
+						{ id: 'efficiency', display_name: 'Efficiency', description: 'Faster, lower-cost models', type: 'auto', status: { enabled: true } },
+						{ id: 'balance', display_name: 'Balance', description: 'A balance of speed and capability', type: 'auto', status: { enabled: true } },
+						{ id: 'intelligence', display_name: 'Intelligence', description: 'The most capable models', type: 'auto', status: { enabled: true } },
+					],
+				},
+			})
+		};
+	}
 	// The SDK probes websocket support before falling back to POST /responses.
 	if (path === '/responses' && method === 'GET') {
 		return { status: 400, headers: { 'content-type': 'text/plain' }, body: 'Bad Request' };
