@@ -46,6 +46,7 @@ const SHELL_EXECUTABLE_REGEXES = [
  * them by matching the package folder in node's command line.
  */
 const NODE_AGENT_CLI_PATTERNS: ReadonlyArray<{ regex: RegExp; executable: string }> = [
+	{ regex: /[\\/]@abacus-ai[\\/]cli[\\/]/i, executable: 'abacusai.exe' },
 	{ regex: /[\\/]claude-code[\\/]/i, executable: 'claude.exe' },
 	{ regex: /[\\/]codex[\\/]/i, executable: 'codex.exe' },
 	{ regex: /[\\/]command-code[\\/]/i, executable: 'commandcode.exe' },
@@ -186,6 +187,8 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 				return GeneralShellType.NuShell;
 			case 'xonsh.exe':
 				return GeneralShellType.Xonsh;
+			case 'abacusai.exe':
+				return GeneralShellType.AbacusAI;
 			case 'claude.exe':
 				return GeneralShellType.Claude;
 			case 'codex.exe':
