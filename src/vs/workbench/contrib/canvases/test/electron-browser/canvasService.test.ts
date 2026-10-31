@@ -39,11 +39,15 @@ suite('CanvasService', () => {
 		const contexts = observableValue<readonly ICanvasContext[]>('contexts', [{ owner, canvases, openRequests }]);
 		const visible = observableValue<ReadonlySet<string>>('visible', new Set([canvasOwnerKey(owner)]));
 		const removed = store.add(new Emitter<ICanvasOwner>());
+		const groupRestores: boolean[] = [];
 		const contextService = upcastPartial<ICanvasContextService>({
 			contexts, onDidRemoveOwner: removed.event,
 			isOwnerVisible: (owner, reader) => visible.read(reader).has(canvasOwnerKey(owner)),
 			getContext: (owner, reader) => contexts.read(reader).find(context => isCanvasOwner(context.owner, owner)),
-			getEditorGroup: () => targetGroup,
+			getEditorGroup: (_owner, _input, restore) => {
+				groupRestores.push(restore);
+				return targetGroup;
+			},
 		});
 		const opened: CanvasInput[] = [];
 		const openOptions: (IEditorOptions | undefined)[] = [];
@@ -118,7 +122,7 @@ suite('CanvasService', () => {
 		const service = store.add(new CanvasService(contextService, editorService, editorGroupsService, instantiationService, upcastPartial<IBrowserViewWorkbenchService>({}), entitlementService,
 			new TestConfigurationService({ [CanvasesEnabledSettingId]: true }), new NullLogService(), notificationService));
 		return {
-			owner, canvas, canvases, contexts, openRequests, visible, removed, opened, openOptions, openEditors, closed, moves, notifications, service,
+			owner, canvas, canvases, contexts, openRequests, visible, removed, opened, openOptions, openEditors, closed, moves, groupRestores, notifications, service,
 			delayOpen: () => pendingOpen = new DeferredPromise<void>(),
 			failOpen: (value: boolean) => failOpen = value,
 			hideAI: () => { hidden = true; sentiment.fire(); },
@@ -187,12 +191,14 @@ suite('CanvasService', () => {
 		assert.deepStrictEqual(harness.openOptions, [
 			{
 				pinned: true,
+				revealIfOpened: true,
 				preserveFocus: true,
 				inactive: true,
 				activation: EditorActivation.PRESERVE,
 			},
 			{ pinned: true, revealIfOpened: true, preserveFocus: false },
 		]);
+		assert.deepStrictEqual(harness.groupRestores, [false, false]);
 	});
 
 	test('keeps hidden owners out of presentation and isolates identical instances in different chats', async () => {

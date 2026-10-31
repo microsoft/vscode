@@ -58,7 +58,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 	private readonly presentations = new Map<string, ICanvasPresentation>();
 	private readonly presentationsBySerializationId = new Map<string, ICanvasPresentation>();
 	private readonly requests = new Map<string, string | undefined>();
-	private readonly opening = new Map<CanvasInput, { readonly value: Promise<void>; readonly restoreFallback: boolean }>();
+	private readonly opening = new Map<CanvasInput, { readonly value: Promise<void>; readonly restoreFallback: boolean; readonly preserveFocus: boolean }>();
 	private readonly programmaticCloses = new Set<CanvasInput>();
 	private readonly workingSetSuspensions = new Set<CanvasInput>();
 	private readonly dismissedChanged = observableSignal(this);
@@ -170,8 +170,8 @@ export class CanvasService extends Disposable implements ICanvasService {
 						presentation.requestId = requestId;
 						continue;
 					}
-					const preserveFocus = presentation?.admitted === true && !presentation.opened || this.editorGroupsService.activeModalEditorPart !== undefined;
-					void this.openInput(key, input, preserveFocus)
+					const restoreFallback = presentation?.admitted === true && !presentation.opened;
+					void this.openInput(key, input, restoreFallback, restoreFallback || this.editorGroupsService.activeModalEditorPart !== undefined)
 						.catch(error => this.reportError('Failed to reveal canvas', error));
 				}
 			}
@@ -311,20 +311,20 @@ export class CanvasService extends Disposable implements ICanvasService {
 		return true;
 	}
 
-	private openInput(key: string, input: CanvasInput, restoreFallback = false): Promise<void> {
+	private openInput(key: string, input: CanvasInput, restoreFallback = false, preserveFocus = restoreFallback): Promise<void> {
 		const pending = this.opening.get(input);
 		if (pending) {
-			if (!restoreFallback && pending.restoreFallback) {
+			if (!preserveFocus && pending.preserveFocus) {
 				return pending.value.then(() => this.openInput(key, input, false));
 			}
 			return pending.value;
 		}
-		const opening = this.doOpenInput(key, input, restoreFallback).finally(() => this.opening.delete(input));
-		this.opening.set(input, { value: opening, restoreFallback });
+		const opening = this.doOpenInput(key, input, restoreFallback, preserveFocus).finally(() => this.opening.delete(input));
+		this.opening.set(input, { value: opening, restoreFallback, preserveFocus });
 		return opening;
 	}
 
-	private async doOpenInput(key: string, input: CanvasInput, restoreFallback: boolean): Promise<void> {
+	private async doOpenInput(key: string, input: CanvasInput, restoreFallback: boolean, preserveFocus: boolean): Promise<void> {
 		const canvas = input.canvas.get();
 		if (!canvas) {
 			throw new Error(localize('canvas.closed', "This canvas is no longer available."));
@@ -342,7 +342,15 @@ export class CanvasService extends Disposable implements ICanvasService {
 					inactive: !presentation.restoreActive,
 					activation: EditorActivation.PRESERVE,
 				}
-				: { pinned: true, revealIfOpened: true, preserveFocus: false };
+				: preserveFocus
+					? {
+						pinned: true,
+						revealIfOpened: true,
+						preserveFocus: true,
+						inactive: true,
+						activation: EditorActivation.PRESERVE,
+					}
+					: { pinned: true, revealIfOpened: true, preserveFocus: false };
 			const group = this.contextService.getEditorGroup(input.reference, input, restoreFallback);
 			const pane = this.moveToGroup(input, options, group) ? undefined : await this.editorService.openEditor(input, options, group);
 			if (this._store.isDisposed || input.isDisposed() || this.inputs.get(key) !== input || this.presentations.get(key) !== presentation) {
