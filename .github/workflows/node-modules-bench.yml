@@ -2,12 +2,19 @@ name: node_modules restore benchmark
 
 # Throwaway benchmark of ways to restore node_modules on the runners of the PR checks.
 #
-# Run 6: what do the runners give us, and how fast can a node_modules disk image become a
-# workspace on Windows? A prepare job builds VHDX images from the node_modules cache of the PR jobs
-# and uploads them as artifacts, which, unlike new cache entries, cannot evict the caches of the
-# PR jobs from the full repository cache. Each Windows job then sets up the workspace like a PR job
-# on a fresh runner, with one way to get node_modules, and builds. The network and disk jobs
-# measure each platform. The scripts are in .github/workflows/node_modules_bench.
+# Run 7: disk images tuned to what the runners give, which run 6 measured: 500-640 MB/s of
+# download with 16-32 connections, 8 cores, and disks that absorb about 4 GB of writes at once.
+# The prepare jobs build images of the node_modules of the PR jobs, and of whole warm workspaces,
+# and upload them as artifacts, which, unlike new cache entries, cannot evict the caches of the PR
+# jobs from the full repository cache. Every other job sets up the workspace like a PR job on a
+# fresh runner, with one way to get node_modules, and builds:
+# - Windows and macOS: writable images (a Dev Drive in a VHDX, APFS in an ASIF image), stored in
+#   chunks that zstd compresses independently, which `net.ts image-restore` downloads with 16
+#   connections, decompresses on all cores and writes at the same time, in order. The image is
+#   then attached at the parent folder of the workspace.
+# - Linux: compressed, read-only squashfs images, which the kernel decompresses as files are read,
+#   with overlays, and a writable ext4 image like the images of Windows and macOS.
+# The scripts are in .github/workflows/node_modules_bench.
 on:
   push:
     branches:
@@ -19,18 +26,41 @@ on:
 
 permissions:
   contents: read
+  # The signed download URLs of the artifacts
+  actions: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # The jobs that restore an image need the scripts before they check out the repository
+  scripts:
+    name: Scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout the scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/workflows/node_modules_bench
+          persist-credentials: false
+      - name: Upload the scripts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: nmb-scripts, path: .github/workflows/node_modules_bench/, retention-days: 3, if-no-files-found: error }
+
   prepare-windows:
     name: 'Prepare: Windows'
     runs-on: vscode-large-runners-windows-8-core
-    timeout-minutes: 90
+    timeout-minutes: 120
     outputs:
-      image-artifact-id: ${{ steps.upload-nm-refs.outputs.artifact-id }}
+      plain: ${{ steps.up-plain.outputs.artifact-id }}
+      empty-L19: ${{ steps.up-empty-L19.outputs.artifact-id }}
+      nm-refs-L19: ${{ steps.up-nm-refs-L19.outputs.artifact-id }}
+      nm-refs-L3: ${{ steps.up-nm-refs-L3.outputs.artifact-id }}
+      nm-refs-frame: ${{ steps.up-nm-refs-frame.outputs.artifact-id }}
+      nm-ntfs-L19: ${{ steps.up-nm-ntfs-L19.outputs.artifact-id }}
+      warm-refs-L19: ${{ steps.up-warm-refs-L19.outputs.artifact-id }}
     steps:
       - &dev-drive
         # Same as in pr-win32-test.yml
@@ -99,18 +129,23 @@ jobs:
           $ErrorActionPreference = 'Stop'
           mkdir .build/nmb -ea 0
           exec { node build/azure-pipelines/common/listNodeModules.ts .build/nmb/list.txt }
-          exec { node .github/workflows/node_modules_bench/archive.ts pack --root . --list .build/nmb/list.txt --out .build/nmb/plain.tar.zst --out nomap+nocopilot@.build/nmb/pruned.tar.zst }
+          exec { node .github/workflows/node_modules_bench/archive.ts pack --root . --list .build/nmb/list.txt --out .build/nmb/plain.tar.zst }
 
-      # The warm workspace image starts from a checkout of main about 150 commits back, like an image
+      # The warm workspace images start from a checkout of main about 150 commits back, like an image
       # built at the last dependency change, which actions/checkout then updates to this commit
-      - name: Find an older commit of main
+      - &find-older
+        name: Find an older commit of main
         id: older
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: echo "sha=$(gh api 'repos/microsoft/vscode/commits?sha=main&per_page=1&page=150' --jq '.[0].sha')" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          sha=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" 'https://api.github.com/repos/microsoft/vscode/commits?sha=main&per_page=1&page=150' | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8"))[0].sha')
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout the older commit
+      - &checkout-older
+        name: Checkout the older commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.older.outputs.sha }}
@@ -123,39 +158,44 @@ jobs:
         run: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = 'Stop'
-          exec { node .github/workflows/node_modules_bench/bench.ts images }
+          exec { node .github/workflows/node_modules_bench/bench.ts images run7 }
 
       - name: Upload the results
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with: { name: nmb-results-prepare-windows, path: .build/nmb/results.*, retention-days: 3, if-no-files-found: ignore }
-      - name: Upload the scripts
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with: { name: nmb-scripts, path: .github/workflows/node_modules_bench/, retention-days: 1, if-no-files-found: error }
       - name: Upload plain.tar.zst
+        id: up-plain
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with: { name: nmb-windows-plain, path: .build/nmb/plain.tar.zst, compression-level: 0, retention-days: 1, if-no-files-found: error }
-      - name: Upload pruned.tar.zst
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with: { name: nmb-windows-pruned, path: .build/nmb/pruned.tar.zst, compression-level: 0, retention-days: 1, if-no-files-found: error }
+        with: { name: nmb-windows-plain, path: .build/nmb/plain.tar.zst, compression-level: 0, retention-days: 3, if-no-files-found: warn }
       - name: Upload the empty Dev Drive
+        id: up-empty-L19
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with: { name: nmb-windows-empty, path: .build/nmb/empty.vhdx.zst, compression-level: 0, retention-days: 1, if-no-files-found: error }
-      - name: Upload the node_modules Dev Drive
-        id: upload-nm-refs
+        with: { name: nmb-windows-empty-L19, path: .build/nmb/empty-L19.nmbimg, compression-level: 0, retention-days: 3, if-no-files-found: warn }
+      - name: Upload the node_modules Dev Drive, zstd -19
+        id: up-nm-refs-L19
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with: { name: nmb-windows-nm-refs, path: .build/nmb/nm-refs.vhdx.zst, compression-level: 0, retention-days: 1, if-no-files-found: error }
+        with: { name: nmb-windows-nm-refs-L19, path: .build/nmb/nm-refs-L19.nmbimg, compression-level: 0, retention-days: 3, if-no-files-found: warn }
+      - name: Upload the node_modules Dev Drive, zstd -3
+        id: up-nm-refs-L3
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: nmb-windows-nm-refs-L3, path: .build/nmb/nm-refs-L3.nmbimg, compression-level: 0, retention-days: 3, if-no-files-found: warn }
+      - name: Upload the node_modules Dev Drive, one zstd frame
+        id: up-nm-refs-frame
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: nmb-windows-nm-refs-frame, path: .build/nmb/nm-refs.vhdx.zst, compression-level: 0, retention-days: 3, if-no-files-found: warn }
       - name: Upload the compressed NTFS node_modules volume
+        id: up-nm-ntfs-L19
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with: { name: nmb-windows-nm-ntfs, path: .build/nmb/nm-ntfs.vhdx.zst, compression-level: 0, retention-days: 1, if-no-files-found: error }
+        with: { name: nmb-windows-nm-ntfs-L19, path: .build/nmb/nm-ntfs-L19.nmbimg, compression-level: 0, retention-days: 3, if-no-files-found: warn }
       - name: Upload the warm workspace Dev Drive
+        id: up-warm-refs-L19
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with: { name: nmb-windows-warm-refs, path: .build/nmb/warm-refs.vhdx.zst, compression-level: 0, retention-days: 1, if-no-files-found: error }
+        with: { name: nmb-windows-warm-refs-L19, path: .build/nmb/warm-refs-L19.nmbimg, compression-level: 0, retention-days: 3, if-no-files-found: warn }
 
   # Today's PR job, plus the steps that read node_modules
   windows-today:
     name: 'Windows: today'
-    needs: prepare-windows
     runs-on: vscode-large-runners-windows-8-core
     timeout-minutes: 60
     steps:
@@ -175,49 +215,55 @@ jobs:
         name: Read every file of node_modules
         run: node .github/workflows/node_modules_bench/archive.ts read --root .
 
-  # The workspace is a downloaded Dev Drive VHDX, attached with the virtual disk API instead of
-  # diskpart and the storage cmdlets. Its node_modules come from 7-Zip like today, from the
-  # parallel extractor, or are already in the image.
+  # The workspace is a Dev Drive VHDX that `net.ts image-restore` recreates, attached with the
+  # virtual disk API instead of diskpart and the storage cmdlets, at the parent folder of the
+  # workspace. node_modules is in the image, moved into the checkout, or extracted into an empty one.
   windows-image:
     name: 'Windows: ${{ matrix.name }}'
-    needs: prepare-windows
+    needs: [scripts, prepare-windows]
     runs-on: vscode-large-runners-windows-8-core
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { name: 'empty image, cached I/O, 7-Zip', image: empty, cached: 'true', node-modules: 7z }
-          - { name: 'empty image, cached I/O, extractor', image: empty, cached: 'true', node-modules: extractor }
-          - { name: 'node_modules image, cached I/O', image: nm-refs, cached: 'true', node-modules: move }
-          - { name: 'node_modules image, uncached I/O', image: nm-refs, cached: 'false', node-modules: move }
-          - { name: 'compressed NTFS node_modules image, cached I/O', image: nm-ntfs, cached: 'true', node-modules: move }
-          - { name: 'warm workspace image, cached I/O', image: warm-refs, cached: 'true', node-modules: warm }
+          - { name: 'node_modules image, cached I/O', image: nm-refs-L19, cached: 'true', flow: move }
+          - { name: 'node_modules image, uncached I/O', image: nm-refs-L19, cached: 'false', flow: move }
+          - { name: 'warm workspace image, cached I/O', image: warm-refs-L19, cached: 'true', flow: warm }
+          - { name: 'compressed NTFS node_modules image, cached I/O', image: nm-ntfs-L19, cached: 'true', flow: move }
+          - { name: 'empty image, cached I/O, extractor', image: empty-L19, cached: 'true', flow: extractor }
     env:
-      NMB_CACHED: ${{ matrix.cached }}
+      NMB_TOKEN: ${{ github.token }}
     steps:
-      - name: Download the scripts
+      - &download-scripts
+        name: Download the scripts
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: nmb-scripts
           path: ${{ runner.temp }}/nmb-scripts
-      - name: Download the image
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - &setup-node-early
+        # Before the checkout, for the scripts: the version of .nvmrc
+        name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          name: nmb-windows-${{ matrix.image }}
-          path: ${{ runner.temp }}/nmb
-      - name: Decompress the image
+          node-version: '24.22.1'
+      - &safe-directory
+        # The files of an image belong to the user of the machine that built it
+        name: Trust the owner of the checkout
+        run: git config --global --add safe.directory '*'
+      - name: Restore the image
         shell: pwsh
+        env:
+          NMB_ARTIFACT_ID: ${{ needs.prepare-windows.outputs[matrix.image] }}
         run: |
-          $ErrorActionPreference = 'Stop'
-          $image = Get-ChildItem "$env:RUNNER_TEMP\nmb" -Filter '*.vhdx.zst' | Select-Object -First 1
-          $time = Measure-Command { zstd -d -q --long=31 -f $image.FullName -o "$env:RUNNER_TEMP\workspace.vhdx" }
-          if ($LASTEXITCODE -ne 0) { throw "zstd exited with $LASTEXITCODE" }
-          $size = (Get-Item "$env:RUNNER_TEMP\workspace.vhdx").Length
-          Write-Output ("Decompressed {0:N0} MB into {1:N0} MB in {2:N1}s" -f ($image.Length / 1MB), ($size / 1MB), $time.TotalSeconds)
-          Remove-Item $image.FullName
+          node "$env:RUNNER_TEMP\nmb-scripts\net.ts" image-restore --artifact-id $env:NMB_ARTIFACT_ID --out "$env:RUNNER_TEMP\workspace.vhdx" --sparse false
+          if ($LASTEXITCODE -ne 0) { throw "image-restore exited with $LASTEXITCODE" }
       - name: Move the workspace to the image
         shell: pwsh
+        working-directory: ${{ runner.temp }}
+        env:
+          NMB_CACHED: ${{ matrix.cached }}
+          NMB_TRUST: ${{ matrix.image != 'nm-ntfs-L19' }}
         run: |
           $ErrorActionPreference = 'Stop'
           $workspace = $env:GITHUB_WORKSPACE
@@ -226,7 +272,7 @@ jobs:
           Remove-Item $workspace
           if (Get-ChildItem -Force $mount) { throw "$mount holds more than the workspace" }
           $cached = $env:NMB_CACHED -eq 'true'
-          & "$env:RUNNER_TEMP\nmb-scripts\vhd.ps1" -Path "$env:RUNNER_TEMP\workspace.vhdx" -MountFolder $mount -CachedIo:$cached -NoWriteHardening:$cached
+          & "$env:RUNNER_TEMP\nmb-scripts\vhd.ps1" -Path "$env:RUNNER_TEMP\workspace.vhdx" -MountFolder $mount -CachedIo:$cached -NoWriteHardening:$cached -Trust:($env:NMB_TRUST -eq 'true')
           if (-not (Test-Path $workspace)) { New-Item -ItemType Directory -Path $workspace | Out-Null }
           Get-ChildItem -Force $mount | Out-Host
       - name: Checkout microsoft/vscode
@@ -234,23 +280,17 @@ jobs:
         with:
           lfs: true
           # The warm workspace image holds node_modules, which `git clean` would delete
-          clean: ${{ matrix.node-modules != 'warm' }}
-      - *setup-node
-      - name: Restore node_modules cache
-        id: cache-node-modules
-        if: matrix.node-modules == '7z'
-        uses: ./.github/actions/restore-node-modules
-        with:
-          key-prefix: node_modules-windows
-          key-args: "win32 x64 $(node -p process.arch)"
+          clean: ${{ matrix.flow != 'warm' }}
       - name: Download plain.tar.zst
-        if: matrix.node-modules == 'extractor'
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: nmb-windows-plain
-          path: ${{ runner.temp }}/nmb
+        if: matrix.flow == 'extractor'
+        shell: pwsh
+        env:
+          NMB_ARTIFACT_ID: ${{ needs.prepare-windows.outputs.plain }}
+        run: |
+          node "$env:RUNNER_TEMP\nmb-scripts\net.ts" download-entry --artifact-id $env:NMB_ARTIFACT_ID --out-file "$env:RUNNER_TEMP\nmb\plain.tar.zst"
+          if ($LASTEXITCODE -ne 0) { throw "download-entry exited with $LASTEXITCODE" }
       - name: Extract node_modules through the volume path
-        if: matrix.node-modules == 'extractor'
+        if: matrix.flow == 'extractor'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -258,7 +298,7 @@ jobs:
           node .github/workflows/node_modules_bench/archive.ts extract --archive "$env:RUNNER_TEMP\nmb\plain.tar.zst" --dest "$env:NMB_VOLUME$(Split-Path $env:GITHUB_WORKSPACE -Leaf)" --concurrency 256
           if ($LASTEXITCODE -ne 0) { throw "The extractor exited with $LASTEXITCODE" }
       - name: Move node_modules into the checkout
-        if: matrix.node-modules == 'move'
+        if: matrix.flow == 'move'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -269,160 +309,395 @@ jobs:
       - *compile-extensions
       - *read-node-modules
 
-  # What each platform gives a restore: download throughput from the cache and artifact storage
-  # with more parallel requests than actions/cache makes, disk write speed, and zstd speed
-  network-and-disks:
-    name: 'Network and disks: ${{ matrix.os }}'
-    needs: prepare-windows
+  # One fresh runner, one image, several ways to restore it: the zstd level, the number of
+  # connections, the network apart from decompression and writes, and one zstd frame like today
+  windows-restore-methods:
+    name: 'Windows: restore methods'
+    needs: [scripts, prepare-windows]
+    runs-on: vscode-large-runners-windows-8-core
+    timeout-minutes: 60
+    env:
+      NMB_TOKEN: ${{ github.token }}
+      NMB_L19: ${{ needs.prepare-windows.outputs.nm-refs-L19 }}
+      NMB_L3: ${{ needs.prepare-windows.outputs.nm-refs-L3 }}
+      NMB_FRAME: ${{ needs.prepare-windows.outputs.nm-refs-frame }}
+    steps:
+      - *download-scripts
+      - *setup-node-early
+      - name: Compare the restore methods
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $net = "$env:RUNNER_TEMP\nmb-scripts\net.ts"
+          $out = "$env:RUNNER_TEMP\restored.vhdx"
+          $files = "$env:RUNNER_TEMP\nmb"
+          function Check([string] $what) { if ($LASTEXITCODE -ne 0) { throw "$what exited with $LASTEXITCODE" } }
+          # How long the disk takes to write what a restore left in the cache, before the next one
+          function Settle([string] $label) {
+            $flush = Measure-Command { Write-VolumeCache -DriveLetter C }
+            Write-Output ("{0}: flushing its writes to the disk took {1:N1}s" -f $label, $flush.TotalSeconds)
+            Remove-Item -Force $out -ErrorAction SilentlyContinue
+            Remove-Item -Force -Recurse $files -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 5
+          }
+          # The storage cmdlets take seconds to start the first time
+          Write-VolumeCache -DriveLetter C
+          foreach ($method in @(
+            @{ label = 'zstd -19 chunks, 16 connections'; id = $env:NMB_L19; connections = 16 },
+            @{ label = 'zstd -3 chunks, 16 connections'; id = $env:NMB_L3; connections = 16 },
+            @{ label = 'zstd -19 chunks, 32 connections'; id = $env:NMB_L19; connections = 32 },
+            @{ label = 'zstd -19 chunks, 8 connections'; id = $env:NMB_L19; connections = 8 }
+          )) {
+            node $net image-restore --artifact-id $method.id --out $out --sparse false --connections $method.connections --label $method.label; Check 'image-restore'
+            Settle $method.label
+          }
+          # The network alone, then decompression and writes alone
+          node $net download-entry --artifact-id $env:NMB_L19 --out-file "$files\image.nmbimg" --label 'download zstd -19 chunks'; Check 'download-entry'
+          node $net image-restore --file "$files\image.nmbimg" --out $out --sparse false --label 'zstd -19 chunks, from the disk'; Check 'image-restore'
+          Settle 'zstd -19 chunks, from the disk'
+          # Like the archives of today: one zstd frame, which one thread decompresses
+          node $net download-entry --artifact-id $env:NMB_FRAME --out-file "$files\image.vhdx.zst" --label 'download one zstd -3 frame'; Check 'download-entry'
+          $time = Measure-Command { zstd -d -q --long=31 -f "$files\image.vhdx.zst" -o $out }; Check 'zstd'
+          Write-Output ("zstd -d of one frame took {0:N2}s" -f $time.TotalSeconds)
+          Settle 'one zstd frame'
+
+  prepare-linux:
+    name: 'Prepare: Linux'
+    runs-on: vscode-large-runners-ubuntu-8-core
+    timeout-minutes: 90
+    outputs:
+      sq-nm-lz4hc: ${{ steps.up-sq-nm-lz4hc.outputs.artifact-id }}
+      sq-nm-zstd: ${{ steps.up-sq-nm-zstd.outputs.artifact-id }}
+      sq-nm-none: ${{ steps.up-sq-nm-none.outputs.artifact-id }}
+      sq-warm-lz4hc: ${{ steps.up-sq-warm-lz4hc.outputs.artifact-id }}
+      ext4-nm-L19: ${{ steps.up-ext4-nm-L19.outputs.artifact-id }}
+    steps:
+      - *checkout
+      - *setup-node
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: ./.github/actions/restore-node-modules
+        with:
+          key-prefix: node_modules-linux
+          key-args: 'linux x64 x64'
+      - *cache-miss
+      - &pack-posix
+        name: Pack the archives
+        run: |
+          set -euo pipefail
+          mkdir -p .build/nmb
+          node build/azure-pipelines/common/listNodeModules.ts .build/nmb/list.txt
+          node .github/workflows/node_modules_bench/archive.ts pack --root . --list .build/nmb/list.txt --out .build/nmb/plain.tar.zst --out nomap+nocopilot@.build/nmb/pruned.tar.zst
+          # The node_modules folders, for the overlays and the moves
+          awk -F/ '{ for (i = 1; i <= NF; i++) if ($i == "node_modules") { r = $1; for (j = 2; j <= i; j++) r = r "/" $j; print r; break } }' .build/nmb/list.txt | sort -u > .build/nmb/roots.txt
+          wc -l .build/nmb/roots.txt
+      - *find-older
+      - *checkout-older
+      - name: Install squashfs-tools
+        run: sudo apt-get update -q && sudo apt-get install -y -q squashfs-tools
+      - name: Build the images
+        run: |
+          set -euo pipefail
+          nmb=.github/workflows/node_modules_bench
+          out=.build/nmb/out
+          stage="$RUNNER_TEMP/stage"
+          mkdir -p "$out" "$stage/nm"
+          extract() { UV_THREADPOOL_SIZE=64 node $nmb/archive.ts extract --archive .build/nmb/plain.tar.zst --dest "$1" --concurrency 64; }
+          squash() {
+            local name=$1 source=$2 start=$SECONDS
+            shift 2
+            mksquashfs "$source" "$out/$name.sqfs" -noappend -b 128K -no-progress -quiet "$@"
+            echo "::notice::$name: $((SECONDS - start))s, $(stat -c %s "$out/$name.sqfs") bytes"
+          }
+          extract "$stage/nm"
+          cp .build/nmb/roots.txt "$stage/nm/.nmb-roots.txt"
+          # The cost of reading compressed files: nothing to decompress, a fast decoder, a dense one
+          squash sq-nm-lz4hc "$stage/nm" -comp lz4 -Xhc
+          squash sq-nm-zstd "$stage/nm" -comp zstd -Xcompression-level 19
+          squash sq-nm-none "$stage/nm" -noI -noId -noD -noF -noX
+          # A whole workspace: an older checkout of main with the node_modules of this one
+          cp -a warm "$stage/warm"
+          extract "$stage/warm"
+          # squashfs keeps the modification times of the files, but not their change times and inode numbers
+          git -C "$stage/warm" config core.trustctime false
+          git -C "$stage/warm" config core.checkStat minimal
+          sleep 1
+          git -C "$stage/warm" update-index --refresh > /dev/null || true
+          echo "::notice::git status of the warm workspace: $(git -C "$stage/warm" status --porcelain | wc -l) changes"
+          squash sq-warm-lz4hc "$stage/warm" -comp lz4 -Xhc
+          # Writable like the images of Windows and macOS: an ext4 file system of 64 GB in a sparse
+          # file, with the folder of the workspace and node_modules to move into the checkout
+          mkdir -p "$stage/ext4/vscode"
+          mv "$stage/nm" "$stage/ext4/nm"
+          start=$SECONDS
+          mkfs.ext4 -q -F -O ^has_journal -m 0 -E lazy_itable_init=1,lazy_journal_init=1,nodiscard -d "$stage/ext4" "$RUNNER_TEMP/nm.ext4" 64G
+          echo "::notice::ext4 image: $((SECONDS - start))s, $(du -B1 "$RUNNER_TEMP/nm.ext4" | cut -f1) bytes allocated"
+          node $nmb/net.ts image-pack --in "$RUNNER_TEMP/nm.ext4" --out "$out/ext4-nm-L19.nmbimg" --level 19
+          ls -la "$out"
+      - name: Upload the squashfs lz4hc image
+        id: up-sq-nm-lz4hc
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: nmb-linux-sq-nm-lz4hc, path: .build/nmb/out/sq-nm-lz4hc.sqfs, compression-level: 0, retention-days: 3, if-no-files-found: warn }
+      - name: Upload the squashfs zstd image
+        id: up-sq-nm-zstd
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: nmb-linux-sq-nm-zstd, path: .build/nmb/out/sq-nm-zstd.sqfs, compression-level: 0, retention-days: 3, if-no-files-found: warn }
+      - name: Upload the uncompressed squashfs image
+        id: up-sq-nm-none
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: nmb-linux-sq-nm-none, path: .build/nmb/out/sq-nm-none.sqfs, compression-level: 0, retention-days: 3, if-no-files-found: warn }
+      - name: Upload the squashfs warm workspace image
+        id: up-sq-warm-lz4hc
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: nmb-linux-sq-warm-lz4hc, path: .build/nmb/out/sq-warm-lz4hc.sqfs, compression-level: 0, retention-days: 3, if-no-files-found: warn }
+      - name: Upload the ext4 image
+        id: up-ext4-nm-L19
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: nmb-linux-ext4-nm-L19, path: .build/nmb/out/ext4-nm-L19.nmbimg, compression-level: 0, retention-days: 3, if-no-files-found: warn }
+
+  posix-today:
+    name: '${{ matrix.os }}: today'
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
-    permissions:
-      contents: read
-      actions: read
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { os: windows, runner: vscode-large-runners-windows-8-core, prefix: node_modules-windows, key-args: 'win32 x64 x64' }
-          - { os: linux, runner: vscode-large-runners-ubuntu-8-core, prefix: node_modules-linux, key-args: 'linux x64 x64' }
-          - { os: macos, runner: vscode-large-runners-macos-5-core-0, prefix: node_modules-macos, key-args: 'darwin arm64 arm64' }
+          - { os: Linux, runner: vscode-large-runners-ubuntu-8-core, prefix: node_modules-linux, key-args: 'linux x64 x64' }
+          - { os: macOS, runner: vscode-large-runners-macos-5-core-0, prefix: node_modules-macos, key-args: 'darwin arm64 arm64' }
     steps:
+      - *checkout
+      - *setup-node
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: ./.github/actions/restore-node-modules
+        with:
+          key-prefix: ${{ matrix.prefix }}
+          key-args: ${{ matrix.key-args }}
+      - *cache-miss
+      - *transpile
+      - *compile-extensions
+      - *read-node-modules
+
+  linux-image:
+    name: 'Linux: ${{ matrix.name }}'
+    needs: [scripts, prepare-linux]
+    runs-on: vscode-large-runners-ubuntu-8-core
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: 'squashfs lz4hc + overlays', image: sq-nm-lz4hc, flow: squashfs }
+          - { name: 'squashfs zstd -19 + overlays', image: sq-nm-zstd, flow: squashfs }
+          - { name: 'squashfs uncompressed + overlays', image: sq-nm-none, flow: squashfs }
+          - { name: 'squashfs lz4hc warm workspace + overlay', image: sq-warm-lz4hc, flow: squashfs-warm }
+          - { name: 'ext4 image', image: ext4-nm-L19, flow: ext4 }
+    env:
+      NMB_TOKEN: ${{ github.token }}
+      NMB_FLOW: ${{ matrix.flow }}
+    steps:
+      - *download-scripts
+      - *setup-node-early
+      - *safe-directory
+      - name: Download the image
+        env:
+          NMB_ARTIFACT_ID: ${{ needs.prepare-linux.outputs[matrix.image] }}
+        run: |
+          set -euo pipefail
+          net="$RUNNER_TEMP/nmb-scripts/net.ts"
+          if [ "$NMB_FLOW" = ext4 ]; then
+            node "$net" image-restore --artifact-id "$NMB_ARTIFACT_ID" --out "$RUNNER_TEMP/nmb.img"
+          else
+            node "$net" download-entry --artifact-id "$NMB_ARTIFACT_ID" --out-file "$RUNNER_TEMP/nmb.img"
+          fi
+      - name: Mount the image
+        run: |
+          set -euo pipefail
+          ws="$GITHUB_WORKSPACE"
+          parent="$(dirname "$ws")"
+          case "$NMB_FLOW" in
+            squashfs)
+              sudo mkdir -p /mnt/nmb
+              time sudo mount -t squashfs -o loop,ro "$RUNNER_TEMP/nmb.img" /mnt/nmb
+              ;;
+            squashfs-warm)
+              sudo mkdir -p /mnt/nmb
+              time sudo mount -t squashfs -o loop,ro "$RUNNER_TEMP/nmb.img" /mnt/nmb
+              [ -z "$(ls -A "$ws")" ] || { echo "$ws is not empty"; exit 1; }
+              mkdir -p "$RUNNER_TEMP/overlay/upper" "$RUNNER_TEMP/overlay/work"
+              time sudo mount -t overlay overlay -o "lowerdir=/mnt/nmb,upperdir=$RUNNER_TEMP/overlay/upper,workdir=$RUNNER_TEMP/overlay/work" "$ws"
+              ;;
+            ext4)
+              [ "$(ls -A "$parent")" = "$(basename "$ws")" ] || { echo "$parent holds more than the workspace"; ls -la "$parent"; exit 1; }
+              time sudo mount -o loop,noatime,noinit_itable "$RUNNER_TEMP/nmb.img" "$parent"
+              sudo chown "$(id -u):$(id -g)" "$parent"
+              ;;
+          esac
+          df -h "$ws"
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+          # The warm workspace image holds node_modules, which `git clean` would delete
+          clean: ${{ matrix.flow != 'squashfs-warm' }}
+      - name: Put node_modules into the checkout
+        if: matrix.flow != 'squashfs-warm'
+        run: |
+          set -euo pipefail
+          if [ "$NMB_FLOW" = ext4 ]; then
+            parent="$(dirname "$GITHUB_WORKSPACE")"
+            node .github/workflows/node_modules_bench/archive.ts move --from "$parent/nm" --to "$GITHUB_WORKSPACE" --roots "$parent/nm/.nmb-roots.txt"
+            exit 0
+          fi
+          # An overlay per node_modules folder, which takes the writes
+          mounted=0
+          skipped=0
+          while IFS= read -r root; do
+            [ -n "$root" ] || continue
+            target="$GITHUB_WORKSPACE/$root"
+            if [ -e "$target" ]; then
+              # A test fixture that the repository tracks
+              skipped=$((skipped + 1))
+              continue
+            fi
+            mkdir -p "$target" "$RUNNER_TEMP/overlay/upper/$root" "$RUNNER_TEMP/overlay/work/$root"
+            sudo mount -t overlay overlay -o "lowerdir=/mnt/nmb/$root,upperdir=$RUNNER_TEMP/overlay/upper/$root,workdir=$RUNNER_TEMP/overlay/work/$root" "$target"
+            mounted=$((mounted + 1))
+          done < /mnt/nmb/.nmb-roots.txt
+          echo "$mounted overlays, $skipped node_modules folders already in the checkout"
+      - *transpile
+      - *compile-extensions
+      - *read-node-modules
+
+  prepare-macos:
+    name: 'Prepare: macOS'
+    runs-on: vscode-large-runners-macos-5-core-0
+    timeout-minutes: 90
+    outputs:
+      pruned: ${{ steps.up-pruned.outputs.artifact-id }}
+      asif-nm-L19: ${{ steps.up-asif-nm-L19.outputs.artifact-id }}
+      asif-warm-L19: ${{ steps.up-asif-warm-L19.outputs.artifact-id }}
+    steps:
+      - *checkout
       - *setup-node
-
-      # Like restore-node-modules: on Windows, the key file comes from PowerShell, which ends it with a newline
-      - name: Compute the node_modules cache key
-        if: matrix.os == 'windows'
-        shell: pwsh
-        run: |
-          mkdir .build -ea 0
-          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts ${{ matrix.key-args }} > .build/packagelockhash
-      - name: Compute the node_modules cache key
-        if: matrix.os != 'windows'
-        shell: bash
-        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts ${{ matrix.key-args }} > .build/packagelockhash
-
-      - name: Get the download URLs
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          NMB_CACHE_KEY: ${{ matrix.prefix }}-${{ hashFiles('.build/packagelockhash') }}
-          NMB_WINDOWS: ${{ matrix.os == 'windows' }}
-          NMB_ARTIFACT_ID: ${{ needs.prepare-windows.outputs.image-artifact-id }}
-          NMB_TOKEN: ${{ github.token }}
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: ./.github/actions/restore-node-modules
         with:
-          script: |
-            const crypto = require('crypto');
-            // The version of the node_modules cache entry, as actions/cache computes it
-            const components = ['.build/node_modules_cache', 'zstd-without-long'];
-            if (process.env.NMB_WINDOWS === 'true') {
-              components.push('windows-only');
-            }
-            components.push('1.0');
-            const version = crypto.createHash('sha256').update(components.join('|')).digest('hex');
-            const cache = await fetch(new URL('twirp/github.actions.results.api.v1.CacheService/GetCacheEntryDownloadURL', process.env.ACTIONS_RESULTS_URL), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.ACTIONS_RUNTIME_TOKEN}` },
-              body: JSON.stringify({ key: process.env.NMB_CACHE_KEY, restore_keys: [], version }),
-            });
-            const entry = await cache.json();
-            core.info(`Cache entry: HTTP ${cache.status}, ok: ${entry.ok}, key: ${entry.matched_key}`);
-            if (entry.signed_download_url) {
-              core.setSecret(entry.signed_download_url);
-              core.exportVariable('NMB_CACHE_URL', entry.signed_download_url);
-            }
-            const artifact = await fetch(`https://api.github.com/repos/${context.repo.owner}/${context.repo.repo}/actions/artifacts/${process.env.NMB_ARTIFACT_ID}/zip`, {
-              headers: { Authorization: `Bearer ${process.env.NMB_TOKEN}`, Accept: 'application/vnd.github+json' },
-              redirect: 'manual',
-            });
-            const location = artifact.headers.get('location');
-            core.info(`Artifact: HTTP ${artifact.status}, redirect: ${!!location}`);
-            if (location) {
-              core.setSecret(location);
-              core.exportVariable('NMB_ARTIFACT_URL', location);
-            }
-
-      - name: Download throughput
-        shell: bash
+          key-prefix: node_modules-macos
+          key-args: 'darwin arm64 arm64'
+      - *cache-miss
+      - *pack-posix
+      - *find-older
+      - *checkout-older
+      - *safe-directory
+      - name: Build the images
         run: |
-          set -e
-          net=.github/workflows/node_modules_bench/net.ts
-          node $net download --url-env NMB_CACHE_URL --connections 1,4,8,16,32,64 --chunk-mb 8 --label 'cache entry'
-          node $net download --url-env NMB_ARTIFACT_URL --connections 1,4,8,16,32,64 --chunk-mb 8 --label 'artifact'
-          node $net download --url-env NMB_ARTIFACT_URL --connections 32 --chunk-mb 8 --label 'artifact to disk' --out "$RUNNER_TEMP/nmb-download.zip"
-
-      - name: Download the node_modules Dev Drive with download-artifact
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: nmb-windows-nm-refs
-          path: ${{ runner.temp }}/nmb
-
-      - name: zstd decompression speed
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $file = Get-ChildItem (Join-Path $env:RUNNER_TEMP 'nmb') -Filter '*.zst' | Select-Object -First 1
-          zstd -l $file.FullName
-          $time = Measure-Command { zstd -t -q --long=31 $file.FullName }
-          Write-Output ("zstd -t of {0:N0} MB took {1:N2}s" -f ($file.Length / 1MB), $time.TotalSeconds)
-          Remove-Item $file.FullName
-
-      - name: Disks (Windows)
-        if: matrix.os == 'windows'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          Get-Volume | Format-Table -AutoSize | Out-Host
-          Get-PhysicalDisk | Select-Object FriendlyName, MediaType, BusType, Size | Format-Table -AutoSize | Out-Host
-          Get-CimInstance Win32_ComputerSystem | Select-Object Model, TotalPhysicalMemory | Format-List | Out-Host
-          node .github/workflows/node_modules_bench/net.ts disk --file "$env:RUNNER_TEMP\nmb-disk.bin" --mb 4096
-          foreach ($drive in Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Name -ne 'C' -and $_.Free -gt 10GB }) {
-            node .github/workflows/node_modules_bench/net.ts disk --file "$($drive.Root)nmb-disk.bin" --mb 4096
+          set -euo pipefail
+          nmb=.github/workflows/node_modules_bench
+          out=.build/nmb/out
+          mkdir -p "$out"
+          extract() { UV_THREADPOOL_SIZE=16 node $nmb/archive.ts extract --archive .build/nmb/plain.tar.zst --dest "$1" --concurrency 16 --clone-duplicates true; }
+          # An APFS volume in a sparse ASIF image of macOS 26, which Spotlight leaves alone
+          create() {
+            diskutil image create blank --fs APFS --format ASIF --size 100G --volumeName "$2" "$RUNNER_TEMP/$1.asif"
+            diskutil image attach "$RUNNER_TEMP/$1.asif"
+            touch "/Volumes/$2/.metadata_never_index"
           }
-      - name: Disks (Linux)
-        if: matrix.os == 'linux'
-        run: |
-          set -e
-          lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,ROTA,MODEL || true
-          df -h
-          free -g
-          node .github/workflows/node_modules_bench/net.ts disk --file "$RUNNER_TEMP/nmb-disk.bin" --mb 4096
-          sudo mkdir -p /mnt/nmb && sudo chown "$(id -u)" /mnt/nmb
-          node .github/workflows/node_modules_bench/net.ts disk --file /mnt/nmb/disk.bin --mb 4096
-          if mountpoint -q /dev/shm; then node .github/workflows/node_modules_bench/net.ts disk --file /dev/shm/nmb-disk.bin --mb 4096; fi
-      - name: Disks (macOS)
-        if: matrix.os == 'macos'
-        run: |
-          set -e
-          diskutil list || true
-          df -h
-          sysctl -n hw.memsize hw.ncpu
-          node .github/workflows/node_modules_bench/net.ts disk --file "$RUNNER_TEMP/nmb-disk.bin" --mb 4096
+          finish() {
+            diskutil eject "/Volumes/$2"
+            echo "::notice::$1: $(stat -f %z "$RUNNER_TEMP/$1.asif") bytes, $(du -k "$RUNNER_TEMP/$1.asif" | cut -f1) KB allocated"
+            node $nmb/net.ts image-pack --in "$RUNNER_TEMP/$1.asif" --out "$out/$1-L19.nmbimg" --level 19
+          }
+          create asif-nm nmbnm
+          mkdir /Volumes/nmbnm/vscode /Volumes/nmbnm/nm
+          time extract /Volumes/nmbnm/nm
+          cp .build/nmb/roots.txt /Volumes/nmbnm/nm/.nmb-roots.txt
+          finish asif-nm nmbnm
+          # A whole workspace: an older checkout of main with the node_modules of this one
+          create asif-warm nmbwarm
+          time ditto warm /Volumes/nmbwarm/vscode
+          time extract /Volumes/nmbwarm/vscode
+          git -C /Volumes/nmbwarm/vscode config core.trustctime false
+          git -C /Volumes/nmbwarm/vscode config core.checkStat minimal
+          sleep 1
+          git -C /Volumes/nmbwarm/vscode update-index --refresh > /dev/null || true
+          echo "::notice::git status of the warm workspace: $(git -C /Volumes/nmbwarm/vscode status --porcelain | wc -l) changes"
+          finish asif-warm nmbwarm
+          ls -la "$out"
+      - name: Upload pruned.tar.zst
+        id: up-pruned
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: nmb-macos-pruned, path: .build/nmb/pruned.tar.zst, compression-level: 0, retention-days: 3, if-no-files-found: warn }
+      - name: Upload the ASIF node_modules image
+        id: up-asif-nm-L19
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: nmb-macos-asif-nm-L19, path: .build/nmb/out/asif-nm-L19.nmbimg, compression-level: 0, retention-days: 3, if-no-files-found: warn }
+      - name: Upload the ASIF warm workspace image
+        id: up-asif-warm-L19
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: nmb-macos-asif-warm-L19, path: .build/nmb/out/asif-warm-L19.nmbimg, compression-level: 0, retention-days: 3, if-no-files-found: warn }
 
-      # macOS 26 brings ASIF, a sparse disk image format that Apple describes as close to native speed
-      - name: ASIF disk image (macOS)
-        if: matrix.os == 'macos'
-        continue-on-error: true
+  macos-image:
+    name: 'macOS: ${{ matrix.name }}'
+    needs: [scripts, prepare-macos]
+    runs-on: vscode-large-runners-macos-5-core-0
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: 'ASIF node_modules image', image: asif-nm-L19, volume: nmbnm, flow: move }
+          - { name: 'ASIF warm workspace image', image: asif-warm-L19, volume: nmbwarm, flow: warm }
+          - { name: 'extractor, pruned', image: pruned, volume: '', flow: extractor }
+    env:
+      NMB_TOKEN: ${{ github.token }}
+    steps:
+      - *download-scripts
+      - *setup-node-early
+      - *safe-directory
+      - name: Restore the image
+        if: matrix.flow != 'extractor'
+        env:
+          NMB_ARTIFACT_ID: ${{ needs.prepare-macos.outputs[matrix.image] }}
+        run: node "$RUNNER_TEMP/nmb-scripts/net.ts" image-restore --artifact-id "$NMB_ARTIFACT_ID" --out "$RUNNER_TEMP/nmb.asif"
+      - name: Mount the image at the parent folder of the workspace
+        if: matrix.flow != 'extractor'
+        env:
+          NMB_VOLUME: ${{ matrix.volume }}
         run: |
-          diskutil image 2>&1 | head -40 || true
-          image="$RUNNER_TEMP/nmb.asif"
-          time diskutil image create blank --fs APFS --format ASIF --size 100G --volumeName nmb "$image"
-          ls -la "$image"
-          time diskutil image attach "$image"
-          mount | grep -i nmb || true
-          node .github/workflows/node_modules_bench/net.ts disk --file /Volumes/nmb/nmb-disk.bin --mb 4096
-      - name: Download pruned.tar.zst (macOS)
-        if: matrix.os == 'macos'
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+          set -euo pipefail
+          ws="$GITHUB_WORKSPACE"
+          parent="$(dirname "$ws")"
+          [ -z "$(ls -A "$ws")" ] || { echo "$ws is not empty"; exit 1; }
+          [ "$(ls -A "$parent")" = "$(basename "$ws")" ] || { echo "$parent holds more than the workspace"; ls -la "$parent"; exit 1; }
+          time diskutil image attach "$RUNNER_TEMP/nmb.asif"
+          device=$(diskutil info "/Volumes/$NMB_VOLUME" | awk '/Device Identifier:/ { print $3 }')
+          time diskutil unmount "/Volumes/$NMB_VOLUME"
+          time (diskutil mount -mountPoint "$parent" "$device" || sudo diskutil mount -mountPoint "$parent" "$device")
+          mount | grep "$parent"
+          ls -la "$parent" "$ws"
+          sudo mdutil -i off "$parent" || true
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          name: nmb-windows-pruned
-          path: ${{ runner.temp }}/nmb
-      - name: Create files on the boot volume and in the ASIF image (macOS)
-        if: matrix.os == 'macos'
-        continue-on-error: true
+          lfs: true
+          # The warm workspace image holds node_modules, which `git clean` would delete
+          clean: ${{ matrix.flow != 'warm' }}
+      - name: Download pruned.tar.zst
+        if: matrix.flow == 'extractor'
+        env:
+          NMB_ARTIFACT_ID: ${{ needs.prepare-macos.outputs.pruned }}
+        run: node "$RUNNER_TEMP/nmb-scripts/net.ts" download-entry --artifact-id "$NMB_ARTIFACT_ID" --out-file "$RUNNER_TEMP/nmb/pruned.tar.zst"
+      - name: Extract node_modules
+        if: matrix.flow == 'extractor'
+        run: UV_THREADPOOL_SIZE=16 node .github/workflows/node_modules_bench/archive.ts extract --archive "$RUNNER_TEMP/nmb/pruned.tar.zst" --dest . --concurrency 16
+      - name: Move node_modules into the checkout
+        if: matrix.flow == 'move'
         run: |
-          set -e
-          extract() { UV_THREADPOOL_SIZE=16 node .github/workflows/node_modules_bench/archive.ts extract --archive "$RUNNER_TEMP/nmb/pruned.tar.zst" --dest "$1" --concurrency 16; }
-          extract "$RUNNER_TEMP/nmb-boot"
-          extract /Volumes/nmb/files
-          node .github/workflows/node_modules_bench/archive.ts read --root "$RUNNER_TEMP/nmb-boot" || true
+          parent="$(dirname "$GITHUB_WORKSPACE")"
+          node .github/workflows/node_modules_bench/archive.ts move --from "$parent/nm" --to "$GITHUB_WORKSPACE" --roots "$parent/nm/.nmb-roots.txt"
+      - *transpile
+      - *compile-extensions
+      - *read-node-modules
