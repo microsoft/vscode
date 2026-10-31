@@ -3276,8 +3276,10 @@
             "markdownDescription": "Enable or disable auto triggering of Copilot completions for specified [languages](https://code.visualstudio.com/docs/languages/identifiers). You can still trigger suggestions manually using `Alt + \\`",
             "agentsWindow": {
               "default": {
+                "*": true,
+                "plaintext": true,
                 "markdown": true,
-                "plaintext": true
+                "scminput": false
               }
             }
           },
