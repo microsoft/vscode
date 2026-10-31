@@ -9,39 +9,17 @@
 import type { URI } from '../common/state.js';
 
 /**
- * Where the runtime discovered an extension that declares a canvas type.
+ * One namespace that declares canvas types for a chat.
  *
- * @category Canvas State
- * @nonexhaustive
- */
-export const enum CanvasExtensionSource {
-	/** Extension installed for the current user. */
-	User = 'user',
-	/** Extension discovered in the current project. */
-	Project = 'project',
-	/** Extension installed only for the current session. */
-	Session = 'session',
-	/** Extension contributed by an installed plugin. */
-	Plugin = 'plugin',
-	/** Extension source is unavailable or not recognized by this protocol version. */
-	Unspecified = 'unknown',
-}
-
-/**
- * One extension/provider that declares canvas types for an exact chat.
- *
- * The extension metadata is normalized here instead of repeated on every
- * {@link CanvasTypeDeclaration}. `extensionId` is opaque: clients MUST NOT
- * infer its source or management behavior by parsing it.
+ * `extensionId` is opaque. Clients MUST NOT infer management behavior by
+ * parsing it.
  *
  * @category Canvas State
  */
 export interface CanvasExtensionDeclaration {
-	/** Stable opaque identifier of the extension/provider. */
+	/** Stable opaque declaration namespace. */
 	extensionId: string;
-	/** Where the runtime discovered the extension/provider. */
-	extensionSource: CanvasExtensionSource;
-	/** Human-readable extension/provider name, when available. */
+	/** Human-readable namespace title, when available. */
 	extensionName?: string;
 	/**
 	 * Canvas types declared by this extension/provider. `canvasId` MUST be
@@ -53,10 +31,6 @@ export interface CanvasExtensionDeclaration {
 /**
  * One canvas type currently available to open.
  *
- * This is discovery metadata, not a live canvas instance. Live instances are
- * represented by {@link CanvasReference} entries on chat state and their
- * corresponding {@link CanvasState} channels.
- *
  * This experimental object may gain optional discovery metadata. Clients
  * SHOULD ignore fields they do not understand.
  *
@@ -65,8 +39,8 @@ export interface CanvasExtensionDeclaration {
 export interface CanvasTypeDeclaration {
 	/** Provider-local canvas type identifier. */
 	canvasId: string;
-	/** Human-readable canvas type name. */
-	displayName: string;
+	/** Human-readable canvas type title. */
+	title: string;
 	/** Description of what the canvas type does. */
 	description: string;
 	/** Whether opening this canvas requires an input flow. */
@@ -74,17 +48,13 @@ export interface CanvasTypeDeclaration {
 }
 
 /**
- * Canvas types currently registered for one exact chat.
- *
- * This is a compact presentation registry, not extension installation state
- * and not the list of live instances. The host replaces the complete registry
- * through `chat/canvasRegistryChanged` whenever provider registration changes.
+ * Canvas types currently registered for one chat.
  *
  * @category Canvas State
  */
 export interface CanvasRegistry {
 	/**
-	 * Declaring extensions/providers. `extensionId` MUST be unique within this
+	 * Declaring namespaces. `extensionId` MUST be unique within this
 	 * array. An empty array is an authoritative loaded registry with no types.
 	 */
 	extensions: CanvasExtensionDeclaration[];
@@ -101,9 +71,7 @@ export interface CanvasRegistry {
  */
 export interface CanvasReference {
 	/**
-	 * Canonical Canvas channel URI. Subscribe to this resource for the full
-	 * state. It uses the `ahp-canvas:/<segment>[/<segment>...]` form documented
-	 * by `openCanvas`.
+	 * Canvas channel URI. Subscribe to this resource for the full state.
 	 */
 	resource: URI;
 }
@@ -126,9 +94,9 @@ export interface CanvasState {
 	 * identity.
 	 */
 	instanceId: string;
-	/** Owning extension/provider identifier. */
+	/** Owning declaration namespace. */
 	extensionId: string;
-	/** Owning extension display name, when available. */
+	/** Owning namespace title, when available. */
 	extensionName?: string;
 	/** Provider-local canvas type identifier. */
 	canvasId: string;

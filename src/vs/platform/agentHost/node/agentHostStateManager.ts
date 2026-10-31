@@ -24,7 +24,7 @@ import { arrayEquals, structuralEquals } from '../../../base/common/equals.js';
 import { canvasReducer } from '../common/state/protocol/channels-canvas/reducer.js';
 import type { SessionConfigSchema } from '../common/state/protocol/commands.js';
 import type { CanvasState } from '../common/state/protocol/channels-canvas/state.js';
-import { AHP_CANVAS_SCHEME, isCanonicalCanvasChannel } from '../common/canvasUri.js';
+import { AHP_CANVAS_SCHEME, isCanvasChannel } from '../common/canvasUri.js';
 import { preserveProviderBackedRootConfigValues } from '../common/agentCustomizationSettings.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
@@ -1195,8 +1195,8 @@ export class AgentHostStateManager extends Disposable {
 			this._logService.warn(`[AgentHostStateManager] Canvas state for unavailable chat: ${chat}`);
 			return;
 		}
-		if (!isCanonicalCanvasChannel(resource)) {
-			throw new Error(`Canvas channel must use the canonical ${AHP_CANVAS_SCHEME} URI format: ${resource}`);
+		if (!isCanvasChannel(resource)) {
+			throw new Error(`Invalid ${AHP_CANVAS_SCHEME} channel: ${resource}`);
 		}
 		const boundChat = this._canvasOwners.get(resource);
 		if (boundChat !== undefined && boundChat !== chat) {

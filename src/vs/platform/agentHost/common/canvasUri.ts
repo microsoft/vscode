@@ -9,19 +9,17 @@ import { isAhpChatChannel } from './state/sessionState.js';
 
 export const AHP_CANVAS_SCHEME = 'ahp-canvas';
 
-/**
- * Canvas channels use a canonical URI subset so parsing and serializing cannot
- * change their protocol identity.
- */
-export function isCanonicalCanvasChannel(resource: string): boolean {
-	return /^ahp-canvas:\/[A-Za-z0-9._~-]+(?:\/[A-Za-z0-9._~-]+)*$/.test(resource);
+/** Whether `resource` is a single-segment Canvas channel this host can preserve exactly. */
+export function isCanvasChannel(resource: string): boolean {
+	const match = /^ahp-canvas:\/([A-Za-z0-9._~-]+)$/.exec(resource);
+	return !!match && match[1] !== '.' && match[1] !== '..';
 }
 
 /** Builds a local host canvas channel with its owning chat and lifetime identifier. */
 export function buildCanvasUri(chat: URI, id: string): URI {
 	return URI.from({
 		scheme: AHP_CANVAS_SCHEME,
-		path: `/${encodeBase64(VSBuffer.fromString(chat.toString()), false, true)}/${id}`,
+		path: `/${encodeBase64(VSBuffer.fromString(JSON.stringify([chat.toString(), id])), false, true)}`,
 	});
 }
 
@@ -35,13 +33,17 @@ export function parseCanvasUri(resource: URI): { readonly chat: URI; readonly id
 	if (resource.scheme !== AHP_CANVAS_SCHEME || resource.authority !== '' || resource.query !== '' || resource.fragment !== '') {
 		return undefined;
 	}
-	const [, encodedChat, id, extra] = resource.path.split('/');
-	if (!encodedChat || !id || extra !== undefined) {
+	const [, encoded] = resource.path.split('/');
+	if (!encoded || resource.path.split('/').length !== 2) {
 		return undefined;
 	}
 	try {
-		const chat = URI.parse(decodeBase64(encodedChat).toString(), true);
-		return isAhpChatChannel(chat.toString()) ? { chat, id } : undefined;
+		const parsed: unknown = JSON.parse(decodeBase64(encoded).toString());
+		if (!Array.isArray(parsed) || parsed.length !== 2 || typeof parsed[0] !== 'string' || typeof parsed[1] !== 'string') {
+			return undefined;
+		}
+		const chat = URI.parse(parsed[0], true);
+		return isAhpChatChannel(chat.toString()) ? { chat, id: parsed[1] } : undefined;
 	} catch {
 		return undefined;
 	}

@@ -10,7 +10,7 @@ import { arrayEquals, structuralEquals } from '../../../../../base/common/equals
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { Emitter, Event, PauseableEmitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { CounterSet, mapsStrictEqualIgnoreOrder, ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { deepClone, equals } from '../../../../../base/common/objects.js';
 import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, mapObservableArrayCached, observableFromEvent, observableSignal, observableSignalFromEvent, observableValueOpts, recomputeInitiallyAndOnChange, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
@@ -7928,8 +7928,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!this._canvasObservations.has(observationKey)) {
 			const observation = chat.observeCanvases?.();
 			if (observation) {
-				this._canvasObservations.set(observationKey, observation);
-				this._register(disposableTimeout(() => this._canvasObservations.deleteAndDispose(observationKey), 30_000));
+				this._canvasObservations.set(observationKey, combinedDisposable(
+					observation,
+					disposableTimeout(() => this._canvasObservations.deleteAndDispose(observationKey), 30_000),
+				));
 			}
 		}
 		const definitions = chat.canvasDefinitions?.get();
@@ -7939,7 +7941,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return definitions;
 	}
 
-	async openCanvas(sessionId: string, chatResource: URI, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void> {
+	async openCanvas(sessionId: string, chatResource: URI, canvas: ISessionCanvasDefinition, _instanceId: string): Promise<void> {
 		const target = this._getCanvasChatTarget(sessionId, chatResource);
 		const connection = this.connection;
 		const openCanvas = connection?.openCanvas;
@@ -7947,7 +7949,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(localize('openCanvasUnavailable', "Opening canvases is unavailable for this session."));
 		}
 		await openCanvas.call(connection, {
-			channel: buildCanvasUri(target.chat, instanceId).toString(),
+			channel: buildCanvasUri(target.chat, generateUuid()).toString(),
 			chat: target.chat.toString(),
 			canvasId: canvas.canvasId,
 			extensionId: canvas.extensionId,

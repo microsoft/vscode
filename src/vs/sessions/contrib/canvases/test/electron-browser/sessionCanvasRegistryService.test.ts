@@ -546,7 +546,7 @@ suite('SessionCanvasRegistryService', () => {
 			},
 		];
 		const harness = createHarness(definitions);
-		await waitForState(harness.registryService.availableCanvases, canvases => canvases.length === 2);
+		await waitForState(harness.registryService.availableCanvases, canvases => canvases.length === 3);
 		const registration = store.add(registerSessionCanvasActions(harness.canvasService, harness.registryService, harness.contextService));
 		const submenus = MenuRegistry.getMenuItems(Menus.SessionsEditorTabsBarAddTab)
 			.filter(isISubmenuItem)
@@ -556,7 +556,9 @@ suite('SessionCanvasRegistryService', () => {
 			.filter(item => item.command.id.startsWith(`${OPEN_SESSION_CANVAS_COMMAND_ID}.`))
 			.sort((firstItem, secondItem) => (firstItem.order ?? 0) - (secondItem.order ?? 0));
 
-		await CommandsRegistry.getCommand(items[1].command.id)!.handler(upcastPartial<ServicesAccessor>({}));
+		const userItem = items.find(item => (typeof item.command.title === 'string' ? item.command.title : item.command.title.value) === 'Counter (User Counter)');
+		assert.ok(userItem);
+		await CommandsRegistry.getCommand(userItem.command.id)!.handler(upcastPartial<ServicesAccessor>({}));
 		registration.dispose();
 
 		assert.deepStrictEqual({
@@ -571,8 +573,8 @@ suite('SessionCanvasRegistryService', () => {
 			})),
 		}, {
 			submenuTitles: ['Canvas'],
-			titles: ['Counter (Project Counter)', 'Counter (User Counter)'],
-			groups: ['2_available', '2_available'],
+			titles: ['Browser', 'Counter (Project Counter)', 'Counter (User Counter)'],
+			groups: ['2_available', '2_available', '2_available'],
 			opened: [{
 				chat: 'agent-host-chat:/session/main',
 				extensionId: 'user:counter',

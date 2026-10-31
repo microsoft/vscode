@@ -30,7 +30,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { chatUriFormatOf, createChatUriError, mintDefaultChatUri, subagentChatUri } from '../common/agentHostChatMinting.js';
-import { AgentChatMigrationDeferred, type AgentCanvasDefinitionSnapshot, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, getChatSurfaceOptions, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, type IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, type IAgentExtensionInventory, type IAgentImportedChat, IAgentLegacyChat, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle, toAgentCanvasRegistry } from '../common/agent.js';
+import { AgentChatMigrationDeferred, type AgentCanvasDefinitionSnapshot, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, getChatSurfaceOptions, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, type IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, type IAgentExtensionInventory, type IAgentImportedChat, IAgentLegacyChat, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentCreateChatInitialMessageContext, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService, type IAgentServiceCreateSessionConfig, type IAgentImportSessionOptions } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
@@ -46,7 +46,7 @@ import { readAgentPermissionResponseMeta, withoutAgentPermissionFeedback } from 
 import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isAnnotationsAction, isPassiveSessionMetadataAction, isSessionAction, type ChatAction, type ClientAutomationAction, type ClientAutomationRunAction, type IIsArchivedChangedAction, type IIsReadChangedAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
 import { resolveSessionWorkingDirectoryAction } from '../common/state/sessionWorkingDirectories.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigPropertySchema, SessionConfigSchema } from '../common/state/protocol/commands.js';
-import { AHP_CANVAS_SCHEME, isCanonicalCanvasChannel } from '../common/canvasUri.js';
+import { AHP_CANVAS_SCHEME, isCanvasChannel } from '../common/canvasUri.js';
 import type { AutomationCapabilities } from '../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
 import type { OpenCanvasParams } from '../common/state/protocol/channels-canvas/commands.js';
@@ -6795,8 +6795,8 @@ export class AgentService extends Disposable implements IAgentService {
 	async openCanvas(params: OpenCanvasParams, credentials?: IAgentHostCredentialSource): Promise<void> {
 		const resource = URI.parse(params.channel, true);
 		const chat = URI.parse(params.chat, true);
-		if (!isCanonicalCanvasChannel(params.channel)) {
-			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Canvas channel must use the canonical ${AHP_CANVAS_SCHEME} URI format.`);
+		if (!isCanvasChannel(params.channel)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Invalid ${AHP_CANVAS_SCHEME} channel.`);
 		}
 		const sessionKey = this._chatOwnership.getChatOwner(params.chat) ?? (await this._chatOwnership.resolveChatOwner(params.chat))?.owner;
 		if (!sessionKey) {
@@ -6816,7 +6816,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (binding && (binding.chat !== params.chat || binding.extensionId !== params.extensionId || binding.canvasId !== params.canvasId)) {
 			throw new ProtocolError(AhpErrorCodes.Conflict, `Canvas channel is already bound to another chat or declaration: ${params.channel}`);
 		}
-		if (existing) {
+		if (existing?.state.url !== undefined) {
 			return;
 		}
 		if (binding?.pending) {
@@ -6847,8 +6847,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async disposeCanvas(resource: URI, resourceId = resource.toString()): Promise<void> {
-		if (!isCanonicalCanvasChannel(resourceId)) {
-			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Canvas channel must use the canonical ${AHP_CANVAS_SCHEME} URI format.`);
+		if (!isCanvasChannel(resourceId)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Invalid ${AHP_CANVAS_SCHEME} channel.`);
 		}
 		const binding = this._canvasBindings.get(resourceId);
 		try {
@@ -6866,6 +6866,10 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		await this.closeSessionCanvas(URI.parse(sessionKey), { resource, resourceId }, URI.parse(existing.chat));
+	}
+
+	getCanvasChat(resourceId: string): string | undefined {
+		return this._stateManager.getCanvas(resourceId)?.chat ?? this._canvasBindings.get(resourceId)?.chat;
 	}
 
 	async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI, credentials?: IAgentHostCredentialSource): Promise<void> {
@@ -6902,9 +6906,11 @@ export class AgentService extends Disposable implements IAgentService {
 	private _assertCanvasCommandsSupported(chat: string): void {
 		const owner = this._chatOwnership.getChatOwner(chat);
 		const provider = this._stateManager.getChatState(chat)?.provider
-			?? (owner ? this._stateManager.getSessionState(owner)?.provider : undefined);
-		const agent = provider === undefined ? undefined : this._stateManager.rootState.agents.find(candidate => candidate.provider === provider);
-		if (agent?.capabilities?.canvases === undefined) {
+			?? (owner ? this._stateManager.getSessionState(owner)?.provider : undefined)
+			?? (owner ? this._providerService.getProviderForChat(owner, chat)?.id : undefined);
+		const advertised = provider === undefined ? undefined : this._stateManager.rootState.agents.find(candidate => candidate.provider === provider)?.capabilities?.canvases;
+		const implemented = owner ? this._providerService.getProviderForChat(owner, chat)?.getDescriptor().capabilities?.canvases : undefined;
+		if (advertised === undefined && implemented === undefined) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, `Canvas commands are unavailable for chat '${chat}'.`);
 		}
 	}
@@ -10127,6 +10133,7 @@ export class AgentService extends Disposable implements IAgentService {
 			case ActionType.ChatTurnStarted:
 			case ActionType.ChatTurnResume:
 			case ActionType.ChatTruncated:
+			case ActionType.ChatCanvasRegistryRequested:
 			case ActionType.SessionWorkingDirectorySet:
 			case ActionType.SessionWorkingDirectoryReplaced:
 			case ActionType.ChatWorkingDirectorySet:
@@ -13942,6 +13949,21 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 		}
+		if (action.type === ActionType.ChatCanvasRegistryRequested) {
+			try {
+				if (!isAhpChatChannel(channel)) {
+					throw new Error('Canvas registry materialization requires a chat channel.');
+				}
+				this._assertCanvasesEnabled();
+				this._assertCanvasCommandsSupported(channel);
+				if (this._stateManager.isIdleProvisionalSession(sessionChannel)) {
+					throw new Error('Canvas registry materialization requires an initialized chat.');
+				}
+			} catch (error) {
+				this._stateManager.rejectClientAction(channel, action, origin, toErrorMessage(error));
+				return;
+			}
+		}
 		if (action.type === ActionType.RootConfigChanged) {
 			action = supersedeTitleGenerationStrategyForLegacyUpdate(this._stateManager.rootState.config?.values, action);
 		}
@@ -13962,11 +13984,6 @@ export class AgentService extends Disposable implements IAgentService {
 				this._logService.error(`[AgentService] Failed to apply Automation configuration: ${toErrorMessage(error)}`);
 			});
 		}
-		if (action.type === ActionType.ChatCanvasRegistryRequested) {
-			void this._publishRequestedCanvasRegistry(sessionChannel, channel, credentials).catch(error => {
-				this._logService.error(`[AgentService] Failed to materialize Canvas registry for ${channel}: ${toErrorMessage(error)}`);
-			});
-		}
 		if (action.type === ActionType.SessionWorkingDirectorySet
 			|| action.type === ActionType.SessionWorkingDirectoryRemoved
 			|| action.type === ActionType.SessionChatAdded
@@ -13976,33 +13993,6 @@ export class AgentService extends Disposable implements IAgentService {
 			this._publishWorkingDirectoryIdentities(sessionChannel);
 		}
 		this._sideEffects.handleAction(channel, action, clientId, clientContext, resumedTurn, false, clientSeq, credentials, permissionFeedback);
-	}
-
-	private async _publishRequestedCanvasRegistry(sessionChannel: string, chatChannel: string, credentials?: IAgentHostCredentialSource): Promise<void> {
-		this._assertCanvasCommandsSupported(chatChannel);
-		const session = URI.parse(sessionChannel);
-		const chat = URI.parse(chatChannel);
-		this._assertSessionOwnsChat(session, chat, 'Canvas registry materialization');
-		const provider = this._providerService.getProviderForChat(session, chat);
-		const materialize = provider?.materializeSessionCanvases ?? provider?.listSessionCanvases;
-		if (!materialize) {
-			throw new Error(`Canvas inventory is unavailable for session '${sessionChannel}'.`);
-		}
-		credentials = await this._resolveExecutionCredentials(sessionChannel, credentials);
-		const canvases = await materialize.call(provider, session, chat, {
-			...this._chatContext(session, chat, this._chatStorageResource(session, chat)),
-			...(credentials ? { credentials } : {}),
-		});
-		if (canvases === undefined) {
-			return;
-		}
-		const canvasRegistry = toAgentCanvasRegistry(canvases);
-		if (!equals(this._stateManager.getChatState(chatChannel)?.canvasRegistry, canvasRegistry)) {
-			this._stateManager.dispatchServerAction(chatChannel, {
-				type: ActionType.ChatCanvasRegistryChanged,
-				canvasRegistry,
-			});
-		}
 	}
 
 	private _publishWorkingDirectoryIdentities(sessionChannel: string): void {

@@ -56,7 +56,7 @@ import { resolveTitleGenerationStrategy } from '../../common/titleGenerationConf
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
 import { buildMcpResourceUri, buildToolResultResourceUri } from '../../common/mcpResourceUri.js';
-import { CanvasExtensionSource, type CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
+import type { CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
 import type { TerminalState } from '../../common/state/protocol/channels-terminal/state.js';
 import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
@@ -3862,10 +3862,16 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('lists, opens and closes canvases through the owning provider', async () => {
 			const calls: unknown[] = [];
+			const registryListGate = new DeferredPromise<void>();
+			let listCalls = 0;
 			const provider: IAgent = copilotAgent;
 			provider.listSessionCanvases = async (session, chat, context) => {
+				listCalls++;
 				const resolved = resolveAgentChatContext(context, chat);
 				calls.push(['list', session.toString(), chat.toString(), resolved.resource.toString(), resolved.owner.get().toString()]);
+				if (listCalls === 2) {
+					await registryListGate.p;
+				}
 				return [{
 					canvasId: 'preview',
 					extensionId: 'project:preview',
@@ -3918,8 +3924,12 @@ suite('AgentService (node dispatcher)', () => {
 			}, chat);
 			await managementService.closeSessionCanvas(session, { resource: URI.parse('ahp-canvas:/preview') }, chat);
 			await service.dispatchAction(chat.toString(), { type: ActionType.ChatCanvasRegistryRequested }, 'canvas-client', 1);
+			await service.dispatchAction(chat.toString(), { type: ActionType.ChatCanvasRegistryRequested }, 'canvas-client', 2);
 			await timeout(0);
-			const resource = URI.parse('ahp-canvas:/client.example/preview');
+			assert.strictEqual(listCalls, 2);
+			registryListGate.complete();
+			await timeout(0);
+			const resource = URI.parse('ahp-canvas:/client.example-preview');
 			await service.openCanvas({
 				channel: resource.toString(),
 				chat: chat.toString(),
@@ -3951,10 +3961,9 @@ suite('AgentService (node dispatcher)', () => {
 				registry: {
 					extensions: [{
 						extensionId: 'project:preview',
-						extensionSource: CanvasExtensionSource.Project,
 						canvases: [{
 							canvasId: 'preview',
-							displayName: 'Preview',
+							title: 'Preview',
 							description: 'Preview generated content.',
 							requiresInput: false,
 						}],
@@ -4063,6 +4072,22 @@ suite('AgentService (node dispatcher)', () => {
 			gate.complete();
 			await Promise.all([first, joined]);
 			await assert.rejects(service.openCanvas({ ...params, extensionId: 'project:other' }), /already bound to another chat or declaration/);
+			const stateManager = getStateManager(service);
+			stateManager.setCanvasState(params.chat, params.channel, {
+				instanceId: 'provider-preview',
+				extensionId: params.extensionId,
+				canvasId: params.canvasId,
+			});
+			await service.openCanvas(params);
+			assert.strictEqual(openCalls, 2);
+			stateManager.setCanvasState(params.chat, params.channel, {
+				instanceId: 'provider-preview',
+				extensionId: params.extensionId,
+				canvasId: params.canvasId,
+				url: 'https://example.test/preview',
+			});
+			await service.openCanvas(params);
+			assert.strictEqual(openCalls, 2);
 		});
 
 		test('rejects a foreign canvas chat before resolving it', async () => {

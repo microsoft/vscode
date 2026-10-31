@@ -42,6 +42,7 @@ import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUt
 import { CapturingTelemetryService as PlatformCapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, fixedChatOwnerRef, type IAgentChatOwnerRef, SubagentChatSignal, type AgentSignal, type IAgentActionSignal, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import { buildCanvasUri } from '../../common/canvasUri.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { AgentHostProviderTiming } from '../../common/agentHostProviderTiming.js';
@@ -4511,6 +4512,31 @@ suite('CopilotAgentSession', () => {
 		const live = { ...preview, title: 'Preview', url: 'https://example.test/live' };
 		const other = { ...restored, instanceId: 'other' };
 
+		test('reuses the restored provider instance for a standard URI-addressed open', async () => {
+			const chat = URI.parse('ahp-chat:/owner/peer');
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				resume: true,
+				chatChannelUri: chat,
+				configureMockSession: mock => mock.openCanvases.push(restored),
+			});
+			const resource = buildCanvasUri(chat, 'client-lifetime').toString();
+
+			await session.openCanvas({
+				resource: URI.parse(resource),
+				resourceId: resource,
+				canvasId: preview.canvasId,
+				extensionId: preview.extensionId,
+			});
+
+			assert.deepStrictEqual({
+				openCalls: mockSession.canvasOpenCalls,
+				projected: signals.filter(signal => signal.kind === 'canvas').map(signal => ({ resource: signal.resource, state: signal.state })),
+			}, {
+				openCalls: [preview],
+				projected: [{ resource, state: preview }],
+			});
+		});
+
 		for (const eventOrder of ['before response', 'after response', 'no event'] as const) {
 			test(`projects only the explicitly reopened canvas with ${eventOrder}`, async () => {
 				const chat = URI.parse('ahp-chat:/owner/peer');
@@ -4674,6 +4700,34 @@ suite('CopilotAgentSession', () => {
 				});
 			});
 		}
+
+		test('refreshes an unavailable client-addressed canvas with its existing provider instance', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			mockSession.fire('session.canvas.opened', live);
+			const resource = signals.find(signal => signal.kind === 'canvas')?.resource;
+			assert.ok(resource);
+			mockSession.fire('session.canvas.unavailable', preview);
+			const { url: _url, ...unavailable } = live;
+			mockSession.rpc.canvas.open = async request => {
+				mockSession.canvasOpenCalls.push(request);
+				return live;
+			};
+
+			await session.openCanvas({
+				resource: URI.parse(resource),
+				resourceId: resource,
+				canvasId: preview.canvasId,
+				extensionId: preview.extensionId,
+			});
+
+			assert.deepStrictEqual({
+				openCalls: mockSession.canvasOpenCalls,
+				states: signals.filter(signal => signal.kind === 'canvas').map(signal => signal.state),
+			}, {
+				openCalls: [preview],
+				states: [live, unavailable, live],
+			});
+		});
 
 		test('uses the latest suppressed opened event instead of an older response', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables, {

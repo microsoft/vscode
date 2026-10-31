@@ -118,7 +118,6 @@ export function registerEditorCanvasActions(
 		if (context) {
 			const ownerKey = canvasOwnerKey(context.owner);
 			const definitionLabels = getCanvasDefinitionLabels(definitions);
-			const definitionKeys = new Set(definitions.map(canvas => `${canvas.extensionId}\u0000${canvas.canvasId}`));
 			for (let index = 0; index < definitions.length; index++) {
 				const canvas = definitions[index];
 				const label = definitionLabels[index];
@@ -140,9 +139,6 @@ export function registerEditorCanvasActions(
 			const targetLabels = getCanvasInstanceLabels(targets.map(target => target.canvas));
 			for (let index = 0; index < targets.length; index++) {
 				const target = targets[index];
-				if (target.canvas.extensionId && target.canvas.canvasId && definitionKeys.has(`${target.canvas.extensionId}\u0000${target.canvas.canvasId}`)) {
-					continue;
-				}
 				const label = targetLabels[index];
 				const key = `reopen:${getCanvasReferenceKey(target.reference)}`;
 				activeKeys.add(key);

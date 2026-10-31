@@ -260,7 +260,7 @@ suite('AgentHostStateManager', () => {
 
 	test('hosts canvas state independently of chat membership and removes dead sources', () => {
 		manager.createSession(makeSessionSummary());
-		const resource = 'ahp-canvas:/client.example/opaque-preview';
+		const resource = 'ahp-canvas:/client.example-opaque-preview';
 		const canvas: CanvasState = {
 			instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview',
 			url: 'https://example.test/preview',
@@ -281,7 +281,7 @@ suite('AgentHostStateManager', () => {
 		const peer = buildChatUri(sessionUri, 'peer');
 		manager.addChat(sessionUri, peer, creationTimeChatStorageResource(sessionUri, peer, buildDefaultChatUri(sessionUri)));
 		assert.throws(() => manager.setCanvasState(peer, resource, canvas), /already bound to another chat/);
-		assert.throws(() => manager.setCanvasState(sessionChatUri, 'ahp-canvas:/encoded%2Fidentity', canvas), /canonical/);
+		assert.throws(() => manager.setCanvasState(sessionChatUri, 'ahp-canvas:/encoded%2Fidentity', canvas), /Invalid ahp-canvas channel/);
 		assert.deepStrictEqual({
 			ready, cleared, references, removed: manager.getSnapshot(resource),
 			types,

@@ -4921,13 +4921,18 @@ export class CopilotAgentSession extends Disposable {
 		if (!this._wrapper.canvasRuntimeEnabled || this._canvasPhase !== 'live' || this._pendingCanvasHandoff) {
 			return;
 		}
-		void this._canvasRegistryRefresh.queue(async () => {
+		void this._publishCanvasRegistry().catch(error => {
+			if (!this._store.isDisposed && !isCancellationError(error)) {
+				this._logService.warn(`[Copilot:${this.sessionId}] Failed to publish Canvas registry: ${getErrorMessage(error)}`);
+			}
+		});
+	}
+
+	private _publishCanvasRegistry(): Promise<void> {
+		return this._canvasRegistryRefresh.queue(async () => {
 			const canvases = await this.listCanvases();
 			if (canvases !== undefined && !this._store.isDisposed && this._canvasPhase === 'live' && !this._pendingCanvasHandoff) {
 				const canvasRegistry = toAgentCanvasRegistry(canvases);
-				if (canvasRegistry.extensions.length === 0 && !this._canvasRegistryRequested && this._publishedCanvasRegistry === undefined) {
-					return;
-				}
 				if (equals(this._publishedCanvasRegistry, canvasRegistry)) {
 					return;
 				}
@@ -4937,24 +4942,16 @@ export class CopilotAgentSession extends Disposable {
 					canvasRegistry,
 				});
 			}
-		}).catch(error => {
-			if (!this._store.isDisposed && !isCancellationError(error)) {
-				this._logService.warn(`[Copilot:${this.sessionId}] Failed to publish Canvas registry: ${getErrorMessage(error)}`);
-			}
 		});
 	}
 
-	async materializeCanvasRegistry(): Promise<AgentCanvasDefinitionSnapshot> {
+	async materializeCanvasRegistry(): Promise<void> {
 		this._canvasRegistryRequested = true;
-		const canvases = await this.listCanvases();
-		if (canvases !== undefined) {
-			this._publishedCanvasRegistry = toAgentCanvasRegistry(canvases);
-		}
-		return canvases;
+		await this._publishCanvasRegistry();
 	}
 
 	publishCanvasStateAfterRegistration(): void {
-		if (this._store.isDisposed || this._canvasPhase === 'released') {
+		if (!this._wrapper || this._store.isDisposed || this._canvasPhase === 'released') {
 			return;
 		}
 		this._invalidateCanvasRegistrySnapshot();
@@ -5036,11 +5033,18 @@ export class CopilotAgentSession extends Disposable {
 				|| existingResource.canvas.canvasId !== request.canvasId) {
 				throw new Error(`Canvas resource is already bound to another declaration: ${resource}`);
 			}
-			return;
+			if (existingResource.canvas.url !== undefined) {
+				return;
+			}
 		}
-		const instanceId = request.instanceId ?? generateUuid();
+		const restored = !existingResource && request.instanceId === undefined
+			? wrapper.session.openCanvases.find(canvas => this._ignoredRestoredCanvasInstanceIds.has(canvas.instanceId)
+				&& (request.extensionId === undefined || canvas.extensionId === request.extensionId)
+				&& canvas.canvasId === request.canvasId)
+			: undefined;
+		const instanceId = existingResource?.canvas.instanceId ?? restored?.instanceId ?? request.instanceId ?? generateUuid();
 		const existingInstance = this._canvasByInstanceId.get(instanceId);
-		if (existingInstance) {
+		if (existingInstance && existingInstance.resource !== resource) {
 			throw new Error(`Canvas provider instance is already bound to another resource: ${instanceId}`);
 		}
 		const wasIgnored = this._ignoredRestoredCanvasInstanceIds.has(instanceId);
@@ -5074,7 +5078,7 @@ export class CopilotAgentSession extends Disposable {
 			if (latestEvent?.type === 'session.canvas.closed' || latestEvent?.type === 'session.canvas.unavailable') {
 				return;
 			}
-			if (!this._canvasByInstanceId.has(instanceId)) {
+			if (this._canvasByInstanceId.get(instanceId)?.canvas.url === undefined) {
 				this._projectOpenedCanvas(latestEvent?.data ?? canvas);
 			}
 		} finally {

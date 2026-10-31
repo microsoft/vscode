@@ -8,16 +8,17 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { derived, derivedOpts, IObservable, IReader, mapObservableArrayCached } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { buildCanvasUri } from '../../../../platform/agentHost/common/canvasUri.js';
 import { getInlineToolInput, parsePartialToolInput } from '../../../../platform/agentHost/common/partialToolInput.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
-import { CanvasExtensionSource as AgentHostCanvasExtensionSource, CanvasReference, type CanvasRegistry, CanvasState } from '../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
+import { CanvasReference, type CanvasRegistry, CanvasState } from '../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { ActionType, type ActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { ChatState, ResponsePartKind, RootState, StateComponents, ToolCallStatus } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { type CanvasDefinitionSnapshot, type CanvasExtensionSource, ICanvas, ICanvasContext, ICanvasDefinition, ICanvasDefinitionProvider, ICanvasOpenRequest, ICanvasOwner } from './canvas.js';
+import { type CanvasDefinitionSnapshot, ICanvas, ICanvasContext, ICanvasDefinition, ICanvasDefinitionProvider, ICanvasOpenRequest, ICanvasOwner } from './canvas.js';
 
 export class AgentHostCanvas implements ICanvas {
 	readonly resource: URI;
@@ -111,8 +112,8 @@ export class AgentHostCanvasCollection extends Disposable {
 					}
 					return getAgentHostCanvasDefinitions(registry);
 				},
-				openCanvas: (canvas: ICanvasDefinition, instanceId: string) => this.connection.openCanvas!({
-					channel: buildCanvasUri(owner.chat, instanceId).toString(),
+				openCanvas: (canvas: ICanvasDefinition, _instanceId: string) => this.connection.openCanvas!({
+					channel: buildCanvasUri(owner.chat, generateUuid()).toString(),
 					chat: owner.chat.toString(),
 					canvasId: canvas.canvasId,
 					extensionId: canvas.extensionId,
@@ -133,22 +134,12 @@ export function getAgentHostCanvasDefinitions(registry: CanvasRegistry | undefin
 	return registry.extensions.flatMap(extension => extension.canvases.map(canvas => ({
 		canvasId: canvas.canvasId,
 		extensionId: extension.extensionId,
-		extensionSource: toCanvasExtensionSource(extension.extensionSource),
+		extensionSource: 'unknown',
 		...(extension.extensionName !== undefined ? { extensionName: extension.extensionName } : {}),
-		displayName: canvas.displayName,
+		displayName: canvas.title,
 		description: canvas.description,
 		requiresInput: canvas.requiresInput,
 	})));
-}
-
-function toCanvasExtensionSource(source: AgentHostCanvasExtensionSource): CanvasExtensionSource {
-	switch (source) {
-		case AgentHostCanvasExtensionSource.User: return 'user';
-		case AgentHostCanvasExtensionSource.Project: return 'project';
-		case AgentHostCanvasExtensionSource.Session: return 'session';
-		case AgentHostCanvasExtensionSource.Plugin: return 'plugin';
-		default: return 'unknown';
-	}
 }
 
 export function getAgentHostCanvasDefinitionsChangedEvent(subscription: IAgentSubscription<ChatState>): Event<void> {

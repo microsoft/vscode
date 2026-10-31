@@ -3214,9 +3214,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return liveSession.listCanvases();
 	}
 
-	async materializeSessionCanvases(session: URI, chat: URI, operationContext: AgentChatOperationContext): Promise<AgentCanvasDefinitionSnapshot> {
+	async materializeSessionCanvases(session: URI, chat: URI, operationContext: AgentChatOperationContext): Promise<void> {
 		const liveSession = await this._resolveSessionCanvasChat(session, chat, operationContext, 'listSessionCanvases');
-		return liveSession.materializeCanvasRegistry();
+		await liveSession.materializeCanvasRegistry();
 	}
 
 	async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI, operationContext: AgentChatOperationContext): Promise<void> {
@@ -7929,6 +7929,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._canvasHandoffs.delete(chat);
 		if (!replacement?.adoptCanvasHandoff(handoff)) {
 			this._onDidChatProgress.fire({ kind: 'action', resource: chat, action: { type: ActionType.ChatCanvasesChanged, canvases: undefined } });
+			this._onDidChatProgress.fire({ kind: 'action', resource: chat, action: { type: ActionType.ChatCanvasRegistryChanged, canvasRegistry: undefined } });
 		}
 	}
 
@@ -9818,9 +9819,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._chatEntriesBySdkId.set(session.sessionId, entry);
 		this._chatBackings.set(chat.toString(), { ...current, sdkSessionId: session.sessionId });
 		this._backgroundWorkWatches.get(chat)?.attach(session);
-		if (session.usesScopedGitHubCredentials) {
-			session.publishCanvasStateAfterRegistration();
-		}
+		session.publishCanvasStateAfterRegistration();
 	}
 
 	watchChatBackgroundWork(chat: URI, published: () => readonly BackgroundWork[]): IDisposable {

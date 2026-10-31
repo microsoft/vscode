@@ -110,9 +110,9 @@ import { ICopilotHomeService } from '../../../../../../platform/environment/comm
 import { TestCopilotHomeService } from '../../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
 import { TestPathService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
-import { CanvasExtensionSource, type CanvasState } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
+import type { CanvasState } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import type { OpenCanvasParams } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/commands.js';
-import { buildCanvasUri } from '../../../../../../platform/agentHost/common/canvasUri.js';
+import { parseCanvasChatUri } from '../../../../../../platform/agentHost/common/canvasUri.js';
 import { buildOpenSessionLinkForChat } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { requireMintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
 
@@ -4738,10 +4738,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 			canvasRegistry: {
 				extensions: [{
 					extensionId: 'project:preview',
-					extensionSource: CanvasExtensionSource.Project,
 					canvases: [{
 						canvasId: 'preview',
-						displayName: 'Preview',
+						title: 'Preview',
 						description: 'Preview.',
 						requiresInput: false,
 					}],
@@ -4754,20 +4753,24 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const canvases = await provider.listCanvases(session.sessionId, peer.resource);
 		assert.ok(canvases && canvases.length === 1, 'Expected one canvas definition');
 		await provider.openCanvas(session.sessionId, peer.resource, canvases[0], 'project-preview');
-		const liveCanvas: ISessionCanvas = { resource: URI.parse('ahp-canvas:/another-host/documents/preview'), instanceId: 'project-preview', title: 'Preview', source: undefined };
+		const liveCanvas: ISessionCanvas = { resource: URI.parse('ahp-canvas:/another-host-documents-preview'), instanceId: 'project-preview', title: 'Preview', source: undefined };
 		await provider.closeCanvas(session.sessionId, peer.resource, liveCanvas);
 
 		assert.deepStrictEqual({
 			canvases,
 			backendChat: provider.getBackendChatResource(peer.resource)?.toString(),
 			list: agentHost.canvasListRequests.length,
-			open: agentHost.openedCanvases,
+			open: agentHost.openedCanvases.map(open => ({
+				...open,
+				channel: undefined,
+				channelOwner: parseCanvasChatUri(URI.parse(open.channel))?.toString(),
+			})),
 			close: agentHost.disposedCanvases.map(resource => resource.toString()),
 		}, {
 			canvases: [{
 				canvasId: 'preview',
 				extensionId: 'project:preview',
-				extensionSource: 'project',
+				extensionSource: 'unknown',
 				displayName: 'Preview',
 				description: 'Preview.',
 				requiresInput: false,
@@ -4776,11 +4779,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 			list: 0,
 			open: [{
 				chat: peerBackend,
-				channel: buildCanvasUri(URI.parse(peerBackend), 'project-preview').toString(),
+				channel: undefined,
+				channelOwner: peerBackend,
 				canvasId: 'preview',
 				extensionId: 'project:preview',
 			}],
-			close: ['ahp-canvas:/another-host/documents/preview'],
+			close: ['ahp-canvas:/another-host-documents-preview'],
 		});
 	});
 

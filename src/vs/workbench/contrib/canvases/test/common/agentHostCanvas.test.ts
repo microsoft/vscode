@@ -11,11 +11,11 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { buildCanvasUri } from '../../../../../platform/agentHost/common/canvasUri.js';
+import { parseCanvasChatUri } from '../../../../../platform/agentHost/common/canvasUri.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { CanvasExtensionSource, CanvasReference, CanvasState } from '../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
+import { CanvasReference, CanvasState } from '../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { ActionType, type ActionEnvelope } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { ChatState, ComponentToState, ResponsePartKind, StateComponents, ToolCallCompletedState, ToolCallConfirmationReason, ToolCallStatus, Turn } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, ChatState, ComponentToState, ResponsePartKind, StateComponents, ToolCallCompletedState, ToolCallConfirmationReason, ToolCallStatus, Turn } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { AgentHostCanvas, AgentHostCanvasCollection, getAgentHostCanvasDefinitionsChangedEvent } from '../../common/agentHostCanvas.js';
 import { ICanvas, ICanvasOwner } from '../../common/canvas.js';
@@ -23,7 +23,7 @@ import { ICanvas, ICanvasOwner } from '../../common/canvas.js';
 suite('AgentHost canvases', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const owner: ICanvasOwner = {
-		providerId: 'local/copilotcli', session: URI.parse('ahp-session:/owner'), chat: URI.parse('ahp-session:/owner/chats/peer'),
+		providerId: 'local/copilotcli', session: URI.parse('ahp-session:/owner'), chat: URI.parse(buildChatUri('ahp-session:/owner', 'peer')),
 	};
 	const resource = URI.parse('ahp-canvas:/host-specific/opaque-reference');
 	const state: CanvasState = {
@@ -91,11 +91,10 @@ suite('AgentHost canvases', () => {
 			canvasRegistry: {
 				extensions: [{
 					extensionId: 'project:preview',
-					extensionSource: CanvasExtensionSource.Project,
 					extensionName: 'Preview Extension',
 					canvases: [{
 						canvasId: 'preview',
-						displayName: 'Preview',
+						title: 'Preview',
 						description: 'A preview canvas.',
 						requiresInput: false,
 					}],
@@ -111,15 +110,21 @@ suite('AgentHost canvases', () => {
 		await context.definitionProvider.openCanvas(definitions[0], 'stable-preview');
 		definitionsChanged.fire();
 
-		assert.deepStrictEqual({ calls, changeCount }, {
-			calls: [
-				['open', {
-					channel: buildCanvasUri(owner.chat, 'stable-preview').toString(),
-					chat: owner.chat.toString(),
-					canvasId: 'preview',
-					extensionId: 'project:preview',
-				}],
-			],
+		const [, params] = calls[0] as [string, { readonly channel: string; readonly chat: string; readonly canvasId: string; readonly extensionId: string }];
+		assert.deepStrictEqual({
+			callCount: calls.length,
+			owner: parseCanvasChatUri(URI.parse(params.channel))?.toString(),
+			params: { ...params, channel: undefined },
+			changeCount,
+		}, {
+			callCount: 1,
+			owner: owner.chat.toString(),
+			params: {
+				channel: undefined,
+				chat: owner.chat.toString(),
+				canvasId: 'preview',
+				extensionId: 'project:preview',
+			},
 			changeCount: 1,
 		});
 	});

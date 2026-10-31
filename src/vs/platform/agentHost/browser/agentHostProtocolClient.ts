@@ -112,6 +112,8 @@ const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 
 /** The first protocol version whose hosts may advertise `multipleChatProviders`. */
 const MULTIPLE_CHAT_PROVIDERS_PROTOCOL_VERSION = '1.1.0';
+/** The first protocol version that carries Canvas registry actions. */
+const CANVAS_REGISTRY_PROTOCOL_VERSION = '1.1.0';
 
 function toAgentExtensionMode(value: unknown): AgentExtensionMode | undefined {
 	if (typeof value !== 'string') {
@@ -381,6 +383,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _describeChatSubscriptionsOnReconnect = false;
 	/** Whether this connection already re-initialized for `multipleChatProviders` since the host's gate last turned on. */
 	private _reinitializedForChatProviders = false;
+	/** Whether this connection already re-initialized after Canvases required a newer protocol version. */
+	private _reinitializedForCanvases = false;
 	private readonly _connectionAuthority: string;
 	readonly resourceUris: IAgentHostResourceUriMapper;
 	private _serverSeq = 0;
@@ -717,6 +721,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			if (e.affectsConfiguration(ChatProvidersSettingId.Enabled)) {
 				// The host's gate may already be on (e.g. mirrored by another window), so its root state won't change.
 				this._maybeReinitializeForChatProviders();
+			}
+			if (e.affectsConfiguration(CanvasesEnabledSettingId)) {
+				this._maybeReinitializeForCanvases();
 			}
 			if (e.affectsConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID)) {
 				this._updateAutoApprovePolicyRestriction();
@@ -1698,6 +1705,25 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._logService.trace(`[RemoteAgentHostProtocol] ${this._address} re-initializing with ${this._describeChatSubscriptions()}.`);
 		this._describeChatSubscriptionsOnReconnect = true;
 		// Disposing the listeners closes the transport; route the close through the soft-reconnect path, as the watchdog does.
+		this._transportListeners.clear();
+		this._handleTransportClose();
+	}
+
+	private _maybeReinitializeForCanvases(): void {
+		if (this._configurationService.getValue<boolean>(CanvasesEnabledSettingId) !== true) {
+			this._reinitializedForCanvases = false;
+			return;
+		}
+		if (this._state.kind !== AgentHostClientState.Connected || !this._transportFactory) {
+			return;
+		}
+		const result = this._initializeResult.get();
+		if (!result || compareProtocolVersions(result.protocolVersion, CANVAS_REGISTRY_PROTOCOL_VERSION) >= 0 || this._reinitializedForCanvases) {
+			return;
+		}
+		this._reinitializedForCanvases = true;
+		this._freshInitializeRequested = true;
+		this._logService.info(`[RemoteAgentHostProtocol] ${this._address} enabled Canvases after the handshake; re-initializing.`);
 		this._transportListeners.clear();
 		this._handleTransportClose();
 	}

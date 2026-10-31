@@ -130,7 +130,7 @@ suite('resolveAgentHostSession', () => {
 		const chat = URI.parse(buildChatUri(sessionUri, 'peer'));
 		const canvas = buildCanvasUri(chat, 'preview');
 		const remote = canvas.with({ authority: 'another-host' });
-		const opaque = URI.parse('ahp-canvas:/client.example/opaque-preview');
+		const opaque = URI.parse('ahp-canvas:/client.example-opaque-preview');
 		assert.deepStrictEqual({
 			owner: parseCanvasChatUri(canvas)?.toString(),
 			session: resolveAgentHostSession(canvas, owner => owner === chat.toString() ? sessionUri : undefined)?.toString(),
@@ -302,7 +302,7 @@ suite('CanvasStateSubscription', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('buffers new canvas source state across initial and reconnect snapshots', () => {
-		const resource = 'ahp-canvas:/another-host/documents/preview';
+		const resource = 'ahp-canvas:/another-host-documents-preview';
 		const subscription = disposables.add(new CanvasStateSubscription(resource, 'c1', noop));
 		const initial: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/old' };
 		const replacement: CanvasState = { ...initial, url: 'https://example.test/new' };
@@ -1370,7 +1370,7 @@ suite('AgentSubscriptionManager', () => {
 	});
 
 	test('shares and releases the exact advertised canvas subscription', async () => {
-		const resource = URI.parse('ahp-canvas:/another-host/documents/preview');
+		const resource = URI.parse('ahp-canvas:/another-host-documents-preview');
 		const canvas: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview' };
 		const mgr = createManager(async uri => {
 			subscribedResources.push(uri.toString());

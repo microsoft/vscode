@@ -6,7 +6,7 @@
 import { getTelemetryChatSessionId } from '../common/agentTelemetryCorrelation.js';
 import { readUsageInfoMeta } from '../common/meta/agentUsageMeta.js';
 import { getErrorCode, getErrorMessage } from '../../../base/common/errors.js';
-import { RunOnceScheduler } from '../../../base/common/async.js';
+import { disposableTimeout, RunOnceScheduler } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import type { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
@@ -145,6 +145,7 @@ interface IPendingSubagentSignal {
 const MAX_PENDING_SUBAGENT_SIGNALS = 1000;
 const MAX_FAILED_SUBAGENT_ROUTES = 1000;
 const SUBAGENT_START_TIMEOUT = 30_000;
+const PENDING_CANVAS_REGISTRATION_TIMEOUT = 30_000;
 
 class PendingSubagentSignals extends Disposable {
 	readonly entries: IPendingSubagentSignal[] = [];
@@ -290,6 +291,7 @@ export class AgentSideEffects extends Disposable {
 	/** Latest provider-published Canvas states and aggregate actions for chats that have not registered yet. */
 	private readonly _pendingCanvasStates = new Map<ProtocolURI, Map<string, IAgentCanvasSignal>>();
 	private readonly _pendingCanvasActions = new Map<ProtocolURI, Map<ActionType, ChatAction>>();
+	private readonly _pendingCanvasExpirations = this._register(new DisposableMap<ProtocolURI>());
 	/** Reports where overlapped and sequential provider preparation diverge. */
 	private readonly _overlapExperimentTrigger: AgentHostSettingExperimentTrigger;
 
@@ -346,6 +348,7 @@ export class AgentSideEffects extends Disposable {
 		);
 		this._permissionManager = this._register(this._instantiationService.createInstance(SessionPermissionManager, this._stateManager, {}));
 		this._register(this._stateManager.onDidRegisterChat(({ chat }) => {
+			this._pendingCanvasExpirations.deleteAndDispose(chat);
 			const states = this._pendingCanvasStates.get(chat);
 			this._pendingCanvasStates.delete(chat);
 			for (const signal of states?.values() ?? []) {
@@ -361,6 +364,7 @@ export class AgentSideEffects extends Disposable {
 			}
 		}));
 		this._register(this._stateManager.onDidUnregisterChat(({ chat }) => {
+			this._pendingCanvasExpirations.deleteAndDispose(chat);
 			this._pendingCanvasStates.delete(chat);
 			this._pendingCanvasActions.delete(chat);
 		}));
@@ -787,6 +791,7 @@ export class AgentSideEffects extends Disposable {
 			if (this._stateManager.getChatState(chat)) {
 				this._stateManager.setCanvasState(chat, signal.resource, signal.state);
 			} else {
+				this._retainPendingCanvasChat(chat);
 				let pending = this._pendingCanvasStates.get(chat);
 				if (!pending) {
 					pending = new Map();
@@ -946,6 +951,7 @@ export class AgentSideEffects extends Disposable {
 			}
 			const state = this._stateManager.getChatState(sessionKey);
 			if ((action.type === ActionType.ChatCanvasesChanged || action.type === ActionType.ChatCanvasRegistryChanged) && !state) {
+				this._retainPendingCanvasChat(sessionKey);
 				let pending = this._pendingCanvasActions.get(sessionKey);
 				if (!pending) {
 					pending = new Map();
@@ -966,6 +972,17 @@ export class AgentSideEffects extends Disposable {
 				this._runTurnCompleteSideEffects(sessionKey, undefined);
 			}
 		}
+	}
+
+	private _retainPendingCanvasChat(chat: ProtocolURI): void {
+		if (this._pendingCanvasExpirations.has(chat)) {
+			return;
+		}
+		this._pendingCanvasExpirations.set(chat, disposableTimeout(() => {
+			this._pendingCanvasStates.delete(chat);
+			this._pendingCanvasActions.delete(chat);
+			this._pendingCanvasExpirations.deleteAndDispose(chat);
+		}, PENDING_CANVAS_REGISTRATION_TIMEOUT));
 	}
 
 	private _trackProviderStartedTurn(agent: IAgent, channel: ProtocolURI, action: ChatTurnStartedAction, startedWithSteering: boolean): void {

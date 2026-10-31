@@ -22,7 +22,7 @@ import type { IChatSurfaceMeta } from './meta/agentChatSurfaceMeta.js';
 import type { IAgentChatUsage } from './meta/agentUsageMeta.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import type { AuthenticateTarget, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
-import { CanvasExtensionSource, type CanvasRegistry, type CanvasState } from './state/protocol/channels-canvas/state.js';
+import type { CanvasRegistry, CanvasState } from './state/protocol/channels-canvas/state.js';
 import { subagentChatUri, type ChatUriFormat } from './agentHostChatMinting.js';
 import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type SessionOrigin, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction, ProgressParams } from './state/sessionActions.js';
@@ -383,7 +383,6 @@ export function toAgentCanvasRegistry(canvases: readonly IAgentCanvasInfo[]): Ca
 		if (!extension) {
 			const newExtension: CanvasRegistry['extensions'][number] = {
 				extensionId: canvas.extensionId,
-				extensionSource: toProtocolCanvasExtensionSource(canvas.extensionSource),
 				...(canvas.extensionName !== undefined ? { extensionName: canvas.extensionName } : {}),
 				canvases: [],
 			};
@@ -392,22 +391,12 @@ export function toAgentCanvasRegistry(canvases: readonly IAgentCanvasInfo[]): Ca
 		}
 		extension.canvases.push({
 			canvasId: canvas.canvasId,
-			displayName: canvas.displayName,
+			title: canvas.displayName,
 			description: canvas.description,
 			requiresInput: canvas.requiresInput,
 		});
 	}
 	return { extensions: [...extensions.values()] };
-}
-
-function toProtocolCanvasExtensionSource(source: AgentCanvasExtensionSource): CanvasExtensionSource {
-	switch (source) {
-		case 'user': return CanvasExtensionSource.User;
-		case 'project': return CanvasExtensionSource.Project;
-		case 'session': return CanvasExtensionSource.Session;
-		case 'plugin': return CanvasExtensionSource.Plugin;
-		default: return CanvasExtensionSource.Unspecified;
-	}
 }
 
 /** Opens or focuses one stable canvas instance in an initialized provider chat. */
@@ -1917,7 +1906,7 @@ export interface IAgent {
 	listSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<AgentCanvasDefinitionSnapshot>;
 
 	/** Effectfully materialize and publish a canvas registry for an explicit client request, resuming the chat when needed. */
-	materializeSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<AgentCanvasDefinitionSnapshot>;
+	materializeSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<void>;
 
 	/** Open or focus one canvas instance in an initialized provider chat. */
 	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;

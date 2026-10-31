@@ -1086,6 +1086,8 @@ export interface IAgentService {
 	disposeChat(session: URI, chat: URI): Promise<void>;
 	openCanvas(params: OpenCanvasParams, credentials?: IAgentHostCredentialSource): Promise<void>;
 	disposeCanvas(canvas: URI, resourceId?: string): Promise<void>;
+	/** Returns the chat recorded for a live or pending Canvas resource. */
+	getCanvasChat?(resourceId: string): string | undefined;
 
 	/**
 	 * Moves a chat that `session` owns (AHP `moveChat`): within `session`, into another existing session with its

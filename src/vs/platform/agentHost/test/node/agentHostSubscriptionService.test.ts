@@ -104,7 +104,7 @@ suite('AgentHostSubscriptionService', () => {
 		const first = 'copilot:/first';
 		const second = 'copilot:/second';
 		const chat = buildChatUri(first, 'peer');
-		const canvas = URI.parse('ahp-canvas:/client.example/opaque-preview');
+		const canvas = URI.parse('ahp-canvas:/client.example-opaque-preview');
 
 		subscriptions.addSubscriber(canvas, 'client');
 		subscriptions.setSubscriptionOwner(canvas, first, chat);
