@@ -22,9 +22,17 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 	private readonly _selectionChangeListener = this._register(new MutableDisposable());
 
 	private _accessibilityPageSize: number = 1;
-	private _ignoreSelectionChangeTime: number = 0;
 
 	private _state: ISimpleScreenReaderContentState | undefined;
+	// Track the last DOM selection handled, independently of the model/page snapshot.
+	// A second external caret request can return to the last rendered offset
+	// before another render; comparing only with _state would drop that request.
+	private _lastKnownSelection: {
+		anchorNode: Node | null;
+		anchorOffset: number;
+		focusNode: Node | null;
+		focusOffset: number;
+	} | undefined;
 	private _strategy: SimplePagedScreenReaderStrategy = new SimplePagedScreenReaderStrategy();
 
 	constructor(
@@ -45,10 +53,21 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 		}
 		const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
 		if (isScreenReaderOptimized) {
+			const previousState = this._state;
 			this._state = this._getScreenReaderContentState(primarySelection);
-			if (domNode.textContent !== this._state.value) {
-				this._setIgnoreSelectionChangeTime('setValue');
+			const valueChanged = domNode.textContent !== this._state.value;
+			if (valueChanged) {
 				domNode.textContent = this._state.value;
+			}
+			// An unchanged model render must not overwrite a system-caret change
+			// whose selectionchange event has not reached the editor yet.
+			if (!valueChanged && previousState
+				&& previousState.value === this._state.value
+				&& previousState.selectionStart === this._state.selectionStart
+				&& previousState.selectionEnd === this._state.selectionEnd
+				&& previousState.startPositionWithinEditor.lineNumber === this._state.startPositionWithinEditor.lineNumber
+				&& previousState.startPositionWithinEditor.column === this._state.startPositionWithinEditor.column) {
+				return;
 			}
 			const selection = getActiveWindow().document.getSelection();
 			if (!selection) {
@@ -56,9 +75,11 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 			}
 			const data = this._getScreenReaderRange(this._state.selectionStart, this._state.selectionEnd);
 			if (!data) {
+				this._lastKnownSelection = undefined;
 				return;
 			}
-			this._setIgnoreSelectionChangeTime('setRange');
+			// Register our own DOM write so its delayed selectionchange is ignored.
+			this._lastKnownSelection = data;
 			selection.setBaseAndExtent(
 				data.anchorNode,
 				data.anchorOffset,
@@ -67,7 +88,7 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 			);
 		} else {
 			this._state = undefined;
-			this._setIgnoreSelectionChangeTime('setValue');
+			this._lastKnownSelection = undefined;
 			this._domNode.domNode.textContent = '';
 		}
 	}
@@ -84,7 +105,11 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 	}
 
 	public onFocusChange(newFocusValue: boolean): void {
+		// A prior control or window must not own the next editor selection.
+		this._lastKnownSelection = undefined;
 		if (newFocusValue) {
+			// Re-establish the DOM selection when returning from another control.
+			this._state = undefined;
 			this._selectionChangeListener.value = this._setSelectionChangeListener();
 		} else {
 			this._selectionChangeListener.value = undefined;
@@ -96,27 +121,22 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 	}
 
 	public onWillCut(): void {
-		this._setIgnoreSelectionChangeTime('onCut');
 	}
 
 	public onWillPaste(): void {
-		this._setIgnoreSelectionChangeTime('onWillPaste');
 	}
 
 	// --- private methods
 
-	public _setIgnoreSelectionChangeTime(reason: string): void {
-		this._ignoreSelectionChangeTime = Date.now();
-	}
 
 	private _setSelectionChangeListener(): IDisposable {
 		// See https://github.com/microsoft/vscode/issues/27216 and https://github.com/microsoft/vscode/issues/98256
 		// When using a Braille display or NVDA for example, it is possible for users to reposition the
 		// system caret. This is reflected in Chrome as a `selectionchange` event and needs to be reflected within the editor.
 
-		// `selectionchange` events often come multiple times for a single logical change
-		// so throttle multiple `selectionchange` events that burst in a short period of time.
-		let previousSelectionChangeEventTime = 0;
+		// Compare the actual DOM selection with the last handled DOM selection.
+		// _state remains the page mapping for converting offsets into the editor;
+		// it can lag behind multiple external caret moves before the next render.
 		return addDisposableListener(this._domNode.domNode.ownerDocument, 'selectionchange', () => {
 			const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
 			if (!this._state || !isScreenReaderOptimized || !IME.enabled) {
@@ -137,23 +157,24 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 			}
 			const range = selection.getRangeAt(0);
 
-			const now = Date.now();
-			const delta1 = now - previousSelectionChangeEventTime;
-			previousSelectionChangeEventTime = now;
-			if (delta1 < 5) {
-				// received another `selectionchange` event within 5ms of the previous `selectionchange` event
-				// => ignore it
+			const expected = this._lastKnownSelection;
+			if (expected
+				&& selection.anchorNode === expected.anchorNode
+				&& selection.anchorOffset === expected.anchorOffset
+				&& selection.focusNode === expected.focusNode
+				&& selection.focusOffset === expected.focusOffset) {
 				return;
 			}
-			const delta2 = now - this._ignoreSelectionChangeTime;
-			this._ignoreSelectionChangeTime = 0;
-			if (delta2 < 100) {
-				// received a `selectionchange` event within 100ms since we touched the hidden div
-				// => ignore it, since we caused it
-				return;
-			}
-
-			this._viewController.setSelection(this._getEditorSelectionFromDomRange(this._context, this._state, selection.direction, range));
+			const editorSelection = this._getEditorSelectionFromDomRange(this._context, this._state, selection.direction, range);
+			// Advance ownership before calling the controller, which may render
+			// synchronously. Retain _state's page origin for subsequent conversions.
+			this._lastKnownSelection = {
+				anchorNode: selection.anchorNode,
+				anchorOffset: selection.anchorOffset,
+				focusNode: selection.focusNode,
+				focusOffset: selection.focusOffset,
+			};
+			this._viewController.setSelection(editorSelection);
 		});
 	}
 
