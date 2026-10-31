@@ -345,6 +345,7 @@ class CopilotCanvasRenderer implements IListRenderer<ICopilotCanvasEntry, ICopil
 	constructor(
 		private readonly getItemKey: (item: ICopilotCanvasItem) => string,
 		private readonly getDetail: (item: ICopilotCanvasItem) => string,
+		private readonly getOpenUnavailableMessage: (item: ICopilotCanvasItem) => string | undefined,
 		private readonly isEnabled: (item: ICopilotCanvasItem) => boolean,
 		private readonly hasMenuActions: (item: ICopilotCanvasItem) => boolean,
 		private readonly onShowMenu: (item: ICopilotCanvasItem, anchor: HTMLElement) => void,
@@ -393,8 +394,12 @@ class CopilotCanvasRenderer implements IListRenderer<ICopilotCanvasEntry, ICopil
 		const showMenu = this.hasMenuActions(item);
 		templateData.moreButton.element.style.display = showMenu ? '' : 'none';
 		const moreLabel = localize('copilotCanvases.canvasMoreActions', "More Actions for Canvas {0}", item.canvas.displayName);
-		templateData.moreButton.setTitle(moreLabel);
-		templateData.moreButton.element.setAttribute('aria-label', moreLabel);
+		const unavailableMessage = this.getOpenUnavailableMessage(item);
+		const moreTitle = unavailableMessage
+			? localize('copilotCanvases.canvasMoreActionsUnavailable', "{0}. {1}", moreLabel, unavailableMessage)
+			: moreLabel;
+		templateData.moreButton.setTitle(moreTitle);
+		templateData.moreButton.setAriaLabel(moreTitle);
 		if (showMenu) {
 			templateData.elementDisposables.add(templateData.moreButton.onDidClick(event => {
 				event?.stopPropagation();
@@ -579,6 +584,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		this.canvasRenderer = new CopilotCanvasRenderer(
 			item => this.getItemKey(item),
 			item => this.getCanvasDetail(item),
+			item => this.getCanvasOpenUnavailableMessage(item),
 			item => this.isCanvasEnabled(item),
 			item => this.hasCanvasActions(item),
 			(item, anchor) => this.showCanvasMenu(item, anchor),
@@ -764,13 +770,25 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 						extension.canvases.length,
 						this.canToggleExtension(extension) ? '' : this.getToggleUnavailableMessage(extension),
 					),
-					...extension.canvases.map(item => localize(
-						'copilotCanvases.accessibleItem',
-						"{0}. {1}. {2}.",
-						item.canvas.displayName,
-						this.getCanvasDetail(item),
-						this.getCanvasStateLabel(item),
-					)),
+					...extension.canvases.map(item => {
+						const unavailableMessage = this.getCanvasOpenUnavailableMessage(item);
+						return unavailableMessage
+							? localize(
+								'copilotCanvases.accessibleUnavailableItem',
+								"{0}. {1}. {2}. {3}",
+								item.canvas.displayName,
+								this.getCanvasDetail(item),
+								this.getCanvasStateLabel(item),
+								unavailableMessage,
+							)
+							: localize(
+								'copilotCanvases.accessibleItem',
+								"{0}. {1}. {2}.",
+								item.canvas.displayName,
+								this.getCanvasDetail(item),
+								this.getCanvasStateLabel(item),
+							);
+					}),
 				]),
 			]),
 		].join('\n\n');
@@ -1272,26 +1290,32 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 	}
 
 	private hasCanvasActions(item: ICopilotCanvasItem): boolean {
-		return this.isCanvasEnabled(item) && isOpenableExtensionCanvasDefinition(item.canvas);
+		return (this.isCanvasEnabled(item) && isOpenableExtensionCanvasDefinition(item.canvas))
+			|| this.getCanvasOpenUnavailableMessage(item) !== undefined;
 	}
 
 	private getCanvasActions(item: ICopilotCanvasItem, disposables: DisposableStore): IAction[] {
-		if (!this.hasCanvasActions(item)) {
+		const openable = this.isCanvasEnabled(item) && isOpenableExtensionCanvasDefinition(item.canvas);
+		const unavailableMessage = this.getCanvasOpenUnavailableMessage(item);
+		if (!openable && !unavailableMessage) {
 			return [];
 		}
-		return [disposables.add(new Action(
+		const action = disposables.add(new Action(
 			'canvas.show',
-			localize('copilotCanvases.showCanvas', "Open Canvas"),
+			unavailableMessage
+				? localize('copilotCanvases.showCanvasRequiresInput', "Open Canvas (Requires Specific Inputs)")
+				: localize('copilotCanvases.showCanvas', "Open Canvas"),
 			undefined,
-			true,
+			openable,
 			() => this.openCanvas(item),
-		))];
+		));
+		return [action];
 	}
 
 	private async openCanvas(item: ICopilotCanvasItem): Promise<void> {
 		const currentItem = this.extensions.flatMap(extension => extension.canvases)
 			.find(candidate => this.getItemKey(candidate) === this.getItemKey(item));
-		if (!currentItem || !this.canvasService.enabled.get() || !this.isCanvasEnabled(currentItem)) {
+		if (!currentItem || !this.canvasService.enabled.get() || !this.isCanvasEnabled(currentItem) || !isOpenableExtensionCanvasDefinition(currentItem.canvas)) {
 			return;
 		}
 		try {
@@ -1430,12 +1454,21 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 				this.canToggleExtension(entry.item) ? '' : this.getToggleUnavailableMessage(entry.item),
 			);
 		}
-		return localize(
-			'copilotCanvases.rowAriaLabel',
-			"{0}. {1}.",
-			entry.item.canvas.displayName,
-			this.getCanvasStateLabel(entry.item),
-		);
+		const unavailableMessage = this.getCanvasOpenUnavailableMessage(entry.item);
+		return unavailableMessage
+			? localize(
+				'copilotCanvases.unavailableRowAriaLabel',
+				"{0}. {1}. {2}",
+				entry.item.canvas.displayName,
+				this.getCanvasStateLabel(entry.item),
+				unavailableMessage,
+			)
+			: localize(
+				'copilotCanvases.rowAriaLabel',
+				"{0}. {1}.",
+				entry.item.canvas.displayName,
+				this.getCanvasStateLabel(entry.item),
+			);
 	}
 
 	private getExtensionItemKey(item: ICopilotCanvasExtensionItem): string {
@@ -1563,6 +1596,16 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 				? localize('copilotCanvases.requiresInput', "Requires Input")
 				: localize('copilotCanvases.readyToOpen', "Ready to Open");
 		}
+	}
+
+	private getCanvasOpenUnavailableMessage(item: ICopilotCanvasItem): string | undefined {
+		if (!this.isCanvasEnabled(item) || item.cached || !item.canvas.requiresInput) {
+			return undefined;
+		}
+		const otherwiseOpenable = isOpenableExtensionCanvasDefinition({ ...item.canvas, requiresInput: false });
+		return otherwiseOpenable
+			? localize('copilotCanvases.requiresInputDescription', "Opening this canvas requires specific inputs. You can ask an agent to open it.")
+			: undefined;
 	}
 
 	private getCanvasDetail(item: ICopilotCanvasItem): string {
