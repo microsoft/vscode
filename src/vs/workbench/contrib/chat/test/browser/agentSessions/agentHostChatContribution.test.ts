@@ -17,6 +17,7 @@ import { AgentPolicyError } from '../../../../../../platform/agentHost/common/ag
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { hasKey } from '../../../../../../base/common/types.js';
@@ -19146,6 +19147,39 @@ suite('AgentHostChatContribution', () => {
 				const beforeStop = model.pendingRequestHandoffs.get().map(request => request.id);
 				await session.interruptActiveResponseCallback!();
 				assert.deepStrictEqual({ beforeStop, afterStop: model.pendingRequestHandoffs.get() }, { beforeStop: ['steer'], afterStop: [] });
+			});
+		}
+
+		for (const kind of [PendingMessageKind.Steering, PendingMessageKind.Queued]) {
+			test(`keeps the attachments of an unchanged ${kind} message while its turn streams`, async () => {
+				const { fire, chatService } = await openSteeringHandoff();
+				const snapshot = URI.file('/session/attachments/1/clouds.png');
+				fire({
+					type: ActionType.ChatPendingMessageSet, kind, id: 'images',
+					message: {
+						text: 'the mountain cuts into the clouds', origin: { kind: MessageKind.User },
+						attachments: [
+							{ type: MessageAttachmentKind.Resource, uri: snapshot.toString(), label: 'clouds.png', displayKind: 'image' },
+							{ type: MessageAttachmentKind.EmbeddedResource, label: 'moon.png', displayKind: 'image', data: encodeBase64(VSBuffer.fromString('moon')), contentType: 'image/png' },
+						],
+					},
+				});
+				const projectedImages = () => chatService.syncPendingRequestsFromRemoteCalls.at(-1)?.requests.find(request => request.id === 'images')?.variableData;
+				const rendered = projectedImages();
+				// Rendering resolves lazily cached URI state, e.g. a resource context key reads `fsPath`.
+				const renderedPaths = rendered?.variables.map(variable => URI.isUri(variable.value) ? variable.value.fsPath : undefined);
+				const projections = chatService.syncPendingRequestsFromRemoteCalls.length;
+				fire({ type: ActionType.ChatResponsePart, turnId: 'active', part: { kind: ResponsePartKind.Markdown, id: 'reply', content: 'Still working' } });
+				assert.deepStrictEqual({
+					renderedPaths,
+					reprojected: chatService.syncPendingRequestsFromRemoteCalls.length > projections,
+					// The chat service rebuilds, and so re-renders, a pending request whose variable data is not `equals`.
+					unchanged: equals(rendered, projectedImages()),
+				}, {
+					renderedPaths: [snapshot.fsPath, undefined],
+					reprojected: true,
+					unchanged: true,
+				});
 			});
 		}
 
