@@ -17,7 +17,7 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, IAgent } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -75,58 +75,8 @@ import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
-
-class FakeChangesetService implements IAgentHostChangesetService {
-	declare readonly _serviceBrand: undefined;
-	registerStaticChangesets(): void { }
-	restoreStaticChangeset(): void { }
-	parsePersistedStaticChangesets(): { session?: undefined } { return {}; }
-	applyPersistedStaticChangesets(): void { }
-	restorePersistedStaticChangesets(): { session?: undefined } { return {}; }
-	persistChangesSummary(): void { }
-	isStaticChangesetComputeActive(): boolean { return false; }
-	getListMetadataKeys() { return undefined; }
-	computeListEntryChanges() { return undefined; }
-	refreshBranchChangeset(): void { }
-	refreshSessionChangeset(): void { }
-	refreshWorkingSetChangeset(): void { }
-	refreshChangesetCatalog(): void { }
-	onWorkingDirectoryAvailable(): void { }
-	recomputeSubscribedChangesets(): void { }
-	async computeUncommittedChangeset(session: string): Promise<string> { return `${session}/changeset/uncommitted`; }
-	async computeTurnChangeset(session: string): Promise<string> { return `${session}/x`; }
-	async computeCompareTurnsChangeset(session: string): Promise<string> { return `${session}/y`; }
-	onToolCallEditsApplied(): void { }
-	onTurnComplete(): void { }
-	onSessionTruncated(): void { }
-	openTrackedTurnDatabase(): undefined { return undefined; }
-	openTrackedSessionDatabases() { return { sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }; }
-	onFileEditsDiscarded(): void { }
-	onFileEditsAccepted(): void { }
-	ensureChatChangesSummary(): void { }
-	refreshChatChangesSummary(): void { }
-}
-
-class CapturingTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-	readonly telemetryLevel = TelemetryLevel.USAGE;
-	readonly sessionId = 'test-session';
-	readonly machineId = 'test-machine';
-	readonly sqmId = 'test-sqm';
-	readonly devDeviceId = 'test-dev-device';
-	readonly firstSessionDate = 'test-first-session-date';
-	readonly sendErrorTelemetry = false;
-	readonly events: { eventName: string; data: unknown }[] = [];
-
-	publicLog(): void { }
-	publicLog2(eventName: string, data?: unknown): void {
-		this.events.push({ eventName, data });
-	}
-	publicLogError(): void { }
-	publicLogError2(): void { }
-	setExperimentProperty(): void { }
-	setCommonProperty(): void { }
-}
+import { FakeChangesetService } from '../common/fakeChangesetService.js';
+import { CapturingTelemetryService } from '../common/capturingTelemetryService.js';
 
 /**
  * Integration tests for the turn hang watchdog owned by

@@ -39,6 +39,7 @@ import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, Mar
 import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
 import { StrictKnownMarketplaces } from '../../../common/plugins/strictKnownMarketplaces.js';
 import { TestUserDataProfileService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestMeteredConnectionService } from '../../../../../../platform/meteredConnection/test/common/testMeteredConnectionService.js';
 
 class TestManagedSettingsService extends Disposable implements IManagedSettingsService {
 	declare readonly _serviceBrand: undefined;
@@ -60,22 +61,6 @@ class TestManagedSettingsService extends Disposable implements IManagedSettingsS
 	setAllowlist(allowlist: StrictKnownMarketplaces | undefined): void {
 		this.allowlist = allowlist;
 		this.emitter.fire();
-	}
-}
-
-class TestMeteredConnectionService extends Disposable implements IMeteredConnectionService {
-	declare readonly _serviceBrand: undefined;
-
-	private readonly _onDidChangeIsConnectionMetered = this._register(new Emitter<boolean>());
-	readonly onDidChangeIsConnectionMetered = this._onDidChangeIsConnectionMetered.event;
-
-	constructor(public isConnectionMetered: boolean) {
-		super();
-	}
-
-	setIsConnectionMetered(isConnectionMetered: boolean): void {
-		this.isConnectionMetered = isConnectionMetered;
-		this._onDidChangeIsConnectionMetered.fire(isConnectionMetered);
 	}
 }
 

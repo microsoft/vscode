@@ -102,6 +102,7 @@ import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js'
 import { createTestAgentService, getTestAgentStateManager, getTestSessionStateStore, registerTestAgentProvider } from './agentServiceTestUtils.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
+import { CapturingTelemetryService } from '../common/capturingTelemetryService.js';
 
 // ---- Tests ------------------------------------------------------------------
 
@@ -359,27 +360,6 @@ async function createAgentSession(agent: IAgent): Promise<URI> {
 	return session;
 }
 
-class TestTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-	readonly telemetryLevel = TelemetryLevel.USAGE;
-	readonly sessionId = 'test-session';
-	readonly machineId = 'test-machine';
-	readonly sqmId = 'test-sqm';
-	readonly devDeviceId = 'test-dev-device';
-	readonly firstSessionDate = 'test-first-session-date';
-	readonly sendErrorTelemetry = false;
-	readonly events: { eventName: string; data: unknown }[] = [];
-
-	publicLog(): void { }
-	publicLog2(eventName: string, data?: unknown): void {
-		this.events.push({ eventName, data });
-	}
-	publicLogError(): void { }
-	publicLogError2(): void { }
-	setExperimentProperty(): void { }
-	setCommonProperty(): void { }
-}
-
 suite('AgentSideEffects', () => {
 
 	const disposables = new DisposableStore();
@@ -388,7 +368,7 @@ suite('AgentSideEffects', () => {
 	let agent: MockAgent;
 	let sideEffects: AgentSideEffects;
 	let agentList: ReturnType<typeof observableValue<readonly IAgent[]>>;
-	let telemetryService: TestTelemetryService;
+	let telemetryService: CapturingTelemetryService;
 	let authenticationService: AgentHostAuthenticationService;
 
 	const sessionUri = AgentSession.uri('mock', 'session-1');
@@ -466,7 +446,7 @@ suite('AgentSideEffects', () => {
 		disposables.add(toDisposable(() => agent.dispose()));
 		stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		agentList = observableValue<readonly IAgent[]>('agents', [agent]);
-		telemetryService = new TestTelemetryService();
+		telemetryService = new CapturingTelemetryService();
 		authenticationService = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
 		customizationEnablementService = createNoopCustomizationEnablementService();
 		sideEffects = createTestSideEffects(disposables, stateManager, {
@@ -909,7 +889,7 @@ suite('AgentSideEffects', () => {
 			['none', undefined, undefined],
 		] as const) {
 			test(`reports on turn telemetry whether the send used or discarded a pre-warmed session: ${outcome}`, async () => {
-				const recording = new TestTelemetryService();
+				const recording = new CapturingTelemetryService();
 				const localSideEffects = createOverlapSideEffects(NULL_CHECKPOINT_SERVICE, disposables.add(new AgentHostTelemetryService(recording)));
 				const sendMessage = agent.chats.sendMessage;
 				agent.chats.sendMessage = async (chat, prompt, workingDirectories, attachments, turnId, senderClientId, clientType, context) => {
@@ -1916,7 +1896,7 @@ suite('AgentSideEffects', () => {
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
 			const diskFileService = createInMemoryFileService(disposables, Schemas.file);
 			await diskFileService.writeFile(URI.joinPath(repository, 'meta.json'), VSBuffer.fromString(''));
-			const telemetry = new TestTelemetryService();
+			const telemetry = new CapturingTelemetryService();
 			let turnService: IAgentHostTurnService | undefined;
 			const localSideEffects = createTestSideEffects(disposables, stateManager, {
 				getAgent: () => agent,
@@ -1961,7 +1941,7 @@ suite('AgentSideEffects', () => {
 				...NULL_CHECKPOINT_SERVICE,
 				captureTurnStartCheckpoint: async () => { if (captures++ === 0) { await firstCapture.p; } },
 			};
-			const telemetry = new TestTelemetryService();
+			const telemetry = new CapturingTelemetryService();
 			const localSideEffects = createTestSideEffects(disposables, stateManager, {
 				getAgent: () => agent,
 				agents: agentList,
@@ -2015,7 +1995,7 @@ suite('AgentSideEffects', () => {
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
 			const diskFileService = createInMemoryFileService(disposables, Schemas.file);
 			await diskFileService.writeFile(URI.joinPath(repository, 'meta.json'), VSBuffer.fromString(''));
-			const telemetry = new TestTelemetryService();
+			const telemetry = new CapturingTelemetryService();
 			// `/rename` persists the new title, so it needs a real session database.
 			const localSideEffects = createTestSideEffects(disposables, stateManager, {
 				getAgent: () => agent,
@@ -3209,7 +3189,7 @@ suite('AgentSideEffects', () => {
 			const capture = new DeferredPromise<void>();
 			const checkpointService: IAgentHostCheckpointService = { ...NULL_CHECKPOINT_SERVICE, captureTurnStartCheckpoint: () => capture.p };
 			const terminalManager = disposables.add(new TestAgentHostTerminalManager());
-			const telemetry = new TestTelemetryService();
+			const telemetry = new CapturingTelemetryService();
 			const localSideEffects = createTestSideEffects(disposables, stateManager, {
 				getAgent: () => agent,
 				agents: agentList,
