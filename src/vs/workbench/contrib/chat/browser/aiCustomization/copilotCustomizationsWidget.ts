@@ -1542,7 +1542,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		}
 		const otherwiseOpenable = isOpenableExtensionCanvasDefinition({ ...item.canvas, requiresInput: false });
 		return otherwiseOpenable
-			? localize('copilotCanvases.requiresInputDescription', "Opening this canvas requires specific inputs. Ask an agent to open it.")
+			? localize('copilotCanvases.requiresInputDescription', "Opening this canvas requires specific inputs. You can ask an agent to open it.")
 			: undefined;
 	}
 

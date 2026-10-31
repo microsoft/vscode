@@ -548,8 +548,8 @@ suite('CopilotCanvasesWidget', () => {
 		assert.deepStrictEqual({
 			moreVisible: more.checkVisibility(),
 			moreAriaLabel: more.getAttribute('aria-label'),
-			rowExplainsInput: row.getAttribute('aria-label')?.includes('Opening this canvas requires specific inputs. Ask an agent to open it.'),
-			accessibleContentExplainsInput: harness.widget.getAccessibilityContent().includes('Opening this canvas requires specific inputs. Ask an agent to open it.'),
+			rowExplainsInput: row.getAttribute('aria-label')?.includes('Opening this canvas requires specific inputs. You can ask an agent to open it.'),
+			accessibleContentExplainsInput: harness.widget.getAccessibilityContent().includes('Opening this canvas requires specific inputs. You can ask an agent to open it.'),
 			action: {
 				label: open.label,
 				enabled: open.enabled,
@@ -558,7 +558,7 @@ suite('CopilotCanvasesWidget', () => {
 			closeCalls: harness.closeCalls,
 		}, {
 			moreVisible: true,
-			moreAriaLabel: 'More Actions for Canvas Form. Opening this canvas requires specific inputs. Ask an agent to open it.',
+			moreAriaLabel: 'More Actions for Canvas Form. Opening this canvas requires specific inputs. You can ask an agent to open it.',
 			rowExplainsInput: true,
 			accessibleContentExplainsInput: true,
 			action: {
@@ -635,7 +635,7 @@ suite('CopilotCanvasesWidget', () => {
 			visibleSwitchChecked: harness.container.querySelector('[aria-label="Enable canvas extension \'PR Tools\'"]')?.getAttribute('aria-checked'),
 			retainedCanvases: ['PR Review Board', 'Release Notes Draft'].filter(name => accessible.includes(name)),
 			canvasSwitches: harness.container.querySelectorAll('.copilot-canvas-tree-item [role="switch"]').length,
-			inputGuidance: accessible.includes('Ask an agent to open it.'),
+			inputGuidance: accessible.includes('You can ask an agent to open it.'),
 			inputActionVisible: reviewRow.querySelector<HTMLElement>('[data-customization-action="more"]')?.checkVisibility(),
 		}, {
 			requests: [{
