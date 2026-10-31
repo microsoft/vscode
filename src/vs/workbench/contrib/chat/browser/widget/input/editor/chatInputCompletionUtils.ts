@@ -98,6 +98,18 @@ export function isEmptyUpToCompletionWord(model: ITextModel, rangeResult: IChatC
 }
 
 /**
+ * Returns `true` when the text from the start of the input up to the cursor is
+ * a leading slash command word with at least one character after the `/`
+ * (e.g. `/delete-`). The chat input disables quick suggestions, so once a
+ * suggest session is cancelled (typing a space, moving the cursor, ...) this is
+ * used to reopen slash command completions when the user edits that word again.
+ */
+export function shouldRetriggerSlashCommandSuggest(model: ITextModel, position: Position): boolean {
+	const textBeforeCursor = model.getValueInRange(new Range(1, 1, position.lineNumber, position.column));
+	return /^\s*\/[\p{L}0-9_.:-]+$/u.test(textBeforeCursor);
+}
+
+/**
  * Returns `true` when the cursor sits inside a non-empty token whose first
  * character is one of the given trigger characters (or is positioned right
  * after such a token). Used to gate completion providers so they only run
