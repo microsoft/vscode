@@ -828,6 +828,7 @@ suite('aiCustomizationManagementEditor', () => {
 		group: { id: number };
 		closeCustomizationEditor(): Promise<boolean>;
 		runMarketplacePrompt(prompt: string): Promise<void>;
+		createCanvas(): Promise<void>;
 	};
 
 	type MutableConfigurationInspection = {
@@ -1155,7 +1156,7 @@ suite('aiCustomizationManagementEditor', () => {
 		);
 	});
 
-	test('runs marketplace prompts in a new Agents Window chat', async () => {
+	test('starts Canvas creation in a new Agents Window chat', async () => {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
 		const calls: { commandId: string; args: readonly unknown[] }[] = [];
@@ -1166,11 +1167,11 @@ suite('aiCustomizationManagementEditor', () => {
 			},
 		};
 
-		await editor.runMarketplacePrompt('Review this change');
+		await editor.createCanvas();
 
 		assert.deepStrictEqual(calls, [{
 			commandId: 'workbench.action.sessions.newChat',
-			args: [{ prompt: 'Review this change', prefillPrompt: true, noWorkspace: true }],
+			args: [{ prompt: '/create-canvas ', prefillPrompt: true, noWorkspace: true }],
 		}]);
 	});
 

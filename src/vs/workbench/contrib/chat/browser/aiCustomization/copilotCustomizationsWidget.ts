@@ -440,6 +440,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 	readonly onDidChangeItemCount = this._onDidChangeItemCount.event;
 
 	private readonly searchInput: InputBox;
+	private readonly createCanvasButton: Button;
 	private readonly browseCanvasesButton: Button;
 	private readonly treeContainer: HTMLElement;
 	private readonly tree: WorkbenchObjectTree<CopilotCanvasTreeEntry>;
@@ -498,6 +499,19 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		const titleRow = DOM.append(header, $('.section-title-row'));
 		DOM.append(titleRow, $('h2.section-title')).textContent = localize('copilotCanvases.title', "Canvases");
 		const titleActions = DOM.append(titleRow, $('.section-title-actions'));
+		const createLabel = localize('copilotCanvases.create', "Create a Canvas...");
+		const createAriaLabel = localize('copilotCanvases.createAriaLabel', "Create a Canvas");
+		this.createCanvasButton = this._register(new Button(titleActions, {
+			...defaultButtonStyles,
+			secondary: true,
+			small: true,
+			title: createAriaLabel,
+			ariaLabel: createAriaLabel,
+		}));
+		this.createCanvasButton.label = createLabel;
+		this._register(this.createCanvasButton.onDidClick(() => {
+			void this.commandService.executeCommand(AICustomizationManagementCommands.CreateCanvas);
+		}));
 		const browseLabel = localize('copilotCanvases.browse', "Browse");
 		const browseAriaLabel = localize('copilotCanvases.browseAriaLabel', "Browse Canvas Extensions");
 		this.browseCanvasesButton = this._register(new Button(titleActions, {
@@ -731,8 +745,8 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		const extensions = this.getFilteredExtensions();
 		const groups = this.getExtensionGroups(extensions, !!this.searchInput.value.trim());
 		const description = isCustomizationDiscoveryAvailable(this.configurationService, this.customizationMarketplaceService)
-			? localize('copilotCanvases.availableDescriptionWithBrowse', "Canvas availability follows the chats currently visible in this window. Use Browse to find and install Canvas extensions.")
-			: localize('copilotCanvases.availableDescription', "Canvas availability follows the chats currently visible in this window.");
+			? localize('copilotCanvases.availableDescriptionWithBrowse', "Canvas availability follows the chats currently visible in this window. Use Create a Canvas to start a guided authoring session, or Browse to find and install Canvas extensions.")
+			: localize('copilotCanvases.availableDescription', "Canvas availability follows the chats currently visible in this window. Use Create a Canvas to start a guided authoring session.");
 		if (extensions.length === 0) {
 			return [localize('copilotCanvases.title', "Canvases"), description, this.emptyText.textContent, this.emptySubtext.textContent].filter(Boolean).join('\n\n');
 		}

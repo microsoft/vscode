@@ -385,10 +385,13 @@ suite('CopilotCanvasesWidget', () => {
 		const customizationSessionResource = URI.parse('agent-host-copilotcli:/customization-session');
 		const available = createHarness({ contextAvailable: false, customizationSessionResource });
 		const unavailable = createHarness({ contextAvailable: false, discoveryAvailable: false });
+		const create = available.container.querySelector<HTMLElement>('[aria-label="Create a Canvas"]');
 		const browse = available.container.querySelector<HTMLElement>('[aria-label="Browse Canvas Extensions"]');
 		const hiddenBrowse = unavailable.container.querySelector<HTMLElement>('[aria-label="Browse Canvas Extensions"]');
+		assert.ok(create);
 		assert.ok(browse);
 		assert.ok(hiddenBrowse);
+		create.click();
 		browse.click();
 		await timeout(0);
 		const visibleDisplay = browse.style.display;
@@ -407,21 +410,28 @@ suite('CopilotCanvasesWidget', () => {
 		}());
 
 		assert.deepStrictEqual({
+			createLabel: create.textContent,
+			createAriaLabel: create.getAttribute('aria-label'),
 			label: browse.textContent,
 			ariaLabel: browse.getAttribute('aria-label'),
-			command: available.commands[0],
+			commands: available.commands,
 			visibleDisplay,
 			hiddenAfterConfigurationChange,
 			restoredDisplay: browse.style.display,
 			hiddenDisplay: hiddenBrowse.style.display,
 			hiddenAccessibilityMentionsBrowse: unavailable.widget.getAccessibilityContent().includes('Use Browse'),
 		}, {
+			createLabel: 'Create a Canvas...',
+			createAriaLabel: 'Create a Canvas',
 			label: 'Browse',
 			ariaLabel: 'Browse Canvas Extensions',
-			command: {
-				id: AICustomizationManagementCommands.OpenEditor,
-				args: [{ showDiscover: true, searchQuery: '@type:canvas', sessionResource: customizationSessionResource }],
-			},
+			commands: [
+				{ id: AICustomizationManagementCommands.CreateCanvas, args: [] },
+				{
+					id: AICustomizationManagementCommands.OpenEditor,
+					args: [{ showDiscover: true, searchQuery: '@type:canvas', sessionResource: customizationSessionResource }],
+				},
+			],
 			visibleDisplay: '',
 			hiddenAfterConfigurationChange: 'none',
 			restoredDisplay: '',
@@ -443,13 +453,13 @@ suite('CopilotCanvasesWidget', () => {
 		}, {
 			withoutContext: [
 				'Canvases',
-				'Canvas availability follows the chats currently visible in this window. Use Browse to find and install Canvas extensions.',
+				'Canvas availability follows the chats currently visible in this window. Use Create a Canvas to start a guided authoring session, or Browse to find and install Canvas extensions.',
 				'Canvases are only available inside a session',
 				'Select an active Copilot session and then open this Customizations menu again',
 			].join('\n\n'),
 			withoutCanvases: [
 				'Canvases',
-				'Canvas availability follows the chats currently visible in this window. Use Browse to find and install Canvas extensions.',
+				'Canvas availability follows the chats currently visible in this window. Use Create a Canvas to start a guided authoring session, or Browse to find and install Canvas extensions.',
 				'No Canvases Available',
 				'None of the current Copilot chats provide any Canvases.',
 			].join('\n\n'),
