@@ -91,6 +91,7 @@ export interface ICanvasOpenRequest {
 
 export interface ICanvasModelResolution {
 	readonly model: IBrowserViewModel;
+	/** Whether the model already presented the source, so resolving it loaded no page. */
 	readonly reused: boolean;
 }
 
@@ -161,7 +162,11 @@ export interface ICanvasService {
 	reopenCanvas(reference: ICanvasReference): Promise<void>;
 	/** Restores a canvas admitted by this live service instance from its opaque working-set identifier. */
 	restoreCanvasInput(serializationId: string): CanvasInput | undefined;
-	/** Resolves the live browser model retained for this presentation, creating it once when needed. */
+	/**
+	 * Resolves the live browser model retained for this presentation, creating it once when needed.
+	 * A retained model keeps its last page while the provider is temporarily unavailable, then
+	 * loads the next source in place.
+	 */
 	resolveCanvasModel(reference: ICanvasReference, source: URI): Promise<ICanvasModelResolution>;
 }
 
