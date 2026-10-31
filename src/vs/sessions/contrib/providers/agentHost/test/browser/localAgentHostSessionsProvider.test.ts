@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { toAgentHostClientCustomization } from '../../../../../../workbench/contrib/chat/common/agentHostSessionCustomizations.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { resolveSignedOutWindowGate, SignedOutWindowGate } from '../../../../../browser/sessionsAuthGate.js';
@@ -4621,6 +4622,63 @@ suite('LocalAgentHostSessionsProvider', () => {
 				sent: outcome === 'error' ? [] : [outcome === 'clear' ? undefined : hosts('new')[outcome === 'switch' ? 1 : 0].uri],
 			});
 		});
+	}
+
+	// The local provider resolves only `file:` workspaces, so only connections that accept them as client resources can back it.
+	for (const kind of agentHostConnectionKinds.filter(kind => kind.name === 'local' || kind.name === 'editor remote')) {
+		for (const outcome of ['loaded', 'error'] as const) {
+			test(`draft agent from a same-host plugin waits for it and keeps its client identity (${outcome}, ${kind.name})`, async () => {
+				agentHost.resourceUris = kind.resourceUris;
+				const hostPlugin = URI.file('/plugins/review');
+				const clientAgent = kind.toClient(URI.joinPath(hostPlugin, 'agents', 'reviewer.agent.md')).toString();
+				const client: AgentCustomization = { type: CustomizationType.Agent, id: 'client', uri: clientAgent, name: 'Reviewer' };
+				// Publish the plugin the way the active client does, so same-host plugins use their host-local URI.
+				const plugin = toAgentHostClientCustomization({ type: CustomizationType.Plugin, id: 'review', uri: kind.toClient(hostPlugin).toString(), name: 'Review' }, kind.resourceUris);
+				const host: AgentCustomization = {
+					...client, id: 'host', uri: URI.joinPath(hostPlugin, 'agents', 'reviewer.agent.md').toString(),
+					_meta: { 'vscode.sourceUri': URI.joinPath(URI.parse(plugin.uri), 'agents', 'reviewer.agent.md').toString() },
+				};
+				const sent: (string | undefined)[] = [];
+				const provider = createProvider(disposables, agentHost, undefined, {
+					activeClientAgents: constObservable([client]), openSession: true,
+					sendRequest: async (resource, _message, options) => {
+						sent.push(options?.modeInfo?.modeInstructions?.uri?.toString());
+						agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Same-host Agent' }));
+						return { kind: 'sent', data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+					},
+				});
+				const session = provider.createNewSession(URI.file('/workspace'), provider.sessionTypes[0].id);
+				const chat = await provider.createNewChat(session.sessionId);
+				await timeout(0);
+				const publish = (load: CustomizationLoadStatus.Loading | CustomizationLoadStatus.Loaded | CustomizationLoadStatus.Error) =>
+					agentHost.setSessionState(AgentSession.id(session.resource), 'copilotcli', {
+						provider: 'copilotcli', title: '', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready,
+						activeClients: [], chats: [], customizations: [{
+							...plugin, clientId: agentHost.clientId,
+							load: load === CustomizationLoadStatus.Error ? { kind: load, message: 'Parsing failed' } : { kind: load },
+							children: load === CustomizationLoadStatus.Loaded ? [host] : [],
+						}],
+					});
+				publish(CustomizationLoadStatus.Loading);
+				provider.setAgent(session.sessionId, { uri: client.uri, name: client.name });
+				const sending = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+				const rejected = outcome === 'error' ? assert.rejects(sending, /selected agent could not be loaded/) : undefined;
+				await timeout(0);
+				const sentWhileLoading = sent.length;
+				publish(outcome === 'error' ? CustomizationLoadStatus.Error : CustomizationLoadStatus.Loaded);
+				let committed: Awaited<typeof sending> | undefined;
+				if (rejected) {
+					await rejected;
+				} else {
+					committed = await sending;
+				}
+				assert.deepStrictEqual({ sentWhileLoading, sent, selected: committed?.mode.get()?.id }, {
+					sentWhileLoading: 0,
+					sent: outcome === 'error' ? [] : [clientAgent],
+					selected: outcome === 'error' ? undefined : clientAgent,
+				});
+			});
+		}
 	}
 
 	test('draft first send remains compatible with a host that omits optional source metadata and children', async () => {
