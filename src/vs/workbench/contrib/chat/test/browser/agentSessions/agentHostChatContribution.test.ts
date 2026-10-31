@@ -10182,6 +10182,67 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 		}));
 
+		test('freeform-only selection answers preserve question kinds on completion', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			agentHostService.setInitializeResult({ _meta: {} });
+			agentHostService.defaultChatUri = 'ahp-chat:/host-selected-questions';
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: ActionType.ChatInputRequested,
+				request: {
+					id: 'custom-input',
+					questions: [{
+						kind: ChatInputQuestionKind.SingleSelect,
+						id: 'single-color',
+						message: 'Choose a color',
+						options: [{ id: 'blue', label: 'Blue' }],
+						allowFreeformInput: true,
+					}, {
+						kind: ChatInputQuestionKind.MultiSelect,
+						id: 'many-colors',
+						message: 'Choose colors',
+						options: [{ id: 'blue', label: 'Blue' }],
+						allowFreeformInput: true,
+					}],
+				},
+			} as ChatAction);
+			await timeout(10);
+
+			const carousel = collected.flat().find(part => part.kind === 'questionCarousel');
+			assert.ok(carousel instanceof ChatQuestionCarouselData);
+			agentHostService.dispatchedActions.length = 0;
+			carousel.completion.complete({
+				answers: {
+					'single-color': { freeformValue: 'Green' },
+					'many-colors': { selectedValues: [], freeformValue: 'Purple' },
+				}
+			});
+			await timeout(10);
+
+			assert.deepStrictEqual(agentHostService.dispatchedActions.map(entry => ({ channel: entry.channel.toString(), action: entry.action })), [{
+				channel: 'ahp-chat:/host-selected-questions',
+				action: {
+					type: ActionType.ChatInputCompleted,
+					requestId: 'custom-input',
+					response: ChatInputResponseKind.Accept,
+					answers: {
+						'single-color': {
+							state: ChatInputAnswerState.Submitted,
+							value: { kind: ChatInputAnswerValueKind.Selected, value: '', freeformValues: ['Green'] },
+						},
+						'many-colors': {
+							state: ChatInputAnswerState.Submitted,
+							value: { kind: ChatInputAnswerValueKind.SelectedMany, value: [], freeformValues: ['Purple'] },
+						},
+					},
+				},
+			}]);
+
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+			await turnPromise;
+		}));
+
 		test('boolean input request renders as a true or false choice', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
