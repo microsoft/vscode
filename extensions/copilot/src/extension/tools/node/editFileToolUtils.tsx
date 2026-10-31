@@ -823,12 +823,9 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 				// Ensure patterns have proper glob prefix to match within workspace
 				const normalizedPattern = pattern.startsWith('**/') || pattern.startsWith('/') ? pattern : '**/' + pattern;
 				hookFilesPatterns[normalizedPattern] = false;
-				// If the pattern looks like a folder (no file extension), also match JSON files within it
-				const lastSegment = normalizedPattern.split('/').pop() || '';
-				if (!lastSegment.includes('.')) {
-					const folderJsonPattern = normalizedPattern.endsWith('/') ? normalizedPattern + '*.json' : normalizedPattern + '/*.json';
-					hookFilesPatterns[folderJsonPattern] = false;
-				}
+				// Locations can be directories regardless of their filename suffix.
+				const folderJsonPattern = normalizedPattern.endsWith('/') ? normalizedPattern + '*.json' : normalizedPattern + '/*.json';
+				hookFilesPatterns[folderJsonPattern] = false;
 			}
 		}
 	}

@@ -48,7 +48,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
-import { AgentPermissionKind, AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentAdoptedWorktree, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef } from '../../common/agent.js';
+import { AgentPermissionKind, AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentAdoptedWorktree, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatDiscoveryOptions, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef } from '../../common/agent.js';
 import { AgentHostPrewarmSessionsSettingId, IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, platformSessionSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactIntegrationsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPrewarmSessionsConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../common/agentHostSchema.js';
@@ -2546,7 +2546,9 @@ suite('AgentService (node dispatcher)', () => {
 		for (const normalized of [false, true]) {
 			for (const localStorage of [false, true]) {
 				test(`repairs an unopened legacy archive through catalog verification (normalized: ${normalized}, local storage: ${localStorage})`, async () => {
-					const database = disposables.add(new AgentHostDatabase(':memory:'));
+					class SurvivingDatabase extends AgentHostDatabase { override dispose(): void { } disposeForReal(): void { super.dispose(); } }
+					const database = new SurvivingDatabase(':memory:');
+					disposables.add(toDisposable(() => database.disposeForReal()));
 					const backing = createPerSessionDataService();
 					const session = AgentSession.uri('copilot', 'legacy-archive-repair');
 					const defaultChat = buildDefaultChatUri(session);
@@ -15665,6 +15667,41 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		testWithExternalSessionClock('passes the startup-frozen legacy migration gate to discovery, not a value a client mirrors after startup', async () => {
+			class GateRecordingAgent extends ControlledDiscoveryAgent {
+				readonly discoveryOptions: (IAgentChatDiscoveryOptions | undefined)[] = [];
+				override async startChatDiscovery(options?: IAgentChatDiscoveryOptions): Promise<void> {
+					this.discoveryOptions.push(options);
+					return super.startChatDiscovery();
+				}
+			}
+			const discoveryGate = async (atStartup: boolean, mirroredLater: boolean) => {
+				const database = new TransientRegistryWriteDatabase();
+				await database.markProviderBackfilled('copilot');
+				const svc = createExternalSessionService(createSessionDataService(), database);
+				getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: atStartup });
+				svc.primeMigrateLegacyGate();
+				// A client connecting after the host started mirrors its own setting.
+				getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: mirroredLater });
+				setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Last30Days, 1);
+				const agent = disposables.add(new GateRecordingAgent('copilot'));
+				registerTestAgentProvider(svc, agent);
+				svc.markStartupComplete();
+				await svc.listSessions();
+				await svc.whenDeferredWorkSettled();
+				await agent.discoveryStarted.p;
+				return agent.discoveryOptions;
+			};
+
+			assert.deepStrictEqual({
+				enabledThenMirroredOff: await discoveryGate(true, false),
+				disabledThenMirroredOn: await discoveryGate(false, true),
+			}, {
+				enabledThenMirroredOff: [{ migrateLegacyChats: true }],
+				disabledThenMirroredOn: [{ migrateLegacyChats: false }],
+			});
+		});
+
 		testWithExternalSessionClock('a deferred migration does not request discovery while external sessions are hidden', async () => {
 			class DeferredDiscoveryAgent extends ControlledDiscoveryAgent {
 				override async listChatsToMigrate(): Promise<typeof AgentChatMigrationDeferred> {
@@ -19277,6 +19314,75 @@ suite('AgentService (node dispatcher)', () => {
 					legacy: { session: discovered.toString(), provider: 'copilot', startTime, modifiedTime: startTime, external: true, source: 'discovery' },
 					current: { session: discovered.toString(), provider: 'copilot', startTime, modifiedTime: startTime, external: true, source: 'discovery' },
 				});
+			});
+
+			test('publishes an adopted legacy session as read when its catalog was normalized before adoption, whichever action adopts it', async () => {
+				class SurvivingDatabase extends AgentHostDatabase {
+					override dispose(): void { }
+					disposeForReal(): void { super.dispose(); }
+				}
+				const adoptAndRestart = async (adoptBy: 'open' | 'rename') => {
+					const database = new SurvivingDatabase(':memory:');
+					disposables.add(toDisposable(() => database.disposeForReal()));
+					const perSession = createPerSessionDataService();
+					const session = AgentSession.uri('copilot', `normalized-legacy-${adoptBy}`);
+					let adopted = false;
+					class AdoptingAgent extends DirectImportAgent {
+						override async ensureChatAdopted(): Promise<IAgentChatAdoptionResult> {
+							adopted = true;
+							return { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'Legacy', titleSource: 'user', isRead: true } };
+						}
+						override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata> {
+							return { chat, startTime: 1, modifiedTime: 1, summary: 'Legacy', ...(!adopted ? { status: SessionStatus.Idle, _meta: withSessionEhcliAdoptable(undefined) } : {}) };
+						}
+					}
+					const start = async () => {
+						const svc = createService(database, perSession.service);
+						getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+						const agent = disposables.add(new AdoptingAgent('copilot'));
+						registerTestAgentProvider(svc, agent);
+						await waitForInitialProviderMigration(svc, agent);
+						// Restorable only once import ran, so the provider's listing does not report it as a native session.
+						(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+						return { svc, agent };
+					};
+					// An earlier host discovered the un-opened legacy session and normalized its catalog.
+					const discovering = await start();
+					discovering.agent.fireDiscoveredChats([{ ...metadata(session, withSessionEhcliAdoptable(undefined)), modifiedTime: 1, status: SessionStatus.Idle, external: false }]);
+					await discovering.svc.whenDiscoveredChatsRegistered();
+					await (discovering.svc as unknown as { _catalogReconciliationService: { runPass(): Promise<unknown> } })._catalogReconciliationService.runPass();
+					await discovering.svc.whenCatalogReconciliationIdle();
+					discovering.svc.dispose();
+					const [catalog] = await database.readCatalogSnapshot([session.toString()]);
+
+					const { svc } = await start();
+					const added: boolean[] = [];
+					disposables.add(getStateManager(svc).onDidEmitNotification(notification => {
+						if (notification.type === NotificationType.SessionAdded && notification.summary.resource === session.toString()) {
+							added.push(isSessionStatusRead(notification.summary.status));
+						}
+					}));
+					if (adoptBy === 'open') {
+						await svc.restoreSession(session);
+					} else {
+						await svc.dispatchAction(session.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' }, 'client-1', 1);
+					}
+					const live = getStateManager(svc).getSessionSummary(session.toString());
+					await svc.whenCatalogReconciliationIdle();
+					svc.dispose();
+					const restarted = await start();
+					const listed = (await restarted.svc.listSessions()).find(s => s.session.toString() === session.toString());
+					return {
+						authority: catalog?.authorityVersion,
+						adopted,
+						added,
+						live: live !== undefined && isSessionStatusRead(live.status),
+						afterRestart: listed !== undefined && isSessionStatusRead(listed.status ?? SessionStatus.Idle),
+					};
+				};
+
+				const expected = { authority: 2, adopted: true, added: [true], live: true, afterRestart: true };
+				assert.deepStrictEqual({ open: await adoptAndRestart('open'), rename: await adoptAndRestart('rename') }, { open: expected, rename: expected });
 			});
 
 			for (const migrate of [false, true]) {
@@ -36292,7 +36398,9 @@ suite('AgentService (node dispatcher)', () => {
 							materialized.push({ chat: chat.toString(), providerData });
 						}
 					}
-					const database = disposables.add(new AgentHostDatabase(':memory:'));
+					class SurvivingDatabase extends AgentHostDatabase { override dispose(): void { } disposeForReal(): void { super.dispose(); } }
+					const database = new SurvivingDatabase(':memory:');
+					disposables.add(toDisposable(() => database.disposeForReal()));
 					await database.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 					await database.updateSessionV2External([{ session: session.toString(), external: false }]);
 					await database.registerChatCatalogV2(session.toString(), {
@@ -42696,7 +42804,9 @@ suite('AgentService (node dispatcher)', () => {
 							return { providerData: 'peer-backing' };
 						}
 					}
-					const database = disposables.add(new AgentHostDatabase(':memory:'));
+					class SurvivingDatabase extends AgentHostDatabase { override dispose(): void { } disposeForReal(): void { super.dispose(); } }
+					const database = new SurvivingDatabase(':memory:');
+					disposables.add(toDisposable(() => database.disposeForReal()));
 					const sessionData = createPerSessionDataService().service;
 					const residency = createResidencyTestService(1, 30_000, true, new MultiChatAgent('copilot'), sessionData, database);
 					const svc = residency.service;
@@ -42834,7 +42944,9 @@ suite('AgentService (node dispatcher)', () => {
 							return { providerData: 'peer-backing' };
 						}
 					}
-					const database = disposables.add(new AgentHostDatabase(':memory:'));
+					class SurvivingDatabase extends AgentHostDatabase { override dispose(): void { } disposeForReal(): void { super.dispose(); } }
+					const database = new SurvivingDatabase(':memory:');
+					disposables.add(toDisposable(() => database.disposeForReal()));
 					const sessionData = createPerSessionDataService().service;
 					const residency = createResidencyTestService(1, 30_000, true, new MultiChatAgent('copilot'), sessionData, database);
 					const svc = residency.service;
