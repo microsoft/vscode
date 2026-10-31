@@ -25,7 +25,7 @@ import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../pla
 import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostWorktreeDiskUsageMeta.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
-import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, createAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentHostTcpConnection } from '../../../../../../platform/agentHost/common/agentHostTcpConnection.js';
@@ -94,6 +94,7 @@ import { INewSessionComposerService, NewSessionComposerService } from '../../../
 // ---- Mock connection --------------------------------------------------------
 
 class MockAgentConnection extends mock<IAgentConnection>() {
+	override readonly resourceUris = createAgentHostResourceUriMapper(agentHostAuthority('localhost:4321'));
 	override measureWorktreeDiskUsage?: IAgentConnection['measureWorktreeDiskUsage'];
 	override sessionWorktreeCleanup?: IAgentConnection['sessionWorktreeCleanup'];
 	actionListenerCount = 0;
@@ -550,6 +551,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		Object.defineProperties(protocol, {
 			rootState: { value: root },
 			onDidClose: { value: Event.None },
+			resourceUris: { value: createAgentHostResourceUriMapper(agentHostAuthority('localhost:4321')) },
 		});
 		const provider = createProvider(disposables, connection, {
 			noConnection: true,

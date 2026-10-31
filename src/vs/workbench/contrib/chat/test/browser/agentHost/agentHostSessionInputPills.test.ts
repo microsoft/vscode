@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { IAction, SubmenuAction } from '../../../../../../base/common/actions.js';
@@ -1338,78 +1339,86 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	test('reveals remote host customizations without remapping client or synced resources', async () => {
-		const chatResource = 'vendor-chat:/conversations/main';
-		const hostUri = URI.file('/repo/.github/skills/host/SKILL.md');
-		const clientUri = URI.file('/client/skills/client/SKILL.md');
-		const syncedUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/bundle/skills/synced/SKILL.md' });
-		const skills = [
-			{ id: 'host', uri: hostUri, clientId: undefined },
-			{ id: 'client', uri: clientUri, clientId: 'test-client' },
-			{ id: 'synced', uri: syncedUri, clientId: undefined },
-		];
-		const session = upcastPartial<SessionState>({
-			defaultChat: chatResource,
-			chats: [],
-			workingDirectories: [URI.file('/repo').toString()],
-			customizations: skills.map(skill => ({
-				id: `${skill.id}-container`,
-				type: CustomizationType.Directory,
-				name: skill.id,
-				uri: dirname(skill.uri).toString(),
-				clientId: skill.clientId,
-				enabled: true,
-				contents: CustomizationType.Skill,
-				writable: false,
-				children: [{ id: skill.id, type: CustomizationType.Skill, name: skill.id, uri: skill.uri.toString() }],
-			})),
-		});
-		const chat = upcastPartial<ChatState>({
-			resource: chatResource,
-			turns: [upcastPartial<Turn>({
-				id: 'turn',
-				responseParts: skills.map(skill => ({
-					kind: ResponsePartKind.ToolCall,
-					toolCall: {
-						toolCallId: skill.id,
-						toolName: skill.id === 'host' ? 'view' : 'skill',
-						displayName: skill.id,
-						status: ToolCallStatus.Completed,
-						confirmed: ToolCallConfirmationReason.NotNeeded,
-						invocationMessage: skill.id,
-						pastTenseMessage: skill.id,
-						success: true,
-						toolInput: JSON.stringify(skill.id === 'host' ? { path: '.github/skills/host/SKILL.md' } : { skill: skill.id }),
-					},
+	for (const kind of agentHostConnectionKinds) {
+		test(`reveals host-authored children of host, client and synced customizations through the connection (${kind.name})`, async () => {
+			const chatResource = 'vendor-chat:/conversations/main';
+			const hostUri = URI.file('/repo/.github/skills/host/SKILL.md');
+			const clientUri = URI.file('/cache/client-plugin/skills/client/SKILL.md');
+			const syncedUri = URI.file('/cache/synced-bundle/skills/synced/SKILL.md');
+			const skills = [
+				{ id: 'host', uri: hostUri, pluginUri: undefined },
+				{ id: 'client', uri: clientUri, pluginUri: URI.file('/client/plugin') },
+				{ id: 'synced', uri: syncedUri, pluginUri: URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/bundle' }) },
+			];
+			const session = upcastPartial<SessionState>({
+				defaultChat: chatResource,
+				chats: [],
+				workingDirectories: [URI.file('/repo').toString()],
+				customizations: skills.map((skill): Customization => ({
+					id: `${skill.id}-container`,
+					name: skill.id,
+					...(skill.pluginUri ? {
+						type: CustomizationType.Plugin,
+						uri: skill.pluginUri.toString(),
+						clientId: 'test-client',
+					} : {
+						type: CustomizationType.Directory,
+						uri: dirname(skill.uri).toString(),
+						enabled: true,
+						contents: CustomizationType.Skill,
+						writable: false,
+					}),
+					children: [{ id: skill.id, type: CustomizationType.Skill, name: skill.id, uri: skill.uri.toString() }],
 				})),
-			})],
-		});
-		const harness = createActivityPills(session, chat, undefined, 'remote-server');
-		harness.visibility.toggle(SessionChatPillKind.Customizations);
-		// Selecting the chat only schedules customization resolution; nothing is resolved until it runs.
-		const beforeFlush = { pending: harness.customizationScheduler.pendingCount > 0, pill: harness.persistentContent.textContent?.includes('Customizations') };
-		assert.deepStrictEqual(beforeFlush, { pending: true, pill: false });
-		const entries = harness.dropdown('3 Customizations').filter(item => item.description !== undefined);
-		for (const entry of entries) {
-			entry.select();
-		}
-		await timeout(0);
+			});
+			const chat = upcastPartial<ChatState>({
+				resource: chatResource,
+				turns: [upcastPartial<Turn>({
+					id: 'turn',
+					responseParts: skills.map(skill => ({
+						kind: ResponsePartKind.ToolCall,
+						toolCall: {
+							toolCallId: skill.id,
+							toolName: skill.id === 'host' ? 'view' : 'skill',
+							displayName: skill.id,
+							status: ToolCallStatus.Completed,
+							confirmed: ToolCallConfirmationReason.NotNeeded,
+							invocationMessage: skill.id,
+							pastTenseMessage: skill.id,
+							success: true,
+							toolInput: JSON.stringify(skill.id === 'host' ? { path: '.github/skills/host/SKILL.md' } : { skill: skill.id }),
+						},
+					})),
+				})],
+			});
+			const harness = createActivityPills(session, chat, undefined, 'remote-server', undefined, undefined, { resourceUris: kind.resourceUris });
+			harness.visibility.toggle(SessionChatPillKind.Customizations);
+			// Selecting the chat only schedules customization resolution; nothing is resolved until it runs.
+			const beforeFlush = { pending: harness.customizationScheduler.pendingCount > 0, pill: harness.persistentContent.textContent?.includes('Customizations') };
+			const entries = harness.dropdown('3 Customizations').filter(item => item.description !== undefined);
+			for (const entry of entries) {
+				entry.select();
+			}
+			await timeout(0);
 
-		assert.deepStrictEqual({
-			entries: entries.map(entry => ({ label: entry.label, description: entry.description })),
-			commands: harness.commands,
-		}, {
-			entries: [
-				{ label: 'host', description: '.github/skills/host/SKILL.md' },
-				{ label: 'client', description: clientUri.fsPath },
-				{ label: 'synced', description: syncedUri.toString(true) },
-			],
-			commands: [toAgentHostUri(hostUri, 'remote-server'), clientUri, syncedUri].map(uri => ({
-				id: AICustomizationManagementCommands.OpenEditor,
-				args: [{ section: AICustomizationManagementSection.Skills, revealUri: uri.toString() }],
-			})),
+			assert.deepStrictEqual({
+				beforeFlush,
+				entries: entries.map(entry => ({ label: entry.label, description: entry.description })),
+				commands: harness.commands,
+			}, {
+				beforeFlush: { pending: true, pill: false },
+				entries: [
+					{ label: 'host', description: '.github/skills/host/SKILL.md' },
+					{ label: 'client', description: kind.name === 'local' ? clientUri.fsPath : kind.toClient(clientUri).toString(true) },
+					{ label: 'synced', description: kind.name === 'local' ? syncedUri.fsPath : kind.toClient(syncedUri).toString(true) },
+				],
+				commands: [hostUri, clientUri, syncedUri].map(uri => ({
+					id: AICustomizationManagementCommands.OpenEditor,
+					args: [{ section: AICustomizationManagementSection.Skills, revealUri: kind.toClient(uri).toString() }],
+				})),
+			});
 		});
-	});
+	}
 
 	test('matches the Agents Window aggregate issue status icon', async () => {
 		const harness = createActivityPills(upcastPartial<SessionState>({

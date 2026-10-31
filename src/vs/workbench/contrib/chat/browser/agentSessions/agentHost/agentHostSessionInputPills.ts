@@ -1003,7 +1003,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			const current = resolution.read(reader);
 			return current ? (uri: URI) => current.connection.resourceUris.fromAgentHost(uri) : undefined;
 		});
-		const customizationIndex = createCustomizationIndexObservable(this, customizations, customizationRoots, customizationUriMapper, { scope: derived(this, reader => chatResource.read(reader)?.toString()) });
+		const customizationIndex = createCustomizationIndexObservable(this, customizations, customizationRoots, customizationUriMapper, { scope: derived(this, reader => chatResource.read(reader)?.toString()), clientId: derived(this, reader => resolution.read(reader)?.connection.clientId) });
 		// Resolution is sliced over idle time so selecting a large chat never blocks on it.
 		const chatCustomizations = createProgressiveChatCustomizations(this, chatState, customizationIndex, {
 			scheduler: this.createCustomizationScheduler(),
@@ -1229,6 +1229,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				return undefined;
 			}
 			const resource = artifact.type === SessionArtifactType.File
+				// eslint-disable-next-line local/code-agent-host-uri-mapping -- file artifacts are Agent Host filesystem resources, not connection workspace resources
 				? toAgentHostUri(artifactResource, getAgentHostResourceAuthority(resolution))
 				: artifactResource;
 			const label = artifact.type === SessionArtifactType.File ? basename(resource) : artifact.label;

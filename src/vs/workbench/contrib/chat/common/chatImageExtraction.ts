@@ -278,6 +278,7 @@ export function getChatMarkdownImageFile(markdown: IMarkdownString, source: stri
 	const resource = URI.revive(markdown.uris?.[href]) ?? uri;
 	if (resource.scheme === AGENT_HOST_SCHEME) {
 		// Only a local raster image that the session resolves to itself, so a response cannot read other files
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- inspects a wrapped filesystem image and verifies it resolves back to the same session resource
 		const file = fromAgentHostUri(resource);
 		const mime = getMediaMime(file.path);
 		return isLocalFile(file) && mime && getAttachableImageExtension(mime === 'image/jpg' ? 'image/jpeg' : mime)

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { agentHostConnectionKinds } from '../common/testAgentHostResourceUriMappers.js';
 import { LoadClientCertificatesExtensionMethod, type IAgentHostClientCertificatesProvider } from '../../common/clientCertificatesProtocol.js';
 import sinon from 'sinon';
 import { CancelablePromise, DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
@@ -29,7 +30,7 @@ import { AgentPolicyError, AuthenticateParams, type AuthenticateResult } from '.
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
 import { getAgentHostArtifactIntegrationsCapability } from '../../common/meta/agentHostArtifactIntegrationMeta.js';
-import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
+import { agentHostAuthority, createEditorRemoteAgentHostResourceUriMapper, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 import { ChatProvidersConfigKey, ChatProvidersSettingId } from '../../common/agentHostChatProviders.js';
 import { negotiateAgentHostProtocolVersion } from '../../common/agentHostProtocolCompatibility.js';
@@ -1278,7 +1279,10 @@ suite('AgentHostProtocolClient', () => {
 				URI.parse('vscode-remote://ssh-remote+test/ssh/trusted'),
 				URI.parse('vscode-remote://ssh-remote+other/other/trusted'),
 			];
-			const client = disposables.add(new AgentHostProtocolClient(identity, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request));
+			const options = identity === 'vscode-remote://ssh-remote+test'
+				? { resourceUris: createEditorRemoteAgentHostResourceUriMapper('ssh-remote+test', agentHostAuthority(identity)) }
+				: undefined;
+			const client = disposables.add(new AgentHostProtocolClient(identity, transport, options, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request));
 			await connectClient(client, transport);
 			const path = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? '/local/trusted' : identity === 'test.example:1234' ? '/remote/trusted' : '/ssh/trusted';
 			assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), { enabled: true, trustedUris: [URI.file(path).toString()] });
@@ -1673,6 +1677,139 @@ suite('AgentHostProtocolClient', () => {
 			assert.strictEqual(transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'authenticate'), false);
 		});
 	});
+
+	suite('connection resource URI mappers', () => {
+		for (const kind of agentHostConnectionKinds) {
+			function createMappedClient(permissionService = createPermissionService()) {
+				const identity = 'vscode-remote://ssh-remote+test';
+				const transport = disposables.add(new TestProtocolTransport());
+				const resourceUris = kind.resourceUris;
+				const trust = createWorkspaceTrustServices();
+				const client = disposables.add(new AgentHostProtocolClient(identity, transport, { resourceUris }, new NullLogService(), permissionService, new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trust.management, trust.request));
+				return { client, transport };
+			}
+
+			test(`createSession maps working directories but retains client customization URIs and implicit grants (${kind.name})`, async () => {
+				const granted = new Set<string>();
+				const reads: string[] = [];
+				const permissionService = createResourceServiceStub({
+					granted: (_identity, uri, mode) => mode === AgentHostPermissionMode.Read && granted.has(uri.toString()),
+					onGrantImplicitRead: (_identity, uri) => granted.add(uri.toString()),
+					onRead: async (_identity, uri) => {
+						reads.push(uri.toString());
+						return { bytes: VSBuffer.fromString('plugin') };
+					},
+				});
+				const { client, transport } = createMappedClient(permissionService);
+				await connectClient(client, transport);
+				const customization = {
+					type: CustomizationType.Plugin as const,
+					id: customizationId(kind.toClient(URI.file('/plugins/foo')).toString()),
+					uri: kind.toClient(URI.file('/plugins/foo')).toString(),
+					name: 'Foo',
+				};
+				const session = URI.parse('session-store://tenant/editor-remote');
+				const creation = client.createSession({
+					provider: 'other-agent', session,
+					workingDirectories: [kind.toClient(URI.parse('file:///workspace?query=value#fragment'))],
+					activeClient: { clientId: 'c1', tools: [], customizations: [customization] },
+				});
+				const sent = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'createSession');
+				assert.ok(sent);
+				transport.fireMessage({ jsonrpc: '2.0', id: sent.id, result: null });
+				await creation;
+				transport.fireMessage({ jsonrpc: '2.0', id: 42, method: 'resourceRead', params: { channel: ROOT_STATE_URI, uri: customization.uri } });
+				await flushMicrotasks();
+
+				assert.deepStrictEqual({
+					params: sent.params,
+					granted: [...granted],
+					reads,
+					response: transport.sentMessages.at(-1),
+				}, {
+					params: {
+						channel: session.toString(), _meta: undefined, provider: 'other-agent',
+						workingDirectories: [URI.parse('file:///workspace?query=value#fragment').toString()], config: undefined,
+						activeClient: { clientId: 'c1', tools: [], customizations: [customization] }, progressToken: undefined,
+					},
+					granted: [URI.parse(customization.uri).toString()],
+					reads: [URI.parse(customization.uri).toString()],
+					response: { jsonrpc: '2.0', id: 42, result: { data: 'cGx1Z2lu', encoding: ContentEncoding.Base64 } },
+				});
+			});
+
+			test(`listSessions returns client identities for host working directories and projects (${kind.name})`, async () => {
+				const { client, transport } = createMappedClient();
+				const listing = client.listSessions();
+				const sent = transport.sentMessages[0] as JsonRpcRequest;
+				const directorySets = [undefined, [], ['file:///workspace'], ['file:///workspace', 'file:///second']];
+				transport.fireMessage({
+					jsonrpc: '2.0', id: sent.id, result: {
+						items: directorySets.map((workingDirectories, index) => ({
+							resource: `session-store://tenant/session-${index}`, provider: 'other-agent', title: 'Session',
+							status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+							workingDirectories, project: { uri: 'file:///workspace', displayName: 'Workspace' },
+						})),
+					}
+				});
+
+				const workspace = kind.toClient(URI.file('/workspace')).toString();
+				const secondDirectory = kind.toClient(URI.file('/second')).toString();
+
+				assert.deepStrictEqual((await listing).map(session => ({
+					workingDirectory: session.workingDirectory?.toString(),
+					workingDirectories: session.workingDirectories?.map(uri => uri.toString()),
+					project: session.project?.uri.toString(),
+				})), [
+					{ workingDirectory: undefined, workingDirectories: undefined, project: workspace },
+					{ workingDirectory: undefined, workingDirectories: [], project: workspace },
+					{ workingDirectory: workspace, workingDirectories: [workspace], project: workspace },
+					{ workingDirectory: workspace, workingDirectories: [workspace, secondDirectory], project: workspace },
+				]);
+			});
+		}
+	});
+
+	for (const identity of [LOCAL_AGENT_HOST_RESOURCE_IDENTITY, 'test.example:1234'] as const) {
+		test(`resource mapping preserves wrapped inputs and non-file summaries (${String(identity)})`, async () => {
+			const { client, transport } = createClientForIdentity(identity);
+			const file = URI.file('/workspace');
+			const remote = URI.parse('vscode-remote://ssh-remote+other/workspace');
+			const opaque = URI.parse('workspace-store://tenant/project');
+			// The local client unwraps any legacy wrapper; remote clients unwrap only their own connection's resources.
+			const wrapped = toAgentHostUri(file, identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? 'other-host' : agentHostAuthority(identity));
+			const creation = client.createSession({
+				provider: 'other-agent', session: URI.parse('session-store://tenant/session'),
+				workingDirectories: [wrapped, remote, opaque],
+			});
+			const createRequest = transport.sentMessages[0] as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: createRequest.id, result: null });
+			await creation;
+			const listing = client.listSessions();
+			const listRequest = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({
+				jsonrpc: '2.0', id: listRequest.id, result: {
+					items: [{
+						resource: 'session-store://tenant/session', provider: 'other-agent', title: 'Session',
+						status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+						workingDirectories: [file.toString(), remote.toString(), opaque.toString()],
+						project: { uri: opaque.toString(), displayName: 'Project' },
+					}]
+				}
+			});
+			const [session] = await listing;
+
+			assert.deepStrictEqual({
+				workingDirectories: (createRequest.params as { workingDirectories: string[] }).workingDirectories,
+				summaryDirectories: session.workingDirectories?.map(uri => uri.toString()),
+				project: session.project?.uri.toString(),
+			}, {
+				workingDirectories: [file.toString(), remote.toString(), opaque.toString()],
+				summaryDirectories: [identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? file.toString() : toAgentHostUri(file, agentHostAuthority(identity)).toString(), remote.toString(), opaque.toString()],
+				project: opaque.toString(),
+			});
+		});
+	}
 
 	test('listSessions carries the workspace-less marker and compatible working directories', async () => {
 		// Regression: the sessions provider resolves a session's kind (quick
