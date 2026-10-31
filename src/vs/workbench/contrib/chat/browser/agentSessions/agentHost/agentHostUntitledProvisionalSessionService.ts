@@ -218,7 +218,7 @@ class ActiveClientBinding extends Disposable {
 	constructor(
 		readonly roots: readonly URI[],
 		readonly scope: IAgentCustomizationScope,
-		clientId: string,
+		connection: IAgentHostService,
 		publish: () => void,
 	) {
 		super();
@@ -227,7 +227,7 @@ class ActiveClientBinding extends Disposable {
 			if (!scope.isResolved.read(reader)) {
 				return;
 			}
-			scope.activeClient(clientId).read(reader);
+			scope.activeClient(connection.clientId, connection.resourceUris).read(reader);
 			publish();
 		}));
 	}
@@ -440,7 +440,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		}
 
 		const scope = this._activeClientService.acquireScope(`agent-host-${entry.provider}`, roots);
-		entry.activeClientBinding.value = new ActiveClientBinding(roots, scope, this._agentHostService.clientId, () => this._publishActiveClient(entry));
+		entry.activeClientBinding.value = new ActiveClientBinding(roots, scope, this._agentHostService, () => this._publishActiveClient(entry));
 	}
 
 	/**
@@ -602,7 +602,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		if (!scope || !scope.isResolved.get()) {
 			return;
 		}
-		const activeClient = scope.activeClient(this._agentHostService.clientId).get();
+		const activeClient = scope.activeClient(this._agentHostService.clientId, this._agentHostService.resourceUris).get();
 		this._agentHostService.dispatch(entry.generation.backendSession.toString(), {
 			type: ActionType.SessionActiveClientSet,
 			activeClient,

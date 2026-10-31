@@ -75,7 +75,10 @@ export class AgentHostCanvasCollection extends Disposable {
 		const canvases = derived(this, reader => references.read(reader) === undefined ? undefined : states.read(reader).map(state => state.read(reader)));
 		const openRequests = chat ? derivedOpts<ReadonlyMap<string, ICanvasOpenRequest>>({
 			owner: this,
-			equalsFn: (first, second) => first.size === second.size && [...first].every(([key, value]) => value.id === second.get(key)?.id && value.succeeded === second.get(key)?.succeeded),
+			equalsFn: (first, second) => first.size === second.size && [...first].every(([key, value]) => {
+				const other = second.get(key);
+				return !!other && value.id === other.id && value.succeeded === other.succeeded && value.pending === other.pending;
+			}),
 		}, reader => getOpenRequests(chat.read(reader), canvases.read(reader))) : undefined;
 		const definitionProvider: ICanvasDefinitionProvider | undefined = this.connection.listSessionCanvases && this.connection.openSessionCanvas
 			? {
@@ -128,7 +131,11 @@ function getOpenRequests(chat: ChatState | undefined, canvases: readonly ICanvas
 			const input = getInlineToolInput(call.toolInput);
 			const instanceId = input ? parsePartialToolInput(input)?.instanceId : undefined;
 			if (typeof instanceId === 'string' && instances.has(instanceId) && !requests.has(instanceId)) {
-				requests.set(instanceId, { id: `${turn.id}\u0000${call.toolCallId}`, succeeded: call.status === ToolCallStatus.Completed && call.success });
+				requests.set(instanceId, {
+					id: `${turn.id}\u0000${call.toolCallId}`,
+					succeeded: call.status === ToolCallStatus.Completed && call.success,
+					...(call.status === ToolCallStatus.Running ? { pending: true } : {}),
+				});
 			}
 		}
 	}

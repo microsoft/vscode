@@ -52,6 +52,62 @@ import '../../../../browser/widget/media/chat.css';
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const { preserveFocus, moveFocus } of [
+		{ preserveFocus: undefined, moveFocus: false },
+		{ preserveFocus: true, moveFocus: false },
+		{ preserveFocus: true, moveFocus: true },
+	]) {
+		test(`disabling input retains editor focus only when opted in and never steals it back (${preserveFocus}, ${moveFocus})`, () => {
+			const root = dom.append(mainWindow.document.body, dom.$('div'));
+			store.add(toDisposable(() => root.remove()));
+			const editorElement = dom.append(root, dom.$('div'));
+			const textInput = dom.append(editorElement, dom.$('textarea'));
+			const toolbarButton = dom.append(root, dom.$('button'));
+			const attachments = dom.append(root, dom.$('div'));
+			const inputActions = dom.append(root, dom.$('div'));
+			const secondaryToolbar = dom.append(root, dom.$('div'));
+			let readOnly = false;
+			let disabledOverlay = false;
+			const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+				inputEnabled: true,
+				_inputEditor: {
+					hasWidgetFocus: () => mainWindow.document.activeElement === textInput,
+					updateOptions: (options: { readOnly: boolean }) => { readOnly = options.readOnly; },
+					focus: () => textInput.focus(),
+				},
+				_inputEditorElement: editorElement,
+				attachmentsContainer: attachments,
+				inputActionsToolbar: { getElement: () => inputActions },
+				secondaryToolbarContainer: secondaryToolbar,
+				executeToolbar: { focus: () => toolbarButton.focus() },
+				dnd: { setDisabledOverlay: (disabled: boolean) => { disabledOverlay = disabled; } },
+			});
+			textInput.focus();
+			input.setInputEnabled(false, preserveFocus);
+			const disabled = {
+				readOnly, disabledOverlay, editorInert: editorElement.inert,
+				attachmentsInert: attachments.inert, actionsInert: inputActions.inert, secondaryInert: secondaryToolbar.inert,
+				editorFocused: mainWindow.document.activeElement === textInput,
+				toolbarFocused: mainWindow.document.activeElement === toolbarButton,
+			};
+			if (moveFocus) {
+				toolbarButton.focus();
+			}
+			input.setInputEnabled(true);
+			assert.deepStrictEqual({
+				disabled, readOnly, disabledOverlay, editorInert: editorElement.inert,
+				focused: mainWindow.document.activeElement === (preserveFocus && !moveFocus ? textInput : toolbarButton),
+			}, {
+				disabled: {
+					readOnly: true, disabledOverlay: true, editorInert: !preserveFocus,
+					attachmentsInert: true, actionsInert: true, secondaryInert: true,
+					editorFocused: !!preserveFocus, toolbarFocused: !preserveFocus,
+				},
+				readOnly: false, disabledOverlay: false, editorInert: false, focused: true,
+			});
+		});
+	}
+
 	test('a suppressed input rejects requests routed by other renderers without resolving them', () => {
 		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), { options: { renderInputRequests: false } });
 		const question = new ChatQuestionCarouselData([{ id: 'question', type: 'text', title: 'Choose a direction' }], true);

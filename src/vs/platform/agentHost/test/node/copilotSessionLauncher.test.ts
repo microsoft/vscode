@@ -1442,7 +1442,7 @@ suite('mergeByokSessionConfig', () => {
 
 suite('composeByokSessionConfig', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const acme = { name: 'acme', type: 'openai' as const, wireApi: 'responses' as const, baseUrl: 'http://127.0.0.1:1/v/acme', bearerToken: 'nonce.sess-1' };
 	const claude = { id: 'claude', provider: 'acme' };
@@ -1482,18 +1482,14 @@ suite('composeByokSessionConfig', () => {
 	});
 
 	test('resolves the direct family from the provider-qualified selection id', () => {
-		const provider = new FakeLocalModelProvider([MAI_ROW]);
-		try {
-			assert.deepStrictEqual([
-				findLocalModelDirectFamily(provider, 'vscode-on-device/mai-code-1.1-flash'),
-				findLocalModelDirectFamily(provider, 'mai-code-1.1-flash-local'),
-				findLocalModelDirectFamily(provider, 'auto'),
-				findLocalModelDirectFamily(provider, undefined),
-				findLocalModelDirectFamily(undefined, 'vscode-on-device/mai-code-1.1-flash'),
-			], ['mai-code-1.1-flash-local', undefined, undefined, undefined, undefined]);
-		} finally {
-			provider.dispose();
-		}
+		const provider = store.add(new FakeLocalModelProvider([MAI_ROW]));
+		assert.deepStrictEqual([
+			findLocalModelDirectFamily(provider, 'vscode-on-device/mai-code-1.1-flash'),
+			findLocalModelDirectFamily(provider, 'mai-code-1.1-flash-local'),
+			findLocalModelDirectFamily(provider, 'auto'),
+			findLocalModelDirectFamily(provider, undefined),
+			findLocalModelDirectFamily(undefined, 'vscode-on-device/mai-code-1.1-flash'),
+		], ['mai-code-1.1-flash-local', undefined, undefined, undefined, undefined]);
 	});
 });
 
@@ -1506,7 +1502,7 @@ suite('composeByokSessionConfig', () => {
  */
 suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const sessionId = 'sess-1';
 
@@ -1582,25 +1578,21 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 	});
 
 	test('does not synthesize BYOK session config while root configuration disables it', async () => {
-		const store = new DisposableStore();
+		const store = disposables.add(new DisposableStore());
 		const proxy = fakeProxyService();
 		const registry = new ByokLmBridgeRegistry();
 		store.add(registry.register('client-1', connectionOf(store, [{ vendor: 'acme', id: 'claude' }])));
 		const launcher = createLauncher(store, proxy.service, registry, false);
 
-		try {
-			const config = await launcher.resolveByokSessionConfig(sessionId);
-			assert.deepStrictEqual({ config, proxyStarts: proxy.starts }, { config: {}, proxyStarts: 0 });
-		} finally {
-			store.dispose();
-		}
+		const config = await launcher.resolveByokSessionConfig(sessionId);
+		assert.deepStrictEqual({ config, proxyStarts: proxy.starts }, { config: {}, proxyStarts: 0 });
 	});
 
 });
 
 suite('CopilotSessionLauncher Connectors', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const scenario of ['create', 'resume', 'reconcileError', 'malformedStatus', 'unsupported', 'noAccount', 'disabled'] as const) {
 		test(`uses session-owned Connector accounts without delaying launch: ${scenario}`, async () => {
@@ -1696,37 +1688,33 @@ suite('CopilotSessionLauncher Connectors', () => {
 			};
 
 			let launchConnectorReconcile: Parameters<ICopilotSessionRuntime['adoptLaunchConnectorReconcile']>[0] | undefined;
-			const launched = await launcher.launch(plan, {
+			store.add(await launcher.launch(plan, {
 				...testRuntime,
 				adoptLaunchConnectorReconcile: reconcile => launchConnectorReconcile = reconcile,
+			}));
+			const adopted = launchConnectorReconcile !== undefined;
+			reconcileReleased.complete();
+			const connectorServers = await launchConnectorReconcile;
+			assert.deepStrictEqual({
+				adopted,
+				featureFlags,
+				connectorCalls,
+				connectorDisplayName: connectorServers?.servers.get('connector-mail')?.displayName,
+				warnings: logService.warnings.map(warning => warning.message),
+			}, {
+				adopted: scenario !== 'disabled',
+				featureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: scenario !== 'disabled', TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, ...(scenario === 'disabled' ? {} : { MANAGED_MCP_SERVERS: true }) },
+				connectorCalls: scenario === 'disabled' ? []
+					: scenario === 'unsupported' ? ['capabilities']
+						: scenario === 'noAccount' ? ['capabilities', 'account']
+							: ['capabilities', 'account', 'reconcile:session-account:true', ...(scenario === 'reconcileError' ? ['status'] : [])],
+				connectorDisplayName: scenario === 'disabled' || scenario === 'unsupported' || scenario === 'noAccount' || scenario === 'malformedStatus' ? undefined : 'Work IQ Mail',
+				warnings: scenario === 'unsupported' ? ['[Copilot:connector-session] Connector MCP reconciliation skipped because the runtime does not support session-owned Connector accounts']
+					: scenario === 'noAccount' ? ['[Copilot:connector-session] Connector MCP reconciliation skipped because the session account could not be resolved']
+						: scenario === 'reconcileError' ? ['[Copilot:connector-session] Connector MCP reconciliation failed; using the current Connector state when available: MCP server requires authentication']
+							: scenario === 'malformedStatus' ? ['[Copilot:connector-session] Connector MCP reconciliation failed unexpectedly']
+								: [],
 			});
-			try {
-				const adopted = launchConnectorReconcile !== undefined;
-				reconcileReleased.complete();
-				const connectorServers = await launchConnectorReconcile;
-				assert.deepStrictEqual({
-					adopted,
-					featureFlags,
-					connectorCalls,
-					connectorDisplayName: connectorServers?.servers.get('connector-mail')?.displayName,
-					warnings: logService.warnings.map(warning => warning.message),
-				}, {
-					adopted: scenario !== 'disabled',
-					featureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: scenario !== 'disabled', TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, ...(scenario === 'disabled' ? {} : { MANAGED_MCP_SERVERS: true }) },
-					connectorCalls: scenario === 'disabled' ? []
-						: scenario === 'unsupported' ? ['capabilities']
-							: scenario === 'noAccount' ? ['capabilities', 'account']
-								: ['capabilities', 'account', 'reconcile:session-account:true', ...(scenario === 'reconcileError' ? ['status'] : [])],
-					connectorDisplayName: scenario === 'disabled' || scenario === 'unsupported' || scenario === 'noAccount' || scenario === 'malformedStatus' ? undefined : 'Work IQ Mail',
-					warnings: scenario === 'unsupported' ? ['[Copilot:connector-session] Connector MCP reconciliation skipped because the runtime does not support session-owned Connector accounts']
-						: scenario === 'noAccount' ? ['[Copilot:connector-session] Connector MCP reconciliation skipped because the session account could not be resolved']
-							: scenario === 'reconcileError' ? ['[Copilot:connector-session] Connector MCP reconciliation failed; using the current Connector state when available: MCP server requires authentication']
-								: scenario === 'malformedStatus' ? ['[Copilot:connector-session] Connector MCP reconciliation failed unexpectedly']
-									: [],
-				});
-			} finally {
-				launched.dispose();
-			}
 		});
 	}
 
@@ -1816,7 +1804,7 @@ suite('getCopilotAgentSelectionName', () => {
 
 suite('CopilotSessionLauncher shared session config', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const kind of ['create', 'resume', 'recover', 'recover-empty', 'create-selection-error', 'resume-selection-error'] as const) {
 		test(`${kind} selects native plugin agents without registering their definitions`, async () => {
@@ -1875,19 +1863,15 @@ suite('CopilotSessionLauncher shared session config', () => {
 				assert.deepStrictEqual({ calls, disconnected }, { calls: [planKind, 'list', `select:${nativeAgent.id}`], disconnected: true });
 				return;
 			}
-			const wrapper = await createTestLauncher().launch(plan, testRuntime);
-			try {
-				assert.deepStrictEqual({
-					agent: captured?.agent,
-					nativeDefinitions: captured?.customAgents?.filter(agent => agent.name === nativeAgent.name || agent.name === nativeAgent.id),
-					calls,
-				}, {
-					agent: undefined, nativeDefinitions: [],
-					calls: [...(kind.startsWith('recover') ? ['resume', 'create'] : [kind]), 'list', `select:${nativeAgent.id}`],
-				});
-			} finally {
-				wrapper.dispose();
-			}
+			store.add(await createTestLauncher().launch(plan, testRuntime));
+			assert.deepStrictEqual({
+				agent: captured?.agent,
+				nativeDefinitions: captured?.customAgents?.filter(agent => agent.name === nativeAgent.name || agent.name === nativeAgent.id),
+				calls,
+			}, {
+				agent: undefined, nativeDefinitions: [],
+				calls: [...(kind.startsWith('recover') ? ['resume', 'create'] : [kind]), 'list', `select:${nativeAgent.id}`],
+			});
 		});
 	}
 
@@ -1907,32 +1891,28 @@ suite('CopilotSessionLauncher shared session config', () => {
 			const launcher = createTestLauncher(undefined, {
 				[CopilotCliConfigKey.ModelCapabilityOverrides]: { '*': { availableTools: configuredTools } },
 			}, logService);
-			const wrapper = await launcher.launch({
+			store.add(await launcher.launch({
 				kind: 'create', client, sessionId: 'tool-profile', model: undefined, workingDirectory: testWorkingDirectory,
 				resolvedAgentName: undefined, snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
 				githubCredentials: scoped
 					? CopilotGitHubSessionCredentials.fromCredential({ resource: 'https://api.github.com', token: 'scoped', expiresAt: undefined, revision: 1 })
 					: CopilotGitHubSessionCredentials.fromToken('legacy'),
-			}, testRuntime);
-			try {
-				assert.deepStrictEqual({
-					tools: configs[0].availableTools,
-					instructions: configs[0].skipCustomInstructions,
-					coauthor: configs[0].coauthorEnabled,
-					builtinSkills: configs[0].includedBuiltinSkills,
-					telemetry: configs[0].enableSessionTelemetry,
-					gitContext: configs[0].enableHostGitOperations,
-					environment: configs[0].systemMessage?.mode === 'customize' ? configs[0].systemMessage.sections?.environment_context : undefined,
-					rejectedTools: logService.warnings.filter(warning => warning.message.includes('Scoped profile rejected')).map(warning => warning.message),
-				}, {
-					tools: configuredTools,
-					instructions: undefined, coauthor: undefined, builtinSkills: undefined,
-					telemetry: undefined, gitContext: undefined, environment: undefined, rejectedTools: [],
-				});
-			} finally {
-				wrapper.dispose();
-			}
+			}, testRuntime));
+			assert.deepStrictEqual({
+				tools: configs[0].availableTools,
+				instructions: configs[0].skipCustomInstructions,
+				coauthor: configs[0].coauthorEnabled,
+				builtinSkills: configs[0].includedBuiltinSkills,
+				telemetry: configs[0].enableSessionTelemetry,
+				gitContext: configs[0].enableHostGitOperations,
+				environment: configs[0].systemMessage?.mode === 'customize' ? configs[0].systemMessage.sections?.environment_context : undefined,
+				rejectedTools: logService.warnings.filter(warning => warning.message.includes('Scoped profile rejected')).map(warning => warning.message),
+			}, {
+				tools: configuredTools,
+				instructions: undefined, coauthor: undefined, builtinSkills: undefined,
+				telemetry: undefined, gitContext: undefined, environment: undefined, rejectedTools: [],
+			});
 		});
 	}
 
@@ -2626,7 +2606,7 @@ suite('CopilotSessionLauncher ExP assignment context', () => {
 });
 
 suite('CopilotSessionLauncher canvas config', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('fails closed when a canvas-enabled client residency has no extension SDK path', async () => {
 		const launcher = createTestLauncher(undefined, { [AgentHostCanvasesEnabledConfigKey]: true });
@@ -2682,24 +2662,20 @@ suite('CopilotSessionLauncher canvas config', () => {
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
 		};
 
-		const wrapper = await launcher.launch(plan, testRuntime);
-		try {
-			assert.deepStrictEqual({
-				requestExtensions: captured?.requestExtensions,
-				requestCanvasRenderer: captured?.requestCanvasRenderer,
-				extensionSdkPath: captured?.extensionSdkPath,
-				toolNames: captured?.tools?.map(tool => tool.name),
-				wrapperCanvasRuntimeEnabled: wrapper.canvasRuntimeEnabled,
-			}, {
-				requestExtensions: false,
-				requestCanvasRenderer: false,
-				extensionSdkPath: undefined,
-				toolNames: [],
-				wrapperCanvasRuntimeEnabled: false,
-			});
-		} finally {
-			wrapper.dispose();
-		}
+		const wrapper = store.add(await launcher.launch(plan, testRuntime));
+		assert.deepStrictEqual({
+			requestExtensions: captured?.requestExtensions,
+			requestCanvasRenderer: captured?.requestCanvasRenderer,
+			extensionSdkPath: captured?.extensionSdkPath,
+			toolNames: captured?.tools?.map(tool => tool.name),
+			wrapperCanvasRuntimeEnabled: wrapper.canvasRuntimeEnabled,
+		}, {
+			requestExtensions: false,
+			requestCanvasRenderer: false,
+			extensionSdkPath: undefined,
+			toolNames: [],
+			wrapperCanvasRuntimeEnabled: false,
+		});
 	});
 
 	test('does not request canvas extensions or rendering by default', async () => {
@@ -2732,24 +2708,20 @@ suite('CopilotSessionLauncher canvas config', () => {
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
 		};
 
-		const wrapper = await launcher.launch(plan, testRuntime);
-		try {
-			assert.deepStrictEqual({
-				requestExtensions: captured?.requestExtensions,
-				requestCanvasRenderer: captured?.requestCanvasRenderer,
-				extensionSdkPath: captured?.extensionSdkPath,
-				toolNames: captured?.tools?.map(tool => tool.name),
-				wrapperCanvasRuntimeEnabled: wrapper.canvasRuntimeEnabled,
-			}, {
-				requestExtensions: false,
-				requestCanvasRenderer: false,
-				extensionSdkPath: undefined,
-				toolNames: [],
-				wrapperCanvasRuntimeEnabled: false,
-			});
-		} finally {
-			wrapper.dispose();
-		}
+		const wrapper = store.add(await launcher.launch(plan, testRuntime));
+		assert.deepStrictEqual({
+			requestExtensions: captured?.requestExtensions,
+			requestCanvasRenderer: captured?.requestCanvasRenderer,
+			extensionSdkPath: captured?.extensionSdkPath,
+			toolNames: captured?.tools?.map(tool => tool.name),
+			wrapperCanvasRuntimeEnabled: wrapper.canvasRuntimeEnabled,
+		}, {
+			requestExtensions: false,
+			requestCanvasRenderer: false,
+			extensionSdkPath: undefined,
+			toolNames: [],
+			wrapperCanvasRuntimeEnabled: false,
+		});
 	});
 });
 
@@ -2933,7 +2905,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 });
 
 suite('CopilotSessionLauncher execution subagent', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function setup(kind: 'create' | 'resume', defaultEnabled: boolean, runtimeAvailable: boolean, hasClientTool = true, setToolsError?: Error, catalogError?: Error) {
 		const toolUpdates: string[][] = [];
@@ -3010,41 +2982,33 @@ suite('CopilotSessionLauncher execution subagent', () => {
 	for (const kind of ['create', 'resume'] as const) {
 		test(`${kind}: SDK initialization uses the exact tool configuration compared during reconciliation`, async () => {
 			const fixture = setup(kind, true, false);
-			const launched = await fixture.launch();
-			try {
-				const configuration = fixture.configuration();
-				const actual = fixture.launchConfigurations[0];
-				assert.ok(configuration);
-				assert.ok(actual);
-				const keys = Object.keys(configuration.sessionConfig) as (keyof typeof configuration.sessionConfig)[];
-				assert.deepStrictEqual({
-					actual: Object.fromEntries(keys.map(key => [key, actual[key]])),
-					desired: configuration.resolve(fixture.initialDefinitions).sessionConfig,
-				}, {
-					actual: configuration.sessionConfig,
-					desired: configuration.sessionConfig,
-				});
-			} finally {
-				launched.dispose();
-			}
+			store.add(await fixture.launch());
+			const configuration = fixture.configuration();
+			const actual = fixture.launchConfigurations[0];
+			assert.ok(configuration);
+			assert.ok(actual);
+			const keys = Object.keys(configuration.sessionConfig) as (keyof typeof configuration.sessionConfig)[];
+			assert.deepStrictEqual({
+				actual: Object.fromEntries(keys.map(key => [key, actual[key]])),
+				desired: configuration.resolve(fixture.initialDefinitions).sessionConfig,
+			}, {
+				actual: configuration.sessionConfig,
+				desired: configuration.sessionConfig,
+			});
 		});
 
 		for (const defaultEnabled of [false, true]) {
 			for (const runtimeAvailable of [false, true]) {
 				test(`${kind}: runtime execution availability=${runtimeAvailable} controls client tool suppression with VS Code default=${defaultEnabled}`, async () => {
 					const fixture = setup(kind, defaultEnabled, runtimeAvailable);
-					const launched = await fixture.launch();
-					try {
-						assert.deepStrictEqual({
-							descriptorRequests: fixture.descriptorRequests(),
-							toolUpdates: fixture.toolUpdates,
-						}, {
-							descriptorRequests: 1,
-							toolUpdates: runtimeAvailable ? [['clientRead']] : [],
-						});
-					} finally {
-						launched.dispose();
-					}
+					store.add(await fixture.launch());
+					assert.deepStrictEqual({
+						descriptorRequests: fixture.descriptorRequests(),
+						toolUpdates: fixture.toolUpdates,
+					}, {
+						descriptorRequests: 1,
+						toolUpdates: runtimeAvailable ? [['clientRead']] : [],
+					});
 				});
 			}
 		}
@@ -3052,54 +3016,42 @@ suite('CopilotSessionLauncher execution subagent', () => {
 			test(`${kind}: keeps the extension execution tool when the runtime catalog fails with ${message}`, async () => {
 				const error = new Error(message);
 				const fixture = setup(kind, false, false, true, undefined, error);
-				const launched = await fixture.launch();
-				try {
-					assert.deepStrictEqual({
-						descriptorRequests: fixture.descriptorRequests(),
-						toolUpdates: fixture.toolUpdates,
-						disconnects: fixture.disconnects(),
-						warnings: fixture.logService.warnings,
-					}, {
-						descriptorRequests: 1,
-						toolUpdates: [],
-						disconnects: 0,
-						warnings: [{
-							message: '[Copilot:execution-session] Could not resolve runtime tool catalog; keeping extension execution tool',
-							args: [error],
-						}],
-					});
-				} finally {
-					launched.dispose();
-				}
+				store.add(await fixture.launch());
+				assert.deepStrictEqual({
+					descriptorRequests: fixture.descriptorRequests(),
+					toolUpdates: fixture.toolUpdates,
+					disconnects: fixture.disconnects(),
+					warnings: fixture.logService.warnings,
+				}, {
+					descriptorRequests: 1,
+					toolUpdates: [],
+					disconnects: 0,
+					warnings: [{
+						message: '[Copilot:execution-session] Could not resolve runtime tool catalog; keeping extension execution tool',
+						args: [error],
+					}],
+				});
 			});
 		}
 	}
 
 	test('does not resolve the runtime tool catalog when the extension execution tool is absent', async () => {
 		const fixture = setup('create', true, true, false);
-		const launched = await fixture.launch();
-		try {
-			assert.deepStrictEqual({ descriptorRequests: fixture.descriptorRequests(), toolUpdates: fixture.toolUpdates }, {
-				descriptorRequests: 0, toolUpdates: [],
-			});
-		} finally {
-			launched.dispose();
-		}
+		store.add(await fixture.launch());
+		assert.deepStrictEqual({ descriptorRequests: fixture.descriptorRequests(), toolUpdates: fixture.toolUpdates }, {
+			descriptorRequests: 0, toolUpdates: [],
+		});
 	});
 
 	for (const initiallyPresent of [false, true]) {
 		test(`live replacement keeps the extension execution tool suppressed when initially present=${initiallyPresent}`, async () => {
 			const fixture = setup('create', true, true, initiallyPresent);
-			const launched = await fixture.launch();
-			try {
-				await fixture.replaceTools([{ name: 'executionSubagent', handler: () => 'done' }, { name: 'newClient', handler: () => 'done' }]);
-				assert.deepStrictEqual({ requests: fixture.descriptorRequests(), updates: fixture.toolUpdates }, {
-					requests: 1,
-					updates: [...(initiallyPresent ? [['clientRead']] : []), ['newClient']],
-				});
-			} finally {
-				launched.dispose();
-			}
+			store.add(await fixture.launch());
+			await fixture.replaceTools([{ name: 'executionSubagent', handler: () => 'done' }, { name: 'newClient', handler: () => 'done' }]);
+			assert.deepStrictEqual({ requests: fixture.descriptorRequests(), updates: fixture.toolUpdates }, {
+				requests: 1,
+				updates: [...(initiallyPresent ? [['clientRead']] : []), ['newClient']],
+			});
 		});
 	}
 
