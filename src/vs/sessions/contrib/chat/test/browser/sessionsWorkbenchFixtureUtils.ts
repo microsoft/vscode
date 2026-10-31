@@ -38,7 +38,7 @@ import { SessionsPart } from '../../../../browser/parts/sessionsPart.js';
 import { TitlebarPart } from '../../../../browser/parts/titlebarPart.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../common/layoutConstants.js';
-import { CanGoBackContext, IsQuickChatSessionContext, MultipleSessionsVisibleContext, SessionHasWorkspaceContext, SessionWorkspaceIsVirtualContext } from '../../../../common/contextkeys.js';
+import { CanGoBackContext, MultipleSessionsVisibleContext, SessionWorkspaceIsVirtualContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
@@ -137,15 +137,9 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	CanGoBackContext.bindTo(services.contextKeyService).set(true);
 	const multipleSessions = MultipleSessionsVisibleContext.bindTo(services.contextKeyService);
 	const virtualWorkspace = SessionWorkspaceIsVirtualContext.bindTo(services.contextKeyService);
-	const hasWorkspace = SessionHasWorkspaceContext.bindTo(services.contextKeyService);
-	const quickChat = IsQuickChatSessionContext.bindTo(services.contextKeyService);
 	disposableStore.add(autorun(reader => {
 		multipleSessions.set(sessionsService.visibleSessions.read(reader).length > 1);
-		const activeSession = sessionsService.activeSession.read(reader);
-		const workspace = activeSession?.activeChat.read(reader).workspace.read(reader);
-		virtualWorkspace.set(workspace?.isVirtualWorkspace ?? false);
-		hasWorkspace.set(!!workspace?.label);
-		quickChat.set(activeSession?.isQuickChat?.read(reader) ?? false);
+		virtualWorkspace.set(sessionsService.activeSession.read(reader)?.activeChat.read(reader).workspace.read(reader)?.isVirtualWorkspace ?? false);
 	}));
 	disposableStore.add(acquireWorkbenchActions());
 	instantiationService.stub(ICommandService, new TestCommandService(instantiationService));

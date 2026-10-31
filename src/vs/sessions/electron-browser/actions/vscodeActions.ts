@@ -19,8 +19,7 @@ import { IsLinuxContext } from '../../../platform/contextkey/common/contextkeys.
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { EditorAreaFocusContext, IsAuxiliaryWindowContext } from '../../../workbench/common/contextkeys.js';
-import { SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
-import { OpenInEditorAvailableContext, OpenInEditorTitleBarContext } from '../../browser/openInEditorExperiment.js';
+import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
 import { Menus } from '../../browser/menus.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
@@ -32,10 +31,17 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { resolveRemoteFolderUri } from '../../browser/openInVSCodeUtils.js';
 import { INativeHostService } from '../../../platform/native/common/native.js';
-import { IFolderToOpen, IOpenedMainWindow } from '../../../platform/window/common/window.js';
+import { IFolderToOpen, IOpenedMainWindow, IWindowOpenable } from '../../../platform/window/common/window.js';
 import { ILabelService, Verbosity } from '../../../platform/label/common/label.js';
 import { OPEN_VSCODE_WINDOW_COMMAND_ID, RETURN_TO_VSCODE_EDITOR_COMMAND_ID, SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../../common/sessionCommands.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { logExperimentTrigger } from '../../../platform/telemetry/common/experimentTrigger.js';
+import { isRecentFolder, IWorkspacesService } from '../../../platform/workspaces/common/workspaces.js';
+import { IWorkbenchAssignmentService } from '../../../workbench/services/assignment/common/assignmentService.js';
+
+/** ExP treatment that makes Open in Editor reveal a recent editor window for a folderless chat, instead of opening an empty window. */
+export const FOLDERLESS_OPEN_IN_EDITOR_REVEALS_RECENT_WINDOW_TREATMENT = 'sessions.folderlessOpenInEditorRevealsRecentWindow';
 
 export class OpenSessionInVSCodeAction extends Action2 {
 	static readonly ID = 'agents.openSessionInVSCode';
@@ -45,12 +51,12 @@ export class OpenSessionInVSCodeAction extends Action2 {
 			id: OpenSessionInVSCodeAction.ID,
 			title: localize2('openInVSCode', 'Open in Editor'),
 			icon: Codicon.vscodeInsiders,
-			precondition: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), OpenInEditorAvailableContext),
+			precondition: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
 			menu: [{
 				id: Menus.TitleBarCenterRight,
 				group: 'navigation',
 				order: 7,
-				when: ContextKeyExpr.and(OpenInEditorTitleBarContext, OpenInEditorAvailableContext),
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate()),
 			}]
 		});
 	}
@@ -71,10 +77,22 @@ export async function openSessionInVSCode(accessor: ServicesAccessor, session: I
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 	const labelService = accessor.get(ILabelService);
+	const telemetryService = accessor.get(ITelemetryService);
+	const assignmentService = accessor.get(IWorkbenchAssignmentService);
+	const workspacesService = accessor.get(IWorkspacesService);
+	const logService = accessor.get(ILogService);
 
 	const folders = session?.activeChat.get().workspace.get()?.folders;
 	if (!session || !folders?.length) {
-		return nativeHostService.openWindow();
+		// A folderless chat has no folder to open. The experiment reveals a recent editor window instead of an empty one.
+		logExperimentTrigger(telemetryService, FOLDERLESS_OPEN_IN_EDITOR_REVEALS_RECENT_WINDOW_TREATMENT);
+		let revealRecentWindow = false;
+		try {
+			revealRecentWindow = await assignmentService.getTreatment<boolean>(FOLDERLESS_OPEN_IN_EDITOR_REVEALS_RECENT_WINDOW_TREATMENT) === true;
+		} catch (error) {
+			logService.warn('[openSessionInVSCode] Failed to resolve the folderless Open in Editor treatment; opening an empty window.', error);
+		}
+		return revealRecentWindow ? revealRecentEditorWindow(nativeHostService, workspacesService) : nativeHostService.openWindow();
 	}
 
 	const foldersToOpen: IFolderToOpen[] = [];
@@ -91,6 +109,30 @@ export async function openSessionInVSCode(accessor: ServicesAccessor, session: I
 
 	const chatSessionToOpen = getChatSessionToOpenInEditor(session);
 	return nativeHostService.openWindow(foldersToOpen, { forceNewWindow: true, chatSessionToOpen });
+}
+
+/**
+ * Brings forward the editor window that had focus most recently. When no other window is open, opens the most
+ * recently opened folder or workspace instead, and only opens an empty window when nothing was opened recently.
+ */
+async function revealRecentEditorWindow(nativeHostService: INativeHostService, workspacesService: IWorkspacesService): Promise<void> {
+	const currentWindowId = getWindowId(mainWindow);
+	const windows = await nativeHostService.getWindows({ includeAuxiliaryWindows: false });
+	const recentWindow = windows
+		.filter(window => window.id !== currentWindowId)
+		.sort((a, b) => (b.lastFocusTime ?? 0) - (a.lastFocusTime ?? 0))
+		.at(0);
+	if (recentWindow) {
+		return nativeHostService.focusWindow({ targetWindowId: recentWindow.id });
+	}
+
+	const recent = (await workspacesService.getRecentlyOpened()).workspaces.at(0);
+	if (recent) {
+		const toOpen: IWindowOpenable = isRecentFolder(recent) ? { folderUri: recent.folderUri, label: recent.label } : { workspaceUri: recent.workspace.configPath, label: recent.label };
+		return nativeHostService.openWindow([toOpen], { forceNewWindow: true });
+	}
+
+	return nativeHostService.openWindow();
 }
 
 /**
