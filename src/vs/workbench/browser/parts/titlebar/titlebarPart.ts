@@ -469,6 +469,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.menubar?.remove();
 		this.menubar = undefined;
 
+		// Relayout and notify listeners. When the menu bar is being recreated (compact
+		// mode changed), this is transient: the new control reports its own visibility.
 		this.onMenubarVisibilityChanged(false);
 	}
 
