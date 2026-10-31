@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { load } from 'js-yaml';
 import { getWebCdnConfiguration, validateMobileWebCdnIdentity } from '../../azure-pipelines/web/cdnConfiguration.ts';
+import { mobilePreviewDirectory, mobilePreviewManifestName } from '../../next/mobilePreview.ts';
 
 const commit = '0123456789abcdef0123456789abcdef01234567';
 
@@ -22,9 +23,9 @@ test('normal publication keeps its existing source, commit directory and file in
 
 test('mobile publication cannot enter the normal web preload directory', () => {
 	assert.deepStrictEqual(getWebCdnConfiguration(['--mobile'], 'insider', commit), {
-		source: 'out-mobile-preview',
+		source: mobilePreviewDirectory,
 		prefix: `agents/mobile/insider/${commit}/`,
-		patterns: ['out/**', 'node_modules/**', 'extensions/**', 'mobile-preview.json'],
+		patterns: ['out/**', 'node_modules/**', 'extensions/**', mobilePreviewManifestName],
 		mobile: true,
 	});
 	for (const [quality, revision] of [['dev', commit], ['stable', undefined], ['stable', '../other']]) {
