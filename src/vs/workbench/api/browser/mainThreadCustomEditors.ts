@@ -747,6 +747,9 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	public markDisconnected(): void {
 		if (!this._isDisconnected) {
 			this._isDisconnected = true;
+			if (this._editable) {
+				this._undoService.removeElements(this._editorResource);
+			}
 			if (this._hotExitState.type === HotExitState.Type.Pending) {
 				this._hotExitState.operation.cancel();
 				this._hotExitState = HotExitState.NotAllowed;
