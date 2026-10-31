@@ -134,6 +134,7 @@ export class SetupTestsInvocation implements IIntentInvocation {
 		await this.endpoint.makeChatRequest2({
 			debugName: 'testSetupAutomaticFrameworkID',
 			messages: prompt.messages,
+			modelConfiguration: this.buildPromptContext.request?.modelConfiguration,
 			finishedCb: (text, _, delta) => {
 				inputStream.update(text, delta);
 				return Promise.resolve(undefined);
@@ -210,6 +211,7 @@ export class SetupTestsInvocation implements IIntentInvocation {
 		const fetchResult = await this.endpoint.makeChatRequest2({
 			debugName: 'setupTestDeriveName',
 			messages: deriveResponsePrompt.messages,
+			modelConfiguration: this.buildPromptContext.request?.modelConfiguration,
 			finishedCb: undefined,
 			location: ChatLocation.Panel,
 		}, token);
