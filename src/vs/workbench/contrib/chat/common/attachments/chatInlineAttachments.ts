@@ -11,7 +11,7 @@ import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { PositionOffsetTransformer } from '../../../../../editor/common/core/text/positionToOffset.js';
 import { isLocation } from '../../../../../editor/common/languages.js';
-import { ChatRequestDynamicVariablePart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, chatVariableLeader, IParsedChatRequest, IParsedChatRequestPart } from '../requestParser/chatParserTypes.js';
+import { chatAgentLeader, ChatRequestDynamicVariablePart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, chatVariableLeader, IParsedChatRequest, IParsedChatRequestPart } from '../requestParser/chatParserTypes.js';
 import { IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isPastedTextArtifact } from './chatVariableEntries.js';
 import { IDynamicVariable } from './chatVariables.js';
 
@@ -223,9 +223,19 @@ export function canShowAttachmentInline(attachment: IChatRequestVariableEntry): 
  * to the request once, however many pills mention it.
  */
 export function getAttachmentPromptText(attachment: IChatRequestVariableEntry): string {
-	const name = getAttachmentLabel(attachment).replace(/\r\n|\r|\n/g, ' ');
+	const name = getAttachmentPromptName(attachment);
 	const location = getAttachmentLocation(attachment);
-	return location ? `[${name.replace(/[\\[\]]/g, '\\$&')}](${location})` : name;
+	return location ? `${getMarkdownLinkLabel(name)}(${location})` : name;
+}
+
+/** The name of an attachment in the prompt sent to the model, see {@link getAttachmentPromptText}. */
+function getAttachmentPromptName(attachment: IChatRequestVariableEntry): string {
+	return getAttachmentLabel(attachment).replace(/\r\n|\r|\n/g, ' ');
+}
+
+/** The label of a Markdown link that reads as `name`, such as `[index.ts]`. */
+function getMarkdownLinkLabel(name: string): string {
+	return `[${name.replace(/[\\[\]]/g, '\\$&')}]`;
 }
 
 /** The name of an attachment, as its pill shows it. */
@@ -348,8 +358,12 @@ export function getInlineRequestAttachments(parts: readonly IParsedChatRequestPa
  * attachment again: what the prompt says in its place, see
  * {@link getAttachmentPromptText}, its mention by name, see
  * {@link getAttachmentMention}, the reference that a completion inserts for a
- * file or folder, or the link of a GitHub issue or pull request. Mentions of
- * attachments that share a name are bound to them in order.
+ * file or folder, or the link of a GitHub issue or pull request. A Markdown
+ * link that reads as an attachment's name mentions the attachment wherever the
+ * link goes, since history may keep an attachment elsewhere than the prompt
+ * said, as an agent host keeps its own copy of an image. Mentions of
+ * attachments that share a name are bound to them in order, except that a link
+ * is bound to the attachment that it links to.
  */
 export function recoverAttachmentMentions(message: IParsedChatRequest, variables: readonly IChatRequestVariableEntry[]): IParsedChatRequest {
 	const referencedIds = new Set<string>();
@@ -360,11 +374,19 @@ export function recoverAttachmentMentions(message: IParsedChatRequest, variables
 	}
 	const byMention = new Map<string, IChatRequestVariableEntry[]>();
 	const links = new Set<string>();
+	// The starts of Markdown links, such as `[index.ts](`, whose destinations follow.
+	const markdownLinks = new Set<string>();
 	for (const variable of variables) {
 		if (referencedIds.has(variable.id) || !variable.name || !canShowAttachmentInline(variable)) {
 			continue;
 		}
-		const mentions = new Set([getAttachmentPromptText(variable), getAttachmentMention(variable.name)]);
+		const name = getAttachmentPromptName(variable);
+		const markdownLink = `${getMarkdownLinkLabel(name)}(`;
+		markdownLinks.add(markdownLink);
+		const mentions = new Set([markdownLink, getAttachmentMention(variable.name), getAttachmentMention(variable.name, chatAgentLeader)]);
+		if (!getAttachmentLocation(variable)) {
+			mentions.add(name);
+		}
 		if (variable.kind === 'file' || variable.kind === 'directory') {
 			mentions.add(`${chatVariableLeader}file:${variable.name}`).add(`${chatVariableLeader}${variable.name}`);
 		}
@@ -403,6 +425,13 @@ export function recoverAttachmentMentions(message: IParsedChatRequest, variables
 					while (end < part.range.endExclusive && !/\s/.test(message.text.charAt(end))) {
 						end++;
 					}
+				} else if (markdownLinks.has(mention)) {
+					// A Markdown image, `![name](...)`, shows an image rather than mentioning an attachment.
+					const linkEnd = message.text.charAt(start - 1) === '!' ? undefined : getMarkdownLinkEnd(message.text, end, part.range.endExclusive);
+					if (linkEnd === undefined) {
+						continue;
+					}
+					end = linkEnd;
 				} else if (isWordCharacter(message.text.charAt(end)) || (isWordCharacter(mention.charAt(0)) && isWordCharacter(message.text.charAt(start - 1)))) {
 					// The name of an attachment without a location is only a mention when it is not part of a longer word.
 					continue;
@@ -419,14 +448,15 @@ export function recoverAttachmentMentions(message: IParsedChatRequest, variables
 			if (start < copiedUntil) {
 				continue;
 			}
+			const text = message.text.slice(start, end);
 			const candidates = byMention.get(mention)!;
 			const occurrence = occurrences.get(mention) ?? 0;
 			occurrences.set(mention, occurrence + 1);
-			const variable = candidates[Math.min(occurrence, candidates.length - 1)];
+			const variable = (markdownLinks.has(mention) ? candidates.find(candidate => getAttachmentPromptText(candidate) === text) : undefined)
+				?? candidates[Math.min(occurrence, candidates.length - 1)];
 			if (start > copiedUntil) {
 				parts.push(new ChatRequestTextPart(new OffsetRange(copiedUntil, start), toRange(copiedUntil, start), message.text.slice(copiedUntil, start)));
 			}
-			const text = message.text.slice(start, end);
 			parts.push(new ChatRequestDynamicVariablePart(new OffsetRange(start, end), toRange(start, end), text, variable.id, variable.modelDescription, variable.value, variable.fullName, variable.icon, undefined, undefined, undefined, true));
 			copiedUntil = end;
 		}
@@ -437,6 +467,31 @@ export function recoverAttachmentMentions(message: IParsedChatRequest, variables
 		}
 	}
 	return { text: message.text, parts };
+}
+
+/**
+ * The end of a Markdown link whose destination starts at `offset`, just past
+ * the parenthesis that closes the destination, or `undefined` when there is no
+ * destination there: it is empty, or not closed before whitespace or `endExclusive`.
+ */
+function getMarkdownLinkEnd(text: string, offset: number, endExclusive: number): number | undefined {
+	let depth = 0;
+	for (let i = offset; i < endExclusive; i++) {
+		const character = text.charAt(i);
+		if (character === '\\') {
+			i++;
+		} else if (character === '(') {
+			depth++;
+		} else if (character === ')') {
+			if (depth === 0) {
+				return i > offset ? i + 1 : undefined;
+			}
+			depth--;
+		} else if (isWhitespace(character)) {
+			return undefined;
+		}
+	}
+	return undefined;
 }
 
 

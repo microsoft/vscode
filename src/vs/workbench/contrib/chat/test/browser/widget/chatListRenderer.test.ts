@@ -70,6 +70,7 @@ import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfir
 import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentActivityLabel, getPersistentBackgroundActivity, getPersistentProgressState, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import type { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatToolConfirmationCarouselPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
@@ -95,7 +96,7 @@ import { ChatResponseResourceFileSystemProvider } from '../../../common/widget/c
 import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestDynamicVariablePart, ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { HookType } from '../../../common/promptSyntax/hookTypes.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelToolsConfirmationService } from '../../../common/tools/languageModelToolsConfirmationService.js';
@@ -2758,6 +2759,34 @@ suite('ChatListRenderer', () => {
 				expanded, staysExpanded, editingDisclosure: !!template.value.querySelector('details'),
 			}, { expanded: 'true', staysExpanded: true, editingDisclosure: false });
 		});
+	});
+
+	suite('inline request attachments', () => {
+		for (const restored of [false, true]) {
+			test(`shows an image above the request as well as its pill in the text (restored=${restored})`, () => {
+				const { configurationService, model, request, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+				configurationService.setUserConfiguration(ChatConfiguration.InlineAttachmentsEnabled, true);
+				request.response?.complete();
+				// History keeps the prompt sent to the model, which links to the image where it was, and its own copy of the image, as an agent host does.
+				const image: IChatRequestVariableEntry = { kind: 'image', id: 'image', name: 'shot.png', value: new Uint8Array([0x89, 0x50, 0x4E, 0x47]), mimeType: 'image/png', references: [{ kind: 'reference', reference: URI.file(restored ? '/history/shot.png' : '/downloads/shot.png') }] };
+				const file: IChatRequestVariableEntry = { kind: 'file', id: 'file', name: 'a.ts', value: URI.file('/src/a.ts') };
+				const text = restored ? '[shot.png](file:///downloads/shot.png) breaks [a.ts](file:///src/a.ts)' : '#attachment:shot.png breaks #attachment:a.ts';
+				const parts = restored ? [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] : [
+					new ChatRequestDynamicVariablePart(new OffsetRange(0, 20), new Range(1, 1, 1, 21), '#attachment:shot.png', image.id, undefined, image.value, undefined, undefined, false, false, undefined, true),
+					new ChatRequestTextPart(new OffsetRange(20, 28), new Range(1, 21, 1, 29), ' breaks '),
+					new ChatRequestDynamicVariablePart(new OffsetRange(28, 44), new Range(1, 29, 1, 45), '#attachment:a.ts', file.id, undefined, file.value, undefined, undefined, true, false, undefined, true),
+				];
+				model.addRequest({ text, parts }, { variables: [image, file] }, 0);
+				renderer.renderElement({ ...node, element: viewModel.getItems().filter(isRequestVM)[1] }, 2, template);
+
+				const kinds = (selector: string) => Array.from(template.value.querySelectorAll(selector), attachment => attachment.classList.contains('image-attachment') ? 'image' : 'file');
+				assert.deepStrictEqual({
+					above: kinds(':scope > .chat-request-attachment-cards .chat-attached-context-attachment'),
+					inline: kinds('.rendered-markdown .chat-request-inline-attachment .chat-attached-context-attachment'),
+					links: template.value.querySelectorAll('.rendered-markdown a[data-href^="file:"]').length,
+				}, { above: ['image'], inline: ['image', 'file'], links: 0 });
+			});
+		}
 	});
 
 	function configureTerminalProgressRenderer({ instantiationService, configurationService }: Pick<ReturnType<typeof createPersistentProgressRenderer>, 'instantiationService' | 'configurationService'>): void {
