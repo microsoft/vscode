@@ -197,12 +197,6 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	hideInput?: boolean;
 
 	/**
-	 * Use neutral item backgrounds to keep selection distinct from the focus outline.
-	 * @deprecated This presentation option will change; see https://github.com/microsoft/vscode/issues/345292.
-	 */
-	useNeutralSelection?: boolean;
-
-	/**
 	 * a context key to set when this picker is active
 	 */
 	contextKey?: string;
@@ -322,12 +316,6 @@ export const enum QuickInputType {
  */
 export interface IQuickInput extends IDisposable {
 	/**
-	 * Optional content rendered above the standard input or picker content.
-	 * @deprecated Use {@link IQuickWidget.widget} instead; see https://github.com/microsoft/vscode/issues/345286.
-	 */
-	widget?: unknown /* HTMLElement */;
-
-	/**
 	 * The type of the quick input.
 	 */
 	readonly type: QuickInputType;
@@ -383,12 +371,6 @@ export interface IQuickInput extends IDisposable {
 	enabled: boolean;
 
 	/**
-	 * Use neutral item backgrounds to keep selection distinct from the focus outline.
-	 * @deprecated This presentation option will change; see https://github.com/microsoft/vscode/issues/345292.
-	 */
-	useNeutralSelection?: boolean;
-
-	/**
 	 * The context key associated with the quick input.
 	 */
 	contextKey: string | undefined;
@@ -438,8 +420,7 @@ export interface IQuickInput extends IDisposable {
 	willHide(reason?: QuickInputHideReason): void;
 }
 
-/** Omits the base widget declaration to avoid inheriting its deprecation. */
-export interface IQuickWidget extends Omit<IQuickInput, 'widget'> {
+export interface IQuickWidget extends IQuickInput {
 
 	/**
 	 * The type of the quick input.
