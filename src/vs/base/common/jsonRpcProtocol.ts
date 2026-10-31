@@ -75,6 +75,7 @@ export class JsonRpcProtocol extends Disposable {
 
 	private _nextRequestId = 1;
 	private readonly _pendingRequests = new Map<JsonRpcId, IPendingRequest>();
+	private readonly _incomingRequests = new Map<JsonRpcId, CancellationTokenSource>();
 
 	constructor(
 		private readonly _send: (message: JsonRpcMessage) => void,
@@ -160,6 +161,13 @@ export class JsonRpcProtocol extends Disposable {
 		}
 	}
 
+	/**
+	 * Cancels the token passed to the handler of an incoming request that is still being handled.
+	 */
+	public cancelIncomingRequest(id: JsonRpcId): void {
+		this._incomingRequests.get(id)?.cancel();
+	}
+
 	public cancelAllRequests(): void {
 		for (const [id, pending] of this._pendingRequests) {
 			this._pendingRequests.delete(id);
@@ -228,6 +236,7 @@ export class JsonRpcProtocol extends Disposable {
 
 		const cts = new CancellationTokenSource();
 		this._register(toDisposable(() => cts.dispose(true)));
+		this._incomingRequests.set(request.id, cts);
 
 		try {
 			const resultOrThenable = this._handlers.handleRequest(request, cts.token);
@@ -264,6 +273,9 @@ export class JsonRpcProtocol extends Disposable {
 			this._send(response);
 			return response;
 		} finally {
+			if (this._incomingRequests.get(request.id) === cts) {
+				this._incomingRequests.delete(request.id);
+			}
 			cts.dispose(true);
 		}
 	}
