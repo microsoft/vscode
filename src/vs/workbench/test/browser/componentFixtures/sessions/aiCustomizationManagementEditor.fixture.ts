@@ -2189,6 +2189,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			'Copilot customization rows did not finish rendering.',
 		);
 	}
+	if (options.selectedSection === AICustomizationManagementSection.Canvases) {
+		const browse = ctx.container.querySelector<HTMLElement>('[aria-label="Browse Canvas Extensions"]');
+		assert(browse !== null, 'Canvases must render its Browse action.');
+		assert(
+			browse.style.display === (marketplaceVisibilityEnabled ? '' : 'none'),
+			`Canvases Browse visibility must follow Marketplace availability; received "${browse.style.display}".`,
+		);
+	}
 	assert(!ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title, 'Home button must not duplicate its managed hover with a native tooltip.');
 	if (options.selectedSection === AICustomizationManagementSection.McpServers && options.marketplaceVisibilityEnabled === false) {
 		editor.revealLastItem();
@@ -3660,10 +3668,23 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	CanvasesTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Canvases literally reuses the shared Tools content container, including its recessed panel background, border, padding, title/search alignment, and source-group tree styling. It groups every supported inventory extension under User, Workspace, and Plugins sections, including extensions that report no Canvases. Extension rows do not repeat source icons; User and Plugin parents have enablement switches, while Workspace parents are read-only.'],
+		expectedVisualDescriptions: ['Canvases literally reuses the shared Tools content container, including its recessed panel background, border, padding, title/search alignment, and source-group tree styling. Its header includes a secondary Browse action that opens Discover filtered to Canvas extensions. It groups every supported inventory extension under User, Workspace, and Plugins sections, including extensions that report no Canvases. Extension rows do not repeat source icons; User and Plugin parents have enablement switches, while Workspace parents are read-only.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.Canvases,
+			marketplaceVisibilityEnabled: true,
+			copilotExtensionInventory: fixtureCopilotExtensionInventory,
+			copilotCanvases: fixtureCopilotCanvases,
+		}),
+	}),
+
+	CanvasesTabWithoutBrowse: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Canvases keeps the same title, documentation, search, and source-group tree layout when customization marketplace discovery is unavailable, without showing the Browse action.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.Canvases,
+			marketplaceVisibilityEnabled: false,
 			copilotExtensionInventory: fixtureCopilotExtensionInventory,
 			copilotCanvases: fixtureCopilotCanvases,
 		}),
