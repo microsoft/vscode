@@ -295,7 +295,7 @@ suite('SCM structural diff tree', () => {
 			warning: !!container.querySelector('.codicon-warning'),
 			warningColored: template.icon.classList.contains('codicon-colored'),
 			actions: container.querySelectorAll('.actions').length,
-		}, { classIcon: true, methodIcon: true, deletedText: 'run', deletedMarker: '[\u2212]', status: 'Partial structural changes', marker: '', warning: true, warningColored: false, actions: 0 });
+		}, { classIcon: true, methodIcon: true, deletedText: 'run', deletedMarker: 'D', status: 'Partial structural changes', marker: '', warning: true, warningColored: false, actions: 0 });
 	});
 
 	test('applies the same symbol theme colors as Outline when reusing a row', () => {
@@ -349,7 +349,8 @@ suite('SCM structural diff tree', () => {
 				modifiedChanges: [{ textChangeIndex: 0, range: new Range(3, 2, 3, 5), classification: StructuralDiffClassification.Implementation }],
 			},
 		};
-		const rows = [added, deleted, modified].map(element => {
+		const renamed = { ...modified, node: { ...modified.node, modified: { ...modified.node.modified!, name: 'runNext' } } };
+		const rows = [added, deleted, modified, renamed, modified].map(element => {
 			renderer.renderElement(makeNode(element), 0, template);
 			const color = getWindow(container).getComputedStyle(template.status).color;
 			return {
@@ -371,11 +372,13 @@ suite('SCM structural diff tree', () => {
 			decorative: template.status.getAttribute('aria-hidden'),
 		}, {
 			rows: [
-				{ marker: '[+]', iconClasses: [], color: 'rgb(10, 110, 30)', text: 'run(value: number)', annotation: '', activeHovers: 1, aria: 'run, method, Added, (value: number)' },
-				{ marker: '[\u2212]', iconClasses: [], color: 'rgb(160, 20, 40)', text: 'run', annotation: '', activeHovers: 1, aria: 'run, method, Deleted' },
-				{ marker: '[~]', iconClasses: [], color: 'rgb(30, 80, 170)', text: 'run', annotation: 'impl', activeHovers: 1, aria: 'run, method, Implementation changed' },
+				{ marker: 'A', iconClasses: [], color: 'rgb(10, 110, 30)', text: 'run(value: number)', annotation: '', activeHovers: 1, aria: 'run, method, Added, (value: number)' },
+				{ marker: 'D', iconClasses: [], color: 'rgb(160, 20, 40)', text: 'run', annotation: '', activeHovers: 1, aria: 'run, method, Deleted' },
+				{ marker: 'M', iconClasses: [], color: 'rgb(30, 80, 170)', text: 'run', annotation: 'impl', activeHovers: 1, aria: 'run, method, Implementation changed' },
+				{ marker: 'R', iconClasses: [], color: 'rgb(30, 80, 170)', text: 'runNext', annotation: '', activeHovers: 1, aria: 'runNext, method, Renamed from run to runNext' },
+				{ marker: 'M', iconClasses: [], color: 'rgb(30, 80, 170)', text: 'run', annotation: 'impl', activeHovers: 1, aria: 'run, method, Implementation changed' },
 			],
-			containerState: { hidden: true, marker: '', activeHovers: 0 }, hovers: ['Added', 'Deleted', 'Implementation changed', 'Implementation changed'],
+			containerState: { hidden: true, marker: '', activeHovers: 0 }, hovers: ['Added', 'Deleted', 'Implementation changed', 'Renamed from run to runNext', 'Implementation changed', 'Implementation changed'],
 			activeAfterUnrender: 0, decorative: 'true',
 		});
 	});
@@ -414,17 +417,17 @@ suite('SCM structural diff tree', () => {
 		const added = render({ ...child, node: { ...withChanges([], [StructuralDiffClassification.Header]).node, original: undefined } });
 		assert.deepStrictEqual({ rows, ancestor, added, hovers: hoverService.labels }, {
 			rows: [
-				{ text: 'run(value: number)', annotation: 'decl', aria: 'run, method, Declaration changed, (value: number)', marker: '[~]' },
-				{ text: 'run(value: number)', annotation: 'impl', aria: 'run, method, Implementation changed, (value: number)', marker: '[~]' },
-				{ text: 'run(value: number)', annotation: 'decl+impl', aria: 'run, method, Declaration and implementation changed, (value: number)', marker: '[~]' },
+				{ text: 'run(value: number)', annotation: 'decl', aria: 'run, method, Declaration changed, (value: number)', marker: 'M' },
+				{ text: 'run(value: number)', annotation: 'impl', aria: 'run, method, Implementation changed, (value: number)', marker: 'M' },
+				{ text: 'run(value: number)', annotation: 'decl+impl', aria: 'run, method, Declaration and implementation changed, (value: number)', marker: 'M' },
 			],
 			ancestor: { text: 'Calculator', annotation: '', aria: 'Calculator, class', marker: '' },
-			added: { text: 'run(value: number)', annotation: '', aria: 'run, method, Added, (value: number)', marker: '[+]' },
+			added: { text: 'run(value: number)', annotation: '', aria: 'run, method, Added, (value: number)', marker: 'A' },
 			hovers: ['Declaration changed', 'Implementation changed', 'Declaration and implementation changed', 'Added'],
 		});
 	});
 
-	test('renders renamed entities as modifications with both names in hovers and accessible labels', () => {
+	test('renders renames with R and no annotation, preserving both names in hovers and accessible labels', () => {
 		const hoverService = new TestStatusHoverService();
 		const renderer = new SCMStructuralDiffRenderer(hoverService);
 		const template = store.add(renderer.renderTemplate($('.scm-view')));
@@ -444,13 +447,15 @@ suite('SCM structural diff tree', () => {
 		assert.deepStrictEqual({
 			text: template.label.element.textContent,
 			annotation: template.annotation.textContent,
+			annotationHidden: template.annotation.style.display === 'none',
 			marker: template.status.textContent,
+			renamed: template.status.classList.contains('renamed'),
 			modified: template.status.classList.contains('modified'),
 			added: template.status.classList.contains('added'),
 			hovers: hoverService.labels,
 			aria: template.label.element.getAttribute('aria-label'),
 		}, {
-			text: 'runNext2', annotation: 'rename', marker: '[~]', modified: true, added: false,
+			text: 'runNext2', annotation: '', annotationHidden: true, marker: 'R', renamed: true, modified: false, added: false,
 			hovers: ['Renamed from runNext to runNext2'],
 			aria: 'runNext2, method, Renamed from runNext to runNext2',
 		});
@@ -468,6 +473,7 @@ suite('SCM structural diff tree', () => {
 			{ name: 'calculate', classifications: [StructuralDiffClassification.Header, StructuralDiffClassification.Implementation], change: 'modified' },
 			{ name: 'newMethod', classifications: [], change: 'added' },
 			{ name: 'oldMethod', classifications: [], change: 'deleted' },
+			{ name: 'renamedMethod', classifications: [StructuralDiffClassification.Header], change: 'renamed' },
 		];
 		const templates = cases.map(({ name, classifications, change }) => {
 			const row = $('.monaco-list-row');
@@ -480,7 +486,7 @@ suite('SCM structural diff tree', () => {
 				...child,
 				node: {
 					...child.node,
-					original: change === 'added' ? undefined : { ...child.node.original!, name },
+					original: change === 'added' ? undefined : { ...child.node.original!, name: change === 'renamed' ? 'previousName' : name },
 					modified: change === 'deleted' ? undefined : { ...child.node.modified!, name },
 					modifiedChanges: classifications.map(classification => ({ textChangeIndex: 0, range: new Range(3, 2, 3, 5), classification })),
 				},
@@ -507,8 +513,8 @@ suite('SCM structural diff tree', () => {
 			longNameTruncated: nameContainer.scrollWidth > nameContainer.clientWidth,
 			metadataHiddenFromScreenReaders: templates.every(template => template.metadata.getAttribute('aria-hidden') === 'true'),
 		}, {
-			annotations: ['decl', 'impl', 'decl+impl', '', ''],
-			markers: ['[~]', '[~]', '[~]', '[+]', '[\u2212]'],
+			annotations: ['decl', 'impl', 'decl+impl', '', '', ''],
+			markers: ['M', 'M', 'M', 'A', 'D', 'R'],
 			annotationEdgesAligned: true, statusEdgesAligned: true, noOverlap: true,
 			annotationsNotClipped: true, markersNotClipped: true, longNameTruncated: true, metadataHiddenFromScreenReaders: true,
 		});

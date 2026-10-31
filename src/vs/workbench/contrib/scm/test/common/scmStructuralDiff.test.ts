@@ -530,7 +530,7 @@ suite('SCM structural diff model', () => {
 		]);
 	});
 
-	test('represents paired entities with different names as renamed modifications', async () => {
+	test('represents paired entities with different names as renames without annotations', async () => {
 		const element = (await model.getChildren(resource))[0];
 		assert.ok(element.type === 'structuralDiff');
 		const renamed = {
@@ -538,15 +538,16 @@ suite('SCM structural diff model', () => {
 			node: { ...element.node, modified: { ...element.node.modified!, name: 'RenamedCalculator' } },
 		};
 		const candidates = [
-			renamed,
-			{
-				...renamed,
-				node: {
-					...renamed.node,
-					modifiedChanges: [{ textChangeIndex: 0, range: new Range(1, 7, 1, 24), classification: StructuralDiffClassification.Header }],
-				},
+			[],
+			[StructuralDiffClassification.Header],
+			[StructuralDiffClassification.Header, StructuralDiffClassification.Implementation],
+		].map(classifications => ({
+			...renamed,
+			node: {
+				...renamed.node,
+				modifiedChanges: classifications.map(classification => ({ textChangeIndex: 0, range: new Range(1, 7, 1, 24), classification })),
 			},
-		];
+		}));
 		assert.deepStrictEqual(candidates.map(candidate => ({
 			name: getSCMStructuralDiffLabel(candidate),
 			change: getSCMStructuralDiffChange(candidate),
@@ -555,8 +556,8 @@ suite('SCM structural diff model', () => {
 			aria: getSCMStructuralDiffAriaLabel(candidate),
 		})), candidates.map(() => ({
 			name: 'RenamedCalculator',
-			change: { type: 'modified', label: 'Changed' },
-			annotation: { label: 'rename', description: 'Renamed from Calculator to RenamedCalculator' },
+			change: { type: 'renamed', label: 'Renamed from Calculator to RenamedCalculator' },
+			annotation: undefined,
 			description: 'Renamed from Calculator to RenamedCalculator',
 			aria: 'RenamedCalculator, class, Renamed from Calculator to RenamedCalculator',
 		})));

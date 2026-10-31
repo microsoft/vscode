@@ -318,7 +318,7 @@
 
 .scm-view .scm-structural-change-status {
 	flex-shrink: 0;
-	min-width: 3ch;
+	min-width: var(--vscode-spacing-size160);
 	font-size: var(--vscode-fontSize-label2);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	text-align: center;
@@ -333,7 +333,8 @@
 	color: var(--vscode-gitDecoration-deletedResourceForeground);
 }
 
-.scm-view .scm-structural-change-status.modified {
+.scm-view .scm-structural-change-status.modified,
+.scm-view .scm-structural-change-status.renamed {
 	color: var(--vscode-gitDecoration-modifiedResourceForeground);
 }
 
