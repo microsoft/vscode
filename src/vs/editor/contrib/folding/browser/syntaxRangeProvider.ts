@@ -7,9 +7,10 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ITextModel } from '../../../common/model.js';
-import { FoldingContext, FoldingRange, FoldingRangeProvider } from '../../../common/languages.js';
+import { FoldingContext, FoldingRange, FoldingRangeKind, FoldingRangeProvider } from '../../../common/languages.js';
 import { FoldingLimitReporter, RangeProvider } from './folding.js';
-import { FoldingRegions, MAX_LINE_NUMBER } from './foldingRanges.js';
+import { FoldingRegions, FoldSource, MAX_LINE_NUMBER } from './foldingRanges.js';
+import { IndentRangeProvider } from './indentRangeProvider.js';
 
 export interface IFoldingRangeData extends FoldingRange {
 	rank: number;
@@ -31,7 +32,7 @@ export class SyntaxRangeProvider implements RangeProvider {
 		private readonly providers: FoldingRangeProvider[],
 		readonly handleFoldingRangesChange: () => void,
 		private readonly foldingRangesLimit: FoldingLimitReporter,
-		private readonly fallbackRangeProvider: RangeProvider | undefined // used when all providers return null
+		private readonly fallbackRangeProvider: IndentRangeProvider | undefined
 	) {
 		this.disposables = new DisposableStore();
 		if (fallbackRangeProvider) {
@@ -45,17 +46,40 @@ export class SyntaxRangeProvider implements RangeProvider {
 		}
 	}
 
-	compute(cancellationToken: CancellationToken): Promise<FoldingRegions | null> {
-		return collectSyntaxRanges(this.providers, this.editorModel, cancellationToken).then(ranges => {
-			if (this.editorModel.isDisposed()) {
-				return null;
-			}
-			if (ranges) {
-				const res = sanitizeRanges(ranges, this.foldingRangesLimit);
-				return res;
-			}
+	async compute(cancellationToken: CancellationToken): Promise<FoldingRegions | null> {
+		let ranges = await collectSyntaxRanges(this.providers, this.editorModel, cancellationToken);
+		if (this.editorModel.isDisposed() || cancellationToken.isCancellationRequested) {
+			return null;
+		}
+		if (!ranges) {
 			return this.fallbackRangeProvider?.compute(cancellationToken) ?? null;
-		});
+		}
+		if (this.fallbackRangeProvider && this.providers.every(provider => provider.isSecondary === true)) {
+			const maxLineNumber = this.editorModel.getLineCount();
+			const priorityRanges = FoldingRegions.sanitizeAndMerge([], ranges.sort(compareRanges)
+				.filter(range => Number.isInteger(range.start) && Number.isInteger(range.end) && range.end <= MAX_LINE_NUMBER)
+				.map(range => ({
+					startLineNumber: range.start,
+					endLineNumber: range.end,
+					type: range.kind?.value,
+					isCollapsed: false,
+					source: FoldSource.userDefined // Give explicit ranges precedence during the merge only.
+				})), maxLineNumber);
+			const indentationRanges = this.fallbackRangeProvider.computeRanges().map(range => ({
+				startLineNumber: range.start,
+				endLineNumber: range.end,
+				type: range.kind?.value,
+				isCollapsed: false,
+				source: FoldSource.provider
+			}));
+			ranges = FoldingRegions.sanitizeAndMerge(indentationRanges, priorityRanges, maxLineNumber).map(range => ({
+				start: range.startLineNumber,
+				end: range.endLineNumber,
+				kind: range.type ? FoldingRangeKind.fromValue(range.type) : undefined,
+				rank: 0
+			}));
+		}
+		return sanitizeRanges(ranges, this.foldingRangesLimit);
 	}
 
 	dispose() {
@@ -65,9 +89,10 @@ export class SyntaxRangeProvider implements RangeProvider {
 
 function collectSyntaxRanges(providers: FoldingRangeProvider[], model: ITextModel, cancellationToken: CancellationToken): Promise<IFoldingRangeData[] | null> {
 	let rangeData: IFoldingRangeData[] | null = null;
-	const promises = providers.map((provider, i) => {
-		return Promise.resolve(provider.provideFoldingRanges(model, foldingContext, cancellationToken)).then(ranges => {
-			if (cancellationToken.isCancellationRequested) {
+	const promises = providers.map(async (provider, i) => {
+		try {
+			const ranges = await provider.provideFoldingRanges(model, foldingContext, cancellationToken);
+			if (cancellationToken.isCancellationRequested || model.isDisposed()) {
 				return;
 			}
 			if (Array.isArray(ranges)) {
@@ -81,7 +106,9 @@ function collectSyntaxRanges(providers: FoldingRangeProvider[], model: ITextMode
 					}
 				}
 			}
-		}, onUnexpectedExternalError);
+		} catch (error) {
+			onUnexpectedExternalError(error);
+		}
 	});
 	return Promise.all(promises).then(_ => {
 		return rangeData;
@@ -169,14 +196,12 @@ class RangesCollector {
 
 }
 
+function compareRanges(first: IFoldingRangeData, second: IFoldingRangeData): number {
+	return first.start - second.start || first.rank - second.rank;
+}
+
 export function sanitizeRanges(rangeData: IFoldingRangeData[], foldingRangesLimit: FoldingLimitReporter): FoldingRegions {
-	const sorted = rangeData.sort((d1, d2) => {
-		let diff = d1.start - d2.start;
-		if (diff === 0) {
-			diff = d1.rank - d2.rank;
-		}
-		return diff;
-	});
+	const sorted = rangeData.sort(compareRanges);
 	const collector = new RangesCollector(foldingRangesLimit);
 
 	let top: IFoldingRangeData | undefined = undefined;
