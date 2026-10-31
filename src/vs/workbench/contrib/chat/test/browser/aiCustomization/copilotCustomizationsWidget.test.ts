@@ -525,6 +525,97 @@ suite('CopilotCanvasesWidget', () => {
 		harness.hideMenu();
 	});
 
+	test('keeps Open Canvas discoverable when direct opening requires input', async () => {
+		const harness = createHarness({
+			definitions: [definition({
+				canvasId: 'form',
+				displayName: 'Form',
+				description: 'Collects structured input.',
+				requiresInput: true,
+			})],
+		});
+		await timeout(0);
+		const row = harness.container.querySelector<HTMLElement>('.monaco-list-row[aria-label^="Form."]');
+		assert.ok(row);
+		const more = row.querySelector<HTMLElement>('[data-customization-action="more"]');
+		assert.ok(more);
+		more.click();
+		const open = harness.menuActions.find(action => action.id === 'canvas.show');
+		assert.ok(open);
+		await open.run();
+		harness.hideMenu();
+
+		assert.deepStrictEqual({
+			moreVisible: more.checkVisibility(),
+			moreAriaLabel: more.getAttribute('aria-label'),
+			rowExplainsInput: row.getAttribute('aria-label')?.includes('Opening this canvas requires specific inputs. Ask an agent to open it.'),
+			accessibleContentExplainsInput: harness.widget.getAccessibilityContent().includes('Opening this canvas requires specific inputs. Ask an agent to open it.'),
+			action: {
+				label: open.label,
+				enabled: open.enabled,
+			},
+			openCalls: harness.openCalls,
+			closeCalls: harness.closeCalls,
+		}, {
+			moreVisible: true,
+			moreAriaLabel: 'More Actions for Canvas Form. Opening this canvas requires specific inputs. Ask an agent to open it.',
+			rowExplainsInput: true,
+			accessibleContentExplainsInput: true,
+			action: {
+				label: 'Open Canvas (Requires Specific Inputs)',
+				enabled: false,
+			},
+			openCalls: 0,
+			closeCalls: 0,
+		});
+	});
+
+	test('does not suggest agent opening when required-input Canvas definitions have another blocker', async () => {
+		const disabledDefinition = definition({
+			canvasId: 'disabled-form',
+			displayName: 'Disabled Form',
+			requiresInput: true,
+		});
+		const disabled = createHarness({
+			definitions: [disabledDefinition],
+			extensionInventory: inventory([disabledDefinition], 'disabled'),
+		});
+		const unsupported = createHarness({
+			definitions: [definition({
+				canvasId: 'unsupported-form',
+				extensionId: 'github-app',
+				extensionSource: 'unknown',
+				displayName: 'Unsupported Form',
+				requiresInput: true,
+			})],
+		});
+		await timeout(0);
+
+		const disabledRow = disabled.container.querySelector<HTMLElement>('.monaco-list-row[aria-label^="Disabled Form."]');
+		const unsupportedRow = unsupported.container.querySelector<HTMLElement>('.monaco-list-row[aria-label^="Unsupported Form."]');
+		assert.ok(disabledRow);
+		assert.ok(unsupportedRow);
+		assert.deepStrictEqual({
+			disabled: {
+				guidance: disabled.widget.getAccessibilityContent().includes('Ask an agent to open it.'),
+				moreVisible: disabledRow.querySelector<HTMLElement>('[data-customization-action="more"]')?.checkVisibility(),
+			},
+			unsupported: {
+				guidance: unsupported.widget.getAccessibilityContent().includes('Ask an agent to open it.'),
+				moreVisible: unsupportedRow.querySelector<HTMLElement>('[data-customization-action="more"]')?.checkVisibility(),
+			},
+		}, {
+			disabled: {
+				guidance: false,
+				moreVisible: false,
+			},
+			unsupported: {
+				guidance: false,
+				moreVisible: false,
+			},
+		});
+	});
+
 	test('search treats dashes and spaces as equivalent separators', async () => {
 		const harness = createHarness({
 			definitions: [
@@ -806,6 +897,28 @@ suite('CopilotCanvasesWidget', () => {
 
 		harness.setContextAvailable(false);
 		await timeout(0);
+		await show.run();
+		harness.hideMenu();
+
+		assert.strictEqual(harness.openCalls, 0);
+	});
+
+	test('does not run a retained Canvas action after the definition starts requiring input', async () => {
+		let definitions = [definition()];
+		const harness = createHarness({
+			definitions,
+			listCanvases: async () => definitions,
+		});
+		await timeout(0);
+		const more = harness.container.querySelector<HTMLElement>('[aria-label="More Actions for Canvas Preview"]');
+		assert.ok(more);
+		more.click();
+		const show = harness.menuActions.find(action => action.id === 'canvas.show');
+		assert.ok(show);
+
+		definitions = [definition({ requiresInput: true })];
+		harness.definitionsChanged.fire();
+		await timeout(20);
 		await show.run();
 		harness.hideMenu();
 
