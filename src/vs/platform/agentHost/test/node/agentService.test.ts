@@ -35842,12 +35842,9 @@ suite('AgentService (node dispatcher)', () => {
 					const waitForPrompt = (prompt: string) => waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.some(call => call.prompt === prompt), `Expected '${prompt}' to start a turn`);
 					const completeTargetTurn = () => agent.fireProgress({
 						kind: 'action', resource: URI.parse(targetChat),
-						action: { type: ActionType.ChatTurnComplete, turnId: stateManager.getActiveTurnId(targetChat)!, duration: 1 },
+						action: chatTurnComplete(stateManager.getActiveTurnId(targetChat)!, 1),
 					});
-					localService.dispatchAction(sourceChat, {
-						type: ActionType.ChatTurnStarted, turnId: 'source-turn', startedAt: new Date().toISOString(),
-						message: { text: 'delegate this', origin: { kind: MessageKind.User } },
-					}, 'test-client', 1);
+					localService.dispatchAction(sourceChat, chatTurnStarted('source-turn', 'delegate this'), 'test-client', 1);
 					localService.dispatchAction(targetChat, {
 						type: ActionType.ChatTurnStarted, turnId: 'user-turn', startedAt: new Date().toISOString(),
 						message: { text: 'review this', origin: { kind: MessageKind.User }, agent: reviewer },
