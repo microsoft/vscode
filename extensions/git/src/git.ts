@@ -392,7 +392,7 @@ export interface ICloneOptions {
 	readonly ref?: string;
 }
 
-export class Git {
+export class Git implements IDisposable {
 
 	readonly path: string;
 	readonly userAgent: string;
@@ -400,6 +400,8 @@ export class Git {
 	readonly env: { [key: string]: string };
 
 	private commandsToLog: string[] = [];
+	private readonly runningProcesses = new Set<cp.ChildProcess>();
+	private disposables: IDisposable[] = [];
 
 	private _onOutput = new EventEmitter();
 	get onOutput(): EventEmitter { return this._onOutput; }
@@ -419,8 +421,21 @@ export class Git {
 			this.commandsToLog = config.get<string[]>('commandsToLog', []);
 		};
 
-		workspace.onDidChangeConfiguration(onConfigurationChanged, this);
+		const disposable = workspace.onDidChangeConfiguration(onConfigurationChanged, this);
+		this.disposables.push(disposable);
 		onConfigurationChanged();
+	}
+
+	dispose(): void {
+		for (const child of this.runningProcesses) {
+			try {
+				child.kill();
+			} catch {
+				// noop
+			}
+		}
+		this.runningProcesses.clear();
+		this.disposables = dispose(this.disposables);
 	}
 
 	compareGitVersionTo(version: string): -1 | 0 | 1 {
@@ -708,6 +723,11 @@ export class Git {
 		}
 
 		const child = cp.spawn(this.path, args, options);
+
+		this.runningProcesses.add(child);
+		const onChildExit = () => this.runningProcesses.delete(child);
+		child.once('exit', onChildExit);
+		child.once('error', onChildExit);
 
 		// Writing to stdin fails with EPIPE when git fails to spawn or exits before
 		// reading all of its input. The child's `error`/`exit` events already report

@@ -893,6 +893,11 @@ export class Repository implements Disposable {
 		return this._isUsingVirtualFileSystem === true;
 	}
 
+	private _isPartialClone: boolean | undefined = undefined;
+	get isPartialClone(): boolean {
+		return this._isPartialClone === true;
+	}
+
 	private _artifactProvider: GitArtifactProvider;
 	get artifactProvider(): GitArtifactProvider { return this._artifactProvider; }
 
@@ -1883,7 +1888,12 @@ export class Repository implements Disposable {
 			defaultSort = 'alphabetically';
 		}
 
-		query = { ...query, sort: query?.sort ?? defaultSort };
+		let sort = query.sort ?? defaultSort;
+		if (this.isPartialClone && (sort === 'committerdate' || sort === 'creatordate') && !isPatternRestrictedToLocalHeads(query.pattern)) {
+			sort = 'alphabetically';
+		}
+
+		query = { ...query, sort };
 		return await this.run(Operation.GetRefs, () => this.repository.getRefs(query, cancellationToken));
 	}
 
@@ -3049,7 +3059,8 @@ export class Repository implements Disposable {
 					this.isMergeInProgress(),
 					this.isCherryPickInProgress(),
 					this.getInputTemplate(),
-					this.initIsUsingVirtualFileSystem()]);
+					this.initIsUsingVirtualFileSystem(),
+					this.initIsPartialClone()]);
 
 			// Reset the list of unpublished commits if HEAD has
 			// changed (ex: checkout, fetch, pull, push, publish, etc.).
@@ -3076,7 +3087,7 @@ export class Repository implements Disposable {
 			const [resourceGroups, refs] =
 				await Promise.all([
 					this.getStatus(cancellationToken),
-					this.getRefs({}, cancellationToken)]);
+					this.getRefs({ sort: 'alphabetically' }, cancellationToken)]);
 
 			this._refs = refs;
 			this._updateResourceGroupsState(resourceGroups);
@@ -3653,7 +3664,26 @@ export class Repository implements Disposable {
 		}
 	}
 
+	private async initIsPartialClone(): Promise<void> {
+		if (this._isPartialClone !== undefined) {
+			return;
+		}
+
+		try {
+			const configs = await this.repository.getConfigs('local');
+			this._isPartialClone = configs.some(c =>
+				c.key === 'extensions.partialclone' ||
+				/^remote\..*\.(promisor|partialclonefilter)$/i.test(c.key)
+			);
+		} catch (error) {
+			this._isPartialClone = false;
+			return;
+		}
+	}
+
 	dispose(): void {
+		this.updateModelStateCancellationTokenSource?.cancel();
+		this.updateModelStateCancellationTokenSource?.dispose();
 		this.disposables = dispose(this.disposables);
 	}
 }
@@ -3709,4 +3739,16 @@ function retargetTaskExecution(execution: ProcessExecution | ShellExecution | Cu
 	}
 
 	return execution;
+}
+
+export function isPatternRestrictedToLocalHeads(pattern?: string | string[]): boolean {
+	if (!pattern) {
+		return false;
+	}
+
+	const patterns = Array.isArray(pattern) ? pattern : [pattern];
+	return patterns.length > 0 && patterns.every(p => {
+		const normalized = p.startsWith('refs/') ? p : `refs/${p}`;
+		return normalized === 'refs/heads' || normalized.startsWith('refs/heads/');
+	});
 }
