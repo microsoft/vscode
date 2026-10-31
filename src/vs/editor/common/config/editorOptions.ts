@@ -5536,6 +5536,24 @@ class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, ISmartSelec
 
 //#endregion
 
+//#region tabFocusMode
+
+class EditorTabFocusMode extends EditorBooleanOption<EditorOption.tabFocusMode> {
+
+	constructor() {
+		super(
+			EditorOption.tabFocusMode, 'tabFocusMode', false,
+			{ markdownDescription: nls.localize('tabFocusMode', "Controls whether the editor receives tabs or defers them to the workbench for navigation.") }
+		);
+	}
+
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: boolean): boolean {
+		return env.tabFocusMode;
+	}
+}
+
+//#endregion
+
 //#region wordSegmenterLocales
 
 /**
@@ -6968,9 +6986,7 @@ export const EditorOptions = {
 		}
 	)),
 	pixelRatio: register(new EditorPixelRatio()),
-	tabFocusMode: register(new EditorBooleanOption(EditorOption.tabFocusMode, 'tabFocusMode', false,
-		{ markdownDescription: nls.localize('tabFocusMode', "Controls whether the editor receives tabs or defers them to the workbench for navigation.") }
-	)),
+	tabFocusMode: register(new EditorTabFocusMode()),
 	layoutInfo: register(new EditorLayoutInfoComputer()),
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
 	wrappingIndent: register(new WrappingIndentOption()),
