@@ -6,6 +6,8 @@
 import type { IDecoration, IDecorationOptions, Terminal } from '@xterm/xterm';
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
+import * as dom from '../../../../../../base/browser/dom.js';
+import { MouseWheelClassifier } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Color, RGBA } from '../../../../../../base/common/color.js';
 import { Emitter } from '../../../../../../base/common/event.js';
@@ -31,7 +33,7 @@ import { registerColors, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_C
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestLifecycleService } from '../../../../../test/common/workbenchTestServices.js';
 import { TestWebglAddon, TestXtermAddonImporter } from './xtermTestUtils.js';
-import { stub } from 'sinon';
+import { spy, stub } from 'sinon';
 
 registerColors();
 
@@ -114,6 +116,32 @@ suite('XtermTerminal', () => {
 	test('should use fallback dimensions of 80x30', () => {
 		strictEqual(xterm.raw.cols, 80);
 		strictEqual(xterm.raw.rows, 30);
+	});
+
+	test('classifies wheel events before a capturing zoom listener consumes them', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		xterm.attachToElement(container, { enableGpu: false });
+
+		const acceptWheelEvent = spy(MouseWheelClassifier.INSTANCE, 'acceptStandardWheelEvent');
+		store.add(toDisposable(() => acceptWheelEvent.restore()));
+		const zoomListener = spy((event: WheelEvent) => {
+			event.preventDefault();
+			event.stopPropagation();
+		});
+		store.add(dom.addDisposableListener(xterm.raw.element!, dom.EventType.MOUSE_WHEEL, zoomListener, { capture: true }));
+		xterm.raw.textarea!.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, ctrlKey: true, bubbles: true, cancelable: true }));
+
+		deepStrictEqual({
+			classifiedEvents: acceptWheelEvent.callCount,
+			zoomEvents: zoomListener.callCount,
+			classifiedBeforeZoom: acceptWheelEvent.calledBefore(zoomListener)
+		}, {
+			classifiedEvents: 1,
+			zoomEvents: 1,
+			classifiedBeforeZoom: true
+		});
 	});
 
 	for (const buffer of ['normal', 'alternate'] as const) {
