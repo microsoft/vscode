@@ -8,6 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { EndOfLineSequence, PositionAffinity } from '../../../common/model.js';
+import { IViewModel } from '../../../common/viewModel.js';
 import { ViewEventHandler } from '../../../common/viewEventHandler.js';
 import { ViewEvent } from '../../../common/viewEvents.js';
 import { testViewModel } from './testViewModel.js';
@@ -321,6 +322,130 @@ suite('ViewModel', () => {
 			model.setEOL(EndOfLineSequence.LF);
 			const actual = viewModel.getPlainTextToCopy([new Range(2, 1, 5, 1)], true, true);
 			assert.deepStrictEqual(actual.sourceText, 'line2\r\nline3\r\nline4\r\n');
+		});
+	});
+
+	suite('custom line heights', () => {
+		const options = { lineHeight: 19, allowVariableLineHeights: true };
+
+		function getLineHeights(viewModel: IViewModel): number[] {
+			return Array.from({ length: viewModel.getLineCount() }, (_, index) =>
+				viewModel.viewLayout.getLineHeightForLineNumber(index + 1));
+		}
+
+		test('ignores custom line heights on fully hidden lines and restores them when unfolded', () => {
+			const results: number[][] = [];
+			testViewModel(['header', 'body', 'footer'], options, (viewModel, model) => {
+				model.deltaDecorations([], [{
+					range: new Range(2, 1, 2, 5),
+					options: { description: 'test-custom-line-height', isWholeLine: true, lineHeight: 2 },
+				}]);
+				results.push(getLineHeights(viewModel));
+				viewModel.setHiddenAreas([new Range(2, 1, 2, 5)]);
+				results.push(getLineHeights(viewModel));
+				viewModel.setHiddenAreas([]);
+				results.push(getLineHeights(viewModel));
+				viewModel.setHiddenAreas([new Range(2, 1, 2, 5)]);
+				results.push(getLineHeights(viewModel));
+			});
+
+			assert.deepStrictEqual(results, [
+				[19, 38, 19],
+				[19, 19],
+				[19, 38, 19],
+				[19, 19],
+			]);
+		});
+
+		test('ignores custom line height changes made while lines are hidden', () => {
+			const results: number[][] = [];
+			testViewModel(['header', 'body', 'footer'], options, (viewModel, model) => {
+				viewModel.setHiddenAreas([new Range(2, 1, 2, 5)]);
+				const decorationIds = model.deltaDecorations([], [{
+					range: new Range(2, 1, 2, 5),
+					options: { description: 'test-custom-line-height', isWholeLine: true, lineHeight: 0.5 },
+				}]);
+				results.push(getLineHeights(viewModel));
+				model.deltaDecorations(decorationIds, [{
+					range: new Range(2, 1, 2, 5),
+					options: { description: 'test-custom-line-height', isWholeLine: true, lineHeight: 2 },
+				}]);
+				results.push(getLineHeights(viewModel));
+				viewModel.setHiddenAreas([]);
+				results.push(getLineHeights(viewModel));
+			});
+
+			assert.deepStrictEqual(results, [[19, 19], [19, 19], [19, 38, 19]]);
+		});
+
+		test('ignores fully hidden multi-line custom height decorations at the start of the model', () => {
+			const results: number[][] = [];
+			testViewModel(['hidden1', 'hidden2', 'tail'], options, (viewModel, model) => {
+				model.deltaDecorations([], [{
+					range: new Range(1, 1, 2, 8),
+					options: { description: 'test-custom-line-height', isWholeLine: true, lineHeight: 2 },
+				}]);
+				viewModel.setHiddenAreas([new Range(1, 1, 2, 8)]);
+				results.push(getLineHeights(viewModel));
+				viewModel.setHiddenAreas([]);
+				results.push(getLineHeights(viewModel));
+			});
+
+			assert.deepStrictEqual(results, [[19], [38, 38, 19]]);
+		});
+
+		test('ignores custom line heights spanning hidden areas made adjacent by edits', () => {
+			const results: number[][] = [];
+			testViewModel(['header', 'hidden1', 'gap', 'hidden2', 'tail'], options, (viewModel, model) => {
+				model.deltaDecorations([], [{
+					range: new Range(2, 1, 4, 8),
+					options: { description: 'test-custom-line-height', isWholeLine: true, lineHeight: 2 },
+				}]);
+				viewModel.setHiddenAreas([new Range(2, 1, 2, 8), new Range(4, 1, 4, 8)]);
+				model.applyEdits([{ range: new Range(3, 1, 4, 1), text: '' }]);
+				model.updateOptions({ tabSize: 8 });
+				results.push(getLineHeights(viewModel));
+				viewModel.setHiddenAreas([]);
+				results.push(getLineHeights(viewModel));
+			});
+
+			assert.deepStrictEqual(results, [[19, 19], [19, 38, 38, 19]]);
+		});
+
+		test('preserves custom line heights for visible lines between hidden endpoints', () => {
+			const results: number[][] = [];
+			testViewModel(['hidden1', 'visible', 'hidden2', 'tail'], options, (viewModel, model) => {
+				model.deltaDecorations([], [{
+					range: new Range(1, 1, 3, 8),
+					options: { description: 'test-custom-line-height', isWholeLine: true, lineHeight: 2 },
+				}]);
+				viewModel.setHiddenAreas([new Range(1, 1, 1, 8), new Range(3, 1, 3, 8)]);
+				results.push(getLineHeights(viewModel));
+				viewModel.setHiddenAreas([]);
+				results.push(getLineHeights(viewModel));
+			});
+
+			assert.deepStrictEqual(results, [[38, 19], [38, 38, 38, 19]]);
+		});
+
+		test('ignores hidden custom line heights below wrapped fold headers', () => {
+			const results: number[][] = [];
+			testViewModel(['abcdefghij', 'body', 'tail'], {
+				...options,
+				wordWrap: 'wordWrapColumn',
+				wordWrapColumn: 5,
+			}, (viewModel, model) => {
+				model.deltaDecorations([], [{
+					range: new Range(2, 1, 2, 5),
+					options: { description: 'test-custom-line-height', isWholeLine: true, lineHeight: 2 },
+				}]);
+				viewModel.setHiddenAreas([new Range(2, 1, 2, 5)]);
+				results.push(getLineHeights(viewModel));
+				viewModel.setHiddenAreas([]);
+				results.push(getLineHeights(viewModel));
+			});
+
+			assert.deepStrictEqual(results, [[19, 19, 19], [19, 19, 38, 19]]);
 		});
 	});
 

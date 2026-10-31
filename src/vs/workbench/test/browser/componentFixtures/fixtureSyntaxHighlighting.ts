@@ -87,9 +87,10 @@ export async function registerFixtureSyntaxHighlighting(
 	disposables.add(await fixtureTextMateTokenizers.acquire(darkTheme));
 	const colorMap = toColorMap(darkTheme.tokenColorMap);
 	const styleElement = createStyleSheet(fixtureHost, undefined, disposables);
+	// Avoid `font: inherit` in light fixtures: it overrides font sizes applied by editor decorations.
 	const styles = theme.type === ColorScheme.DARK
 		? `${generateTokensCSSForColorMap(colorMap)}\n${generateTokensCSSForFontMap(darkTheme.tokenFontMap)}`
-		: `${colorMap.slice(1).map((_, index) => `.mtk${index + 1}`).join(', ')} { color: var(--vscode-editor-foreground); font: inherit; text-decoration: none; }`;
+		: `${colorMap.slice(1).map((_, index) => `.mtk${index + 1}`).join(', ')} { color: var(--vscode-editor-foreground); text-decoration: none; }`;
 	styleElement.textContent = `@scope {\n${styles}\n}`;
 }
 
