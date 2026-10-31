@@ -22,8 +22,9 @@ import { IChat } from '../../services/sessions/common/session.js';
 import { AbstractChatView, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
+import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
-import { autorun, derived, disposableObservableValue, IObservable, observableValue } from '../../../base/common/observable.js';
+import { autorun, derived, disposableObservableValue, IObservable, observableValue, runOnChange } from '../../../base/common/observable.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
@@ -66,13 +67,16 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	private readonly _header: SessionHeader;
 	private readonly _groupsView: ChatGroupsView;
 	private readonly _standaloneView = this._register(disposableObservableValue<AbstractChatView | undefined>(this, undefined));
-	private _preparationView: AbstractChatView | undefined;
+	private readonly _preparationView = observableValue<AbstractChatView | undefined>(this, undefined);
 	private readonly _floatingToolbar: SessionViewFloatingToolbar;
+	/** Created once a standalone view is shown; chat groups host their own Session Activity Bar. */
+	private _standaloneSessionActivityBar: ChatViewSessionActivityBar | undefined;
 	private readonly _centeredContentContainer: HTMLElement;
 	private readonly _contentContainer: HTMLElement;
 
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
-	private _lastContentLayout: { readonly view: AbstractChatView | ChatGroupsView; readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
+	private _lastContentLayout: { readonly view: AbstractChatView | ChatGroupsView; readonly width: number; readonly height: number; readonly top: number; readonly left: number; readonly gap: number } | undefined;
+	private _contentGap = 0;
 
 	private _openSessionDisposables = this._register(new DisposableStore());
 	private _currentSession: IActiveSession | undefined;
@@ -156,6 +160,12 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this._floatingToolbar = this._register(this._scopedInstantiationService.createInstance(SessionViewFloatingToolbar));
 		this.element.appendChild(this._floatingToolbar.element);
 
+		this._register(autorun(reader => {
+			this._contentContainer.classList.toggle('standalone-chat', !!this._standaloneView.read(reader));
+			this._preparationView.read(reader);
+			this._updateStandaloneSessionActivityBar();
+		}));
+
 		this._applyActiveSessionStyles();
 		this._register(this.themeService.onDidColorThemeChange(() => this._applyActiveSessionStyles()));
 
@@ -179,10 +189,9 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 			const session = this._sessionObs.read(reader);
 			const groupCount = this._groupsView.groupCount.read(reader);
 			const showChatAsSessionView = this._groupsView.showChatAsSessionView.read(reader);
-			const tabsReplaceHeader = groupCount === 1
-				&& (session?.isCreated.read(reader) ?? false)
+			const tabsReplaceHeader = (session?.isCreated.read(reader) ?? false)
 				&& !showChatAsSessionView
-				&& (session?.shouldShowChatTabs.read(reader) ?? false);
+				&& (groupCount > 1 || (session?.shouldShowChatTabs.read(reader) ?? false));
 			this._header.setVisible(!tabsReplaceHeader && !(showChatAsSessionView && groupCount > 1));
 			this._groupsView.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
 			this.element.classList.toggle('tabs-replace-header', tabsReplaceHeader);
@@ -231,11 +240,12 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 					const moveFocus = isAncestorOfActiveElement(view.element);
 					view.setVisible(false);
 					reader.store.add(toDisposable(() => {
-						restoreComposerFocus = !!this._preparationView && isAncestorOfActiveElement(this._preparationView.element);
-						this._preparationView = undefined;
+						const current = this._preparationView.read(undefined);
+						restoreComposerFocus = !!current && isAncestorOfActiveElement(current.element);
+						this._preparationView.set(undefined, undefined);
 					}));
 					const preparationView = reader.store.add(this._chatViewFactory.createChatView(this._scopedInstantiationService));
-					this._preparationView = preparationView;
+					this._preparationView.set(preparationView, undefined);
 					preparationView.setChat(session.mainChat.read(reader), session.sessionId, session);
 					preparationView.setActive(this._isActive);
 					preparationView.setVisible(this._isVisible);
@@ -261,9 +271,14 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 			this._showSessionGroups(session, options);
 		} else {
 			this._groupsView.setSession(undefined, options);
-			const view = this._chatViewFactory.createNewChatView(false, options, this._scopedInstantiationService);
-			this._standaloneView.set(view, undefined);
-			this._contentContainer.replaceChildren(view.element);
+			let view = this._standaloneView.get();
+			if (!view?.preserveOnSessionClear) {
+				view = this._chatViewFactory.createNewChatView(false, options, this._scopedInstantiationService);
+				this._standaloneView.set(view, undefined);
+			}
+			if (view.element.parentElement !== this._contentContainer) {
+				this._contentContainer.replaceChildren(view.element);
+			}
 			view.setActive(this._isActive);
 			view.setVisible(this._isVisible);
 		}
@@ -279,7 +294,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	}
 
 	private get _visibleStandaloneView(): AbstractChatView | undefined {
-		return this._preparationView ?? this._standaloneView.get();
+		return this._preparationView.get() ?? this._standaloneView.get();
 	}
 
 	private _handleContextKeys(session: IActiveSession | undefined): IDisposable {
@@ -302,7 +317,8 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this._lastLayout = { width, height, top, left };
 	}
 
-	layoutContents(): void {
+	layoutContents(gap = 0): void {
+		this._contentGap = gap;
 		this._layoutChildren();
 	}
 
@@ -313,6 +329,9 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 		// A hidden or zero-sized leaf would report invalid geometry to the chat widget.
 		const { width, height, top, left } = this._lastLayout;
+		const view = this._visibleStandaloneView ?? this._groupsView;
+		const gap = view === this._groupsView ? this._contentGap : 0;
+		this.element.classList.toggle('independent-chat-groups', view === this._groupsView && this._isGridLayout && gap > 0);
 		if (!this._isVisible || width === 0 || height === 0) {
 			this._lastContentLayout = undefined;
 			return;
@@ -321,19 +340,25 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		const barHeight = this._header.visible ? this._header.height : 0;
 		const contentHeight = Math.max(0, height - barHeight);
 		const contentTop = top + barHeight;
-		const view = this._visibleStandaloneView ?? this._groupsView;
+		this._standaloneSessionActivityBar?.layout(barHeight, contentHeight);
+		const columnWidth = this._standaloneSessionActivityBar?.reservedWidth.get() ?? 0;
 		const previous = this._lastContentLayout;
-		if (previous?.view === view && previous.width === width && previous.height === contentHeight && previous.top === contentTop && previous.left === left) {
+		if (previous?.view === view && previous.width === width && previous.height === contentHeight && previous.top === contentTop && previous.left === left && previous.gap === gap) {
 			return;
 		}
-		this._lastContentLayout = { view, width, height: contentHeight, top: contentTop, left };
+		this._lastContentLayout = { view, width, height: contentHeight, top: contentTop, left, gap };
 
 		// Cap the host's height to the header so the chat groups grid sits below it.
 		size(this._centeredContentContainer, width, barHeight);
 
 		// Lay out the chat groups grid at full width so its scrollbar reaches the
 		// right edge; the chat rows and input center themselves via CSS.
-		view.layout(width, contentHeight, contentTop, left);
+		if (view === this._groupsView) {
+			view.layout(width, contentHeight, contentTop, left, gap);
+		} else {
+			// To the left of the column the Session Activity Bar takes at the right edge.
+			view.layout(Math.max(0, width - columnWidth), contentHeight, contentTop, left);
+		}
 	}
 
 	toJSON(): object {
@@ -351,6 +376,26 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 	focusHarnessPicker(): void {
 		this._visibleStandaloneView?.focusHarnessPicker();
+	}
+
+	focusEnvironmentPicker(): void {
+		this._visibleStandaloneView?.focusEnvironmentPicker();
+	}
+
+	focusBranchPicker(): void {
+		this._visibleStandaloneView?.focusBranchPicker();
+	}
+
+	focusWorktreePicker(): void {
+		this._visibleStandaloneView?.focusWorktreePicker();
+	}
+
+	focusSyncAction(): void {
+		this._visibleStandaloneView?.focusSyncAction();
+	}
+
+	openModelComparison(): void {
+		this._visibleStandaloneView?.openModelComparison();
 	}
 
 	/**
@@ -377,6 +422,10 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 	getActiveChat(): IChat | undefined {
 		return this._groupsView.getActiveChat();
+	}
+
+	reopenChat(resource: URI): Promise<void> {
+		return this._visibleStandaloneView?.reopenChat(resource) ?? this._groupsView.reopenChat(resource);
 	}
 
 	toggleActiveChatPin(): void {
@@ -470,6 +519,22 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this._applyActiveSessionStyles();
 		this._groupsView.setSessionActive(active);
 		this._visibleStandaloneView?.setActive(active);
+		this._updateStandaloneSessionActivityBar();
+	}
+
+	private _updateStandaloneSessionActivityBar(): void {
+		const standaloneView = this._visibleStandaloneView;
+		if (standaloneView && !this._standaloneSessionActivityBar) {
+			// Every standalone view reserves room for the strip, active or not, so activating it does not shift its content.
+			const activityBar = this._standaloneSessionActivityBar = this._register(this._scopedInstantiationService.createInstance(ChatViewSessionActivityBar, this.element));
+			this._register(runOnChange(activityBar.reservedWidth, () => {
+				this._lastContentLayout = undefined;
+				this._layoutChildren();
+			}));
+			this._lastContentLayout = undefined;
+		}
+		this._standaloneSessionActivityBar?.setChatActions(standaloneView?.activityBarActions);
+		this._standaloneSessionActivityBar?.setActive(this._isActive && this._isVisible && !!standaloneView);
 	}
 
 	/**
@@ -516,6 +581,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this._isVisibleObs.set(visible, undefined);
 		this._groupsView.setSessionVisible(visible);
 		this._visibleStandaloneView?.setVisible(visible);
+		this._updateStandaloneSessionActivityBar();
 		if (visible) {
 			// Catch up on the layout passes that were skipped while hidden.
 			this._layoutChildren();

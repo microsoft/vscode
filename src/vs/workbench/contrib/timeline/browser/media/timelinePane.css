@@ -21,6 +21,21 @@
 	overflow: hidden;
 }
 
+/* The input box replaces the label, timestamp and actions while an item is edited inline */
+.timeline-tree-view .monaco-list .monaco-list-row .custom-view-tree-node-item.timeline-item-editing > .monaco-icon-label {
+	display: none;
+}
+
+.timeline-tree-view .monaco-list .monaco-list-row .custom-view-tree-node-item.timeline-item-editing > .monaco-inputbox {
+	min-width: 0;
+	height: 22px;
+}
+
+.timeline-tree-view .monaco-list .monaco-list-row .custom-view-tree-node-item.timeline-item-editing > .monaco-inputbox > .ibwrapper > .input {
+	padding: 0;
+	height: 20px;
+}
+
 .timeline-tree-view .monaco-list .monaco-list-row .custom-view-tree-node-item .timeline-timestamp-container {
 	margin-left: 2px;
 	margin-right: 4px;

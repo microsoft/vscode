@@ -8,6 +8,8 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import type * as http from 'http';
 import * as net from 'net';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import {
@@ -350,7 +352,7 @@ const TOKEN = 'gh-test-token';
 
 suite('ClaudeProxyService', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	// #region Token slot
 
@@ -363,19 +365,13 @@ suite('ClaudeProxyService', () => {
 		test('start() updates token slot last-writer-wins', async () => {
 			const fake = new FakeCopilotApiService();
 			fake.modelsResult = { kind: 'value', value: [] };
-			const service = createProxyService(fake);
-			const h1 = await service.start('token-A');
-			const h2 = await service.start('token-B');
-			try {
-				await fetchJson(`${h2.baseUrl}/v1/models`, {
-					headers: { 'Authorization': `Bearer ${h2.nonce}.s1` },
-				});
-				assert.strictEqual(fake.modelsCalls.at(-1)?.githubToken, 'token-B');
-			} finally {
-				h1.dispose();
-				h2.dispose();
-				service.dispose();
-			}
+			const service = store.add(createProxyService(fake));
+			store.add(await service.start('token-A'));
+			const h2 = store.add(await service.start('token-B'));
+			await fetchJson(`${h2.baseUrl}/v1/models`, {
+				headers: { 'Authorization': `Bearer ${h2.nonce}.s1` },
+			});
+			assert.strictEqual(fake.modelsCalls.at(-1)?.githubToken, 'token-B');
 		});
 	});
 
@@ -504,56 +500,41 @@ suite('ClaudeProxyService', () => {
 
 		test('GET / → 200 ok, no auth required', async () => {
 			const fake = new FakeCopilotApiService();
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				const res = await fetchJson(`${handle.baseUrl}/`);
-				assert.strictEqual(res.status, 200);
-				assert.strictEqual(res.body, 'ok');
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
+			const service = store.add(createProxyService(fake));
+			const handle = store.add(await service.start(TOKEN));
+			const res = await fetchJson(`${handle.baseUrl}/`);
+			assert.strictEqual(res.status, 200);
+			assert.strictEqual(res.body, 'ok');
 		});
 
 		test('POST /v1/messages/count_tokens → 501 api_error', async () => {
 			const fake = new FakeCopilotApiService();
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				const res = await fetchJson(`${handle.baseUrl}/v1/messages/count_tokens`, {
-					method: 'POST',
-					headers: { 'Authorization': `Bearer ${handle.nonce}.s` },
-					body: '{}',
-				});
-				assert.strictEqual(res.status, 501);
-				assert.deepStrictEqual(res.parsed, {
-					type: 'error',
-					error: { type: 'api_error', message: 'count_tokens not supported by CAPI' },
-					request_id: null,
-				});
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
+			const service = store.add(createProxyService(fake));
+			const handle = store.add(await service.start(TOKEN));
+			const res = await fetchJson(`${handle.baseUrl}/v1/messages/count_tokens`, {
+				method: 'POST',
+				headers: { 'Authorization': `Bearer ${handle.nonce}.s` },
+				body: '{}',
+			});
+			assert.strictEqual(res.status, 501);
+			assert.deepStrictEqual(res.parsed, {
+				type: 'error',
+				error: { type: 'api_error', message: 'count_tokens not supported by CAPI' },
+				request_id: null,
+			});
 		});
 
 		test('GET /something-else → 404 not_found_error', async () => {
 			const fake = new FakeCopilotApiService();
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				const res = await fetchJson(`${handle.baseUrl}/v2/whatever`, {
-					headers: { 'Authorization': `Bearer ${handle.nonce}.s` },
-				});
-				assert.strictEqual(res.status, 404);
-				const env = res.parsed as Anthropic.ErrorResponse;
-				assert.strictEqual(env.type, 'error');
-				assert.strictEqual(env.error.type, 'not_found_error');
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
+			const service = store.add(createProxyService(fake));
+			const handle = store.add(await service.start(TOKEN));
+			const res = await fetchJson(`${handle.baseUrl}/v2/whatever`, {
+				headers: { 'Authorization': `Bearer ${handle.nonce}.s` },
+			});
+			assert.strictEqual(res.status, 404);
+			const env = res.parsed as Anthropic.ErrorResponse;
+			assert.strictEqual(env.type, 'error');
+			assert.strictEqual(env.error.type, 'not_found_error');
 		});
 	});
 
@@ -566,32 +547,27 @@ suite('ClaudeProxyService', () => {
 		test('returns Page envelope with SDK-format IDs and filters by vendor + endpoint', async () => {
 			const fake = new FakeCopilotApiService();
 			fake.modelsResult = { kind: 'value', value: [ANTHROPIC_MODEL, NON_ANTHROPIC_MODEL, NON_MESSAGES_ANTHROPIC] };
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				const res = await fetchJson(`${handle.baseUrl}/v1/models`, {
-					headers: { 'Authorization': `Bearer ${handle.nonce}.s` },
-				});
-				assert.strictEqual(res.status, 200);
-				const body = res.parsed as { data: Anthropic.ModelInfo[]; has_more: boolean; first_id: string | null; last_id: string | null };
-				assert.deepStrictEqual(body, {
-					data: [{
-						id: 'claude-opus-4-6',
-						type: 'model',
-						display_name: 'Claude Opus 4.6',
-						created_at: '1970-01-01T00:00:00Z',
-						capabilities: null,
-						max_input_tokens: null,
-						max_tokens: null,
-					}],
-					has_more: false,
-					first_id: 'claude-opus-4-6',
-					last_id: 'claude-opus-4-6',
-				});
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
+			const service = store.add(createProxyService(fake));
+			const handle = store.add(await service.start(TOKEN));
+			const res = await fetchJson(`${handle.baseUrl}/v1/models`, {
+				headers: { 'Authorization': `Bearer ${handle.nonce}.s` },
+			});
+			assert.strictEqual(res.status, 200);
+			const body = res.parsed as { data: Anthropic.ModelInfo[]; has_more: boolean; first_id: string | null; last_id: string | null };
+			assert.deepStrictEqual(body, {
+				data: [{
+					id: 'claude-opus-4-6',
+					type: 'model',
+					display_name: 'Claude Opus 4.6',
+					created_at: '1970-01-01T00:00:00Z',
+					capabilities: null,
+					max_input_tokens: null,
+					max_tokens: null,
+				}],
+				has_more: false,
+				first_id: 'claude-opus-4-6',
+				last_id: 'claude-opus-4-6',
+			});
 		});
 
 		test('upstream CopilotApiError is re-emitted verbatim with original status', async () => {
@@ -602,37 +578,27 @@ suite('ClaudeProxyService', () => {
 				request_id: 'req_123',
 			};
 			fake.modelsResult = { kind: 'error', error: new CopilotApiError(429, envelope) };
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				const res = await fetchJson(`${handle.baseUrl}/v1/models`, {
-					headers: { 'Authorization': `Bearer ${handle.nonce}.s` },
-				});
-				assert.strictEqual(res.status, 429);
-				assert.deepStrictEqual(res.parsed, envelope);
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
+			const service = store.add(createProxyService(fake));
+			const handle = store.add(await service.start(TOKEN));
+			const res = await fetchJson(`${handle.baseUrl}/v1/models`, {
+				headers: { 'Authorization': `Bearer ${handle.nonce}.s` },
+			});
+			assert.strictEqual(res.status, 429);
+			assert.deepStrictEqual(res.parsed, envelope);
 		});
 
 		test('non-CopilotApiError → 502 api_error', async () => {
 			const fake = new FakeCopilotApiService();
 			fake.modelsResult = { kind: 'error', error: new Error('ECONNRESET') };
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				const res = await fetchJson(`${handle.baseUrl}/v1/models`, {
-					headers: { 'Authorization': `Bearer ${handle.nonce}.s` },
-				});
-				assert.strictEqual(res.status, 502);
-				const env = res.parsed as Anthropic.ErrorResponse;
-				assert.strictEqual(env.error.type, 'api_error');
-				assert.strictEqual(env.error.message, 'ECONNRESET');
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
+			const service = store.add(createProxyService(fake));
+			const handle = store.add(await service.start(TOKEN));
+			const res = await fetchJson(`${handle.baseUrl}/v1/models`, {
+				headers: { 'Authorization': `Bearer ${handle.nonce}.s` },
+			});
+			assert.strictEqual(res.status, 502);
+			const env = res.parsed as Anthropic.ErrorResponse;
+			assert.strictEqual(env.error.type, 'api_error');
+			assert.strictEqual(env.error.message, 'ECONNRESET');
 		});
 	});
 
@@ -645,90 +611,70 @@ suite('ClaudeProxyService', () => {
 		test('SDK ID inbound is translated to endpoint ID upstream', async () => {
 			const fake = new FakeCopilotApiService();
 			fake.messagesResult = { kind: 'message', message: makeMessage('claude-opus-4.6', 'hi') };
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				await fetchJson(`${handle.baseUrl}/v1/messages`, {
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${handle.nonce}.s`,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ model: 'claude-opus-4-6-20251101', messages: [], max_tokens: 8 }),
-				});
-				assert.strictEqual(fake.messagesCalls.length, 1);
-				assert.strictEqual(fake.messagesCalls[0].body.model, 'claude-opus-4.6');
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
+			const service = store.add(createProxyService(fake));
+			const handle = store.add(await service.start(TOKEN));
+			await fetchJson(`${handle.baseUrl}/v1/messages`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${handle.nonce}.s`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ model: 'claude-opus-4-6-20251101', messages: [], max_tokens: 8 }),
+			});
+			assert.strictEqual(fake.messagesCalls.length, 1);
+			assert.strictEqual(fake.messagesCalls[0].body.model, 'claude-opus-4.6');
 		});
 
 		test('endpoint ID inbound is also accepted', async () => {
 			const fake = new FakeCopilotApiService();
 			fake.messagesResult = { kind: 'message', message: makeMessage('claude-opus-4.6', 'hi') };
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				await fetchJson(`${handle.baseUrl}/v1/messages`, {
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${handle.nonce}.s`,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ model: 'claude-opus-4.6', messages: [], max_tokens: 8 }),
-				});
-				assert.strictEqual(fake.messagesCalls[0].body.model, 'claude-opus-4.6');
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
+			const service = store.add(createProxyService(fake));
+			const handle = store.add(await service.start(TOKEN));
+			await fetchJson(`${handle.baseUrl}/v1/messages`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${handle.nonce}.s`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ model: 'claude-opus-4.6', messages: [], max_tokens: 8 }),
+			});
+			assert.strictEqual(fake.messagesCalls[0].body.model, 'claude-opus-4.6');
 		});
 
 		test('unparseable model → 404 with no upstream call', async () => {
 			const fake = new FakeCopilotApiService();
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				const res = await fetchJson(`${handle.baseUrl}/v1/messages`, {
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${handle.nonce}.s`,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ model: 'gpt-4o', messages: [], max_tokens: 8 }),
-				});
-				assert.strictEqual(res.status, 404);
-				const env = res.parsed as Anthropic.ErrorResponse;
-				assert.strictEqual(env.error.type, 'not_found_error');
-				assert.strictEqual(fake.messagesCalls.length, 0);
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
+			const service = store.add(createProxyService(fake));
+			const handle = store.add(await service.start(TOKEN));
+			const res = await fetchJson(`${handle.baseUrl}/v1/messages`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${handle.nonce}.s`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ model: 'gpt-4o', messages: [], max_tokens: 8 }),
+			});
+			assert.strictEqual(res.status, 404);
+			const env = res.parsed as Anthropic.ErrorResponse;
+			assert.strictEqual(env.error.type, 'not_found_error');
+			assert.strictEqual(fake.messagesCalls.length, 0);
 		});
 
 		test('non-streaming response model is rewritten to SDK format', async () => {
 			const fake = new FakeCopilotApiService();
 			fake.messagesResult = { kind: 'message', message: makeMessage('claude-opus-4.6', 'hi') };
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				const res = await fetchJson(`${handle.baseUrl}/v1/messages`, {
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${handle.nonce}.s`,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8 }),
-				});
-				assert.strictEqual(res.status, 200);
-				const msg = res.parsed as Anthropic.Message;
-				assert.strictEqual(msg.model, 'claude-opus-4-6');
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
+			const service = store.add(createProxyService(fake));
+			const handle = store.add(await service.start(TOKEN));
+			const res = await fetchJson(`${handle.baseUrl}/v1/messages`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${handle.nonce}.s`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8 }),
+			});
+			assert.strictEqual(res.status, 200);
+			const msg = res.parsed as Anthropic.Message;
+			assert.strictEqual(msg.model, 'claude-opus-4-6');
 		});
 	});
 
@@ -747,25 +693,19 @@ suite('ClaudeProxyService', () => {
 			const delta = events.find(e => e.type === 'message_delta')!;
 			(delta as unknown as { copilot_usage: { total_nano_aiu: number } }).copilot_usage = { total_nano_aiu: 750_000_000 };
 			fake.messagesResult = { kind: 'stream', events };
-			const service = createProxyService(fake);
+			const service = store.add(createProxyService(fake));
 			const reports: { sessionId: string; totalNanoAiu: number }[] = [];
-			const sub = service.onDidReportCredits(e => reports.push(e));
-			const handle = await service.start(TOKEN);
-			try {
-				await fetchSse(`${handle.baseUrl}/v1/messages`, {
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${handle.nonce}.sess-42`,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
-				});
-				assert.deepStrictEqual(reports, [{ sessionId: 'sess-42', totalNanoAiu: 750_000_000 }]);
-			} finally {
-				sub.dispose();
-				handle.dispose();
-				service.dispose();
-			}
+			store.add(service.onDidReportCredits(e => reports.push(e)));
+			const handle = store.add(await service.start(TOKEN));
+			await fetchSse(`${handle.baseUrl}/v1/messages`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${handle.nonce}.sess-42`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
+			});
+			assert.deepStrictEqual(reports, [{ sessionId: 'sess-42', totalNanoAiu: 750_000_000 }]);
 		});
 
 		test('non-streaming: copilot_usage.total_nano_aiu fires onDidReportCredits', async () => {
@@ -773,49 +713,37 @@ suite('ClaudeProxyService', () => {
 			const message = makeMessage('claude-opus-4.6', 'hi');
 			(message as unknown as { copilot_usage: { total_nano_aiu: number } }).copilot_usage = { total_nano_aiu: 250_000_000 };
 			fake.messagesResult = { kind: 'message', message };
-			const service = createProxyService(fake);
+			const service = store.add(createProxyService(fake));
 			const reports: { sessionId: string; totalNanoAiu: number }[] = [];
-			const sub = service.onDidReportCredits(e => reports.push(e));
-			const handle = await service.start(TOKEN);
-			try {
-				await fetchJson(`${handle.baseUrl}/v1/messages`, {
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${handle.nonce}.sess-7`,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8 }),
-				});
-				assert.deepStrictEqual(reports, [{ sessionId: 'sess-7', totalNanoAiu: 250_000_000 }]);
-			} finally {
-				sub.dispose();
-				handle.dispose();
-				service.dispose();
-			}
+			store.add(service.onDidReportCredits(e => reports.push(e)));
+			const handle = store.add(await service.start(TOKEN));
+			await fetchJson(`${handle.baseUrl}/v1/messages`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${handle.nonce}.sess-7`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8 }),
+			});
+			assert.deepStrictEqual(reports, [{ sessionId: 'sess-7', totalNanoAiu: 250_000_000 }]);
 		});
 
 		test('no copilot_usage in the response → no credits report', async () => {
 			const fake = new FakeCopilotApiService();
 			fake.messagesResult = { kind: 'message', message: makeMessage('claude-opus-4.6', 'hi') };
-			const service = createProxyService(fake);
+			const service = store.add(createProxyService(fake));
 			const reports: { sessionId: string; totalNanoAiu: number }[] = [];
-			const sub = service.onDidReportCredits(e => reports.push(e));
-			const handle = await service.start(TOKEN);
-			try {
-				await fetchJson(`${handle.baseUrl}/v1/messages`, {
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${handle.nonce}.sess-9`,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8 }),
-				});
-				assert.deepStrictEqual(reports, []);
-			} finally {
-				sub.dispose();
-				handle.dispose();
-				service.dispose();
-			}
+			store.add(service.onDidReportCredits(e => reports.push(e)));
+			const handle = store.add(await service.start(TOKEN));
+			await fetchJson(`${handle.baseUrl}/v1/messages`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${handle.nonce}.sess-9`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8 }),
+			});
+			assert.deepStrictEqual(reports, []);
 		});
 	});
 
@@ -827,64 +755,49 @@ suite('ClaudeProxyService', () => {
 
 		test('non-JSON body → 400', async () => {
 			const fake = new FakeCopilotApiService();
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				const res = await fetchJson(`${handle.baseUrl}/v1/messages`, {
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${handle.nonce}.s`,
-						'Content-Type': 'application/json',
-					},
-					body: 'not-json',
-				});
-				assert.strictEqual(res.status, 400);
-				const env = res.parsed as Anthropic.ErrorResponse;
-				assert.strictEqual(env.error.type, 'invalid_request_error');
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
+			const service = store.add(createProxyService(fake));
+			const handle = store.add(await service.start(TOKEN));
+			const res = await fetchJson(`${handle.baseUrl}/v1/messages`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${handle.nonce}.s`,
+					'Content-Type': 'application/json',
+				},
+				body: 'not-json',
+			});
+			assert.strictEqual(res.status, 400);
+			const env = res.parsed as Anthropic.ErrorResponse;
+			assert.strictEqual(env.error.type, 'invalid_request_error');
 		});
 
 		test('missing model field → 400', async () => {
 			const fake = new FakeCopilotApiService();
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				const res = await fetchJson(`${handle.baseUrl}/v1/messages`, {
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${handle.nonce}.s`,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ messages: [], max_tokens: 8 }),
-				});
-				assert.strictEqual(res.status, 400);
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
+			const service = store.add(createProxyService(fake));
+			const handle = store.add(await service.start(TOKEN));
+			const res = await fetchJson(`${handle.baseUrl}/v1/messages`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${handle.nonce}.s`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ messages: [], max_tokens: 8 }),
+			});
+			assert.strictEqual(res.status, 400);
 		});
 
 		test('missing messages field → 400', async () => {
 			const fake = new FakeCopilotApiService();
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				const res = await fetchJson(`${handle.baseUrl}/v1/messages`, {
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${handle.nonce}.s`,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ model: 'claude-opus-4-6', max_tokens: 8 }),
-				});
-				assert.strictEqual(res.status, 400);
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
+			const service = store.add(createProxyService(fake));
+			const handle = store.add(await service.start(TOKEN));
+			const res = await fetchJson(`${handle.baseUrl}/v1/messages`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${handle.nonce}.s`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ model: 'claude-opus-4-6', max_tokens: 8 }),
+			});
+			assert.strictEqual(res.status, 400);
 		});
 	});
 
@@ -979,35 +892,30 @@ suite('ClaudeProxyService', () => {
 		test('emits SSE frames in order with hand-rolled framing and rewrites message_start.message.model', async () => {
 			const fake = new FakeCopilotApiService();
 			fake.messagesResult = { kind: 'stream', events: makeStreamEvents('claude-opus-4.6') };
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				const res = await fetchSse(`${handle.baseUrl}/v1/messages`, {
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${handle.nonce}.s`,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
-				});
-				assert.strictEqual(res.status, 200);
-				assert.strictEqual(res.headers['content-type'], 'text/event-stream');
-				const types = res.events.map(e => e.type);
-				assert.deepStrictEqual(types, [
-					'message_start',
-					'content_block_start',
-					'content_block_delta',
-					'content_block_stop',
-					'message_delta',
-					'message_stop',
-				]);
-				const start = res.events[0].data as { type: 'message_start'; message: { model: string } };
-				assert.strictEqual(start.message.model, 'claude-opus-4-6');
-				assert.ok(!res.rawBody.includes('[DONE]'));
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
+			const service = store.add(createProxyService(fake));
+			const handle = store.add(await service.start(TOKEN));
+			const res = await fetchSse(`${handle.baseUrl}/v1/messages`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${handle.nonce}.s`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
+			});
+			assert.strictEqual(res.status, 200);
+			assert.strictEqual(res.headers['content-type'], 'text/event-stream');
+			const types = res.events.map(e => e.type);
+			assert.deepStrictEqual(types, [
+				'message_start',
+				'content_block_start',
+				'content_block_delta',
+				'content_block_stop',
+				'message_delta',
+				'message_stop',
+			]);
+			const start = res.events[0].data as { type: 'message_start'; message: { model: string } };
+			assert.strictEqual(start.message.model, 'claude-opus-4-6');
+			assert.ok(!res.rawBody.includes('[DONE]'));
 		});
 
 		test('mid-stream CopilotApiError → SSE error frame, then end, no message_stop after', async () => {
@@ -1026,28 +934,23 @@ suite('ClaudeProxyService', () => {
 				events,
 				midStreamError: new CopilotApiError(COPILOT_API_ERROR_STATUS_STREAMING, upstreamEnvelope),
 			};
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				const res = await fetchSse(`${handle.baseUrl}/v1/messages`, {
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${handle.nonce}.s`,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
-				});
-				assert.strictEqual(res.status, 200);
-				const lastEvent = res.events.at(-1);
-				assert.ok(lastEvent);
-				assert.strictEqual(lastEvent.type, 'error');
-				assertEnvelopeWithChatErrorMarker(lastEvent.data as Anthropic.ErrorResponse, upstreamEnvelope, 'failed');
-				const types = res.events.map(e => e.type);
-				assert.ok(!types.includes('message_stop'), 'no message_stop after error frame');
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
+			const service = store.add(createProxyService(fake));
+			const handle = store.add(await service.start(TOKEN));
+			const res = await fetchSse(`${handle.baseUrl}/v1/messages`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${handle.nonce}.s`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
+			});
+			assert.strictEqual(res.status, 200);
+			const lastEvent = res.events.at(-1);
+			assert.ok(lastEvent);
+			assert.strictEqual(lastEvent.type, 'error');
+			assertEnvelopeWithChatErrorMarker(lastEvent.data as Anthropic.ErrorResponse, upstreamEnvelope, 'failed');
+			const types = res.events.map(e => e.type);
+			assert.ok(!types.includes('message_stop'), 'no message_stop after error frame');
 		});
 
 		test('pre-stream CopilotApiError → JSON error response with original status', async () => {
@@ -1058,23 +961,18 @@ suite('ClaudeProxyService', () => {
 				request_id: 'req_pre',
 			};
 			fake.messagesResult = { kind: 'error', error: new CopilotApiError(401, envelope) };
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				const res = await fetchJson(`${handle.baseUrl}/v1/messages`, {
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${handle.nonce}.s`,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
-				});
-				assert.strictEqual(res.status, 401);
-				assertEnvelopeWithChatErrorMarker(res.parsed as Anthropic.ErrorResponse, envelope, 'agent_unauthorized');
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
+			const service = store.add(createProxyService(fake));
+			const handle = store.add(await service.start(TOKEN));
+			const res = await fetchJson(`${handle.baseUrl}/v1/messages`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${handle.nonce}.s`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
+			});
+			assert.strictEqual(res.status, 401);
+			assertEnvelopeWithChatErrorMarker(res.parsed as Anthropic.ErrorResponse, envelope, 'agent_unauthorized');
 		});
 
 		test('pre-stream CopilotApiError with streaming sentinel coerces to 502 but preserves envelope', async () => {
@@ -1088,23 +986,18 @@ suite('ClaudeProxyService', () => {
 				request_id: 'req_sentinel',
 			};
 			fake.messagesResult = { kind: 'error', error: new CopilotApiError(COPILOT_API_ERROR_STATUS_STREAMING, envelope) };
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				const res = await fetchJson(`${handle.baseUrl}/v1/messages`, {
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${handle.nonce}.s`,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
-				});
-				assert.strictEqual(res.status, 502);
-				assertEnvelopeWithChatErrorMarker(res.parsed as Anthropic.ErrorResponse, envelope, 'failed');
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
+			const service = store.add(createProxyService(fake));
+			const handle = store.add(await service.start(TOKEN));
+			const res = await fetchJson(`${handle.baseUrl}/v1/messages`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${handle.nonce}.s`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
+			});
+			assert.strictEqual(res.status, 502);
+			assertEnvelopeWithChatErrorMarker(res.parsed as Anthropic.ErrorResponse, envelope, 'failed');
 		});
 
 		test('mid-stream non-CopilotApiError → synthesized SSE error frame', async () => {
@@ -1113,26 +1006,21 @@ suite('ClaudeProxyService', () => {
 				{ type: 'message_start', message: makeMessage('claude-opus-4.6', '') },
 			];
 			fake.messagesResult = { kind: 'stream', events, midStreamError: new Error('socket hang up') };
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				const res = await fetchSse(`${handle.baseUrl}/v1/messages`, {
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${handle.nonce}.s`,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
-				});
-				const lastEvent = res.events.at(-1);
-				assert.strictEqual(lastEvent?.type, 'error');
-				const env = lastEvent.data as Anthropic.ErrorResponse;
-				assert.strictEqual(env.error.type, 'api_error');
-				assert.strictEqual(env.error.message, 'socket hang up');
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
+			const service = store.add(createProxyService(fake));
+			const handle = store.add(await service.start(TOKEN));
+			const res = await fetchSse(`${handle.baseUrl}/v1/messages`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${handle.nonce}.s`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
+			});
+			const lastEvent = res.events.at(-1);
+			assert.strictEqual(lastEvent?.type, 'error');
+			const env = lastEvent.data as Anthropic.ErrorResponse;
+			assert.strictEqual(env.error.type, 'api_error');
+			assert.strictEqual(env.error.message, 'socket hang up');
 		});
 
 		test('tool-use input_json_delta events pass through', async () => {
@@ -1146,24 +1034,19 @@ suite('ClaudeProxyService', () => {
 				{ type: 'message_stop' },
 			];
 			fake.messagesResult = { kind: 'stream', events };
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				const res = await fetchSse(`${handle.baseUrl}/v1/messages`, {
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${handle.nonce}.s`,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
-				});
-				const deltas = res.events.filter(e => e.type === 'content_block_delta').map(e => e.data as { delta: { type: string; partial_json?: string } });
-				assert.deepStrictEqual(deltas.map(d => d.delta.type), ['input_json_delta', 'input_json_delta']);
-				assert.deepStrictEqual(deltas.map(d => d.delta.partial_json), ['{"a":', '1}']);
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
+			const service = store.add(createProxyService(fake));
+			const handle = store.add(await service.start(TOKEN));
+			const res = await fetchSse(`${handle.baseUrl}/v1/messages`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${handle.nonce}.s`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
+			});
+			const deltas = res.events.filter(e => e.type === 'content_block_delta').map(e => e.data as { delta: { type: string; partial_json?: string } });
+			assert.deepStrictEqual(deltas.map(d => d.delta.type), ['input_json_delta', 'input_json_delta']);
+			assert.deepStrictEqual(deltas.map(d => d.delta.partial_json), ['{"a":', '1}']);
 		});
 
 		test('thinking_delta events pass through', async () => {
@@ -1177,31 +1060,26 @@ suite('ClaudeProxyService', () => {
 				{ type: 'message_stop' },
 			];
 			fake.messagesResult = { kind: 'stream', events };
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				const res = await fetchSse(`${handle.baseUrl}/v1/messages`, {
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${handle.nonce}.s`,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
-				});
-				const deltas = res.events.filter(e => e.type === 'content_block_delta').map(e => e.data as { delta: { type: string; thinking?: string } });
-				assert.deepStrictEqual(deltas.map(d => d.delta.type), ['thinking_delta', 'thinking_delta']);
-				assert.deepStrictEqual(deltas.map(d => d.delta.thinking), ['hmm', ' ok']);
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
+			const service = store.add(createProxyService(fake));
+			const handle = store.add(await service.start(TOKEN));
+			const res = await fetchSse(`${handle.baseUrl}/v1/messages`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${handle.nonce}.s`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
+			});
+			const deltas = res.events.filter(e => e.type === 'content_block_delta').map(e => e.data as { delta: { type: string; thinking?: string } });
+			assert.deepStrictEqual(deltas.map(d => d.delta.type), ['thinking_delta', 'thinking_delta']);
+			assert.deepStrictEqual(deltas.map(d => d.delta.thinking), ['hmm', ' ok']);
 		});
 
 		test('socket.setNoDelay(true) is called on streaming responses', async () => {
 			const fake = new FakeCopilotApiService();
 			fake.messagesResult = { kind: 'stream', events: makeStreamEvents('claude-opus-4.6') };
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
+			const service = store.add(createProxyService(fake));
+			const handle = store.add(await service.start(TOKEN));
 
 			// Patch net.Socket.prototype.setNoDelay to track calls during
 			// this test only.
@@ -1211,21 +1089,16 @@ suite('ClaudeProxyService', () => {
 				calls.push(enable !== false);
 				return original.call(this, enable as boolean);
 			};
-			try {
-				await fetchSse(`${handle.baseUrl}/v1/messages`, {
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${handle.nonce}.s`,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
-				});
-				assert.ok(calls.some(c => c === true), 'expected setNoDelay(true) to have been called at least once');
-			} finally {
-				net.Socket.prototype.setNoDelay = original;
-				handle.dispose();
-				service.dispose();
-			}
+			store.add(toDisposable(() => { net.Socket.prototype.setNoDelay = original; }));
+			await fetchSse(`${handle.baseUrl}/v1/messages`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${handle.nonce}.s`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
+			});
+			assert.ok(calls.some(c => c === true), 'expected setNoDelay(true) to have been called at least once');
 		});
 	});
 
@@ -1273,56 +1146,52 @@ suite('ClaudeProxyService', () => {
 				resolveRestrictedTelemetryContext: () => Promise.resolve({ restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined }),
 				resolveApiEndpoint: () => Promise.resolve(undefined),
 			};
-			const service = new ClaudeProxyService(new NullLogService(), wrapped);
-			const handle = await service.start(TOKEN);
+			const service = store.add(new ClaudeProxyService(new NullLogService(), wrapped));
+			const handle = store.add(await service.start(TOKEN));
 
-			try {
-				const u = new URL(`${handle.baseUrl}/v1/messages`);
-				const httpMod = await getHttp();
-				const clientFinished = new Promise<void>(resolve => {
-					const req = httpMod.request({
-						hostname: u.hostname,
-						port: u.port,
-						path: u.pathname,
-						method: 'POST',
-						headers: {
-							'Authorization': `Bearer ${handle.nonce}.s`,
-							'Content-Type': 'application/json',
-						},
-					}, res => {
-						let frames = 0;
-						res.on('data', () => {
-							frames++;
-							if (frames >= 1) {
-								req.destroy();
-								resolve();
-							}
-						});
-						res.on('error', () => resolve());
-						res.on('close', () => resolve());
+			const u = new URL(`${handle.baseUrl}/v1/messages`);
+			const httpMod = await getHttp();
+			const clientFinished = new Promise<void>(resolve => {
+				const req = httpMod.request({
+					hostname: u.hostname,
+					port: u.port,
+					path: u.pathname,
+					method: 'POST',
+					headers: {
+						'Authorization': `Bearer ${handle.nonce}.s`,
+						'Content-Type': 'application/json',
+					},
+				}, res => {
+					let frames = 0;
+					res.on('data', () => {
+						frames++;
+						if (frames >= 1) {
+							req.destroy();
+							resolve();
+						}
 					});
-					req.on('error', () => resolve());
-					req.write(JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }));
-					req.end();
+					res.on('error', () => resolve());
+					res.on('close', () => resolve());
 				});
-				await clientFinished;
-				// Wait for the upstream generator to observe the abort.
-				await Promise.race([
-					abortObserved,
-					new Promise<void>((_resolve, reject) => setTimeout(() => reject(new Error('upstream did not observe abort within 2s')), 2000)),
-				]);
+				req.on('error', () => resolve());
+				req.write(JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }));
+				req.end();
+			});
+			await clientFinished;
+			// Wait for the upstream generator to observe the abort.
+			await Promise.race([
+				abortObserved,
+				new Promise<void>((_resolve, reject) => setTimeout(() => reject(new Error('upstream did not observe abort within 2s')), 2000)),
+			]);
 
-				assert.ok(signalSeen, 'expected upstream signal');
-				assert.ok(signalSeen.aborted, 'expected abort to fire on client disconnect');
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
+			assert.ok(signalSeen, 'expected upstream signal');
+			assert.ok(signalSeen.aborted, 'expected abort to fire on client disconnect');
 		});
 
 		test('dispose() with in-flight non-streaming aborts the upstream call', async () => {
 			const fake = new FakeCopilotApiService();
 			let signalSeen: AbortSignal | undefined;
+			const upstreamCalled = new DeferredPromise<void>();
 			let releaseUpstream: () => void = () => { };
 			const upstream = new Promise<Anthropic.Message>((_resolve, reject) => {
 				releaseUpstream = () => reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }));
@@ -1331,6 +1200,7 @@ suite('ClaudeProxyService', () => {
 				_serviceBrand: undefined,
 				messages: ((token, body, options) => {
 					signalSeen = options?.signal;
+					upstreamCalled.complete();
 					if (body.stream) {
 						return fake.messages(token, body as Anthropic.MessageCreateParamsStreaming, options);
 					}
@@ -1357,11 +1227,7 @@ suite('ClaudeProxyService', () => {
 			}).catch(err => ({ aborted: true, err: err as Error }));
 
 			// Wait until upstream has been called.
-			await new Promise<void>(resolve => {
-				const i = setInterval(() => {
-					if (signalSeen) { clearInterval(i); resolve(); }
-				}, 10);
-			});
+			await upstreamCalled.p;
 
 			handle.dispose();
 			service.dispose();

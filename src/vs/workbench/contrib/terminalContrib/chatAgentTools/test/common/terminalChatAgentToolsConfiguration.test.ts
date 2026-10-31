@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { stub } from 'sinon';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationModelParser } from '../../../../../../platform/configuration/common/configurationModels.js';
 import { DefaultConfiguration } from '../../../../../../platform/configuration/common/configurations.js';
@@ -50,6 +51,23 @@ suite('Terminal chat agent tools configuration', () => {
 			enabled: terminalChatAgentToolsConfiguration[AgentSandboxSettingId.AgentSandboxEnabled].enum,
 			windows: terminalChatAgentToolsConfiguration['chat.agent.sandbox.enabledWindows'],
 		}, { enabled: ['off', 'on'], windows: undefined });
+	});
+
+	test('tags terminal approval and sandbox settings as chat permissions', () => {
+		const expectedSettingIds = [
+			TerminalChatAgentToolsSettingId.EnableAutoApprove,
+			TerminalChatAgentToolsSettingId.AutoApprove,
+			TerminalChatAgentToolsSettingId.AutoApproveWorkspaceNpmScripts,
+			TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules,
+			TerminalChatAgentToolsSettingId.BlockDetectedFileWrites,
+			...Object.keys(terminalChatAgentToolsConfiguration).filter(key => key.startsWith('chat.agent.sandbox.')),
+		];
+		assert.deepStrictEqual(
+			Object.entries(terminalChatAgentToolsConfiguration)
+				.filter(([, setting]) => setting.tags?.includes('chatPermissions'))
+				.map(([key]) => key).sort(),
+			expectedSettingIds.sort(),
+		);
 	});
 
 	test('adds sandbox search keywords and ordering to settings consumed by the Agent Host Copilot sandbox', () => {
@@ -105,6 +123,20 @@ suite('Terminal chat agent tools configuration', () => {
 			policy: undefined,
 			presentation: [undefined, false, undefined],
 		})));
+	});
+
+	test('does not register the unimplemented sandbox masked environment variables setting', async () => {
+		const settingId = 'chat.agent.sandbox.maskedEnvironmentVariables';
+		const defaults = await store.add(new DefaultConfiguration(new NullLogService())).initialize();
+		assert.deepStrictEqual({
+			setting: terminalChatAgentToolsConfiguration[settingId],
+			registered: configurationRegistry.getConfigurationProperties()[settingId],
+			default: defaults.getValue(settingId),
+		}, {
+			setting: undefined,
+			registered: undefined,
+			default: undefined,
+		});
 	});
 
 	test('registers Copilot user-configured paths and warns about legacy filesystem settings', () => {
@@ -171,19 +203,16 @@ suite('Terminal chat agent tools configuration', () => {
 		test(`ignores malformed ${key} without logging managed values`, () => {
 			const presentation = terminalChatAgentToolsConfiguration[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths].managedSettingsPresentation!;
 			const consoleWarn = stub(console, 'warn');
-			try {
-				const values = ['private.enterprise.path', 'null', '{}', '[123]', false, 123]
-					.map(value => presentation(managedKey => managedKey === key ? value : undefined));
-				assert.deepStrictEqual({ values, warnings: consoleWarn.args }, {
-					values: Array.from({ length: 6 }, () => undefined),
-					warnings: [
-						['Failed to parse managed sandbox filesystem paths; ignoring the presentation override.'],
-						...Array.from({ length: 5 }, () => ['Managed sandbox filesystem paths must be a string array; ignoring the presentation override.']),
-					],
-				});
-			} finally {
-				consoleWarn.restore();
-			}
+			store.add(toDisposable(() => consoleWarn.restore()));
+			const values = ['private.enterprise.path', 'null', '{}', '[123]', false, 123]
+				.map(value => presentation(managedKey => managedKey === key ? value : undefined));
+			assert.deepStrictEqual({ values, warnings: consoleWarn.args }, {
+				values: Array.from({ length: 6 }, () => undefined),
+				warnings: [
+					['Failed to parse managed sandbox filesystem paths; ignoring the presentation override.'],
+					...Array.from({ length: 5 }, () => ['Managed sandbox filesystem paths must be a string array; ignoring the presentation override.']),
+				],
+			});
 		});
 	}
 
@@ -296,7 +325,7 @@ suite('Terminal chat agent tools configuration', () => {
 			assert.deepStrictEqual({
 				values, type: setting.type, restricted: setting.restricted, tags: setting.tags,
 				placeholder: setting.markdownDescription?.includes('This setting has no effect yet.'),
-			}, { values: [defaultValue, false, true], type: 'boolean', restricted: true, tags: undefined, placeholder: false });
+			}, { values: [defaultValue, false, true], type: 'boolean', restricted: true, tags: ['chatPermissions'], placeholder: false });
 		});
 	}
 

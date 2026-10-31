@@ -14,6 +14,9 @@ import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actio
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import type { ContextKeyExpression, ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { AgentHostRemoteConnectionsSettingId, IMissionControlSharingService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -122,21 +125,17 @@ suite('Sessions - Tunnel Host Contribution', () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configuration);
-		const contribution = new SessionsTunnelHostTitlebarContribution(new TestRemoteTunnelService(), new NullActionViewItemService());
+		store.add(new SessionsTunnelHostTitlebarContribution(new TestRemoteTunnelService(), new NullActionViewItemService()));
 
-		try {
-			const command = CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID);
-			assert.ok(command);
+		const command = CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID);
+		assert.ok(command);
 
-			await instantiationService.invokeFunction(command.handler);
+		await instantiationService.invokeFunction(command.handler);
 
-			assert.deepStrictEqual(commandService.calls, [{
-				id: RemoteTunnelCommandIds.turnOn,
-				args: [{ authenticationProviderId: 'github', showServiceOption: false, showSuccessNotification: false }],
-			}]);
-		} finally {
-			contribution.dispose();
-		}
+		assert.deepStrictEqual(commandService.calls, [{
+			id: RemoteTunnelCommandIds.turnOn,
+			args: [{ authenticationProviderId: 'github', showServiceOption: false, showSuccessNotification: false }],
+		}]);
 	});
 
 	test('Agents sharing toggle uses Mission Control when selected', async () => {
@@ -148,6 +147,8 @@ suite('Sessions - Tunnel Host Contribution', () => {
 		instantiation.stub(IRemoteTunnelService, new TestRemoteTunnelService());
 		instantiation.stub(ICommandService, commandService);
 		instantiation.stub(IConfigurationService, configuration);
+		instantiation.stub(ILogService, store.add(new NullLogService()));
+		instantiation.stub(INotificationService, new TestNotificationService());
 		instantiation.stub(IMissionControlSharingService, new class extends mock<IMissionControlSharingService>() {
 			override readonly state = observableValue<'disabled' | 'connecting' | 'enabled'>(this, 'disabled');
 			override async setEnabled(enabled: boolean) { calls.push(enabled); }

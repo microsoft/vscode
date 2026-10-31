@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { workbenchInstantiationService, TestServiceAccessor, TestEditorInput, registerTestEditor, registerTestFileEditor, registerTestResourceEditor, TestFileEditorInput, createEditorPart, registerTestSideBySideEditor } from '../../workbenchTestServices.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { whenEditorClosed } from '../../../../browser/editor.js';
@@ -27,6 +27,8 @@ import { DEFAULT_EDITOR_PART_OPTIONS, fillActiveEditorSelection } from '../../..
 import { mock } from '../../../../../base/test/common/mock.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { TextEditorPaneSelection } from '../../../../browser/parts/editor/textEditor.js';
+import { EditorGroupView } from '../../../../browser/parts/editor/editorGroupView.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 
 suite('Workbench editor utils', () => {
 
@@ -464,6 +466,37 @@ suite('Workbench editor utils', () => {
 
 		enforcedOverride.dispose();
 		assert.strictEqual(part.partOptions.tabActionReserveSpace, false);
+	});
+
+	test('title separator follows the inset editor content while tabs remain full width', async () => {
+		const part = await createEditorPart(instantiationService, disposables);
+		const root = mainWindow.document.createElement('div');
+		root.className = 'monaco-workbench';
+		mainWindow.document.body.appendChild(root);
+		const partContainer = part.getContainer()!;
+		partContainer.classList.add('part', 'editor');
+		root.appendChild(partContainer);
+		disposables.add(toDisposable(() => root.remove()));
+		const group = part.activeGroup;
+		assert.ok(group instanceof EditorGroupView);
+		await group.openEditor(disposables.add(new TestFileEditorInput(URI.file('/title-separator.ts'), TEST_EDITOR_ID)), { pinned: true });
+		const title = root.querySelector<HTMLElement>('.editor-group-container > .title')!;
+		title.classList.add('title-border-bottom');
+		const results = [];
+		for (const { width, inset } of [{ width: 600, inset: 0 }, { width: 600, inset: 220 }, { width: 750, inset: 220 }, { width: 750, inset: 0 }, { width: 400, inset: 500 }]) {
+			group.layout(width, 400, 0, 0);
+			group.setContentRightInset(inset);
+			results.push({
+				width, inset,
+				separatorWidth: mainWindow.getComputedStyle(title, '::after').width,
+				editorWidth: root.querySelector<HTMLElement>('.editor-container')!.style.width,
+			});
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result,
+			separatorWidth: `${Math.max(0, result.width - result.inset)}px`,
+			editorWidth: `${Math.max(0, result.width - result.inset)}px`,
+		})));
 	});
 
 	test('editor tab mode class follows configured and enforced part options', async () => {

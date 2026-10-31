@@ -6,13 +6,19 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { equals } from '../../../../../../base/common/objects.js';
+import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { localize } from '../../../../../../nls.js';
 import { readAgentModelNoticesMeta } from '../../../../../../platform/agentHost/common/agentModelNotices.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../platform/agentHost/common/agent.js';
-import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { readAgentModelEnsembleMeta, readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../../../../../platform/agentHost/common/localModel.js';
+import { readLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
+import { ConfigPropertySchema, ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, isAgentModelFusion, readAgentModelFusionInlineChatTier, readAgentModelPricingMeta, type IAgentModelAutoTierPromotion, type IAgentModelAutoTiersMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
@@ -56,8 +62,11 @@ export type IAgentHostModelCatalogue = Pick<ILanguageModelsService, 'getLanguage
 export class AgentHostLanguageModelProvider extends Disposable implements ILanguageModelChatProvider {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
+	private readonly _promotionChange = this._register(new MutableDisposable());
 
 	private _models: readonly SessionModelInfo[] = [];
+	/** Whether {@link updateModels} was called, whose first call publishes even an empty list so the vendor resolves. */
+	private _receivedModels = false;
 	private _additionalModels: readonly SessionModelInfo[] = [];
 
 	constructor(
@@ -87,11 +96,45 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	 * Called by {@link AgentHostContribution} when models change in root state.
 	 */
 	updateModels(models: readonly SessionModelInfo[]): void {
+		// Agents are republished on every root state change, so most updates repeat the same models.
+		if (this._receivedModels && equals(this._models, models)) {
+			return;
+		}
+		this._receivedModels = true;
 		this._models = models;
 		this._onDidChange.fire();
+		this._schedulePromotionChange();
 	}
 
-	/** Adds service-discovered models without overriding metadata or policy published by the host. */
+	private _schedulePromotionChange(): void {
+		const now = Date.now();
+		const next = Math.min(...this._models
+			.filter(model => model.id === AUTO_RAW_MODEL_ID)
+			.flatMap(model => readAgentModelAutoTierPromotionsMeta(model))
+			.flatMap(promotion => [promotion.startsAt, promotion.endsAt])
+			.map(date => date ? Date.parse(date) : NaN)
+			.filter(time => time > now));
+		this._promotionChange.value = Number.isFinite(next)
+			// Timers cannot wait longer than about 24.8 days.
+			? disposableTimeout(() => { this._onDidChange.fire(); this._schedulePromotionChange(); }, Math.min(next - now, AgentHostLanguageModelProvider._maxPromotionWaitMs))
+			: undefined;
+	}
+
+	private static readonly _maxPromotionWaitMs = 24 * 60 * 60 * 1000;
+
+	/** A running promotion's discount when it covers every tier Auto offers. */
+	private static _wholeModelPromotionDiscount(model: SessionModelInfo, promotions: readonly IAgentModelAutoTierPromotion[], now: number): number | undefined {
+		const tiers = (model.configSchema?.properties.tier?.enum ?? []).filter((tier): tier is string => typeof tier === 'string');
+		if (!tiers.length) {
+			return undefined;
+		}
+		const discounts = promotions
+			.filter(promotion => promotion.discountPercent > 0 && tiers.every(tier => promotion.tierIds.includes(tier)) && ILanguageModelChatMetadata.isAutoTierPromotionActive(promotion, now))
+			.map(promotion => promotion.discountPercent);
+		return discounts.length ? Math.max(...discounts) : undefined;
+	}
+
+	/** Adds service-discovered models, missing Copilot pricing and matching Cloud tier labels without changing host capabilities or policy. */
 	updateAdditionalModels(models: readonly SessionModelInfo[]): void {
 		this._additionalModels = models;
 		this._onDidChange.fire();
@@ -99,22 +142,41 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 
 	async provideLanguageModelChatInfo(_options: unknown, _token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
 		const hostModelIds = new Set(this._models.map(model => model.id));
+		const additionalModels = new Map(this._additionalModels.map(model => [model.id, model]));
 		return [...this._models, ...this._additionalModels.filter(model => !hostModelIds.has(model.id))]
 			.filter(m => m.policyState !== 'disabled')
 			.map(m => {
-				const pricing = readAgentModelPricingMeta(m);
+				const modelGroup = this._modelGroupFor(m);
+				const additional = additionalModels.get(m.id);
+				const matchingAdditional = m.id !== AUTO_RAW_MODEL_ID && additional?.provider === m.provider
+					&& modelGroup?.id === COPILOT_VENDOR_ID && this._modelGroupFor(additional)?.id === COPILOT_VENDOR_ID
+					? additional : undefined;
+				const cloudContextTier = matchingAdditional?.provider === CLOUD_SANDBOX_AGENT_PROVIDER ? matchingAdditional.configSchema?.properties.contextTier : undefined;
+				const pricing = {
+					...(matchingAdditional ? readAgentModelPricingMeta(matchingAdditional) : undefined),
+					...readAgentModelPricingMeta(m),
+				};
 				const multiplierNumeric = pricing.multiplierNumeric;
 				// "Auto" advertises the auto-mode discount (detail) + description (tooltip). microsoft/vscode#321778, #321659.
 				const isAuto = m.id === AUTO_RAW_MODEL_ID;
-				const ensemble = isAuto ? readAgentModelEnsembleMeta(m) : undefined;
+				const fusion = isAuto && isAgentModelFusion(m);
+				const fusionInlineChatTier = fusion ? readAgentModelFusionInlineChatTier(m) : undefined;
+				const configurationDefaultKeys = readAgentModelConfigurationDefaults(m);
 				const notices = isAuto ? undefined : readAgentModelNoticesMeta(m);
 				const discountPercent = pricing.discountPercent;
 				// Guard against a non-finite or out-of-range value from the open `_meta` bag so we never render
 				// nonsense like "Infinity% discount"; the documented range is a whole number in (0, 100].
 				const hasDiscount = typeof discountPercent === 'number' && discountPercent > 0 && discountPercent <= 100;
-				const { detail, description } = this._routingPresentationFor(m, hasDiscount ? discountPercent : undefined);
+				const tierPromotions = fusion ? readAgentModelAutoTierPromotionsMeta(m) : [];
+				const now = Date.now();
+				const promotionDiscount = AgentHostLanguageModelProvider._wholeModelPromotionDiscount(m, tierPromotions, now);
+				const publishedPromotions = tierPromotions
+					.filter(promotion => ILanguageModelChatMetadata.isAutoTierPromotionActive(promotion, now))
+					.map(({ id, message, discountPercent, tierIds, startsAt, endsAt }) => ({ id, message, discountPercent, tierIds, startsAt, endsAt }));
+				// Fusion's discount comes only from the service's promotions, never from Auto's own billing discount.
+				const modelDiscount = hasDiscount && !fusion ? discountPercent : undefined;
+				const { detail, description } = this._routingPresentationFor(m, promotionDiscount ?? modelDiscount);
 				const tooltip = notices?.rowWarning ?? description;
-				const modelGroup = this._modelGroupFor(m);
 				const byokModelIdentifier = readAgentModelByokIdentifier(m);
 				// A host that derives its list from the Copilot SDK advertises no billing and no
 				// token counts, so fall back to the workbench's own catalogue entry for the same
@@ -136,8 +198,11 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						family: m.id,
 						...(tooltip !== undefined && { tooltip }),
 						...(detail !== undefined && { detail }),
-						...(isAuto && hasDiscount && { autoModelDiscountPercent: discountPercent }),
-						...(ensemble && { autoModelEnsemble: ensemble }),
+						...(isAuto && modelDiscount !== undefined && { autoModelDiscountPercent: modelDiscount }),
+						...(fusion && { autoModelFusion: true }),
+						...(fusionInlineChatTier !== undefined && { autoModelFusionInlineChatTier: fusionInlineChatTier }),
+						...(publishedPromotions.length && { autoModelTierPromotions: publishedPromotions }),
+						...(isAuto && readAgentModelAutoTiersMeta(m) && { autoModelProviderTiers: true }),
 						maxInputTokens,
 						maxOutputTokens,
 						maxContextWindowTokens: m.maxContextWindow ?? known?.maxContextWindowTokens,
@@ -146,8 +211,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						statusIcon: notices?.rowWarning ? Codicon.warning : undefined,
 						warningText: notices?.warningText,
 						infoText: notices?.infoText,
-						pricing: multiplierNumeric !== undefined ? `${multiplierNumeric}x` : known?.pricing,
-						multiplierNumeric: multiplierNumeric ?? known?.multiplierNumeric,
+						pricing: isAuto ? undefined : multiplierNumeric !== undefined ? `${multiplierNumeric}x` : known?.pricing,
+						multiplierNumeric: isAuto ? undefined : multiplierNumeric ?? known?.multiplierNumeric,
 						inputCost: pricing.inputCost ?? known?.inputCost,
 						cacheCost: pricing.cacheCost ?? known?.cacheCost,
 						cacheWriteCost: pricing.cacheWriteCost ?? known?.cacheWriteCost,
@@ -171,7 +236,9 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 							toolCalling: true,
 							agentMode: true,
 						},
-						configurationSchema: this._toLanguageModelConfigurationSchema(m.configSchema),
+						configurationSchema: this._toLanguageModelConfigurationSchema(m.configSchema, isAuto ? readAgentModelAutoTiersMeta(m) : undefined, cloudContextTier),
+						...(configurationDefaultKeys !== undefined ? { configurationDefaultKeys } : {}),
+						managedModelDefaults: readAgentManagedModelDefaults(m),
 					},
 				};
 			});
@@ -179,14 +246,17 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 
 	/**
 	 * The picker detail and description of a model that routes across others: Auto advertises its
-	 * discount, HydraFusion that it is a research preview. Other models have neither.
+	 * discount, and HydraFusion that it is a research preview. Other models have neither.
 	 */
 	private _routingPresentationFor(model: SessionModelInfo, discountPercent: number | undefined): { detail?: string; description?: string } {
 		if (model.id === AUTO_RAW_MODEL_ID) {
+			const fusion = isAgentModelFusion(model);
 			return {
-				detail: discountPercent !== undefined ? localize('agentHost.auto.discount', "{0}% discount", discountPercent) : undefined,
+				detail: discountPercent !== undefined
+					? localize('agentHost.auto.discount', "{0}% discount", discountPercent)
+					: undefined,
 				// The discount is carried by `autoModelDiscountPercent` and described by the picker.
-				description: ILanguageModelChatMetadata.getAutoModelDescription(!!readAgentModelEnsembleMeta(model)),
+				description: ILanguageModelChatMetadata.getAutoModelDescription(fusion),
 			};
 		}
 		if (model.provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(model.id)) {
@@ -227,18 +297,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		return undefined;
 	}
 
-	/**
-	 * Translate a host's model {@link ConfigSchema} into the picker's schema shape.
-	 *
-	 * Values and display text belong to the producer; the workbench only picks the group
-	 * ({@link _groupForConfigKey}). The one exception is a reasoning-effort enum with no display
-	 * text at all, labelled locally rather than rendering raw values like `xhigh`.
-	 *
-	 * A property is never dropped for want of local enrichment: a host advertises one because it
-	 * will honour it, and a new model, a staged rollout and an unresolved catalogue all look
-	 * identical from here.
-	 */
-	private _toLanguageModelConfigurationSchema(schema: ConfigSchema | undefined): ILanguageModelConfigurationSchema | undefined {
+	/** Adapts host configuration, enriching only display text from matching Cloud tiers or missing effort labels. */
+	private _toLanguageModelConfigurationSchema(schema: ConfigSchema | undefined, autoTiers?: IAgentModelAutoTiersMeta, cloudContextTier?: ConfigPropertySchema): ILanguageModelConfigurationSchema | undefined {
 		if (!schema) {
 			return undefined;
 		}
@@ -251,6 +311,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 			const effortDisplay = property.enumLabels === undefined && property.enumDescriptions === undefined
 				? AgentHostLanguageModelProvider._reasoningEffortDisplay(key, property.enum)
 				: undefined;
+			const contextLabels = key === 'contextTier' ? AgentHostLanguageModelProvider._cloudContextTierLabels(property, cloudContextTier) : undefined;
 
 			properties[key] = {
 				type: property.type,
@@ -258,17 +319,75 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				description: property.description,
 				default: property.default,
 				enum: property.enum,
-				enumItemLabels: property.enumLabels ?? effortDisplay?.labels,
+				enumItemLabels: contextLabels ?? property.enumLabels ?? effortDisplay?.labels,
 				enumDescriptions: property.enumDescriptions ?? effortDisplay?.descriptions,
 				readOnly: property.readOnly,
 				group: AgentHostLanguageModelProvider._groupForConfigKey(key),
 			};
+			if (key === 'tier' && autoTiers) {
+				properties[key] = AgentHostLanguageModelProvider._withUnavailableAutoTiers(properties[key], autoTiers);
+			}
 		}
 
 		return {
 			type: schema.type,
 			required: schema.required,
 			properties,
+		};
+	}
+
+	private static _cloudContextTierLabels(property: ConfigPropertySchema, catalog: ConfigPropertySchema | undefined): string[] | undefined {
+		if (property.type !== 'string' || !property.enum?.length || catalog?.type !== 'string') {
+			return undefined;
+		}
+		// TODO: Remove this display-only enrichment once hosts publish numeric context-tier labels.
+		const labels: string[] = [];
+		for (const value of property.enum) {
+			if (value !== 'default' && value !== 'long_context') {
+				return undefined;
+			}
+			const label = catalog.enumLabels?.[catalog.enum?.indexOf(value) ?? -1];
+			if (!label) {
+				return undefined;
+			}
+			labels.push(label);
+		}
+		return labels;
+	}
+
+	/** Adds the provider's unavailable tiers as disabled entries; enabled tiers missing from `enum` stay out. */
+	private static _withUnavailableAutoTiers(property: NonNullable<ILanguageModelConfigurationSchema['properties']>[string], autoTiers: IAgentModelAutoTiersMeta): NonNullable<ILanguageModelConfigurationSchema['properties']>[string] {
+		const selectable = property.enum ?? [];
+		if (!autoTiers.tiers.some(tier => !tier.enabled && !selectable.includes(tier.id))) {
+			return property;
+		}
+		const entries: { value: unknown; label: string | undefined; description: string | undefined; disabled: boolean }[] = [];
+		const listed = new Set<unknown>();
+		const pushSelectable = (value: unknown) => {
+			const index = selectable.indexOf(value);
+			entries.push({ value, label: property.enumItemLabels?.[index], description: property.enumDescriptions?.[index], disabled: false });
+			listed.add(value);
+		};
+		for (const tier of autoTiers.tiers) {
+			if (selectable.includes(tier.id)) {
+				pushSelectable(tier.id);
+			} else if (!tier.enabled && !listed.has(tier.id)) {
+				// The provider's own name and reason only.
+				entries.push({ value: tier.id, label: tier.label, description: tier.message, disabled: true });
+				listed.add(tier.id);
+			}
+		}
+		for (const value of selectable) {
+			if (!listed.has(value)) {
+				pushSelectable(value);
+			}
+		}
+		return {
+			...property,
+			enum: entries.map(entry => entry.value),
+			enumItemLabels: entries.map(entry => entry.label ?? String(entry.value)),
+			enumDescriptions: entries.map(entry => entry.description ?? ''),
+			enumItemDisabled: entries.map(entry => entry.disabled),
 		};
 	}
 
@@ -337,7 +456,11 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	private _modelGroupFor(model: SessionModelInfo): ILanguageModelChatMetadata['modelGroup'] {
 		const explicitGroupId = readAgentModelGroupId(model);
 		const slash = model.id.indexOf('/');
-		const groupVendorId = explicitGroupId ?? (slash > 0 ? model.id.slice(0, slash) : model.provider);
+		// An on-device model's direct row is the harness's own model; its id's
+		// `vscode-on-device/` prefix names the sentinel provider that serves it,
+		// not a vendor the user added.
+		const isLocalModelRow = !!readLocalModelRowMeta(model) || model.id.startsWith(`${LOCAL_MODEL_SENTINEL_PROVIDER_NAME}/`);
+		const groupVendorId = explicitGroupId ?? (slash > 0 && !isLocalModelRow ? model.id.slice(0, slash) : model.provider);
 		if (!groupVendorId) {
 			return undefined;
 		}

@@ -13,8 +13,9 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { COI } from '../../../../base/common/network.js';
+import { COI, Schemas } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
+import { isEqualAuthority } from '../../../../base/common/resources.js';
 import { listenStream } from '../../../../base/common/stream.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -32,7 +33,8 @@ import { IRemoteAuthorityResolverService } from '../../../../platform/remote/com
 import { ITunnelService } from '../../../../platform/tunnel/common/tunnel.js';
 import { WebviewPortMappingManager } from '../../../../platform/webview/common/webviewPortMapping.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from '../common/webview.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { decodeAuthority, webviewGenericCspSource, webviewMouseActivityEvent, webviewRootResourceAuthority } from '../common/webview.js';
 import { loadLocalResource, WebviewResourceResponse } from './resourceLoading.js';
 import { WebviewThemeDataProvider } from './themeing.js';
 import { areWebviewContentOptionsEqual, IWebviewElement, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
@@ -178,6 +180,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		@ITunnelService private readonly _tunnelService: ITunnelService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 	) {
 		super();
 
@@ -240,6 +243,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 		this._register(this.on('did-scroll-wheel', (event) => {
 			this._onDidWheel.fire(event);
+		}));
+
+		this._register(this.on('did-mouse-move', ({ screenX, screenY }) => {
+			this.window?.dispatchEvent(new CustomEvent(webviewMouseActivityEvent, { detail: { screenX, screenY } }));
 		}));
 
 		this._register(this.on('did-find', ({ didFind }) => {
@@ -836,10 +843,14 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		const token = cts.token;
 
 		try {
+			const remoteOS = uri.scheme === Schemas.vscodeRemote && isEqualAuthority(this._remoteAgentService.getConnection()?.remoteAuthority, uri.authority)
+				? (await this._remoteAgentService.getEnvironment())?.os
+				: undefined;
 			const result = await this._instantiationService.invokeFunction(loadLocalResource, uri, {
 				ifNoneMatch: options.ifNoneMatch,
 				roots: this._content.options.localResourceRoots || [],
 				range: options.range,
+				remoteOS,
 			}, token);
 
 			if (this._disposed) {

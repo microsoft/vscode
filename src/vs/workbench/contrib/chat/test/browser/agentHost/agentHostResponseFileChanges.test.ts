@@ -20,6 +20,7 @@ import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platf
 import { AgentSubscriptionManager, IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { chatReducer } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/reducer.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { chatTurnComplete } from '../../../../../../platform/agentHost/test/common/chatActionBuilders.js';
 import {
 	buildChatUri,
 	buildDefaultChatUri,
@@ -144,7 +145,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 	function createProvider(
 		conn: IAgentConnection,
 		resolveBackendSession: () => URI | undefined = () => backendSession,
-		resolveBackendChat?: (sessionResource: URI) => URI | undefined,
+		resolveBackendChat?: (sessionResource: URI, sessionState?: SessionState) => URI | undefined,
 	): AgentHostResponseFileChangesProvider {
 		return new AgentHostResponseFileChangesProvider(conn, authority, resolveBackendSession, resolveBackendChat, new NullLogService());
 	}
@@ -232,6 +233,38 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			});
 		});
 	}
+
+	test('a chat resource whose chat is unresolved when asked subscribes only its own chat, not every chat in the catalog', () => {
+		const peers = Array.from({ length: 6 }, (_, index) => URI.parse(buildChatUri(backendSession.toString(), `peer-${index}`)).toString());
+		const subscribedChats = (resolveAtRequest: boolean) => {
+			const conn = new FakeAgentConnection();
+			conn.setState(backendSession.toString(), {
+				defaultChat: defaultChatUri.toString(),
+				// Unopened peers, half of them archived.
+				chats: peers.map((resource, index) => createChatState({
+					resource,
+					title: `Peer ${index}`,
+					status: index % 2 ? SessionStatus.Idle | SessionStatus.IsArchived : SessionStatus.Idle,
+					modifiedAt: new Date(0).toISOString(),
+				})),
+			} as unknown as SessionState);
+			// As after a reconnect, the session handler can resolve the chat only once its session state loads; until
+			// then the provider resolves it from its own session state.
+			const provider = store.add(createProvider(conn, () => backendSession, (_resource, state) => resolveAtRequest || state ? defaultChatUri : undefined));
+			const observed = observe(provider, store.add(new DisposableStore()));
+			conn.setState(defaultChatUri.toString(), { ...chatStateWithTurnSupport(), turns: [{ ...completedTurn('t1'), responseParts: [] }] });
+			conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Ready, files: [{ id: 'edited', edit: fileEdit('/repo/a.ts', 3) }] } satisfies ChangesetState);
+			return {
+				chats: [defaultChatUri.toString(), ...peers].filter(chat => conn.getSubscriptionCount(chat) > 0),
+				files: observed.latest().map(diff => fromAgentHostUri(diff.modifiedURI).path),
+			};
+		};
+
+		assert.deepStrictEqual({ unresolved: subscribedChats(false), resolved: subscribedChats(true) }, {
+			unresolved: { chats: [defaultChatUri.toString()], files: ['/repo/a.ts'] },
+			resolved: { chats: [defaultChatUri.toString()], files: ['/repo/a.ts'] },
+		});
+	});
 
 	function fileEdit(path: string, added = 1, onRead?: () => void): ISessionFileDiff {
 		const uri = URI.file(path).toString();
@@ -581,7 +614,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 
 			chat = streamText(conn, chat);
 			conn.setState(backendSession.toString(), { ...session, title: 'Renamed session' });
-			conn.setState(chat.resource, chatReducer(chat, { type: ActionType.ChatTurnComplete, turnId: 'active', duration: 1 }));
+			conn.setState(chat.resource, chatReducer(chat, chatTurnComplete('active', 1)));
 
 			assert.deepStrictEqual({
 				historyVisits,
@@ -799,6 +832,48 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		});
 	});
 
+	test('converts immutable response file edits once across consumers and re-observation', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const provider = ds.add(createProvider(conn));
+		let editReads = 0;
+		const chat = chatWithTurns([completedTurn('t1', fileEdit('/repo/a.ts', 1, () => editReads++))]);
+		conn.setState(backendSession.toString(), sessionState());
+		conn.setState(chat.resource, chat);
+
+		const observeBoth = () => {
+			const observation = new DisposableStore();
+			const diffs = observe(provider, observation);
+			const edits = provider.getFileEditsForRequest(chatResource, 't1')!;
+			let fileEdits: readonly IChatResponseFileEdit[] = [];
+			observation.add(autorun(reader => { fileEdits = edits.read(reader); }));
+			const result = { diffs: diffs.latest(), fileEdits };
+			observation.dispose();
+			return result;
+		};
+		const first = observeBoth();
+		const readsAfterFirst = editReads;
+		const second = observeBoth();
+		const readsAfterSecond = editReads;
+
+		conn.setState(chat.resource, { ...chat, turns: [completedTurn('t1', fileEdit('/repo/a.ts', 9, () => editReads++))] });
+		const third = observeBoth();
+
+		assert.deepStrictEqual({
+			firstAdded: first.diffs.map(d => d.added),
+			reconvertedOnReobserve: readsAfterSecond - readsAfterFirst,
+			sameUri: first.diffs[0].modifiedURI === second.diffs[0].modifiedURI,
+			changedAdded: [third.diffs.map(d => d.added), third.fileEdits.map(d => d.added)],
+			recomputedAfterChange: editReads > readsAfterSecond,
+		}, {
+			firstAdded: [1],
+			reconvertedOnReobserve: 0,
+			sameUri: true,
+			changedAdded: [[9], [9]],
+			recomputedAfterChange: true,
+		});
+	});
+
 	test('keeps file edits consistent when an errored turn resumes and completes again', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
@@ -824,7 +899,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			part: toolCallPart(fileEdit('/repo/a.ts', 3), 'second-tool'),
 		});
 		conn.setState(chat.resource, chat);
-		chat = chatReducer(chat, { type: ActionType.ChatTurnComplete, turnId: 't1', duration: 1 });
+		chat = chatReducer(chat, chatTurnComplete('t1', 1));
 		conn.setState(chat.resource, chat);
 
 		assert.deepStrictEqual(observed, [[2], [5]]);

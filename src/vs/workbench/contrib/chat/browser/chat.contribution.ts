@@ -10,8 +10,11 @@ import { ForkConversationAction } from './actions/chatForkActions.js';
 import { ContinueChatInCopilotAction } from './actions/chatContinueInAction.js';
 import { IChatResponseFileChangesService } from './chatResponseFileChangesService.js';
 import { EditorChatResponseFileChangesService } from './editorChatResponseFileChangesService.js';
+import { IAgentHostPolicyContinuationPresenter } from './agentSessions/agentHost/agentHostPolicyContinuation.js';
+import { EditorAgentHostPolicyContinuationPresenter } from './agentSessions/agentHost/agentHostPolicyContinuationEditor.js';
 
 registerAction2(ForkConversationAction);
 registerAction2(ContinueChatInCopilotAction);
 registerAction2(ExportAgentHostDebugLogsAction);
 registerSingleton(IChatResponseFileChangesService, EditorChatResponseFileChangesService, InstantiationType.Delayed);
+registerSingleton(IAgentHostPolicyContinuationPresenter, EditorAgentHostPolicyContinuationPresenter, InstantiationType.Delayed);

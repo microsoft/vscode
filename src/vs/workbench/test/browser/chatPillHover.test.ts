@@ -11,7 +11,7 @@ import { toAction } from '../../../base/common/actions.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { IChatPillEntry } from '../../browser/chatPills.js';
+import { getChatPillLocationHover, IChatPillEntry } from '../../browser/chatPills.js';
 import { ChatPillHoverCache, createChatPillHover, IChatPillHoverContent } from '../../browser/chatPillHover.js';
 import { DeferredPromise, timeout } from '../../../base/common/async.js';
 
@@ -43,6 +43,112 @@ suite('ChatPillHover', () => {
 	}
 
 	for (const density of ['default', 'compact'] as const) {
+		for (const sizing of ['content', 'preview'] as const) {
+			test(`preserves cached ${sizing} sizing through ${density} fallback, updates, and reopening`, async () => {
+				const cache = store.add(new ChatPillHoverCache());
+				const container = createContainer();
+				container.style.display = 'inline-block';
+				container.style.maxWidth = '700px';
+				const entry: IChatPillEntry = { id: 'commit', label: 'Commit', tooltip: 'https://example.com/commit/abc123', open: () => { } };
+				const first = cache.get(entry.id, entry, undefined, sizing);
+				const element = append(container, await render(first, density));
+				const measure = () => {
+					const width = element.getBoundingClientRect().width;
+					const previewWidth = Math.min(420, mainWindow.innerWidth * 0.7);
+					return {
+						contentSized: element.classList.contains('content-sized'),
+						compact: width > 0 && width < previewWidth - 1 / 64,
+					};
+				};
+				const fallback = measure();
+				cache.get(entry.id, entry, undefined, sizing);
+				const updatedFallback = measure();
+				const resolved = cache.get(entry.id, entry, () => createHover('Resolved'), sizing);
+				const ready = measure();
+				element.remove();
+				container.appendChild(await render(resolved, density));
+				const reopened = measure();
+				cache.get(entry.id, entry, undefined, sizing === 'content' ? 'preview' : 'content');
+				const changedSizing = measure();
+				const expected = { contentSized: sizing === 'content', compact: sizing === 'content' };
+				assert.deepStrictEqual({ fallback, updatedFallback, ready, reopened, changedSizing }, {
+					fallback: expected, updatedFallback: expected, ready: expected, reopened: expected,
+					changedSizing: { contentSized: !expected.contentSized, compact: !expected.compact },
+				});
+			});
+		}
+
+		for (const sizing of ['content', 'preview'] as const) {
+			test(`preserves ${sizing} sizing through ${density} asynchronous resolution and reopening`, async () => {
+				const finish = new DeferredPromise<void>();
+				let resolved = false;
+				const presentation = createChatPillHover({
+					fallback: 'Details',
+					sizing,
+					createContent: () => resolved ? createHover('Resolved details') : undefined,
+					resolve: async () => { await finish.p; resolved = true; },
+					isFresh: () => resolved,
+				});
+				const container = createContainer();
+				container.style.display = 'inline-block';
+				container.style.maxWidth = '700px';
+				const element = append(container, await render(presentation, density));
+				const expectedWidth = Math.min(420, mainWindow.innerWidth * 0.7);
+				const measure = () => ({
+					contentSized: element.classList.contains('content-sized'),
+					width: sizing === 'preview'
+						? Math.abs(element.getBoundingClientRect().width - expectedWidth) < 1 / 64
+						: element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().width < expectedWidth,
+				});
+				const pending = measure();
+				finish.complete();
+				await timeout(0);
+				const ready = measure();
+				element.remove();
+				container.appendChild(await render(presentation, density));
+				const reopened = measure();
+				const expected = { contentSized: sizing === 'content', width: true };
+				assert.deepStrictEqual({ pending, ready, reopened }, { pending: expected, ready: expected, reopened: expected });
+			});
+		}
+
+		test(`lets ${density} text hovers fill the intrinsic width of their footer actions`, () => {
+			const container = createContainer();
+			container.style.display = 'inline-block';
+			const content = getChatPillLocationHover('plan.md').content;
+			assert.ok(content instanceof HTMLElement);
+			content.classList.toggle('compact', density === 'compact');
+			container.appendChild(content);
+			const action = append(container, $('button', undefined, 'Copy Relative Path'));
+			assert.deepStrictEqual({
+				fillsHost: Math.abs(content.getBoundingClientRect().width - container.getBoundingClientRect().width) < 1 / 64,
+				footerFits: action.getBoundingClientRect().right <= container.getBoundingClientRect().right,
+			}, { fillsHost: true, footerFits: true });
+		});
+
+		for (const parentWidth of [180, 700]) {
+			test(`keeps ${density} text hovers compact and wraps long text within a ${parentWidth}px parent`, () => {
+				const container = createContainer();
+				container.style.width = `${parentWidth}px`;
+				const measurements = ['plan.md', 'https://example.com', '/workspace/'.repeat(100)].map(text => {
+					const content = getChatPillLocationHover(text).content;
+					assert.ok(content instanceof HTMLElement);
+					content.classList.toggle('compact', density === 'compact');
+					const hover = append(container, $('div'));
+					hover.style.display = 'inline-block';
+					hover.style.maxWidth = '100%';
+					hover.appendChild(content);
+					const width = content.getBoundingClientRect().width;
+					return {
+						compact: text.length < 100 ? width > 0 && width < Math.min(parentWidth, 420) : true,
+						bounded: width <= Math.min(parentWidth, 420, mainWindow.innerWidth * 0.7) + 1 / 64,
+						noOverflow: content.scrollWidth <= content.clientWidth,
+					};
+				});
+				assert.deepStrictEqual(measurements, Array.from({ length: 3 }, () => ({ compact: true, bounded: true, noOverflow: true })));
+			});
+		}
+
 		test(`refreshes live ${density} status without replacing the title or focused control`, async () => {
 			const cache = store.add(new ChatPillHoverCache());
 			const container = createContainer();

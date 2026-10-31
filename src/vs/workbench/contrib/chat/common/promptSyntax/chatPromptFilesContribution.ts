@@ -5,14 +5,15 @@
 
 
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
-import { joinPath, isEqualOrParent } from '../../../../../base/common/resources.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
+import { joinPath, isEqualOrParent, getComparisonKey } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
-import { ExtensionIdentifier, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, IExtensionDescription, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
 import { IPromptsService, PromptsStorage } from './service/promptsService.js';
 import { PromptsType } from './promptTypes.js';
-import { UriComponents } from '../../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -102,18 +103,25 @@ function pointToType(contributionPoint: ChatContributionPoint): PromptsType {
 	}
 }
 
-function key(extensionId: ExtensionIdentifier, type: PromptsType, path: string) {
-	return `${extensionId.value}/${type}/${path}`;
+function fileRegistrationKey(extension: IExtensionDescription, uri: URI, file: IRawChatFileContribution): string {
+	return JSON.stringify([
+		ExtensionIdentifier.toKey(extension.identifier),
+		extension.version,
+		getComparisonKey(uri),
+		file.name,
+		file.description,
+		file.when,
+		file.sessionTypes,
+	]);
 }
 
-export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribution {
+export class ChatPromptFilesExtensionPointHandler extends Disposable implements IWorkbenchContribution {
 	public static readonly ID = 'workbench.contrib.chatPromptFilesExtensionPointHandler';
-
-	private readonly registrations = new DisposableMap<string>();
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
+		super();
 		this.handle(epPrompt, ChatContributionPoint.chatPromptFiles);
 		this.handle(epInstructions, ChatContributionPoint.chatInstructions);
 		this.handle(epAgents, ChatContributionPoint.chatAgents);
@@ -121,9 +129,11 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 	}
 
 	private handle(extensionPoint: extensionsRegistry.IExtensionPoint<IRawChatFileContribution[]>, contributionPoint: ChatContributionPoint) {
-		extensionPoint.setHandler((_extensions, delta) => {
-			for (const ext of delta.added) {
-				const type = pointToType(contributionPoint);
+		const registrations = this._register(new DisposableMap<string>());
+		this._register(extensionPoint.setHandler(extensions => {
+			const files = new Map<string, { extension: extensionsRegistry.IExtensionPointUser<IRawChatFileContribution[]>; file: IRawChatFileContribution; uri: URI }>();
+			const seenUris = new ResourceSet();
+			for (const ext of extensions) {
 				for (const raw of ext.value) {
 					if (!raw.path) {
 						ext.collector.error(localize('extension.missing.path', "Extension '{0}' cannot register {1} entry without path.", ext.description.identifier.value, contributionPoint));
@@ -138,22 +148,32 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 						ext.collector.error(localize('extension.invalid.when', "Extension '{0}' {1} entry '{2}' has an invalid when clause: '{3}'.", ext.description.identifier.value, contributionPoint, raw.path, raw.when));
 						continue;
 					}
-					try {
-						const d = this.promptsService.registerContributedFile(type, fileUri, ext.description, raw.name, raw.description, raw.when, raw.sessionTypes);
-						this.registrations.set(key(ext.description.identifier, type, raw.path), d);
-					} catch (e) {
-						const msg = e instanceof Error ? e.message : String(e);
-						ext.collector.error(localize('extension.registration.failed', "Extension '{0}' {1}. Failed to register {2}: {3}", ext.description.identifier.value, contributionPoint, raw.path, msg));
+					if (!seenUris.has(fileUri)) {
+						seenUris.add(fileUri);
+						files.set(fileRegistrationKey(ext.description, fileUri, raw), { extension: ext, file: raw, uri: fileUri });
 					}
 				}
 			}
-			for (const ext of delta.removed) {
-				const type = pointToType(contributionPoint);
-				for (const raw of ext.value) {
-					this.registrations.deleteAndDispose(key(ext.description.identifier, type, raw.path));
+
+			// Remove stale files before registering replacements at the same URI.
+			for (const key of registrations.keys()) {
+				if (!files.has(key)) {
+					registrations.deleteAndDispose(key);
 				}
 			}
-		});
+			const type = pointToType(contributionPoint);
+			for (const [key, { extension, file, uri }] of files) {
+				if (registrations.has(key)) {
+					continue;
+				}
+				try {
+					registrations.set(key, this.promptsService.registerContributedFile(type, uri, extension.description, file.name, file.description, file.when, file.sessionTypes));
+				} catch (e) {
+					const msg = e instanceof Error ? e.message : String(e);
+					extension.collector.error(localize('extension.registration.failed', "Extension '{0}' {1}. Failed to register {2}: {3}", extension.description.identifier.value, contributionPoint, file.path, msg));
+				}
+			}
+		}));
 	}
 }
 

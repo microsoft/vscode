@@ -16,9 +16,11 @@ import { IVoiceSessionController, VoiceNewSessionPreparationResult } from '../..
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { IVoiceModelSelectionResult, resolveVoiceModel } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceToolDispatchService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession, inheritableSessionTarget, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { SessionStatus } from '../../../services/sessions/common/session.js';
+import { IActiveSession, inheritableSessionTarget, ISendRequestOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
 import { INewSessionComposerService } from './newSessionComposerService.js';
+import { ChatRequestQueueKind } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 
 export async function prepareNewVoiceSession(
 	text: string,
@@ -79,11 +81,12 @@ export async function prepareNewVoiceSession(
  * Commands are registered only while `agents.voice.enabled` is set:
  * - `_chat.voice.acceptInput` injects transcribed text into the focused chat widget.
  * - `_chat.voice.getCurrentSession` reports the active session's chat resource.
+ * - `_chat.voice.getSessionInfo` reports the authoritative Agents session list.
  * - `_chat.voice.prepareNewSession` creates a provider-backed draft for a new-session request.
  * - `_chat.voice.switchToSession` activates the session that owns a chat resource.
  * - `_chat.voice.activateSession` narrates a session's pending voice item on demand.
  */
-class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchContribution {
+export class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.voiceBridge';
 
@@ -118,27 +121,37 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 
 		// Prefer the active session widget; Agents often leaves DOM focus on the
 		// sessions list, making `lastFocusedWidget` stale.
-		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (_accessor, text: string) => {
+		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (_accessor, text: string, expectedSessionId?: string) => {
 			if (!text) {
-				return;
+				return false;
 			}
 			// Route through the new-session composer so dictation creates the
 			// session instead of using a stale `lastFocusedWidget`.
 			const composer = this._activeComposerTarget();
-			if (composer) {
-				composer.sendQuery(text);
-				return;
+			if (composer && (!expectedSessionId || expectedSessionId === NEW_CHAT_VOICE_SENTINEL.toString())) {
+				return composer.sendQuery(text);
 			}
-			const widget = this._activeSessionWidget() ?? this.chatWidgetService.lastFocusedWidget;
-			if (widget?.viewModel) {
-				if (widget.viewModel.editing) {
+			const widget = expectedSessionId
+				? this.chatWidgetService.getWidgetBySessionResource(URI.parse(expectedSessionId))
+				: this._activeSessionWidget() ?? this.chatWidgetService.lastFocusedWidget;
+			const viewModel = widget?.viewModel;
+			if (expectedSessionId && viewModel?.sessionResource.toString() !== expectedSessionId) {
+				return false;
+			}
+			if (widget && viewModel) {
+				if (viewModel.editing) {
 					// Let the user review edited input before submitting.
 					widget.input.setValue(text, false);
+					return false;
 				} else {
 					// Preserve any text the user already typed in the input.
-					widget.acceptInput(combineVoiceInput(widget.getInput(), text), { preserveFocus: true });
+					return widget.acceptInput(combineVoiceInput(widget.getInput(), text), {
+						preserveFocus: true,
+						...(viewModel.model?.requestInProgress?.get() === true ? { queue: ChatRequestQueueKind.Steering } : {}),
+					});
 				}
 			}
+			return false;
 		}));
 
 		// Report the shown session (the active Agents session), not DOM focus.
@@ -183,6 +196,71 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 				? composer.selectVoiceModel(resolved.identifier)
 				: widget!.inputPart.switchModelByIdentifier(resolved.identifier, true, true);
 			return selected ? resolved : { ok: false, reason: 'selection_failed', available_models: resolved.available_models };
+		}));
+
+		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.resolveSession', (_accessor, sessionIdOrLabel: string): string | undefined => {
+			const requested = sessionIdOrLabel.trim().toLocaleLowerCase();
+			const sessions = this.sessionsManagementService.getSessions();
+			const resourceMatches = sessions.filter(session => session.resource.toString().toLocaleLowerCase() === requested);
+			if (resourceMatches.length === 1) {
+				return resourceMatches[0].resource.toString();
+			}
+			const normalizeLabel = (label: string) => label.trim().toLocaleLowerCase().replace(/\s+session$/, '').trim();
+			const normalizedRequested = normalizeLabel(requested);
+			const labelMatches = sessions.filter(session => normalizeLabel(session.title.get()) === normalizedRequested);
+			if (labelMatches.length === 1) {
+				return labelMatches[0].resource.toString();
+			}
+			const requestedWords = normalizedRequested.split(/\s+/);
+			if (requestedWords.length < 2) {
+				return undefined;
+			}
+			const partialMatches = sessions.filter(session => {
+				const normalizedTitle = normalizeLabel(session.title.get());
+				return normalizedTitle.includes(normalizedRequested) || normalizedRequested.includes(normalizedTitle);
+			});
+			return partialMatches.length === 1 ? partialMatches[0].resource.toString() : undefined;
+		}));
+		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.getSessionInfo', (): string => {
+			const activeSession = this.sessionsService.activeSession.get();
+			const sessions = this.sessionsManagementService.getSessions()
+				.filter(session => !session.isArchived.get())
+				.map(session => {
+					const status = session.status.get();
+					const updatedAt = session.updatedAt.get().getTime();
+					return {
+						id: session.resource.toString(),
+						label: session.title.get() || undefined,
+						session_type: 'agent',
+						state: status === SessionStatus.InProgress ? 'working'
+							: status === SessionStatus.NeedsInput ? 'waiting_for_input'
+								: status === SessionStatus.Untitled || status === SessionStatus.Completed ? 'idle'
+									: 'unknown',
+						is_active: isEqual(activeSession?.resource, session.resource),
+						insertions: 0,
+						deletions: 0,
+						last_activity: updatedAt,
+						last_activity_minutes_ago: Math.max(0, Math.round((Date.now() - updatedAt) / 60000)),
+					};
+				})
+				.sort((a, b) => Number(b.is_active) - Number(a.is_active) || b.last_activity - a.last_activity);
+			const counts = sessions.reduce((result, session) => {
+				if (session.state === 'working') {
+					result.working++;
+				} else if (session.state === 'waiting_for_input') {
+					result.waiting_for_input++;
+				} else if (session.state === 'idle') {
+					result.idle++;
+				}
+				return result;
+			}, { working: 0, waiting_for_input: 0, idle: 0 });
+			const visibleSessions = sessions.slice(0, 20).map(({ last_activity, ...session }) => session);
+			return JSON.stringify({
+				total_sessions: sessions.length,
+				counts,
+				sessions: visibleSessions,
+				truncated: visibleSessions.length < sessions.length,
+			});
 		}));
 
 		// Reveal the session that owns the given chat resource.
@@ -290,26 +368,47 @@ registerWorkbenchContribution2(SessionsVoiceBridgeContribution.ID, SessionsVoice
  * list, so forward {@link ISessionsService.activeSession}. Draft composers report
  * `undefined` to avoid reusing a stale session.
  */
-class SessionsVoiceActiveSessionContribution extends Disposable implements IWorkbenchContribution {
+export class SessionsVoiceActiveSessionContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.voiceActiveSession';
 
 	constructor(
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@INewSessionComposerService newSessionComposerService: INewSessionComposerService,
+		@INewChatVoiceTargetService newChatVoiceTargetService: INewChatVoiceTargetService,
 	) {
 		super();
 
 		let voiceDraftSession: IActiveSession | undefined;
+		let voiceDraftRequest: ISendRequestOptions | undefined;
+		this._register(newSessionComposerService.onWillSendRequest(({ options }) => {
+			const composer = newChatVoiceTargetService.activeComposer.get();
+			if (!options.background && composer && Object.is(composer, newSessionComposerService.activeComposer.get())
+				&& this.voiceSessionController.isConnected.get() && this.voiceSessionController.hasDraftTarget.get()) {
+				voiceDraftRequest = options;
+			}
+		}));
+		this._register(sessionsManagementService.onDidSendRequest(event => {
+			// A welcome-composer send can replace the draft facade; correlate the actual send instead.
+			if (event.options === voiceDraftRequest) {
+				voiceDraftRequest = undefined;
+				this.voiceSessionController.promoteDraftTarget(event.chat.resource);
+			}
+		}));
 		this._register(autorun(reader => {
 			const active = this.sessionsService.activeSession.read(reader);
 			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);
+			if (!hasDraftTarget || !this.voiceSessionController.isConnected.read(reader)) {
+				voiceDraftRequest = undefined;
+			}
 			if (!hasDraftTarget) {
 				voiceDraftSession = undefined;
 			} else if (!voiceDraftSession && active && !active.isCreated.read(reader)) {
 				voiceDraftSession = active;
 			}
-			if (voiceDraftSession?.isCreated.read(reader)) {
+			if (!voiceDraftRequest && voiceDraftSession?.isCreated.read(reader)) {
 				this.voiceSessionController.promoteDraftTarget(voiceDraftSession.activeChat.read(reader).resource);
 				voiceDraftSession = undefined;
 			}

@@ -33,12 +33,16 @@ export interface ITestSessionSpec {
 	/** The session id, from which the session and chat resources derive. */
 	readonly id: string;
 	readonly title: string;
+	/** Defaults to `local`. */
+	readonly providerId?: string;
 	readonly harness?: string;
 	readonly environment?: string;
 	readonly application?: string;
 	/** Workspace label. Omit for a session without a workspace. */
 	readonly workspace?: string;
 	readonly workspaceFolders?: readonly [string, ...string[]];
+	/** A GitHub repository, as `owner/name`, that the workspace's first folder reports through its Git metadata. */
+	readonly repository?: string;
 	readonly isQuickChat?: boolean;
 	readonly status?: SessionStatus;
 	/** Status of the main chat when it differs from the session status. */
@@ -96,10 +100,14 @@ export function getTestChatResource(sessionId: string, chatId: string): URI {
 	return URI.parse(`vscode-session://session/${sessionId}/chat/${chatId}`);
 }
 
-export function buildTestWorkspace(label: string, folderLabels: readonly [string, ...string[]] = [label]): ISessionWorkspace {
-	const folders = folderLabels.map(folderLabel => {
+export function buildTestWorkspace(label: string, folderLabels: readonly [string, ...string[]] = [label], repository?: string): ISessionWorkspace {
+	const [owner, repo] = repository?.split('/') ?? [];
+	const folders = folderLabels.map((folderLabel, index) => {
 		const root = URI.file(`/home/user/projects/${folderLabel}`);
-		return { root, workingDirectory: root, name: folderLabel, description: undefined };
+		const gitRepository = repository && index === 0
+			? { uri: root, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable({ owner, repo }) }
+			: undefined;
+		return { root, workingDirectory: root, name: folderLabel, description: undefined, gitRepository };
 	});
 	return {
 		uri: folders[0].root,
@@ -158,14 +166,14 @@ export function buildTestSession(spec: ITestSessionSpec, now: number = Date.now(
 	const session: ISession = {
 		sessionId: spec.id,
 		resource: getTestSessionResource(spec.id),
-		providerId: 'local',
+		providerId: spec.providerId ?? 'local',
 		sessionType: 'local',
 		harness: spec.harness ?? 'copilot',
 		environment: spec.environment ?? 'local',
 		application,
 		icon: Codicon.account,
 		createdAt,
-		workspace: constObservable(spec.workspace ? buildTestWorkspace(spec.workspace, spec.workspaceFolders) : undefined),
+		workspace: constObservable(spec.workspace ? buildTestWorkspace(spec.workspace, spec.workspaceFolders, spec.repository) : undefined),
 		isQuickChat: constObservable(spec.isQuickChat ?? false),
 		isExternal: constObservable(spec.isExternal ?? false),
 		title,

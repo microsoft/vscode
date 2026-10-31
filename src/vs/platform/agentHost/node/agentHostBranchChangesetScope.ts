@@ -5,7 +5,7 @@
 
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
 import { buildFolderChangesetOwnerUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
-import { isAhpChatChannel, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { ChatOriginKind, isAhpChatChannel, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
 
@@ -150,6 +150,32 @@ export function isSessionChatInFolder(stateManager: AgentHostStateManager, sessi
 	const isSessionChat = stateManager.isDefaultChat(session, chat)
 		|| stateManager.getSessionState(session)?.chats.some(candidate => candidate.resource === chat) === true;
 	return isSessionChat && chatWorksInFolder(stateManager, chat, folderKey);
+}
+
+/**
+ * The chat whose own settings Agent Merge elevates for a folder: the chat that
+ * owns the folder's repairs ({@link resolveAgentMergeOwningChat}) unless that is
+ * a subagent, else the
+ * first chat with the folder among any of its working directories, in the
+ * order the recorded chat, the default chat, then the session's other chats.
+ * Chats spawned by a tool call are never chosen: their values are their
+ * spawning chat's. `undefined` when no chat of the session has the folder.
+ */
+export function resolveAgentMergeElevatedChat(stateManager: AgentHostStateManager, session: ProtocolURI, folderKey: string, recordedChat: ProtocolURI | undefined): ProtocolURI | undefined {
+	const owner = resolveAgentMergeOwningChat(stateManager, session, folderKey, recordedChat);
+	if (owner !== undefined && stateManager.getChatOrigin(owner)?.kind !== ChatOriginKind.Tool) {
+		return owner;
+	}
+	const state = stateManager.getSessionState(session);
+	const defaultChat = stateManager.getDefaultChat(session);
+	const isSessionChat = (chat: ProtocolURI) => chat === defaultChat || state?.chats.some(candidate => candidate.resource === chat) === true;
+	const candidates = [
+		...(recordedChat !== undefined && isAhpChatChannel(recordedChat) && isSessionChat(recordedChat) ? [recordedChat] : []),
+		...(defaultChat !== undefined ? [defaultChat] : []),
+		...state?.chats.map(chat => chat.resource) ?? [],
+	];
+	return candidates.find(chat => stateManager.getChatOrigin(chat)?.kind !== ChatOriginKind.Tool
+		&& getEffectiveWorkingDirectories(stateManager, chat)?.some(directory => getWorkingDirectoryKey(directory) === folderKey));
 }
 
 /**

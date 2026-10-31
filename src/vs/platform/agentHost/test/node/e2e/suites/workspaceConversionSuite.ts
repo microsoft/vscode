@@ -13,9 +13,9 @@ import { SessionServerToolName } from '../../../../common/serverToolNames.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, readSessionWorkspaceless, ROOT_STATE_URI, type SessionState } from '../../../../common/state/sessionState.js';
+import { readSessionWorkspaceless, ROOT_STATE_URI, type SessionState } from '../../../../common/state/sessionState.js';
 import { driveChatTurnToCompletion, getMarkdownResponseText, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 
@@ -59,7 +59,7 @@ export function defineWorkspaceConversionTests(context: IAgentHostE2ETestContext
 		const initialSession = await context.client.call<SubscribeResult>('subscribe', { channel: session });
 		const initialSetWorkspace = (initialSession.snapshot!.state as SessionState).serverTools?.find(tool => tool.name === SessionServerToolName.SetWorkspace);
 		assert.ok(initialSetWorkspace, 'workspaceless session should advertise set_workspace');
-		const chat = buildDefaultChatUri(session);
+		const chat = defaultChatChannel(session);
 		await context.client.call<SubscribeResult>('subscribe', { channel: chat });
 		context.client.clearReceived();
 		context.client.dispatch({

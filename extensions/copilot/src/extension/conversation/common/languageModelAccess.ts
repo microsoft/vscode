@@ -77,7 +77,7 @@ export function getReasoningEffortLabel(level: string): string {
 export function buildReasoningEffortSchemaProperty(effortLevels: readonly string[], family: string): NonNullable<LanguageModelConfigurationSchema['properties']>[string] {
 	return {
 		type: 'string',
-		title: l10n.t('Thinking Effort'),
+		title: l10n.t('Effort Level'),
 		enum: effortLevels,
 		enumItemLabels: effortLevels.map(getReasoningEffortLabel),
 		enumDescriptions: effortLevels.map(getReasoningEffortDescription),

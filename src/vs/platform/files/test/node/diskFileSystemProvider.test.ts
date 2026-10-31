@@ -45,6 +45,13 @@ suite('DiskFileSystemProvider', function () {
 		assert.strictEqual(Buffer.from(await provider.readFile(URI.file(filePath))).toString(), 'contents');
 	});
 
+	test('realpath reports missing paths as a filesystem error', async () => {
+		await assert.rejects(
+			provider.realpath(URI.file(join(testDir, 'removed-checkout'))),
+			error => error instanceof Error && toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.FileNotFound
+		);
+	});
+
 	for (const method of ['open', 'readFile', 'readFileStream']) {
 		(isWindows ? test.skip : test)(`${method} rejects named pipes without a writer`, async function () {
 			this.timeout(10000);

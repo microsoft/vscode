@@ -13,7 +13,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId, IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -33,14 +33,14 @@ registerAction2(class extends Action2 {
 			id: ConnectMissionControlEnvironmentCommand,
 			title: localize2('connectMissionControlEnvironment', "Connect to Environment..."),
 			f1: true,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.not('config.chat.disableAIFeatures'), ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true)),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.not('config.chat.disableAIFeatures'), ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true), ContextKeyExpr.equals(`config.${GitHubEnvironmentsEnabledSettingId}`, true), GitHubEnvironmentsAvailableContext),
 		});
 	}
 
 	override async run(accessor: ServicesAccessor, onBack?: () => void): Promise<string | undefined> {
 		const inventory = accessor.get(IMissionControlEnvironmentService);
 		if (!inventory.enabled) {
-			throw new Error(localize('missionControl.connectionsDisabled', "Environment connections require remote agent hosts and AI features to be enabled."));
+			throw new Error(localize('missionControl.connectionsDisabled', "Environment connections require GitHub Environments, remote agent hosts, and AI features to be enabled."));
 		}
 		const picker = accessor.get(IQuickInputService);
 		const notifications = accessor.get(INotificationService);

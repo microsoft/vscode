@@ -9,17 +9,22 @@ import { SandboxSettingsResolutionHelper } from '../../sandbox/common/sandboxSet
 import { platformSessionSchema } from '../common/agentHostSchema.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema, type ISandboxConfigValue } from '../common/sandboxConfigSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import type { IAgentConfigurationService } from './agentConfigurationService.js';
+import type { IAgentChatConfigurationTarget, IAgentConfigurationService } from './agentConfigurationService.js';
+import type { ISessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMeta.js';
 
 export type { ISessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMeta.js';
 
-/** Resolves sandbox settings for the executing Agent Host, independently of the client's OS or configuration source. */
-export function getSessionSandboxConfig(configuration: IAgentConfigurationService, session: string, platform: NodeJS.Platform = process.platform): ISandboxConfigValue {
+/**
+ * Resolves a chat's sandbox settings for the executing Agent Host, independently
+ * of the client's OS or configuration source: the chat's own selection over the
+ * session's, within the session's policy floor.
+ */
+export function getSessionSandboxConfig(configuration: IAgentConfigurationService, target: IAgentChatConfigurationTarget, platform: NodeJS.Platform = process.platform): ISandboxConfigValue {
 	const sandbox = {
 		...configuration.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox),
-		...getSessionSandboxOverrides(configuration, session),
+		...getSessionSandboxOverrides(configuration, target),
 	};
-	const policy = configuration.getSessionSandboxPolicy(session);
+	const policy = configuration.getSessionSandboxPolicy(target.session);
 	const addCurrentWorkingDirectory = SandboxSettingsResolutionHelper.resolveAllowAccess(
 		sandbox[AgentHostSandboxKey.AddCurrentWorkingDirectory],
 		policy?.addCurrentWorkingDirectory,
@@ -63,21 +68,10 @@ export function getSessionSandboxConfig(configuration: IAgentConfigurationServic
 	return sandbox;
 }
 
-/** Resolves the owning session's toggle overrides without changing global settings. */
-export function getSessionSandboxOverrides(configuration: IAgentConfigurationService, session: string): Pick<ISandboxConfigValue, AgentHostSandboxKey.Enabled | AgentHostSandboxKey.AllowUnsandboxedCommands | AgentHostSandboxKey.AllowNetwork | AgentHostSandboxKey.AllowLocalNetwork | AgentHostSandboxKey.AllowDevToolAccess | AgentHostSandboxKey.SandboxMcpServers | AgentHostSandboxKey.SandboxLspServers | AgentHostSandboxKey.AuthenticateGit | AgentHostSandboxKey.AuthenticateGh> {
-	const owner = configuration.resolveConfigurationOwner(session);
-	if (owner === undefined) {
-		throw new Error(`No recorded owner for ${session}`);
-	}
-	session = owner;
-	const raw = configuration.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled];
-	const selection = platformSessionSchema.validate(SessionConfigKey.SandboxEnabled, raw) ? raw : undefined;
-	const policy = configuration.getSessionSandboxPolicy(session);
-	const authorizedDisable = policy?.allowBypass === true && configuration.getSessionSandboxEnabled(session) === false;
-	const localEnabled = selection === 'on' ? AgentSandboxEnabledValue.On
-		: selection === 'off' ? AgentSandboxEnabledValue.Off
-			: policy?.enabled ? AgentSandboxEnabledValue.On : undefined;
-	const enabled = SandboxSettingsResolutionHelper.resolveEnabled(localEnabled, policy?.enabled && !authorizedDisable);
+/** Resolves a chat's toggle overrides without changing global settings. */
+export function getSessionSandboxOverrides(configuration: IAgentConfigurationService, target: IAgentChatConfigurationTarget): Pick<ISandboxConfigValue, AgentHostSandboxKey.Enabled | AgentHostSandboxKey.AllowUnsandboxedCommands | AgentHostSandboxKey.AllowNetwork | AgentHostSandboxKey.AllowLocalNetwork | AgentHostSandboxKey.AllowDevToolAccess | AgentHostSandboxKey.SandboxMcpServers | AgentHostSandboxKey.SandboxLspServers | AgentHostSandboxKey.AuthenticateGit | AgentHostSandboxKey.AuthenticateGh> {
+	const policy = configuration.getSessionSandboxPolicy(target.session);
+	const enabled = resolveSandboxEnabled(configuration.getChatConfigValues(target)?.[SessionConfigKey.SandboxEnabled], policy, configuration.getChatSandboxEnabled(target));
 	const allowUnsandboxedCommands = SandboxSettingsResolutionHelper.resolveAllowBypass(undefined, policy?.allowBypass, policy?.enabled);
 	const allowNetwork = SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, policy?.allowOutbound);
 	const allowLocalNetwork = SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, policy?.allowLocalNetwork);
@@ -99,4 +93,18 @@ export function getSessionSandboxOverrides(configuration: IAgentConfigurationSer
 		...(authenticateGit !== undefined ? { [AgentHostSandboxKey.AuthenticateGit]: authenticateGit } : {}),
 		...(authenticateGh !== undefined ? { [AgentHostSandboxKey.AuthenticateGh]: authenticateGh } : {}),
 	};
+}
+
+/**
+ * Resolves sandbox enablement from a selection (`default`, `on`, `off`), the
+ * session's policy floor and the last successfully applied enablement: an
+ * applied disable within a policy that allows bypass stays authorized.
+ */
+export function resolveSandboxEnabled(rawSelection: unknown, policy: ISessionSandboxPolicy | undefined, appliedEnabled: boolean | undefined): AgentSandboxEnabledValue | undefined {
+	const selection = platformSessionSchema.validate(SessionConfigKey.SandboxEnabled, rawSelection) ? rawSelection : undefined;
+	const authorizedDisable = policy?.allowBypass === true && appliedEnabled === false;
+	const localEnabled = selection === 'on' ? AgentSandboxEnabledValue.On
+		: selection === 'off' ? AgentSandboxEnabledValue.Off
+			: policy?.enabled ? AgentSandboxEnabledValue.On : undefined;
+	return SandboxSettingsResolutionHelper.resolveEnabled(localEnabled, policy?.enabled && !authorizedDisable);
 }

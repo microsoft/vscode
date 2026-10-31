@@ -5,3 +5,7 @@
 ## Features
 
 See [Markdown in Visual Studio Code](https://code.visualstudio.com/docs/languages/markdown) to learn about the features of this extension.
+
+## Testing
+
+Run `npm run test-editor-title` from this directory to verify that the source and preview title actions keep a consistent order alongside Git's Open Changes action.

@@ -9,7 +9,7 @@ import { localize } from '../../../nls.js';
 import { ILinkPresentation, ILinkPresentationStatus } from '../../dataChannel/common/dataChannel.js';
 import { AgentSession } from './agent.js';
 import { SessionServerToolName } from './serverToolNames.js';
-import { DEFAULT_CHAT_ID, isAhpChatChannel, parseChatUri } from './state/sessionState.js';
+import { DEFAULT_CHAT_ID, getAgentHostChatId, isAhpChatChannel } from './state/sessionState.js';
 
 /**
  * Dedicated URI scheme for "open this session" links surfaced in agent/tool
@@ -239,8 +239,7 @@ function readOpenSessionLinkQueryParam(uri: URI | string, name: string): string 
  * recorded owning session `owner`. `defaultChat` is the owner's default chat:
  * it and the bare session get a session-only link, and any other chat carries
  * its chat id so the link opens that specific chat. Returns `undefined` when no
- * link can be built, including for a non-default chat whose id is
- * {@link DEFAULT_CHAT_ID}: the link format reads that id as the default chat.
+ * link can be built.
  * `connectionAuthority` names the client's connection to the host that owns
  * `owner` so the link opens on that connection; it is `undefined` for links a
  * host builds for its own sessions.
@@ -254,11 +253,7 @@ export function buildOpenSessionLinkForChat(owner: URI | string, chatResource: U
 		if (!isAhpChatChannel(resourceStr) || (defaultChat !== undefined && resourceStr === defaultChat.toString())) {
 			return buildOpenSessionLinkUri(owner.toString(), undefined, undefined, connectionAuthority);
 		}
-		const chatId = parseChatUri(resourceStr)?.chatId;
-		if (chatId === DEFAULT_CHAT_ID) {
-			return undefined;
-		}
-		return buildOpenSessionLinkUri(owner.toString(), chatId, undefined, connectionAuthority);
+		return buildOpenSessionLinkUri(owner.toString(), getAgentHostChatId(resourceStr), undefined, connectionAuthority);
 	} catch {
 		return undefined;
 	}

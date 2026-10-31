@@ -302,7 +302,7 @@ function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo): { configurati
 			: pickDefaultReasoningEffort(effortLevels, modelInfo.id);
 		properties[COPILOT_CLI_REASONING_EFFORT_PROPERTY] = {
 			type: 'string',
-			title: l10n.t('Thinking Effort'),
+			title: l10n.t('Effort Level'),
 			enum: effortLevels,
 			enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
 			enumDescriptions: effortLevels.map(getReasoningEffortDescription),

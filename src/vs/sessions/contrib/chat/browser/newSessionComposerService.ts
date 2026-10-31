@@ -13,7 +13,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceSelectionSnapshot } from '../../../common/workspaceSelection.js';
-import { ISendRequestOptions } from '../../../services/sessions/common/sessionsProvider.js';
+import { ISendRequestOptions } from '../../../services/sessions/common/sessionsManagement.js';
 
 export const NEW_SESSION_PROMPT_TYPING_DURATION_MS = 2_500;
 
@@ -65,6 +65,7 @@ export interface INewSessionPromptOptionsController {
 export interface INewSessionComposerPicker {
 	getDomNode(): HTMLElement | undefined;
 	open(): void;
+	openComparison?(): void;
 }
 
 export interface INewSessionComposer {
@@ -76,6 +77,7 @@ export interface INewSessionComposer {
 	readonly hasInput?: boolean;
 	readonly isInputReady?: boolean;
 	readonly onDidChangeInput?: Event<void>;
+	readonly onDidFocus?: Event<void>;
 	readonly canApplyWorkspaceDefault?: boolean;
 	animatePrompt(text: string, durationMs: number, placeholder: string, token: CancellationToken): Promise<boolean>;
 	showPromptOptions(state: NewSessionPromptOptionsState | undefined): boolean;
@@ -100,13 +102,15 @@ export interface INewSessionComposerService {
 	notifyUserNavigation(): void;
 	readonly onWillSendRequest: Event<{ readonly options: ISendRequestOptions; readonly selection: IWorkspaceSelectionSnapshot | undefined }>;
 	notifyWillSendRequest(options: ISendRequestOptions, selection: IWorkspaceSelectionSnapshot | undefined): void;
-	registerComposer(composer: INewSessionComposer): IDisposable;
+	/** Hidden composers retain draft tracking but cannot receive global composer actions. */
+	registerComposer(composer: INewSessionComposer, visible?: IObservable<boolean>): IDisposable;
 }
 
 export class NewSessionComposerService extends Disposable implements INewSessionComposerService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _composers = new Set<INewSessionComposer>();
+	private readonly _visibleComposers = new Set<INewSessionComposer>();
 	private readonly _activeComposer = observableValue<INewSessionComposer | undefined>(this, undefined);
 	readonly activeComposer: IObservable<INewSessionComposer | undefined> = this._activeComposer;
 	private readonly _userWorkspaceSelectionVersion = observableValue(this, 0);
@@ -153,9 +157,30 @@ export class NewSessionComposerService extends Disposable implements INewSession
 			&& (composer.isInputReady === false || composer.hasInput === true));
 	}
 
-	registerComposer(composer: INewSessionComposer): IDisposable {
+	registerComposer(composer: INewSessionComposer, visible?: IObservable<boolean>): IDisposable {
 		this._composers.add(composer);
-		this._activeComposer.set(composer, undefined);
+		const activate = () => {
+			if (this._visibleComposers.has(composer)) {
+				this._visibleComposers.delete(composer);
+				this._visibleComposers.add(composer);
+				this._activeComposer.set(composer, undefined);
+			}
+		};
+		const deactivate = () => {
+			this._visibleComposers.delete(composer);
+			if (this._activeComposer.get() === composer) {
+				this._activeComposer.set(Array.from(this._visibleComposers).at(-1), undefined);
+			}
+		};
+		const visibilityListener = autorun(reader => {
+			if (visible?.read(reader) ?? true) {
+				this._visibleComposers.add(composer);
+				activate();
+			} else {
+				deactivate();
+			}
+		});
+		const focusListener = composer.onDidFocus?.(activate) ?? Disposable.None;
 		const inputListener = composer.onDidChangeInput?.(() => {
 			this._inputVersion.set(this._inputVersion.get() + 1, undefined);
 			if (composer.hasInput) {
@@ -166,12 +191,10 @@ export class NewSessionComposerService extends Disposable implements INewSession
 			composer.sessionResource?.read(reader);
 			this._inputVersion.set(this._inputVersion.read(undefined) + 1, undefined);
 		});
-		return combinedDisposable(inputListener, sessionListener, toDisposable(() => {
+		return combinedDisposable(visibilityListener, focusListener, inputListener, sessionListener, toDisposable(() => {
 			this._composers.delete(composer);
 			this._inputVersion.set(this._inputVersion.get() + 1, undefined);
-			if (this._activeComposer.get() === composer) {
-				this._activeComposer.set(Array.from(this._composers).at(-1), undefined);
-			}
+			deactivate();
 		}));
 	}
 }

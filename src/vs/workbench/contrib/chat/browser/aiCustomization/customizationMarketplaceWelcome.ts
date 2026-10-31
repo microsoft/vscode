@@ -8,14 +8,12 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 
 export interface ICustomizationMarketplaceWelcomeOptions {
-	readonly icon: ThemeIcon;
 	readonly title: string;
 	readonly description: MarkdownString;
 	readonly buttonLabel: string;
@@ -33,11 +31,6 @@ export class CustomizationMarketplaceWelcome extends Disposable {
 		super();
 
 		const content = dom.append(container, dom.$('.customizations-marketplace-welcome-content'));
-
-		const iconContainer = dom.append(content, dom.$('.customizations-marketplace-welcome-icon'));
-		const icon = dom.append(iconContainer, dom.$('span'));
-		icon.className = ThemeIcon.asClassName(options.icon);
-		icon.setAttribute('aria-hidden', 'true');
 
 		const title = dom.append(content, dom.$('h2.customizations-marketplace-welcome-title'));
 		title.textContent = options.title;

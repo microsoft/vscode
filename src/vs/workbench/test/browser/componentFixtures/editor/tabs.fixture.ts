@@ -17,6 +17,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { localize } from '../../../../../nls.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
+import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -276,6 +277,7 @@ export interface IEditorTabsFixtureOptions {
 	readonly reserveHeaderSpace?: boolean;
 	readonly headerWidth?: number;
 	readonly headerMenuIds?: IEditorGroupMenuIds;
+	readonly layoutActionsMenu?: MenuId;
 	readonly editorContents?: string;
 	readonly activeTabClipping?: 'left' | 'right' | 'left-shoulder' | 'right-shoulder';
 }
@@ -370,6 +372,11 @@ export function renderEditorTabsFixture(ctx: ComponentFixtureContext, options: I
 	populateModel(model, options.editors ?? defaultEditorSpecs(), disposableStore);
 
 	const createEditorActions = (disposables: DisposableStore, menuId: MenuId) => {
+		const fixtureMenuId = menuId === MenuId.EditorTitleLayout ? options.layoutActionsMenu : menuId !== MenuId.EditorTitle ? menuId : undefined;
+		if (fixtureMenuId) {
+			const menu = disposables.add(instantiationService.get(IMenuService).createMenu(fixtureMenuId, contextKeyService));
+			return { actions: getActionBarActions(menu.getActions({ shouldForwardArgs: true }), 'navigation'), onDidChange: menu.onDidChange };
+		}
 		return { actions: createFixtureEditorTitleActions(disposables, menuId), onDidChange: Event.None };
 	};
 
@@ -430,7 +437,7 @@ export function renderEditorTabsFixture(ctx: ComponentFixtureContext, options: I
 
 	const headerBackground = theme.getColor(partOptions.showTabs === 'multiple' ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND);
 	if (headerBackground) {
-		titleContainer.style.backgroundColor = headerBackground.toString();
+		titleContainer.style.backgroundColor = `var(--modern-ui-editor-title-background, ${headerBackground})`;
 	}
 
 	const editorContainer = $('.editor-container');
@@ -525,7 +532,7 @@ function render(modernUI: boolean, options: Omit<IEditorTabsFixtureOptions, 'mod
 	return ctx => renderEditorTabsFixture(ctx, { ...options, modernUI });
 }
 
-function renderTabStyleDensityComparison(tabHeight: IEditorPartOptions['tabHeight']): (ctx: ComponentFixtureContext) => void {
+function renderTabStyleDensityComparison(tabHeight: IEditorPartOptions['tabHeight'], showScrollbar = false): (ctx: ComponentFixtureContext) => void {
 	return ctx => {
 		for (const [name, modernUI, editorTabStyle] of [
 			['Legacy', false, undefined],
@@ -541,8 +548,10 @@ function renderTabStyleDensityComparison(tabHeight: IEditorPartOptions['tabHeigh
 			renderEditorTabsFixture({ ...ctx, container }, {
 				modernUI,
 				editorTabStyle,
-				partOptions: { tabHeight },
-				editors: [
+				partOptions: { tabHeight, titleScrollbarVisibility: showScrollbar ? 'visible' : 'auto' },
+				width: showScrollbar ? 520 : undefined,
+				breadcrumbs: showScrollbar ? {} : undefined,
+				editors: showScrollbar ? manyEditorSpecs(5) : [
 					{ resource: file('/project/alpha.ts'), pinned: true },
 					{ resource: file('/project/beta.ts'), pinned: true, active: true },
 					{ resource: file('/project/gamma.ts'), pinned: true },
@@ -751,6 +760,14 @@ function renderPinnedSeparateRow(): (ctx: ComponentFixtureContext) => void {
 export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	Density: defineThemedFixtureGroup(createDensityFixtures()),
 	Layout: defineThemedFixtureGroup(createLayoutFixtures()),
+	ScrollbarPlacement: defineComponentFixture({
+		render: renderTabStyleDensityComparison('default', true),
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: [
+			'Overflowing Modern UI Pill and Connected tabs show the scrollbar at the top, keeping a consistent tab-strip treatment.',
+			'Legacy tabs retain their bottom scrollbar; the breadcrumb bar and editor body remain below each tab strip in all styles.',
+		],
+	}),
 	Styles: defineThemedFixtureGroup({
 		Connected: defineComponentFixture({
 			render: render(true, {}),
@@ -772,6 +789,16 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 			expectedVisualDescriptions: [
 				'Pill tabs retain their transparent modern surface and separate rounded geometry instead of adopting the connected-tab strip color.',
 			],
+		}),
+		PillMultiSelected: defineComponentFixture({
+			render: render(true, { editorTabStyle: ModernUIEditorTabStyle.Pill, editors: multiSelectEditorSpecs() }),
+			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+			expectedVisualDescriptions: ['Multi-selected Pill tabs keep a single outer stroke around their fill, including the action area.'],
+		}),
+		PillMultiSelectedActionsOnLeft: defineComponentFixture({
+			render: render(true, { editorTabStyle: ModernUIEditorTabStyle.Pill, editors: multiSelectEditorSpecs(), partOptions: { tabActionLocation: 'left' } }),
+			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+			expectedVisualDescriptions: ['Multi-selected Pill tabs with leading actions keep the same outer stroke ownership as trailing actions.'],
 		}),
 	}),
 });

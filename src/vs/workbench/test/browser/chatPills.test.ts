@@ -6,29 +6,37 @@
 import assert from 'assert';
 import { addDisposableListener, getWindow } from '../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
+import { EventType as TouchEventType } from '../../../base/browser/touch.js';
 import { IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
-import type { IManagedHoverContent, IManagedHoverOptions } from '../../../base/browser/ui/hover/hover.js';
+import type { IManagedHoverContent, IManagedHoverContentOrFactory, IManagedHoverOptions } from '../../../base/browser/ui/hover/hover.js';
+import { getBaseLayerHoverDelegate, setBaseLayerHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate2.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 import { timeout } from '../../../base/common/async.js';
 import { Action, IAction } from '../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { Codicon } from '../../../base/common/codicons.js';
+import { Event } from '../../../base/common/event.js';
 import { AnchorPosition } from '../../../base/common/layout.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../base/common/observable.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IActionListDelegate, IActionListItem, IActionListOptions } from '../../../platform/actionWidget/browser/actionList.js';
+import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IActionWidgetService } from '../../../platform/actionWidget/browser/actionWidget.js';
 import { IFileContent, IFileService } from '../../../platform/files/common/files.js';
+import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../platform/hover/test/browser/nullHoverService.js';
 import { ChatDropdownPillActionViewItem, ChatPillSingleEntry, createChatSectionPill } from '../../browser/chatDropdownPill.js';
 import { ChatResourcePillActionViewItem } from '../../browser/chatResourcePill.js';
 import { createChatImageHoverContent } from '../../browser/chatImagePreview.js';
 import { ChatPillHoverCache, createChatPillHover, type IChatPillHoverContent } from '../../browser/chatPillHover.js';
-import { ChatPillsRow, ChatPillsWidget, createChatPillImagePreview, getChatPillLocationHover, getChatReferencePillPresentation, type ChatPillsCompactMode, type IChatPill, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../browser/chatPills.js';
+import { ChatPillsRow, ChatPillsWidget, createChatPillImagePreview, createChatPillMediaPreview, getChatPillEntryHoverContents, getChatPillLocationHover, getChatReferencePillPresentation, type ChatPillsCompactMode, type IChatPill, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../browser/chatPills.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../browser/labels.js';
 import { workbenchInstantiationService } from './workbenchTestServices.js';
 
@@ -56,6 +64,7 @@ suite('ChatPills', () => {
 						preserveLabelOnRefresh: title !== undefined,
 						ariaLabel: `Open ${typeLabel} #123${title ? ': Live title' : ''}`,
 						dropdownAriaLabel: `#123, Open ${typeLabel}${title ? ': Live title' : ''}`,
+						ariaDescription: undefined,
 					},
 				});
 			});
@@ -72,6 +81,20 @@ suite('ChatPills', () => {
 				labels: ['Recorded title', 'Live title'],
 				identity: Array.from({ length: 2 }, () => ({ badge: '#123', badgeBeforeLabel: true, pillLabel: '#123' })),
 				preserveLabelOnRefresh: [false, true],
+			});
+		});
+
+		test(`${kind} replaces a generic URL description with reference semantics`, () => {
+			const url = `https://github.com/microsoft/vscode/${kind === 'pullRequest' ? 'pull' : 'issues'}/123`;
+			const entry: Pick<IChatPillEntry, 'ariaLabel' | 'ariaDescription'> = { ariaDescription: url };
+			Object.assign(entry, getChatReferencePillPresentation(kind, '#123', undefined, 'Recorded title').entry);
+
+			assert.deepStrictEqual({
+				ariaLabel: entry.ariaLabel,
+				ariaDescription: entry.ariaDescription,
+			}, {
+				ariaLabel: `Open ${typeLabel} #123: Recorded title`,
+				ariaDescription: undefined,
 			});
 		});
 	}
@@ -456,6 +479,145 @@ suite('ChatPills', () => {
 		});
 	});
 
+	test('single resource pills leave hovering to the pill rather than their resource label', () => {
+		const labelHovers: unknown[] = [];
+		const previous = getBaseLayerHoverDelegate();
+		setBaseLayerHoverDelegate({
+			...previous,
+			setupManagedHover: (...args: Parameters<typeof previous.setupManagedHover>) => {
+				if (args[1].closest('.monaco-icon-label')) {
+					labelHovers.push(args[2]);
+				}
+				return previous.setupManagedHover(...args);
+			},
+		});
+		store.add(toDisposable(() => setBaseLayerHoverDelegate(previous)));
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const resourceLabels = store.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+		const entry: IChatPillEntry = { id: 'design', label: 'design.png', resource: URI.file('/repo/design.png'), tooltip: '/repo/design.png', open: () => { } };
+		const action = store.add(new Action('artifacts', 'Artifacts'));
+		const viewItem = store.add(instantiationService.createInstance(ChatResourcePillActionViewItem, action, {}, constObservable(entry), resourceLabels));
+		const container = mainWindow.document.createElement('div');
+		viewItem.render(container);
+
+		assert.deepStrictEqual({
+			label: container.querySelector('.monaco-icon-label')?.textContent,
+			labelHovers,
+		}, {
+			label: 'design.png',
+			labelHovers: [],
+		});
+	});
+
+	function createVideoFileService(resource: URI) {
+		const content = Promise.resolve<IFileContent>({
+			resource,
+			name: 'demo.mp4',
+			value: VSBuffer.fromString('video'),
+			etag: 'video-etag',
+			mtime: 0,
+			ctime: 0,
+			size: 5,
+			readonly: false,
+			locked: false,
+			executable: false,
+		});
+		return { content, fileService: upcastPartial<IFileService>({ readFile: () => content }) };
+	}
+
+	test('previews videos muted and looping, reading reduced motion each time the hover opens, and releases them on close', async () => {
+		const resource = URI.file('/repo/demo.mp4');
+		const { content, fileService } = createVideoFileService(resource);
+		const entry: IChatPillEntry = { id: 'demo', label: 'demo.mp4', ariaDescription: '~/repo/demo.mp4', videoPreview: { resource, mimeType: 'video/mp4' }, open: () => { } };
+		let motionReduced = false;
+		// The pill caches its hover content, so the preference must be read when the hover opens, not when it is cached.
+		const hover = getChatPillEntryHoverContents(entry, fileService, new WeakMap(), { isMotionReduced: () => motionReduced }) as { element: (token: CancellationToken) => HTMLElement };
+		const playingOpen = store.add(new CancellationTokenSource());
+		const playingElement = hover.element(playingOpen.token);
+		motionReduced = true;
+		const stillOpen = store.add(new CancellationTokenSource());
+		const stillElement = hover.element(stillOpen.token);
+		const still = createChatPillMediaPreview(entry, fileService, undefined, { isMotionReduced: () => true })!;
+		await content;
+		const describe = (element: HTMLElement) => {
+			const video = element.querySelector('video');
+			return video && {
+				muted: video.muted,
+				loop: video.loop,
+				autoplay: video.autoplay,
+				controls: video.controls,
+				ariaLabel: video.getAttribute('aria-label'),
+				blobSource: video.src.startsWith('blob:'),
+				location: element.querySelector('.chat-image-hover-location')?.textContent,
+			};
+		};
+		const playingVideo = { muted: true, loop: true, autoplay: true, controls: false, ariaLabel: 'Preview of demo.mp4', blobSource: true, location: '~/repo/demo.mp4' };
+		const stillVideo = { ...playingVideo, autoplay: false, controls: true };
+		const shown = [describe(playingElement), describe(stillElement)];
+		const tabbableWhileShown = still.getTabbableElements?.().map(element => element.tagName);
+		playingOpen.cancel();
+		stillOpen.cancel();
+		store.add(still.disposable).dispose();
+
+		assert.deepStrictEqual({
+			shown,
+			tabbableWhileShown,
+			tabbableAfterClose: still.getTabbableElements?.().length,
+			sourceAfterClose: still.element.querySelector('video')?.hasAttribute('src'),
+		}, {
+			shown: [playingVideo, stillVideo],
+			tabbableWhileShown: ['VIDEO'],
+			tabbableAfterClose: 0,
+			sourceAfterClose: false,
+		});
+	});
+
+	test('lets keyboard users reach a still video\'s controls from its dropdown row, including after the row is rebuilt', async () => {
+		const resource = URI.file('/repo/demo.mp4');
+		const { content, fileService } = createVideoFileService(resource);
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IFileService, fileService);
+		let motionReduced = true;
+		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+			override isMotionReduced(): boolean { return motionReduced; }
+		}());
+		const action = store.add(new Action('artifacts', 'Artifacts'));
+		const createEntry = (): IChatPillEntry => ({ id: 'demo', label: 'demo.mp4', resource, videoPreview: { resource, mimeType: 'video/mp4' }, open: () => { } });
+		const other: IChatPillEntry = { id: 'notes', label: 'notes.md', resource: URI.file('/repo/notes.md'), open: () => { } };
+		const sections = observableValue<readonly IChatPillSection[]>('chatPills.video', [{ title: 'Files', entries: [createEntry(), other] }]);
+		const viewItem = store.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, sections, {
+			widgetId: 'artifacts',
+			icon: Codicon.archive,
+			title: 'Artifacts',
+			summaryLabel: count => `${count} Artifacts`,
+			summaryAriaLabel: count => `Show ${count} artifacts`,
+		}));
+		const videoHover = () => getDropdownPillItems.call(viewItem).find(item => item.label === 'demo.mp4')!.hover!;
+		const firstHover = videoHover();
+		const firstContent = typeof firstHover.content === 'function' ? firstHover.content() : undefined;
+		await content;
+		const first = { tabThroughPanel: firstHover.tabThroughPanel, tabbable: firstHover.getTabbableElements?.().map(element => element.tagName) };
+		sections.set([{ title: 'Files', entries: [createEntry(), other] }], undefined);
+		const rebuiltHover = videoHover();
+		const rebuilt = {
+			sameContent: (typeof rebuiltHover.content === 'function' ? rebuiltHover.content() : undefined) === firstContent,
+			tabThroughPanel: rebuiltHover.tabThroughPanel,
+			tabbable: rebuiltHover.getTabbableElements?.().map(element => element.tagName),
+		};
+		firstHover.disposeContent?.(firstContent!);
+		motionReduced = false;
+		const playingContent = typeof rebuiltHover.content === 'function' ? rebuiltHover.content() : undefined;
+		await content;
+		const playing = { tabbable: rebuiltHover.getTabbableElements?.().map(element => element.tagName), autoplay: playingContent?.querySelector('video')?.autoplay };
+		rebuiltHover.disposeContent?.(playingContent!);
+
+		assert.deepStrictEqual({ first, rebuilt, playing }, {
+			first: { tabThroughPanel: true, tabbable: ['VIDEO'] },
+			rebuilt: { sameContent: true, tabThroughPanel: true, tabbable: ['VIDEO'] },
+			playing: { tabbable: [], autoplay: true },
+		});
+	});
+
 	test('cancels image reads when their hover closes or is cancelled', async () => {
 		const tokens: (CancellationToken | undefined)[] = [];
 		const resource = URI.file('/repo/design.png');
@@ -768,6 +930,7 @@ suite('ChatPills', () => {
 		container.style.setProperty('--vscode-spacing-size20', '2px');
 		container.style.setProperty('--vscode-spacing-size40', '4px');
 		container.style.setProperty('--vscode-spacing-size60', '6px');
+		container.style.setProperty('--vscode-spacing-size160', '16px');
 		mainWindow.document.body.appendChild(container);
 		disposables.add(toDisposable(() => container.remove()));
 		const row = disposables.add(new ChatPillsRow('ChatPills.responsiveTest', { compact }));
@@ -909,6 +1072,158 @@ suite('ChatPills', () => {
 			scrolledBackToFirstPill: true,
 		});
 	});
+
+	for (const compact of [false, true, 'auto'] as const) {
+		test(`overflow fades follow scrolling and resizing in compact mode ${compact}`, () => {
+			const harness = createResponsiveRow(compact);
+			const fades = () => ({
+				left: harness.row.element.classList.contains('can-scroll-left'),
+				right: harness.row.element.classList.contains('can-scroll-right'),
+				masked: mainWindow.getComputedStyle(harness.row.content).maskImage !== 'none',
+			});
+			const initial = fades();
+			harness.resize(20);
+			const start = fades();
+			harness.row.content.scrollLeft = 10;
+			harness.row.scanDomNode();
+			const middle = fades();
+			harness.row.content.scrollLeft = harness.row.content.scrollWidth;
+			harness.row.scanDomNode();
+			const end = fades();
+			harness.resize(1000);
+
+			assert.deepStrictEqual({ initial, start, middle, end, resized: fades() }, {
+				initial: { left: false, right: false, masked: false },
+				start: { left: false, right: true, masked: true },
+				middle: { left: true, right: true, masked: true },
+				end: { left: true, right: false, masked: true },
+				resized: { left: false, right: false, masked: false },
+			});
+		});
+	}
+
+	test('overflow fades replace native scroll shadows', () => {
+		const harness = createResponsiveRow(false);
+		harness.resize(200);
+		harness.row.content.scrollLeft = 10;
+		harness.row.scanDomNode();
+
+		assert.deepStrictEqual({
+			left: harness.row.element.classList.contains('can-scroll-left'),
+			right: harness.row.element.classList.contains('can-scroll-right'),
+			masked: mainWindow.getComputedStyle(harness.row.content).maskImage !== 'none',
+			nativeShadows: harness.row.element.querySelectorAll(':scope > .shadow').length,
+		}, {
+			left: true,
+			right: true,
+			masked: true,
+			nativeShadows: 0,
+		});
+	});
+
+	test('overflow fades follow keyboard focus without changing accessible labels', async () => {
+		const harness = createResponsiveRow(false);
+		const buttons = harness.widget.getPillElements();
+		const labels = buttons.map(button => button.getAttribute('aria-label'));
+		harness.resize(200);
+		const scrolledToEnd = Event.toPromise(Event.filter(harness.row.onDidChangeLayout, () =>
+			harness.row.element.classList.contains('can-scroll-left') && !harness.row.element.classList.contains('can-scroll-right')));
+		buttons.at(-1)!.focus();
+		await scrolledToEnd;
+		const end = {
+			focused: mainWindow.document.activeElement === buttons.at(-1),
+			left: harness.row.element.classList.contains('can-scroll-left'),
+			right: harness.row.element.classList.contains('can-scroll-right'),
+			visible: buttons.at(-1)!.getBoundingClientRect().right <= harness.row.content.getBoundingClientRect().right + 1,
+		};
+		const scrolledToStart = Event.toPromise(Event.filter(harness.row.onDidChangeLayout, () =>
+			!harness.row.element.classList.contains('can-scroll-left') && harness.row.element.classList.contains('can-scroll-right')));
+		buttons[0].focus();
+		await scrolledToStart;
+
+		assert.deepStrictEqual({
+			end,
+			start: {
+				focused: mainWindow.document.activeElement === buttons[0],
+				left: harness.row.element.classList.contains('can-scroll-left'),
+				right: harness.row.element.classList.contains('can-scroll-right'),
+			},
+			labelsPreserved: buttons.every((button, index) => button.getAttribute('aria-label') === labels[index]),
+		}, {
+			end: { focused: true, left: true, right: false, visible: true },
+			start: { focused: true, left: false, right: true },
+			labelsPreserved: true,
+		});
+	});
+
+	test('overflow fades tolerate fractional scroll positions at either edge', () => {
+		const harness = createResponsiveRow(false);
+		harness.resize(200);
+		harness.row.content.scrollLeft = 0.5;
+		harness.row.scanDomNode();
+		const start = {
+			left: harness.row.element.classList.contains('can-scroll-left'),
+			right: harness.row.element.classList.contains('can-scroll-right'),
+		};
+		harness.row.content.scrollLeft = harness.row.content.scrollWidth - harness.row.content.clientWidth - 0.5;
+		harness.row.scanDomNode();
+
+		assert.deepStrictEqual({
+			start,
+			end: {
+				left: harness.row.element.classList.contains('can-scroll-left'),
+				right: harness.row.element.classList.contains('can-scroll-right'),
+			},
+		}, {
+			start: { left: false, right: true },
+			end: { left: true, right: false },
+		});
+	});
+
+	test('overflow fades clear when content is removed or the row has no width', () => {
+		const harness = createResponsiveRow(false);
+		harness.resize(60);
+		harness.pills.set([], undefined);
+		harness.row.layout();
+		const empty = harness.row.element.classList.contains('can-scroll-right');
+		harness.pills.set(harness.initialPills, undefined);
+		harness.row.layout();
+		const restored = harness.row.element.classList.contains('can-scroll-right');
+		harness.resize(0);
+
+		assert.deepStrictEqual({
+			empty,
+			restored,
+			zeroWidth: {
+				left: harness.row.element.classList.contains('can-scroll-left'),
+				right: harness.row.element.classList.contains('can-scroll-right'),
+			},
+		}, {
+			empty: false,
+			restored: true,
+			zeroWidth: { left: false, right: false },
+		});
+	});
+
+	for (const theme of ['hc-black', 'hc-light']) {
+		test(`overflow fades preserve contrast in ${theme}`, () => {
+			const harness = createResponsiveRow(false);
+			harness.resize(60);
+			harness.row.content.scrollLeft = 10;
+			harness.row.scanDomNode();
+			harness.row.element.parentElement!.classList.add(theme);
+
+			assert.deepStrictEqual({
+				left: harness.row.element.classList.contains('can-scroll-left'),
+				right: harness.row.element.classList.contains('can-scroll-right'),
+				mask: mainWindow.getComputedStyle(harness.row.content).maskImage,
+			}, {
+				left: true,
+				right: true,
+				mask: 'none',
+			});
+		});
+	}
 
 	for (const compact of [false, true]) {
 		test(`fixed compact mode ${compact} is unaffected by available width`, () => {
@@ -1251,5 +1566,104 @@ suite('ChatPills', () => {
 		});
 
 		disposables.dispose();
+	});
+
+	test('mirrors a lone inline entry\'s promoted action onto the pill, with its own tooltip instead of a hover copy', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const managedHovers = new Map<HTMLElement, IManagedHoverContentOrFactory>();
+		instantiationService.stub(IHoverService, {
+			...NullHoverService,
+			setupManagedHover: (delegate, target, content, options) => {
+				managedHovers.set(target, content);
+				return NullHoverService.setupManagedHover(delegate, target, content, options);
+			},
+		});
+		const events: string[] = [];
+		const promotedAction = store.add(new Action('close', 'Close Canvas Preview', undefined, true, async () => { events.push('closed'); }));
+		const entry: IChatPillEntry = { id: 'preview', label: 'Preview', promotedAction, open: () => { events.push('opened'); } };
+		const sections = observableValue<readonly IChatPillSection[]>('sections', [{ title: 'Canvases', entries: [entry] }]);
+		const render = (promotedActionIcon: ThemeIcon | undefined) => {
+			const viewItem = store.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, store.add(new Action('canvases', 'Canvases')), {}, sections, {
+				widgetId: 'canvases',
+				icon: Codicon.preview,
+				title: 'Canvases',
+				summaryLabel: count => `${count} Canvases`,
+				summaryAriaLabel: count => `Show ${count} canvases`,
+				promotedActionIcon,
+			}));
+			const pillsContainer = mainWindow.document.createElement('div');
+			pillsContainer.className = 'chat-pills';
+			const actionBar = mainWindow.document.createElement('div');
+			actionBar.className = 'monaco-action-bar';
+			const actionsContainer = mainWindow.document.createElement('ul');
+			actionsContainer.className = 'actions-container';
+			const container = mainWindow.document.createElement('li');
+			container.className = 'action-item';
+			actionsContainer.appendChild(container);
+			actionBar.appendChild(actionsContainer);
+			pillsContainer.appendChild(actionBar);
+			mainWindow.document.body.appendChild(pillsContainer);
+			store.add(toDisposable(() => pillsContainer.remove()));
+			viewItem.render(container);
+			return { container, hoverActions: () => getDropdownPillHoverOptions.call(viewItem)?.actions?.map(action => action.label) };
+		};
+		const { container, hoverActions } = render(Codicon.closeCompact);
+		const withoutIcon = render(undefined);
+		const promoted = container.querySelector<HTMLElement>('.chat-pill-promoted-action');
+		assert.ok(promoted);
+		const tooltip = managedHovers.get(promoted);
+		const mouseDown = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+		promoted.dispatchEvent(mouseDown);
+		promoted.click();
+		const clicked = events.splice(0);
+		promoted.dispatchEvent(new CustomEvent(TouchEventType.Tap));
+		const tapped = events.splice(0);
+		const single = {
+			attributes: { role: promoted.getAttribute('role'), tabIndex: promoted.getAttribute('tabindex'), ariaLabel: promoted.getAttribute('aria-label') },
+			tooltip: typeof tooltip === 'function' ? tooltip() : tooltip,
+			pillHoverActions: hoverActions(),
+			compactGlyph: promoted.classList.contains('codicon-close-compact'),
+			reservesSpace: container.classList.contains('has-promoted-action'),
+			itemDisplay: mainWindow.getComputedStyle(container).display,
+			actionCentered: Math.abs(
+				promoted.getBoundingClientRect().top + promoted.getBoundingClientRect().height / 2
+				- (container.getBoundingClientRect().top + container.getBoundingClientRect().height / 2)
+			) <= 1,
+			keepsFocus: mouseDown.defaultPrevented,
+			clicked,
+			tapped,
+		};
+		const withoutIconSingle = {
+			promoted: withoutIcon.container.querySelector('.chat-pill-promoted-action'),
+			reservesSpace: withoutIcon.container.classList.contains('has-promoted-action'),
+			pillHoverActions: withoutIcon.hoverActions(),
+		};
+		sections.set([{ title: 'Canvases', entries: [entry, { id: 'other', label: 'Other', promotedAction, open: () => { } }] }], undefined);
+		const summarized = { shown: container.contains(promoted), reservesSpace: container.classList.contains('has-promoted-action') };
+		sections.set([{ title: 'Canvases', entries: [entry] }], undefined);
+		const restoredPromoted = container.querySelector('.chat-pill-promoted-action');
+
+		assert.deepStrictEqual({
+			single,
+			withoutIcon: withoutIconSingle,
+			summarized,
+			restoredPromotedRecreated: !!restoredPromoted && restoredPromoted !== promoted,
+		}, {
+			single: {
+				attributes: { role: 'button', tabIndex: '-1', ariaLabel: 'Close Canvas Preview' },
+				tooltip: 'Close Canvas Preview',
+				pillHoverActions: undefined,
+				compactGlyph: true,
+				reservesSpace: true,
+				itemDisplay: 'flex',
+				actionCentered: true,
+				keepsFocus: true,
+				clicked: ['closed'],
+				tapped: ['closed'],
+			},
+			withoutIcon: { promoted: null, reservesSpace: false, pillHoverActions: ['Close Canvas Preview'] },
+			summarized: { shown: false, reservesSpace: false },
+			restoredPromotedRecreated: true,
+		});
 	});
 });

@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Progress } from '../../../../../platform/progress/common/progress.js';
-import { ITextQuery, QueryType } from '../../common/search.js';
+import { DEFAULT_MAX_SEARCH_RESULTS, IFileMatch, ITextQuery, ITextSearchMatch, QueryType } from '../../common/search.js';
 import { ProviderResult, Range, TextSearchComplete2, TextSearchMatch2, TextSearchProviderOptions, TextSearchProvider2, TextSearchQuery2, TextSearchResult2 } from '../../common/searchExtTypes.js';
 import { NativeTextSearchManager } from '../../node/textSearchManager.js';
 
@@ -85,6 +85,34 @@ suite('NativeTextSearchManager', () => {
 		// Should only receive 1 result (the one from /folder1)
 		// The result from /unknown/folder should be silently ignored
 		assert.strictEqual(receivedResults, 1);
+	});
+
+	test('limits the results to the default limit when the query does not specify one', async () => {
+		const provider: TextSearchProvider2 = {
+			provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: Progress<TextSearchResult2>, token: CancellationToken): ProviderResult<TextSearchComplete2> {
+				const range = new Range(0, 0, 0, 1);
+				progress.report(new TextSearchMatch2(URI.file('/folder/a.txt'), Array.from({ length: DEFAULT_MAX_SEARCH_RESULTS + 1 }, () => ({ sourceRange: range, previewRange: range })), 'a'));
+
+				return null;
+			}
+		};
+
+		const query: ITextQuery = {
+			type: QueryType.Text,
+			contentPattern: { pattern: 'a' },
+			folderQueries: [{ folder: URI.file('/folder') }]
+		};
+
+		const matches: IFileMatch[] = [];
+		const complete = await new NativeTextSearchManager(query, provider).search(results => matches.push(...results), CancellationToken.None);
+
+		assert.deepStrictEqual({
+			limitHit: complete.limitHit,
+			resultCount: matches.flatMap(match => match.results ?? []).reduce((count, result) => count + (result as ITextSearchMatch).rangeLocations.length, 0),
+		}, {
+			limitHit: true,
+			resultCount: DEFAULT_MAX_SEARCH_RESULTS,
+		});
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
