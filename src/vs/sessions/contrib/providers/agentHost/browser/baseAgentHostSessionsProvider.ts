@@ -7201,9 +7201,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const newSession = this._getNewSession(sessionId);
 		if (newSession) {
 			const published = getEffectiveAgents(this._lastSessionStates.get(sessionId)?.customizations);
-			const sources = agent ? newSession.getClientCustomAgents().filter(source => {
+			const agentUri = agent && URI.parse(agent.uri);
+			// Callers pass either the picker's client-space URI or a published host-space URI from getCustomAgents().
+			const sources = agentUri ? newSession.getClientCustomAgents().filter(source => {
 				const resolved = this._resolvePublishedDraftAgent(newSession, source, published);
-				return isEqual(resolved ? this._toClientAgentUri(resolved) : URI.parse(source.uri), URI.parse(agent.uri));
+				return resolved
+					? isEqual(URI.parse(resolved.uri), agentUri) || isEqual(this._toClientAgentUri(resolved), agentUri)
+					: isEqual(URI.parse(source.uri), agentUri);
 			}) : [];
 			const previous = newSession.getSelectedAgent();
 			const source = sources.length === 1 ? sources[0]

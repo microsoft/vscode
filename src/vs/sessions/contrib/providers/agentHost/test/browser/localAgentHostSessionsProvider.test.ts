@@ -4626,8 +4626,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// The local provider resolves only `file:` workspaces, so only connections that accept them as client resources can back it.
 	for (const kind of agentHostConnectionKinds.filter(kind => kind.name === 'local' || kind.name === 'editor remote')) {
-		for (const outcome of ['loaded', 'error'] as const) {
-			test(`draft agent from a same-host plugin waits for it and keeps its client identity (${outcome}, ${kind.name})`, async () => {
+		for (const [outcome, selectBy] of [['loaded', 'client'], ['error', 'client'], ['loaded', 'published'], ['error', 'published']] as const) {
+			// `published` selects the host-space URI from getCustomAgents(), as the Dev Container handoff does, before the plugin reloads.
+			test(`draft agent from a same-host plugin waits for it and keeps its client identity (${outcome}, selected by ${selectBy} URI, ${kind.name})`, async () => {
 				agentHost.resourceUris = kind.resourceUris;
 				const hostPlugin = URI.file('/plugins/review');
 				const clientAgent = kind.toClient(URI.joinPath(hostPlugin, 'agents', 'reviewer.agent.md')).toString();
@@ -4659,8 +4660,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 							children: load === CustomizationLoadStatus.Loaded ? [host] : [],
 						}],
 					});
+				if (selectBy === 'published') {
+					publish(CustomizationLoadStatus.Loaded);
+					provider.setAgent(session.sessionId, { uri: host.uri, name: host.name });
+				}
 				publish(CustomizationLoadStatus.Loading);
-				provider.setAgent(session.sessionId, { uri: client.uri, name: client.name });
+				if (selectBy === 'client') {
+					provider.setAgent(session.sessionId, { uri: client.uri, name: client.name });
+				}
 				const sending = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
 				const rejected = outcome === 'error' ? assert.rejects(sending, /selected agent could not be loaded/) : undefined;
 				await timeout(0);
