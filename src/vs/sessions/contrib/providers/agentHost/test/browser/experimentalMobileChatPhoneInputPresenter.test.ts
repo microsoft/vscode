@@ -27,6 +27,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, CustomizationType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
@@ -90,7 +91,19 @@ suite('ExperimentalMobileChatPhoneInputPresenter', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => resetShownWarnings());
 
-	function createHarness(modelCount = 2, options: { readonly cloud?: boolean; readonly approvals?: boolean; readonly speed?: boolean; readonly confirmPermissions?: boolean; readonly customAgents?: boolean; readonly customAgentUri?: string; readonly sandbox?: boolean } = {}) {
+	function createHarness(modelCount = 2, options: {
+		readonly cloud?: boolean;
+		readonly approvals?: boolean;
+		readonly speed?: boolean;
+		readonly confirmPermissions?: boolean;
+		readonly customAgents?: boolean;
+		readonly customAgentUri?: string;
+		readonly customAgentContainer?: 'directory' | 'plugin';
+		readonly selectedAgentUri?: string;
+		readonly sourceAgentUri?: string;
+		readonly mapAgentHostResource?: (uri: URI) => URI;
+		readonly sandbox?: boolean;
+	} = {}) {
 		const container = dom.append(mainWindow.document.body, dom.$('div.phone-layout'));
 		store.add(toDisposable(() => container.remove()));
 		const contextKeys = new MockContextKeyService();
@@ -138,7 +151,7 @@ suite('ExperimentalMobileChatPhoneInputPresenter', () => {
 			modelId: models[0].identifier,
 		};
 		const activeChat = observableValue<IChat>('chat', upcastPartial<IChat>({ resource: context.chatResource }));
-		const selectedAgent = observableValue<{ id: string; kind: string } | undefined>('agent', undefined);
+		const selectedAgent = observableValue<{ id: string; kind: string } | undefined>('agent', options.selectedAgentUri ? { id: options.selectedAgentUri, kind: 'agent' } : undefined);
 		const inputSession = constObservable(upcastPartial<IActiveSession>({
 			...context,
 			resource: URI.parse('session:/one'),
@@ -181,6 +194,10 @@ suite('ExperimentalMobileChatPhoneInputPresenter', () => {
 				resolving.set(false, undefined);
 			},
 		};
+		const customAgent: AgentCustomization = {
+			type: CustomizationType.Agent, id: 'planner', uri: options.customAgentUri ?? 'file:///agents/planner.agent.md',
+			name: 'Planner', description: 'Plan the task',
+		};
 		const provider = upcastPartial<IAgentHostSessionsProvider>({
 			...configProvider,
 			id: context.providerId,
@@ -189,7 +206,14 @@ suite('ExperimentalMobileChatPhoneInputPresenter', () => {
 			getModelPickerOptions: () => ({ showAutoModel: true, useGroupedModelPicker: false, showFeatured: false, showUnavailableFeatured: false, showManageModelsAction: false }),
 			getAutomationModelConfiguration: () => assert.fail('A live picker must not use automation configuration'),
 			getSessions: () => [inputSession.get()],
-			getCustomAgents: () => [upcastPartial<AgentCustomization>({ type: CustomizationType.Agent, uri: options.customAgentUri ?? 'file:///agents/planner.agent.md', name: 'Planner', description: 'Plan the task' })],
+			getCustomAgents: () => [customAgent],
+			getCustomizations: () => options.customAgentContainer === 'plugin'
+				? [{ type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///agents', name: 'Plugin', clientId: 'foreign', children: [customAgent] }]
+				: options.customAgentContainer === 'directory'
+					? [{ type: CustomizationType.Directory, id: 'agents', uri: 'file:///agents', name: 'Agents', contents: CustomizationType.Agent, enabled: true, writable: true, children: [customAgent] }]
+					: [],
+			mapAgentHostResource: uri => options.mapAgentHostResource?.(uri) ?? uri,
+			resolveCustomAgent: (_id, uri) => uri === options.sourceAgentUri ? customAgent : undefined,
 			setAgent: options.customAgents ? (_sessionId, agent) => {
 				agentWrites.push(agent);
 				selectedAgent.set(agent && { id: agent.uri, kind: 'agent' }, undefined);
@@ -670,7 +694,10 @@ suite('ExperimentalMobileChatPhoneInputPresenter', () => {
 
 	test('custom agent selection preserves an opaque provider-advertised URI', async () => {
 		const uri = 'custom-agent://other-host/catalogue/opaque-agent?revision=42';
-		const harness = createHarness(2, { customAgents: true, customAgentUri: uri });
+		const harness = createHarness(2, {
+			customAgents: true, customAgentUri: uri,
+			mapAgentHostResource: () => assert.fail('Standalone advertised agents must not be remapped'),
+		});
 		const closed = harness.open(harness.session);
 		harness.row('Planner').click();
 		await harness.waitForSelection();
@@ -678,6 +705,37 @@ suite('ExperimentalMobileChatPhoneInputPresenter', () => {
 		await closed;
 		assert.deepStrictEqual(harness.agentWrites, [{ uri, name: 'Planner' }]);
 	});
+
+	for (const kind of agentHostConnectionKinds) {
+		for (const container of ['directory', 'plugin'] as const) {
+			for (const selection of ['host', 'client', 'draft source'] as const) {
+				test(`normalizes ${container} agents in ${kind.name} from ${selection} selection`, async () => {
+					const hostUri = URI.parse('file:///agents/planner.agent.md');
+					const clientUri = kind.toClient(hostUri).toString();
+					const sourceUri = 'client-agent:/draft-source';
+					const harness = createHarness(2, {
+						customAgents: true,
+						customAgentUri: hostUri.toString(),
+						customAgentContainer: container,
+						mapAgentHostResource: uri => kind.resourceUris.fromAgentHost(uri),
+						selectedAgentUri: selection === 'host' ? hostUri.toString() : selection === 'client' ? clientUri : sourceUri,
+						sourceAgentUri: sourceUri,
+					});
+					const closed = harness.open(harness.session);
+					const checked = harness.row('Planner').getAttribute('aria-current');
+					harness.row('Default Agent').click();
+					await harness.waitForSelection();
+					harness.row('Planner').click();
+					await harness.waitForSelection();
+					harness.close();
+					await closed;
+					assert.deepStrictEqual({ checked, writes: harness.agentWrites }, {
+						checked: 'true', writes: [undefined, { uri: clientUri, name: 'Planner' }],
+					});
+				});
+			}
+		}
+	}
 
 	test('running permissions use the live input model-configuration store rather than the automation store', async () => {
 		const harness = createHarness(2, { approvals: true });

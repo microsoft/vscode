@@ -50,7 +50,7 @@ import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, IChatPh
 import { ExperimentalMobileChatInputActionViewItem } from './experimentalMobileChatInputActionViewItem.js';
 import { PermissionPicker } from '../../../copilotChatSessions/browser/permissionPicker.js';
 import { ISessionAgentRef } from '../../../../../services/sessions/common/session.js';
-import { setAgentHostAgent } from '../agentHostAgentSelection.js';
+import { getAgentHostAgentPickerState, setAgentHostAgent } from '../agentHostAgentSelection.js';
 
 /**
  * Action id passed to the workbench `ToggleAgentModeActionId` command when
@@ -347,8 +347,8 @@ class ExperimentalMobileChatPhoneInputPresenter extends Disposable implements IC
 		const isNewSession = configProvider?.getCreateSessionConfig(session.sessionId) !== undefined;
 		const resolving = configProvider?.isSessionConfigResolving(session.sessionId, session.chatResource).get() === true;
 		if (isAgentHostProvider(provider) && provider.setAgent) {
-			const agents = provider.getCustomAgents(session.sessionId);
-			const selectedAgent = provider.getSessions().find(candidate => candidate.sessionId === session.sessionId)?.mode.get()?.id;
+			const { agents, toPickerUri } = getAgentHostAgentPickerState(session.sessionId, provider);
+			const selectedAgent = toPickerUri(provider.getSessions().find(candidate => candidate.sessionId === session.sessionId)?.mode.get()?.id);
 			if (agents.length) {
 				items.push({
 					id: registerAction({ kind: 'agent', agent: undefined }),
@@ -743,8 +743,10 @@ class ExperimentalMobileChatPhoneInputPresenter extends Disposable implements IC
 			case 'agent':
 				if (session && provider && isAgentHostProvider(provider) && provider.setAgent && !provider.isSessionConfigResolving(session.sessionId, session.chatResource).get()) {
 					const currentSession = provider.getSessions().find(candidate => candidate.sessionId === session.sessionId);
-					if (currentSession && (!action.agent || provider.getCustomAgents(session.sessionId).some(agent => agent.uri === action.agent?.uri))) {
-						setAgentHostAgent(currentSession, provider, action.agent, this._storageService);
+					const agentUri = action.agent?.uri;
+					const agent = agentUri ? getAgentHostAgentPickerState(session.sessionId, provider).agents.find(candidate => candidate.uri === agentUri) : undefined;
+					if (currentSession && (!action.agent || agent)) {
+						setAgentHostAgent(currentSession, provider, agent, this._storageService);
 					}
 				}
 				break;
