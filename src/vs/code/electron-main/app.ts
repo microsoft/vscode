@@ -156,6 +156,7 @@ import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetr
 import { IProtocolMainService } from '../../platform/protocol/electron-main/protocol.js';
 import { createRemoteResourceRequestHandler } from '../../platform/protocol/electron-main/remoteResourceProtocol.js';
 import { logNodeCompileCacheStatus, markNodeCompileCacheReady, waitForNodeCompileCacheReady } from '../../base/node/nodeCompileCache.js';
+import { confirmProtocolOpenable } from './protocolDialogs.js';
 
 type OSProxyConfigEvent = {
 	readonly success: boolean;
@@ -982,7 +983,7 @@ export class CodeApplication extends Disposable {
 			return false; // not blocked via settings
 		}
 
-		const { response, checkboxChecked } = await dialogMainService.showMessageBox({
+		return confirmProtocolOpenable({
 			type: 'warning',
 			buttons: [
 				localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
@@ -992,23 +993,7 @@ export class CodeApplication extends Disposable {
 			detail: localize('confirmOpenDetail', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"),
 			checkboxLabel: openableUri.scheme === Schemas.file ? localize('doNotAskAgainLocal', "Allow opening local paths without asking") : localize('doNotAskAgainRemote', "Allow opening remote paths without asking"),
 			cancelId: 1
-		});
-
-		if (response !== 0) {
-			return true; // blocked by user choice
-		}
-
-		if (checkboxChecked) {
-			// Due to https://github.com/microsoft/vscode/issues/195436, we can only
-			// update settings from within a window. But we do not know if a window
-			// is about to open or can already handle the request, so we have to send
-			// to any current window and any newly opening window.
-			const request = { channel: 'vscode:disablePromptForProtocolHandling', args: openableUri.scheme === Schemas.file ? 'local' : 'remote' };
-			windowsMainService.sendToFocused(request.channel, request.args);
-			windowsMainService.sendToOpeningWindow(request.channel, request.args);
-		}
-
-		return false; // not blocked by user choice
+		}, openableUri.scheme === Schemas.file ? 'local' : 'remote', windowsMainService, dialogMainService);
 	}
 
 	private getWindowOpenableFromProtocolUrl(uri: URI): IWindowOpenable | undefined {
