@@ -9,7 +9,6 @@ import { AiRelatedInformationService } from '../../common/aiRelatedInformationSe
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { CommandInformationResult, IAiRelatedInformationProvider, RelatedInformationType, SettingInformationResult } from '../../common/aiRelatedInformation.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('AiRelatedInformationService', () => {
@@ -83,10 +82,13 @@ suite('AiRelatedInformationService', () => {
 
 		service.registerAiRelatedInformationProvider(RelatedInformationType.CommandInformation, provider);
 
-		store.add(toDisposable(() => clock.restore()));
-		const promise = service.getRelatedInformation('query', [RelatedInformationType.CommandInformation], CancellationToken.None);
-		clock.tick(AiRelatedInformationService.DEFAULT_TIMEOUT + 200);
-		const result = await promise;
-		assert.strictEqual(result.length, 0);
+		try {
+			const promise = service.getRelatedInformation('query', [RelatedInformationType.CommandInformation], CancellationToken.None);
+			clock.tick(AiRelatedInformationService.DEFAULT_TIMEOUT + 200);
+			const result = await promise;
+			assert.strictEqual(result.length, 0);
+		} finally {
+			clock.restore();
+		}
 	});
 });

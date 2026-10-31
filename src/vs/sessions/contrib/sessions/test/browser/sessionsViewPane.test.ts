@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { SplitView, Sizing } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -286,31 +286,34 @@ suite('Sessions - SessionsViewPane', () => {
 			_register: <T extends IDisposable>(disposable: T) => disposables.add(disposable),
 		};
 
-		disposables.add(toDisposable(() => workbench.remove()));
-		registerEditorTabHeightClass.call(host);
-		const defaultHeight = mainWindow.getComputedStyle(headerRow).height;
+		try {
+			registerEditorTabHeightClass.call(host);
+			const defaultHeight = mainWindow.getComputedStyle(headerRow).height;
 
-		tabHeight = 'compact';
-		editorPartOptionsChanged.fire();
-		const compactHeight = mainWindow.getComputedStyle(headerRow).height;
+			tabHeight = 'compact';
+			editorPartOptionsChanged.fire();
+			const compactHeight = mainWindow.getComputedStyle(headerRow).height;
 
-		tabHeight = 'default';
-		editorPartOptionsChanged.fire();
-		const restoredHeight = mainWindow.getComputedStyle(headerRow).height;
+			tabHeight = 'default';
+			editorPartOptionsChanged.fire();
+			const restoredHeight = mainWindow.getComputedStyle(headerRow).height;
 
-		assert.deepStrictEqual({
-			defaultHeight,
-			compactHeight,
-			restoredHeight,
-			flexShrink: mainWindow.getComputedStyle(headerRow).flexShrink,
-			hasCompactClass: workbench.classList.contains('editor-tabs-compact-height'),
-		}, {
-			defaultHeight: '32px',
-			compactHeight: '28px',
-			restoredHeight: '32px',
-			flexShrink: '0',
-			hasCompactClass: false,
-		});
+			assert.deepStrictEqual({
+				defaultHeight,
+				compactHeight,
+				restoredHeight,
+				flexShrink: mainWindow.getComputedStyle(headerRow).flexShrink,
+				hasCompactClass: workbench.classList.contains('editor-tabs-compact-height'),
+			}, {
+				defaultHeight: '32px',
+				compactHeight: '28px',
+				restoredHeight: '32px',
+				flexShrink: '0',
+				hasCompactClass: false,
+			});
+		} finally {
+			workbench.remove();
+		}
 	});
 
 	test('hides session details only when an active comparison participant is opened', () => {

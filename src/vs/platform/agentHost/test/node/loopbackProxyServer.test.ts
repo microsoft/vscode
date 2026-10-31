@@ -6,7 +6,6 @@
 import assert from 'assert';
 import type * as http from 'http';
 import * as net from 'net';
-import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import {
@@ -203,7 +202,7 @@ async function isConnectionRefused(url: string): Promise<boolean> {
 
 suite('LoopbackProxyServer', () => {
 
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// #region Lifecycle & binding
 
@@ -212,25 +211,33 @@ suite('LoopbackProxyServer', () => {
 		test('startHandle() returns a loopback baseUrl and 256-bit hex nonce', async () => {
 			const service = new TestProxyServer();
 			const handle = await service.startHandle();
-			store.add(toDisposable(() => { handle.dispose(); service.dispose(); }));
-			assert.match(handle.baseUrl, /^http:\/\/127\.0\.0\.1:\d+$/);
-			assert.match(handle.nonce, /^[0-9a-f]{64}$/);
+			try {
+				assert.match(handle.baseUrl, /^http:\/\/127\.0\.0\.1:\d+$/);
+				assert.match(handle.nonce, /^[0-9a-f]{64}$/);
+			} finally {
+				handle.dispose();
+				service.dispose();
+			}
 		});
 
 		test('binds only on the IPv4 loopback interface', async () => {
 			const service = new TestProxyServer();
 			const handle = await service.startHandle();
-			store.add(toDisposable(() => { handle.dispose(); service.dispose(); }));
-			assert.match(handle.baseUrl, /^http:\/\/127\.0\.0\.1:\d+$/);
-			// Binding to 127.0.0.1 must NOT also listen on the IPv6
-			// loopback (::1); a connection there should be refused.
-			const port = Number(new URL(handle.baseUrl).port);
-			const refusedOnIpv6 = await new Promise<boolean>(resolve => {
-				const socket = net.connect({ host: '::1', port });
-				socket.once('connect', () => { socket.destroy(); resolve(false); });
-				socket.once('error', () => { socket.destroy(); resolve(true); });
-			});
-			assert.strictEqual(refusedOnIpv6, true, 'server should not be reachable on ::1');
+			try {
+				assert.match(handle.baseUrl, /^http:\/\/127\.0\.0\.1:\d+$/);
+				// Binding to 127.0.0.1 must NOT also listen on the IPv6
+				// loopback (::1); a connection there should be refused.
+				const port = Number(new URL(handle.baseUrl).port);
+				const refusedOnIpv6 = await new Promise<boolean>(resolve => {
+					const socket = net.connect({ host: '::1', port });
+					socket.once('connect', () => { socket.destroy(); resolve(false); });
+					socket.once('error', () => { socket.destroy(); resolve(true); });
+				});
+				assert.strictEqual(refusedOnIpv6, true, 'server should not be reachable on ::1');
+			} finally {
+				handle.dispose();
+				service.dispose();
+			}
 		});
 
 		test('serves real requests via handleRequest', async () => {
@@ -240,10 +247,14 @@ suite('LoopbackProxyServer', () => {
 				res.end(JSON.stringify({ hello: 'world' }));
 			};
 			const handle = await service.startHandle();
-			store.add(toDisposable(() => { handle.dispose(); service.dispose(); }));
-			const res = await fetchHttp(`${handle.baseUrl}/anything`);
-			assert.strictEqual(res.status, 201);
-			assert.deepStrictEqual(res.parsed, { hello: 'world' });
+			try {
+				const res = await fetchHttp(`${handle.baseUrl}/anything`);
+				assert.strictEqual(res.status, 201);
+				assert.deepStrictEqual(res.parsed, { hello: 'world' });
+			} finally {
+				handle.dispose();
+				service.dispose();
+			}
 		});
 
 		test('handleRequest receives the runtime with baseUrl, nonce and state', async () => {
@@ -255,12 +266,16 @@ suite('LoopbackProxyServer', () => {
 				res.end();
 			};
 			const handle = await service.startHandle('payload');
-			store.add(toDisposable(() => { handle.dispose(); service.dispose(); }));
-			await fetchHttp(`${handle.baseUrl}/`);
-			assert.strictEqual(seen, handle.runtime);
-			assert.strictEqual(seen?.baseUrl, handle.baseUrl);
-			assert.strictEqual(seen?.nonce, handle.nonce);
-			assert.strictEqual(seen?.state.value, 'payload');
+			try {
+				await fetchHttp(`${handle.baseUrl}/`);
+				assert.strictEqual(seen, handle.runtime);
+				assert.strictEqual(seen?.baseUrl, handle.baseUrl);
+				assert.strictEqual(seen?.nonce, handle.nonce);
+				assert.strictEqual(seen?.state.value, 'payload');
+			} finally {
+				handle.dispose();
+				service.dispose();
+			}
 		});
 	});
 
@@ -278,11 +293,16 @@ suite('LoopbackProxyServer', () => {
 				service.startHandle('a'),
 				service.startHandle('b'),
 			]);
-			store.add(toDisposable(() => { h1.dispose(); h2.dispose(); service.dispose(); }));
-			assert.strictEqual(h1.baseUrl, h2.baseUrl);
-			assert.strictEqual(h1.nonce, h2.nonce);
-			assert.strictEqual(h1.runtime.state, h2.runtime.state, 'state is shared by reference');
-			assert.strictEqual(service.createStateCalls, 1);
+			try {
+				assert.strictEqual(h1.baseUrl, h2.baseUrl);
+				assert.strictEqual(h1.nonce, h2.nonce);
+				assert.strictEqual(h1.runtime.state, h2.runtime.state, 'state is shared by reference');
+				assert.strictEqual(service.createStateCalls, 1);
+			} finally {
+				h1.dispose();
+				h2.dispose();
+				service.dispose();
+			}
 		});
 
 		test('disposing one handle while another is alive keeps the server up', async () => {
@@ -290,9 +310,13 @@ suite('LoopbackProxyServer', () => {
 			const h1 = await service.startHandle();
 			const h2 = await service.startHandle();
 			h1.dispose();
-			store.add(toDisposable(() => { h2.dispose(); service.dispose(); }));
-			const res = await fetchHttp(`${h2.baseUrl}/`);
-			assert.strictEqual(res.status, 200);
+			try {
+				const res = await fetchHttp(`${h2.baseUrl}/`);
+				assert.strictEqual(res.status, 200);
+			} finally {
+				h2.dispose();
+				service.dispose();
+			}
 		});
 
 		test('disposing the last handle tears the server down', async () => {
@@ -313,10 +337,14 @@ suite('LoopbackProxyServer', () => {
 			h1.dispose();
 
 			const h2 = await service.startHandle();
-			store.add(toDisposable(() => { h2.dispose(); service.dispose(); }));
-			assert.notStrictEqual(h2.nonce, nonce1);
-			assert.match(h2.baseUrl, /^http:\/\/127\.0\.0\.1:\d+$/);
-			assert.strictEqual(service.createStateCalls, 2, 'state is rebuilt per bind');
+			try {
+				assert.notStrictEqual(h2.nonce, nonce1);
+				assert.match(h2.baseUrl, /^http:\/\/127\.0\.0\.1:\d+$/);
+				assert.strictEqual(service.createStateCalls, 2, 'state is rebuilt per bind');
+			} finally {
+				h2.dispose();
+				service.dispose();
+			}
 		});
 	});
 
@@ -337,12 +365,16 @@ suite('LoopbackProxyServer', () => {
 				res.end();
 			};
 			const handle = await service.startHandle('token-1');
-			store.add(toDisposable(() => { handle.dispose(); service.dispose(); }));
-			await fetchHttp(`${handle.baseUrl}/`);
-			assert.deepStrictEqual(
-				{ seeds: service.seeds, state: handle.runtime.state.value, firstRequestValue },
-				{ seeds: ['token-1'], state: 'token-1', firstRequestValue: 'token-1' },
-			);
+			try {
+				await fetchHttp(`${handle.baseUrl}/`);
+				assert.deepStrictEqual(
+					{ seeds: service.seeds, state: handle.runtime.state.value, firstRequestValue },
+					{ seeds: ['token-1'], state: 'token-1', firstRequestValue: 'token-1' },
+				);
+			} finally {
+				handle.dispose();
+				service.dispose();
+			}
 		});
 
 		test('concurrent acquires build state once from the seed that wins the bind', async () => {
@@ -354,11 +386,16 @@ suite('LoopbackProxyServer', () => {
 				service.startHandle('token-1'),
 				service.startHandle('token-2'),
 			]);
-			store.add(toDisposable(() => { h1.dispose(); h2.dispose(); service.dispose(); }));
-			assert.deepStrictEqual(
-				{ seeds: service.seeds, shared: h1.runtime.state === h2.runtime.state, value: h1.runtime.state.value },
-				{ seeds: ['token-1'], shared: true, value: 'token-1' },
-			);
+			try {
+				assert.deepStrictEqual(
+					{ seeds: service.seeds, shared: h1.runtime.state === h2.runtime.state, value: h1.runtime.state.value },
+					{ seeds: ['token-1'], shared: true, value: 'token-1' },
+				);
+			} finally {
+				h1.dispose();
+				h2.dispose();
+				service.dispose();
+			}
 		});
 
 		test('rebinding after refcount-0 teardown re-seeds createState with the new value', async () => {
@@ -367,11 +404,15 @@ suite('LoopbackProxyServer', () => {
 			h1.dispose();
 
 			const h2 = await service.startHandle('token-2');
-			store.add(toDisposable(() => { h2.dispose(); service.dispose(); }));
-			assert.deepStrictEqual(
-				{ seeds: service.seeds, value: h2.runtime.state.value },
-				{ seeds: ['token-1', 'token-2'], value: 'token-2' },
-			);
+			try {
+				assert.deepStrictEqual(
+					{ seeds: service.seeds, value: h2.runtime.state.value },
+					{ seeds: ['token-1', 'token-2'], value: 'token-2' },
+				);
+			} finally {
+				h2.dispose();
+				service.dispose();
+			}
 		});
 	});
 
@@ -434,10 +475,14 @@ suite('LoopbackProxyServer', () => {
 				throw new Error('boom');
 			};
 			const handle = await service.startHandle();
-			store.add(toDisposable(() => { handle.dispose(); service.dispose(); }));
-			const res = await fetchHttp(`${handle.baseUrl}/`);
-			assert.strictEqual(res.status, 500);
-			assert.deepStrictEqual(res.parsed, { error: { type: 'api_error', message: 'Internal proxy error' } });
+			try {
+				const res = await fetchHttp(`${handle.baseUrl}/`);
+				assert.strictEqual(res.status, 500);
+				assert.deepStrictEqual(res.parsed, { error: { type: 'api_error', message: 'Internal proxy error' } });
+			} finally {
+				handle.dispose();
+				service.dispose();
+			}
 		});
 
 		test('throw before headers → subclass writeInternalError override is used', async () => {
@@ -450,10 +495,14 @@ suite('LoopbackProxyServer', () => {
 				throw new Error('boom');
 			};
 			const handle = await service.startHandle();
-			store.add(toDisposable(() => { handle.dispose(); service.dispose(); }));
-			const res = await fetchHttp(`${handle.baseUrl}/`);
-			assert.strictEqual(res.status, 503);
-			assert.deepStrictEqual(res.parsed, { custom: true });
+			try {
+				const res = await fetchHttp(`${handle.baseUrl}/`);
+				assert.strictEqual(res.status, 503);
+				assert.deepStrictEqual(res.parsed, { custom: true });
+			} finally {
+				handle.dispose();
+				service.dispose();
+			}
 		});
 
 		test('throw after headers are sent → response is ended without crashing', async () => {
@@ -464,10 +513,14 @@ suite('LoopbackProxyServer', () => {
 				throw new Error('boom after headers');
 			};
 			const handle = await service.startHandle();
-			store.add(toDisposable(() => { handle.dispose(); service.dispose(); }));
-			const res = await fetchHttp(`${handle.baseUrl}/`);
-			assert.strictEqual(res.status, 200);
-			assert.strictEqual(res.body, 'partial');
+			try {
+				const res = await fetchHttp(`${handle.baseUrl}/`);
+				assert.strictEqual(res.status, 200);
+				assert.strictEqual(res.body, 'partial');
+			} finally {
+				handle.dispose();
+				service.dispose();
+			}
 		});
 	});
 
@@ -532,10 +585,14 @@ suite('LoopbackProxyServer', () => {
 				res.end();
 			};
 			const handle = await service.startHandle();
-			store.add(toDisposable(() => { handle.dispose(); service.dispose(); }));
-			const payload = JSON.stringify({ greeting: 'héllo 🌍', n: 42 });
-			await fetchHttp(`${handle.baseUrl}/`, { method: 'POST', body: payload });
-			assert.strictEqual(received, payload);
+			try {
+				const payload = JSON.stringify({ greeting: 'héllo 🌍', n: 42 });
+				await fetchHttp(`${handle.baseUrl}/`, { method: 'POST', body: payload });
+				assert.strictEqual(received, payload);
+			} finally {
+				handle.dispose();
+				service.dispose();
+			}
 		});
 
 		test('resolves to an empty string for a body-less request', async () => {
@@ -547,9 +604,13 @@ suite('LoopbackProxyServer', () => {
 				res.end();
 			};
 			const handle = await service.startHandle();
-			store.add(toDisposable(() => { handle.dispose(); service.dispose(); }));
-			await fetchHttp(`${handle.baseUrl}/`, { method: 'POST' });
-			assert.strictEqual(received, '');
+			try {
+				await fetchHttp(`${handle.baseUrl}/`, { method: 'POST' });
+				assert.strictEqual(received, '');
+			} finally {
+				handle.dispose();
+				service.dispose();
+			}
 		});
 	});
 

@@ -475,16 +475,19 @@ suite('GitHubCloudAutomationStore', () => {
 	test('temporarily suppresses repeated failed capability checks and retries after expiry', async () => {
 		const clock = useFakeTimers();
 		const { store, api } = setup();
-		disposables.add(toDisposable(() => clock.restore()));
-		api.manageability.set(repository.repo, new Error('Offline'));
-		const first = await store.isRepositoryManageable(repository, CancellationToken.None);
-		const second = await store.isRepositoryManageable(repository, CancellationToken.None);
-		const callsBeforeExpiry = api.calls.length;
-		await clock.tickAsync(30_000);
-		const third = await store.isRepositoryManageable(repository, CancellationToken.None);
-		assert.deepStrictEqual({ first, second, third, callsBeforeExpiry, calls: api.calls.length }, {
-			first: false, second: false, third: false, callsBeforeExpiry: 1, calls: 2,
-		});
+		try {
+			api.manageability.set(repository.repo, new Error('Offline'));
+			const first = await store.isRepositoryManageable(repository, CancellationToken.None);
+			const second = await store.isRepositoryManageable(repository, CancellationToken.None);
+			const callsBeforeExpiry = api.calls.length;
+			await clock.tickAsync(30_000);
+			const third = await store.isRepositoryManageable(repository, CancellationToken.None);
+			assert.deepStrictEqual({ first, second, third, callsBeforeExpiry, calls: api.calls.length }, {
+				first: false, second: false, third: false, callsBeforeExpiry: 1, calls: 2,
+			});
+		} finally {
+			clock.restore();
+		}
 	});
 
 	test('successful capability checks clear transient failure suppression', async () => {

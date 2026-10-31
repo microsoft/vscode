@@ -9,7 +9,7 @@ import type { IAgentHostCredentialSource } from '../../common/agentHostCredentia
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -4492,14 +4492,17 @@ suite('AgentHostChatContributions', () => {
 			return getMetadata(key);
 		};
 
-		disposables.add(toDisposable(() => { contributions.database.getMetadata = getMetadata; }));
-		assert.deepStrictEqual({
-			restored: await contributions.service.hydrateChat({ session: contributions.session, chat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(contributions.session, chat, buildDefaultChatUri(contributions.session)) }, { title: 'Cached title' }),
-			metadataReads,
-		}, {
-			restored: { title: 'Cached title' },
-			metadataReads: 0,
-		});
+		try {
+			assert.deepStrictEqual({
+				restored: await contributions.service.hydrateChat({ session: contributions.session, chat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(contributions.session, chat, buildDefaultChatUri(contributions.session)) }, { title: 'Cached title' }),
+				metadataReads,
+			}, {
+				restored: { title: 'Cached title' },
+				metadataReads: 0,
+			});
+		} finally {
+			contributions.database.getMetadata = getMetadata;
+		}
 	});
 
 	test('hydrates authoritative normalized titles and clears from a full catalog instead of accepting stale cached titles', async () => {

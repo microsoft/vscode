@@ -797,7 +797,11 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		// Trigger a change
 		quickpick.value = 'changed';
 
-		assert.strictEqual(value, quickpick.value);
+		try {
+			assert.strictEqual(value, quickpick.value);
+		} finally {
+			quickpick.dispose();
+		}
 	});
 
 	test('keepScrollPosition - works with activeItems', async () => {

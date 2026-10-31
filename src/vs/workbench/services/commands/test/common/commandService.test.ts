@@ -176,7 +176,7 @@ suite('CommandService', function () {
 	test('issue #142155: execute commands synchronously if possible', async () => {
 		const actualOrder: string[] = [];
 
-		const disposables = store.add(new DisposableStore());
+		const disposables = new DisposableStore();
 		disposables.add(CommandsRegistry.registerCommand(`bizBaz`, () => {
 			actualOrder.push('executing command');
 		}));
@@ -189,16 +189,20 @@ suite('CommandService', function () {
 
 		await extensionService.whenInstalledExtensionsRegistered();
 
-		actualOrder.push(`before call`);
-		const promise = service.executeCommand('bizBaz');
-		actualOrder.push(`after call`);
-		await promise;
-		actualOrder.push(`resolved`);
-		assert.deepStrictEqual(actualOrder, [
-			'before call',
-			'executing command',
-			'after call',
-			'resolved'
-		]);
+		try {
+			actualOrder.push(`before call`);
+			const promise = service.executeCommand('bizBaz');
+			actualOrder.push(`after call`);
+			await promise;
+			actualOrder.push(`resolved`);
+			assert.deepStrictEqual(actualOrder, [
+				'before call',
+				'executing command',
+				'after call',
+				'resolved'
+			]);
+		} finally {
+			disposables.dispose();
+		}
 	});
 });

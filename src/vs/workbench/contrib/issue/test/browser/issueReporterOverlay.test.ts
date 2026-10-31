@@ -1110,12 +1110,15 @@ suite('IssueReporterOverlay', () => {
 		test(`releases closed annotation editors after ${action}`, () => {
 			const { overlay, container } = createReporter();
 			const disposed = spy(ScreenshotAnnotationEditor.prototype, 'dispose');
-			store.add(toDisposable(() => disposed.restore()));
-			overlay.addScreenshot({ ...screenshot });
-			closeAnnotation(container, action);
-			disposed.resetHistory();
-			overlay.dispose();
-			assert.strictEqual(disposed.callCount, 0);
+			try {
+				overlay.addScreenshot({ ...screenshot });
+				closeAnnotation(container, action);
+				disposed.resetHistory();
+				overlay.dispose();
+				assert.strictEqual(disposed.callCount, 0);
+			} finally {
+				disposed.restore();
+			}
 		});
 	}
 

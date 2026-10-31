@@ -139,38 +139,42 @@ suite('AI customization management contribution', () => {
 	});
 
 	test('isolates synthetic items from extension-contributed item actions', () => {
-		const disposables = store.add(new DisposableStore());
-		disposables.add(MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
-			command: {
-				id: 'test.extensionContributedAction',
-				title: 'Extension Action',
-			},
-		}));
+		const disposables = new DisposableStore();
+		try {
+			disposables.add(MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+				command: {
+					id: 'test.extensionContributedAction',
+					title: 'Extension Action',
+				},
+			}));
 
-		const syntheticUri = toAgentHostUri(
-			URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/code-review' }),
-			'remote'
-		);
-		const selectedMenuId = getAICustomizationManagementItemMenuId(syntheticUri);
-		const syntheticActionIds = MenuRegistry.getMenuItems(selectedMenuId)
-			.filter(isIMenuItem)
-			.map(item => item.command.id);
-		const regularActionIds = MenuRegistry.getMenuItems(AICustomizationManagementItemMenuId)
-			.filter(isIMenuItem)
-			.map(item => item.command.id);
+			const syntheticUri = toAgentHostUri(
+				URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/code-review' }),
+				'remote'
+			);
+			const selectedMenuId = getAICustomizationManagementItemMenuId(syntheticUri);
+			const syntheticActionIds = MenuRegistry.getMenuItems(selectedMenuId)
+				.filter(isIMenuItem)
+				.map(item => item.command.id);
+			const regularActionIds = MenuRegistry.getMenuItems(AICustomizationManagementItemMenuId)
+				.filter(isIMenuItem)
+				.map(item => item.command.id);
 
-		assert.deepStrictEqual({
-			usesSyntheticMenu: selectedMenuId === AICustomizationManagementSyntheticItemMenuId,
-			syntheticFileActions: syntheticActionIds.filter(id => fileActionIds.has(id)),
-			syntheticExtensionActions: syntheticActionIds.filter(id => id === 'test.extensionContributedAction'),
-			regularHasFileActions: [...fileActionIds].every(id => regularActionIds.includes(id)),
-			readableUsesExtensibleMenu: getAICustomizationManagementItemMenuId(URI.file('/workspace/SKILL.md')) === AICustomizationManagementItemMenuId,
-		}, {
-			usesSyntheticMenu: true,
-			syntheticFileActions: [],
-			syntheticExtensionActions: [],
-			regularHasFileActions: true,
-			readableUsesExtensibleMenu: true,
-		});
+			assert.deepStrictEqual({
+				usesSyntheticMenu: selectedMenuId === AICustomizationManagementSyntheticItemMenuId,
+				syntheticFileActions: syntheticActionIds.filter(id => fileActionIds.has(id)),
+				syntheticExtensionActions: syntheticActionIds.filter(id => id === 'test.extensionContributedAction'),
+				regularHasFileActions: [...fileActionIds].every(id => regularActionIds.includes(id)),
+				readableUsesExtensibleMenu: getAICustomizationManagementItemMenuId(URI.file('/workspace/SKILL.md')) === AICustomizationManagementItemMenuId,
+			}, {
+				usesSyntheticMenu: true,
+				syntheticFileActions: [],
+				syntheticExtensionActions: [],
+				regularHasFileActions: true,
+				readableUsesExtensibleMenu: true,
+			});
+		} finally {
+			disposables.dispose();
+		}
 	});
 });

@@ -701,11 +701,15 @@ suite('SessionStateSubscription', () => {
 
 suite('ChatStateSubscription', () => {
 	test('session catalog interactivity updates the live chat without changing its draft', () => {
-		const sub = disposables.add(new ChatStateSubscription(chatUri, 'c1', () => 1, noop));
-		const draft = { text: 'Draft', origin: { kind: MessageKind.User } };
-		sub.handleSnapshot({ ...createChatState(createDefaultChatSummary(makeSessionSummary(sessionUri), chatUri)), draft }, 0);
-		sub.receiveEnvelope(makeEnvelope({ type: ActionType.SessionChatUpdated, chat: chatUri, changes: { interactivity: ChatInteractivity.ReadOnly } }, 1));
-		assert.deepStrictEqual({ interactivity: (sub.value as ChatState).interactivity, draft: (sub.value as ChatState).draft }, { interactivity: ChatInteractivity.ReadOnly, draft });
+		const sub = new ChatStateSubscription(chatUri, 'c1', () => 1, noop);
+		try {
+			const draft = { text: 'Draft', origin: { kind: MessageKind.User } };
+			sub.handleSnapshot({ ...createChatState(createDefaultChatSummary(makeSessionSummary(sessionUri), chatUri)), draft }, 0);
+			sub.receiveEnvelope(makeEnvelope({ type: ActionType.SessionChatUpdated, chat: chatUri, changes: { interactivity: ChatInteractivity.ReadOnly } }, 1));
+			assert.deepStrictEqual({ interactivity: (sub.value as ChatState).interactivity, draft: (sub.value as ChatState).draft }, { interactivity: ChatInteractivity.ReadOnly, draft });
+		} finally {
+			sub.dispose();
+		}
 	});
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

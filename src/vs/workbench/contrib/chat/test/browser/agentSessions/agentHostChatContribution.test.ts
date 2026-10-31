@@ -1613,7 +1613,7 @@ suite('AgentHostChatContribution', () => {
 	const disposables = new DisposableStore();
 
 	teardown(() => disposables.clear());
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// ---- Registration ---------------------------------------------------
 
@@ -18808,17 +18808,20 @@ suite('AgentHostChatContribution', () => {
 			};
 			consume(true);
 			const clock = sinon.useFakeTimers({ now: 900_000, toFake: ['Date'] });
-			store.add(toDisposable(() => clock.restore()));
-			agentHostService.fireAction({ channel: chat, action: { type: ActionType.ChatReasoning, turnId: 'turn-active', partId: 'reasoning', content: ' continued' }, serverSeq: 100, origin: undefined });
-			consume(false);
-			clock.tick(5000);
-			agentHostService.fireAction({ channel: chat, action: { type: ActionType.ChatResponsePart, turnId: 'turn-active', part: { kind: ResponsePartKind.Markdown, id: 'answer', content: 'Answer' } }, serverSeq: 101, origin: undefined });
-			consume(false);
-			response.finalizeReasoningDuration();
+			try {
+				agentHostService.fireAction({ channel: chat, action: { type: ActionType.ChatReasoning, turnId: 'turn-active', partId: 'reasoning', content: ' continued' }, serverSeq: 100, origin: undefined });
+				consume(false);
+				clock.tick(5000);
+				agentHostService.fireAction({ channel: chat, action: { type: ActionType.ChatResponsePart, turnId: 'turn-active', part: { kind: ResponsePartKind.Markdown, id: 'answer', content: 'Answer' } }, serverSeq: 101, origin: undefined });
+				consume(false);
+				response.finalizeReasoningDuration();
 
-			assert.deepStrictEqual(JSON.parse(JSON.stringify(response.value.filter(part => part.kind === 'thinking'))), [
-				{ kind: 'thinking', id: 'reasoning', value: 'Restored prefix continued', reasoningTimingSource: 'provider' },
-			]);
+				assert.deepStrictEqual(JSON.parse(JSON.stringify(response.value.filter(part => part.kind === 'thinking'))), [
+					{ kind: 'thinking', id: 'reasoning', value: 'Restored prefix continued', reasoningTimingSource: 'provider' },
+				]);
+			} finally {
+				clock.restore();
+			}
 		});
 
 		test('includes reasoning in initial progress', async () => {

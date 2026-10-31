@@ -64,7 +64,7 @@ function validateMenuBarItem(menubar: MenuBar, menubarContainer: HTMLElement, la
 }
 
 suite('Menubar', () => {
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 	const container = $('.container');
 
 	const withMenuMenubar = (callback: (menubar: MenuBar) => void) => {
@@ -161,30 +161,34 @@ suite('Menubar', () => {
 		}
 
 		test('updateMenu refreshes menus already placed in the overflow menu (#160894)', async () => {
-			const menubar = store.add(createCompactMenubar());
-			menubar.push([
-				{ label: '&File', actions: [toAction({ id: 'autoSave', label: 'Auto Save', checked: true, run: () => { } })] },
-				{ label: '&Edit', actions: [toAction({ id: 'undo', label: 'Undo', run: () => { } })] }
-			]);
+			const menubar = createCompactMenubar();
+			try {
+				menubar.push([
+					{ label: '&File', actions: [toAction({ id: 'autoSave', label: 'Auto Save', checked: true, run: () => { } })] },
+					{ label: '&Edit', actions: [toAction({ id: 'undo', label: 'Undo', run: () => { } })] }
+				]);
 
-			// Lay out first so the overflow menu captures the initial actions
-			menubar.update();
-			await nextAnimationFrame();
+				// Lay out first so the overflow menu captures the initial actions
+				menubar.update();
+				await nextAnimationFrame();
 
-			const states: ReturnType<typeof readOverflowMenu>[] = [];
-			for (const checked of [false, true]) {
-				menubar.updateMenu({ label: '&File', actions: [toAction({ id: 'autoSave', label: 'Auto Save', checked, run: () => { } })] });
-				states.push(readOverflowMenu(menubar, 'File'));
-				states.push(readOverflowMenu(menubar, 'Edit'));
+				const states: ReturnType<typeof readOverflowMenu>[] = [];
+				for (const checked of [false, true]) {
+					menubar.updateMenu({ label: '&File', actions: [toAction({ id: 'autoSave', label: 'Auto Save', checked, run: () => { } })] });
+					states.push(readOverflowMenu(menubar, 'File'));
+					states.push(readOverflowMenu(menubar, 'Edit'));
+				}
+
+				const topLevel = ['File', 'Edit', '', 'Go Home'];
+				assert.deepStrictEqual(states, [
+					{ topLevel, submenu: [{ label: 'Auto Save', checked: 'false' }] },
+					{ topLevel, submenu: [{ label: 'Undo', checked: '' }] },
+					{ topLevel, submenu: [{ label: 'Auto Save', checked: 'true' }] },
+					{ topLevel, submenu: [{ label: 'Undo', checked: '' }] },
+				]);
+			} finally {
+				menubar.dispose();
 			}
-
-			const topLevel = ['File', 'Edit', '', 'Go Home'];
-			assert.deepStrictEqual(states, [
-				{ topLevel, submenu: [{ label: 'Auto Save', checked: 'false' }] },
-				{ topLevel, submenu: [{ label: 'Undo', checked: '' }] },
-				{ topLevel, submenu: [{ label: 'Auto Save', checked: 'true' }] },
-				{ topLevel, submenu: [{ label: 'Undo', checked: '' }] },
-			]);
 		});
 	});
 });

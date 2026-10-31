@@ -9,7 +9,7 @@ import { DeferredPromise, installFakeRunWhenIdle, timeout } from '../../../../..
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { observableValue, waitForState } from '../../../../../../base/common/observable.js';
 import { isWeb, isWindows } from '../../../../../../base/common/platform.js';
@@ -1160,45 +1160,48 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 	test('defers an overdue check until queued updates are acknowledged', async () => {
 		const updateCheckInterval = 24 * 60 * 60 * 1000;
 		const clock = sinon.useFakeTimers({ now: updateCheckInterval + 1 });
-		store.add(toDisposable(() => clock.restore()));
-		let runIdle: ((idle: IdleDeadline) => void) | undefined;
-		store.add(installFakeRunWhenIdle((_target, runner) => {
-			runIdle = runner;
-			return Disposable.None;
-		}));
-		const meteredConnectionService = store.add(new TestMeteredConnectionService(false));
-		let fetchCount = 0;
-		const service = createService({
-			meteredConnectionService,
-			pluginRepositoryService: {
-				fetchRepository: async () => ++fetchCount === 1,
-			},
-		});
-		service.addInstalledPlugin(
-			URI.file('/agent-plugins/github.com/microsoft/plugins/my-plugin'),
-			makePlugin('my-plugin', 'my-plugin'),
-		);
+		try {
+			let runIdle: ((idle: IdleDeadline) => void) | undefined;
+			store.add(installFakeRunWhenIdle((_target, runner) => {
+				runIdle = runner;
+				return Disposable.None;
+			}));
+			const meteredConnectionService = store.add(new TestMeteredConnectionService(false));
+			let fetchCount = 0;
+			const service = createService({
+				meteredConnectionService,
+				pluginRepositoryService: {
+					fetchRepository: async () => ++fetchCount === 1,
+				},
+			});
+			service.addInstalledPlugin(
+				URI.file('/agent-plugins/github.com/microsoft/plugins/my-plugin'),
+				makePlugin('my-plugin', 'my-plugin'),
+			);
 
-		assert.ok(runIdle);
-		runIdle({ didTimeout: false, timeRemaining: () => 50 });
-		await clock.tickAsync(0);
-		assert.deepStrictEqual({
-			fetchCount,
-			marketplacesWithUpdates: [...service.marketplacesWithUpdates.get()],
-		}, {
-			fetchCount: 1,
-			marketplacesWithUpdates: [marketplaceRef.canonicalId],
-		});
+			assert.ok(runIdle);
+			runIdle({ didTimeout: false, timeRemaining: () => 50 });
+			await clock.tickAsync(0);
+			assert.deepStrictEqual({
+				fetchCount,
+				marketplacesWithUpdates: [...service.marketplacesWithUpdates.get()],
+			}, {
+				fetchCount: 1,
+				marketplacesWithUpdates: [marketplaceRef.canonicalId],
+			});
 
-		meteredConnectionService.setIsConnectionMetered(true);
-		await clock.tickAsync(updateCheckInterval);
-		meteredConnectionService.setIsConnectionMetered(false);
-		await clock.tickAsync(0);
-		assert.strictEqual(fetchCount, 1);
+			meteredConnectionService.setIsConnectionMetered(true);
+			await clock.tickAsync(updateCheckInterval);
+			meteredConnectionService.setIsConnectionMetered(false);
+			await clock.tickAsync(0);
+			assert.strictEqual(fetchCount, 1);
 
-		service.clearUpdatesAvailable(new Set([marketplaceRef.canonicalId]));
-		await clock.tickAsync(0);
-		assert.strictEqual(fetchCount, 2);
+			service.clearUpdatesAvailable(new Set([marketplaceRef.canonicalId]));
+			await clock.tickAsync(0);
+			assert.strictEqual(fetchCount, 2);
+		} finally {
+			clock.restore();
+		}
 	});
 
 	test('unmetering before startup idle does not start an update check', async () => {

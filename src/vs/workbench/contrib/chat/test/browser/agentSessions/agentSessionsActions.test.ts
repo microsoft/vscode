@@ -50,34 +50,38 @@ suite('AgentSessionsActions', () => {
 	suiteTeardown(() => actionRegistration.dispose());
 
 	test('scopes read and unread shortcuts to the editor Sessions list on every platform', () => {
-		const registrations = disposables.add(new DisposableStore());
-		for (const action of [new MarkAgentSessionReadAction(), new MarkAgentSessionUnreadAction()]) {
-			const keybinding = action.desc.keybinding;
-			assert.ok(keybinding && !Array.isArray(keybinding));
-			registrations.add(KeybindingsRegistry.registerKeybindingRule({ id: action.desc.id, ...keybinding }));
-		}
-		const sessionsList = {
-			[ChatContextKeys.agentSessionsViewerFocused.key]: true,
-			[RawWorkbenchListFocusContextKey.key]: true,
-		};
-		const context = (values: Record<string, ContextKeyValue>): IContext => ({
-			getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined,
-		});
-		for (const operatingSystem of [OperatingSystem.Windows, OperatingSystem.Macintosh, OperatingSystem.Linux]) {
-			for (const [commandId, keyCode] of [[AGENT_SESSION_MARK_READ_ACTION_ID, KeyCode.KeyI], [AGENT_SESSION_MARK_UNREAD_ACTION_ID, KeyCode.KeyU]] as const) {
-				const hash = decodeKeybinding(KeyMod.Shift | keyCode, operatingSystem)!.getHashCode();
-				const rule = KeybindingsRegistry.getDefaultKeybindingsForOS(operatingSystem).find(item =>
-					item.command === commandId && item.keybinding?.getHashCode() === hash && item.when?.evaluate(context(sessionsList)));
-				assert.ok(rule?.when);
-				assert.deepStrictEqual({
-					list: rule.when.evaluate(context(sessionsList)),
-					input: rule.when.evaluate(context({ ...sessionsList, [InputFocusedContext.key]: true })),
-					agentsWindow: rule.when.evaluate(context({ ...sessionsList, [IsSessionsWindowContext.key]: true })),
-					otherList: rule.when.evaluate(context({ ...sessionsList, [ChatContextKeys.agentSessionsViewerFocused.key]: false })),
-					noListFocus: rule.when.evaluate(context({ ...sessionsList, [RawWorkbenchListFocusContextKey.key]: false })),
-					childChat: rule.when.evaluate(context({ ...sessionsList, [ChatContextKeys.isAgentSessionChild.key]: true })),
-				}, { list: true, input: false, agentsWindow: false, otherList: false, noListFocus: false, childChat: true });
+		const registrations = new DisposableStore();
+		try {
+			for (const action of [new MarkAgentSessionReadAction(), new MarkAgentSessionUnreadAction()]) {
+				const keybinding = action.desc.keybinding;
+				assert.ok(keybinding && !Array.isArray(keybinding));
+				registrations.add(KeybindingsRegistry.registerKeybindingRule({ id: action.desc.id, ...keybinding }));
 			}
+			const sessionsList = {
+				[ChatContextKeys.agentSessionsViewerFocused.key]: true,
+				[RawWorkbenchListFocusContextKey.key]: true,
+			};
+			const context = (values: Record<string, ContextKeyValue>): IContext => ({
+				getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined,
+			});
+			for (const operatingSystem of [OperatingSystem.Windows, OperatingSystem.Macintosh, OperatingSystem.Linux]) {
+				for (const [commandId, keyCode] of [[AGENT_SESSION_MARK_READ_ACTION_ID, KeyCode.KeyI], [AGENT_SESSION_MARK_UNREAD_ACTION_ID, KeyCode.KeyU]] as const) {
+					const hash = decodeKeybinding(KeyMod.Shift | keyCode, operatingSystem)!.getHashCode();
+					const rule = KeybindingsRegistry.getDefaultKeybindingsForOS(operatingSystem).find(item =>
+						item.command === commandId && item.keybinding?.getHashCode() === hash && item.when?.evaluate(context(sessionsList)));
+					assert.ok(rule?.when);
+					assert.deepStrictEqual({
+						list: rule.when.evaluate(context(sessionsList)),
+						input: rule.when.evaluate(context({ ...sessionsList, [InputFocusedContext.key]: true })),
+						agentsWindow: rule.when.evaluate(context({ ...sessionsList, [IsSessionsWindowContext.key]: true })),
+						otherList: rule.when.evaluate(context({ ...sessionsList, [ChatContextKeys.agentSessionsViewerFocused.key]: false })),
+						noListFocus: rule.when.evaluate(context({ ...sessionsList, [RawWorkbenchListFocusContextKey.key]: false })),
+						childChat: rule.when.evaluate(context({ ...sessionsList, [ChatContextKeys.isAgentSessionChild.key]: true })),
+					}, { list: true, input: false, agentsWindow: false, otherList: false, noListFocus: false, childChat: true });
+				}
+			}
+		} finally {
+			registrations.dispose();
 		}
 	});
 

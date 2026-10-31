@@ -102,11 +102,15 @@ suite('Sessions - Screenshot Window tool', () => {
 	});
 
 	test('stops when cancelled during the capture', async () => {
-		const source = disposables.add(new CancellationTokenSource());
-		await assert.rejects(invoke(async () => {
-			source.cancel();
-			return createJpeg(400, 300);
-		}, source.token), isCancellationError);
+		const source = new CancellationTokenSource();
+		try {
+			await assert.rejects(invoke(async () => {
+				source.cancel();
+				return createJpeg(400, 300);
+			}, source.token), isCancellationError);
+		} finally {
+			source.dispose();
+		}
 	});
 
 	test('rejects a stale invocation without capturing when disabled', async () => {

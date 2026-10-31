@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { LogLevel, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ChatLayoutTrace } from '../../../browser/widget/chatLayoutTrace.js';
@@ -77,18 +76,21 @@ suite('ChatLayoutTrace', () => {
 
 	test('flushes an idle interval once and respects a change away from trace logging', () => {
 		const clock = sinon.useFakeTimers();
-		store.add(toDisposable(() => clock.restore()));
-		const logger = store.add(new RecordingLogService());
-		const trace = store.add(new ChatLayoutTrace(() => clock.now, logger));
-		trace.trace('renderElement', () => 'first row', 0);
-		clock.tick(999);
-		const beforeFlush = logger.messages.length;
-		clock.tick(1);
-		const afterFlush = logger.messages.length;
-		trace.trace('disposeElement', () => 'last row', 0);
-		logger.level = LogLevel.Info;
-		clock.tick(1000);
-		trace.dispose();
-		assert.deepStrictEqual({ beforeFlush, afterFlush, final: logger.messages.length }, { beforeFlush: 0, afterFlush: 1, final: 1 });
+		try {
+			const logger = store.add(new RecordingLogService());
+			const trace = store.add(new ChatLayoutTrace(() => clock.now, logger));
+			trace.trace('renderElement', () => 'first row', 0);
+			clock.tick(999);
+			const beforeFlush = logger.messages.length;
+			clock.tick(1);
+			const afterFlush = logger.messages.length;
+			trace.trace('disposeElement', () => 'last row', 0);
+			logger.level = LogLevel.Info;
+			clock.tick(1000);
+			trace.dispose();
+			assert.deepStrictEqual({ beforeFlush, afterFlush, final: logger.messages.length }, { beforeFlush: 0, afterFlush: 1, final: 1 });
+		} finally {
+			clock.restore();
+		}
 	});
 });

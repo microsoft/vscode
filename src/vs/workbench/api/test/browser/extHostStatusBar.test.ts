@@ -7,7 +7,6 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { Event } from '../../../../base/common/event.js';
 import { timeout } from '../../../../base/common/async.js';
-import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Command } from '../../../../editor/common/languages.js';
@@ -44,13 +43,16 @@ suite('ExtHostStatusBar command lifetime', () => {
 
 	test('replacing commands that were never published releases their arguments', () => {
 		const converted = sinon.spy(commands.converter, 'toInternal');
-		disposables.add(toDisposable(() => converted.restore()));
-		for (let i = 0; i < 37; ++i) {
-			item.command = { title: 'Hidden', command: 'test.action', arguments: [i] };
+		try {
+			for (let i = 0; i < 37; ++i) {
+				item.command = { title: 'Hidden', command: 'test.action', arguments: [i] };
+			}
+			assert.deepStrictEqual(converted.returnValues.map(command => commands.converter.fromInternal(command!)?.arguments), [
+				...Array(36).fill(undefined), [36]
+			]);
+		} finally {
+			converted.restore();
 		}
-		assert.deepStrictEqual(converted.returnValues.map(command => commands.converter.fromInternal(command!)?.arguments), [
-			...Array(36).fill(undefined), [36]
-		]);
 	});
 
 	for (const replaceBeforeHide of [false, true]) {
@@ -138,19 +140,22 @@ suite('ExtHostStatusBar command lifetime', () => {
 
 	test('hidden replacements retain only the published and current arguments', async () => {
 		const converted = sinon.spy(commands.converter, 'toInternal');
-		disposables.add(toDisposable(() => converted.restore()));
-		item.command = { title: 'Published', command: 'test.action', arguments: ['published'] };
-		item.show();
-		await timeout(0);
-		item.hide();
-		for (let i = 0; i < 37; ++i) {
-			item.command = { title: 'Hidden', command: 'test.action', arguments: [i] };
+		try {
+			item.command = { title: 'Published', command: 'test.action', arguments: ['published'] };
+			item.show();
+			await timeout(0);
+			item.hide();
+			for (let i = 0; i < 37; ++i) {
+				item.command = { title: 'Hidden', command: 'test.action', arguments: [i] };
+			}
+			assert.deepStrictEqual(converted.returnValues.map(command => commands.converter.fromInternal(command!)?.arguments), [
+				['published'], ...Array(36).fill(undefined), [36]
+			]);
+			item.dispose();
+			assert.ok(converted.returnValues.every(command => !commands.converter.fromInternal(command!)));
+		} finally {
+			converted.restore();
 		}
-		assert.deepStrictEqual(converted.returnValues.map(command => commands.converter.fromInternal(command!)?.arguments), [
-			['published'], ...Array(36).fill(undefined), [36]
-		]);
-		item.dispose();
-		assert.ok(converted.returnValues.every(command => !commands.converter.fromInternal(command!)));
 	});
 
 	test('showing after hidden replacements preserves the latest arguments', async () => {

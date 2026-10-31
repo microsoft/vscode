@@ -8114,35 +8114,36 @@ suite('ChatListRenderer', () => {
 		const announced: string[] = [];
 		const observer = new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(node => { if (node.textContent) { announced.push(node.textContent); } })));
 		observer.observe(host, { childList: true, characterData: true, subtree: true });
-		store.add(toDisposable(() => {
+		try {
+			const deferred = new DeferredPromise<string | void>();
+			const task: IChatTask = {
+				kind: 'progressTask',
+				content: new MarkdownString('Running the test suite'),
+				deferred,
+				progress: [],
+				onDidAddProgress: Event.None,
+				add: () => { },
+				complete: result => deferred.complete(result),
+				task: () => deferred.p,
+				isSettled: () => deferred.isSettled,
+				toJSON: () => ({ kind: 'progressTaskSerialized', content: task.content, progress: task.progress }),
+			};
+			model.acceptResponseProgress(request, task);
+			renderer.renderElement(node, 0, template);
+			await timeout(0);
+			const footer = template.value.querySelector('.chat-working-progress');
+			const rows = [...template.value.querySelectorAll<HTMLElement>('.progress-container')].filter(row => row !== footer && row.getBoundingClientRect().height > 0).map(row => row.textContent?.replace(/\u00a0/g, ' ').trim());
+			const footerText = footer?.textContent?.replace(/\u00a0/g, ' ').trim();
+			// The task row announces itself once; the footer announces its own (different) label, never the task text again.
+			assert.deepStrictEqual({
+				rows,
+				footerRepeatsTask: footerText === 'Running the test suite',
+				announced,
+			}, { rows: ['Running the test suite'], footerRepeatsTask: false, announced: ['Running the test suite', footerText] });
+		} finally {
 			observer.disconnect();
 			host.remove();
-		}));
-		const deferred = new DeferredPromise<string | void>();
-		const task: IChatTask = {
-			kind: 'progressTask',
-			content: new MarkdownString('Running the test suite'),
-			deferred,
-			progress: [],
-			onDidAddProgress: Event.None,
-			add: () => { },
-			complete: result => deferred.complete(result),
-			task: () => deferred.p,
-			isSettled: () => deferred.isSettled,
-			toJSON: () => ({ kind: 'progressTaskSerialized', content: task.content, progress: task.progress }),
-		};
-		model.acceptResponseProgress(request, task);
-		renderer.renderElement(node, 0, template);
-		await timeout(0);
-		const footer = template.value.querySelector('.chat-working-progress');
-		const rows = [...template.value.querySelectorAll<HTMLElement>('.progress-container')].filter(row => row !== footer && row.getBoundingClientRect().height > 0).map(row => row.textContent?.replace(/\u00a0/g, ' ').trim());
-		const footerText = footer?.textContent?.replace(/\u00a0/g, ' ').trim();
-		// The task row announces itself once; the footer announces its own (different) label, never the task text again.
-		assert.deepStrictEqual({
-			rows,
-			footerRepeatsTask: footerText === 'Running the test suite',
-			announced,
-		}, { rows: ['Running the test suite'], footerRepeatsTask: false, announced: ['Running the test suite', footerText] });
+		}
 	});
 
 	test('carousel-hosted tool parts do not carry the persistent gutter icon', async () => {
@@ -10431,61 +10432,64 @@ suite('ChatListRenderer', () => {
 
 	test('conversation progress collapses reasoning and tool calls into one section with its extracted heading', async () => {
 		const clock = sinon.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
-		store.add(toDisposable(() => clock.restore()));
-		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, progressVerbosity: ChatProgressVerbosity.Conversation });
-		const getSection = () => template.value.querySelector<HTMLElement>(':scope > .chat-thinking-conversation');
-		const getButton = () => getSection()?.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button');
-		const snapshot = () => ({
-			title: getButton()?.textContent?.trim(),
-			expanded: getButton()?.ariaExpanded,
-			order: [...template.value.children]
-				.filter(element => element.getClientRects().length > 0 && element.matches('.chat-thinking-box, .chat-tool-invocation-part, .chat-markdown-part, .chat-working-progress'))
-				.map(element => element.classList.contains('chat-thinking-conversation') ? 'section' : element.classList.contains('chat-thinking-box') ? 'other group' : element.classList.contains('chat-tool-invocation-part') ? 'tool' : element.classList.contains('chat-markdown-part') ? 'markdown' : 'progress'),
-		});
+		try {
+			const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, progressVerbosity: ChatProgressVerbosity.Conversation });
+			const getSection = () => template.value.querySelector<HTMLElement>(':scope > .chat-thinking-conversation');
+			const getButton = () => getSection()?.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button');
+			const snapshot = () => ({
+				title: getButton()?.textContent?.trim(),
+				expanded: getButton()?.ariaExpanded,
+				order: [...template.value.children]
+					.filter(element => element.getClientRects().length > 0 && element.matches('.chat-thinking-box, .chat-tool-invocation-part, .chat-markdown-part, .chat-working-progress'))
+					.map(element => element.classList.contains('chat-thinking-conversation') ? 'section' : element.classList.contains('chat-thinking-box') ? 'other group' : element.classList.contains('chat-tool-invocation-part') ? 'tool' : element.classList.contains('chat-markdown-part') ? 'markdown' : 'progress'),
+			});
 
-		model.acceptResponseProgress(request, { kind: 'thinking', id: 'plan', value: '**Planning the fix**\nCheck the renderer.' });
-		renderer.renderElement(node, 0, template);
-		const thinking = snapshot();
-		clock.tick(1500);
-		// Providers mark the end of each reasoning block before the next tool call.
-		model.acceptResponseProgress(request, { kind: 'thinking', value: '', metadata: { vscodeReasoningDone: true } });
-		const tool = new ChatToolInvocation(
-			{ invocationMessage: 'Reading renderer.ts', pastTenseMessage: 'Read renderer.ts' },
-			{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
-			'read', undefined, {},
-		);
-		model.acceptResponseProgress(request, tool);
-		renderer.renderElement(node, 0, template);
-		const reading = snapshot();
-		clock.tick(500);
-		await tool.didExecuteTool(undefined);
-		clock.tick(1000);
-		model.acceptResponseProgress(request, { kind: 'thinking', id: 'compare', value: 'Compare the results.' });
-		renderer.renderElement(node, 0, template);
-		const thinkingAgain = snapshot();
-		clock.tick(1500);
-		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Updated the renderer.') });
-		renderer.renderElement(node, 0, template);
-		const finished = snapshot();
-		getButton()?.click();
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'plan', value: '**Planning the fix**\nCheck the renderer.' });
+			renderer.renderElement(node, 0, template);
+			const thinking = snapshot();
+			clock.tick(1500);
+			// Providers mark the end of each reasoning block before the next tool call.
+			model.acceptResponseProgress(request, { kind: 'thinking', value: '', metadata: { vscodeReasoningDone: true } });
+			const tool = new ChatToolInvocation(
+				{ invocationMessage: 'Reading renderer.ts', pastTenseMessage: 'Read renderer.ts' },
+				{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+				'read', undefined, {},
+			);
+			model.acceptResponseProgress(request, tool);
+			renderer.renderElement(node, 0, template);
+			const reading = snapshot();
+			clock.tick(500);
+			await tool.didExecuteTool(undefined);
+			clock.tick(1000);
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'compare', value: 'Compare the results.' });
+			renderer.renderElement(node, 0, template);
+			const thinkingAgain = snapshot();
+			clock.tick(1500);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Updated the renderer.') });
+			renderer.renderElement(node, 0, template);
+			const finished = snapshot();
+			getButton()?.click();
 
-		assert.deepStrictEqual({
-			thinking,
-			reading,
-			thinkingAgain,
-			finished,
-			rows: [...getSection()?.querySelectorAll(':scope .chat-thinking-collapsible > *') ?? []].map(row => row.classList.contains('chat-thinking-tool-wrapper') ? 'tool' : 'reasoning'),
-			toolChains: template.value.querySelectorAll('.chat-tool-chain').length,
-		}, {
-			thinking: { title: 'Planning the fix', expanded: 'false', order: ['section', 'progress'] },
-			reading: { title: 'Reading renderer.ts', expanded: 'false', order: ['section', 'progress'] },
-			thinkingAgain: { title: 'Thinking', expanded: 'false', order: ['section', 'progress'] },
-			finished: { title: 'Planning the fix', expanded: 'false', order: ['section', 'markdown', 'progress'] },
-			rows: ['reasoning', 'tool', 'reasoning'],
-			toolChains: 0,
-		});
-		request.response?.complete();
-		renderer.renderElement(node, 0, template);
+			assert.deepStrictEqual({
+				thinking,
+				reading,
+				thinkingAgain,
+				finished,
+				rows: [...getSection()?.querySelectorAll(':scope .chat-thinking-collapsible > *') ?? []].map(row => row.classList.contains('chat-thinking-tool-wrapper') ? 'tool' : 'reasoning'),
+				toolChains: template.value.querySelectorAll('.chat-tool-chain').length,
+			}, {
+				thinking: { title: 'Planning the fix', expanded: 'false', order: ['section', 'progress'] },
+				reading: { title: 'Reading renderer.ts', expanded: 'false', order: ['section', 'progress'] },
+				thinkingAgain: { title: 'Thinking', expanded: 'false', order: ['section', 'progress'] },
+				finished: { title: 'Planning the fix', expanded: 'false', order: ['section', 'markdown', 'progress'] },
+				rows: ['reasoning', 'tool', 'reasoning'],
+				toolChains: 0,
+			});
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+		} finally {
+			clock.restore();
+		}
 	});
 
 	test('conversation progress restores a lone tool call to a standalone row when its section ends', async () => {

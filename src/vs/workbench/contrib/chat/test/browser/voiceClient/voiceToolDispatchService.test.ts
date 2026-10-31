@@ -353,7 +353,7 @@ suite('VoiceToolDispatchService - session actions', () => {
 });
 
 suite('VoiceToolDispatchService - respondToSession', () => {
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const sessionResource = URI.parse('agent-session://test/one');
 	const requestId = 'req-1';
@@ -473,12 +473,16 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 
 	test('does not apply a response canceled while its session model was being resolved', async () => {
 		const part = carousel();
-		const cts = store.add(new CancellationTokenSource());
-		const pending = serviceFor(part).respondToSession(answerCall(part, { type: 'answer', answers: [{ question_id: 'region', value: 'eastus' }] }), cts.token);
-		cts.cancel();
-		assert.deepStrictEqual({ result: await pending, used: !!part.isUsed, data: part.data }, {
-			result: { ok: false, reason: 'stale_pending' }, used: false, data: undefined,
-		});
+		const cts = new CancellationTokenSource();
+		try {
+			const pending = serviceFor(part).respondToSession(answerCall(part, { type: 'answer', answers: [{ question_id: 'region', value: 'eastus' }] }), cts.token);
+			cts.cancel();
+			assert.deepStrictEqual({ result: await pending, used: !!part.isUsed, data: part.data }, {
+				result: { ok: false, reason: 'stale_pending' }, used: false, data: undefined,
+			});
+		} finally {
+			cts.dispose();
+		}
 	});
 
 	test('a value the form does not offer leaves it untouched', async () => {

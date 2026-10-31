@@ -1127,31 +1127,34 @@ suite('Sessions - ChatCompositeBar', () => {
 		const { bar, container, sessionsService, tabs } = createHarness(disposables);
 		mainWindow.document.body.appendChild(container);
 
-		disposables.add(toDisposable(() => container.remove()));
-		const dispatchKey = (target: HTMLElement, key: string, keyCode: number) => {
-			const keyDown = new KeyboardEvent(EventType.KEY_DOWN, { key, keyCode, bubbles: true, cancelable: true });
-			const keyUp = new KeyboardEvent(EventType.KEY_UP, { key, keyCode, bubbles: true, cancelable: true });
-			target.dispatchEvent(keyDown);
-			target.dispatchEvent(keyUp);
-			return { keyDown, keyUp };
-		};
+		try {
+			const dispatchKey = (target: HTMLElement, key: string, keyCode: number) => {
+				const keyDown = new KeyboardEvent(EventType.KEY_DOWN, { key, keyCode, bubbles: true, cancelable: true });
+				const keyUp = new KeyboardEvent(EventType.KEY_UP, { key, keyCode, bubbles: true, cancelable: true });
+				target.dispatchEvent(keyDown);
+				target.dispatchEvent(keyUp);
+				return { keyDown, keyUp };
+			};
 
-		tabs[0].focus();
-		const rightArrow = dispatchKey(tabs[0], 'ArrowRight', 39);
-		const leftArrow = dispatchKey(tabs[1], 'ArrowLeft', 37);
-		const end = dispatchKey(tabs[0], 'End', 35);
-		const home = dispatchKey(tabs[1], 'Home', 36);
-		const startBoundaryArrow = dispatchKey(tabs[0], 'ArrowLeft', 37);
+			tabs[0].focus();
+			const rightArrow = dispatchKey(tabs[0], 'ArrowRight', 39);
+			const leftArrow = dispatchKey(tabs[1], 'ArrowLeft', 37);
+			const end = dispatchKey(tabs[0], 'End', 35);
+			const home = dispatchKey(tabs[1], 'Home', 36);
+			const startBoundaryArrow = dispatchKey(tabs[0], 'ArrowLeft', 37);
 
-		assert.deepStrictEqual({
-			openedChats: sessionsService.openedChats.map(resource => resource.toString()),
-			focusedTab: bar.element.contains(mainWindow.document.activeElement) ? mainWindow.document.activeElement?.getAttribute('data-chat-resource') : undefined,
-			defaultPrevented: [rightArrow, leftArrow, end, home, startBoundaryArrow].map(events => [events.keyDown.defaultPrevented, events.keyUp.defaultPrevented]),
-		}, {
-			openedChats: ['test-chat://secondary', 'test-chat://main', 'test-chat://secondary', 'test-chat://main'],
-			focusedTab: 'test-chat://main',
-			defaultPrevented: [[true, true], [true, true], [true, true], [true, true], [true, false]],
-		});
+			assert.deepStrictEqual({
+				openedChats: sessionsService.openedChats.map(resource => resource.toString()),
+				focusedTab: bar.element.contains(mainWindow.document.activeElement) ? mainWindow.document.activeElement?.getAttribute('data-chat-resource') : undefined,
+				defaultPrevented: [rightArrow, leftArrow, end, home, startBoundaryArrow].map(events => [events.keyDown.defaultPrevented, events.keyUp.defaultPrevented]),
+			}, {
+				openedChats: ['test-chat://secondary', 'test-chat://main', 'test-chat://secondary', 'test-chat://main'],
+				focusedTab: 'test-chat://main',
+				defaultPrevented: [[true, true], [true, true], [true, true], [true, true], [true, false]],
+			});
+		} finally {
+			container.remove();
+		}
 	});
 
 	test('does not render New Chat in the tab bar', () => {
@@ -1164,101 +1167,116 @@ suite('Sessions - ChatCompositeBar', () => {
 		const { commandService, container, contextMenuService, session, tabs } = createHarness(disposables);
 		mainWindow.document.body.appendChild(container);
 
-		disposables.add(toDisposable(() => container.remove()));
-		tabs[1].dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true, cancelable: true, button: 2 }));
-		const renameAction = contextMenuService.delegate?.getActions().find(action => action.id === RENAME_CHAT_COMMAND_ID);
-		assert.ok(renameAction);
-		const keybinding = contextMenuService.delegate?.getKeyBinding?.(renameAction);
-		await renameAction.run();
+		try {
+			tabs[1].dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true, cancelable: true, button: 2 }));
+			const renameAction = contextMenuService.delegate?.getActions().find(action => action.id === RENAME_CHAT_COMMAND_ID);
+			assert.ok(renameAction);
+			const keybinding = contextMenuService.delegate?.getKeyBinding?.(renameAction);
+			await renameAction.run();
 
-		assert.deepStrictEqual({
-			label: renameAction.label,
-			keybinding: keybinding?.getLabel(),
-			commandCalls: commandService.calls,
-		}, {
-			label: 'Rename...',
-			keybinding: 'F2',
-			commandCalls: [{
-				commandId: RENAME_CHAT_COMMAND_ID,
-				args: [{
-					session,
-					chat: session.visibleChatTabs.get()[1],
-					inline: true,
+			assert.deepStrictEqual({
+				label: renameAction.label,
+				keybinding: keybinding?.getLabel(),
+				commandCalls: commandService.calls,
+			}, {
+				label: 'Rename...',
+				keybinding: 'F2',
+				commandCalls: [{
+					commandId: RENAME_CHAT_COMMAND_ID,
+					args: [{
+						session,
+						chat: session.visibleChatTabs.get()[1],
+						inline: true,
+					}],
 				}],
-			}],
-		});
+			});
+		} finally {
+			container.remove();
+		}
 	});
 
 	test('renames the session from the main chat tab', async () => {
 		const { commandService, container, contextMenuService, session, tabs } = createHarness(disposables);
 		mainWindow.document.body.appendChild(container);
 
-		disposables.add(toDisposable(() => container.remove()));
-		tabs[0].dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true, cancelable: true, button: 2 }));
-		const actions = contextMenuService.delegate?.getActions() ?? [];
-		await actions.find(action => action.label === 'Rename...')?.run();
+		try {
+			tabs[0].dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true, cancelable: true, button: 2 }));
+			const actions = contextMenuService.delegate?.getActions() ?? [];
+			await actions.find(action => action.label === 'Rename...')?.run();
 
-		assert.deepStrictEqual({
-			labels: actions.map(action => action instanceof Separator ? 'separator' : action.label),
-			commandCalls: commandService.calls,
-		}, {
-			labels: ['Mark as Unread', 'separator', 'Rename...'],
-			commandCalls: [{ commandId: RENAME_SESSION_COMMAND_ID, args: [session] }],
-		});
+			assert.deepStrictEqual({
+				labels: actions.map(action => action instanceof Separator ? 'separator' : action.label),
+				commandCalls: commandService.calls,
+			}, {
+				labels: ['Mark as Unread', 'separator', 'Rename...'],
+				commandCalls: [{ commandId: RENAME_SESSION_COMMAND_ID, args: [session] }],
+			});
+		} finally {
+			container.remove();
+		}
 	});
 
 	test('runs the shared Close and read state commands from chat tab menus', async () => {
 		const { commandService, container, contextMenuService, session, tabs } = createHarness(disposables);
 		mainWindow.document.body.appendChild(container);
 
-		disposables.add(toDisposable(() => container.remove()));
-		const run = async (tab: HTMLElement, id: string) => {
-			tab.dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true, cancelable: true, button: 2 }));
-			await contextMenuService.delegate?.getActions().find(action => action.id === id)?.run();
-		};
-		await run(tabs[0], MARK_SESSION_UNREAD_COMMAND_ID);
-		await run(tabs[1], CLOSE_CHAT_COMMAND_ID);
+		try {
+			const run = async (tab: HTMLElement, id: string) => {
+				tab.dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true, cancelable: true, button: 2 }));
+				await contextMenuService.delegate?.getActions().find(action => action.id === id)?.run();
+			};
+			await run(tabs[0], MARK_SESSION_UNREAD_COMMAND_ID);
+			await run(tabs[1], CLOSE_CHAT_COMMAND_ID);
 
-		assert.deepStrictEqual(commandService.calls, [
-			{ commandId: MARK_SESSION_UNREAD_COMMAND_ID, args: [{ session, chat: session.visibleChatTabs.get()[0] }] },
-			{ commandId: CLOSE_CHAT_COMMAND_ID, args: [session, session.visibleChatTabs.get()[1]] },
-		]);
+			assert.deepStrictEqual(commandService.calls, [
+				{ commandId: MARK_SESSION_UNREAD_COMMAND_ID, args: [{ session, chat: session.visibleChatTabs.get()[0] }] },
+				{ commandId: CLOSE_CHAT_COMMAND_ID, args: [session, session.visibleChatTabs.get()[1]] },
+			]);
+		} finally {
+			container.remove();
+		}
 	});
 
 	test('offers main chat tab Rename only when the session can be renamed', () => {
 		const { container, contextMenuService, tabs } = createHarness(disposables, { sessionSupportsRename: false });
 		mainWindow.document.body.appendChild(container);
 
-		disposables.add(toDisposable(() => container.remove()));
-		const menuLabels = (tab: HTMLElement) => {
-			tab.dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true, cancelable: true, button: 2 }));
-			return contextMenuService.delegate?.getActions().map(action => action instanceof Separator ? 'separator' : action.label);
-		};
+		try {
+			const menuLabels = (tab: HTMLElement) => {
+				tab.dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true, cancelable: true, button: 2 }));
+				return contextMenuService.delegate?.getActions().map(action => action instanceof Separator ? 'separator' : action.label);
+			};
 
-		assert.deepStrictEqual({
-			main: menuLabels(tabs[0]),
-			secondary: menuLabels(tabs[1]),
-		}, {
-			main: ['Mark as Unread'],
-			secondary: ['Close', 'separator', 'Rename...', 'Delete...'],
-		});
+			assert.deepStrictEqual({
+				main: menuLabels(tabs[0]),
+				secondary: menuLabels(tabs[1]),
+			}, {
+				main: ['Mark as Unread'],
+				secondary: ['Close', 'separator', 'Rename...', 'Delete...'],
+			});
+		} finally {
+			container.remove();
+		}
 	});
 
 	test('shows Copy Link between the state and manage actions of the chat tab context menu', () => {
 		const { container, contextMenuService, tabs } = createHarness(disposables, { isAgentHost: true });
 		mainWindow.document.body.appendChild(container);
 
-		disposables.add(toDisposable(() => container.remove()));
-		tabs[1].dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true, cancelable: true, button: 2 }));
+		try {
+			tabs[1].dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true, cancelable: true, button: 2 }));
 
-		assert.deepStrictEqual(contextMenuService.delegate?.getActions().map(action => action instanceof Separator ? 'separator' : action.label), [
-			'Close',
-			'separator',
-			'Copy Link',
-			'separator',
-			'Rename...',
-			'Delete...',
-		]);
+			assert.deepStrictEqual(contextMenuService.delegate?.getActions().map(action => action instanceof Separator ? 'separator' : action.label), [
+				'Close',
+				'separator',
+				'Copy Link',
+				'separator',
+				'Rename...',
+				'Delete...',
+			]);
+		} finally {
+			container.remove();
+		}
 	});
 
 	test('separates archive or restore from Rename and Delete in chat tab menus', async () => {
@@ -1303,36 +1321,39 @@ suite('Sessions - ChatCompositeBar', () => {
 		const { bar, container, editorGroupsService } = createHarness(disposables);
 		mainWindow.document.body.appendChild(container);
 
-		disposables.add(toDisposable(() => container.remove()));
-		const tabsRow = bar.element.querySelector<HTMLElement>('.chat-composite-bar-tabs-row');
-		const tabs = bar.element.querySelector<HTMLElement>('.chat-composite-bar-tabs');
-		const defaultHeight = {
-			barHeight: mainWindow.getComputedStyle(bar.element).height,
-			tabsRowHeight: tabsRow && mainWindow.getComputedStyle(tabsRow).height,
-			tabsHeight: tabs && mainWindow.getComputedStyle(tabs).height,
-		};
+		try {
+			const tabsRow = bar.element.querySelector<HTMLElement>('.chat-composite-bar-tabs-row');
+			const tabs = bar.element.querySelector<HTMLElement>('.chat-composite-bar-tabs');
+			const defaultHeight = {
+				barHeight: mainWindow.getComputedStyle(bar.element).height,
+				tabsRowHeight: tabsRow && mainWindow.getComputedStyle(tabsRow).height,
+				tabsHeight: tabs && mainWindow.getComputedStyle(tabs).height,
+			};
 
-		editorGroupsService.setTabHeight('compact');
-		const compactHeight = {
-			barHeight: mainWindow.getComputedStyle(bar.element).height,
-			tabsRowHeight: tabsRow && mainWindow.getComputedStyle(tabsRow).height,
-			tabsHeight: tabs && mainWindow.getComputedStyle(tabs).height,
-			hasCompactClass: bar.element.classList.contains('compact-height'),
-		};
+			editorGroupsService.setTabHeight('compact');
+			const compactHeight = {
+				barHeight: mainWindow.getComputedStyle(bar.element).height,
+				tabsRowHeight: tabsRow && mainWindow.getComputedStyle(tabsRow).height,
+				tabsHeight: tabs && mainWindow.getComputedStyle(tabs).height,
+				hasCompactClass: bar.element.classList.contains('compact-height'),
+			};
 
-		assert.deepStrictEqual({ defaultHeight, compactHeight }, {
-			defaultHeight: {
-				barHeight: '32px',
-				tabsRowHeight: '32px',
-				tabsHeight: '32px',
-			},
-			compactHeight: {
-				barHeight: '28px',
-				tabsRowHeight: '28px',
-				tabsHeight: '28px',
-				hasCompactClass: true,
-			},
-		});
+			assert.deepStrictEqual({ defaultHeight, compactHeight }, {
+				defaultHeight: {
+					barHeight: '32px',
+					tabsRowHeight: '32px',
+					tabsHeight: '32px',
+				},
+				compactHeight: {
+					barHeight: '28px',
+					tabsRowHeight: '28px',
+					tabsHeight: '28px',
+					hasCompactClass: true,
+				},
+			});
+		} finally {
+			container.remove();
+		}
 	});
 
 	test('updates active, visibility, and session action state without rebuilding tabs', () => {
@@ -1666,19 +1687,22 @@ suite('Sessions - ChatCompositeBar', () => {
 	test('separates the tab title and parent description with a dot without changing the accessible label', () => {
 		const { container, tabs } = createHarness(disposables, { standaloneChat: true });
 		mainWindow.document.body.appendChild(container);
-		disposables.add(toDisposable(() => container.remove()));
-		const description = tabs[1].querySelector<HTMLElement>('.label-description')!;
-		assert.deepStrictEqual({
-			separator: mainWindow.getComputedStyle(description, '::before').content,
-			parent: description.textContent,
-			ariaLabel: tabs[1].getAttribute('aria-label'),
-			mainHasDescription: tabs[0].classList.contains('has-description'),
-		}, {
-			separator: '"\u00b7"',
-			parent: 'Parent Session',
-			ariaLabel: 'Parent Session / Secondary Chat, State: Completed',
-			mainHasDescription: false,
-		});
+		try {
+			const description = tabs[1].querySelector<HTMLElement>('.label-description')!;
+			assert.deepStrictEqual({
+				separator: mainWindow.getComputedStyle(description, '::before').content,
+				parent: description.textContent,
+				ariaLabel: tabs[1].getAttribute('aria-label'),
+				mainHasDescription: tabs[0].classList.contains('has-description'),
+			}, {
+				separator: '"\u00b7"',
+				parent: 'Parent Session',
+				ariaLabel: 'Parent Session / Secondary Chat, State: Completed',
+				mainHasDescription: false,
+			});
+		} finally {
+			container.remove();
+		}
 	});
 
 	test('tab descriptions track nested chat ancestors and parent renames', () => {
@@ -1707,14 +1731,17 @@ suite('Sessions - ChatCompositeBar', () => {
 	test('chat tabs use a drag cursor without a drag-handle icon', () => {
 		const { bar, container } = createHarness(disposables);
 		mainWindow.document.body.appendChild(container);
-		disposables.add(toDisposable(() => container.remove()));
-		const tab = bar.element.querySelector<HTMLElement>('.chat-composite-bar-tab')!;
-		const row = bar.element.querySelector<HTMLElement>('.chat-composite-bar-tabs-row')!;
-		row.classList.add('hovered');
-		assert.deepStrictEqual({
-			hasDragHandle: bar.element.querySelector('.session-chat-tab-drag-handle') !== null,
-			cursor: mainWindow.getComputedStyle(tab).cursor,
-			draggable: tab.draggable,
-		}, { hasDragHandle: false, cursor: 'grab', draggable: true });
+		try {
+			const tab = bar.element.querySelector<HTMLElement>('.chat-composite-bar-tab')!;
+			const row = bar.element.querySelector<HTMLElement>('.chat-composite-bar-tabs-row')!;
+			row.classList.add('hovered');
+			assert.deepStrictEqual({
+				hasDragHandle: bar.element.querySelector('.session-chat-tab-drag-handle') !== null,
+				cursor: mainWindow.getComputedStyle(tab).cursor,
+				draggable: tab.draggable,
+			}, { hasDragHandle: false, cursor: 'grab', draggable: true });
+		} finally {
+			container.remove();
+		}
 	});
 });

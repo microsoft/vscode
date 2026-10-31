@@ -1282,27 +1282,28 @@ suite('ProtocolServerHandler', () => {
 	test('upgrade method advertised when management socket env var is set', () => {
 		const originalEnv = process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
 		process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET = '/tmp/mock-supervisor.sock';
-		disposables.add(toDisposable(() => {
+		try {
+			const transport = new MockProtocolTransport();
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', {
+				protocolVersions: ['9.9.9'],
+				clientId: 'client-incompat-with-cli',
+			}));
+
+			const resp = findResponse(transport.sent, 1) as { error?: { code: number; data?: unknown } } | undefined;
+			assert.strictEqual(resp?.error?.code, AHP_UNSUPPORTED_PROTOCOL_VERSION);
+			const data = resp.error!.data as { _meta?: { vscodeUpgradeMethod?: string } } | undefined;
+			assert.strictEqual(data?._meta?.vscodeUpgradeMethod, '_vscodeUpgrade');
+
+			transport.simulateClose();
+			transport.dispose();
+		} finally {
 			if (originalEnv === undefined) {
 				delete process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
 			} else {
 				process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET = originalEnv;
 			}
-		}));
-		const transport = new MockProtocolTransport();
-		server.simulateConnection(transport);
-		transport.simulateMessage(request(1, 'initialize', {
-			protocolVersions: ['9.9.9'],
-			clientId: 'client-incompat-with-cli',
-		}));
-
-		const resp = findResponse(transport.sent, 1) as { error?: { code: number; data?: unknown } } | undefined;
-		assert.strictEqual(resp?.error?.code, AHP_UNSUPPORTED_PROTOCOL_VERSION);
-		const data = resp.error!.data as { _meta?: { vscodeUpgradeMethod?: string } } | undefined;
-		assert.strictEqual(data?._meta?.vscodeUpgradeMethod, '_vscodeUpgrade');
-
-		transport.simulateClose();
-		transport.dispose();
+		}
 	});
 
 	test('_vscodeUpgrade RPC returns MethodNotFound when no supervisor is available', async () => {

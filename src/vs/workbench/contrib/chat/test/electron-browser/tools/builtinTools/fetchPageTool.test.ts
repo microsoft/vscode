@@ -168,31 +168,35 @@ suite('FetchWebPageTool', () => {
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, []);
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, []);
-		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
+		const networkFilterService = new AgentNetworkFilterService(configService);
 
-		const tool = new FetchWebPageTool(
-			webContentExtractorService,
-			new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
-			new MockTrustedDomainService(),
-			new MockChatService(),
-			new TestContextService(),
-			networkFilterService,
-		);
+		try {
+			const tool = new FetchWebPageTool(
+				webContentExtractorService,
+				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+				new MockTrustedDomainService(),
+				new MockChatService(),
+				new TestContextService(),
+				networkFilterService,
+			);
 
-		const result = await tool.invoke(
-			{ callId: 'test-call-ipv6', toolId: 'fetch-page', parameters: { urls }, context: undefined },
-			() => Promise.resolve(0),
-			{ report: () => { } },
-			CancellationToken.None
-		);
+			const result = await tool.invoke(
+				{ callId: 'test-call-ipv6', toolId: 'fetch-page', parameters: { urls }, context: undefined },
+				() => Promise.resolve(0),
+				{ report: () => { } },
+				CancellationToken.None
+			);
 
-		assert.deepStrictEqual({
-			content: result.content.map(part => part.value),
-			requestedUris: webContentExtractorService.requestedUris.map(uri => uri.toString()),
-		}, {
-			content: urls.map(url => networkFilterService.formatError(URI.parse(url))),
-			requestedUris: [],
-		});
+			assert.deepStrictEqual({
+				content: result.content.map(part => part.value),
+				requestedUris: webContentExtractorService.requestedUris.map(uri => uri.toString()),
+			}, {
+				content: urls.map(url => networkFilterService.formatError(URI.parse(url))),
+				requestedUris: [],
+			});
+		} finally {
+			networkFilterService.dispose();
+		}
 	});
 
 	test('blocks wildcard-denied mapped IPv6 before web content extraction', async () => {
@@ -207,31 +211,35 @@ suite('FetchWebPageTool', () => {
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, []);
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['*.127.1']);
-		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
+		const networkFilterService = new AgentNetworkFilterService(configService);
 
-		const tool = new FetchWebPageTool(
-			webContentExtractorService,
-			new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
-			new MockTrustedDomainService(),
-			new MockChatService(),
-			new TestContextService(),
-			networkFilterService,
-		);
+		try {
+			const tool = new FetchWebPageTool(
+				webContentExtractorService,
+				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+				new MockTrustedDomainService(),
+				new MockChatService(),
+				new TestContextService(),
+				networkFilterService,
+			);
 
-		const result = await tool.invoke(
-			{ callId: 'test-call-wildcard-ipv4', toolId: 'fetch-page', parameters: { urls }, context: undefined },
-			() => Promise.resolve(0),
-			{ report: () => { } },
-			CancellationToken.None
-		);
+			const result = await tool.invoke(
+				{ callId: 'test-call-wildcard-ipv4', toolId: 'fetch-page', parameters: { urls }, context: undefined },
+				() => Promise.resolve(0),
+				{ report: () => { } },
+				CancellationToken.None
+			);
 
-		assert.deepStrictEqual({
-			content: result.content.map(part => part.value),
-			requestedUris: webContentExtractorService.requestedUris.map(uri => uri.toString()),
-		}, {
-			content: urls.map(url => networkFilterService.formatError(URI.parse(url))),
-			requestedUris: [],
-		});
+			assert.deepStrictEqual({
+				content: result.content.map(part => part.value),
+				requestedUris: webContentExtractorService.requestedUris.map(uri => uri.toString()),
+			}, {
+				content: urls.map(url => networkFilterService.formatError(URI.parse(url))),
+				requestedUris: [],
+			});
+		} finally {
+			networkFilterService.dispose();
+		}
 	});
 
 	test('blocks Unicode wildcard denied URLs before web content extraction', async () => {

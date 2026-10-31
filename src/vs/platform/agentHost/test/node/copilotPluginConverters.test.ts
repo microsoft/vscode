@@ -10,7 +10,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
@@ -875,10 +874,13 @@ suite('copilotPluginConverters', () => {
 		test('onUserPromptTransformed returns the replacement prompt', async () => {
 			const expected = { modifiedTransformedPrompt: 'Host context with plugin guidance' };
 			const { command, cleanup } = echoJsonCmd(expected);
-			disposables.add(toDisposable(() => cleanup()));
-			const hooks = toSdkHooks([makeHookGroup('UserPromptTransformed', command)]);
-			const input = { prompt: 'Original', transformedPrompt: 'Host context', timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
-			assert.deepStrictEqual(await hooks.onUserPromptTransformed!(input, { sessionId: 'test' }), expected);
+			try {
+				const hooks = toSdkHooks([makeHookGroup('UserPromptTransformed', command)]);
+				const input = { prompt: 'Original', transformedPrompt: 'Host context', timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
+				assert.deepStrictEqual(await hooks.onUserPromptTransformed!(input, { sessionId: 'test' }), expected);
+			} finally {
+				cleanup();
+			}
 		});
 
 		test('onUserPromptTransformed composes commands without changing the submitted prompt or retaining previous input', async () => {
@@ -890,62 +892,77 @@ suite('copilotPluginConverters', () => {
 				const input = JSON.parse(stdin);
 				process.stdout.write(JSON.stringify({ modifiedTransformedPrompt: input.transformedPrompt + '/' + input.prompt }));
 			`);
-			disposables.add(toDisposable(() => unlinkSync(filePath)));
-			const group = makeHookGroup('UserPromptTransformed', `node ${filePath}`);
-			const hooks = toSdkHooks([group, group]);
-			const input = { prompt: 'Original', transformedPrompt: 'Host context', timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
-			const first = await hooks.onUserPromptTransformed!(input, { sessionId: 'test' });
-			const next = await hooks.onUserPromptTransformed!({ ...input, transformedPrompt: 'New context' }, { sessionId: 'test' });
-			assert.deepStrictEqual({ first, next, original: input.transformedPrompt }, {
-				first: { modifiedTransformedPrompt: 'Host context/Original/Original' },
-				next: { modifiedTransformedPrompt: 'New context/Original/Original' },
-				original: 'Host context',
-			});
+			try {
+				const group = makeHookGroup('UserPromptTransformed', `node ${filePath}`);
+				const hooks = toSdkHooks([group, group]);
+				const input = { prompt: 'Original', transformedPrompt: 'Host context', timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
+				const first = await hooks.onUserPromptTransformed!(input, { sessionId: 'test' });
+				const next = await hooks.onUserPromptTransformed!({ ...input, transformedPrompt: 'New context' }, { sessionId: 'test' });
+				assert.deepStrictEqual({ first, next, original: input.transformedPrompt }, {
+					first: { modifiedTransformedPrompt: 'Host context/Original/Original' },
+					next: { modifiedTransformedPrompt: 'New context/Original/Original' },
+					original: 'Host context',
+				});
+			} finally {
+				unlinkSync(filePath);
+			}
 		});
 
 		test('onUserPromptTransformed preserves an empty replacement across a failed command', async () => {
 			const { command, cleanup } = echoJsonCmd({ modifiedTransformedPrompt: '' });
-			disposables.add(toDisposable(() => cleanup()));
-			const hooks = toSdkHooks([
-				makeHookGroup('UserPromptTransformed', command),
-				makeHookGroup('UserPromptTransformed', 'exit 1'),
-			]);
-			const input = { prompt: 'Original', transformedPrompt: 'Host context', timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
-			assert.deepStrictEqual(await hooks.onUserPromptTransformed!(input, { sessionId: 'test' }), { modifiedTransformedPrompt: '' });
+			try {
+				const hooks = toSdkHooks([
+					makeHookGroup('UserPromptTransformed', command),
+					makeHookGroup('UserPromptTransformed', 'exit 1'),
+				]);
+				const input = { prompt: 'Original', transformedPrompt: 'Host context', timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
+				assert.deepStrictEqual(await hooks.onUserPromptTransformed!(input, { sessionId: 'test' }), { modifiedTransformedPrompt: '' });
+			} finally {
+				cleanup();
+			}
 		});
 
 		for (const output of [{}, { modifiedTransformedPrompt: 42 }]) {
 			test(`onUserPromptTransformed ignores output without a string replacement: ${JSON.stringify(output)}`, async () => {
 				const { command, cleanup } = echoJsonCmd(output);
-				disposables.add(toDisposable(() => cleanup()));
-				const hooks = toSdkHooks([makeHookGroup('UserPromptTransformed', command)]);
-				const input = { prompt: 'Original', transformedPrompt: 'Host context', timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
-				assert.strictEqual(await hooks.onUserPromptTransformed!(input, { sessionId: 'test' }), undefined);
+				try {
+					const hooks = toSdkHooks([makeHookGroup('UserPromptTransformed', command)]);
+					const input = { prompt: 'Original', transformedPrompt: 'Host context', timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
+					assert.strictEqual(await hooks.onUserPromptTransformed!(input, { sessionId: 'test' }), undefined);
+				} finally {
+					cleanup();
+				}
 			});
 		}
 
 		test('onPostToolUse returns parsed JSON output as hook result', async () => {
 			const expectedOutput = { additionalContext: 'Before presenting the plan, run review-plan skill' };
 			const { command, cleanup } = echoJsonCmd(expectedOutput);
-			disposables.add(toDisposable(() => cleanup()));
-			const hookGroup = makeHookGroup('PostToolUse', command);
-			const hooks = toSdkHooks([hookGroup]);
-			const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
-			const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
-			assert.deepStrictEqual(result, expectedOutput);
+			try {
+				const hookGroup = makeHookGroup('PostToolUse', command);
+				const hooks = toSdkHooks([hookGroup]);
+				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
+				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
+				assert.deepStrictEqual(result, expectedOutput);
+			} finally {
+				cleanup();
+			}
 		});
 
 		test('onPostToolUse returns output of a hook that exits without reading its input', async () => {
 			const expectedOutput = { additionalContext: 'stdin was ignored' };
 			const { command, cleanup } = echoJsonCmd(expectedOutput);
-			disposables.add(toDisposable(() => cleanup()));
-			const hookGroup = makeHookGroup('PostToolUse', command);
-			const hooks = toSdkHooks([hookGroup]);
-			// Larger than any OS pipe buffer, so the stdin write is still pending
-			// when the hook exits and fails with EPIPE (EOF on Windows).
-			const toolResult = { textResultForLlm: 'x'.repeat(4 * 1024 * 1024), resultType: 'success' as const };
-			const result = await hooks.onPostToolUse!({ toolName: 'view', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
-			assert.deepStrictEqual(result, expectedOutput);
+			try {
+				const hookGroup = makeHookGroup('PostToolUse', command);
+				const hooks = toSdkHooks([hookGroup]);
+				// Larger than any OS pipe buffer, so the stdin write is still pending
+				// when the hook exits and fails with EPIPE (EOF on Windows).
+				const toolResult = { textResultForLlm: 'x'.repeat(4 * 1024 * 1024), resultType: 'success' as const };
+				const result = await hooks.onPostToolUse!({ toolName: 'view', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
+				assert.deepStrictEqual(result, expectedOutput);
+			} finally {
+				cleanup();
+			}
 		});
 
 		test('onPostToolUse returns undefined when output is non-JSON', async () => {
@@ -953,24 +970,30 @@ suite('copilotPluginConverters', () => {
 			const dir = fileURLToPath(new URL('.', import.meta.url)).replace(/[\\/]$/, '');
 			const filePath = `${dir}/vscode-test-hook-nonjson-${Date.now()}.js`;
 			writeFileSync(filePath, `process.stdout.write('not-json');\n`);
-			disposables.add(toDisposable(() => { try { unlinkSync(filePath); } catch { /* ignore */ } }));
-			const hookGroup = makeHookGroup('PostToolUse', `node ${filePath}`);
-			const hooks = toSdkHooks([hookGroup]);
-			const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
-			const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
-			assert.strictEqual(result, undefined);
+			try {
+				const hookGroup = makeHookGroup('PostToolUse', `node ${filePath}`);
+				const hooks = toSdkHooks([hookGroup]);
+				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
+				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
+				assert.strictEqual(result, undefined);
+			} finally {
+				try { unlinkSync(filePath); } catch { /* ignore */ }
+			}
 		});
 
 		test('onPostToolUse returns undefined when command fails', async () => {
 			const dir = fileURLToPath(new URL('.', import.meta.url)).replace(/[\\/]$/, '');
 			const filePath = `${dir}/vscode-test-hook-fail-${Date.now()}.js`;
 			writeFileSync(filePath, `process.exit(1);\n`);
-			disposables.add(toDisposable(() => { try { unlinkSync(filePath); } catch { /* ignore */ } }));
-			const hookGroup = makeHookGroup('PostToolUse', `node ${filePath}`);
-			const hooks = toSdkHooks([hookGroup]);
-			const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
-			const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
-			assert.strictEqual(result, undefined);
+			try {
+				const hookGroup = makeHookGroup('PostToolUse', `node ${filePath}`);
+				const hooks = toSdkHooks([hookGroup]);
+				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
+				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
+				assert.strictEqual(result, undefined);
+			} finally {
+				try { unlinkSync(filePath); } catch { /* ignore */ }
+			}
 		});
 
 		test('onPostToolUse returns undefined when no commands', async () => {
@@ -981,38 +1004,44 @@ suite('copilotPluginConverters', () => {
 		test('onPostToolUse calls editTrackingHooks and returns command output', async () => {
 			const expectedOutput = { additionalContext: 'context from hook' };
 			const { command, cleanup } = echoJsonCmd(expectedOutput);
-			disposables.add(toDisposable(() => cleanup()));
-			const hookGroup = makeHookGroup('PostToolUse', command);
-			let trackingInput: unknown;
-			const editTrackingHooks = {
-				onPreToolUse: async () => { },
-				onPostToolUse: async (input: unknown) => { trackingInput = input; return undefined; },
-			};
-			const hooks = toSdkHooks([hookGroup], editTrackingHooks);
-			const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
-			const callInput = { toolName: 'memory', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
-			const result = await hooks.onPostToolUse!(callInput, { sessionId: 'test' });
-			assert.deepStrictEqual(result, expectedOutput);
-			assert.deepStrictEqual(trackingInput, callInput);
+			try {
+				const hookGroup = makeHookGroup('PostToolUse', command);
+				let trackingInput: unknown;
+				const editTrackingHooks = {
+					onPreToolUse: async () => { },
+					onPostToolUse: async (input: unknown) => { trackingInput = input; return undefined; },
+				};
+				const hooks = toSdkHooks([hookGroup], editTrackingHooks);
+				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
+				const callInput = { toolName: 'memory', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
+				const result = await hooks.onPostToolUse!(callInput, { sessionId: 'test' });
+				assert.deepStrictEqual(result, expectedOutput);
+				assert.deepStrictEqual(trackingInput, callInput);
+			} finally {
+				cleanup();
+			}
 		});
 
 		test('tool hooks preserve host context alongside plugin output and after failures', async () => {
 			const { command, cleanup } = echoJsonCmd({ additionalContext: 'context from hook', suppressOutput: true });
-			disposables.add(toDisposable(() => cleanup()));
-			const hooks = toSdkHooks([makeHookGroup('PostToolUse', command)], {
-				onPreToolUse: async () => { },
-				onPostToolUse: async () => ({ additionalContext: 'host context' }),
-				onPostToolUseFailure: () => ({ additionalContext: 'host context after a failure' }),
-			});
-			const base = { toolName: 'edit', toolArgs: {}, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
+			try {
+				const hooks = toSdkHooks([makeHookGroup('PostToolUse', command)], {
+					onPreToolUse: async () => { },
+					onPostToolUse: async () => ({ additionalContext: 'host context' }),
+					onPostToolUseFailure: () => ({ additionalContext: 'host context after a failure' }),
+				});
+				const base = { toolName: 'edit', toolArgs: {}, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
 
-			assert.deepStrictEqual({
-				success: await hooks.onPostToolUse!({ ...base, toolResult: { textResultForLlm: 'ok', resultType: 'success' } }, { sessionId: 'test' }),
-				failure: await hooks.onPostToolUseFailure!({ ...base, error: 'No match found' }, { sessionId: 'test' }),
-			}, {
-				success: { additionalContext: 'host context\n\ncontext from hook', suppressOutput: true },
-				failure: { additionalContext: 'host context after a failure' },
-			});
+				assert.deepStrictEqual({
+					success: await hooks.onPostToolUse!({ ...base, toolResult: { textResultForLlm: 'ok', resultType: 'success' } }, { sessionId: 'test' }),
+					failure: await hooks.onPostToolUseFailure!({ ...base, error: 'No match found' }, { sessionId: 'test' }),
+				}, {
+					success: { additionalContext: 'host context\n\ncontext from hook', suppressOutput: true },
+					failure: { additionalContext: 'host context after a failure' },
+				});
+			} finally {
+				cleanup();
+			}
 		});
 
 		test('onPostToolUse returns VS Code\'s own result change without plugin hooks', async () => {
@@ -1030,17 +1059,20 @@ suite('copilotPluginConverters', () => {
 			const dir = fileURLToPath(new URL('.', import.meta.url)).replace(/[\\/]$/, '');
 			const filePath = `${dir}/vscode-test-hook-echo-result-${Date.now()}.js`;
 			writeFileSync(filePath, `let input = ''; process.stdin.on('data', data => input += data).on('end', () => process.stdout.write(JSON.stringify({ additionalContext: 'saw: ' + JSON.parse(input).toolResult.textResultForLlm })));\n`);
-			disposables.add(toDisposable(() => { try { unlinkSync(filePath); } catch { /* ignore */ } }));
-			const modifiedResult = { textResultForLlm: 'ok\npath: /images/image.png', resultType: 'success' as const };
-			const hooks = toSdkHooks([makeHookGroup('PostToolUse', `node ${filePath}`)], {
-				onPreToolUse: async () => { },
-				onPostToolUse: async () => ({ modifiedResult, additionalContext: 'from VS Code' }),
-			});
-			const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
+			try {
+				const modifiedResult = { textResultForLlm: 'ok\npath: /images/image.png', resultType: 'success' as const };
+				const hooks = toSdkHooks([makeHookGroup('PostToolUse', `node ${filePath}`)], {
+					onPreToolUse: async () => { },
+					onPostToolUse: async () => ({ modifiedResult, additionalContext: 'from VS Code' }),
+				});
+				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
 
-			const result = await hooks.onPostToolUse!({ toolName: 'image_generation', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
+				const result = await hooks.onPostToolUse!({ toolName: 'image_generation', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
 
-			assert.deepStrictEqual(result, { modifiedResult, additionalContext: 'from VS Code\n\nsaw: ok\npath: /images/image.png' });
+				assert.deepStrictEqual(result, { modifiedResult, additionalContext: 'from VS Code\n\nsaw: ok\npath: /images/image.png' });
+			} finally {
+				try { unlinkSync(filePath); } catch { /* ignore */ }
+			}
 		});
 
 		test('onUserPromptSubmitted returns host context without rewriting the prompt', async () => {

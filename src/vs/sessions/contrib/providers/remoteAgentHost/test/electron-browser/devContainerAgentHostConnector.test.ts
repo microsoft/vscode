@@ -775,13 +775,17 @@ suite('Dev Container Agent Host Connector', () => {
 	test('does not reveal the Dev Container output channel when setup is canceled', async () => {
 		const canceledError = new Error('Canceled');
 		canceledError.name = 'Canceled';
-		const tokenSource = store.add(new CancellationTokenSource());
-		assert.deepStrictEqual({
-			serializedCancellation: await connectWithFailure(canceledError, CancellationToken.None),
-			canceledToken: await connectWithFailure(new Error('Setup stopped'), tokenSource.token, () => tokenSource.cancel()),
-		}, {
-			serializedCancellation: ['get:devContainer.<workspace>', 'connect', 'disconnect'],
-			canceledToken: ['get:devContainer.<workspace>', 'connect', 'disconnect', 'disconnect'],
-		});
+		const tokenSource = new CancellationTokenSource();
+		try {
+			assert.deepStrictEqual({
+				serializedCancellation: await connectWithFailure(canceledError, CancellationToken.None),
+				canceledToken: await connectWithFailure(new Error('Setup stopped'), tokenSource.token, () => tokenSource.cancel()),
+			}, {
+				serializedCancellation: ['get:devContainer.<workspace>', 'connect', 'disconnect'],
+				canceledToken: ['get:devContainer.<workspace>', 'connect', 'disconnect', 'disconnect'],
+			});
+		} finally {
+			tokenSource.dispose();
+		}
 	});
 });

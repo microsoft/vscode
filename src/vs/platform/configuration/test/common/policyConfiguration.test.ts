@@ -367,14 +367,17 @@ suite('PolicyConfiguration', () => {
 		};
 		const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 		registry.registerConfiguration(reference);
-		disposables.add(toDisposable(() => registry.deregisterConfigurations([reference])));
-		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ PolicyShared: false })));
-		await testObject.initialize();
-		assert.deepStrictEqual({
-			defaultValue: defaultConfiguration.configurationModel.getValue('policy.nullableReference'),
-			policyValue: testObject.configurationModel.getValue('policy.nullableReference'),
-			policyType: policyService.policyDefinitions.PolicyShared.type,
-		}, { defaultValue: null, policyValue: false, policyType: 'boolean' });
+		try {
+			await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ PolicyShared: false })));
+			await testObject.initialize();
+			assert.deepStrictEqual({
+				defaultValue: defaultConfiguration.configurationModel.getValue('policy.nullableReference'),
+				policyValue: testObject.configurationModel.getValue('policy.nullableReference'),
+				policyType: policyService.policyDefinitions.PolicyShared.type,
+			}, { defaultValue: null, policyValue: false, policyType: 'boolean' });
+		} finally {
+			registry.deregisterConfigurations([reference]);
+		}
 	});
 
 	test('initialize: the owner definition is authoritative; a reference only contributes the policy name', async () => {
@@ -417,16 +420,19 @@ suite('PolicyConfiguration', () => {
 			}
 		};
 
-		disposables.add(toDisposable(() => Registry.as<IConfigurationRegistry>(Extensions.Configuration).deregisterConfigurations([ownerNode])));
-		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(ownerNode);
-		await promise;
+		try {
+			const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+			Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(ownerNode);
+			await promise;
 
-		// The owner's definition (with restrictedValue) must now supersede the reference's, and
-		// both settings remain gated by the same policy value.
-		assert.strictEqual(policyService.policyDefinitions['PolicyOrphanReference']?.restrictedValue, true);
-		assert.strictEqual(testObject.configurationModel.getValue('policy.lateOwner'), false);
-		assert.strictEqual(testObject.configurationModel.getValue('policy.orphanReferenceSetting'), false);
+			// The owner's definition (with restrictedValue) must now supersede the reference's, and
+			// both settings remain gated by the same policy value.
+			assert.strictEqual(policyService.policyDefinitions['PolicyOrphanReference']?.restrictedValue, true);
+			assert.strictEqual(testObject.configurationModel.getValue('policy.lateOwner'), false);
+			assert.strictEqual(testObject.configurationModel.getValue('policy.orphanReferenceSetting'), false);
+		} finally {
+			Registry.as<IConfigurationRegistry>(Extensions.Configuration).deregisterConfigurations([ownerNode]);
+		}
 	});
 
 	test('change: deregistering the owner falls back to a surviving reference definition', async () => {

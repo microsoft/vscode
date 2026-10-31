@@ -35,7 +35,7 @@ import { TestChatEntitlementService, TestContextService, TestProductService, Tes
 import { TestWorkspace, Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ExtensionManagementService } from '../../common/extensionManagementService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
@@ -1660,36 +1660,39 @@ suite('ExtensionEnablementService Test', () => {
 			const contextKeyService = disposableStore.add(instantiationService.createInstance(ContextKeyService));
 			ShellExecutionSupportedContext.bindTo(contextKeyService).set(true);
 
-			disposableStore.add(toDisposable(() => taskDefinitions.acceptUsers([])));
-			taskDefinitions.acceptUsers(enabled.map(description => ({
-				description,
-				value: contributes.taskDefinitions,
-				collector: new ExtensionMessageCollector(message => reportMessage(message.message), description, 'taskDefinitions')
-			})));
-			const configuration = {
-				version: '2.0.0',
-				tasks: [{ type: 'npm', script: 'build', path: 'client', label: 'npm: build' }]
-			};
-			const result = parse(TestWorkspace.folders[0], undefined, platform, configuration, {
-				status: new ValidationStatus(),
-				info: reportMessage,
-				warn: reportMessage,
-				error: reportMessage,
-				fatal: reportMessage
-			}, TaskConfigSource.TasksJson, contextKeyService);
+			try {
+				taskDefinitions.acceptUsers(enabled.map(description => ({
+					description,
+					value: contributes.taskDefinitions,
+					collector: new ExtensionMessageCollector(message => reportMessage(message.message), description, 'taskDefinitions')
+				})));
+				const configuration = {
+					version: '2.0.0',
+					tasks: [{ type: 'npm', script: 'build', path: 'client', label: 'npm: build' }]
+				};
+				const result = parse(TestWorkspace.folders[0], undefined, platform, configuration, {
+					status: new ValidationStatus(),
+					info: reportMessage,
+					warn: reportMessage,
+					error: reportMessage,
+					fatal: reportMessage
+				}, TaskConfigSource.TasksJson, contextKeyService);
 
-			assert.deepStrictEqual({
-				messages,
-				tasks: result.configured.map(task => ({
-					type: task.type,
-					script: task.configures.script,
-					path: task.configures.path,
-					label: task._label
-				}))
-			}, {
-				messages: [],
-				tasks: [{ type: 'npm', script: 'build', path: 'client', label: 'npm: build' }]
-			});
+				assert.deepStrictEqual({
+					messages,
+					tasks: result.configured.map(task => ({
+						type: task.type,
+						script: task.configures.script,
+						path: task.configures.path,
+						label: task._label
+					}))
+				}, {
+					messages: [],
+					tasks: [{ type: 'npm', script: 'build', path: 'client', label: 'npm: build' }]
+				});
+			} finally {
+				taskDefinitions.acceptUsers([]);
+			}
 		});
 	}
 

@@ -10,7 +10,6 @@ import { tmpdir } from 'os';
 import { pathToFileURL } from 'url';
 import { promisify } from 'util';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
-import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -63,6 +62,7 @@ suite('LocalGitService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const temporaryDirectories: string[] = [];
 	const execFile = promisify(cp.execFile);
+	void store;
 
 	teardown(async () => {
 		await Promise.all(temporaryDirectories.splice(0).map(directory => fs.rm(directory, { recursive: true, force: true })));
@@ -257,7 +257,22 @@ suite('LocalGitService', () => {
 		};
 		const previous = Object.fromEntries(Object.keys(inherited).map(key => [key, process.env[key]]));
 		Object.assign(process.env, inherited);
-		store.add(toDisposable(() => {
+		try {
+			const expectations: IExecFileExpectation[] = [{ args: ['--version'], stdout: 'git version 2.31.0\n' }, {
+				args: ['clone', '--depth', '1', '--', 'https://github.com/test/private.git', '/tmp/private'],
+				absentEnvironment: Object.keys(inherited),
+			}];
+			const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+
+			await service.clone('test-op', 'https://github.com/test/private.git', '/tmp/private', undefined, {
+				authentication: {
+					url: 'https://github.com/test/private.git',
+					authorizationHeader: 'Authorization: Basic secret',
+				},
+			});
+
+			assert.strictEqual(expectations.length, 0);
+		} finally {
 			for (const [key, value] of Object.entries(previous)) {
 				if (value === undefined) {
 					delete process.env[key];
@@ -265,21 +280,7 @@ suite('LocalGitService', () => {
 					process.env[key] = value;
 				}
 			}
-		}));
-		const expectations: IExecFileExpectation[] = [{ args: ['--version'], stdout: 'git version 2.31.0\n' }, {
-			args: ['clone', '--depth', '1', '--', 'https://github.com/test/private.git', '/tmp/private'],
-			absentEnvironment: Object.keys(inherited),
-		}];
-		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
-
-		await service.clone('test-op', 'https://github.com/test/private.git', '/tmp/private', undefined, {
-			authentication: {
-				url: 'https://github.com/test/private.git',
-				authorizationHeader: 'Authorization: Basic secret',
-			},
-		});
-
-		assert.strictEqual(expectations.length, 0);
+		}
 	});
 
 	test('authenticated Git removes inherited extra headers and preserves other indexed config', async () => {
@@ -298,42 +299,43 @@ suite('LocalGitService', () => {
 			GIT_CONFIG_VALUE_2: 'Authorization: Basic unrelated',
 			GIT_CONFIG_PARAMETERS: `'http.https://github.com/.extraHeader=Authorization: Basic parameter'`,
 		});
-		store.add(toDisposable(() => {
+		try {
+			const expectations: IExecFileExpectation[] = [{ args: ['--version'], stdout: 'git version 2.31.0\n' }, {
+				args: ['clone', '--depth', '1', '--', 'https://github.com/test/private.git', '/tmp/private'],
+				environment: {
+					GIT_CONFIG_COUNT: '3',
+					GIT_CONFIG_KEY_0: 'http.proxy',
+					GIT_CONFIG_VALUE_0: 'http://proxy.test',
+					GIT_CONFIG_KEY_1: 'http.https://github.com/test/private.git.extraHeader',
+					GIT_CONFIG_VALUE_1: '',
+					GIT_CONFIG_KEY_2: 'http.https://github.com/test/private.git.extraHeader',
+					GIT_CONFIG_VALUE_2: 'Authorization: Basic editor',
+				},
+				absentEnvironment: [
+					'git_config_count',
+					'git_config_key_0',
+					'git_config_value_0',
+					'GIT_CONFIG_PARAMETERS',
+				],
+			}];
+			const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+
+			await service.clone('test-op', 'https://github.com/test/private.git', '/tmp/private', undefined, {
+				authentication: {
+					url: 'https://github.com/test/private.git',
+					authorizationHeader: 'Authorization: Basic editor',
+				},
+			});
+
+			assert.strictEqual(expectations.length, 0);
+		} finally {
 			for (const key of Object.keys(process.env)) {
 				if (configEnvironmentPattern.test(key)) {
 					delete process.env[key];
 				}
 			}
 			Object.assign(process.env, previous);
-		}));
-		const expectations: IExecFileExpectation[] = [{ args: ['--version'], stdout: 'git version 2.31.0\n' }, {
-			args: ['clone', '--depth', '1', '--', 'https://github.com/test/private.git', '/tmp/private'],
-			environment: {
-				GIT_CONFIG_COUNT: '3',
-				GIT_CONFIG_KEY_0: 'http.proxy',
-				GIT_CONFIG_VALUE_0: 'http://proxy.test',
-				GIT_CONFIG_KEY_1: 'http.https://github.com/test/private.git.extraHeader',
-				GIT_CONFIG_VALUE_1: '',
-				GIT_CONFIG_KEY_2: 'http.https://github.com/test/private.git.extraHeader',
-				GIT_CONFIG_VALUE_2: 'Authorization: Basic editor',
-			},
-			absentEnvironment: [
-				'git_config_count',
-				'git_config_key_0',
-				'git_config_value_0',
-				'GIT_CONFIG_PARAMETERS',
-			],
-		}];
-		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
-
-		await service.clone('test-op', 'https://github.com/test/private.git', '/tmp/private', undefined, {
-			authentication: {
-				url: 'https://github.com/test/private.git',
-				authorizationHeader: 'Authorization: Basic editor',
-			},
-		});
-
-		assert.strictEqual(expectations.length, 0);
+		}
 	});
 
 	test('authenticated Git rejects old versions and rechecks after an upgrade', async () => {

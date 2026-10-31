@@ -125,17 +125,21 @@ suite('Sessions - Tunnel Host Contribution', () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configuration);
-		store.add(new SessionsTunnelHostTitlebarContribution(new TestRemoteTunnelService(), new NullActionViewItemService()));
+		const contribution = new SessionsTunnelHostTitlebarContribution(new TestRemoteTunnelService(), new NullActionViewItemService());
 
-		const command = CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID);
-		assert.ok(command);
+		try {
+			const command = CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID);
+			assert.ok(command);
 
-		await instantiationService.invokeFunction(command.handler);
+			await instantiationService.invokeFunction(command.handler);
 
-		assert.deepStrictEqual(commandService.calls, [{
-			id: RemoteTunnelCommandIds.turnOn,
-			args: [{ authenticationProviderId: 'github', showServiceOption: false, showSuccessNotification: false }],
-		}]);
+			assert.deepStrictEqual(commandService.calls, [{
+				id: RemoteTunnelCommandIds.turnOn,
+				args: [{ authenticationProviderId: 'github', showServiceOption: false, showSuccessNotification: false }],
+			}]);
+		} finally {
+			contribution.dispose();
+		}
 	});
 
 	test('Agents sharing toggle uses Mission Control when selected', async () => {

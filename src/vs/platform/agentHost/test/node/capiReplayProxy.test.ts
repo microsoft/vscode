@@ -10,7 +10,6 @@ import type { AddressInfo } from 'net';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
-import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CapiReplayProxy } from './e2e/harness/capiReplayProxy.js';
@@ -18,29 +17,32 @@ import { aggregateAnthropicSse, anthropicMessageToSse } from './e2e/harness/capi
 
 suite('CapiReplayProxy', () => {
 
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('rejects debugger discovery probes without recording them or counting them as replay traffic', async () => {
 		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-debugger-'));
 		const fixturePath = join(directory, 'capture.yaml');
-		store.add(toDisposable(() => rmSync(directory, { recursive: true, force: true })));
-		for (const mode of ['record', 'replay'] as const) {
-			const proxy = new CapiReplayProxy({ fixturePath, mode });
-			try {
-				const url = await proxy.start();
-				const statuses = [];
-				for (const path of ['/json/version', '/json/list']) {
-					const response = await fetch(`${url}${path}`);
-					statuses.push(response.status);
-					await response.text();
+		try {
+			for (const mode of ['record', 'replay'] as const) {
+				const proxy = new CapiReplayProxy({ fixturePath, mode });
+				try {
+					const url = await proxy.start();
+					const statuses = [];
+					for (const path of ['/json/version', '/json/list']) {
+						const response = await fetch(`${url}${path}`);
+						statuses.push(response.status);
+						await response.text();
+					}
+					assert.deepStrictEqual(statuses, [404, 404]);
+				} finally {
+					await proxy.stop();
 				}
-				assert.deepStrictEqual(statuses, [404, 404]);
-			} finally {
-				await proxy.stop();
 			}
+			const fixture = readFileSync(fixturePath, 'utf8');
+			assert.ok(!fixture.includes('/json/'), 'Debugger discovery must not enter recordings');
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
 		}
-		const fixture = readFileSync(fixturePath, 'utf8');
-		assert.ok(!fixture.includes('/json/'), 'Debugger discovery must not enter recordings');
 	});
 
 	for (const request of [
@@ -69,30 +71,33 @@ suite('CapiReplayProxy', () => {
 		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-policy-'));
 		const fixturePath = join(directory, 'capture.yaml');
 		const policy = { telemetry: { enabled: true, serviceName: 'policy-a' } };
-		store.add(toDisposable(() => rmSync(directory, { recursive: true, force: true })));
-		for (const mode of ['record', 'replay'] as const) {
-			const proxy = new CapiReplayProxy({ fixturePath, mode });
-			try {
-				const url = await proxy.start();
-				const readPolicy = async () => (await fetch(`${url}/copilot_internal/managed_settings`)).json();
-				proxy.setManagedSettings(policy);
-				const first = await readPolicy();
-				proxy.setManagedSettings({ telemetry: { enabled: false } });
-				const second = await readPolicy();
-				assert.deepStrictEqual({ first, second, requests: proxy.managedSettingsRequestCount }, {
-					first: policy,
-					second: { telemetry: { enabled: false } },
-					requests: 2,
-				});
-				if (mode === 'replay') {
-					proxy.resetForReplay(fixturePath);
-					assert.deepStrictEqual({ policy: await readPolicy(), requests: proxy.managedSettingsRequestCount }, { policy: {}, requests: 1 });
+		try {
+			for (const mode of ['record', 'replay'] as const) {
+				const proxy = new CapiReplayProxy({ fixturePath, mode });
+				try {
+					const url = await proxy.start();
+					const readPolicy = async () => (await fetch(`${url}/copilot_internal/managed_settings`)).json();
+					proxy.setManagedSettings(policy);
+					const first = await readPolicy();
+					proxy.setManagedSettings({ telemetry: { enabled: false } });
+					const second = await readPolicy();
+					assert.deepStrictEqual({ first, second, requests: proxy.managedSettingsRequestCount }, {
+						first: policy,
+						second: { telemetry: { enabled: false } },
+						requests: 2,
+					});
+					if (mode === 'replay') {
+						proxy.resetForReplay(fixturePath);
+						assert.deepStrictEqual({ policy: await readPolicy(), requests: proxy.managedSettingsRequestCount }, { policy: {}, requests: 1 });
+					}
+				} finally {
+					await proxy.stop();
 				}
-			} finally {
-				await proxy.stop();
 			}
+			assert.ok(!readFileSync(fixturePath, 'utf8').includes('policy-a'), 'Managed settings must not enter model recordings');
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
 		}
-		assert.ok(!readFileSync(fixturePath, 'utf8').includes('policy-a'), 'Managed settings must not enter model recordings');
 	});
 
 	test('records an exchange whose client left before its upstream finished, and aborts one that never finishes instead of writing a partial fixture', async () => {

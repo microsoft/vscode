@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { AgentHostConfigurationSyncScope, ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
@@ -44,7 +43,7 @@ function createConfigurationService(values: Record<string, IConfigurationValue<u
 
 suite('AgentHostConfigurationSync', () => {
 
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	const node = {
@@ -412,16 +411,19 @@ suite('AgentHostConfigurationSync', () => {
 		const configurationService = createConfigurationService({});
 		const first = { overrides: { [HIDDEN_SETTING]: true }, source: 'first' };
 		const second = { overrides: { [HIDDEN_SETTING]: false }, source: 'second' };
-		store.add(toDisposable(() => registry.deregisterDefaultConfigurations([first, second])));
-		registry.registerDefaultConfigurations([first]);
-		const values = [getGlobalConfigurationValue(configurationService, HIDDEN_SETTING)];
-		registry.registerDefaultConfigurations([second]);
-		values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
-		registry.deregisterDefaultConfigurations([second]);
-		values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
-		registry.deregisterDefaultConfigurations([first]);
-		values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
-		assert.deepStrictEqual(values, [false, false, false, false]);
+		try {
+			registry.registerDefaultConfigurations([first]);
+			const values = [getGlobalConfigurationValue(configurationService, HIDDEN_SETTING)];
+			registry.registerDefaultConfigurations([second]);
+			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+			registry.deregisterDefaultConfigurations([second]);
+			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+			registry.deregisterDefaultConfigurations([first]);
+			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+			assert.deepStrictEqual(values, [false, false, false, false]);
+		} finally {
+			registry.deregisterDefaultConfigurations([first, second]);
+		}
 	});
 
 	test('deregistering drops mirroring entries, including for hidden settings', () => {

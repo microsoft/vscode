@@ -383,23 +383,29 @@ suite('Automations Contribution', () => {
 
 		test('dismisses the notification after exactly ten seconds', async () => {
 			const clock = useFakeTimers();
-			store.add(toDisposable(() => clock.restore()));
-			const { state, run } = setup();
-			await run();
-			clock.tick(9_999);
-			const beforeTimeout = state.closed;
-			clock.tick(1);
-			assert.deepStrictEqual({ beforeTimeout, afterTimeout: state.closed }, { beforeTimeout: 0, afterTimeout: 1 });
+			try {
+				const { state, run } = setup();
+				await run();
+				clock.tick(9_999);
+				const beforeTimeout = state.closed;
+				clock.tick(1);
+				assert.deepStrictEqual({ beforeTimeout, afterTimeout: state.closed }, { beforeTimeout: 0, afterTimeout: 1 });
+			} finally {
+				clock.restore();
+			}
 		});
 
 		test('closing the notification cancels its dismissal timer', async () => {
 			const clock = useFakeTimers();
-			store.add(toDisposable(() => clock.restore()));
-			const { state, notification, run } = setup();
-			await run();
-			notification.close();
-			clock.tick(10_000);
-			assert.strictEqual(state.closed, 1);
+			try {
+				const { state, notification, run } = setup();
+				await run();
+				notification.close();
+				clock.tick(10_000);
+				assert.strictEqual(state.closed, 1);
+			} finally {
+				clock.restore();
+			}
 		});
 
 		test('reports an error if the run cannot be opened', async () => {

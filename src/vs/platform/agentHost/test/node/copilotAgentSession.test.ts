@@ -18,7 +18,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { join, sep } from '../../../../base/common/path.js';
@@ -1923,7 +1923,7 @@ suite('CopilotAgentSession', () => {
 	const disposables = new DisposableStore();
 
 	teardown(() => disposables.clear());
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('image generation preference', () => {
 		for (const resume of [false, true]) {
@@ -3645,29 +3645,32 @@ suite('CopilotAgentSession', () => {
 		const outputDirectory = URI.file(join(testRoot, 'output'));
 		const retryDirectory = join(testRoot, 'retry');
 		mkdirSync(retryDirectory);
-		store.add(toDisposable(() => rmSync(testRoot, { recursive: true, force: true })));
-		mockSession.collectLogsResults.push({
-			kind: 'directory',
-			path: retryDirectory,
-			entries: [],
-			skippedEntries: [{ bundlePath: 'events.jsonl', path: join(testRoot, 'events.jsonl'), reason: 'not found' }],
-		}, {
-			kind: 'directory',
-			path: outputDirectory.fsPath,
-			entries: [{ bundlePath: 'events.jsonl', source: 'events', sizeBytes: 42 }],
-		});
+		try {
+			mockSession.collectLogsResults.push({
+				kind: 'directory',
+				path: retryDirectory,
+				entries: [],
+				skippedEntries: [{ bundlePath: 'events.jsonl', path: join(testRoot, 'events.jsonl'), reason: 'not found' }],
+			}, {
+				kind: 'directory',
+				path: outputDirectory.fsPath,
+				entries: [{ bundlePath: 'events.jsonl', source: 'events', sizeBytes: 42 }],
+			});
 
-		const included = await session.collectDebugLogs(outputDirectory, true);
+			const included = await session.collectDebugLogs(outputDirectory, true);
 
-		assert.deepStrictEqual({
-			included,
-			callCount: mockSession.collectLogsCalls.length,
-			retryDirectoryExists: existsSync(retryDirectory),
-		}, {
-			included: true,
-			callCount: 2,
-			retryDirectoryExists: false,
-		});
+			assert.deepStrictEqual({
+				included,
+				callCount: mockSession.collectLogsCalls.length,
+				retryDirectoryExists: existsSync(retryDirectory),
+			}, {
+				included: true,
+				callCount: 2,
+				retryDirectoryExists: false,
+			});
+		} finally {
+			rmSync(testRoot, { recursive: true, force: true });
+		}
 	});
 
 	test('does not retry a permanently skipped SDK event log', async () => {
@@ -23744,68 +23747,74 @@ Use the attached image as context.
 			const database = new TestSessionDatabase();
 			const { session, mockSession, signals } = await createAgentSession(disposables, { sessionDatabase: database });
 			const elapsed = stub(StopWatch.prototype, 'elapsed').returns(45_000);
-			store.add(toDisposable(() => elapsed.restore()));
-			session.resetTurnState('host-turn');
-			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'sdk-reasoning', deltaContent: 'First' });
-			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'sdk-reasoning', deltaContent: ' thought' });
-			mockSession.fire('assistant.message', { messageId: 'sdk-message', content: 'Done', reasoningText: 'First thought' }, { id: 'durable-response' });
-			const actions = signals.flatMap(signal => signal.kind === 'action' ? [signal.action] : []);
-			const reasoning = actions.flatMap(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Reasoning ? [action.part] : [])[0];
-			const finalTiming = actions.flatMap(action => action.type === ActionType.ChatReasoning && action.duration !== undefined ? [action] : [])[0];
-			const timingIndex = actions.indexOf(finalTiming);
-			const answerIndex = actions.findIndex(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Markdown);
-			const recorded = await database.getAssistantResponseParts();
-			const recordedReasoning = recorded.get('durable-response')?.find(part => part.kind === ResponsePartKind.Reasoning);
+			try {
+				session.resetTurnState('host-turn');
+				mockSession.fire('assistant.reasoning_delta', { reasoningId: 'sdk-reasoning', deltaContent: 'First' });
+				mockSession.fire('assistant.reasoning_delta', { reasoningId: 'sdk-reasoning', deltaContent: ' thought' });
+				mockSession.fire('assistant.message', { messageId: 'sdk-message', content: 'Done', reasoningText: 'First thought' }, { id: 'durable-response' });
+				const actions = signals.flatMap(signal => signal.kind === 'action' ? [signal.action] : []);
+				const reasoning = actions.flatMap(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Reasoning ? [action.part] : [])[0];
+				const finalTiming = actions.flatMap(action => action.type === ActionType.ChatReasoning && action.duration !== undefined ? [action] : [])[0];
+				const timingIndex = actions.indexOf(finalTiming);
+				const answerIndex = actions.findIndex(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Markdown);
+				const recorded = await database.getAssistantResponseParts();
+				const recordedReasoning = recorded.get('durable-response')?.find(part => part.kind === ResponsePartKind.Reasoning);
 
-			assert.deepStrictEqual({
-				duration: finalTiming?.duration,
-				partIdMatches: finalTiming?.partId === reasoning?.id,
-				publishedBeforeAnswer: timingIndex >= 0 && timingIndex < answerIndex,
-				recorded: [...recorded.keys()],
-				recordedDuration: recordedReasoning?.duration,
-				startMatches: recordedReasoning?.startedAt === reasoning?.startedAt,
-			}, {
-				duration: 45_000,
-				partIdMatches: true,
-				publishedBeforeAnswer: true,
-				recorded: ['durable-response'],
-				recordedDuration: 45_000,
-				startMatches: true,
-			});
+				assert.deepStrictEqual({
+					duration: finalTiming?.duration,
+					partIdMatches: finalTiming?.partId === reasoning?.id,
+					publishedBeforeAnswer: timingIndex >= 0 && timingIndex < answerIndex,
+					recorded: [...recorded.keys()],
+					recordedDuration: recordedReasoning?.duration,
+					startMatches: recordedReasoning?.startedAt === reasoning?.startedAt,
+				}, {
+					duration: 45_000,
+					partIdMatches: true,
+					publishedBeforeAnswer: true,
+					recorded: ['durable-response'],
+					recordedDuration: 45_000,
+					startMatches: true,
+				});
+			} finally {
+				elapsed.restore();
+			}
 		});
 
 		test('SDK reasoning and message completion do not end contiguous thinking output', async () => {
 			const database = new TestSessionDatabase();
 			const { session, mockSession, signals } = await createAgentSession(disposables, { sessionDatabase: database });
 			const elapsed = stub(StopWatch.prototype, 'elapsed').returns(45_000);
-			store.add(toDisposable(() => elapsed.restore()));
-			session.resetTurnState('host-turn');
-			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'sdk-first', deltaContent: 'First' });
-			mockSession.fire('assistant.reasoning', { reasoningId: 'sdk-first', content: 'First' });
-			mockSession.fire('assistant.message', { messageId: 'message-first', content: '', reasoningText: 'First' }, { id: 'durable-first' });
-			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'sdk-second', deltaContent: 'Second' });
-			mockSession.fire('assistant.reasoning', { reasoningId: 'sdk-second', content: 'Second' });
-			mockSession.fire('assistant.message', { messageId: 'message-second', content: '', reasoningText: 'Second' }, { id: 'durable-second' });
-			const beforeBoundary = signals.filter(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatReasoning && signal.action.duration !== undefined).length;
-			mockSession.fire('assistant.message_delta', { messageId: 'answer', deltaContent: 'Done' });
-			const parts = signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.Reasoning ? [signal.action.part] : []);
-			const durations = signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatReasoning && signal.action.duration !== undefined ? [signal.action.duration] : []);
-			const recorded = await database.getAssistantResponseParts();
+			try {
+				session.resetTurnState('host-turn');
+				mockSession.fire('assistant.reasoning_delta', { reasoningId: 'sdk-first', deltaContent: 'First' });
+				mockSession.fire('assistant.reasoning', { reasoningId: 'sdk-first', content: 'First' });
+				mockSession.fire('assistant.message', { messageId: 'message-first', content: '', reasoningText: 'First' }, { id: 'durable-first' });
+				mockSession.fire('assistant.reasoning_delta', { reasoningId: 'sdk-second', deltaContent: 'Second' });
+				mockSession.fire('assistant.reasoning', { reasoningId: 'sdk-second', content: 'Second' });
+				mockSession.fire('assistant.message', { messageId: 'message-second', content: '', reasoningText: 'Second' }, { id: 'durable-second' });
+				const beforeBoundary = signals.filter(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatReasoning && signal.action.duration !== undefined).length;
+				mockSession.fire('assistant.message_delta', { messageId: 'answer', deltaContent: 'Done' });
+				const parts = signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.Reasoning ? [signal.action.part] : []);
+				const durations = signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatReasoning && signal.action.duration !== undefined ? [signal.action.duration] : []);
+				const recorded = await database.getAssistantResponseParts();
 
-			assert.deepStrictEqual({
-				beforeBoundary,
-				reasoningParts: parts.length,
-				durations,
-				recorded: [...recorded].map(([responseId, value]) => ({ responseId, runs: value.flatMap(part => part.kind === ResponsePartKind.Reasoning ? [{ sameRun: part.id === parts[0].id, duration: part.duration }] : []) })),
-			}, {
-				beforeBoundary: 0,
-				reasoningParts: 1,
-				durations: [45_000],
-				recorded: [
-					{ responseId: 'durable-first', runs: [{ sameRun: true, duration: 45_000 }] },
-					{ responseId: 'durable-second', runs: [{ sameRun: true, duration: 45_000 }] },
-				],
-			});
+				assert.deepStrictEqual({
+					beforeBoundary,
+					reasoningParts: parts.length,
+					durations,
+					recorded: [...recorded].map(([responseId, value]) => ({ responseId, runs: value.flatMap(part => part.kind === ResponsePartKind.Reasoning ? [{ sameRun: part.id === parts[0].id, duration: part.duration }] : []) })),
+				}, {
+					beforeBoundary: 0,
+					reasoningParts: 1,
+					durations: [45_000],
+					recorded: [
+						{ responseId: 'durable-first', runs: [{ sameRun: true, duration: 45_000 }] },
+						{ responseId: 'durable-second', runs: [{ sameRun: true, duration: 45_000 }] },
+					],
+				});
+			} finally {
+				elapsed.restore();
+			}
 		});
 
 		test('reasoning delta after tool_start starts a new reasoning response part', async () => {
@@ -26005,24 +26014,27 @@ Use the attached image as context.
 				runtime.configureClientTools!(clientToolConfiguration());
 				await assert.rejects(session.updateClientTools([], CancellationToken.Cancelled), isCancellationError);
 				const busy = stub(session, 'hasActiveSubagents').get(() => activity === 'subagent');
-				store.add(toDisposable(() => busy.restore()));
-				if (activity === 'turn') {
-					session.resetTurnState('busy-turn');
+				try {
+					if (activity === 'turn') {
+						session.resetTurnState('busy-turn');
+					}
+					await session.updateClientTools([{ name: 'renamed' }]);
+					await session.updateClientTools([]);
+					assert.deepStrictEqual({
+						applied: session.appliedSnapshot.tools,
+						updates: mockSession.setToolsCalls.map(tools => tools.map(tool => tool.name)),
+						activeTurn: session.hasActiveTurn,
+						activeSubagents: session.hasActiveSubagents,
+						aborts: mockSession.abortCalls,
+						disconnects: mockSession.disconnectCalls,
+					}, {
+						applied: [], updates: [['renamed'], []],
+						activeTurn: activity === 'turn', activeSubagents: activity === 'subagent',
+						aborts: 0, disconnects: 0,
+					});
+				} finally {
+					busy.restore();
 				}
-				await session.updateClientTools([{ name: 'renamed' }]);
-				await session.updateClientTools([]);
-				assert.deepStrictEqual({
-					applied: session.appliedSnapshot.tools,
-					updates: mockSession.setToolsCalls.map(tools => tools.map(tool => tool.name)),
-					activeTurn: session.hasActiveTurn,
-					activeSubagents: session.hasActiveSubagents,
-					aborts: mockSession.abortCalls,
-					disconnects: mockSession.disconnectCalls,
-				}, {
-					applied: [], updates: [['renamed'], []],
-					activeTurn: activity === 'turn', activeSubagents: activity === 'subagent',
-					aborts: 0, disconnects: 0,
-				});
 			});
 		}
 
@@ -26033,46 +26045,49 @@ Use the attached image as context.
 				const [originalTool] = runtime.createClientSdkTools();
 				runtime.configureClientTools!(clientToolConfiguration());
 				const busy = stub(session, 'hasActiveSubagents').get(() => activity === 'subagent');
-				store.add(toDisposable(() => busy.restore()));
-				if (activity === 'turn') {
-					session.resetTurnState('running-turn');
-				}
-				mockSession.fire('tool.execution_start', { toolCallId: 'original', toolName: 'my_tool', arguments: {} });
-				const originalResult = invokeClientToolHandler(originalTool, 'original');
-				const added = { name: 'added' };
-				const additions = [...snapshot.tools, added];
-				const replacements: ToolDefinition[] = [{
-					...snapshot.tools[0], description: 'Updated description',
-					inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
-				}, added];
-				activeClientToolSet.set('new-client', replacements);
-				await session.updateClientTools(additions);
-				mockSession.setToolsError = new Error('replacement rejected');
-				await assert.rejects(session.updateClientTools(replacements), /replacement rejected/);
-				const afterFailure = session.appliedSnapshot.tools;
-				mockSession.setToolsError = undefined;
-				await session.updateClientTools(replacements);
-				mockSession.fire('tool.execution_start', { toolCallId: 'replacement', toolName: 'my_tool', arguments: { query: 'new' } });
-				const replacementTool = mockSession.setToolsCalls.at(-1)!.find(tool => tool.name === 'my_tool')!;
-				const replacementResult = invokeClientToolHandler(replacementTool, 'replacement', { query: 'new' });
-				session.handleClientToolCallComplete('original', { success: true, pastTenseMessage: 'Original completed', content: [{ type: ToolResultContentType.Text, text: 'original result' }] });
-				session.handleClientToolCallComplete('replacement', { success: true, pastTenseMessage: 'Replacement completed', content: [{ type: ToolResultContentType.Text, text: 'replacement result' }] });
+				try {
+					if (activity === 'turn') {
+						session.resetTurnState('running-turn');
+					}
+					mockSession.fire('tool.execution_start', { toolCallId: 'original', toolName: 'my_tool', arguments: {} });
+					const originalResult = invokeClientToolHandler(originalTool, 'original');
+					const added = { name: 'added' };
+					const additions = [...snapshot.tools, added];
+					const replacements: ToolDefinition[] = [{
+						...snapshot.tools[0], description: 'Updated description',
+						inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+					}, added];
+					activeClientToolSet.set('new-client', replacements);
+					await session.updateClientTools(additions);
+					mockSession.setToolsError = new Error('replacement rejected');
+					await assert.rejects(session.updateClientTools(replacements), /replacement rejected/);
+					const afterFailure = session.appliedSnapshot.tools;
+					mockSession.setToolsError = undefined;
+					await session.updateClientTools(replacements);
+					mockSession.fire('tool.execution_start', { toolCallId: 'replacement', toolName: 'my_tool', arguments: { query: 'new' } });
+					const replacementTool = mockSession.setToolsCalls.at(-1)!.find(tool => tool.name === 'my_tool')!;
+					const replacementResult = invokeClientToolHandler(replacementTool, 'replacement', { query: 'new' });
+					session.handleClientToolCallComplete('original', { success: true, pastTenseMessage: 'Original completed', content: [{ type: ToolResultContentType.Text, text: 'original result' }] });
+					session.handleClientToolCallComplete('replacement', { success: true, pastTenseMessage: 'Replacement completed', content: [{ type: ToolResultContentType.Text, text: 'replacement result' }] });
 
-				assert.deepStrictEqual({
-					afterFailure,
-					applied: session.appliedSnapshot.tools,
-					updates: mockSession.setToolsCalls.map(tools => tools.map(tool => tool.name)),
-					contributors: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallStart ? [action.contributor] : []),
-					results: (await Promise.all([originalResult, replacementResult])).map(({ resultType, textResultForLlm }) => ({ resultType, textResultForLlm })),
-					aborts: mockSession.abortCalls,
-					disconnects: mockSession.disconnectCalls,
-				}, {
-					afterFailure: additions, applied: replacements,
-					updates: [['my_tool', 'added'], ['my_tool', 'added'], ['my_tool', 'added']],
-					contributors: [{ kind: ToolCallContributorKind.Client, clientId: 'old-client' }, { kind: ToolCallContributorKind.Client, clientId: 'new-client' }],
-					results: [{ resultType: 'success', textResultForLlm: 'original result' }, { resultType: 'success', textResultForLlm: 'replacement result' }],
-					aborts: 0, disconnects: 0,
-				});
+					assert.deepStrictEqual({
+						afterFailure,
+						applied: session.appliedSnapshot.tools,
+						updates: mockSession.setToolsCalls.map(tools => tools.map(tool => tool.name)),
+						contributors: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallStart ? [action.contributor] : []),
+						results: (await Promise.all([originalResult, replacementResult])).map(({ resultType, textResultForLlm }) => ({ resultType, textResultForLlm })),
+						aborts: mockSession.abortCalls,
+						disconnects: mockSession.disconnectCalls,
+					}, {
+						afterFailure: additions, applied: replacements,
+						updates: [['my_tool', 'added'], ['my_tool', 'added'], ['my_tool', 'added']],
+						contributors: [{ kind: ToolCallContributorKind.Client, clientId: 'old-client' }, { kind: ToolCallContributorKind.Client, clientId: 'new-client' }],
+						results: [{ resultType: 'success', textResultForLlm: 'original result' }, { resultType: 'success', textResultForLlm: 'replacement result' }],
+						aborts: 0, disconnects: 0,
+					});
+				} finally {
+					busy.restore();
+				}
 			});
 		}
 

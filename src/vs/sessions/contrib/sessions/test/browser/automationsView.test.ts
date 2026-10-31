@@ -1175,83 +1175,92 @@ suite('AutomationsCardsWidget', () => {
 
 	test('refreshes every 60 seconds while visible without refreshing on window focus or overlapping requests', async () => {
 		const clock = useFakeTimers();
-		disposables.add(toDisposable(() => clock.restore()));
-		const { widget, automationService, windowFocus } = setup();
-		await clock.tickAsync(0);
-		await clock.tickAsync(30_000);
-		windowFocus.fire(false);
-		windowFocus.fire(true);
-		await clock.tickAsync(29_999);
-		assert.strictEqual(automationService.refreshCalls, 1);
-		const pending = new DeferredPromise<void>();
-		automationService.pendingRefresh = pending.p;
-		await clock.tickAsync(1);
-		assert.strictEqual(automationService.refreshCalls, 2);
-		windowFocus.fire(false);
-		windowFocus.fire(true);
-		await clock.tickAsync(120_000);
-		assert.strictEqual(automationService.refreshCalls, 2);
-		await pending.complete();
-		await clock.tickAsync(59_999);
-		assert.strictEqual(automationService.refreshCalls, 2);
-		await clock.tickAsync(1);
-		assert.strictEqual(automationService.refreshCalls, 3);
-		widget.dispose();
-		windowFocus.fire(true);
-		await clock.tickAsync(120_000);
-		assert.strictEqual(automationService.refreshCalls, 3);
+		try {
+			const { widget, automationService, windowFocus } = setup();
+			await clock.tickAsync(0);
+			await clock.tickAsync(30_000);
+			windowFocus.fire(false);
+			windowFocus.fire(true);
+			await clock.tickAsync(29_999);
+			assert.strictEqual(automationService.refreshCalls, 1);
+			const pending = new DeferredPromise<void>();
+			automationService.pendingRefresh = pending.p;
+			await clock.tickAsync(1);
+			assert.strictEqual(automationService.refreshCalls, 2);
+			windowFocus.fire(false);
+			windowFocus.fire(true);
+			await clock.tickAsync(120_000);
+			assert.strictEqual(automationService.refreshCalls, 2);
+			await pending.complete();
+			await clock.tickAsync(59_999);
+			assert.strictEqual(automationService.refreshCalls, 2);
+			await clock.tickAsync(1);
+			assert.strictEqual(automationService.refreshCalls, 3);
+			widget.dispose();
+			windowFocus.fire(true);
+			await clock.tickAsync(120_000);
+			assert.strictEqual(automationService.refreshCalls, 3);
+		} finally {
+			clock.restore();
+		}
 	});
 
 	test('a manual refresh in its history phase postpones the timer until 60 seconds after completion', async () => {
 		const clock = useFakeTimers();
-		disposables.add(toDisposable(() => clock.restore()));
-		const { widget, automationService, instantiationService } = setup();
-		await clock.tickAsync(59_000);
-		const pending = new DeferredPromise<void>();
-		automationService.pendingRefresh = pending.p;
-		const command = CommandsRegistry.getCommand('sessions.automations.refresh')!;
-		const refresh = instantiationService.invokeFunction(accessor => command.handler(accessor));
-		automationService.isRefreshing.set(true, undefined);
-		automationService.historyState.set('loading', undefined);
-		await clock.tickAsync(61_000);
-		const whileLoading = automationService.refreshCalls;
-		await pending.complete();
-		automationService.historyState.set('ready', undefined);
-		automationService.isRefreshing.set(false, undefined);
-		await refresh;
-		await clock.tickAsync(59_999);
-		const beforeNextPoll = automationService.refreshCalls;
-		await clock.tickAsync(1);
-		assert.deepStrictEqual({ whileLoading, beforeNextPoll, calls: automationService.refreshCalls, options: automationService.refreshOptions }, {
-			whileLoading: 2, beforeNextPoll: 2, calls: 3,
-			options: [{ background: true }, undefined, { background: true }],
-		});
-		widget.dispose();
+		try {
+			const { widget, automationService, instantiationService } = setup();
+			await clock.tickAsync(59_000);
+			const pending = new DeferredPromise<void>();
+			automationService.pendingRefresh = pending.p;
+			const command = CommandsRegistry.getCommand('sessions.automations.refresh')!;
+			const refresh = instantiationService.invokeFunction(accessor => command.handler(accessor));
+			automationService.isRefreshing.set(true, undefined);
+			automationService.historyState.set('loading', undefined);
+			await clock.tickAsync(61_000);
+			const whileLoading = automationService.refreshCalls;
+			await pending.complete();
+			automationService.historyState.set('ready', undefined);
+			automationService.isRefreshing.set(false, undefined);
+			await refresh;
+			await clock.tickAsync(59_999);
+			const beforeNextPoll = automationService.refreshCalls;
+			await clock.tickAsync(1);
+			assert.deepStrictEqual({ whileLoading, beforeNextPoll, calls: automationService.refreshCalls, options: automationService.refreshOptions }, {
+				whileLoading: 2, beforeNextPoll: 2, calls: 3,
+				options: [{ background: true }, undefined, { background: true }],
+			});
+			widget.dispose();
+		} finally {
+			clock.restore();
+		}
 	});
 
 	test('automatic refresh failures are logged without toasts while explicit refresh reports the error', async () => {
 		const clock = useFakeTimers();
-		disposables.add(toDisposable(() => clock.restore()));
-		const { widget, automationService, logService, refreshErrors, instantiationService } = setup();
-		const failure = new Error('Offline');
-		automationService.refreshFailure = failure;
-		await clock.tickAsync(0);
-		await clock.tickAsync(180_000);
-		const automatic = { calls: automationService.refreshCalls, logged: logService.errors.length, toasts: [...refreshErrors] };
-		const command = CommandsRegistry.getCommand('sessions.automations.refresh')!;
-		await instantiationService.invokeFunction(accessor => command.handler(accessor));
-		assert.deepStrictEqual({
-			automatic,
-			calls: automationService.refreshCalls,
-			logged: logService.errors.map(entry => entry.args[0]),
-			toasts: refreshErrors,
-		}, {
-			automatic: { calls: 4, logged: 4, toasts: [] },
-			calls: 5,
-			logged: [failure, failure, failure, failure, failure],
-			toasts: ['Could not refresh automations: Offline'],
-		});
-		widget.dispose();
+		try {
+			const { widget, automationService, logService, refreshErrors, instantiationService } = setup();
+			const failure = new Error('Offline');
+			automationService.refreshFailure = failure;
+			await clock.tickAsync(0);
+			await clock.tickAsync(180_000);
+			const automatic = { calls: automationService.refreshCalls, logged: logService.errors.length, toasts: [...refreshErrors] };
+			const command = CommandsRegistry.getCommand('sessions.automations.refresh')!;
+			await instantiationService.invokeFunction(accessor => command.handler(accessor));
+			assert.deepStrictEqual({
+				automatic,
+				calls: automationService.refreshCalls,
+				logged: logService.errors.map(entry => entry.args[0]),
+				toasts: refreshErrors,
+			}, {
+				automatic: { calls: 4, logged: 4, toasts: [] },
+				calls: 5,
+				logged: [failure, failure, failure, failure, failure],
+				toasts: ['Could not refresh automations: Offline'],
+			});
+			widget.dispose();
+		} finally {
+			clock.restore();
+		}
 	});
 
 	test('refresh icon stays idle during background refresh until clicked without blocking cards', async () => {
@@ -2059,44 +2068,47 @@ suite('AutomationsCardsWidget', () => {
 
 	test('run feedback survives acknowledgement and refresh until a new run appears', async () => {
 		const clock = useFakeTimers();
-		disposables.add(toDisposable(() => clock.restore()));
-		const { automationService, runner, widget } = setup();
-		automationService.setAutomations([automation()]);
-		automationService.setRuns([run({ sessionResource: undefined })]);
-		const dispatched = new DeferredPromise<IAutomationRunDispatch>();
-		runner.whenDispatched = dispatched.p;
-		const runButton = widget.element.querySelector<HTMLElement>('.automations-card-run-button')!;
-		const icon = widget.element.querySelector<HTMLElement>('.automations-card-name .codicon-modifier-spin')!;
-		const title = widget.element.querySelector<HTMLElement>('.automations-card-name-text')!;
-		widget.layout(800, 600);
-		const titleLeft = title.getBoundingClientRect().left;
-		const state = () => ({
-			disabled: runButton.getAttribute('aria-disabled'),
-			label: runButton.getAttribute('aria-label'),
-			spinner: icon.style.display !== 'none',
-			prompt: widget.element.querySelector('.automations-card-prompt')!.textContent,
-		});
-		runButton.click();
-		const starting = state();
-		assert.deepStrictEqual({
-			titleHasWidth: title.getBoundingClientRect().width > 0,
-			titleLeft: title.getBoundingClientRect().left,
-			spinnerOnRight: icon.getBoundingClientRect().left >= title.getBoundingClientRect().right,
-		}, { titleHasWidth: true, titleLeft, spinnerOnRight: true });
-		await dispatched.complete({ kind: 'accepted' });
-		await clock.tickAsync(10_000);
-		automationService.setAutomations([automation({ prompt: 'Updated prompt' })]);
-		automationService.setRuns([run({ sessionResource: undefined }), run({ id: 'unrelated', automationId: 'other', sessionResource: undefined })]);
-		runButton.click();
-		const accepted = state();
-		automationService.setRuns([run({ sessionResource: undefined }), run({ id: 'new-run', status: 'pending', sessionResource: undefined })]);
-		assert.deepStrictEqual({ starting, accepted, restored: state(), requests: runner.runCalls }, {
-			starting: { disabled: 'true', label: 'Running', spinner: true, prompt: 'Starting run...' },
-			accepted: { disabled: 'true', label: 'Running', spinner: true, prompt: 'Starting run...' },
-			restored: { disabled: 'false', label: 'Run now', spinner: false, prompt: 'Updated prompt' },
-			requests: 1,
-		});
-		widget.dispose();
+		try {
+			const { automationService, runner, widget } = setup();
+			automationService.setAutomations([automation()]);
+			automationService.setRuns([run({ sessionResource: undefined })]);
+			const dispatched = new DeferredPromise<IAutomationRunDispatch>();
+			runner.whenDispatched = dispatched.p;
+			const runButton = widget.element.querySelector<HTMLElement>('.automations-card-run-button')!;
+			const icon = widget.element.querySelector<HTMLElement>('.automations-card-name .codicon-modifier-spin')!;
+			const title = widget.element.querySelector<HTMLElement>('.automations-card-name-text')!;
+			widget.layout(800, 600);
+			const titleLeft = title.getBoundingClientRect().left;
+			const state = () => ({
+				disabled: runButton.getAttribute('aria-disabled'),
+				label: runButton.getAttribute('aria-label'),
+				spinner: icon.style.display !== 'none',
+				prompt: widget.element.querySelector('.automations-card-prompt')!.textContent,
+			});
+			runButton.click();
+			const starting = state();
+			assert.deepStrictEqual({
+				titleHasWidth: title.getBoundingClientRect().width > 0,
+				titleLeft: title.getBoundingClientRect().left,
+				spinnerOnRight: icon.getBoundingClientRect().left >= title.getBoundingClientRect().right,
+			}, { titleHasWidth: true, titleLeft, spinnerOnRight: true });
+			await dispatched.complete({ kind: 'accepted' });
+			await clock.tickAsync(10_000);
+			automationService.setAutomations([automation({ prompt: 'Updated prompt' })]);
+			automationService.setRuns([run({ sessionResource: undefined }), run({ id: 'unrelated', automationId: 'other', sessionResource: undefined })]);
+			runButton.click();
+			const accepted = state();
+			automationService.setRuns([run({ sessionResource: undefined }), run({ id: 'new-run', status: 'pending', sessionResource: undefined })]);
+			assert.deepStrictEqual({ starting, accepted, restored: state(), requests: runner.runCalls }, {
+				starting: { disabled: 'true', label: 'Running', spinner: true, prompt: 'Starting run...' },
+				accepted: { disabled: 'true', label: 'Running', spinner: true, prompt: 'Starting run...' },
+				restored: { disabled: 'false', label: 'Run now', spinner: false, prompt: 'Updated prompt' },
+				requests: 1,
+			});
+			widget.dispose();
+		} finally {
+			clock.restore();
+		}
 	});
 
 	for (const name of ['Review', 'Review all new changes across the repository before the next release']) {

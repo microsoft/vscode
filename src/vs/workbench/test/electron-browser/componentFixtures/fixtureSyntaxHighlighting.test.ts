@@ -185,33 +185,36 @@ suite('Component fixture TextMate syntax highlighting', () => {
 		const sentinelColorMap = [...previousColorMap];
 		sentinelColorMap[ColorId.DefaultForeground] = Color.fromHex('#010203');
 		TokenizationRegistry.setColorMap(sentinelColorMap);
-		disposables.add(toDisposable(() => TokenizationRegistry.setColorMap([...previousColorMap])));
-		const first = await createTokenizers();
-		const second = await createTokenizers();
-		const support = TokenizationRegistry.get('typescript');
-		first.store.dispose();
+		try {
+			const first = await createTokenizers();
+			const second = await createTokenizers();
+			const support = TokenizationRegistry.get('typescript');
+			first.store.dispose();
 
-		assert.deepStrictEqual({
-			retainedAfterFirstDispose: TokenizationRegistry.get('typescript') === support,
-			secondUsesCanonicalDarkCSS: second.host.querySelector('style')?.textContent?.includes('#ff7b72'),
-		}, {
-			retainedAfterFirstDispose: true,
-			secondUsesCanonicalDarkCSS: true,
-		});
+			assert.deepStrictEqual({
+				retainedAfterFirstDispose: TokenizationRegistry.get('typescript') === support,
+				secondUsesCanonicalDarkCSS: second.host.querySelector('style')?.textContent?.includes('#ff7b72'),
+			}, {
+				retainedAfterFirstDispose: true,
+				secondUsesCanonicalDarkCSS: true,
+			});
 
-		second.store.dispose();
-		const finalColorMap = TokenizationRegistry.getColorMap();
-		const defaultBackground = TokenizationRegistry.getDefaultBackground();
-		assert.deepStrictEqual({
-			tokenizerRemoved: TokenizationRegistry.get('typescript') === null,
-			sentinelColorMapRestored: finalColorMap?.length === sentinelColorMap.length
-				&& sentinelColorMap.every((color, index) => finalColorMap[index] === color),
-			defaultBackgroundLuminance: typeof defaultBackground?.getRelativeLuminance() === 'number',
-		}, {
-			tokenizerRemoved: true,
-			sentinelColorMapRestored: true,
-			defaultBackgroundLuminance: true,
-		});
+			second.store.dispose();
+			const finalColorMap = TokenizationRegistry.getColorMap();
+			const defaultBackground = TokenizationRegistry.getDefaultBackground();
+			assert.deepStrictEqual({
+				tokenizerRemoved: TokenizationRegistry.get('typescript') === null,
+				sentinelColorMapRestored: finalColorMap?.length === sentinelColorMap.length
+					&& sentinelColorMap.every((color, index) => finalColorMap[index] === color),
+				defaultBackgroundLuminance: typeof defaultBackground?.getRelativeLuminance() === 'number',
+			}, {
+				tokenizerRemoved: true,
+				sentinelColorMapRestored: true,
+				defaultBackgroundLuminance: true,
+			});
+		} finally {
+			TokenizationRegistry.setColorMap([...previousColorMap]);
+		}
 	});
 });
 

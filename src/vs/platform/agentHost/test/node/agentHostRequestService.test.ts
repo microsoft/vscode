@@ -11,7 +11,7 @@ import { streamToBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, type DisposableStore, type IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, type DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -89,19 +89,22 @@ suite('AgentHostProxyResolver', () => {
 			loadAdditionalCertificates: () => resolver.loadCertificates(),
 		});
 		resetCaches();
-		disposables.add(toDisposable(() => resetCaches()));
-		const native = await getOrLoadAdditionalCertificates(params);
-		disposables.add(resolver.registerCertificateProvider('client', async () => [rootCertificates[0]]));
-		const first = await getOrLoadAdditionalCertificates(params);
-		disposables.add(resolver.registerCertificateProvider('client', async () => [rootCertificates[1]]));
-		const second = await getOrLoadAdditionalCertificates(params);
-		assert.deepStrictEqual({
-			counts: [first.length - native.length, second.length - native.length],
-			clientRoots: [first.at(-1), second.at(-1)],
-		}, {
-			counts: [1, 1],
-			clientRoots: rootCertificates.slice(0, 2).map(certificate => new X509Certificate(certificate).toString()),
-		});
+		try {
+			const native = await getOrLoadAdditionalCertificates(params);
+			disposables.add(resolver.registerCertificateProvider('client', async () => [rootCertificates[0]]));
+			const first = await getOrLoadAdditionalCertificates(params);
+			disposables.add(resolver.registerCertificateProvider('client', async () => [rootCertificates[1]]));
+			const second = await getOrLoadAdditionalCertificates(params);
+			assert.deepStrictEqual({
+				counts: [first.length - native.length, second.length - native.length],
+				clientRoots: [first.at(-1), second.at(-1)],
+			}, {
+				counts: [1, 1],
+				clientRoots: rootCertificates.slice(0, 2).map(certificate => new X509Certificate(certificate).toString()),
+			});
+		} finally {
+			resetCaches();
+		}
 	});
 
 	test('loads client certificates on demand and coalesces concurrent consumers', async () => {
@@ -714,22 +717,23 @@ suite('NetworkDiagnosticsService', () => {
 			{ version: 'test' } as IProductService,
 			new NullLogService(),
 		);
-		disposables.add(toDisposable(() => {
+		try {
+			const result = await service.getInfo([]);
+
+			assert.deepStrictEqual({
+				setting: result.proxySettings[AgentHostProxyConfigKey.ProxyKerberosServicePrincipal],
+				environment: result.proxyEnv['COPILOT_PROXY_KERBEROS_SPN'],
+			}, {
+				setting: 'HTTP/configured.proxy',
+				environment: 'HTTP/environment.proxy',
+			});
+		} finally {
 			if (previous === undefined) {
 				delete process.env['COPILOT_PROXY_KERBEROS_SPN'];
 			} else {
 				process.env['COPILOT_PROXY_KERBEROS_SPN'] = previous;
 			}
-		}));
-		const result = await service.getInfo([]);
-
-		assert.deepStrictEqual({
-			setting: result.proxySettings[AgentHostProxyConfigKey.ProxyKerberosServicePrincipal],
-			environment: result.proxyEnv['COPILOT_PROXY_KERBEROS_SPN'],
-		}, {
-			setting: 'HTTP/configured.proxy',
-			environment: 'HTTP/environment.proxy',
-		});
+		}
 	});
 
 	test('includes nested proxy response errors', async () => {

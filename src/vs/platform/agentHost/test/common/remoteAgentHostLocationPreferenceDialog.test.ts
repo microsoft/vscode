@@ -53,7 +53,7 @@ class CapturingDialogService implements IDialogService {
 }
 
 suite('promptRemoteAgentHostLocationPreference', () => {
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const productName = 'Test Product';
 
@@ -145,9 +145,13 @@ suite('promptRemoteAgentHostLocationPreference', () => {
 
 	test('forwards the provided cancellation token to the dialog prompt', async () => {
 		const dialogService = new CapturingDialogService(0);
-		const cts = store.add(new CancellationTokenSource());
-		await promptRemoteAgentHostLocationPreference(dialogService, 'host', productName, undefined, cts.token);
-		assert.strictEqual(dialogService.lastPrompt?.token, cts.token);
+		const cts = new CancellationTokenSource();
+		try {
+			await promptRemoteAgentHostLocationPreference(dialogService, 'host', productName, undefined, cts.token);
+			assert.strictEqual(dialogService.lastPrompt?.token, cts.token);
+		} finally {
+			cts.dispose();
+		}
 	});
 
 	test('omits the token when none is provided', async () => {

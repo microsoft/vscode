@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { splitLines } from '../../../../base/common/strings.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -530,13 +529,16 @@ suite('Column selection paste', () => {
 
 	test('respects overtype and pads short rows', () => {
 		const previousInputMode = InputMode.getInputMode();
-		store.add(toDisposable(() => InputMode.setInputMode(previousInputMode)));
-		InputMode.setInputMode('overtype');
-		withTestCodeEditor(['left--right', 'left--right', 'x', ''], { multiCursorPaste: 'spread', overtypeOnPaste: true }, editor => {
-			editor.setPosition(new Position(1, 5));
-			paste(editor, 'A\nBC\nD\nE');
-			assert.deepStrictEqual(editor.getModel().getLinesContent(), ['leftA right', 'leftBCright', 'x   D ', '    E ']);
-		});
+		try {
+			InputMode.setInputMode('overtype');
+			withTestCodeEditor(['left--right', 'left--right', 'x', ''], { multiCursorPaste: 'spread', overtypeOnPaste: true }, editor => {
+				editor.setPosition(new Position(1, 5));
+				paste(editor, 'A\nBC\nD\nE');
+				assert.deepStrictEqual(editor.getModel().getLinesContent(), ['leftA right', 'leftBCright', 'x   D ', '    E ']);
+			});
+		} finally {
+			InputMode.setInputMode(previousInputMode);
+		}
 	});
 
 	suite('clipboard metadata', () => {

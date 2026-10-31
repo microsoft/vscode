@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { stub } from 'sinon';
-import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationModelParser } from '../../../../../../platform/configuration/common/configurationModels.js';
 import { DefaultConfiguration } from '../../../../../../platform/configuration/common/configurations.js';
@@ -203,16 +202,19 @@ suite('Terminal chat agent tools configuration', () => {
 		test(`ignores malformed ${key} without logging managed values`, () => {
 			const presentation = terminalChatAgentToolsConfiguration[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths].managedSettingsPresentation!;
 			const consoleWarn = stub(console, 'warn');
-			store.add(toDisposable(() => consoleWarn.restore()));
-			const values = ['private.enterprise.path', 'null', '{}', '[123]', false, 123]
-				.map(value => presentation(managedKey => managedKey === key ? value : undefined));
-			assert.deepStrictEqual({ values, warnings: consoleWarn.args }, {
-				values: Array.from({ length: 6 }, () => undefined),
-				warnings: [
-					['Failed to parse managed sandbox filesystem paths; ignoring the presentation override.'],
-					...Array.from({ length: 5 }, () => ['Managed sandbox filesystem paths must be a string array; ignoring the presentation override.']),
-				],
-			});
+			try {
+				const values = ['private.enterprise.path', 'null', '{}', '[123]', false, 123]
+					.map(value => presentation(managedKey => managedKey === key ? value : undefined));
+				assert.deepStrictEqual({ values, warnings: consoleWarn.args }, {
+					values: Array.from({ length: 6 }, () => undefined),
+					warnings: [
+						['Failed to parse managed sandbox filesystem paths; ignoring the presentation override.'],
+						...Array.from({ length: 5 }, () => ['Managed sandbox filesystem paths must be a string array; ignoring the presentation override.']),
+					],
+				});
+			} finally {
+				consoleWarn.restore();
+			}
 		});
 	}
 

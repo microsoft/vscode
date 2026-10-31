@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { stub } from 'sinon';
 import { Event } from '../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ManagedSettingValue } from '../../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { settingKeyToDisplayFormat, parseQuery, IParsedQuery, sanitizeId, SearchResultModel, SearchResultIdx, ISettingsEditorViewState, SettingsTreeSettingElement, SettingsTreeModel } from '../../browser/settingsTreeModels.js';
@@ -316,19 +315,22 @@ suite('SettingsTree managed sandbox', () => {
 	test('ignores malformed managed filesystem paths without hiding saved local paths', () => {
 		const key = AgentSandboxSettingId.AgentSandboxUserConfiguredPaths;
 		const consoleWarn = stub(console, 'warn');
-		store.add(toDisposable(() => consoleWarn.restore()));
-		const { managed, configuration, read } = createModel(ConfigurationTarget.USER_LOCAL, true, [key], {
-			[COPILOT_SANDBOX_DENIED_PATHS_KEY]: 'private.enterprise.path',
-		});
-		const settings = ['private.enterprise.path', '[123]', '{}', 'null', false].map(value => {
-			managed[COPILOT_SANDBOX_DENIED_PATHS_KEY] = value;
-			return read();
-		});
-		const local = { readwritePaths: ['local.write'], readonlyPaths: ['local.read'], deniedPaths: ['local.deny'] };
-		assert.deepStrictEqual({ settings, stored: configuration.getValue(key) }, {
-			settings: Array.from({ length: 5 }, () => [{ value: local, managed: false, policyFilter: false }]),
-			stored: local,
-		});
+		try {
+			const { managed, configuration, read } = createModel(ConfigurationTarget.USER_LOCAL, true, [key], {
+				[COPILOT_SANDBOX_DENIED_PATHS_KEY]: 'private.enterprise.path',
+			});
+			const settings = ['private.enterprise.path', '[123]', '{}', 'null', false].map(value => {
+				managed[COPILOT_SANDBOX_DENIED_PATHS_KEY] = value;
+				return read();
+			});
+			const local = { readwritePaths: ['local.write'], readonlyPaths: ['local.read'], deniedPaths: ['local.deny'] };
+			assert.deepStrictEqual({ settings, stored: configuration.getValue(key) }, {
+				settings: Array.from({ length: 5 }, () => [{ value: local, managed: false, policyFilter: false }]),
+				stored: local,
+			});
+		} finally {
+			consoleWarn.restore();
+		}
 	});
 
 	for (const enabled of [undefined, false, true]) {

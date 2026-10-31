@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -121,15 +120,18 @@ suite('TitlebarPart colors', () => {
 		workbench.appendChild(titlebar);
 		document.body.appendChild(workbench);
 
-		store.add(toDisposable(() => workbench.remove()));
-		const active = mainWindow.getComputedStyle(icon).color;
-		titlebar.classList.add('inactive');
-		const inactive = mainWindow.getComputedStyle(icon).color;
+		try {
+			const active = mainWindow.getComputedStyle(icon).color;
+			titlebar.classList.add('inactive');
+			const inactive = mainWindow.getComputedStyle(icon).color;
 
-		assert.deepStrictEqual({ active, inactive }, {
-			active: 'rgb(17, 34, 51)',
-			inactive: 'rgb(68, 85, 102)',
-		});
+			assert.deepStrictEqual({ active, inactive }, {
+				active: 'rgb(17, 34, 51)',
+				inactive: 'rgb(68, 85, 102)',
+			});
+		} finally {
+			workbench.remove();
+		}
 	});
 
 	test('updates inactive title bar opacity from menubar focus state', () => {
@@ -162,37 +164,40 @@ suite('TitlebarPart colors', () => {
 		}();
 		const part = store.add(instantiationService.createInstance(TestTitlebarPart, Parts.TITLEBAR_PART, mainWindow, groups));
 
-		store.add(toDisposable(() => workbench.remove()));
-		part.create(titlebar);
-		titlebar.classList.add('inactive');
-		part.installTestMenubar(titlebarContainer);
+		try {
+			part.create(titlebar);
+			titlebar.classList.add('inactive');
+			part.installTestMenubar(titlebarContainer);
 
-		const state = () => ({
-			focused: titlebar.classList.contains('menubar-focused'),
-			opacity: mainWindow.getComputedStyle(titlebarContainer).opacity,
-		});
-		const initial = state();
-		focusStateEmitter.fire(true);
-		const focused = state();
-		focusStateEmitter.fire(false);
-		const blurred = state();
-		focusStateEmitter.fire(true);
-		const refocused = state();
+			const state = () => ({
+				focused: titlebar.classList.contains('menubar-focused'),
+				opacity: mainWindow.getComputedStyle(titlebarContainer).opacity,
+			});
+			const initial = state();
+			focusStateEmitter.fire(true);
+			const focused = state();
+			focusStateEmitter.fire(false);
+			const blurred = state();
+			focusStateEmitter.fire(true);
+			const refocused = state();
 
-		const uninstallMenubar = Reflect.get(BrowserTitlebarPart.prototype, 'uninstallMenubar') as (this: BrowserTitlebarPart) => void;
-		uninstallMenubar.call(part);
-		const uninstalled = state();
-		focusStateEmitter.fire(true);
-		const afterUninstallEvent = state();
+			const uninstallMenubar = Reflect.get(BrowserTitlebarPart.prototype, 'uninstallMenubar') as (this: BrowserTitlebarPart) => void;
+			uninstallMenubar.call(part);
+			const uninstalled = state();
+			focusStateEmitter.fire(true);
+			const afterUninstallEvent = state();
 
-		assert.deepStrictEqual({ initial, focused, blurred, refocused, uninstalled, afterUninstallEvent }, {
-			initial: { focused: false, opacity: '0.6' },
-			focused: { focused: true, opacity: '1' },
-			blurred: { focused: false, opacity: '0.6' },
-			refocused: { focused: true, opacity: '1' },
-			uninstalled: { focused: false, opacity: '0.6' },
-			afterUninstallEvent: { focused: false, opacity: '0.6' },
-		});
+			assert.deepStrictEqual({ initial, focused, blurred, refocused, uninstalled, afterUninstallEvent }, {
+				initial: { focused: false, opacity: '0.6' },
+				focused: { focused: true, opacity: '1' },
+				blurred: { focused: false, opacity: '0.6' },
+				refocused: { focused: true, opacity: '1' },
+				uninstalled: { focused: false, opacity: '0.6' },
+				afterUninstallEvent: { focused: false, opacity: '0.6' },
+			});
+		} finally {
+			workbench.remove();
+		}
 	});
 });
 

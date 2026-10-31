@@ -171,119 +171,143 @@ function createPending(onUnexpectedClose: () => void = () => { }) {
 }
 
 suite('TunnelAgentHostService - gateway selection', () => {
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('completeSelection sends the selection immediately, then resolves once the gateway acknowledges', async () => {
-		const service = store.add(new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService));
-		const { ws, pending } = createPending();
-		setPendingGatewaySelectionForTests(service, 'sel1', pending);
+		const service = new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService);
+		try {
+			const { ws, pending } = createPending();
+			setPendingGatewaySelectionForTests(service, 'sel1', pending);
 
-		const resultPromise = service.completeSelection('sel1', { instanceId: 'abc-123' });
+			const resultPromise = service.completeSelection('sel1', { instanceId: 'abc-123' });
 
-		// An async function's body runs synchronously up to its first
-		// `await`, so the selection message is already sent and the
-		// gateway's reply listener already attached — no need to wait
-		// for a microtask/timeout to assert on this.
-		assert.deepStrictEqual(ws.sent, [JSON.stringify({ instanceId: 'abc-123' })]);
+			// An async function's body runs synchronously up to its first
+			// `await`, so the selection message is already sent and the
+			// gateway's reply listener already attached — no need to wait
+			// for a microtask/timeout to assert on this.
+			assert.deepStrictEqual(ws.sent, [JSON.stringify({ instanceId: 'abc-123' })]);
 
-		ws.emitMessage(JSON.stringify({
-			ok: true,
-			selected: { type: 'editor', instanceId: 'abc-123', role: 'primary', lifecycle: 'external' },
-		}));
+			ws.emitMessage(JSON.stringify({
+				ok: true,
+				selected: { type: 'editor', instanceId: 'abc-123', role: 'primary', lifecycle: 'external' },
+			}));
 
-		const result = await resultPromise;
-		assert.strictEqual(result.address, 'tunnel:t1');
-		assert.strictEqual(result.name, 'My Tunnel');
-		assert.strictEqual(result.connectionToken, 'tok123');
-		assert.deepStrictEqual(result.selected, { serverType: 'editor', instanceId: 'abc-123', role: 'primary', lifecycle: 'external' });
+			const result = await resultPromise;
+			assert.strictEqual(result.address, 'tunnel:t1');
+			assert.strictEqual(result.name, 'My Tunnel');
+			assert.strictEqual(result.connectionToken, 'tok123');
+			assert.deepStrictEqual(result.selected, { serverType: 'editor', instanceId: 'abc-123', role: 'primary', lifecycle: 'external' });
 
-		// Steady-state: the same socket now proxies subsequent AHP frames.
-		const relayed: string[] = [];
-		const relayListener = service.onDidRelayMessage(m => relayed.push(m.data));
-		ws.emitMessage('{"hello":"world"}');
-		assert.deepStrictEqual(relayed, ['{"hello":"world"}']);
-		relayListener.dispose();
+			// Steady-state: the same socket now proxies subsequent AHP frames.
+			const relayed: string[] = [];
+			const relayListener = service.onDidRelayMessage(m => relayed.push(m.data));
+			ws.emitMessage('{"hello":"world"}');
+			assert.deepStrictEqual(relayed, ['{"hello":"world"}']);
+			relayListener.dispose();
 
-		// Simulate the socket closing to dispose the resulting TunnelConnection.
-		ws.emitClose(1000, '');
+			// Simulate the socket closing to dispose the resulting TunnelConnection.
+			ws.emitClose(1000, '');
+		} finally {
+			service.dispose();
+		}
 	});
 
 	test('completeSelection throws for an unknown selection id', async () => {
-		const service = store.add(new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService));
-		await assert.rejects(
-			() => service.completeSelection('does-not-exist', { instanceId: 'x' }),
-			/No pending gateway selection with id does-not-exist/,
-		);
+		const service = new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService);
+		try {
+			await assert.rejects(
+				() => service.completeSelection('does-not-exist', { instanceId: 'x' }),
+				/No pending gateway selection with id does-not-exist/,
+			);
+		} finally {
+			service.dispose();
+		}
 	});
 
 	test('completeSelection surfaces a gateway rejection and closes pending resources without switching targets', async () => {
-		const service = store.add(new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService));
-		const { ws, relayClient, pending } = createPending();
-		setPendingGatewaySelectionForTests(service, 'sel1', pending);
+		const service = new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService);
+		try {
+			const { ws, relayClient, pending } = createPending();
+			setPendingGatewaySelectionForTests(service, 'sel1', pending);
 
-		const resultPromise = service.completeSelection('sel1', { instanceId: 'gone' });
-		ws.emitMessage(JSON.stringify({ ok: false, error: 'instance no longer live' }));
+			const resultPromise = service.completeSelection('sel1', { instanceId: 'gone' });
+			ws.emitMessage(JSON.stringify({ ok: false, error: 'instance no longer live' }));
 
-		const error = await resultPromise.then(() => undefined, (err: Error) => err);
-		assert.deepStrictEqual({
-			name: error?.name,
-			rejection: isTunnelGatewaySelectionRejectedError(error),
-			matchesMessage: /instance no longer live/.test(error?.message ?? ''),
-			closeCalls: ws.closeCalls,
-			disposeCalls: relayClient.disposeCalls,
-		}, {
-			name: TUNNEL_GATEWAY_SELECTION_REJECTED_ERROR_NAME,
-			rejection: true,
-			matchesMessage: true,
-			closeCalls: 1,
-			disposeCalls: 1,
-		});
+			const error = await resultPromise.then(() => undefined, (err: Error) => err);
+			assert.deepStrictEqual({
+				name: error?.name,
+				rejection: isTunnelGatewaySelectionRejectedError(error),
+				matchesMessage: /instance no longer live/.test(error?.message ?? ''),
+				closeCalls: ws.closeCalls,
+				disposeCalls: relayClient.disposeCalls,
+			}, {
+				name: TUNNEL_GATEWAY_SELECTION_REJECTED_ERROR_NAME,
+				rejection: true,
+				matchesMessage: true,
+				closeCalls: 1,
+				disposeCalls: 1,
+			});
+		} finally {
+			service.dispose();
+		}
 	});
 
 	test('completeSelection reports a transport failure as a plain error, never as a gateway rejection', async () => {
-		const service = store.add(new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService));
-		const { ws, pending } = createPending();
-		setPendingGatewaySelectionForTests(service, 'sel1', pending);
+		const service = new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService);
+		try {
+			const { ws, pending } = createPending();
+			setPendingGatewaySelectionForTests(service, 'sel1', pending);
 
-		const resultPromise = service.completeSelection('sel1', { instanceId: 'editor-1' });
-		ws.emitError(new Error('socket hang up'));
+			const resultPromise = service.completeSelection('sel1', { instanceId: 'editor-1' });
+			ws.emitError(new Error('socket hang up'));
 
-		const error = await resultPromise.then(() => undefined, (err: Error) => err);
-		assert.strictEqual(isTunnelGatewaySelectionRejectedError(error), false);
+			const error = await resultPromise.then(() => undefined, (err: Error) => err);
+			assert.strictEqual(isTunnelGatewaySelectionRejectedError(error), false);
+		} finally {
+			service.dispose();
+		}
 	});
 
 	test('cancelSelection disposes the pending socket and relay client, and is safe to call again or with an unknown id', async () => {
-		const service = store.add(new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService));
-		const { ws, relayClient, pending } = createPending();
-		setPendingGatewaySelectionForTests(service, 'sel1', pending);
+		const service = new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService);
+		try {
+			const { ws, relayClient, pending } = createPending();
+			setPendingGatewaySelectionForTests(service, 'sel1', pending);
 
-		await service.cancelSelection('sel1');
-		assert.strictEqual(ws.closeCalls, 1);
-		assert.strictEqual(relayClient.disposeCalls, 1);
+			await service.cancelSelection('sel1');
+			assert.strictEqual(ws.closeCalls, 1);
+			assert.strictEqual(relayClient.disposeCalls, 1);
 
-		// Repeated/unknown cancellation must be a safe no-op, not throw.
-		await service.cancelSelection('sel1');
-		await service.cancelSelection('does-not-exist');
-		assert.strictEqual(ws.closeCalls, 1);
-		assert.strictEqual(relayClient.disposeCalls, 1);
+			// Repeated/unknown cancellation must be a safe no-op, not throw.
+			await service.cancelSelection('sel1');
+			await service.cancelSelection('does-not-exist');
+			assert.strictEqual(ws.closeCalls, 1);
+			assert.strictEqual(relayClient.disposeCalls, 1);
+		} finally {
+			service.dispose();
+		}
 	});
 
 	test('completeSelection fails once the pending socket has already closed unexpectedly', async () => {
-		const service = store.add(new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService));
-		// Wire the unexpected-close callback the same way prepareSelection
-		// does in production: remove the entry from the pending map.
-		const { ws, pending } = createPending(() => deletePendingGatewaySelectionForTests(service, 'sel1'));
-		setPendingGatewaySelectionForTests(service, 'sel1', pending);
+		const service = new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService);
+		try {
+			// Wire the unexpected-close callback the same way prepareSelection
+			// does in production: remove the entry from the pending map.
+			const { ws, pending } = createPending(() => deletePendingGatewaySelectionForTests(service, 'sel1'));
+			setPendingGatewaySelectionForTests(service, 'sel1', pending);
 
-		// Simulate the gateway socket dropping before a selection was made:
-		// the close listener above removes it from the pending map, so a
-		// later completeSelection sees no pending entry.
-		ws.emitClose(1000, 'network drop');
+			// Simulate the gateway socket dropping before a selection was made:
+			// the close listener above removes it from the pending map, so a
+			// later completeSelection sees no pending entry.
+			ws.emitClose(1000, 'network drop');
 
-		await assert.rejects(
-			() => service.completeSelection('sel1', { instanceId: 'abc' }),
-			/No pending gateway selection with id sel1/,
-		);
+			await assert.rejects(
+				() => service.completeSelection('sel1', { instanceId: 'abc' }),
+				/No pending gateway selection with id sel1/,
+			);
+		} finally {
+			service.dispose();
+		}
 	});
 });
 

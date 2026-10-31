@@ -7,7 +7,6 @@ import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -76,7 +75,7 @@ class ConcurrentMetadataWriteDatabase extends FailingLegacyMirrorDatabase {
 }
 
 suite('AgentHostPeerChatStore', () => {
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	let orchestrator: AgentHostDatabase;
 	let stores: AgentHostPeerChatStore[];
@@ -259,14 +258,15 @@ suite('AgentHostPeerChatStore', () => {
 		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Retain the private method's type when installing the recording wrapper.
 		orchestrator['_toChatV2'] = decode;
 		const store = createStore(new TestSessionDatabase());
-		disposables.add(toDisposable(() => {
+		try {
+			const titles = await Promise.all(peers.map(async peer => (await store.readNormalizedChat(session, URI.parse(peer.chat))).chat?.metadata?.summary));
+			assert.deepStrictEqual({
+				titles, snapshotReads: snapshots.callCount, decodedRows: decode.callCount,
+			}, { titles: peers.map(peer => peer.metadata.summary), snapshotReads: 0, decodedRows: peers.length });
+		} finally {
 			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Restore the production decoder after this test.
 			orchestrator['_toChatV2'] = originalDecoder;
-		}));
-		const titles = await Promise.all(peers.map(async peer => (await store.readNormalizedChat(session, URI.parse(peer.chat))).chat?.metadata?.summary));
-		assert.deepStrictEqual({
-			titles, snapshotReads: snapshots.callCount, decodedRows: decode.callCount,
-		}, { titles: peers.map(peer => peer.metadata.summary), snapshotReads: 0, decodedRows: peers.length });
+		}
 	});
 
 	test('normalized default title snapshots preserve a concurrent explicit title after a CAS conflict', async () => {

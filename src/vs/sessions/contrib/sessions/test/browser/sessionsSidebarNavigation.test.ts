@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { autorun } from '../../../../../base/common/observable.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { Configuration, ConfigurationModel } from '../../../../../platform/configuration/common/configurationModels.js';
@@ -28,25 +27,26 @@ suite('Sessions sidebar separate navigation', () => {
 		if (!alreadyRegistered) {
 			registry.registerConfiguration(sessionsConfiguration);
 		}
-		disposables.add(toDisposable(() => {
+		try {
+			const property = registry.getConfigurationProperties()[SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING];
+			assert.deepStrictEqual({
+				type: property.type,
+				default: property.default,
+				scope: property.scope,
+				experiment: property.experiment,
+				included: property.included,
+			}, {
+				type: 'boolean',
+				default: false,
+				scope: ConfigurationScope.WINDOW,
+				experiment: { mode: 'auto', name: 'sessions.list.rearrage' },
+				included: undefined,
+			});
+		} finally {
 			if (!alreadyRegistered) {
 				registry.deregisterConfigurations([sessionsConfiguration]);
 			}
-		}));
-		const property = registry.getConfigurationProperties()[SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING];
-		assert.deepStrictEqual({
-			type: property.type,
-			default: property.default,
-			scope: property.scope,
-			experiment: property.experiment,
-			included: property.included,
-		}, {
-			type: 'boolean',
-			default: false,
-			scope: ConfigurationScope.WINDOW,
-			experiment: { mode: 'auto', name: 'sessions.list.rearrage' },
-			included: undefined,
-		});
+		}
 	});
 
 	test('explicit user values override experiment defaults and resetting restores the default', () => {

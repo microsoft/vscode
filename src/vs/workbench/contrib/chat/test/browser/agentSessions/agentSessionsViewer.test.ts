@@ -5,12 +5,11 @@
 
 import assert from 'assert';
 import '../../../browser/agentSessions/media/agentsessionsviewer.css';
-import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 
 suite('AgentSessionsViewer styles', () => {
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('input-needed session and chat rows use static icons and warning backgrounds', () => {
 		const container = mainWindow.document.createElement('div');
@@ -38,25 +37,28 @@ suite('AgentSessionsViewer styles', () => {
 		container.appendChild(chatRow);
 
 		mainWindow.document.body.appendChild(container);
-		store.add(toDisposable(() => container.remove()));
-		assert.deepStrictEqual([
-			{ background: sessionRow, icon: sessionIcon },
-			{ background: chatItem, icon: chatIcon },
-		].map(({ background, icon }) => ({
-			hasWarningBackground: ['color(srgb 1 0 0 / 0.08)', 'rgba(255, 0, 0, 0.08)'].includes(mainWindow.getComputedStyle(background).backgroundColor),
-			backgroundAnimation: mainWindow.getComputedStyle(background).animationName,
-			iconAnimation: mainWindow.getComputedStyle(icon).animationName,
-		})), [
-			{
-				hasWarningBackground: true,
-				backgroundAnimation: 'none',
-				iconAnimation: 'none',
-			},
-			{
-				hasWarningBackground: true,
-				backgroundAnimation: 'none',
-				iconAnimation: 'none',
-			},
-		]);
+		try {
+			assert.deepStrictEqual([
+				{ background: sessionRow, icon: sessionIcon },
+				{ background: chatItem, icon: chatIcon },
+			].map(({ background, icon }) => ({
+				hasWarningBackground: ['color(srgb 1 0 0 / 0.08)', 'rgba(255, 0, 0, 0.08)'].includes(mainWindow.getComputedStyle(background).backgroundColor),
+				backgroundAnimation: mainWindow.getComputedStyle(background).animationName,
+				iconAnimation: mainWindow.getComputedStyle(icon).animationName,
+			})), [
+				{
+					hasWarningBackground: true,
+					backgroundAnimation: 'none',
+					iconAnimation: 'none',
+				},
+				{
+					hasWarningBackground: true,
+					backgroundAnimation: 'none',
+					iconAnimation: 'none',
+				},
+			]);
+		} finally {
+			container.remove();
+		}
 	});
 });

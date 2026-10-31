@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -174,7 +174,7 @@ suite('BrowserViewWorkbenchService', () => {
 		const [restoredSerialized, restoredScreenshot] = serializeBrowserViewInfo(restored);
 		events.fire([{ type: 'snapshot', windowId: 1, views: [restoredSerialized] }, [restoredScreenshot]]);
 
-		const externalModel = store.add(await service.createExternalBrowserView('https://example.test/preview', 'canvas'));
+		const externalModel = await service.createExternalBrowserView('https://example.test/preview', 'canvas');
 		const externalRequests: string[] = [];
 		store.add(externalModel.onDidRequestOpenExternal(url => externalRequests.push(url)));
 		events.fire([{ type: 'changed', windowId: 1, id: externalModel.id, event: 'onDidRequestOpenExternal', data: 'http://localhost:3000/details' }, []]);
@@ -185,22 +185,26 @@ suite('BrowserViewWorkbenchService', () => {
 		const listedInput = service.getKnownBrowserViews().get('listed-page');
 		assert.ok(listedInput);
 
-		store.add(toDisposable(() => listedInput.dispose()));
-		assert.deepStrictEqual({
-			creationPresentations: creationOptions.map(options => options.presentation),
-			creationUrls: creationOptions.map(options => options.initialUrl),
-			openSources: creationOptions.map(options => options.openSource),
-			loadedUrls,
-			externalRequests,
-			knownIds: [...service.getKnownBrowserViews().keys()],
-		}, {
-			creationPresentations: [BrowserViewPresentation.Unlisted],
-			creationUrls: [undefined],
-			openSources: ['canvas'],
-			loadedUrls: [{ id: externalModel.id, url: 'https://example.test/preview' }],
-			externalRequests: ['http://localhost:3000/details'],
-			knownIds: ['listed-page'],
-		});
+		try {
+			assert.deepStrictEqual({
+				creationPresentations: creationOptions.map(options => options.presentation),
+				creationUrls: creationOptions.map(options => options.initialUrl),
+				openSources: creationOptions.map(options => options.openSource),
+				loadedUrls,
+				externalRequests,
+				knownIds: [...service.getKnownBrowserViews().keys()],
+			}, {
+				creationPresentations: [BrowserViewPresentation.Unlisted],
+				creationUrls: [undefined],
+				openSources: ['canvas'],
+				loadedUrls: [{ id: externalModel.id, url: 'https://example.test/preview' }],
+				externalRequests: ['http://localhost:3000/details'],
+				knownIds: ['listed-page'],
+			});
+		} finally {
+			listedInput.dispose();
+			externalModel.dispose();
+		}
 	});
 
 	test('cleans event lifetimes when embedded canvas models are repeatedly disposed', async () => {

@@ -2237,23 +2237,24 @@ suite('aiCustomizationManagementEditor', () => {
 			return { focused: focusedEditor ?? (active === backButton ? 'backButton' : active?.textContent), hiddenTooltips };
 		};
 
-		store.add(toDisposable(() => {
+		try {
+			assert.deepStrictEqual({
+				migrationDetail: focusFor('editor', primary),
+				hiddenMigrateWithRawEditor: focusFor('editor', action('Hidden', { hidden: true }), true),
+				disabledMigrateInPreview: focusFor('editor', action('Disabled', { enabled: false })),
+				mcpDetailWithoutPrimaryAction: focusFor('mcpDetail', undefined),
+				pluginDetailWithoutPrimaryAction: focusFor('pluginDetail', undefined),
+			}, {
+				migrationDetail: { focused: 'Migrate', hiddenTooltips: 0 },
+				hiddenMigrateWithRawEditor: { focused: 'embeddedEditor', hiddenTooltips: 0 },
+				disabledMigrateInPreview: { focused: 'backButton', hiddenTooltips: 1 },
+				mcpDetailWithoutPrimaryAction: { focused: 'definitionEditor', hiddenTooltips: 0 },
+				pluginDetailWithoutPrimaryAction: { focused: 'backButton', hiddenTooltips: 1 },
+			});
+		} finally {
 			container.remove();
 			editor.editorPreviewDisposables.dispose();
-		}));
-		assert.deepStrictEqual({
-			migrationDetail: focusFor('editor', primary),
-			hiddenMigrateWithRawEditor: focusFor('editor', action('Hidden', { hidden: true }), true),
-			disabledMigrateInPreview: focusFor('editor', action('Disabled', { enabled: false })),
-			mcpDetailWithoutPrimaryAction: focusFor('mcpDetail', undefined),
-			pluginDetailWithoutPrimaryAction: focusFor('pluginDetail', undefined),
-		}, {
-			migrationDetail: { focused: 'Migrate', hiddenTooltips: 0 },
-			hiddenMigrateWithRawEditor: { focused: 'embeddedEditor', hiddenTooltips: 0 },
-			disabledMigrateInPreview: { focused: 'backButton', hiddenTooltips: 1 },
-			mcpDetailWithoutPrimaryAction: { focused: 'definitionEditor', hiddenTooltips: 0 },
-			pluginDetailWithoutPrimaryAction: { focused: 'backButton', hiddenTooltips: 1 },
-		});
+		}
 	});
 
 	test('uses view-raw copy for true read-only extension content', () => {
@@ -2285,18 +2286,19 @@ suite('aiCustomizationManagementEditor', () => {
 		const container = editor.editorPreviewFrontMatterContainer!;
 		document.body.appendChild(container);
 
-		store.add(toDisposable(() => {
+		try {
+			editor.renderPreviewAttribute(createScalarAttribute('description', 'Helpful text'), PromptsType.agent, Target.VSCode);
+
+			const helpButton = container.querySelector('button.editor-preview-row-help') as HTMLButtonElement | null;
+			assert.ok(helpButton);
+
+			helpButton.click();
+
+			assert.strictEqual(focused, true);
+		} finally {
 			container.remove();
 			editor.editorPreviewDisposables.dispose();
-		}));
-		editor.renderPreviewAttribute(createScalarAttribute('description', 'Helpful text'), PromptsType.agent, Target.VSCode);
-
-		const helpButton = container.querySelector('button.editor-preview-row-help') as HTMLButtonElement | null;
-		assert.ok(helpButton);
-
-		helpButton.click();
-
-		assert.strictEqual(focused, true);
+		}
 	});
 
 	test('hides preview button when structured preview setting is disabled', () => {
@@ -4162,20 +4164,23 @@ suite('aiCustomizationManagementEditor', () => {
 			]],
 		]);
 
-		store.add(toDisposable(() => editor.editorPreviewDisposables.dispose()));
-		const targetFolders = await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
+		try {
+			const targetFolders = await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
 
-		assert.deepStrictEqual({
-			pickerInvocationCount,
-			pickerFolders: pickedFolders.map(folder => folder.uri.path),
-			agentTarget: targetFolders?.get(PromptsType.agent)?.get(PromptsStorage.user)?.uri.path,
-			instructionsTarget: targetFolders?.get(PromptsType.instructions)?.get(PromptsStorage.user)?.uri.path,
-		}, {
-			pickerInvocationCount: 1,
-			pickerFolders: ['/home/test/.copilot/agents', '/home/test/.claude/agents'],
-			agentTarget: '/home/test/.copilot/agents',
-			instructionsTarget: '/home/test/.copilot/instructions',
-		});
+			assert.deepStrictEqual({
+				pickerInvocationCount,
+				pickerFolders: pickedFolders.map(folder => folder.uri.path),
+				agentTarget: targetFolders?.get(PromptsType.agent)?.get(PromptsStorage.user)?.uri.path,
+				instructionsTarget: targetFolders?.get(PromptsType.instructions)?.get(PromptsStorage.user)?.uri.path,
+			}, {
+				pickerInvocationCount: 1,
+				pickerFolders: ['/home/test/.copilot/agents', '/home/test/.claude/agents'],
+				agentTarget: '/home/test/.copilot/agents',
+				instructionsTarget: '/home/test/.copilot/instructions',
+			});
+		} finally {
+			editor.editorPreviewDisposables.dispose();
+		}
 	});
 
 	test('automatic migration target does not constrain a later folder choice', async () => {
@@ -4212,18 +4217,21 @@ suite('aiCustomizationManagementEditor', () => {
 			]],
 		]);
 
-		store.add(toDisposable(() => editor.editorPreviewDisposables.dispose()));
-		const targetFolders = await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
+		try {
+			const targetFolders = await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
 
-		assert.deepStrictEqual({
-			pickerInvocationCount,
-			agentTarget: targetFolders?.get(PromptsType.agent)?.get(PromptsStorage.user)?.uri.path,
-			instructionsTarget: targetFolders?.get(PromptsType.instructions)?.get(PromptsStorage.user)?.uri.path,
-		}, {
-			pickerInvocationCount: 1,
-			agentTarget: '/home/test/.copilot/agents',
-			instructionsTarget: '/home/test/.claude/rules',
-		});
+			assert.deepStrictEqual({
+				pickerInvocationCount,
+				agentTarget: targetFolders?.get(PromptsType.agent)?.get(PromptsStorage.user)?.uri.path,
+				instructionsTarget: targetFolders?.get(PromptsType.instructions)?.get(PromptsStorage.user)?.uri.path,
+			}, {
+				pickerInvocationCount: 1,
+				agentTarget: '/home/test/.copilot/agents',
+				instructionsTarget: '/home/test/.claude/rules',
+			});
+		} finally {
+			editor.editorPreviewDisposables.dispose();
+		}
 	});
 
 	test('offers scenario-specific recovery for unavailable migration destinations', async () => {
@@ -4268,58 +4276,61 @@ suite('aiCustomizationManagementEditor', () => {
 			source: PromptFileSource.GitHubWorkspace,
 		};
 
-		store.add(toDisposable(() => editor.editorPreviewDisposables.dispose()));
-		const untitledSession = URI.parse('agent-host-copilotcli:/untitled-2');
-		editor.harnessService.activeSessionResource.set(untitledSession, undefined);
-		await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), untitledSession);
-		await prompts[0].run();
+		try {
+			const untitledSession = URI.parse('agent-host-copilotcli:/untitled-2');
+			editor.harnessService.activeSessionResource.set(untitledSession, undefined);
+			await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), untitledSession);
+			await prompts[0].run();
 
-		const activeSession = URI.parse('agent-host-copilotcli:/session');
-		editor.harnessService.activeSessionResource.set(activeSession, undefined);
-		await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), activeSession);
-		await prompts[1].run();
+			const activeSession = URI.parse('agent-host-copilotcli:/session');
+			editor.harnessService.activeSessionResource.set(activeSession, undefined);
+			await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), activeSession);
+			await prompts[1].run();
 
-		readiness = 'unavailable';
-		await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), activeSession);
-		await prompts[2].run();
+			readiness = 'unavailable';
+			await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), activeSession);
+			await prompts[2].run();
 
-		readiness = 'ready';
-		await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), activeSession);
+			readiness = 'ready';
+			await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), activeSession);
 
-		assert.deepStrictEqual({
-			prompts: prompts.map(prompt => ({
-				severity: prompt.severity,
-				message: prompt.message,
-				label: prompt.label,
-			})),
-			errors,
-			commands,
-			closeCount,
-			refreshCount,
-		}, {
-			prompts: [{
-				severity: Severity.Error,
-				message: 'Copilot needs an active session before it can report a writable skills folder for this workspace. Start a new session, send a message, then try the migration again.',
-				label: 'Start new session',
+			assert.deepStrictEqual({
+				prompts: prompts.map(prompt => ({
+					severity: prompt.severity,
+					message: prompt.message,
+					label: prompt.label,
+				})),
+				errors,
+				commands,
+				closeCount,
+				refreshCount,
 			}, {
-				severity: Severity.Error,
-				message: 'Copilot is still loading writable skills folders for this workspace. Wait for the session to finish starting, then try again.',
-				label: 'Retry',
-			}, {
-				severity: Severity.Error,
-				message: 'Could not load writable skills folders from Copilot for this workspace. Check the active agent connection, then try again.',
-				label: 'Retry',
-			}],
-			errors: [
-				'Copilot does not provide a writable skills folder for this workspace. Select a different agent target or configure a supported destination before migrating.',
-			],
-			commands: [{
-				commandId: 'workbench.action.chat.openNewSessionSidebar.agent-host-copilotcli',
-				args: [],
-			}],
-			closeCount: 1,
-			refreshCount: 2,
-		});
+				prompts: [{
+					severity: Severity.Error,
+					message: 'Copilot needs an active session before it can report a writable skills folder for this workspace. Start a new session, send a message, then try the migration again.',
+					label: 'Start new session',
+				}, {
+					severity: Severity.Error,
+					message: 'Copilot is still loading writable skills folders for this workspace. Wait for the session to finish starting, then try again.',
+					label: 'Retry',
+				}, {
+					severity: Severity.Error,
+					message: 'Could not load writable skills folders from Copilot for this workspace. Check the active agent connection, then try again.',
+					label: 'Retry',
+				}],
+				errors: [
+					'Copilot does not provide a writable skills folder for this workspace. Select a different agent target or configure a supported destination before migrating.',
+				],
+				commands: [{
+					commandId: 'workbench.action.chat.openNewSessionSidebar.agent-host-copilotcli',
+					args: [],
+				}],
+				closeCount: 1,
+				refreshCount: 2,
+			});
+		} finally {
+			editor.editorPreviewDisposables.dispose();
+		}
 	});
 
 	test('migrates workspace customizations into their own workspace folder', async () => {
@@ -4341,19 +4352,22 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 		const customFolder: ICustomizationSourceFolder = { uri: URI.file('/custom/skills'), label: '/custom/skills', source: PromptsStorage.local };
 
-		store.add(toDisposable(() => editor.editorPreviewDisposables.dispose()));
-		assert.deepStrictEqual({
-			firstWorkspaceFolder: editor.getEffectiveCustomizationMigrationTargetFolder(promptIn('/workspace-a'), targetFolders)?.uri.path,
-			otherWorkspaceFolder: editor.getEffectiveCustomizationMigrationTargetFolder(promptIn('/workspace-b'), targetFolders)?.uri.path,
-			customFolder: editor.getEffectiveCustomizationMigrationTargetFolder(
-				promptIn('/workspace-b'),
-				new Map([[PromptsType.skill, new Map([[PromptsStorage.local, customFolder]])]]),
-			)?.uri.path,
-		}, {
-			firstWorkspaceFolder: '/workspace-a/.github/skills',
-			otherWorkspaceFolder: '/workspace-b/.github/skills',
-			customFolder: '/custom/skills',
-		});
+		try {
+			assert.deepStrictEqual({
+				firstWorkspaceFolder: editor.getEffectiveCustomizationMigrationTargetFolder(promptIn('/workspace-a'), targetFolders)?.uri.path,
+				otherWorkspaceFolder: editor.getEffectiveCustomizationMigrationTargetFolder(promptIn('/workspace-b'), targetFolders)?.uri.path,
+				customFolder: editor.getEffectiveCustomizationMigrationTargetFolder(
+					promptIn('/workspace-b'),
+					new Map([[PromptsType.skill, new Map([[PromptsStorage.local, customFolder]])]]),
+				)?.uri.path,
+			}, {
+				firstWorkspaceFolder: '/workspace-a/.github/skills',
+				otherWorkspaceFolder: '/workspace-b/.github/skills',
+				customFolder: '/custom/skills',
+			});
+		} finally {
+			editor.editorPreviewDisposables.dispose();
+		}
 	});
 
 	test('does not infer migration destination groups from folder parents', async () => {
@@ -4391,9 +4405,12 @@ suite('aiCustomizationManagementEditor', () => {
 			]],
 		]);
 
-		store.add(toDisposable(() => editor.editorPreviewDisposables.dispose()));
-		await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
+		try {
+			await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
 
-		assert.strictEqual(pickerInvocationCount, 2);
+			assert.strictEqual(pickerInvocationCount, 2);
+		} finally {
+			editor.editorPreviewDisposables.dispose();
+		}
 	});
 });

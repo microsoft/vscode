@@ -299,19 +299,22 @@ suite('Workbench - TerminalInstance', () => {
 				// Use a separate sandbox to observe scrollbar disposal after the default sandbox is torn down.
 				const sandbox = createSandbox();
 				const additions = sandbox.spy(instance.store, 'add');
-				store.add(toDisposable(() => sandbox.restore()));
-				await instance.toggleSizeToContentWidth();
-				ok(instance.domElement.classList.contains('fixed-dims'));
-				const scrollbar = additions.getCalls().map(call => call.args[0]).find(value => value instanceof DomScrollableElement);
-				ok(scrollbar instanceof DomScrollableElement);
-				const disposal = sandbox.spy(scrollbar, 'dispose');
-				if (removeBeforeDispose) {
+				try {
 					await instance.toggleSizeToContentWidth();
+					ok(instance.domElement.classList.contains('fixed-dims'));
+					const scrollbar = additions.getCalls().map(call => call.args[0]).find(value => value instanceof DomScrollableElement);
+					ok(scrollbar instanceof DomScrollableElement);
+					const disposal = sandbox.spy(scrollbar, 'dispose');
+					if (removeBeforeDispose) {
+						await instance.toggleSizeToContentWidth();
+					}
+					strictEqual(instance.isDisposed, false);
+					strictEqual(disposal.callCount, removeBeforeDispose ? 1 : 0);
+					instance.dispose();
+					strictEqual(disposal.callCount, 1);
+				} finally {
+					sandbox.restore();
 				}
-				strictEqual(instance.isDisposed, false);
-				strictEqual(disposal.callCount, removeBeforeDispose ? 1 : 0);
-				instance.dispose();
-				strictEqual(disposal.callCount, 1);
 			});
 		}
 
@@ -704,14 +707,15 @@ suite('Workbench - TerminalInstance', () => {
 			instance.setVisible(true);
 
 			const event = new KeyboardEvent('keydown', { key: '=', cancelable: true });
-			store.add(toDisposable(() => {
+			try {
+				deepStrictEqual(
+					{ result: capturedHandler?.(event), defaultPrevented: event.defaultPrevented },
+					{ result: false, defaultPrevented: true }
+				);
+			} finally {
 				keybindingService.softDispatch = originalSoftDispatch;
 				container.remove();
-			}));
-			deepStrictEqual(
-				{ result: capturedHandler?.(event), defaultPrevented: event.defaultPrevented },
-				{ result: false, defaultPrevented: true }
-			);
+			}
 		});
 
 		test('custom key event handler should intercept Meta-modified keys that resolve to a command when sendKeybindingsToShell is disabled', async () => {
@@ -729,14 +733,15 @@ suite('Workbench - TerminalInstance', () => {
 			instance.setVisible(true);
 
 			const event = new KeyboardEvent('keydown', { key: '=', metaKey: true, cancelable: true });
-			store.add(toDisposable(() => {
+			try {
+				deepStrictEqual(
+					{ result: capturedHandler?.(event), defaultPrevented: event.defaultPrevented },
+					{ result: false, defaultPrevented: true }
+				);
+			} finally {
 				keybindingService.softDispatch = originalSoftDispatch;
 				container.remove();
-			}));
-			deepStrictEqual(
-				{ result: capturedHandler?.(event), defaultPrevented: event.defaultPrevented },
-				{ result: false, defaultPrevented: true }
-			);
+			}
 		});
 	});
 	suite('DEFAULT_COMMANDS_TO_SKIP_SHELL', () => {

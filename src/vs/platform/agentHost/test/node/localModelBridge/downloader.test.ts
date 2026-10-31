@@ -109,7 +109,7 @@ function blobServer(files: Record<string, Uint8Array>, overrides: (request: ILoc
 }
 
 suite('localModel downloader', () => {
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	let root: string;
 	let familyDir: string;
@@ -572,7 +572,7 @@ suite('localModel downloader', () => {
 	test('download diagnostics: the request service logs only hosts and statuses (logUrl: false), the downloader only byte counts and codes', async () => {
 		const log = new RecordingLogService();
 		const reply = blobServer({ 'model.gguf': PRIMARY, 'llama-default.ini': INI }, (_request, name) => name === 'broken.gguf' ? { status: 500, headers: { etag: '"etag-broken.gguf"' } } : undefined);
-		const requestService = store.add(new class extends AbstractRequestService {
+		const requestService = new class extends AbstractRequestService {
 			async request(options: IRequestOptions): Promise<IRequestContext> {
 				return this.logAndRequest(options, async () => {
 					const fake = reply({ url: options.url ?? '', method: 'GET', headers: options.headers as Record<string, string> | undefined });
@@ -583,28 +583,32 @@ suite('localModel downloader', () => {
 			async lookupAuthorization(): Promise<undefined> { return undefined; }
 			async lookupKerberosAuthorization(): Promise<string | undefined> { return undefined; }
 			async loadCertificates(): Promise<string[]> { return []; }
-		}(log));
-		await fs.promises.mkdir(targetDir, { recursive: true });
-		await fs.promises.writeFile(path.join(targetDir, 'llama-default.ini'), INI);
-		const downloader = new ModelDownloader({ http: new RequestServiceHttpClient(requestService), log, renameRetryDelayMs: 1, retryDelay: async () => { } });
-		const downloaded = await run(downloader, [spec('model.gguf', PRIMARY), spec('llama-default.ini', INI)]);
-		const failed = await run(downloader, [spec('broken.gguf', PRIMARY)]);
-		// An HTTP 500 is transient: 8 attempts, the retries logged with byte counts only.
-		const failedAttempts = Array.from({ length: 8 }, (_, attempt) => [
-			`#${attempt + 2}: acct.blob.core.windows.net - begin GET`,
-			`#${attempt + 2}: acct.blob.core.windows.net - end GET 500`,
-			...(attempt < 7 ? [`[LocalModelDownloader] The transfer was interrupted after 0 of ${PRIMARY.byteLength} bytes; retrying (${attempt + 1}/7) in ${Math.min(30_000, 1000 * 2 ** attempt)} ms`] : []),
-		]).flat();
-		assert.deepStrictEqual({ downloaded: typeof downloaded === 'object' ? downloaded.reusedFiles : downloaded, failed, logged: log.messages }, {
-			downloaded: ['llama-default.ini'],
-			failed: 'network',
-			logged: [
-				'#1: acct.blob.core.windows.net - begin GET',
-				'#1: acct.blob.core.windows.net - end GET 200',
-				`[LocalModelDownloader] Reusing a verified file (${INI.byteLength} bytes)`,
-				...failedAttempts,
-			],
-		});
+		}(log);
+		try {
+			await fs.promises.mkdir(targetDir, { recursive: true });
+			await fs.promises.writeFile(path.join(targetDir, 'llama-default.ini'), INI);
+			const downloader = new ModelDownloader({ http: new RequestServiceHttpClient(requestService), log, renameRetryDelayMs: 1, retryDelay: async () => { } });
+			const downloaded = await run(downloader, [spec('model.gguf', PRIMARY), spec('llama-default.ini', INI)]);
+			const failed = await run(downloader, [spec('broken.gguf', PRIMARY)]);
+			// An HTTP 500 is transient: 8 attempts, the retries logged with byte counts only.
+			const failedAttempts = Array.from({ length: 8 }, (_, attempt) => [
+				`#${attempt + 2}: acct.blob.core.windows.net - begin GET`,
+				`#${attempt + 2}: acct.blob.core.windows.net - end GET 500`,
+				...(attempt < 7 ? [`[LocalModelDownloader] The transfer was interrupted after 0 of ${PRIMARY.byteLength} bytes; retrying (${attempt + 1}/7) in ${Math.min(30_000, 1000 * 2 ** attempt)} ms`] : []),
+			]).flat();
+			assert.deepStrictEqual({ downloaded: typeof downloaded === 'object' ? downloaded.reusedFiles : downloaded, failed, logged: log.messages }, {
+				downloaded: ['llama-default.ini'],
+				failed: 'network',
+				logged: [
+					'#1: acct.blob.core.windows.net - begin GET',
+					'#1: acct.blob.core.windows.net - end GET 200',
+					`[LocalModelDownloader] Reusing a verified file (${INI.byteLength} bytes)`,
+					...failedAttempts,
+				],
+			});
+		} finally {
+			requestService.dispose();
+		}
 	});
 
 	test('rename retries for antivirus locks; verified final copies are reused', async () => {

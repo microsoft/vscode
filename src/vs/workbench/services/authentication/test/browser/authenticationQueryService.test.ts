@@ -297,15 +297,19 @@ suite('AuthenticationQueryService Integration Tests', () => {
 		let eventFired = false;
 
 		// Listen for access change events through the query service
-		disposables.add(queryService.onDidChangeAccess(() => {
+		const disposable = queryService.onDidChangeAccess(() => {
 			eventFired = true;
-		}));
+		});
 
-		// Trigger an access change that should fire an event
-		queryService.provider('github').account('user@example.com').extension('my-extension').setAccessAllowed(true, 'My Extension');
+		try {
+			// Trigger an access change that should fire an event
+			queryService.provider('github').account('user@example.com').extension('my-extension').setAccessAllowed(true, 'My Extension');
 
-		// Verify the event was fired
-		assert.strictEqual(eventFired, true);
+			// Verify the event was fired
+			assert.strictEqual(eventFired, true);
+		} finally {
+			disposable.dispose();
+		}
 	});
 
 	test('error handling for invalid inputs works correctly', () => {

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { spy } from 'sinon';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -335,26 +335,27 @@ suite('ClaudeTerminalOutputs', () => {
 		};
 		const batchedLookups = spy(database, 'getTerminalOutputSizes');
 		const singleLookups = spy(database, 'getTerminalOutputSize');
-		disposables.add(toDisposable(() => {
+		try {
+			await outputs.restore(CHAT, URI.parse(SESSION), CHAT, [turn]);
+
+			assert.deepStrictEqual({
+				terminals: turn.responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed
+					? (part.toolCall.content ?? []).flatMap(content => content.type === ToolResultContentType.Terminal ? [content.resource] : [])
+					: []),
+				batchedLookups: batchedLookups.args.map(([toolCallIds]) => toolCallIds),
+				singleLookups: singleLookups.callCount,
+			}, {
+				terminals: [
+					buildNonPtyShellTerminalUri(CHAT, SESSION, CHAT, 'toolu_first'),
+					buildNonPtyShellTerminalUri(CHAT, SESSION, CHAT, 'toolu_last'),
+				],
+				batchedLookups: [['toolu_first', ...inline, 'toolu_last']],
+				singleLookups: 0,
+			});
+		} finally {
 			batchedLookups.restore();
 			singleLookups.restore();
-		}));
-		await outputs.restore(CHAT, URI.parse(SESSION), CHAT, [turn]);
-
-		assert.deepStrictEqual({
-			terminals: turn.responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed
-				? (part.toolCall.content ?? []).flatMap(content => content.type === ToolResultContentType.Terminal ? [content.resource] : [])
-				: []),
-			batchedLookups: batchedLookups.args.map(([toolCallIds]) => toolCallIds),
-			singleLookups: singleLookups.callCount,
-		}, {
-			terminals: [
-				buildNonPtyShellTerminalUri(CHAT, SESSION, CHAT, 'toolu_first'),
-				buildNonPtyShellTerminalUri(CHAT, SESSION, CHAT, 'toolu_last'),
-			],
-			batchedLookups: [['toolu_first', ...inline, 'toolu_last']],
-			singleLookups: 0,
-		});
+		}
 	});
 
 	test('leaves restored terminal calls unchanged and logs when the batched lookup fails', async () => {
