@@ -161,6 +161,14 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 				this._proxy.$acceptDirtyStateChanged(m.resource, m.isDirty());
 			}
 		}));
+		this._store.add(_textFileService.untitled.onDidChangeDirty(m => {
+			// Untitled documents without a path are always reported as dirty. Those with an
+			// associated path follow the model, which stays clean while empty when
+			// `workbench.editor.untitled.dirtyWhenEmpty` is disabled
+			if (m.hasAssociatedFilePath && this._shouldHandleFileEvent(m.resource)) {
+				this._proxy.$acceptDirtyStateChanged(m.resource, m.isDirty());
+			}
+		}));
 		this._store.add(Event.any<ITextFileEditorModel | IUntitledTextEditorModel>(_textFileService.files.onDidChangeEncoding, _textFileService.untitled.onDidChangeEncoding)(m => {
 			if (this._shouldHandleFileEvent(m.resource)) {
 				const encoding = m.getEncoding();
@@ -316,7 +324,9 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		}
 		this._modelReferenceCollection.add(resource, ref, ref.object.textEditorModel.getValueLength());
 		Event.once(model.onDidRevert)(() => this._modelReferenceCollection.remove(resource));
-		this._proxy.$acceptDirtyStateChanged(resource, true); // mark as dirty
+		// Untitled documents are reported as dirty, except an associated-path document
+		// that stays clean while empty (`workbench.editor.untitled.dirtyWhenEmpty: false`)
+		this._proxy.$acceptDirtyStateChanged(resource, associatedResource ? model.isDirty() : true);
 		return resource;
 	}
 }
