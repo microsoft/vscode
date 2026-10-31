@@ -44,6 +44,11 @@ interface ICanvasLookup {
 	readonly canvas: ICanvas | undefined;
 }
 
+interface ICanvasDismissedState {
+	readonly reference: ICanvasReference;
+	readonly requestId: string | undefined;
+}
+
 interface ICanvasSourceState {
 	readonly reference: ICanvasReference;
 	available: boolean;
@@ -52,6 +57,7 @@ interface ICanvasSourceState {
 	observedRequestId: string | undefined;
 	foregroundRequestId: string | undefined;
 	foregroundRecoveryId: number | undefined;
+	foregroundRecoveryDismissed: ICanvasDismissedState | undefined;
 }
 
 const settledWorkingSet: ICanvasWorkingSetState = Object.freeze({ owner: undefined, restoring: false, applying: false });
@@ -64,7 +70,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 
 	private readonly inputs = this._register(new DisposableMap<string, CanvasInput>());
 	private readonly inputLifetimes = this._register(new DisposableMap<string, DisposableStore>());
-	private readonly dismissed = new Map<string, { readonly reference: ICanvasReference; readonly requestId: string | undefined }>();
+	private readonly dismissed = new Map<string, ICanvasDismissedState>();
 	private readonly presentations = new Map<string, ICanvasPresentation>();
 	private readonly presentationsBySerializationId = new Map<string, ICanvasPresentation>();
 	private readonly requests = new Map<string, string | undefined>();
@@ -279,6 +285,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 			}
 			const revealId = ++this.revealSequence;
 			sourceState.foregroundRecoveryId = revealId;
+			sourceState.foregroundRecoveryDismissed ??= previousDismissed;
 			return {
 				rollback: () => {
 					const currentState = this.sourceStates.get(key);
@@ -286,8 +293,10 @@ export class CanvasService extends Disposable implements ICanvasService {
 						return;
 					}
 					currentState.foregroundRecoveryId = undefined;
-					if (previousDismissed && !this.dismissed.has(key)) {
-						this.dismissed.set(key, previousDismissed);
+					const dismissed = currentState.foregroundRecoveryDismissed;
+					currentState.foregroundRecoveryDismissed = undefined;
+					if (dismissed && !this.dismissed.has(key)) {
+						this.dismissed.set(key, dismissed);
 						this.dismissedChanged.trigger(undefined);
 					}
 				}
@@ -626,6 +635,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 				observedRequestId: requestId,
 				foregroundRequestId: request?.pending ? requestId : undefined,
 				foregroundRecoveryId: undefined,
+				foregroundRecoveryDismissed: undefined,
 			};
 			this.sourceStates.set(key, state);
 			return state;
@@ -671,6 +681,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 		}
 		if (state.foregroundRecoveryId === recoveryId) {
 			state.foregroundRecoveryId = undefined;
+			state.foregroundRecoveryDismissed = undefined;
 		}
 		if (state.foregroundRequestId === requestId) {
 			state.foregroundRequestId = undefined;
@@ -793,6 +804,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 		const sourceState = this.sourceStates.get(key);
 		if (sourceState) {
 			sourceState.foregroundRecoveryId = undefined;
+			sourceState.foregroundRecoveryDismissed = undefined;
 		}
 		this.dismissed.delete(key);
 		this.dismissed.set(key, { reference, requestId: this.requests.get(key) });

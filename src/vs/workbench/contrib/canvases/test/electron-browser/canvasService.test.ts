@@ -526,6 +526,28 @@ suite('CanvasService', () => {
 		});
 	});
 
+	test('restores dismissal after overlapping unavailable reveals fail', async () => {
+		const harness = createHarness();
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		harness.opened[0].dispose();
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		const firstReveal = await harness.service.revealCanvas(harness.opened[0].reference);
+		const secondReveal = await harness.service.revealCanvas(harness.opened[0].reference);
+		firstReveal?.rollback();
+		secondReveal?.rollback();
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			opened: harness.opened.length,
+			reopenable: harness.service.reopenableCanvases.get().map(target => target.canvas.instanceId),
+		}, {
+			opened: 1,
+			reopenable: ['preview'],
+		});
+	});
+
 	test('upgrades an in-flight recovery when a new request arrives', async () => {
 		const harness = createHarness();
 		harness.visible.set(new Set(), undefined);
