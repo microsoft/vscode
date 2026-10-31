@@ -1090,6 +1090,9 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		if (this.disposables.isDisposed) {
 			return; // tree disposed during refresh (#199264)
 		}
+		if (node !== this.root && !this.tree.hasElement(node)) {
+			return; // node removed from the inner tree by a parallel refresh (#331811)
+		}
 		this.render(node, viewStateContext, options);
 	}
 
