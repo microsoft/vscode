@@ -6,7 +6,7 @@ import assert from 'assert';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { createSimpleKeybinding, ResolvedKeybinding, KeyCodeChord, Keybinding } from '../../../../base/common/keybindings.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { OS } from '../../../../base/common/platform.js';
+import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import Severity from '../../../../base/common/severity.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../commands/common/commands.js';
@@ -71,15 +71,19 @@ suite('AbstractKeybindingService', () => {
 			return [];
 		}
 
-		public testDispatch(kb: number, isComposing: boolean = false): boolean {
-			return this._dispatch(this._toKeyboardEvent(kb, isComposing), null!);
+		public testDispatch(kb: number, isComposing: boolean = false, code: string = ''): boolean {
+			return this._dispatch(this._toKeyboardEvent(kb, isComposing, code), null!);
+		}
+
+		public testKeyUp(kb: number, code: string = '', isComposing: boolean = false): boolean {
+			return this._singleModifierDispatch(this._toKeyboardEvent(kb, isComposing, code), null!);
 		}
 
 		public testSoftDispatch(kb: number, isComposing: boolean = false): ResolutionResult {
 			return this.softDispatch(this._toKeyboardEvent(kb, isComposing), null!);
 		}
 
-		private _toKeyboardEvent(kb: number, isComposing: boolean): IKeyboardEvent {
+		private _toKeyboardEvent(kb: number, isComposing: boolean, code: string = ''): IKeyboardEvent {
 			const keybinding = createSimpleKeybinding(kb, OS);
 			return {
 				_standardKeyboardEventBrand: true,
@@ -90,7 +94,7 @@ suite('AbstractKeybindingService', () => {
 				altGraphKey: false,
 				// `StandardKeyboardEvent` normalizes composing keystrokes to KEY_IN_COMPOSITION.
 				keyCode: isComposing ? KeyCode.KEY_IN_COMPOSITION : keybinding.keyCode,
-				code: null!
+				code
 			};
 		}
 
@@ -285,6 +289,143 @@ suite('AbstractKeybindingService', () => {
 			assert.deepStrictEqual(statusMessageCalls, ([`(${toUsLabel(chord0)}) was pressed. Waiting for second key of chord...`]));
 			assert.deepStrictEqual(statusMessageCallsDisposed, ([`(${toUsLabel(chord0)}) was pressed. Waiting for second key of chord...`]));
 
+			kbService.dispose();
+		});
+	});
+
+	suite('duplicate modifier releases', () => {
+		const ctrl = OS === OperatingSystem.Macintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd;
+		const meta = OS === OperatingSystem.Macintosh ? KeyMod.CtrlCmd : KeyMod.WinCtrl;
+		const modifiers = [
+			{ key: KeyMod.Shift | KeyCode.Shift, modifier: KeyMod.Shift, code: 'ShiftLeft' },
+			{ key: ctrl | KeyCode.Ctrl, modifier: ctrl, code: 'ControlLeft' },
+			{ key: KeyMod.Alt | KeyCode.Alt, modifier: KeyMod.Alt, code: 'AltLeft' },
+			{ key: meta | KeyCode.Meta, modifier: meta, code: 'MetaLeft' },
+		];
+
+		for (const { key, modifier, code } of modifiers) {
+			test(`${code} releases do not cancel a pending chord`, () => {
+				const firstChord = modifier | KeyCode.KeyK;
+				const kbService = createTestKeybindingService([
+					kbItem([firstChord, KeyCode.KeyV], 'preview'),
+				]);
+				currentContextValue = createContext({});
+
+				kbService.testDispatch(key, false, code);
+				kbService.testDispatch(firstChord, false, 'KeyK');
+				kbService.testKeyUp(firstChord, 'KeyK');
+				for (let i = 0; i < 3; i++) {
+					kbService.testKeyUp(key, code);
+				}
+				kbService.testDispatch(KeyCode.KeyV, false, 'KeyV');
+
+				assert.deepStrictEqual([executeCommandCalls, statusMessageCalls], [
+					[{ commandId: 'preview', args: [null] }],
+					[`(${toUsLabel(firstChord)}) was pressed. Waiting for second key of chord...`]
+				]);
+				kbService.dispose();
+			});
+		}
+
+		test('duplicate releases do not synthesize extra double taps', () => {
+			const shift = KeyMod.Shift | KeyCode.Shift;
+			const kbService = createTestKeybindingService([
+				kbItem([KeyCode.Shift, KeyCode.Shift], 'doubleShift'),
+			]);
+			currentContextValue = createContext({});
+
+			kbService.testDispatch(shift, false, 'ShiftLeft');
+			for (let i = 0; i < 3; i++) {
+				kbService.testKeyUp(shift, 'ShiftLeft');
+			}
+			const afterFirstTap = [...executeCommandCalls];
+			kbService.testDispatch(shift, false, 'ShiftLeft');
+			for (let i = 0; i < 3; i++) {
+				kbService.testKeyUp(shift, 'ShiftLeft');
+			}
+
+			assert.deepStrictEqual([afterFirstTap, executeCommandCalls], [
+				[], [{ commandId: 'doubleShift', args: [null] }]
+			]);
+			kbService.dispose();
+		});
+
+		for (const code of ['ShiftLeft', '']) {
+			test(`a new press rearms double taps with ${code || 'no physical code'}`, () => {
+				const shift = KeyMod.Shift | KeyCode.Shift;
+				const kbService = createTestKeybindingService([
+					kbItem([KeyCode.Shift, KeyCode.Shift], 'doubleShift'),
+				]);
+				currentContextValue = createContext({});
+
+				for (let tap = 0; tap < 4; tap++) {
+					kbService.testDispatch(shift, false, code);
+					kbService.testKeyUp(shift, code);
+					kbService.testKeyUp(shift, code);
+				}
+
+				assert.deepStrictEqual(executeCommandCalls, [
+					{ commandId: 'doubleShift', args: [null] },
+					{ commandId: 'doubleShift', args: [null] }
+				]);
+				kbService.dispose();
+			});
+		}
+
+		test('left and right modifier releases retain separate identities', () => {
+			const shift = KeyMod.Shift | KeyCode.Shift;
+			const kbService = createTestKeybindingService([
+				kbItem([KeyCode.Shift, KeyCode.Shift], 'doubleShift'),
+			]);
+			currentContextValue = createContext({});
+
+			kbService.testDispatch(shift, false, 'ShiftLeft');
+			kbService.testDispatch(shift, false, 'ShiftRight');
+			kbService.testKeyUp(shift, 'ShiftLeft');
+			kbService.testKeyUp(shift, 'ShiftRight');
+
+			assert.deepStrictEqual(executeCommandCalls, [{ commandId: 'doubleShift', args: [null] }]);
+			kbService.dispose();
+		});
+
+		for (const shiftFirst of [true, false]) {
+			test(`Shift+Cmd K V survives releasing ${shiftFirst ? 'Shift' : 'Cmd'} first`, () => {
+				const firstChord = KeyMod.Shift | meta | KeyCode.KeyK;
+				const kbService = createTestKeybindingService([
+					kbItem([firstChord, KeyCode.KeyV], 'preview'),
+				]);
+				currentContextValue = createContext({});
+				kbService.testDispatch(KeyMod.Shift | KeyCode.Shift, false, 'ShiftLeft');
+				kbService.testDispatch(KeyMod.Shift | meta | KeyCode.Meta, false, 'MetaLeft');
+				kbService.testDispatch(firstChord, false, 'KeyK');
+				kbService.testKeyUp(firstChord, 'KeyK');
+
+				for (let i = 0; i < 3; i++) {
+					kbService.testKeyUp(KeyMod.Shift | meta | (shiftFirst ? KeyCode.Shift : KeyCode.Meta), shiftFirst ? 'ShiftLeft' : 'MetaLeft');
+				}
+				for (let i = 0; i < 3; i++) {
+					kbService.testKeyUp(shiftFirst ? meta | KeyCode.Meta : KeyMod.Shift | KeyCode.Shift, shiftFirst ? 'MetaLeft' : 'ShiftLeft');
+				}
+				kbService.testDispatch(KeyCode.KeyV, false, 'KeyV');
+
+				assert.deepStrictEqual([executeCommandCalls, statusMessageCalls?.length], [
+					[{ commandId: 'preview', args: [null] }], 1
+				]);
+				kbService.dispose();
+			});
+		}
+
+		test('composing modifier events cannot complete a double tap', () => {
+			const shift = KeyMod.Shift | KeyCode.Shift;
+			const kbService = createTestKeybindingService([
+				kbItem([KeyCode.Shift, KeyCode.Shift], 'doubleShift'),
+			]);
+			currentContextValue = createContext({});
+			kbService.testDispatch(shift, false, 'ShiftLeft');
+			kbService.testKeyUp(shift, 'ShiftLeft');
+			kbService.testDispatch(shift, true, 'ShiftLeft');
+			kbService.testKeyUp(shift, 'ShiftLeft', true);
+			assert.deepStrictEqual(executeCommandCalls, []);
 			kbService.dispose();
 		});
 	});
