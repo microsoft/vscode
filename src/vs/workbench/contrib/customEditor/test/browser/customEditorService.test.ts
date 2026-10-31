@@ -126,13 +126,11 @@ suite('CustomEditorService', () => {
 			let undoCalls = 0;
 			let redoCalls = 0;
 			const input = Object.create(CustomEditorInput.prototype);
-			Object.assign(input, {
-				webview,
-				undo: () => { undoCalls++; return true; },
-				redo: () => { redoCalls++; return true; },
-				getUndoCalls: () => undoCalls,
-				getRedoCalls: () => redoCalls,
-			});
+			Object.defineProperty(input, 'webview', { value: webview, configurable: true, writable: true });
+			input.undo = () => { undoCalls++; return true; };
+			input.redo = () => { redoCalls++; return true; };
+			input.getUndoCalls = () => undoCalls;
+			input.getRedoCalls = () => redoCalls;
 			return input;
 		}
 
@@ -176,18 +174,18 @@ suite('CustomEditorService', () => {
 			let undoCalls = 0;
 			let redoCalls = 0;
 			const orig = Object.create(CustomEditorSideBySideDiffInput.prototype);
-			orig.webview = origWebview;
+			Object.defineProperty(orig, 'webview', { value: origWebview, configurable: true, writable: true });
 
 			const mod = Object.create(CustomEditorSideBySideDiffInput.prototype);
-			mod.webview = modWebview;
+			Object.defineProperty(mod, 'webview', { value: modWebview, configurable: true, writable: true });
 			mod.undo = () => { undoCalls++; return true; };
 			mod.redo = () => { redoCalls++; return true; };
 			mod.getUndoCalls = () => undoCalls;
 			mod.getRedoCalls = () => redoCalls;
 
 			const diff = Object.create(DiffEditorInput.prototype);
-			diff.original = orig;
-			diff.modified = mod;
+			Object.defineProperty(diff, 'original', { value: orig, configurable: true, writable: true });
+			Object.defineProperty(diff, 'modified', { value: mod, configurable: true, writable: true });
 			return { diff, mod };
 		}
 
