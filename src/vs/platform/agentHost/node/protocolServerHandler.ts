@@ -8,8 +8,8 @@ import { sandboxCertificateInstallationCapability, sandboxCertificateRemovalCapa
 import { InstallSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from '../common/sandboxCertificateProtocol.js';
 import { LoadClientCertificatesExtensionMethod, loadClientCertificatesResultValidator } from '../common/clientCertificatesProtocol.js';
 import { supportsAgentHostClientCertificates } from '../common/meta/agentHostClientCertificatesMeta.js';
-import { LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyResultValidator } from '../common/clientProxyProtocol.js';
-import { supportsAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
+import { ClientProxyChangedExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyResultValidator } from '../common/clientProxyProtocol.js';
+import { AgentHostClientProxyCapabilityMetaKey, supportsAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { disposableTimeout, raceCancellationError, raceTimeout, SequencerByKey } from '../../../base/common/async.js';
 import { cancelOnDispose, CancellationTokenSource } from '../../../base/common/cancellation.js';
@@ -1071,7 +1071,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		try {
 			this._initializeClientExtensions(client);
 			this._registerClientCertificates(client, params);
-			this._registerClientProxy(client, params);
+			const servesClientProxy = this._registerClientProxy(client, params);
 			this._registerClientFileSystemAuthority(params.clientId, initializationDisposables);
 
 			const snapshots: IStateSnapshot[] = [];
@@ -1138,6 +1138,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							!!this._agentService.deleteAutomation,
 						),
 						...(transport.relayClientId === undefined && !transport.relayPassive ? { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } : {}),
+						...(servesClientProxy ? { [AgentHostClientProxyCapabilityMetaKey]: true } : {}),
 						...(transport.relayClientId === undefined && !transport.relayPassive && this._agentService.sessionWorktreeCleanup ? { [AgentHostWorktreeCleanupCapabilityMetaKey]: true } : {}),
 						...(transport.relayClientId === undefined && !transport.relayPassive && this._agentService.sessionWorktreeCleanup ? { [ForceWorktreeCleanupCapabilityMetaKey]: true } : {}),
 						...(!this._config.relayRoots && !this._config.relayRootMeta && transport.relayClientId === undefined && !transport.relayPassive && this._agentService.listManagedWorktrees && this._agentService.cleanupManagedWorktree ? { [ManagedWorktreesCapabilityMetaKey]: true } : {}),
@@ -1426,9 +1427,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	/** Lets a client sharing this agent host's network, such as one in WSL or a local container, serve its proxy lookups. */
-	private _registerClientProxy(client: IConnectedClient, params: InitializeParams | ReconnectParams): void {
+	private _registerClientProxy(client: IConnectedClient, params: InitializeParams | ReconnectParams): boolean {
 		if (!supportsAgentHostClientProxy(params) || this._isRelayClient(client)) {
-			return;
+			return false;
 		}
 		client.initializationDisposables.add(this._proxyResolver.registerSharedNetworkClient(this._managedSettingsContributionId(client.clientId), {
 			resolveProxy: async url => {
@@ -1440,6 +1441,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				return lookupClientProxyKerberosAuthorizationResultValidator.validateOrThrow(response).authorization;
 			},
 		}));
+		return true;
 	}
 
 	/** Relay clients never share this agent host's network. */
@@ -3787,6 +3789,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (request) {
 				return request.handle(params, this._captureRelayRequestAuthorization(client, method, params), this._config.scopedRelayCredentials ? this._getScopedAuthentication(client) : undefined);
 			}
+		}
+		if (method === ClientProxyChangedExtensionMethod) {
+			this._proxyResolver.notifySharedNetworkClientChanged(this._managedSettingsContributionId(client.clientId));
+			return Promise.resolve();
 		}
 		if (method === ReportChatUserInteractionExtensionMethod) {
 			if (!this._otelService?.diagnosticsEnabled) {

@@ -49,6 +49,8 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 		return Disposable.None;
 	}
 
+	notifySharedNetworkClientChanged(): void { }
+
 	async lookupClientKerberosAuthorization(): Promise<string | undefined> {
 		return undefined;
 	}
@@ -440,6 +442,25 @@ suite('AgentHostProxyResolver', () => {
 			resolved: ['https://shared.example/path'],
 			registrations: 1,
 		});
+	});
+
+	test('re-resolves proxies when a client sharing the network reports a change', async () => {
+		const resolver = disposables.add(new AgentHostProxyResolver(createAgentConfigurationService(disposables), new NullLogService()));
+		let changes = 0;
+		disposables.add(resolver.onDidChangeConfiguration(() => changes++));
+		let clientProxy = 'PROXY first.example:8080';
+		disposables.add(resolver.registerSharedNetworkClient('wsl', {
+			resolveProxy: async () => clientProxy,
+			lookupKerberosAuthorization: async () => undefined,
+		}));
+		const before = await resolver.resolveProxy('https://shared.example/path');
+
+		clientProxy = 'DIRECT';
+		resolver.notifySharedNetworkClientChanged('unknown');
+		resolver.notifySharedNetworkClientChanged('wsl');
+		const after = await resolver.resolveProxy('https://shared.example/path');
+
+		assert.deepStrictEqual({ before, after, changes }, { before: 'http://first.example:8080', after: undefined, changes: 1 });
 	});
 
 	test('uses this machine\'s Kerberos tickets before those of clients sharing the network', async () => {

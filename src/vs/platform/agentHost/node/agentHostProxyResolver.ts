@@ -99,6 +99,9 @@ export interface IAgentHostProxyResolver {
 	/** Register a client that shares this agent host's network. Disposing the result removes it. */
 	registerSharedNetworkClient(clientId: string, client: IAgentHostSharedNetworkClient): IDisposable;
 
+	/** A registered client sharing this agent host's network reports that its proxy resolution may have changed. */
+	notifySharedNetworkClientChanged(clientId: string): void;
+
 	/**
 	 * A `Negotiate` `Proxy-Authorization` value for `proxyUrl` from a client that shares this agent host's network, for
 	 * callers that already tried this machine's Kerberos tickets. `undefined` when no such client supplies one.
@@ -281,6 +284,15 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 				this._sharedNetworkClients.delete(clientId);
 			}
 		});
+	}
+
+	notifySharedNetworkClientChanged(clientId: string): void {
+		if (!this._sharedNetworkClients.has(clientId)) {
+			return;
+		}
+		// Drop proxies cached from the client's earlier resolution and let consumers re-resolve.
+		this._resetNetworking();
+		this._onDidChangeConfiguration.fire();
 	}
 
 	async lookupClientKerberosAuthorization(proxyUrl: string): Promise<string | undefined> {

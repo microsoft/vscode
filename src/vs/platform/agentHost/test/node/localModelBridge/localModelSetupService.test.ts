@@ -44,6 +44,7 @@ suite('LocalModelSetupService', () => {
 			onDidChangeConfiguration: Event.None,
 			register: () => toDisposable(() => { }),
 			registerSharedNetworkClient: () => toDisposable(() => { }),
+			notifySharedNetworkClientChanged: () => { },
 			lookupClientKerberosAuthorization: async () => undefined,
 			getConfigurationValue: () => undefined,
 			resolveProxy: async () => undefined,
