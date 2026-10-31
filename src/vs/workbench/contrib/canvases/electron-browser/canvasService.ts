@@ -156,9 +156,14 @@ export class CanvasService extends Disposable implements ICanvasService {
 					}
 					const requestId = this.requests.get(key);
 					const dismissed = this.dismissed.get(key);
+					const modalActive = this.editorGroupsService.activeModalEditorPart !== undefined;
+					const freshRequest = request?.succeeded && requestId !== presentation?.requestId && requestId !== dismissed?.requestId;
 					if (!visible || !workingSetPresented || canvas.source === undefined
 						|| (dismissed && (dismissed.requestId === requestId || !request?.succeeded))
 						|| (presentation?.opened && (presentation.requestId === requestId || !request?.succeeded))) {
+						continue;
+					}
+					if (modalActive && request && !request.succeeded) {
 						continue;
 					}
 					const input = existingInput ?? this.getOrCreateInput(reference, canvas);
@@ -166,13 +171,12 @@ export class CanvasService extends Disposable implements ICanvasService {
 						continue;
 					}
 					this.deleteDismissed(key);
-					if (presentation?.opened && request?.succeeded && this.editorService.isVisible(input)) {
+					if (!(modalActive && freshRequest) && presentation?.opened && request?.succeeded && this.editorService.isVisible(input)) {
 						presentation.requestId = requestId;
 						continue;
 					}
 					const restoreFallback = presentation?.admitted === true && !presentation.opened;
-					const freshRequest = request?.succeeded && requestId !== presentation?.requestId && requestId !== dismissed?.requestId;
-					void this.openInput(key, input, restoreFallback, restoreFallback || this.editorGroupsService.activeModalEditorPart !== undefined && !freshRequest)
+					void this.openInput(key, input, restoreFallback, restoreFallback || modalActive && !freshRequest)
 						.catch(error => this.reportError('Failed to reveal canvas', error));
 				}
 			}
@@ -320,7 +324,10 @@ export class CanvasService extends Disposable implements ICanvasService {
 			}
 			return pending.value;
 		}
-		const opening = this.doOpenInput(key, input, restoreFallback, preserveFocus).finally(() => this.opening.delete(input));
+		const opening = this.doOpenInput(key, input, restoreFallback, preserveFocus).finally(() => {
+			this.opening.delete(input);
+			this.presentationsChanged.trigger(undefined);
+		});
 		this.opening.set(input, { value: opening, restoreFallback, preserveFocus });
 		return opening;
 	}
@@ -331,6 +338,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 			throw new Error(localize('canvas.closed', "This canvas is no longer available."));
 		}
 		const presentation = this.getOrCreatePresentation(input.reference, canvas);
+		const requestId = this.requests.get(key);
 		const suppression = restoreFallback ? this.contextService.workingSets?.suppressEditorPartAutoVisibility() : undefined;
 		try {
 			if (!this.isOwnerPresentable(input.reference)) {
@@ -365,7 +373,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 			presentation.admitted = true;
 			presentation.opened = true;
 			presentation.restoreActive = false;
-			presentation.requestId = this.requests.get(key);
+			presentation.requestId = requestId;
 			input.setSerializationId(presentation.serializationId);
 			this.presentationsChanged.trigger(undefined);
 			if (!this.isOwnerPresentable(input.reference)) {

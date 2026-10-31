@@ -213,6 +213,45 @@ suite('CanvasService', () => {
 		]);
 	});
 
+	test('waits for a running model open before foregrounding through a modal', async () => {
+		const harness = createHarness();
+		harness.setModalActive(true);
+		harness.openRequests.set(new Map([['preview', { id: 'fresh-request', succeeded: false }]]), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		const beforeSuccess = harness.opened.length;
+		harness.openRequests.set(new Map([['preview', { id: 'fresh-request', succeeded: true }]]), undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			beforeSuccess,
+			options: harness.openOptions,
+		}, {
+			beforeSuccess: 0,
+			options: [{ pinned: true, revealIfOpened: true, preserveFocus: false }],
+		});
+	});
+
+	test('foregrounds a successful model open that arrives during modal-safe presentation', async () => {
+		const harness = createHarness();
+		harness.setModalActive(true);
+		const pending = harness.delayOpen();
+		harness.canvases.set([harness.canvas], undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'fresh-request', succeeded: true }]]), undefined);
+		await pending.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.openOptions, [
+			{
+				pinned: true,
+				revealIfOpened: true,
+				preserveFocus: true,
+				inactive: true,
+				activation: EditorActivation.PRESERVE,
+			},
+			{ pinned: true, revealIfOpened: true, preserveFocus: false },
+		]);
+	});
+
 	test('keeps hidden owners out of presentation and isolates identical instances in different chats', async () => {
 		const harness = createHarness();
 		harness.visible.set(new Set(), undefined);
