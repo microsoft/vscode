@@ -596,7 +596,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 				recovering: false,
 				recoveryGeneration: 0,
 				observedRequestId: requestId,
-				foregroundRequestId: undefined,
+				foregroundRequestId: request?.pending ? requestId : undefined,
 				foregroundRecovery: false,
 			};
 			this.sourceStates.set(key, state);

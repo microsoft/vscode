@@ -164,9 +164,11 @@ export class SessionCanvasRegistryService extends Disposable implements ISession
 		const chat = session.activeChat.get();
 		const instanceId = getSessionCanvasDefinitionInstanceId(canvas);
 		const existing = chat.canvases?.get()?.find(candidate => candidate.instanceId === instanceId);
-		if (existing?.source) {
+		if (existing) {
 			await this.canvasService.revealCanvas(createSessionCanvasReference(session, chat, existing));
-			return;
+			if (existing.source) {
+				return;
+			}
 		}
 		await this.sessionsManagementService.openCanvas(session, chat, canvas, instanceId);
 	}

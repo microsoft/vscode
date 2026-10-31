@@ -420,6 +420,50 @@ suite('SessionCanvasRegistryService', () => {
 		});
 	});
 
+	test('reveals an unavailable retained canvas before reopening it from Add Tab', async () => {
+		const definition: ISessionCanvasDefinition = {
+			canvasId: 'preview',
+			extensionId: 'user:preview',
+			extensionSource: 'user',
+			displayName: 'Preview',
+			description: 'Interactive preview.',
+			requiresInput: false,
+		};
+		const harness = createHarness([definition]);
+		await waitForState(harness.registryService.availableCanvases, canvases => canvases.length === 1);
+		const retained: ISessionCanvas = {
+			resource: URI.parse('agent-host-canvas:/preview'),
+			instanceId: getSessionCanvasDefinitionInstanceId(definition),
+			title: 'Preview',
+			source: undefined,
+		};
+		harness.canvases.set([retained], undefined);
+
+		await harness.registryService.openCanvas(definition);
+
+		assert.deepStrictEqual({
+			revealed: harness.revealed.map(reference => ({
+				session: reference.session.toString(),
+				chat: reference.chat.toString(),
+				canvas: reference.canvas.toString(),
+			})),
+			opened: harness.opened.map(entry => ({
+				canvasId: entry.canvas.canvasId,
+				instanceId: entry.instanceId,
+			})),
+		}, {
+			revealed: [{
+				session: 'agent-host-session:/session',
+				chat: 'agent-host-chat:/session/main',
+				canvas: 'agent-host-canvas:/preview',
+			}],
+			opened: [{
+				canvasId: 'preview',
+				instanceId: getSessionCanvasDefinitionInstanceId(definition),
+			}],
+		});
+	});
+
 	test('contributes registered extension canvases to the Add Tab Canvas submenu', async () => {
 		const definitions: ISessionCanvasDefinition[] = [
 			{

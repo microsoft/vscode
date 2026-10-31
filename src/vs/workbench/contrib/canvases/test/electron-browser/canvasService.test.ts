@@ -388,6 +388,25 @@ suite('CanvasService', () => {
 		});
 	});
 
+	test('foregrounds a pending request from the first canvas snapshot after recovery', async () => {
+		const harness = createHarness();
+		harness.visible.set(new Set(), undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'pending-request', succeeded: false, pending: true }]]), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			opened: harness.opened.length,
+			options: harness.openOptions,
+		}, {
+			opened: 1,
+			options: [{ pinned: true, revealIfOpened: true, preserveFocus: false }],
+		});
+	});
+
 	test('upgrades an in-flight recovery when a new request arrives', async () => {
 		const harness = createHarness();
 		harness.visible.set(new Set(), undefined);
