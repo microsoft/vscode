@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -20,7 +22,7 @@ import { IShellLaunchConfig, ITerminalChildProcess } from '../../../../../platfo
 import { AgentHostPty } from '../../browser/agentHostPty.js';
 import { AgentHostTerminalService } from '../../browser/agentHostTerminalService.js';
 import { ICreateTerminalOptions, ITerminalChatService, ITerminalInstance, ITerminalService } from '../../browser/terminal.js';
-import { ITerminalProfileService } from '../../common/terminal.js';
+import { ITerminalProfileProvider, ITerminalProfileService } from '../../common/terminal.js';
 
 class TestTerminalInstance extends mock<ITerminalInstance>() {
 	override readonly store = new DisposableStore();
@@ -42,6 +44,7 @@ class TestTerminalInstance extends mock<ITerminalInstance>() {
 
 class TestTerminalService extends mock<ITerminalService>() {
 	private readonly _ptyFactories: NonNullable<IShellLaunchConfig['customPtyImplementation']>[] = [];
+	readonly createdConfigs: IShellLaunchConfig[] = [];
 	failNextCreation = false;
 	disposeInstanceOnCreation = false;
 
@@ -55,6 +58,7 @@ class TestTerminalService extends mock<ITerminalService>() {
 		const factory = (config as IShellLaunchConfig).customPtyImplementation;
 		assert.ok(factory);
 		this._ptyFactories.push(factory);
+		this.createdConfigs.push(config as IShellLaunchConfig);
 		if (this.failNextCreation) {
 			this.failNextCreation = false;
 			throw new Error('terminal creation failed');
@@ -110,21 +114,45 @@ suite('AgentHostTerminalService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let terminalService: TestTerminalService;
 	let connection: TestAgentConnection;
+	let profileProviders: Map<string, ITerminalProfileProvider>;
 	let service: AgentHostTerminalService;
 
 	setup(() => {
 		terminalService = new TestTerminalService(store);
 		connection = new TestAgentConnection();
+		profileProviders = new Map();
 		service = store.add(new AgentHostTerminalService(
 			terminalService,
 			new class extends mock<ITerminalChatService>() {
 				override registerAhpCommandSource() { return Disposable.None; }
 				override registerTerminalInstanceWithToolSession() { }
 			},
-			new class extends mock<ITerminalProfileService>() { },
+			new class extends mock<ITerminalProfileService>() {
+				override registerTerminalProfileProvider(_extensionIdentifier: string, id: string, provider: ITerminalProfileProvider): IDisposable {
+					profileProviders.set(id, provider);
+					return Disposable.None;
+				}
+				override registerInternalContributedProfile(): IDisposable { return Disposable.None; }
+			},
 			new class extends mock<IQuickInputService>() { },
 			new class extends NullLogService { readonly _logBrand = undefined; },
 		));
+	});
+
+	test('terminals are titled by their process with the default icon unless named, like local terminals', async () => {
+		store.add(service.registerEntry({ name: 'This Computer', address: '__local__', getConnection: () => connection }));
+
+		await service.createTerminal(connection);
+		await service.createTerminal(connection, { name: 'Task: build' });
+		await profileProviders.get('__local__')!.createContributedTerminalProfile({});
+		await service.reviveTerminal(connection, URI.parse('agenthost-terminal:/tool-terminal'), 'tool-session');
+
+		assert.deepStrictEqual(terminalService.createdConfigs.map(({ name, icon }) => ({ name, icon })), [
+			{ name: undefined, icon: undefined },
+			{ name: 'Task: build', icon: undefined },
+			{ name: undefined, icon: undefined },
+			{ name: undefined, icon: ThemeIcon.fromId(Codicon.chatSparkle.id) },
+		]);
 	});
 
 	test('instance disposal locally disposes a created PTY without deleting the host terminal', async () => {

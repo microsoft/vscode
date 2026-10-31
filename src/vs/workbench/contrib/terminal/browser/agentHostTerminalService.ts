@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -19,7 +21,10 @@ import { ITerminalChatService, ITerminalInstance, ITerminalLocationOptions, ITer
 import { ITerminalProfileProvider, ITerminalProfileService } from '../common/terminal.js';
 
 export interface IAgentHostTerminalCreateOptions {
-	/** Human-readable terminal name. */
+	/**
+	 * Fixed terminal name. When omitted, the terminal is titled by its running
+	 * process, like a local terminal.
+	 */
 	readonly name?: string;
 	/** Initial working directory. */
 	readonly cwd?: URI;
@@ -269,13 +274,11 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		const provider: ITerminalProfileProvider = {
 			createContributedTerminalProfile: async (options) => {
 				let connection: IAgentConnection | undefined;
-				let displayName = entry.name;
 
 				if (key === '__quickpick__') {
-					const picks: (IQuickPickItem & { address: string; hostName: string })[] = allEntries.map(e => ({
+					const picks: (IQuickPickItem & { address: string })[] = allEntries.map(e => ({
 						label: localize('agentHostTerminal.profileName', "Agent Host ({0})", e.name),
 						address: e.address,
-						hostName: e.name,
 					}));
 					const pick = await this._quickInputService.pick(picks, {
 						placeHolder: localize('agentHostTerminal.pickHost', "Select an agent host to open a terminal on"),
@@ -285,7 +288,6 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 					}
 					this._usedHosts.add(pick.address);
 					this._reconcile();
-					displayName = pick.hostName;
 					connection = allEntries.find(e => e.address === pick.address)?.getConnection();
 				} else {
 					connection = entry.getConnection();
@@ -296,7 +298,6 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 				}
 
 				await this.createTerminal(connection, {
-					name: localize('agentHostTerminal.profileName', "Agent Host ({0})", displayName),
 					cwd: options.cwd ? (typeof options.cwd === 'string' ? URI.file(options.cwd) : options.cwd) : this._defaultCwd,
 					location: options.location,
 				});
@@ -338,7 +339,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 
 	async createTerminal(connection: IAgentConnection, options?: IAgentHostTerminalCreateOptions): Promise<ITerminalInstance> {
 		const terminalUri = URI.from({ scheme: 'agenthost-terminal', path: `/${generateUuid()}` });
-		const name = options?.name ?? localize('agentHostTerminal.default', "Agent Host Terminal");
+		const name = options?.name;
 		const key = terminalUri.toString();
 		const ptyRegistration = this._createPtyRegistration(key, connection.clientId);
 
@@ -358,7 +359,6 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 						return pty;
 					},
 					name,
-					icon: { id: 'remote' },
 					isFeatureTerminal: false,
 				},
 				location: options?.location,
@@ -421,7 +421,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 					ptyRegistration.setPty(pty);
 					return pty;
 				},
-				name: localize('agentHostTerminal.tool', "Agent Host Terminal"),
+				icon: ThemeIcon.fromId(Codicon.chatSparkle.id),
 				isFeatureTerminal: true,
 				hideFromUser: true,
 			},
