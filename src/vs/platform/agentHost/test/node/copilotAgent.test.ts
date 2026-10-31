@@ -850,6 +850,9 @@ class TestCopilotClient implements ITestCopilotClient {
 			},
 			checkInUse: async params => {
 				this.checkInUseRequests.push(params.sessionIds);
+				if (this.checkInUseRequests.length > (this.releaseInUseAfterChecks ?? Infinity)) {
+					this.inUseSessionIds.clear();
+				}
 				return { inUse: params.sessionIds.filter(sessionId => this.inUseSessionIds.has(sessionId)) };
 			},
 		},
@@ -934,6 +937,8 @@ class TestCopilotClient implements ITestCopilotClient {
 	sessionListError: Error | undefined;
 	/** Sessions another process holds, as reported by `sessions.checkInUse`. */
 	readonly inUseSessionIds = new Set<string>();
+	/** How many `sessions.checkInUse` calls report {@link inUseSessionIds} before that process releases them. */
+	releaseInUseAfterChecks: number | undefined;
 	readonly checkInUseRequests: string[][] = [];
 	readonly modelListRequests: Parameters<CopilotModelsList>[0][] = [];
 	readonly pluginInstallRequests: Parameters<CopilotPluginsInstall>[0][] = [];
@@ -30153,22 +30158,40 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('importing a chat that another process is using fails before resuming it unless the client takes it over', async () => {
+		test('importing a chat that another process keeps using fails before resuming it unless the client takes it over', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { agent, client, chat, context, adoptions } = createImportedChat(true);
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				await agent.materializeChat(chat, context, undefined);
 				await assert.rejects(() => agent.importChat(chat, context), { code: AhpErrorCodes.Conflict });
-				const refused = { checkInUse: [...client.checkInUseRequests], resumes: [...agent.resumeCalls], adoptions: [...adoptions] };
+				const refused = { checks: client.checkInUseRequests.length, resumes: [...agent.resumeCalls], adoptions: [...adoptions] };
 				await agent.importChat(chat, context, { takeOver: true });
-				assert.deepStrictEqual({ refused, takenOver: { resumes: agent.resumeCalls, adoptions } }, {
-					refused: { checkInUse: [['cli-import']], resumes: [], adoptions: [] },
-					takenOver: { resumes: ['cli-import'], adoptions: ['cli-import'] },
+				assert.deepStrictEqual({ refused, takenOver: { checks: client.checkInUseRequests.length - refused.checks, resumes: agent.resumeCalls, adoptions } }, {
+					// Checked once, then every 250ms for 5s.
+					refused: { checks: 21, resumes: [], adoptions: [] },
+					takenOver: { checks: 1, resumes: ['cli-import'], adoptions: ['cli-import'] },
 				});
 			} finally {
 				await disposeAgent(agent);
 			}
-		});
+		}));
+
+		test('importing a chat waits for a process that is handing it off to release it', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { agent, client, chat, context, adoptions } = createImportedChat(true);
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.materializeChat(chat, context, undefined);
+				client.releaseInUseAfterChecks = 4;
+				await agent.importChat(chat, context);
+				assert.deepStrictEqual({ checks: client.checkInUseRequests.length, resumes: agent.resumeCalls, adoptions }, {
+					checks: 5,
+					resumes: ['cli-import'],
+					adoptions: ['cli-import'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		}));
 
 		test('adopts a session whose recorded working directory no longer exists into the workspaceless scratch directory', async () => {
 			// A legacy session whose original folder or worktree was deleted on disk

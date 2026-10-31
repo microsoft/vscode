@@ -8,7 +8,7 @@ import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHu
 import { constants as fsConstants } from 'fs';
 import * as fs from 'fs/promises';
 import * as os from 'os';
-import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, Promises, raceCancellationError, raceTimeout, Sequencer, SequencerByKey } from '../../../../base/common/async.js';
+import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, Promises, raceCancellationError, raceTimeout, Sequencer, SequencerByKey, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { arrayEquals, structuralEquals } from '../../../../base/common/equals.js';
 import { CancellationError, getErrorCode, getErrorMessage } from '../../../../base/common/errors.js';
@@ -223,6 +223,13 @@ export async function getCopilotManagedSettingsDiagnostics(
 }
 
 const RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS = 300;
+/**
+ * How often, and how many times, importing a chat checks again for another process to release its session.
+ * A Copilot CLI that hands a session off with `/code` holds it until it finishes exiting, which its own
+ * teardown limits to a few seconds.
+ */
+const IMPORT_SESSION_RELEASE_POLL_MS = 250;
+const IMPORT_SESSION_RELEASE_POLLS = 20;
 const COPILOT_CAPI_URL = 'https://api.githubcopilot.com';
 const SESSION_METADATA_BULK_THRESHOLD = 100;
 const SESSION_METADATA_CACHE_TTL_MS = 30_000;
@@ -4978,9 +4985,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const sdkSessionId = context.sdkSessionId ?? context.sessionBackedId ?? context.ownerSessionId;
 		// The runtime records which processes hold a session; resuming one that another process
 		// holds would leave two writers on the same history. The record is best effort, so a
-		// client may take over a session whose holder no longer runs it.
-		const { inUse } = await (await this._ensureClient()).rpc.sessions.checkInUse({ sessionIds: [sdkSessionId] });
-		if (inUse.includes(sdkSessionId)) {
+		// client may take over a session whose holder no longer runs it. A Copilot CLI that just
+		// handed the session off is still exiting, so give it a moment before refusing.
+		const client = await this._ensureClient();
+		const isInUse = async () => (await client.rpc.sessions.checkInUse({ sessionIds: [sdkSessionId] })).inUse.includes(sdkSessionId);
+		let inUse = await isInUse();
+		for (let poll = 0; inUse && !options?.takeOver && poll < IMPORT_SESSION_RELEASE_POLLS; poll++) {
+			await timeout(IMPORT_SESSION_RELEASE_POLL_MS);
+			inUse = await isInUse();
+			if (!inUse) {
+				this._logService.info(`[Copilot:${context.ownerSessionId}] Session ${sdkSessionId} was released by another process after ${(poll + 1) * IMPORT_SESSION_RELEASE_POLL_MS}ms`);
+			}
+		}
+		if (inUse) {
 			if (!options?.takeOver) {
 				throw new ProtocolError(AhpErrorCodes.Conflict, localize('copilotAgent.sessionInUse', "This session is still open in another Copilot CLI process. Exit the session there, then try again."));
 			}

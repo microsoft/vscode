@@ -2070,7 +2070,9 @@ export interface IAgent {
 	 * Takes over a restored default chat that a client explicitly imports, before
 	 * the host adopts its session. Rejects when the chat cannot move to this host;
 	 * a chat that another process is using is rejected with `Conflict` unless
-	 * {@link IAgentImportChatOptions.takeOver} is set. A provider may also align
+	 * {@link IAgentImportChatOptions.takeOver} is set. A provider may wait briefly
+	 * for that process to release it first, as a process that just handed the
+	 * chat off may still be exiting. A provider may also align
 	 * the chat's configuration with the state its runtime persisted for the chat,
 	 * and returns the model and agent the chat continues with so the host can
 	 * offer them for the next turn.
