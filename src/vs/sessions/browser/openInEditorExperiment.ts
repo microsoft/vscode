@@ -16,23 +16,24 @@ import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js'
 import { IsAuxiliaryWindowContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution } from '../../workbench/common/contributions.js';
 import { IWorkbenchAssignmentService } from '../../workbench/services/assignment/common/assignmentService.js';
-import { IsPhoneLayoutContext, SessionHasWorkspaceContext, SessionsHideOpenInEditorForFolderlessSessionsContext, SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
+import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext, SessionsHideOpenInEditorForFolderlessSessionsContext, SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
 
-/** ExP treatment that hides Open in Editor while the active chat has no workspace folder. */
+/** ExP treatment that hides Open in Editor in quick chats whose active chat has no workspace folder. */
 export const HIDE_OPEN_IN_EDITOR_FOR_FOLDERLESS_SESSIONS_TREATMENT = 'sessions.hideOpenInEditorForFolderlessSessions';
 
 /** Where the Agents window title bar can show Open in Editor. */
 export const OpenInEditorTitleBarContext = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate())!;
 
 /**
- * Whether Open in Editor is offered for the active chat. A folderless chat has no folder to open in the
- * editor, which would only show an empty window, so the {@link HIDE_OPEN_IN_EDITOR_FOR_FOLDERLESS_SESSIONS_TREATMENT}
- * experiment hides it then.
+ * Whether Open in Editor is offered for the active chat. In a quick chat without a folder of its own, the editor
+ * would only show an empty window, so the {@link HIDE_OPEN_IN_EDITOR_FOR_FOLDERLESS_SESSIONS_TREATMENT} experiment
+ * hides it then. A missing workspace alone doesn't make a chat folderless: no session is active while the window
+ * starts, and a session's workspace may still be loading.
  */
-export const OpenInEditorAvailableContext = ContextKeyExpr.or(SessionHasWorkspaceContext, SessionsHideOpenInEditorForFolderlessSessionsContext.negate())!;
+export const OpenInEditorAvailableContext = ContextKeyExpr.or(IsQuickChatSessionContext.negate(), SessionHasWorkspaceContext, SessionsHideOpenInEditorForFolderlessSessionsContext.negate())!;
 
-/** Where the experiment arms diverge: only the control arm shows Open in Editor for a folderless chat. */
-const FolderlessOpenInEditorContext = ContextKeyExpr.and(OpenInEditorTitleBarContext, SessionHasWorkspaceContext.negate())!;
+/** Where the experiment arms diverge: only the control arm shows Open in Editor for a quick chat without a folder. */
+const FolderlessOpenInEditorContext = ContextKeyExpr.and(OpenInEditorTitleBarContext, IsQuickChatSessionContext, SessionHasWorkspaceContext.negate())!;
 
 /**
  * Applies the {@link HIDE_OPEN_IN_EDITOR_FOR_FOLDERLESS_SESSIONS_TREATMENT} experiment through

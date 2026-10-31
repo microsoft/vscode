@@ -119,25 +119,28 @@ suite('VS Code Actions', () => {
 		}]);
 	});
 
-	test('hides Open in Editor for folderless sessions only in the experiment treatment, keeping Open VS Code Window bound', () => {
+	test('hides Open in Editor only for folderless quick chats in the experiment treatment, keeping Open VS Code Window bound', () => {
 		const desktopOpenInEditor = new OpenSessionInVSCodeAction();
 		const webOpenInEditor = new OpenInVSCodeAction();
 		const openVSCodeWindow = new OpenVSCodeWindowAction().desc;
 		const keybinding = Array.isArray(openVSCodeWindow.keybinding) ? openVSCodeWindow.keybinding[0] : openVSCodeWindow.keybinding;
 		const sessions = {
+			// No session is active while the window starts, or while the composer creates its draft.
+			noActiveSession: undefined,
 			workspace: createActiveSession('workspace', { session: [URI.file('/repo')], chat: [URI.file('/repo')] }),
-			folderless: createActiveSession('folderless', {}),
-			// A chat can work in a folder of its own although its session has none, as in a quick chat.
-			folderlessSessionWithChatFolder: createActiveSession('chat-folder', { chat: [URI.file('/chat')] }),
+			workspaceLoading: createActiveSession('loading', {}),
+			folderlessQuickChat: createActiveSession('quick-chat', { quickChat: true }),
+			// A quick chat's chat can work in a folder of its own although its session has none.
+			quickChatWithChatFolder: createActiveSession('quick-chat-folder', { quickChat: true, chat: [URI.file('/chat')] }),
 		};
-		const evaluate = (session: IActiveSession, hideForFolderlessSessions: boolean) => {
+		const evaluate = (session: IActiveSession | undefined, hideForFolderlessSessions: boolean) => {
 			const contextKeyService = disposables.add(new MockContextKeyService());
 			setActiveSessionContextKeys(session, contextKeyService, undefined);
 			SessionsHideOpenInEditorForFolderlessSessionsContext.bindTo(contextKeyService).set(hideForFolderlessSessions);
 			const matches = (expression: ContextKeyExpression | null | undefined) => expression?.evaluate({ getValue: key => contextKeyService.getContextKeyValue(key) }) ?? true;
 			const availability = ({ desc }: Action2) => {
 				const menu = Array.isArray(desc.menu) ? desc.menu[0] : desc.menu;
-				return { visible: matches(menu?.when), enabled: matches(desc.precondition) };
+				return { visible: matches(menu?.when), precondition: matches(desc.precondition) };
 			};
 			return {
 				desktop: availability(desktopOpenInEditor),
@@ -145,21 +148,17 @@ suite('VS Code Actions', () => {
 				openVSCodeWindowKeybinding: matches(keybinding?.when) ? keybinding?.primary : undefined,
 			};
 		};
-		const evaluateArm = (hideForFolderlessSessions: boolean) => ({
-			workspace: evaluate(sessions.workspace, hideForFolderlessSessions),
-			folderless: evaluate(sessions.folderless, hideForFolderlessSessions),
-			folderlessSessionWithChatFolder: evaluate(sessions.folderlessSessionWithChatFolder, hideForFolderlessSessions),
-		});
+		const evaluateArm = (hideForFolderlessSessions: boolean) => Object.fromEntries(Object.entries(sessions).map(([name, session]) => [name, evaluate(session, hideForFolderlessSessions)]));
 		const openVSCodeWindowKeybinding = KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA;
-		const shown = { desktop: { visible: true, enabled: true }, web: { visible: true, enabled: true }, openVSCodeWindowKeybinding };
-		const hidden = { desktop: { visible: false, enabled: false }, web: { visible: false, enabled: false }, openVSCodeWindowKeybinding };
+		const shown = { desktop: { visible: true, precondition: true }, web: { visible: true, precondition: true }, openVSCodeWindowKeybinding };
+		const hidden = { desktop: { visible: false, precondition: false }, web: { visible: false, precondition: false }, openVSCodeWindowKeybinding };
 
 		assert.deepStrictEqual({
 			control: evaluateArm(false),
 			treatment: evaluateArm(true),
 		}, {
-			control: { workspace: shown, folderless: shown, folderlessSessionWithChatFolder: shown },
-			treatment: { workspace: shown, folderless: hidden, folderlessSessionWithChatFolder: shown },
+			control: { noActiveSession: shown, workspace: shown, workspaceLoading: shown, folderlessQuickChat: shown, quickChatWithChatFolder: shown },
+			treatment: { noActiveSession: shown, workspace: shown, workspaceLoading: shown, folderlessQuickChat: hidden, quickChatWithChatFolder: shown },
 		});
 	});
 
@@ -331,12 +330,13 @@ function createSession(id: string, isCreated: boolean, folders?: URI[]): IActive
 }
 
 /** Creates an active session complete enough to publish the active-session context keys. */
-function createActiveSession(id: string, folders: { readonly session?: URI[]; readonly chat?: URI[] }): IActiveSession {
+function createActiveSession(id: string, options: { readonly quickChat?: boolean; readonly session?: URI[]; readonly chat?: URI[] }): IActiveSession {
 	const session = createTestActiveSession(id);
-	const chat: IChat = { ...session.activeChat.get(), workspace: createWorkspace(id, folders.chat) };
+	const chat: IChat = { ...session.activeChat.get(), workspace: createWorkspace(id, options.chat) };
 	return {
 		...session,
-		workspace: createWorkspace(id, folders.session),
+		workspace: createWorkspace(id, options.session),
+		isQuickChat: constObservable(options.quickChat ?? false),
 		chats: constObservable([chat]),
 		openChats: constObservable([chat]),
 		visibleChatTabs: constObservable([chat]),
