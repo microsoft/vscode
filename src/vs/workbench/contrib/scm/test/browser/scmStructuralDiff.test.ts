@@ -274,7 +274,7 @@ suite('SCM structural diff tree', () => {
 		}, { keyboard: 'run', aria: 'run, method' });
 	});
 
-	test('renders symbol and deletion icons without status text or file actions', () => {
+	test('renders symbol icons and a textual deletion marker without file actions', () => {
 		const renderer = new SCMStructuralDiffRenderer(NullHoverService);
 		const container = $('.scm-view');
 		const template = store.add(renderer.renderTemplate(container));
@@ -287,14 +287,15 @@ suite('SCM structural diff tree', () => {
 		render({ ...child, node: { ...child.node, modified: undefined } });
 		const methodIcon = !!container.querySelector('.codicon-colored.codicon-symbol-method');
 		const deletedText = template.label.element.textContent;
-		const deletedIcon = !!container.querySelector('.codicon-diff-removed');
+		const deletedMarker = template.status.textContent;
 		render({ type: 'structuralDiffStatus', id: 'partial', status: 'incomplete', parent: resource, resource, generation: 1, order: 1 });
 		assert.deepStrictEqual({
-			classIcon, methodIcon, deletedText, deletedIcon, status: template.label.element.textContent,
+			classIcon, methodIcon, deletedText, deletedMarker, status: template.label.element.textContent,
+			marker: template.status.textContent,
 			warning: !!container.querySelector('.codicon-warning'),
 			warningColored: template.icon.classList.contains('codicon-colored'),
 			actions: container.querySelectorAll('.actions').length,
-		}, { classIcon: true, methodIcon: true, deletedText: 'run', deletedIcon: true, status: 'Partial structural changes', warning: true, warningColored: false, actions: 0 });
+		}, { classIcon: true, methodIcon: true, deletedText: 'run', deletedMarker: '[-]', status: 'Partial structural changes', marker: '', warning: true, warningColored: false, actions: 0 });
 	});
 
 	test('applies the same symbol theme colors as Outline when reusing a row', () => {
@@ -325,7 +326,7 @@ suite('SCM structural diff tree', () => {
 		});
 	});
 
-	test('renders themed diff status icons with accessible text and disposes hovers on row reuse', () => {
+	test('renders themed textual status markers with accessible descriptions and disposes hovers on row reuse', () => {
 		const container = $('.monaco-workbench.scm-view');
 		mainWindow.document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
@@ -352,7 +353,8 @@ suite('SCM structural diff tree', () => {
 			renderer.renderElement(makeNode(element), 0, template);
 			const color = getWindow(container).getComputedStyle(template.status).color;
 			return {
-				glyph: [...template.status.classList].filter(value => value.startsWith('codicon-')),
+				marker: template.status.textContent,
+				iconClasses: [...template.status.classList].filter(value => value.startsWith('codicon')),
 				color,
 				text: template.label.element.textContent,
 				annotation: template.annotation.textContent,
@@ -361,7 +363,7 @@ suite('SCM structural diff tree', () => {
 			};
 		});
 		renderer.renderElement(makeNode(parent), 0, template);
-		const containerState = { hidden: template.metadata.style.display === 'none', activeHovers: hoverService.active };
+		const containerState = { hidden: template.metadata.style.display === 'none', marker: template.status.textContent, activeHovers: hoverService.active };
 		renderer.renderElement(makeNode(modified), 0, template);
 		renderer.disposeElement(makeNode(modified), 0, template);
 		assert.deepStrictEqual({
@@ -369,11 +371,11 @@ suite('SCM structural diff tree', () => {
 			decorative: template.status.getAttribute('aria-hidden'),
 		}, {
 			rows: [
-				{ glyph: ['codicon-diff-added'], color: 'rgb(10, 110, 30)', text: 'run(value: number)', annotation: '', activeHovers: 1, aria: 'run, method, Added, (value: number)' },
-				{ glyph: ['codicon-diff-removed'], color: 'rgb(160, 20, 40)', text: 'run', annotation: '', activeHovers: 1, aria: 'run, method, Deleted' },
-				{ glyph: ['codicon-diff-modified'], color: 'rgb(30, 80, 170)', text: 'run', annotation: '[impl]', activeHovers: 1, aria: 'run, method, Implementation changed' },
+				{ marker: '[+]', iconClasses: [], color: 'rgb(10, 110, 30)', text: 'run(value: number)', annotation: '', activeHovers: 1, aria: 'run, method, Added, (value: number)' },
+				{ marker: '[-]', iconClasses: [], color: 'rgb(160, 20, 40)', text: 'run', annotation: '', activeHovers: 1, aria: 'run, method, Deleted' },
+				{ marker: '[~]', iconClasses: [], color: 'rgb(30, 80, 170)', text: 'run', annotation: 'impl', activeHovers: 1, aria: 'run, method, Implementation changed' },
 			],
-			containerState: { hidden: true, activeHovers: 0 }, hovers: ['Added', 'Deleted', 'Implementation changed', 'Implementation changed'],
+			containerState: { hidden: true, marker: '', activeHovers: 0 }, hovers: ['Added', 'Deleted', 'Implementation changed', 'Implementation changed'],
 			activeAfterUnrender: 0, decorative: 'true',
 		});
 	});
@@ -400,7 +402,7 @@ suite('SCM structural diff tree', () => {
 				text: template.label.element.textContent,
 				annotation: template.annotation.textContent,
 				aria: template.label.element.getAttribute('aria-label'),
-				modifiedIcon: template.status.classList.contains('codicon-diff-modified'),
+				marker: template.status.textContent,
 			};
 		};
 		const rows = [
@@ -412,12 +414,12 @@ suite('SCM structural diff tree', () => {
 		const added = render({ ...child, node: { ...withChanges([], [StructuralDiffClassification.Header]).node, original: undefined } });
 		assert.deepStrictEqual({ rows, ancestor, added, hovers: hoverService.labels }, {
 			rows: [
-				{ text: 'run(value: number)', annotation: '[decl]', aria: 'run, method, Declaration changed, (value: number)', modifiedIcon: true },
-				{ text: 'run(value: number)', annotation: '[impl]', aria: 'run, method, Implementation changed, (value: number)', modifiedIcon: true },
-				{ text: 'run(value: number)', annotation: '[decl+impl]', aria: 'run, method, Declaration and implementation changed, (value: number)', modifiedIcon: true },
+				{ text: 'run(value: number)', annotation: 'decl', aria: 'run, method, Declaration changed, (value: number)', marker: '[~]' },
+				{ text: 'run(value: number)', annotation: 'impl', aria: 'run, method, Implementation changed, (value: number)', marker: '[~]' },
+				{ text: 'run(value: number)', annotation: 'decl+impl', aria: 'run, method, Declaration and implementation changed, (value: number)', marker: '[~]' },
 			],
-			ancestor: { text: 'Calculator', annotation: '', aria: 'Calculator, class', modifiedIcon: false },
-			added: { text: 'run(value: number)', annotation: '', aria: 'run, method, Added, (value: number)', modifiedIcon: false },
+			ancestor: { text: 'Calculator', annotation: '', aria: 'Calculator, class', marker: '' },
+			added: { text: 'run(value: number)', annotation: '', aria: 'run, method, Added, (value: number)', marker: '[+]' },
 			hovers: ['Declaration changed', 'Implementation changed', 'Declaration and implementation changed', 'Added'],
 		});
 	});
@@ -442,29 +444,32 @@ suite('SCM structural diff tree', () => {
 		assert.deepStrictEqual({
 			text: template.label.element.textContent,
 			annotation: template.annotation.textContent,
-			modifiedIcon: template.status.classList.contains('codicon-diff-modified'),
-			addedIcon: template.status.classList.contains('codicon-diff-added'),
+			marker: template.status.textContent,
+			modified: template.status.classList.contains('modified'),
+			added: template.status.classList.contains('added'),
 			hovers: hoverService.labels,
 			aria: template.label.element.getAttribute('aria-label'),
 		}, {
-			text: 'runNext2', annotation: '[rename]', modifiedIcon: true, addedIcon: false,
+			text: 'runNext2', annotation: 'rename', marker: '[~]', modified: true, added: false,
 			hovers: ['Renamed from runNext to runNext2'],
 			aria: 'runNext2, method, Renamed from runNext to runNext2',
 		});
 	});
 
-	test('right-aligns bracketed annotations before status icons without squeezing them for long names', () => {
+	test('right-aligns unbracketed annotations before textual status markers without squeezing them for long names', () => {
 		const container = $('.monaco-workbench.scm-view');
 		container.style.width = '240px';
 		mainWindow.document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
 		const renderer = new SCMStructuralDiffRenderer(NullHoverService);
 		const cases = [
-			{ name: 'aVeryLongMethodNameThatMustBeTruncatedBeforeTheAnnotation', classifications: [StructuralDiffClassification.Header] },
-			{ name: 'run', classifications: [StructuralDiffClassification.Implementation] },
-			{ name: 'calculate', classifications: [StructuralDiffClassification.Header, StructuralDiffClassification.Implementation] },
+			{ name: 'aVeryLongMethodNameThatMustBeTruncatedBeforeTheAnnotation', classifications: [StructuralDiffClassification.Header], change: 'modified' },
+			{ name: 'run', classifications: [StructuralDiffClassification.Implementation], change: 'modified' },
+			{ name: 'calculate', classifications: [StructuralDiffClassification.Header, StructuralDiffClassification.Implementation], change: 'modified' },
+			{ name: 'newMethod', classifications: [], change: 'added' },
+			{ name: 'oldMethod', classifications: [], change: 'deleted' },
 		];
-		const templates = cases.map(({ name, classifications }) => {
+		const templates = cases.map(({ name, classifications, change }) => {
 			const row = $('.monaco-list-row');
 			row.style.position = 'relative';
 			row.style.width = '100%';
@@ -475,8 +480,8 @@ suite('SCM structural diff tree', () => {
 				...child,
 				node: {
 					...child.node,
-					original: { ...child.node.original!, name },
-					modified: { ...child.node.modified!, name },
+					original: change === 'added' ? undefined : { ...child.node.original!, name },
+					modified: change === 'deleted' ? undefined : { ...child.node.modified!, name },
 					modifiedChanges: classifications.map(classification => ({ textChangeIndex: 0, range: new Range(3, 2, 3, 5), classification })),
 				},
 			};
@@ -488,20 +493,24 @@ suite('SCM structural diff tree', () => {
 		});
 		const firstAnnotationRight = templates[0].annotation.getBoundingClientRect().right;
 		const firstStatusRight = templates[0].status.getBoundingClientRect().right;
+		const annotatedTemplates = templates.filter(template => template.annotation.style.display !== 'none');
 		const nameContainer = templates[0].label.element.querySelector('.monaco-icon-label-container');
 		assert.ok(nameContainer);
 		assert.deepStrictEqual({
 			annotations: templates.map(template => template.annotation.textContent),
-			annotationEdgesAligned: templates.every(template => Math.abs(template.annotation.getBoundingClientRect().right - firstAnnotationRight) < 1),
+			markers: templates.map(template => template.status.textContent),
+			annotationEdgesAligned: annotatedTemplates.every(template => Math.abs(template.annotation.getBoundingClientRect().right - firstAnnotationRight) < 1),
 			statusEdgesAligned: templates.every(template => Math.abs(template.status.getBoundingClientRect().right - firstStatusRight) < 1),
-			noOverlap: templates.every(template => template.label.element.getBoundingClientRect().right <= template.annotation.getBoundingClientRect().left),
-			annotationsNotClipped: templates.every(template => template.annotation.scrollWidth <= template.annotation.clientWidth),
+			noOverlap: templates.every(template => template.label.element.getBoundingClientRect().right <= template.metadata.getBoundingClientRect().left),
+			annotationsNotClipped: annotatedTemplates.every(template => template.annotation.scrollWidth <= template.annotation.clientWidth),
+			markersNotClipped: templates.every(template => template.status.scrollWidth <= template.status.clientWidth),
 			longNameTruncated: nameContainer.scrollWidth > nameContainer.clientWidth,
 			metadataHiddenFromScreenReaders: templates.every(template => template.metadata.getAttribute('aria-hidden') === 'true'),
 		}, {
-			annotations: ['[decl]', '[impl]', '[decl+impl]'],
+			annotations: ['decl', 'impl', 'decl+impl', '', ''],
+			markers: ['[~]', '[~]', '[~]', '[+]', '[-]'],
 			annotationEdgesAligned: true, statusEdgesAligned: true, noOverlap: true,
-			annotationsNotClipped: true, longNameTruncated: true, metadataHiddenFromScreenReaders: true,
+			annotationsNotClipped: true, markersNotClipped: true, longNameTruncated: true, metadataHiddenFromScreenReaders: true,
 		});
 	});
 

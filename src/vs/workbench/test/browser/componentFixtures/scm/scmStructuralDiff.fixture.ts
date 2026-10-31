@@ -21,35 +21,35 @@ export default defineThemedFixtureGroup({ path: 'scm/' }, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: [
-			'A class named Calculator contains a changed calculate method, an added newMethod, and a deleted oldMethod. The changed method has a muted [impl] annotation aligned on the right, immediately before its modified diff icon. The signature stays beside the method name. The class and method icons use their respective Outline symbol theme colors, with normal Source Control row spacing. Modified, added, and removed diff icons align on the right, using the corresponding Git decoration theme colors. Added/deleted methods and the unchanged Calculator container have no change-part annotation. A warning row below the class says Partial structural changes.',
+			'A class named Calculator contains a changed calculate method, an added newMethod, and a deleted oldMethod. The changed method has a muted impl annotation without brackets aligned on the right, immediately before its [~] status marker. The signature stays beside the method name. The class and method icons use their respective Outline symbol theme colors, with normal Source Control row spacing. The textual [~], [+], and [-] status markers align on the right, using the corresponding Git decoration theme colors. Added/deleted methods have no change-part annotation, and the unchanged Calculator container has neither an annotation nor a status marker. A warning row below the class says Partial structural changes.',
 		],
 		render: context => renderStructuralChanges(context, 360),
 	}),
 	StructuralChangesNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: [
-			'A narrow Source Control symbol tree keeps its icons and indentation aligned. The long calculate method name and signature truncate with an ellipsis instead of overflowing, while the right-aligned [impl] annotation and diff icon remain fully visible. Right-aligned diff icons remain visible for added and deleted methods, and a partial-results warning appears below the class.',
+			'A narrow Source Control symbol tree keeps its icons and indentation aligned. The long calculate method name and signature truncate with an ellipsis instead of overflowing, while the right-aligned impl annotation without brackets and [~] status marker remain fully visible. Right-aligned [+] and [-] status markers remain visible for added and deleted methods, and a partial-results warning appears below the class.',
 		],
 		render: context => renderStructuralChanges(context, 220),
 	}),
 	StructuralDeclarationChanges: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: [
-			'The changed calculate method has a muted [decl] annotation aligned on the right, immediately before its modified diff icon. Its name and signature remain on the left. Added/deleted methods and the unchanged Calculator container have no change-part annotation.',
+			'The changed calculate method has a muted decl annotation without brackets aligned on the right, immediately before its [~] status marker. Its name and signature remain on the left. Added/deleted methods and the unchanged Calculator container have no change-part annotation.',
 		],
 		render: context => renderStructuralChanges(context, 360, [StructuralDiffClassification.Header]),
 	}),
 	StructuralDeclarationAndImplementationChanges: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: [
-			'The changed calculate method has a muted [decl+impl] annotation aligned on the right, immediately before its modified diff icon. Its name and signature remain on the left. Added/deleted methods and the unchanged Calculator container have no change-part annotation.',
+			'The changed calculate method has a muted decl+impl annotation without brackets aligned on the right, immediately before its [~] status marker. Its name and signature remain on the left. Added/deleted methods and the unchanged Calculator container have no change-part annotation.',
 		],
 		render: context => renderStructuralChanges(context, 360, [StructuralDiffClassification.Header, StructuralDiffClassification.Implementation]),
 	}),
 	StructuralRename: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: [
-			'The renamed calculate method has a muted [rename] annotation aligned on the right, immediately before its modified diff icon. The displayed name is calculate, while the hover and accessible label identify its previous name compute. Added/deleted methods and the unchanged Calculator container have no rename annotation.',
+			'The renamed calculate method has a muted rename annotation without brackets aligned on the right, immediately before its [~] status marker. The displayed name is calculate, while the hover and accessible label identify its previous name compute. Added/deleted methods and the unchanged Calculator container have no rename annotation.',
 		],
 		render: context => renderStructuralChanges(context, 360, [StructuralDiffClassification.Header], 'compute'),
 	}),

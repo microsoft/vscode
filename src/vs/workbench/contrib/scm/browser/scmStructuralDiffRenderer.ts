@@ -69,13 +69,18 @@ export class SCMStructuralDiffRenderer implements ICompressibleTreeRenderer<SCMS
 			matches: createMatches(node.filterData),
 			labelEscapeNewLines: true,
 		});
-		template.annotation.textContent = annotation ? localize('structuralDiff.bracketedAnnotation', "[{0}]", annotation.label) : '';
+		template.annotation.textContent = annotation?.label ?? '';
 		template.annotation.style.display = annotation ? '' : 'none';
 		template.status.className = 'scm-structural-change-status';
+		template.status.textContent = '';
 		template.metadata.style.display = change ? '' : 'none';
 		if (change) {
-			const icon = change.type === 'added' ? Codicon.diffAdded : change.type === 'deleted' ? Codicon.diffRemoved : Codicon.diffModified;
-			template.status.classList.add(change.type, ...ThemeIcon.asClassNameArray(icon));
+			template.status.textContent = change.type === 'added'
+				? localize('structuralDiff.addedMarker', "[+]")
+				: change.type === 'deleted'
+					? localize('structuralDiff.deletedMarker', "[-]")
+					: localize('structuralDiff.modifiedMarker', "[~]");
+			template.status.classList.add(change.type);
 			template.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(template.metadata, {
 				content: annotation?.description ?? change.label,
 				style: HoverStyle.Mouse,
