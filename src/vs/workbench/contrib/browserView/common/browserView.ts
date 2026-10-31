@@ -6,7 +6,7 @@
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
@@ -264,22 +264,48 @@ export interface IBrowserViewOpenHandler {
 	shouldOpenEditor(input: BrowserEditorInput, owner: IBrowserViewOwner, editorOptions: IBrowserViewEditorOpenOptions): boolean;
 }
 
+/** Whether browser views may use remote networks (see {@link IBrowserViewNetworkResolver}). */
+export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';
+
 /**
- * Resolves the opening network and optional workspace storage partition.
+ * Resolves the opening network and optional workspace storage partition,
+ * for windows whose views can belong to different networks (the Agents
+ * window, whose sessions can run on remote agent hosts).
  * Without a resolver, views use the window's network and storage.
  */
 export interface IBrowserViewNetworkResolver {
 	/**
 	 * Called synchronously when a browser view is created, before any
 	 * asynchronous work, so the network reflects the context the view was
-	 * opened from. Returns `undefined` for the local network.
+	 * opened from. Returns `undefined` for the local network, or `null` when
+	 * the owner is unknown (e.g. its session is gone): tabs then use the local
+	 * network, while embedded views, which require their owner's network, fail.
 	 */
-	resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | undefined;
+	resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | null | undefined;
 	/**
-	 * Selects shared workspace storage on another network, or in-memory storage when absent.
+	 * Selects shared workspace storage on another network (e.g. by agent host
+	 * and folder roots), or in-memory storage when absent.
 	 * Called synchronously alongside {@link resolveNetwork}.
 	 */
 	resolveStorageAffinity?(owner: IBrowserViewOwner): string | undefined;
+	/** The status of a network this resolver resolves views to. */
+	getNetworkStatus(network: IBrowserViewNetwork): IBrowserViewNetworkStatus;
+	/** Fires when the status of any network may have changed. */
+	readonly onDidChangeNetworkStatus: Event<void>;
+}
+
+/** The status of a remote network, as reported by its {@link IBrowserViewNetworkResolver}. */
+export interface IBrowserViewNetworkStatus {
+	/** The display name of the network's host. */
+	readonly label: string;
+	/** Whether the network's host is connected. Pages on it wait for it to reconnect. */
+	readonly connected: boolean;
+	/**
+	 * Whether the network's host can proxy browsers, or `undefined` while
+	 * unknown (e.g. still connecting). Views opened for a network whose host
+	 * cannot proxy browsers use the local network instead.
+	 */
+	readonly proxySupported: boolean | undefined;
 }
 
 /**
@@ -316,13 +342,22 @@ export interface IBrowserViewWorkbenchService {
 	resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | undefined;
 
 	/**
-	 * Hold a network's proxy until the returned disposable is disposed, so
+	 * Hold a network's proxy until the returned reference is disposed, so
 	 * pages created on that network outside the workbench (e.g. by automation)
-	 * always have one. A proxy that fails to start is logged, not thrown: those
+	 * always have one. The reference's object is the network those pages
+	 * should use: `undefined` when the network's host cannot proxy browsers,
+	 * so they use the local network. Throws for a network the window cannot
+	 * reach at all. A proxy that fails to start is logged, not thrown: those
 	 * pages then fail to load rather than use the local network, and the hold
 	 * still restarts it when a new proxy provider is registered.
 	 */
-	acquireNetwork(network: IBrowserViewNetwork): Promise<IDisposable>;
+	acquireNetwork(network: IBrowserViewNetwork): Promise<IReference<IBrowserViewNetwork | undefined>>;
+
+	/** The status of a remote network: the window's own remote, or one reported by the network resolver. */
+	getNetworkStatus(network: IBrowserViewNetwork): IBrowserViewNetworkStatus;
+
+	/** Fires when the status of any network may have changed. */
+	readonly onDidChangeNetworkStatus: Event<void>;
 
 	/**
 	 * Register the resolver that picks the network of new browser views.
@@ -399,7 +434,8 @@ export interface IBrowserViewWorkbenchService {
 
 	/**
 	 * Creates an unlisted user-owned ephemeral view for embedding outside the browser editor.
-	 * When `networkOwner` is given, the view uses the network resolved for that owner.
+	 * When `networkOwner` is given, the view uses the network resolved for that owner, and
+	 * fails rather than load from the local network when it cannot use that network.
 	 */
 	createExternalBrowserView(initialUrl: string, openSource?: IntegratedBrowserOpenSource, networkOwner?: IBrowserViewOwner): Promise<IBrowserViewModel>;
 

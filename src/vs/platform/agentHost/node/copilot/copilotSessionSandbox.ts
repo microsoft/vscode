@@ -15,11 +15,13 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService } from '../../../log/common/log.js';
 import { normalizeSandboxFileSystemPath } from '../../../sandbox/common/settings.js';
 import type { IAgentPermissionResponseContext } from '../../common/agent.js';
+import { getAttachedLocalPaths } from '../../common/attachedLocalPaths.js';
 import type { IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import type { MessageAttachment } from '../../common/state/protocol/state.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import type { ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -32,7 +34,7 @@ import { CopilotSandboxDiagnostics } from './copilotSandboxDiagnostics.js';
 import { CopilotSandboxCertificateDiagnostics } from './copilotSandboxCertificateDiagnostics.js';
 import { applySandboxConfig } from './copilotSessionLauncher.js';
 import type { ShellManager } from './copilotShellTools.js';
-import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigForSdk.js';
+import { buildSandboxConfigForSdk, resolveAttachedPathGrants, toSandboxFileSystemPath, type ISandboxAttachedPathGrants, type ISandboxAttachedPaths, type SandboxConfig } from './sandboxConfigForSdk.js';
 
 /** A config change of the chat this SDK session runs. */
 interface ISandboxConfigChange {
@@ -51,6 +53,7 @@ interface ICopilotSessionSandboxOptions {
 	readonly getConfigWriteTarget: () => IAgentChatConfigurationTarget;
 	readonly platform: NodeJS.Platform;
 	readonly getSession: () => CopilotSession | undefined;
+	readonly isSessionClosed?: (session?: CopilotSession) => boolean;
 	readonly getHostSupport: () => ReturnType<CopilotClient['rpc']['sandbox']['getHostSupport']>;
 	readonly getCertificateStatus: (config: SandboxConfig) => Promise<IAgentSandboxCertificateStatus | undefined>;
 	readonly installCertificate: (getConfig: () => SandboxConfig, scopeId: string) => Promise<void>;
@@ -58,6 +61,10 @@ interface ICopilotSessionSandboxOptions {
 	readonly removeCertificate: (scopeId: string, validate: () => void) => Promise<void>;
 	readonly getShellInitDirectory: () => URI | undefined;
 	readonly getAppliedPluginDirectories: () => readonly URI[];
+	/** The working directory the runtime grants when `addCurrentWorkingDirectory` is on. */
+	readonly getWorkingDirectory: () => URI | undefined;
+	/** Further working directories the SDK session was launched with; the runtime grants them read/write. */
+	readonly getAdditionalWorkingDirectories: () => readonly URI[];
 	readonly shellManager: ShellManager | undefined;
 	readonly onDidChangeRuntimeConfig?: () => void;
 }
@@ -66,6 +73,8 @@ interface ICopilotSessionSandboxOptions {
 export class CopilotSessionSandbox extends Disposable {
 	private readonly _requests = new Map<string, string>();
 	private readonly _pendingPathGrants = new Map<string, ISandboxPathGrant>();
+	/** Local files and folders the user attached to this chat, by URI; read-only for the life of the SDK session, never saved to settings. */
+	private readonly _attachedPaths = new Map<string, URI>();
 	private readonly _configSequencer = new Sequencer();
 	private readonly _diagnostics: CopilotSandboxDiagnostics;
 	private readonly _certificateDiagnostics: CopilotSandboxCertificateDiagnostics;
@@ -148,13 +157,15 @@ export class CopilotSessionSandbox extends Disposable {
 				if (!context.sandboxPathGrantSaved) {
 					throw new Error(localize('copilot.permission.grant.unsupportedClient', "This client did not save the sandbox path grant. Update VS Code and retry."));
 				}
-				if (token.isCancellationRequested || !requestId || !grant || this._requests.get(toolCallId) !== requestId) {
+				// The SDK session stops being available once it starts disconnecting.
+				const session = this._options.getSession();
+				if (token.isCancellationRequested || !requestId || !grant || this._requests.get(toolCallId) !== requestId || !session) {
 					throw new Error(localize('copilot.permission.grant.expired', "The sandbox permission request is no longer pending."));
 				}
 				const attributed = attributePermissionResult({ kind: 'approve-once' }, context.decisionSource);
 				// The grant changes the runtime's live policy outside `options.update`.
 				this._appliedConfig = undefined;
-				const result = await this._options.getSession()!.rpc.sandbox.grantPathForRequest({
+				const result = await session.rpc.sandbox.grantPathForRequest({
 					requestId,
 					...(attributed.kind === 'attributed' ? { decisionContext: attributed.decisionContext } : {}),
 				});
@@ -176,6 +187,43 @@ export class CopilotSessionSandbox extends Disposable {
 		}
 	}
 
+	/**
+	 * Records the local files and folders of a user message so the next applied
+	 * config grants them read-only. Returns whether the message attaches any
+	 * local path, new or not: a caller that sends before the next turn must then
+	 * await {@link applyConfig}, which also waits for an update still in flight.
+	 */
+	addAttachments(attachments: readonly MessageAttachment[] | undefined): boolean {
+		const uris = getAttachedLocalPaths(attachments);
+		for (const uri of uris) {
+			this._attachedPaths.set(uri.toString(), uri);
+		}
+		return uris.length > 0;
+	}
+
+	/** The local attachments the sandbox can't make readable: those the effective policy blocks, and folders containing a writable folder. */
+	getUnreadableAttachments(attachments: readonly MessageAttachment[] | undefined): Pick<ISandboxAttachedPathGrants, 'blocked' | 'containsWritable'> {
+		const paths = getAttachedLocalPaths(attachments);
+		if (!paths.length || this._disabledForSession) {
+			return { blocked: [], containsWritable: [] };
+		}
+		const target = this._target();
+		const sandbox = getSessionSandboxConfig(this._configurationService, target, this._options.platform);
+		const policy = this._configurationService.getSessionSandboxPolicy(target.session);
+		const { blocked, containsWritable } = resolveAttachedPathGrants(this._options.platform, sandbox, policy, this._attachedPathsFor(paths));
+		return { blocked, containsWritable };
+	}
+
+	/** Uses the session's platform rather than `URI.fsPath`, whose syntax follows the OS of the current process. */
+	private _attachedPathsFor(uris: readonly URI[]): ISandboxAttachedPaths {
+		const workingDirectory = this._options.getWorkingDirectory();
+		return {
+			paths: uris.map(uri => toSandboxFileSystemPath(uri, this._options.platform)),
+			...(workingDirectory ? { workingDirectory: toSandboxFileSystemPath(workingDirectory, this._options.platform) } : {}),
+			additionalWorkingDirectories: this._options.getAdditionalWorkingDirectories().map(uri => toSandboxFileSystemPath(uri, this._options.platform)),
+		};
+	}
+
 	/** Whether the Agent Host's own shell tools replace the SDK's built-in shell. */
 	isCustomTerminalToolEnabled(): boolean {
 		return this._options.platform !== 'win32' && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
@@ -193,26 +241,46 @@ export class CopilotSessionSandbox extends Disposable {
 		return { session: this._options.ownerSession.toString(), chat: this._options.chat.toString() };
 	}
 
-	applyLaunchConfig(session: CopilotSession): Promise<void> {
-		return this._configSequencer.queue(() => {
+	private _getLaunchSelection(isResume: boolean): 'on' | 'off' | 'default' | undefined {
+		if (this._pendingSelection !== undefined || !isResume) {
+			return this._pendingSelection;
+		}
+		const target = this._target();
+		const policy = this._configurationService.getSessionSandboxPolicy(target.session);
+		return policy?.enabled && policy.allowBypass === true
+			&& this._configurationService.getChatSandboxEnabled(target) === false
+			&& this._configurationService.getChatConfigValues(target)?.[SessionConfigKey.SandboxEnabled] === 'off'
+			? 'off' : undefined;
+	}
+
+	applyLaunchConfig(session: CopilotSession, isResume = false): Promise<void> {
+		return this._configSequencer.queue(async () => {
 			this._launchSession = session;
-			const requestedSelection = this._pendingSelection;
+			const requestedSelection = this._getLaunchSelection(isResume);
 			this._pendingSelection = undefined;
 			this._appliedConfig = undefined;
-			return this._updateConfig(true, requestedSelection, undefined, session, false);
+			if (isResume) {
+				this._disabledForSession = false;
+			}
+			try {
+				await this._updateConfig(true, requestedSelection, undefined, session, false, isResume);
+			} catch (error) {
+				this._launchSession = undefined;
+				throw error;
+			}
 		});
 	}
 
 	/** The config {@link applyLaunchConfig} pushes, so it can also be applied when the SDK session opens; `undefined` when the launch uses the session command or pushes nothing. */
-	getLaunchConfig(): SandboxConfig | undefined {
-		return this._configForUpdate(this._pendingSelection, this._computeConfig());
+	getLaunchConfig(isResume = false): SandboxConfig | undefined {
+		return this._configForUpdate(this._getLaunchSelection(isResume), this._computeConfig(), isResume);
 	}
 
-	private _configForUpdate(requestedSelection: 'on' | 'off' | 'default' | undefined, base: SandboxConfig | undefined): SandboxConfig | undefined {
+	private _configForUpdate(requestedSelection: 'on' | 'off' | 'default' | undefined, base: SandboxConfig | undefined, isResume = false): SandboxConfig | undefined {
 		if (requestedSelection !== undefined && this._requiresSessionCommand()) {
 			return undefined;
 		}
-		if (!base && this._disabledForSession) {
+		if (!base && this._disabledForSession && !isResume) {
 			// A bare disabled options.update does not preserve the runtime's managed sandbox floor.
 			return undefined;
 		}
@@ -230,7 +298,7 @@ export class CopilotSessionSandbox extends Disposable {
 				.map(scope => this._sessionDataService.getSessionDataDir(URI.parse(scope))),
 			shellInitDirectory: this._options.getShellInitDirectory(),
 		}), ...this._options.getAppliedPluginDirectories()].map(root => root.fsPath);
-		return buildSandboxConfigForSdk(this._options.platform, sandbox, readonlyPaths, policy);
+		return buildSandboxConfigForSdk(this._options.platform, sandbox, readonlyPaths, policy, this._attachedPathsFor([...this._attachedPaths.values()]));
 	}
 
 	updateDiagnostics(config?: SandboxConfig): Promise<void> {
@@ -313,7 +381,10 @@ export class CopilotSessionSandbox extends Disposable {
 		return (policy?.enabled === true && policy.allowBypass === true) || this._disabledForSession;
 	}
 
-	private async _updateConfig(failOnError: boolean, requestedSelection: 'on' | 'off' | 'default' | undefined, recorder?: IAgentProviderSendStageRecorder, session = this._options.getSession() ?? this._launchSession, reportMutation = true): Promise<void> {
+	private async _updateConfig(failOnError: boolean, requestedSelection: 'on' | 'off' | 'default' | undefined, recorder?: IAgentProviderSendStageRecorder, session = this._options.getSession() ?? this._launchSession, reportMutation = true, isResume = false): Promise<void> {
+		if (this._store.isDisposed || this._options.isSessionClosed?.(session)) {
+			return;
+		}
 		if (!session) {
 			if (requestedSelection !== undefined) {
 				this._pendingSelection = requestedSelection;
@@ -321,12 +392,14 @@ export class CopilotSessionSandbox extends Disposable {
 			return;
 		}
 		// Saving settings must not replace the live policy before the runtime accepts the pending grant.
-		if (this._pendingPathGrants.size && requestedSelection === undefined) {
+		if (this._pendingPathGrants.size && requestedSelection === undefined && !isResume) {
 			this._configUpdateDeferred = true;
 			return;
 		}
 		const base = this._computeConfig();
 		const target = this._target();
+		const writeTarget = this._options.getConfigWriteTarget();
+		const values = this._configurationService.getChatConfigValues(writeTarget);
 		if (requestedSelection !== undefined && this._requiresSessionCommand()) {
 			const enabled = requestedSelection === 'on' || (requestedSelection === 'default' && base?.enabled === true);
 			this._options.onDidChangeRuntimeConfig?.();
@@ -340,7 +413,7 @@ export class CopilotSessionSandbox extends Disposable {
 			await measureAgentProviderOperation(recorder, 'sandboxDiagnostics', () => this.updateDiagnostics(enabled ? base : { enabled: false }));
 			return;
 		}
-		const sandboxConfig = this._configForUpdate(requestedSelection, base);
+		const sandboxConfig = this._configForUpdate(requestedSelection, base, isResume);
 		if (!sandboxConfig) {
 			return;
 		}
@@ -350,13 +423,29 @@ export class CopilotSessionSandbox extends Disposable {
 			if (!unchanged && reportMutation) {
 				this._options.onDidChangeRuntimeConfig?.();
 			}
-			if (unchanged || await measureAgentProviderOperation(recorder, 'sandboxRpc', () => applySandboxConfig(session, sandboxConfig, this._options.sessionId, this._logService, requestedSelection !== undefined))) {
-				this._appliedConfig = serialized;
-				this._disabledForSession = false;
-				this._configurationService.setChatSandboxEnabled(target, sandboxConfig.enabled);
-				await measureAgentProviderOperation(recorder, 'sandboxDiagnostics', () => this.updateDiagnostics(sandboxConfig));
+			if (!unchanged) {
+				const result = await measureAgentProviderOperation(recorder, 'sandboxRpc', () => applySandboxConfig(session, sandboxConfig, this._options.sessionId, this._logService, isResume || requestedSelection !== undefined, () => !!this._options.isSessionClosed?.(session)));
+				if (this._store.isDisposed || this._options.isSessionClosed?.(session)) {
+					return;
+				}
+				if (!result.applied) {
+					this._configurationService.reportChatSandboxConflict(target, result.message);
+					return;
+				}
 			}
+			this._appliedConfig = serialized;
+			this._disabledForSession = false;
+			this._configurationService.setChatSandboxEnabled(target, sandboxConfig.enabled);
+			if (isResume && requestedSelection === undefined && sandboxConfig.enabled
+				&& values?.[SessionConfigKey.SandboxEnabled] === 'off'
+				&& this._configurationService.getChatConfigValues(writeTarget) === values) {
+				this._configurationService.updateChatConfig(writeTarget, { [SessionConfigKey.SandboxEnabled]: 'on' });
+			}
+			await measureAgentProviderOperation(recorder, 'sandboxDiagnostics', () => this.updateDiagnostics(sandboxConfig));
 		} catch (err) {
+			if (this._store.isDisposed || this._options.isSessionClosed?.(session)) {
+				return;
+			}
 			if (failOnError) {
 				throw err;
 			}
@@ -364,3 +453,4 @@ export class CopilotSessionSandbox extends Disposable {
 		}
 	}
 }
+

@@ -12,13 +12,14 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CanvasesEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { EditorActivation, IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotification, INotificationHandle } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { IEditorIdentifier, ITextDiffEditorPane } from '../../../../common/editor.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService, IEditorPart, IModalEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
 import { CanvasInput, canvasOwnerKey, ICanvas, ICanvasContext, ICanvasContextService, ICanvasOpenRequest, ICanvasOwner, isCanvasOwner } from '../../common/canvas.js';
@@ -38,13 +39,18 @@ suite('CanvasService', () => {
 		const contexts = observableValue<readonly ICanvasContext[]>('contexts', [{ owner, canvases, openRequests }]);
 		const visible = observableValue<ReadonlySet<string>>('visible', new Set([canvasOwnerKey(owner)]));
 		const removed = store.add(new Emitter<ICanvasOwner>());
+		const groupRestores: boolean[] = [];
 		const contextService = upcastPartial<ICanvasContextService>({
 			contexts, onDidRemoveOwner: removed.event,
 			isOwnerVisible: (owner, reader) => visible.read(reader).has(canvasOwnerKey(owner)),
 			getContext: (owner, reader) => contexts.read(reader).find(context => isCanvasOwner(context.owner, owner)),
-			getEditorGroup: () => targetGroup,
+			getEditorGroup: (_owner, _input, restore) => {
+				groupRestores.push(restore);
+				return targetGroup;
+			},
 		});
 		const opened: CanvasInput[] = [];
+		const openOptions: (IEditorOptions | undefined)[] = [];
 		const openEditors: IEditorIdentifier[] = [];
 		const closed: CanvasInput[] = [];
 		const moves: string[] = [];
@@ -73,6 +79,7 @@ suite('CanvasService', () => {
 					throw new Error('Expected a canvas input');
 				}
 				opened.push(input);
+				openOptions.push(args[1] as IEditorOptions | undefined);
 				if (pendingOpen) {
 					await pendingOpen.p;
 				}
@@ -99,9 +106,11 @@ suite('CanvasService', () => {
 			}
 		}();
 		const instantiationService = store.add(new TestInstantiationService());
+		let modalActive = false;
 		const editorGroupsService = upcastPartial<IEditorGroupsService>({
 			mainPart: upcastPartial<IEditorPart>({ windowId: 1 }),
 			getGroup: id => groups.find(group => group.id === id),
+			get activeModalEditorPart() { return modalActive ? upcastPartial<IModalEditorPart>({}) : undefined; },
 		});
 		instantiationService.stub(IEditorGroupsService, editorGroupsService);
 		const sentiment = store.add(new Emitter<void>());
@@ -113,11 +122,12 @@ suite('CanvasService', () => {
 		const service = store.add(new CanvasService(contextService, editorService, editorGroupsService, instantiationService, upcastPartial<IBrowserViewWorkbenchService>({}), entitlementService,
 			new TestConfigurationService({ [CanvasesEnabledSettingId]: true }), new NullLogService(), notificationService));
 		return {
-			owner, canvas, canvases, contexts, openRequests, visible, removed, opened, openEditors, closed, moves, notifications, service,
+			owner, canvas, canvases, contexts, openRequests, visible, removed, opened, openOptions, openEditors, closed, moves, groupRestores, notifications, service,
 			delayOpen: () => pendingOpen = new DeferredPromise<void>(),
 			failOpen: (value: boolean) => failOpen = value,
 			hideAI: () => { hidden = true; sentiment.fire(); },
 			showAI: () => { hidden = false; sentiment.fire(); },
+			setModalActive: (value: boolean) => modalActive = value,
 			selectGroup: (id: number) => targetGroup = groups[id - 1],
 		};
 	}
@@ -142,7 +152,7 @@ suite('CanvasService', () => {
 		harness.opened[0].dispose();
 		harness.canvases.set([{ ...harness.canvas, title: 'Updated', source: URI.parse('https://example.test/replacement') }], undefined);
 		const afterMetadata = harness.opened.length;
-		harness.openRequests.set(new Map([['preview', { id: 'second', succeeded: false }]]), undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'second', succeeded: false, pending: true }]]), undefined);
 		const beforeSuccess = harness.opened.length;
 		harness.openRequests.set(new Map([['preview', { id: 'second', succeeded: true }]]), undefined);
 		await timeout(0);
@@ -153,7 +163,7 @@ suite('CanvasService', () => {
 
 	test('does not undo a user close after the corresponding model open started', async () => {
 		const harness = createHarness();
-		harness.openRequests.set(new Map([['preview', { id: 'opening', succeeded: false }]]), undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'opening', succeeded: false, pending: true }]]), undefined);
 		harness.canvases.set([harness.canvas], undefined);
 		await timeout(0);
 		harness.opened[0].dispose();
@@ -163,12 +173,106 @@ suite('CanvasService', () => {
 
 	test('acknowledges successful opens of a visible canvas without repeatedly revealing it', async () => {
 		const harness = createHarness();
-		harness.openRequests.set(new Map([['preview', { id: 'first', succeeded: false }]]), undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'first', succeeded: false, pending: true }]]), undefined);
 		harness.canvases.set([harness.canvas], undefined);
 		await timeout(0);
 		harness.openRequests.set(new Map([['preview', { id: 'first', succeeded: true }]]), undefined);
 		harness.openRequests.set(new Map([['preview', { id: 'second', succeeded: true }]]), undefined);
 		assert.strictEqual(harness.opened.length, 1);
+	});
+
+	test('automatic presentation preserves an active modal while explicit reveal foregrounds', async () => {
+		const harness = createHarness();
+		harness.setModalActive(true);
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		await harness.service.revealCanvas(harness.opened[0].reference);
+
+		assert.deepStrictEqual(harness.openOptions, [
+			{
+				pinned: true,
+				revealIfOpened: true,
+				preserveFocus: true,
+				inactive: true,
+				activation: EditorActivation.PRESERVE,
+			},
+			{ pinned: true, revealIfOpened: true, preserveFocus: false },
+		]);
+		assert.deepStrictEqual(harness.groupRestores, [false, false]);
+	});
+
+	test('completed historical model opens preserve an active modal', async () => {
+		const harness = createHarness();
+		harness.setModalActive(true);
+		harness.openRequests.set(new Map([['preview', { id: 'historical-request', succeeded: true }]]), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.openOptions, [
+			{
+				pinned: true,
+				revealIfOpened: true,
+				preserveFocus: true,
+				inactive: true,
+				activation: EditorActivation.PRESERVE,
+			},
+		]);
+	});
+
+	test('waits for a running model open before foregrounding through a modal', async () => {
+		const harness = createHarness();
+		harness.setModalActive(true);
+		harness.openRequests.set(new Map([['preview', { id: 'fresh-request', succeeded: false, pending: true }]]), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		const beforeSuccess = harness.opened.length;
+		harness.openRequests.set(new Map([['preview', { id: 'fresh-request', succeeded: true }]]), undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			beforeSuccess,
+			options: harness.openOptions,
+		}, {
+			beforeSuccess: 0,
+			options: [{ pinned: true, revealIfOpened: true, preserveFocus: false }],
+		});
+	});
+
+	test('failed model opens still allow modal-safe background presentation', async () => {
+		const harness = createHarness();
+		harness.setModalActive(true);
+		harness.openRequests.set(new Map([['preview', { id: 'failed-request', succeeded: false }]]), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.openOptions, [{
+			pinned: true,
+			revealIfOpened: true,
+			preserveFocus: true,
+			inactive: true,
+			activation: EditorActivation.PRESERVE,
+		}]);
+	});
+
+	test('foregrounds a successful model open that arrives during modal-safe presentation', async () => {
+		const harness = createHarness();
+		harness.setModalActive(true);
+		const pending = harness.delayOpen();
+		harness.canvases.set([harness.canvas], undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'fresh-request', succeeded: false, pending: true }]]), undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'fresh-request', succeeded: true }]]), undefined);
+		await pending.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.openOptions, [
+			{
+				pinned: true,
+				revealIfOpened: true,
+				preserveFocus: true,
+				inactive: true,
+				activation: EditorActivation.PRESERVE,
+			},
+			{ pinned: true, revealIfOpened: true, preserveFocus: false },
+		]);
 	});
 
 	test('keeps hidden owners out of presentation and isolates identical instances in different chats', async () => {

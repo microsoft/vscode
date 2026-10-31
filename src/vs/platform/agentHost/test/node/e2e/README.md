@@ -187,6 +187,8 @@ Terminal resilience assertions compare filesystem identity rather than Windows s
 
 The `regression coverage:` history cases inspect actual provider-bound continued context after cold resume and selected-turn forks, with live file-edit/result pairing and independent peer histories. They do not establish native overlapping disposal, interrupted parallel completion, or strict-transcript opt-in prerequisites that AHP does not expose.
 
+Claude's provider-context fork scenarios are enabled with the bundled SDK `0.3.304`: client-assigned turn IDs resolve to the requested provider boundary in live recording and strict replay. Coverage includes first- and middle-turn boundaries, completed tools, a restored peer as the source, independent branch continuation after restart, and unknown-turn forks retaining no source context. The bounded side-chat scenario also enforces request comparison without a stale-capture exception. These checks cover the previously gated behavior tracked in [#328104](https://github.com/microsoft/vscode/issues/328104), without substituting seeded AHP history for the actual model request.
+
 Historical checkpoint comparisons use completed provider turns rather than bang commands. Per-turn subscriptions currently select the file-edit tracker, which cannot see shell edits; compare-turn subscriptions use Git checkpoints. Checkpoint capture is asynchronous after turn completion, so these historical scenarios finish a subsequent no-tool turn before comparing earlier turns. Seed staged user changes before the baseline turn, and use an ignored execution witness when an edit-and-restore scenario intentionally has no final diff.
 
 Working-tree captures must read current bytes without changing the user's index, even when same-size edits retain cached file timestamps. The host copies an index only when it matches HEAD; with staged changes it seeds the temporary index from HEAD so restaging cannot silently reuse stale staged blobs. Keep staged additions, modifications, and linked-worktree cases covered.
@@ -647,6 +649,10 @@ Everything else — i.e. the model endpoints `/v1/messages` and `/responses` —
 ---
 
 ## Troubleshooting
+
+### Unrecorded `GET /json/version` or `GET /json/list`
+
+Local debugger discovery (for example dbgjs) probes listening HTTP ports to find DevTools targets, including the replay proxy's port. These requests are not provider traffic. The proxy responds with HTTP 404 before record/replay processing, so probes neither enter fixtures nor cause teardown cache misses. Other unknown endpoints and unrecorded model requests still fail strict replay.
 
 ### `[capi-replay] N cache miss(es): POST <endpoint> (call #K) — no recorded response`
 

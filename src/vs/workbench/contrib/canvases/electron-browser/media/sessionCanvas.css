@@ -15,6 +15,11 @@
 	inset: 0;
 }
 
+/* The native view copies this radius, so keep canvases square unless a host frame rounds them. */
+.session-canvas-editor > .browser-container-wrapper > .browser-container {
+	border-radius: 0;
+}
+
 .session-canvas-editor .session-canvas-message {
 	position: absolute;
 	inset: 0;

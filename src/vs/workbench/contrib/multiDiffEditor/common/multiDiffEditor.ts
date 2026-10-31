@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
+import { URI } from '../../../../base/common/uri.js';
 import type { MultiDiffEditorVariant } from '../../../../editor/common/multiDiffEditor.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
@@ -102,6 +105,52 @@ export function setMultiDiffEditorFileListViewMode(storageService: IStorageServi
 	} else {
 		storageService.remove(multiDiffEditorFileListViewModeStorageKey, StorageScope.PROFILE);
 	}
+}
+
+/** Sorts like the Source Control view's tree: folders first, then by name. */
+function compareFileListTreeNodes<T>(a: IResourceNode<T, null>, b: IResourceNode<T, null>): number {
+	const aIsFolder = a.childrenCount > 0;
+	const bIsFolder = b.childrenCount > 0;
+	if (aIsFolder !== bIsFolder) {
+		return aIsFolder ? -1 : 1;
+	}
+	return compareFileNames(a.name, b.name);
+}
+
+/**
+ * Sorts items in the order in which the file list shows them, like the Source
+ * Control view: by path in the flat list, and folders first in the tree.
+ */
+export function sortMultiDiffEditorFileListItems<T>(items: readonly T[], getUri: (item: T) => URI, viewMode: MultiDiffEditorFileListViewMode): T[] {
+	if (viewMode === 'list') {
+		return items.toSorted((a, b) => comparePaths(getUri(a).fsPath, getUri(b).fsPath));
+	}
+
+	// Group by path only: the sides of a diff can use different schemes (e.g. `git:` for a deleted file).
+	const rootUri = URI.from({ scheme: 'multiDiffEditorFileList', path: '/' });
+
+	// Several items can share a path: a deleted file `config` and
+	// an added `config/settings.json`, or two diffs of the same file.
+	const resourceTree = new ResourceTree<T[], null>(null, rootUri);
+	for (const item of items) {
+		const uri = rootUri.with({ path: getUri(item).path });
+		const node = resourceTree.getNode(uri);
+		if (node?.element) {
+			node.element.push(item);
+		} else {
+			resourceTree.add(uri, [item]);
+		}
+	}
+
+	const result: T[] = [];
+	const collect = (folder: IResourceNode<T[], null>) => {
+		for (const child of [...folder.children].sort(compareFileListTreeNodes)) {
+			result.push(...child.element ?? []);
+			collect(child);
+		}
+	};
+	collect(resourceTree.root);
+	return result;
 }
 
 export type MultiDiffEditorFileListPosition = 'left' | 'right';

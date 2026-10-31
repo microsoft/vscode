@@ -22,7 +22,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import semver from 'semver';
 import parallel from '../parallel.ts';
 
-const { getWorkerCount, removeArgument, runInWorkers, writeWorkerReport, trackTestFiles, distributeTestFiles } = parallel;
+const { getWorkerCount, getWorkerCountForFiles, removeArgument, runInWorkers, writeWorkerReport, trackTestFiles, distributeTestFiles } = parallel;
 
 /**
  * @type {{ build: boolean; run: string; runList: string; runGlob: string; grep?: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; timeout?: string; 'rerun-failed-files'?: string; workers?: string; worker?: string; workerDir?: string; }}
@@ -48,7 +48,7 @@ const args = minimist(process.argv.slice(2), {
 		coveragePath: 'Path to coverage report to generate',
 		coverageFormats: 'Coverage formats to generate',
 		timeout: 'Timeout for tests',
-		workers: 'Number of parallel worker processes for a run of all test files',
+		workers: 'Number of parallel worker processes for a run of all test files, or of those of --runList',
 		help: 'Show help'
 	}
 });
@@ -64,7 +64,7 @@ Options:
 --coverage       Generate a coverage report
 --timeout <ms>   Test timeout (default: 5000 locally, 30000 in CI; alias: -t)
 --rerun-failed-files <count>  Rerun failed tests (suites for failed hooks) in a fresh process up to <count> more times; use whole files for many failures
---workers <n>    Run all test files in <n> parallel processes, at most one per CPU and per 2 GB of memory; ignored when only some files or tests run; reruns use one process
+--workers <n>    Run all test files, or those of --runList, in <n> parallel processes, at most one per CPU and per 2 GB of memory; with --runList, one per 75 test files that run, but at least 2 and at most one per file; ignored with --run, --runGlob, --grep or --coverage; reruns use one process
 --help           Show help`);
 	process.exit(0);
 }
@@ -112,6 +112,32 @@ const currentNodeVersion = semver.parse(process.version);
 if (currentNodeVersion?.major < requiredNodeVersion?.major) {
 	console.error(`node.js unit tests require a major node.js version of ${requiredNodeVersion?.major} (your version is: ${currentNodeVersion?.major})`);
 	process.exit(1);
+}
+
+/** @type {Promise<string[]> | undefined} */
+let testModules;
+
+/**
+ * Finds the test modules that a run without --run or --runGlob loads, once: all test files, or the
+ * listed ones, except those that cannot run in node.js. With --runList, the process that starts the
+ * workers needs them as well, to start as many workers as they need, and reports them for all workers.
+ * @returns {Promise<string[]>}
+ */
+function findTestModules() {
+	testModules ??= new Promise((resolve, reject) => {
+		glob(TEST_GLOB, { cwd: src }, (err, files) => {
+			if (err) {
+				reject(err);
+				return;
+			}
+			const modules = files.filter(file => !excludeGlobs.some(excludeGlob => minimatch(file, excludeGlob)) && (!runList || runList.has(file))).map(file => file.replace(/\.js$/, ''));
+			if (runList && !args.worker) {
+				console.log(`Running the ${modules.length} node.js test files of the ${runList.size} files listed in ${args.runList}`);
+			}
+			resolve(modules);
+		});
+	});
+	return testModules;
 }
 
 function main() {
@@ -234,19 +260,7 @@ function main() {
 		};
 	} else {
 		loadFunc = (cb) => {
-			glob(TEST_GLOB, { cwd: src }, function(err, files) {
-				/** @type {string[]} */
-				const modules = [];
-				for (const file of files) {
-					if (!excludeGlobs.some(excludeGlob => minimatch(file, excludeGlob)) && (!runList || runList.has(file))) {
-						modules.push(file.replace(/\.js$/, ''));
-					}
-				}
-				if (runList) {
-					console.log(`Running the ${modules.length} node.js test files of the ${runList.size} files listed in ${args.runList}`);
-				}
-				loadModules(modules).then(() => cb(null), cb);
-			});
+			findTestModules().then(loadModules).then(() => cb(null), cb);
 		};
 	}
 
@@ -630,20 +644,15 @@ function escapeRegExp(value) {
 	return value.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&').replace(/[\n\r\u2028\u2029]/g, character => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`);
 }
 
-// Only a run of all test files is spread across worker processes, reruns of failed tests run in one process
-let workerCount = 1;
-try {
-	workerCount = getWorkerCount(args.workers);
-} catch (error) {
-	console.error(/** @type {Error} */ (error).message);
-	process.exit(1);
-}
-const runInParallel = workerCount > 1 && !args.run && !args.runList && !args.runGlob && !args.grep && !args.coverage;
-if (runInParallel) {
-	// This process only starts the workers, each of which is a separate instance of this script and does not rerun its failures
+/**
+ * Runs the first attempt in `count` worker processes. This process only starts the workers, each of
+ * which is a separate instance of this script and does not rerun its failures: this process reruns them.
+ * @param {number} count
+ */
+function runFirstAttemptInWorkers(count) {
 	runInWorkers({
 		name: 'Node.js unit tests',
-		count: workerCount,
+		count,
 		command: process.execPath,
 		args: [...process.execArgv, ...removeArgument(removeArgument(process.argv.slice(1), 'workers'), 'rerun-failed-files')],
 	}).then(({ failures, unattributedFailures }) => {
@@ -654,9 +663,35 @@ if (runInParallel) {
 		console.error(error);
 		process.exit(1);
 	});
-} else {
+}
+
+// A run of all test files, or of those of --runList, is spread across worker processes, reruns of failed tests run in one process
+let workerCount = 1;
+try {
+	workerCount = getWorkerCount(args.workers);
+} catch (error) {
+	console.error(/** @type {Error} */ (error).message);
+	process.exit(1);
+}
+const workersApply = workerCount > 1 && !args.run && !args.runGlob && !args.grep && !args.coverage;
+if (!workersApply) {
 	if (workerCount > 1) {
-		console.log('Running in a single process, because --workers only applies when all test files run without --grep or --coverage');
+		console.log('Running in a single process, because --workers only applies when all test files or those of --runList run, without --run, --runGlob, --grep or --coverage');
 	}
 	main();
+} else if (!runList) {
+	runFirstAttemptInWorkers(workerCount);
+} else {
+	// With --runList, only as many workers as the listed test files that run need, see getWorkerCountForFiles
+	findTestModules().then(modules => {
+		const count = getWorkerCountForFiles(workerCount, modules.length);
+		if (count > 1) {
+			runFirstAttemptInWorkers(count);
+		} else {
+			main();
+		}
+	}, error => {
+		console.error(error);
+		process.exit(1);
+	});
 }

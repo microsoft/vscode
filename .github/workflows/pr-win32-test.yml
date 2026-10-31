@@ -135,7 +135,7 @@ jobs:
           WSL_INSTALLER_CACHE_DIR: ${{ github.workspace }}\.build\wsl-installer
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
 
@@ -247,7 +247,7 @@ jobs:
         # steps below run every test. A pattern, unlike a name, downloads nothing instead of
         # failing when there is no plan.
         continue-on-error: true
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: test-plan
           path: .build/test-plan
@@ -349,6 +349,13 @@ jobs:
         env:
           VSCODE_SKIP_PRELAUNCH: '1'
 
+      # The web and remote tests start the server out of sources, which downloads its Node.js from nodejs.org unless
+      # the runner already has that version.
+      - name: Use the runner's Node.js for the server
+        if: ${{ (env.BROWSER_TESTS == 'true' || env.REMOTE_TESTS == 'true') && (env.INTEGRATION_TESTS == 'true' || env.SMOKE_TESTS == 'true') }}
+        shell: pwsh
+        run: node build/azure-pipelines/common/useRunnerNodeForServer.ts
+
       - name: 🧪 Run integration tests (Browser, Chromium)
         if: ${{ env.BROWSER_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' }}
         timeout-minutes: 20
@@ -427,7 +434,7 @@ jobs:
         continue-on-error: true
 
       - name: Publish Crash Reports
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         continue-on-error: true
         with:
@@ -438,7 +445,7 @@ jobs:
       # In order to properly symbolify above crash reports
       # (if any), we need the compiled native modules too
       - name: Publish Node Modules
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         continue-on-error: true
         with:
@@ -447,7 +454,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Publish Log Files
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         continue-on-error: true
         with:

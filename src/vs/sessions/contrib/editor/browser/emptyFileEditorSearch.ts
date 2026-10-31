@@ -300,7 +300,8 @@ export class EmptyFileEditorSearch extends Disposable {
 		const queue = folders.map(folder => ({
 			folder,
 			resource: folder.workingDirectory,
-			excludes: glob.parse(getExcludes(this.configurationService.getValue<ISearchConfiguration>({ resource: folder.workingDirectory })) ?? {}, { trimForExclusions: true }),
+			excludes: glob.parseExcludeExpression(getExcludes(this.configurationService.getValue<ISearchConfiguration>({ resource: folder.workingDirectory })) ?? {}, { trimForExclusions: true }),
+			isExcluded: false,
 		}));
 
 		for (let queueIndex = 0; queueIndex < queue.length && !token.isCancellationRequested; queueIndex++) {
@@ -333,8 +334,17 @@ export class EmptyFileEditorSearch extends Disposable {
 					break;
 				}
 				const path = relativePath(current.folder.workingDirectory, child.resource);
-				const excludeMatch = path && current.excludes(path, child.name, hasSibling);
-				if (!path || typeof excludeMatch === 'string') {
+				if (!path) {
+					continue;
+				}
+				const { isExcluded, isVisited } = glob.evaluateExcludeTreeEntry(current.excludes, {
+					path,
+					basename: child.name,
+					isDirectory: child.isDirectory,
+					isParentExcluded: current.isExcluded,
+					hasSibling,
+				});
+				if (!isVisited) {
 					continue;
 				}
 				if (visitedEntries >= MAX_VIRTUAL_WORKSPACE_ENTRIES) {
@@ -344,7 +354,7 @@ export class EmptyFileEditorSearch extends Disposable {
 				visitedEntries++;
 
 				if (child.isDirectory) {
-					queue.push({ ...current, resource: child.resource });
+					queue.push({ ...current, resource: child.resource, isExcluded });
 				} else {
 					const folderName = this.getFolderName(workspace, current.folder);
 					entries.push({

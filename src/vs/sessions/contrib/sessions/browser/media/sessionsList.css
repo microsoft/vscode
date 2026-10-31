@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /*
- * Rows reveal actions on hover or keyboard focus. Pair every row `:hover` with
+ * Rows reveal actions on hover or keyboard focus. Pair every `:hover` with
  * `.hovered` (e.g. `.monaco-list-row:is(:hover, .hovered)`) so tests and
  * component fixtures can render the hover state without a pointer.
  */
@@ -832,6 +832,12 @@
 	}
 }
 
+/*
+ * Hierarchy guides connect an expanded session to its nested chats. While the
+ * pointer is anywhere over the Sessions pane, every hierarchy shows them, like
+ * the Explorer's indent guides. Otherwise only the selected or keyboard-focused
+ * hierarchy shows them (`.session-hierarchy-guides-visible`).
+ */
 .monaco-list-row[aria-expanded="true"] .session-item::after {
 	content: '';
 	position: absolute;
@@ -842,6 +848,7 @@
 	opacity: 0;
 }
 
+.agent-sessions-viewpane:is(:hover, .hovered) .monaco-list-row[aria-expanded="true"] .session-item::after,
 .monaco-list-row[aria-expanded="true"] .session-item.session-hierarchy-guides-visible::after {
 	opacity: 1;
 }
@@ -904,6 +911,7 @@
 		opacity: 0;
 	}
 
+	.agent-sessions-viewpane:is(:hover, .hovered) &,
 	&.session-hierarchy-guides-visible {
 		&::before,
 		&::after {
@@ -1229,6 +1237,24 @@
 		margin-right: 4px;
 	}
 
+	&.session-section-inbox .session-section-count {
+		opacity: 1;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		box-sizing: border-box;
+		min-width: var(--vscode-spacing-size160);
+		height: var(--vscode-spacing-size160);
+		padding: 0 var(--vscode-spacing-size40);
+		margin-left: var(--vscode-spacing-size40);
+		margin-right: var(--vscode-spacing-size40);
+		border-radius: var(--vscode-cornerRadius-circle);
+		background-color: var(--vscode-activityBarBadge-background);
+		color: var(--vscode-activityBarBadge-foreground);
+		font-size: var(--vscode-fontSize-label3);
+		font-weight: var(--vscode-fontWeight-semiBold);
+	}
+
 	.session-section-keybinding {
 		display: none;
 		flex-shrink: 0;
@@ -1267,6 +1293,11 @@
 		border-radius: var(--vscode-cornerRadius-small);
 		justify-content: center;
 	}
+}
+
+.hc-black .session-section.session-section-inbox .session-section-count,
+.hc-light .session-section.session-section-inbox .session-section-count {
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
 }
 
 .monaco-list-row:is(:hover, .hovered) .session-section .session-section-toolbar,
@@ -1338,6 +1369,15 @@
  */
 .sessions-list-control {
 	--session-group-indent: calc(var(--vscode-codiconFontSize, 16px) + var(--vscode-spacing-size60));
+
+	/*
+	 * `sessions.list.indentItems` steps every row within a section in by one
+	 * level, and nested custom groups by the same level, so the list reads as a
+	 * hierarchy below its section headers.
+	 */
+	&.indent-items {
+		--session-group-indent: calc(var(--vscode-spacing-size160) + var(--vscode-spacing-size20));
+	}
 }
 
 .session-item,
@@ -1347,6 +1387,32 @@
 .session-show-more,
 .session-placeholder {
 	margin-left: calc(var(--session-group-depth, 0) * var(--session-group-indent, 0px));
+}
+
+.sessions-list-control.indent-items :is(.session-item, .session-chat-item, .session-show-more:not(.session-show-more-folders), .session-placeholder) {
+	margin-left: calc((var(--session-group-depth, 0) + 1) * var(--session-group-indent, 0px));
+}
+
+/*
+ * A comparison's header, participants, and their chats share the comparison's
+ * depth so its guides connect. A comparison in a section is at depth 0 and steps
+ * in like the section's sessions; one in a custom group is already a level below it.
+ */
+.sessions-list-control.indent-items :is(.session-comparison-group, .session-item[data-session-group-connector], .session-chat-item.session-comparison-chat) {
+	margin-left: calc(max(var(--session-group-depth, 0), 1) * var(--session-group-indent, 0px));
+}
+
+/* Session twisties are positioned within the row, so they step in by the same amount as the row's contents. */
+.sessions-list-control .monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie) {
+	translate: calc(var(--session-group-depth, 0) * var(--session-group-indent, 0px)) 0;
+}
+
+.sessions-list-control.indent-items .monaco-list-row .session-chat-twistie {
+	translate: calc((var(--session-group-depth, 0) + 1) * var(--session-group-indent, 0px)) 0;
+}
+
+.sessions-list-control.indent-items .monaco-list-row :is(.session-comparison-twistie, .session-comparison-attempt-twistie) {
+	translate: calc(max(var(--session-group-depth, 0), 1) * var(--session-group-indent, 0px)) 0;
 }
 
 /* Session groups render like sections, with an inline name editor. */

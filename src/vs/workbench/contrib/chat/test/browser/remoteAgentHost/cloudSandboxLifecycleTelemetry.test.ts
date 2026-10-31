@@ -11,7 +11,8 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { chatTurnStarted } from '../../../../../../platform/agentHost/test/common/chatActionBuilders.js';
+import { ResponsePartKind } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ITelemetryService, type ITelemetryData } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { validateTelemetryData } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { CloudSandboxLifecycleTelemetry, getCloudSandboxLifecycleSessionId, type ICloudSandboxLifecycleEvent } from '../../../browser/remoteAgentHost/cloudSandboxLifecycleTelemetry.js';
@@ -264,7 +265,7 @@ suite('CloudSandboxLifecycleTelemetry', () => {
 		const envelope: ActionEnvelope = {
 			serverSeq: 12, channel: chat, rejectionReason: 'private authorization failure',
 			origin: { clientId: generateUuid(), clientSeq: 1 },
-			action: { type: ActionType.ChatTurnStarted, turnId: requestId, startedAt: '2026-01-01T00:00:00Z', message: { text: 'private prompt', origin: { kind: MessageKind.User } } },
+			action: chatTurnStarted(requestId, 'private prompt', '2026-01-01T00:00:00Z'),
 		};
 		connection.recordSessionAction(envelope, { connectionState: 'connected', authenticationRestorePending: true, lastSuccessfulResponseAgeMs: 250, reconnectScheduled: false });
 		connection.recordSessionAction(envelope);

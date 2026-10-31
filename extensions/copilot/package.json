@@ -576,31 +576,6 @@
         }
       },
       {
-        "name": "copilot_createNewWorkspace",
-        "displayName": "%github.copilot.tools.createNewWorkspace.name%",
-        "toolReferenceName": "newWorkspace",
-        "legacyToolReferenceFullNames": [
-          "new/newWorkspace"
-        ],
-        "icon": "$(new-folder)",
-        "userDescription": "%github.copilot.tools.createNewWorkspace.userDescription%",
-        "when": "config.github.copilot.chat.newWorkspaceCreation.enabled",
-        "modelDescription": "Get comprehensive setup steps to help the user create complete project structures in a VS Code workspace. This tool is designed for full project initialization and scaffolding, not for creating individual files.\n\nWhen to use this tool:\n- User wants to create a new complete project from scratch\n- Setting up entire project frameworks (TypeScript projects, React apps, Node.js servers, etc.)\n- Initializing Model Context Protocol (MCP) servers with full structure\n- Creating VS Code extensions with proper scaffolding\n- Setting up Next.js, Vite, or other framework-based projects\n- User asks for \"new project\", \"create a workspace\", \"set up a [framework] project\"\n- Need to establish complete development environment with dependencies, config files, and folder structure\n\nWhen NOT to use this tool:\n- Creating single files or small code snippets\n- Adding individual files to existing projects\n- Making modifications to existing codebases\n- User asks to \"create a file\" or \"add a component\"\n- Simple code examples or demonstrations\n- Debugging or fixing existing code\n\nThis tool provides complete project setup including:\n- Folder structure creation\n- Package.json and dependency management\n- Configuration files (tsconfig, eslint, etc.)\n- Initial boilerplate code\n- Development environment setup\n- Build and run instructions\n\nUse other file creation tools for individual files within existing projects.",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "query": {
-              "type": "string",
-              "description": "The query to use to generate the new workspace. This should be a clear and concise description of the workspace the user wants to create."
-            }
-          },
-          "required": [
-            "query"
-          ]
-        },
-        "tags": []
-      },
-      {
         "name": "copilot_createNewJupyterNotebook",
         "displayName": "Create New Jupyter Notebook",
         "icon": "$(notebook)",
@@ -1273,7 +1248,6 @@
         "description": "",
         "tools": [
           "memory",
-          "newWorkspace",
           "resolveMemoryFileUri",
           "switchAgent",
           "toolSearch",
@@ -1354,23 +1328,6 @@
             "name": "fix",
             "description": "%copilot.workspace.fix.description%",
             "sampleRequest": "%copilot.workspace.fix.sampleRequest%"
-          },
-          {
-            "name": "new",
-            "description": "%copilot.workspace.new.description%",
-            "sampleRequest": "%copilot.workspace.new.sampleRequest%",
-            "isSticky": true,
-            "disambiguation": [
-              {
-                "category": "create_new_workspace_or_extension",
-                "description": "The user wants to create a complete Visual Studio Code workspace from scratch, such as a new application or a Visual Studio Code extension. Use this category only if the question relates to generating or creating new workspaces in Visual Studio Code. Do not use this category for updating existing code or generating sample code snippets",
-                "examples": [
-                  "Scaffold a Node server.",
-                  "Create a sample project which uses the fileSystemProvider API.",
-                  "react application"
-                ]
-              }
-            ]
           },
           {
             "name": "newNotebook",
@@ -1484,23 +1441,6 @@
             "name": "fix",
             "description": "%copilot.workspace.fix.description%",
             "sampleRequest": "%copilot.workspace.fix.sampleRequest%"
-          },
-          {
-            "name": "new",
-            "description": "%copilot.workspace.new.description%",
-            "sampleRequest": "%copilot.workspace.new.sampleRequest%",
-            "isSticky": true,
-            "disambiguation": [
-              {
-                "category": "create_new_workspace_or_extension",
-                "description": "The user wants to create a complete Visual Studio Code workspace from scratch, such as a new application or a Visual Studio Code extension. Use this category only if the question relates to generating or creating new workspaces in Visual Studio Code. Do not use this category for updating existing code or generating sample code snippets",
-                "examples": [
-                  "Scaffold a Node server.",
-                  "Create a sample project which uses the fileSystemProvider API.",
-                  "react application"
-                ]
-              }
-            ]
           },
           {
             "name": "newNotebook",
@@ -2628,11 +2568,6 @@
         "category": "Chat"
       },
       {
-        "command": "github.copilot.debug.workbenchState",
-        "title": "%github.copilot.command.logWorkbenchState%",
-        "category": "Developer"
-      },
-      {
         "command": "github.copilot.debug.togglePowerSaveBlocker",
         "title": "%github.copilot.command.togglePowerSaveBlocker%",
         "category": "Developer"
@@ -3237,11 +3172,6 @@
             "default": false,
             "markdownDescription": "%github.copilot.config.scopeSelection%"
           },
-          "github.copilot.chat.useProjectTemplates": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.useProjectTemplates%"
-          },
           "github.copilot.nextEditSuggestions.enabled": {
             "type": "boolean",
             "default": true,
@@ -3346,8 +3276,10 @@
             "markdownDescription": "Enable or disable auto triggering of Copilot completions for specified [languages](https://code.visualstudio.com/docs/languages/identifiers). You can still trigger suggestions manually using `Alt + \\`",
             "agentsWindow": {
               "default": {
+                "*": true,
+                "plaintext": true,
                 "markdown": true,
-                "plaintext": true
+                "scminput": false
               }
             }
           },
@@ -3542,6 +3474,15 @@
             "type": "boolean",
             "default": false,
             "markdownDescription": "%github.copilot.config.switchAgent.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.recordVideoSkill.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.recordVideoSkill.enabled%",
             "tags": [
               "experimental",
               "onExp"
@@ -3900,22 +3841,6 @@
               "onExP"
             ],
             "markdownDescription": "%github.copilot.chat.languageContext.inline.typescript.enabled%"
-          },
-          "github.copilot.chat.newWorkspaceCreation.enabled": {
-            "type": "boolean",
-            "default": true,
-            "tags": [
-              "experimental"
-            ],
-            "description": "%github.copilot.config.newWorkspaceCreation.enabled%"
-          },
-          "github.copilot.chat.newWorkspace.useContext7": {
-            "type": "boolean",
-            "default": false,
-            "tags": [
-              "experimental"
-            ],
-            "markdownDescription": "%github.copilot.config.newWorkspace.useContext7%"
           },
           "github.copilot.chat.notebook.followCellExecution.enabled": {
             "type": "boolean",
@@ -5613,10 +5538,6 @@
           "when": "github.copilot-chat.activated && !github.copilot.interactiveSession.disabled"
         },
         {
-          "command": "github.copilot.debug.workbenchState",
-          "when": "true"
-        },
-        {
           "command": "github.copilot.chat.rerunWithCopilotDebug",
           "when": "false"
         },
@@ -6756,20 +6677,6 @@
     ],
     "chatSkills": [
       {
-        "path": "./assets/prompts/skills/project-setup-info-local/SKILL.md",
-        "when": "!config.github.copilot.chat.newWorkspace.useContext7",
-        "sessionTypes": [
-          "local"
-        ]
-      },
-      {
-        "path": "./assets/prompts/skills/project-setup-info-context7/SKILL.md",
-        "when": "config.github.copilot.chat.newWorkspace.useContext7",
-        "sessionTypes": [
-          "local"
-        ]
-      },
-      {
         "path": "./assets/prompts/skills/troubleshoot/SKILL.md",
         "sessionTypes": [
           "local",
@@ -6840,6 +6747,13 @@
         "sessionTypes": [
           "local"
         ]
+      },
+      {
+        "path": "./assets/prompts/skills/record-video/SKILL.md",
+        "when": "config.github.copilot.chat.recordVideoSkill.enabled",
+        "sessionTypes": [
+          "copilotcli"
+        ]
       }
     ],
     "terminal": {
@@ -6890,7 +6804,6 @@
     "setup:dotnet": "run-script-os",
     "setup:dotnet:darwin:linux": "curl -O https://raw.githubusercontent.com/dotnet/install-scripts/main/src/dotnet-install.sh && chmod u+x dotnet-install.sh && ./dotnet-install.sh --channel 10.0 && rm dotnet-install.sh",
     "setup:dotnet:win32": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Invoke-WebRequest -Uri https://raw.githubusercontent.com/dotnet/install-scripts/main/src/dotnet-install.ps1 -OutFile dotnet-install.ps1; ./dotnet-install.ps1 -channel 10.0; Remove-Item dotnet-install.ps1\"",
-    "analyze-edits": "tsx script/analyzeEdits.ts",
     "extract-chat-lib": "tsx script/build/extractChatLib.ts",
     "create_venv": "tsx script/setup/createVenv.mts",
     "package": "vsce package",
@@ -6929,7 +6842,7 @@
     "@typescript-eslint/eslint-plugin": "^8.35.0",
     "@typescript-eslint/parser": "^8.32.0",
     "@typescript-eslint/typescript-estree": "^8.26.1",
-    "@typescript/native": "npm:typescript@7.1.0-dev.20260818.1",
+    "@typescript/native": "npm:typescript@7.1.0-dev.20261027.1",
     "@vitest/coverage-v8": "^4.1.8",
     "@vitest/snapshot": "^1.5.0",
     "@vscode/debugadapter": "^1.68.0",

@@ -236,12 +236,12 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 
 	/** The agent model id of the chat's selected main agent model when it is a BYOK model. */
 	private _resolveByokMainAgentModel(context: IAgentHostUtilityModelContext): string | undefined {
-		const agent = this._providerService.getProviderForSession(context.session);
-		if (!agent) {
-			return undefined;
-		}
 		const chat = context.chat && isAhpChatChannel(context.chat) ? context.chat : this._chatOwnership.getDefaultChat(context.session);
 		if (chat === undefined) {
+			return undefined;
+		}
+		const agent = this._providerService.getProviderForChat(context.session, chat);
+		if (!agent) {
 			return undefined;
 		}
 		const state = this._stateManager.getChatState(chat) ?? (this._chatOwnership.isDefaultChat(context.session, chat) ? this._stateManager.getSessionState(context.session) : undefined);

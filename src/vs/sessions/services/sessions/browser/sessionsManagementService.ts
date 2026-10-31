@@ -13,6 +13,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
@@ -25,10 +26,10 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { ICopilotHomeService } from '../../../../workbench/services/environment/common/copilotHomeService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getSessionReferenceResource } from './sessionReference.js';
-import { IChatDeletedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
+import { IChatDeletedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IManagedSessionWorktree, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, IPreparedNewSession, NestedChatWorkspaceError, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionCreationTarget, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
-import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType, type SessionCanvasDefinitionSnapshot } from '../common/session.js';
+import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType, type SessionCanvasDefinitionSnapshot, getChatHarness } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -642,7 +643,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		const previousNewSession = this._newSession.get();
 		const session = provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, options));
-		this._newSession.set(session, undefined);
 		this.storageService.store(LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY, sessionTypeId, StorageScope.PROFILE, StorageTarget.USER);
 
 		// Mirror `createNewSession`: dispose the previous new session this
@@ -650,7 +650,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// create so a throw above leaves the previous one intact.
 		if (previousNewSession && previousNewSession.sessionId !== session.sessionId) {
 			this._getProvider(previousNewSession)?.deleteNewSession(previousNewSession.sessionId);
+			this._onDidReplaceNewDraftSession.fire({ from: previousNewSession, to: session });
 		}
+		this._newSession.set(session, undefined);
 		return session;
 	}
 
@@ -723,12 +725,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// `forceNew` skips reuse so callers can reset the composer right after
 		// sending a chat (which may still transiently report `Untitled`).
 		if (!options?.forceNew) {
-			const existingUntitled = session.chats.get().find(c => c.status.get() === SessionStatus.Untitled);
+			// Reuse only a draft using the requested harness; a different harness needs a chat of its own.
+			const requestedHarness = options?.harness ?? session.harness;
+			const existingUntitled = session.chats.get().find(c => c.status.get() === SessionStatus.Untitled && getChatHarness(session, c) === requestedHarness);
 			if (existingUntitled) {
 				return existingUntitled;
 			}
 		}
-		const created = await provider.createNewChat(session.sessionId);
+		const created = await provider.createNewChat(session.sessionId, undefined, options);
 		return created;
 	}
 
@@ -1316,12 +1320,45 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return this._getProvider(session)?.getSessionWorktreeDiskUsage?.(session.sessionId, token) ?? Promise.resolve(undefined);
 	}
 
-	async sessionWorktreeCleanup(session: ISession, retry: boolean) {
+	sessionWorktreeExists(session: ISession, token?: CancellationToken): Promise<boolean | undefined> {
+		return this._getProvider(session)?.sessionWorktreeExists?.(session.sessionId, token) ?? Promise.resolve(undefined);
+	}
+
+	canForceWorktreeCleanup(owner: ISession | IManagedSessionWorktree): boolean {
+		const provider = hasKey(owner, { sessionId: true }) ? this._getProvider(owner) : this.sessionsProvidersService.getProvider(owner.providerId);
+		return provider?.supportsForceWorktreeCleanup === true;
+	}
+
+	async sessionWorktreeCleanup(session: ISession, retry: boolean, force?: boolean) {
 		const provider = this._getProvider(session);
 		if (retry && !provider?.sessionWorktreeCleanup) {
 			throw new Error(localize('sessions.worktreeCleanupUnavailable', "Retrying worktree cleanup is unavailable for this session."));
 		}
-		return provider?.sessionWorktreeCleanup?.(session.sessionId, retry);
+		return provider?.sessionWorktreeCleanup?.(session.sessionId, retry, force);
+	}
+
+	async listManagedWorktrees(knownWorktrees: readonly IManagedSessionWorktree[] = []): Promise<IManagedSessionWorktree[]> {
+		const inventories = await Promise.all(this.sessionsProvidersService.getProviders({ includeSessionBackends: true }).map(async provider => {
+			try {
+				return (await provider.listManagedWorktrees?.(knownWorktrees.filter(worktree => worktree.providerId === provider.id).map(worktree => URI.parse(worktree.repository))) ?? []).map(worktree => ({ ...worktree, providerId: provider.id }));
+			} catch (error) {
+				this.logService.warn(`[SessionsManagement] Failed to list managed worktrees for provider '${provider.id}'`, error);
+				return [];
+			}
+		}));
+		return inventories.flat();
+	}
+
+	async managedWorktreeExists(worktree: IManagedSessionWorktree): Promise<boolean | undefined> {
+		return this.sessionsProvidersService.getProvider(worktree.providerId)?.managedWorktreeExists?.(worktree);
+	}
+
+	async cleanupManagedWorktree(worktree: IManagedSessionWorktree, force?: boolean): Promise<void> {
+		const provider = this.sessionsProvidersService.getProvider(worktree.providerId);
+		if (!provider?.cleanupManagedWorktree) {
+			throw new Error(localize('sessions.managedWorktreeCleanupUnavailable', "Connect to this worktree's host to clean it up."));
+		}
+		await provider.cleanupManagedWorktree(worktree, force);
 	}
 
 	async unarchiveSession(session: ISession): Promise<void> {
@@ -1442,7 +1479,25 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async markAllRead(sessions: readonly ISession[]): Promise<void> {
-		await Promise.all(sessions.map(session => this.setSessionReadState(session, true)));
+		// Hand each provider its sessions in one call so it can publish a single
+		// change instead of one per session, which listeners answer with a full refresh.
+		const byProvider = new Map<ISessionsProvider, string[]>();
+		for (const session of sessions) {
+			this._explicitlyMarkedUnreadChats.delete(session.resource);
+			const provider = this._getProvider(session);
+			if (!provider) {
+				continue;
+			}
+			const sessionIds = byProvider.get(provider);
+			if (sessionIds) {
+				sessionIds.push(session.sessionId);
+			} else {
+				byProvider.set(provider, [session.sessionId]);
+			}
+		}
+		await Promise.all(Array.from(byProvider, ([provider, sessionIds]) => provider.setSessionsReadState
+			? provider.setSessionsReadState(sessionIds, true)
+			: Promise.all(sessionIds.map(sessionId => provider.setSessionReadState(sessionId, true)))));
 	}
 
 	async deleteSession(session: ISession): Promise<void> {

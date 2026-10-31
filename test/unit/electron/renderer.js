@@ -63,10 +63,10 @@ const fs = require('fs');
 const { ipcRenderer } = require('electron');
 const assert = require('assert');
 const path = require('path');
-const glob = require('glob');
 const util = require('util');
 const coverage = require('../coverage');
 const { trackTestFiles, distributeTestFiles } = require('../parallel.ts');
+const { findTestFiles } = require('./testFiles.ts');
 const { pathToFileURL } = require('url');
 
 // Disabled custom inspect. See #38847
@@ -88,7 +88,6 @@ Object.assign(globalThis, {
 });
 
 const IS_CI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || !!process.env.GITHUB_WORKSPACE;
-const _tests_glob = '**/test/**/*.test.js';
 
 
 /**
@@ -155,8 +154,6 @@ async function loadModules(modules) {
 	}
 }
 
-const globAsync = util.promisify(glob);
-
 async function loadTestModules(opts) {
 
 	if (opts.run) {
@@ -168,17 +165,10 @@ async function loadTestModules(opts) {
 		return loadModules(modules);
 	}
 
-	const pattern = opts.runGlob || _tests_glob;
-	let files = await globAsync(pattern, { cwd: loadFn._out });
-	if (opts.excludeRunGlob) {
-		const excludedFiles = new Set(await globAsync(opts.excludeRunGlob, { cwd: loadFn._out }));
-		files = files.filter(file => !excludedFiles.has(file));
-	}
-	if (opts.runList) {
-		// --runList: the listed test files as compiled modules relative to the output folder (src/vs/a.test.ts is vs/a.test.js)
-		const runList = new Set(fs.readFileSync(opts.runList, 'utf8').split(/\r?\n/).map(line => line.trim().replace(/\\/g, '/')).filter(line => line.length > 0).map(line => line.replace(/^src\//, '').replace(/\.ts$/, '.js')));
-		files = files.filter(file => runList.has(file));
-		console.log(`Running the ${files.length} test files of the ${runList.size} files listed in ${opts.runList}`);
+	const { files, listed } = await findTestFiles(opts, loadFn._out);
+	// the process that starts the workers reports the listed files they run
+	if (listed !== undefined && !opts.workerDir) {
+		console.log(`Running the ${files.length} test files of the ${listed} files listed in ${opts.runList}`);
 	}
 	let modules = files.map(file => file.replace(/\.js$/, ''));
 	if (opts.testSplit) {
@@ -286,6 +276,8 @@ async function loadTests(opts) {
 	//#endregion
 
 	const { assertCleanState } = await loadFn('vs/workbench/test/common/utils');
+	const { installRegistryLeakCheck } = await loadFn('vs/platform/actions/test/common/registryLeakCheck');
+	installRegistryLeakCheck(mocha.suite);
 
 	suite('Tests are using suiteSetup and setup correctly', () => {
 		test('assertCleanState - check that registries are clean at the start of test running', () => {
