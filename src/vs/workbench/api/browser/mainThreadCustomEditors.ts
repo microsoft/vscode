@@ -517,10 +517,10 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 								(editor instanceof CustomEditorInput && isEqual(editor.resource, resource))
 								|| (editor instanceof CustomEditorDiffInput && (isEqual(editor.originalResource, resource) || isEqual(editor.modifiedResource, resource)))
 								|| (editor instanceof CustomEditorSideBySideDiffInput && isEqual(editor.resource, resource))) as CustomEditorWebviewInput[];
-					}, cancellation);
-					modelPromise.then(model => {
+					}, cancellation).then(model => {
 						this._customEditorModels.add(model);
-						model.onDidDispose(() => this._customEditorModels.delete(model));
+						model.onWillDispose(() => this._customEditorModels.delete(model));
+						return model;
 					});
 					return this._customEditorService.models.add(resource, viewType, modelPromise);
 				}
@@ -747,7 +747,17 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	public markDisconnected(): void {
 		if (!this._isDisconnected) {
 			this._isDisconnected = true;
+			if (this._hotExitState.type === HotExitState.Type.Pending) {
+				this._hotExitState.operation.cancel();
+				this._hotExitState = HotExitState.NotAllowed;
+			}
 			this._onDidChangeReadonly.fire();
+
+			for (const editor of this._getEditors()) {
+				if (editor.webview?.container) {
+					editor.webview.container.style.pointerEvents = 'none';
+				}
+			}
 		}
 	}
 
@@ -990,7 +1000,11 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		}
 
 		if (this._isDisconnected) {
-			return backupData;
+			if (this.canHotExit && typeof this._backupId === 'string') {
+				backupMeta.backupId = this._backupId;
+				return backupData;
+			}
+			throw new Error(localize('customEditor.backupFailedDisconnected', "Cannot back up custom editor '{0}': the backing extension has disconnected.", this.name));
 		}
 
 		if (this._hotExitState.type === HotExitState.Type.Pending) {
