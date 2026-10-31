@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, append, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -115,6 +115,38 @@ suite('Shared IconPicker', () => {
 			assert.strictEqual(await result, key === 'Escape' ? undefined : null);
 		});
 	}
+
+	test('reset isolates grid navigation without swallowing workbench shortcuts', async () => {
+		const harness = setup();
+		const result = harness.picker.pickIcons();
+		const reset = harness.grid().querySelector<HTMLElement>('[role="button"]')!;
+		const selectedIcon = harness.grid().querySelector('.icon-container.focused')!;
+		const bubbled: string[] = [];
+		disposables.add(addDisposableListener(harness.host, EventType.KEY_DOWN, event => bubbled.push(event.key)));
+		reset.focus();
+		for (const event of [
+			{ key: 'F1', keyCode: 112 },
+			{ key: 'P', keyCode: 80, ctrlKey: true, shiftKey: true },
+			{ key: 'Escape', keyCode: 27, shiftKey: true },
+			{ key: 'ArrowDown', keyCode: 40, ctrlKey: true },
+			{ key: 'Tab', keyCode: 9 },
+			{ key: 'ArrowUp', keyCode: 38 },
+			{ key: 'ArrowDown', keyCode: 40 },
+			{ key: 'ArrowLeft', keyCode: 37 },
+			{ key: 'ArrowRight', keyCode: 39 },
+			{ key: 'Home', keyCode: 36 },
+			{ key: 'End', keyCode: 35 },
+		]) {
+			reset.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { ...event, bubbles: true, cancelable: true }));
+		}
+		assert.deepStrictEqual({
+			bubbled,
+			resetFocused: mainWindow.document.activeElement === reset,
+			iconUnchanged: harness.grid().querySelector('.icon-container.focused') === selectedIcon,
+		}, { bubbled: ['F1', 'P', 'Escape', 'ArrowDown', 'Tab'], resetFocused: true, iconUnchanged: true });
+		harness.hidden.fire({ reason: QuickInputHideReason.Gesture });
+		await result;
+	});
 
 	test('the reset divider is decorative, non-focusable, and unaffected by hover', async () => {
 		const harness = setup();

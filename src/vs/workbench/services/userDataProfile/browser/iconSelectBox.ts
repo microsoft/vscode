@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IIconSelectBoxOptions, IconSelectBox } from '../../../../base/browser/ui/icons/iconSelectBox.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
@@ -55,7 +57,12 @@ export class WorkbenchIconSelectBox extends IconSelectBox {
 			this.resetButton.label = localize('resetIcon', "Reset to default");
 			this._register(this.resetButton.onDidClick(() => this.onDidResetEmitter.fire()));
 			this._register(this.resetButton.onDidEscape(() => this.onDidCancelEmitter.fire()));
-			this._register(dom.addDisposableListener(footer, dom.EventType.KEY_DOWN, event => event.stopPropagation()));
+			this._register(dom.addDisposableListener(footer, dom.EventType.KEY_DOWN, event => {
+				const key = new StandardKeyboardEvent(event);
+				if ([KeyCode.UpArrow, KeyCode.DownArrow, KeyCode.LeftArrow, KeyCode.RightArrow, KeyCode.Home, KeyCode.End].some(keyCode => key.equals(keyCode))) {
+					event.stopPropagation();
+				}
+			}));
 		}
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.domNode));
 		const widgetFocusContextKey = WorkbenchIconSelectBoxFocusContextKey.bindTo(this.contextKeyService);
