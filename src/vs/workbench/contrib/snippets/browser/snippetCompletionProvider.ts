@@ -141,8 +141,9 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 
 			let endColumn = endsWithPrefixRest === 0 ? position.column + prefixRestLen : position.column;
 
-			// First check if there is anything to the right of the cursor
-			if (columnOffset < lineContentLow.length) {
+			// First check if there is anything to the right of the cursor and that the replace range
+			// hasn't already absorbed the closing character via prefix matching (#235515)
+			if (columnOffset < lineContentLow.length && endColumn === position.column) {
 				const autoClosingPairs = languageConfig.getAutoClosingPairs();
 				const standardAutoClosingPairConditionals = autoClosingPairs.autoClosingPairsCloseSingleChar.get(lineContentLow[columnOffset]);
 				// If the character to the right of the cursor is a closing character of an autoclosing pair
