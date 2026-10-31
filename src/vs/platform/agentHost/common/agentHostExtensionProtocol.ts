@@ -216,7 +216,7 @@ export const stopBackgroundWorkParamsValidator = vObj({
 	id: vString(),
 });
 
-export const importSessionParamsValidator = vObj({ session: vString() });
+export const importSessionParamsValidator = vObj({ session: vString(), takeOver: vOptionalProp(vBoolean()) });
 
 /** `workspace` has the shape of the `vscode.chatWorkspace` `createChat` `_meta` value. */
 export const setChatWorkspaceParamsValidator = vObj({ chat: vString(), workspace: chatWorkspaceValueValidator });
@@ -307,7 +307,11 @@ export interface IAgentHostExtensionCommandMap {
 	[DeleteAutomationExtensionMethod]: { params: ValidatorType<typeof deleteAutomationParamsValidator>; result: readonly string[] };
 	[AcknowledgeAutomationDeletionExtensionMethod]: { params: ValidatorType<typeof acknowledgeAutomationDeletionParamsValidator>; result: void };
 	[StageCreateSessionImportChunkExtensionMethod]: { params: ValidatorType<typeof stageCreateSessionImportChunkParamsValidator>; result: void };
-	[ImportSessionExtensionMethod]: { params: ValidatorType<typeof importSessionParamsValidator>; result: void };
+	/**
+	 * Resolves to the session's exact resource, which can differ from the requested one: the host may address an
+	 * admitted session differently from its provider backing. Hosts that predate this resolve to nothing.
+	 */
+	[ImportSessionExtensionMethod]: { params: ValidatorType<typeof importSessionParamsValidator>; result: { readonly session?: string } | null | undefined };
 	[MoveAgentHostSessionExtensionMethod]: { params: ValidatorType<typeof moveSessionParamsValidator>; result: { session: string } };
 	[SetChatWorkspaceExtensionMethod]: { params: ValidatorType<typeof setChatWorkspaceParamsValidator>; result: void };
 	[ReportAgentHostFirstResponseExtensionMethod]: { params: IAgentHostFirstResponseDiagnostic; result: void };

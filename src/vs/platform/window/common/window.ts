@@ -145,6 +145,68 @@ export function parseExternalAgentsWindowNewSessionLinkUri(uri: URI | string, pr
 	}
 }
 
+/**
+ * Query parameter of a `file` or `vscode-remote` product protocol link naming a
+ * chat session resource to open in the window the link opens.
+ */
+export const CHAT_SESSION_LINK_QUERY_PARAM = 'session';
+
+/**
+ * Query parameter of a `file` or `vscode-remote` product protocol link naming a
+ * Copilot CLI session, by its CLI session id, to open in the window the link
+ * opens. The window decides which provider opens the session, so callers such
+ * as the Copilot CLI's `/code` command do not depend on a provider-specific URI.
+ */
+export const COPILOT_CLI_SESSION_LINK_QUERY_PARAM = 'copilotCliSession';
+
+/**
+ * A chat session to open in the window that a product protocol link opens.
+ */
+export type ChatSessionToOpen =
+	| { readonly kind: 'resource'; readonly resource: string }
+	| { readonly kind: 'copilotCli'; readonly sessionId: string };
+
+/**
+ * Whether `sessionId` is a valid Copilot CLI session id. Mirrors the Copilot CLI
+ * runtime's rule (non-empty ASCII letters, digits, `_` and `-`), with an upper
+ * bound on the length.
+ */
+export function isValidCopilotCliSessionId(sessionId: string): boolean {
+	return /^[A-Za-z0-9_-]{1,256}$/.test(sessionId);
+}
+
+/**
+ * Removes the chat session parameters from the query of a product protocol
+ * link and returns the link without them, along with the chat session to open,
+ * if any.
+ *
+ * Both parameters are always removed, even when their values are invalid, so
+ * that they never reach the window that opens for the link. A link without
+ * either parameter is returned unchanged.
+ */
+export function extractChatSessionToOpen(uri: URI): { readonly uri: URI; readonly chatSessionToOpen: ChatSessionToOpen | undefined } {
+	const params = new URLSearchParams(uri.query);
+	const resource = params.get(CHAT_SESSION_LINK_QUERY_PARAM);
+	const copilotCliSessionId = params.get(COPILOT_CLI_SESSION_LINK_QUERY_PARAM);
+	if (resource === null && copilotCliSessionId === null) {
+		return { uri, chatSessionToOpen: undefined };
+	}
+
+	params.delete(CHAT_SESSION_LINK_QUERY_PARAM);
+	params.delete(COPILOT_CLI_SESSION_LINK_QUERY_PARAM);
+	const uriWithoutChatSession = uri.with({ query: params.toString() });
+
+	if (resource) {
+		return { uri: uriWithoutChatSession, chatSessionToOpen: { kind: 'resource', resource } };
+	}
+
+	if (copilotCliSessionId && isValidCopilotCliSessionId(copilotCliSessionId)) {
+		return { uri: uriWithoutChatSession, chatSessionToOpen: { kind: 'copilotCli', sessionId: copilotCliSessionId } };
+	}
+
+	return { uri: uriWithoutChatSession, chatSessionToOpen: undefined };
+}
+
 export const enum AgentsWindowOpenSource {
 	CommandPalette = 'commandPalette',
 	KeyboardShortcut = 'keyboardShortcut',

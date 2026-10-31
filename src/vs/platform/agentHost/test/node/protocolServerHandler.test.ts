@@ -439,8 +439,10 @@ class MockAgentService extends Disposable implements IAgentService {
 		this.stopBackgroundWorkCalls.push({ chat: chat.toString(), id });
 		return true;
 	}
-	async importSession(session: URI): Promise<void> {
+	async importSession(session: URI): Promise<URI> {
 		this.importedSessions.push(session.toString());
+		// Like the local host, which admits an unseen provider backing under an `ahp-session` address.
+		return URI.from({ scheme: 'ahp-session', path: session.path });
 	}
 	async deleteAutomation(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[], requestId?: string): Promise<readonly string[]> {
 		this.deletedAutomations.push({ resource, deleteHistory, legacySessions: legacySessions?.map(session => session.toString()), ...(requestId ? { requestId } : {}) });
@@ -2232,7 +2234,7 @@ suite('ProtocolServerHandler', () => {
 			imported: agentService.importedSessions,
 		}, {
 			supported: true, legacy: false, malformed: false, uninitialized: false,
-			response: { jsonrpc: '2.0', id: 20, result: null },
+			response: { jsonrpc: '2.0', id: 20, result: { session: 'ahp-session:/session-1' } },
 			imported: ['copilotcli:/session-1'],
 		});
 	});
