@@ -165,6 +165,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _lastFindResult: { resultIndex: number; resultCount: number } | undefined;
 	get findResult(): { resultIndex: number; resultCount: number } | undefined { return this._lastFindResult; }
 
+	get isKeyboardProtocolActive(): boolean { return this._core._keyboardService.useKitty || this._core._keyboardService.useWin32InputMode; }
 	get isStdinDisabled(): boolean { return !!this.raw.options.disableStdin; }
 	get isGpuAccelerated(): boolean { return !!this._webglAddon; }
 	get isImageAddonLoaded(): boolean { return !!this._imageAddon; }
