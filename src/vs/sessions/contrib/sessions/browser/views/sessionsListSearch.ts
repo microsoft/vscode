@@ -68,6 +68,8 @@ export interface ISessionSearchMatch {
 }
 
 const COMBINING_DIACRITICAL_MARKS = /[\u0300-\u036f]/g;
+/** Greek final sigma, which case folding maps to sigma; lowercasing a lone capital sigma (U+03A3) can only produce the latter. */
+const GREEK_FINAL_SIGMA = /\u03c2/g;
 const ASCII_TEXT = /^[\x00-\x7f]*$/;
 
 interface IFoldedSearchText {
@@ -80,7 +82,7 @@ interface IFoldedSearchText {
 
 /**
  * Folds a text for searching one user-perceived character at a time: drops the accents of Latin, Greek, and Cyrillic
- * letters in composed and decomposed form alike, keeps the characters of other scripts whole, and lowercases it.
+ * letters in composed and decomposed form alike, keeps the characters of other scripts whole, and folds case.
  */
 function foldSearchTextWithOffsets(text: string): IFoldedSearchText {
 	let folded = '';
@@ -88,7 +90,7 @@ function foldSearchTextWithOffsets(text: string): IFoldedSearchText {
 	const ends: number[] = [];
 	for (let start = 0; start < text.length;) {
 		const end = start + Math.max(1, nextCharLength(text, start));
-		const character = text.substring(start, end).normalize('NFD').replace(COMBINING_DIACRITICAL_MARKS, '').normalize('NFC').toLowerCase();
+		const character = text.substring(start, end).normalize('NFD').replace(COMBINING_DIACRITICAL_MARKS, '').normalize('NFC').toLowerCase().replace(GREEK_FINAL_SIGMA, '\u03c3');
 		for (let index = 0; index < character.length; index++) {
 			starts.push(start);
 			ends.push(end);
@@ -263,6 +265,10 @@ export class SessionsListFindController<T> extends AbstractFindController<T, Fuz
 	/** Fires what the search shows after its pattern changes; `undefined` when the pattern has no words. */
 	readonly onDidSearch: Event<ISessionsListSearchResults | undefined> = this._onDidSearch.event;
 
+	private readonly _onDidChangeResults = new Emitter<ISessionsListSearchResults>();
+	/** Fires what the search shows after the rows changed while its pattern stayed the same. */
+	readonly onDidChangeResults: Event<ISessionsListSearchResults> = this._onDidChangeResults.event;
+
 	constructor(
 		tree: AbstractTree<T, FuzzyScore, unknown>,
 		filter: IFindFilter<T>,
@@ -272,10 +278,14 @@ export class SessionsListFindController<T> extends AbstractFindController<T, Fuz
 	) {
 		super(tree, filter, contextViewProvider, { ...options, placeholder: localize('sessionsList.searchPlaceholder', "Search sessions") });
 		this.disposables.add(this._onDidSearch);
+		this.disposables.add(this._onDidChangeResults);
 		// Sessions change while the widget is open: keep its "no sessions found" message current.
 		this.disposables.add(tree.onDidChangeModel(() => {
 			if (this.isOpened()) {
-				this.renderResults(false);
+				const results = this.renderResults(false);
+				if (results) {
+					this._onDidChangeResults.fire(results);
+				}
 			}
 		}));
 	}
@@ -324,7 +334,7 @@ type SessionsListSearchClassification = {
 	owner: 'alexdima';
 	comment: 'Tracks searches of the Agents window Sessions list, from the first word typed until the query is cleared, the search is closed, or the list is disposed, to measure whether they find sessions. The query text is not collected.';
 	wordCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of distinct words in the last query of the search.' };
-	resultCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of sessions and chats the last query showed.' };
+	resultCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of sessions and chats the last query showed when the search ended, including sessions that arrived or changed after it was typed.' };
 	beyondTitleResultCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of those results that matched a word outside their title, such as in a chat title, folder, branch, or pull request.' };
 	queryChangeCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of times the query changed during the search.' };
 	openCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of sessions or chats opened from the list during the search.' };
@@ -352,6 +362,14 @@ export class SessionsListSearchTelemetry implements IDisposable {
 		this.search.wordCount = wordCount;
 		this.search.resultCount = resultCount;
 		this.search.beyondTitleResultCount = beyondTitleResultCount;
+	}
+
+	/** Records the results of the current query after sessions changed, which does not change the query. */
+	resultsChanged(resultCount: number, beyondTitleResultCount: number): void {
+		if (this.search) {
+			this.search.resultCount = resultCount;
+			this.search.beyondTitleResultCount = beyondTitleResultCount;
+		}
 	}
 
 	resultOpened(): void {

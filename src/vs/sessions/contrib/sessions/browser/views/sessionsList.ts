@@ -848,6 +848,8 @@ interface ISessionChatItemTemplate {
 	readonly statusIcon: SessionStatusIcon;
 	readonly title: HighlightedLabel;
 	readonly titleContainer: HTMLElement;
+	/** While searching, the search hint of a standalone chat's row without a details row. */
+	readonly titleSearchHint: HTMLElement;
 	readonly titleInputContainer: HTMLElement;
 	readonly compactHoverDescription: HTMLElement;
 	readonly folderRow: HTMLElement;
@@ -945,6 +947,8 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		private readonly getComparisonConnectorPosition: (session: ISession) => SessionGroupConnectorPosition | undefined = () => undefined,
 		/** The Agent Merge configuration of the chat's folder, which decides how its pull request icon reads. */
 		private readonly getAgentMergeConfiguration: (item: ISessionChatItem) => IObservable<ISessionAgentMergeConfiguration | undefined> = () => constObservable(undefined),
+		/** While searching, the field a standalone chat matched in that neither its row, through `shownTexts`, nor its section headers show. */
+		private readonly getSearchHint: (item: ISessionChatItem, shownTexts: readonly string[]) => ISessionSearchHint | undefined = () => undefined,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionChatItemTemplate {
@@ -958,6 +962,8 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		const statusIcon = disposables.add(this.instantiationService.createInstance(SessionStatusIcon, iconContainer));
 		const titleContainer = DOM.append(titleRow, $('.session-chat-title'));
 		const title = disposables.add(new HighlightedLabel(titleContainer));
+		// The row's ARIA label names the search hint.
+		const titleSearchHint = DOM.append(titleRow, $('span.session-search-hint.session-search-hint-title', { 'aria-hidden': 'true' }));
 		const titleInputContainer = DOM.append(titleRow, $('.session-chat-title-input.session-inline-rename-input'));
 		const compactHoverDescription = DOM.append(titleRow, $('.session-compact-hover-description'));
 		const folderRow = DOM.append(container, $('.session-chat-folder-row'));
@@ -992,7 +998,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		}
 		disposables.add(Gesture.ignoreTarget(approvalRow));
 
-		return { container, statusIcon, title, titleContainer, titleInputContainer, compactHoverDescription, folderRow, titleToolbar, approvalRow, approvalLabel, approvalButtonContainer, canArchiveContext, canDeleteContext, isUntitledContext, isArchivedContext, isStandaloneContext, disposables, elementDisposables };
+		return { container, statusIcon, title, titleContainer, titleSearchHint, titleInputContainer, compactHoverDescription, folderRow, titleToolbar, approvalRow, approvalLabel, approvalButtonContainer, canArchiveContext, canDeleteContext, isUntitledContext, isArchivedContext, isStandaloneContext, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionChatItemTemplate): void {
@@ -1072,6 +1078,15 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			}
 
 			const showDetailsRow = !this.compact();
+			const showsFolder = showDetailsRow && statusMessage === undefined && !!folderLabel && !!chatWorkspace;
+			// While searching, a done chat on its own row names the field it matched in that its row doesn't show: in its
+			// details row, or next to its title when it has none.
+			const searchHint = element.standalone ? this.getSearchHint(element, showsFolder && folderLabel ? [folderLabel] : []) : undefined;
+			DOM.clearNode(template.titleSearchHint);
+			template.titleSearchHint.classList.toggle('visible', !!searchHint && !showDetailsRow);
+			if (searchHint && !showDetailsRow) {
+				renderSearchHint(template.titleSearchHint, searchHint, reader.store);
+			}
 			// Like session rows, hide change counts while the chat is running or needs input.
 			const diffStats = status === SessionStatus.InProgress || status === SessionStatus.NeedsInput ? undefined : getChatListDiffStats(element.chat, reader);
 			template.folderRow.hidden = !showDetailsRow;
@@ -1096,7 +1111,14 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 				const label = DOM.append(template.folderRow, $('span.session-chat-folder-label', undefined, folderLabel));
 				reader.store.add(this.hoverService.setupDelayedHoverAtMouse(label, { content: folderLabel }));
 			}
-			const hasLeadingDetail = statusMessage !== undefined || !!folderLabel;
+			let hasLeadingDetail = statusMessage !== undefined || !!folderLabel;
+			if (showDetailsRow && searchHint) {
+				if (hasLeadingDetail) {
+					DOM.append(template.folderRow, $('span.session-chat-separator', undefined, '\u00B7'));
+				}
+				renderSearchHint(DOM.append(template.folderRow, $('span.session-search-hint')), searchHint, reader.store);
+				hasLeadingDetail = true;
+			}
 			if (showDetailsRow && diffStats) {
 				if (hasLeadingDetail) {
 					DOM.append(template.folderRow, $('span.session-chat-separator', undefined, '\u00B7'));
@@ -3353,8 +3375,8 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly getCompletedStatusMessage?: (session: ISession, reader: IReader | undefined) => string | undefined;
 	/** The harness label of a nested chat whose harness differs from its session's. */
 	readonly getChatHarnessLabel?: (session: ISession, chat: IChat, reader: IReader | undefined) => string | undefined;
-	/** While searching, the field a session matched in that neither its row, through `shownTexts`, nor its section headers show. */
-	readonly getSearchHint?: (session: ISession, shownTexts: readonly string[]) => ISessionSearchHint | undefined;
+	/** While searching, the field a session or a standalone chat matched in that neither its row, through `shownTexts`, nor its section headers show. */
+	readonly getSearchHint?: (element: ISession | ISessionChatItem, shownTexts: readonly string[]) => ISessionSearchHint | undefined;
 }
 
 class SessionsAccessibilityProvider {
@@ -3405,9 +3427,14 @@ class SessionsAccessibilityProvider {
 				const stateLabel = isArchived
 					? localize('sessionChatItemArchivedAria', "{0}, archived", label)
 					: readLabel;
-				return element.standalone
-					? localize('sessionChatItemStandaloneAria', "{0}, in session {1}", stateLabel, element.session.title.read(reader))
-					: stateLabel;
+				if (!element.standalone) {
+					return stateLabel;
+				}
+				const standaloneLabel = localize('sessionChatItemStandaloneAria', "{0}, in session {1}", stateLabel, element.session.title.read(reader));
+				const searchHint = this.options?.getSearchHint?.(element, folderLabel ? [folderLabel] : []);
+				return searchHint
+					? localize('sessionChatItemSearchHintAria', "{0}, matches {1}", standaloneLabel, getSearchHintAriaLabel(searchHint))
+					: standaloneLabel;
 			});
 		}
 		if (isSessionGroupItem(element)) {
@@ -4666,7 +4693,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const reportExternalApplicationBadgeModeExperimentTrigger = () => logDefaultSettingExperimentTrigger(this.configurationService, this.telemetryService, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING);
 		const reportExternalApplicationBadgeShowFromExperimentTrigger = () => logDefaultSettingExperimentTrigger(this.configurationService, this.telemetryService, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING);
 		this.searchFilter = new SessionsListSearchFilter(session => this.getSessionSearchDocument(session));
-		const getSearchHint = (session: ISession, shownTexts: readonly string[]) => this.getSearchHint(session, shownTexts);
+		const getSearchHint = (element: ISession | ISessionChatItem, shownTexts: readonly string[]) => this.getSearchHint(element, shownTexts);
 		const sessionRenderer = new SessionItemRenderer(
 			{
 				grouping: this.options.grouping,
@@ -4752,6 +4779,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			item => this.getRowGroupDepth(item),
 			session => this.renderedComparisonParticipantConnectorPositions.get(session.sessionId),
 			item => getSessionAgentMergeConfigurationObservable(item.session, sessionsProvidersService, this.configurationService, item.chat),
+			getSearchHint,
 		);
 		this._chatRenderer = chatRenderer;
 		const selectHeader = (element: ISessionSection | ISessionGroupItem, event: MouseEvent) => {
@@ -5268,6 +5296,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const searchTelemetry = this._register(new SessionsListSearchTelemetry(this.telemetryService));
 		this._register(this.findController.onDidSearch(results => searchTelemetry.queryChanged(this.searchFilter.wordCount, results?.count ?? 0, results?.beyondTitleCount ?? 0)));
+		this._register(this.findController.onDidChangeResults(results => {
+			// Not while the list renders for a query that is being cleared: it no longer filters by the query's words.
+			if (this.hasFindPattern) {
+				searchTelemetry.resultsChanged(results.count, results.beyondTitleCount);
+			}
+		}));
 		this._register(this.onDidOpenSession(() => searchTelemetry.resultOpened()));
 
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
@@ -8605,17 +8639,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	/**
-	 * While searching, the field that explains why a session matched when a word of the query is in neither its title,
-	 * its chat titles, `shownTexts` (what its row shows besides them), nor the headers of the sections and groups above it.
+	 * While searching, the field that explains why a session or a standalone chat matched when a word of the query is in
+	 * neither its title, its chat titles, `shownTexts` (what its row shows besides them), nor the headers of the sections
+	 * and groups above it.
 	 */
-	private getSearchHint(session: ISession, shownTexts: readonly string[]): ISessionSearchHint | undefined {
-		const match = this.searchFilter.getMatch(session);
+	private getSearchHint(element: ISession | ISessionChatItem, shownTexts: readonly string[]): ISessionSearchHint | undefined {
+		const match = this.searchFilter.getMatch(element);
 		if (!match?.fieldWords.length) {
 			return undefined;
 		}
 		const headerLabels: string[] = [];
-		if (this.tree.hasElement(session)) {
-			for (let parent = this.tree.getParentElement(session); parent; parent = this.tree.getParentElement(parent)) {
+		if (this.tree.hasElement(element)) {
+			for (let parent = this.tree.getParentElement(element); parent; parent = this.tree.getParentElement(parent)) {
 				if (isSessionGroupItem(parent)) {
 					headerLabels.push(parent.comparison?.title ?? parent.group.name);
 				} else if (isSessionSection(parent)) {

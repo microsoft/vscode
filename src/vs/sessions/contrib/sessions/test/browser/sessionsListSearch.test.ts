@@ -91,6 +91,9 @@ suite('Sessions - SessionsListSearch', () => {
 			decomposedKana: match('\u304c', '\u304b\u3099\u3044')?.title,
 			decomposedHangul: match('\ud55c', '\u1112\u1161\u11ab\uad6d')?.title,
 			onlyAnAccent: new SessionsListSearchQuery('\u0301').isEmpty,
+			// Lowercase \u03ba\u03cc\u03c3\u03bc\u03bf\u03c2 ends in a final sigma, which uppercase \u039a\u039f\u03a3\u039c\u039f\u03a3 does not have.
+			greekUppercaseTitle: match('\u03ba\u03cc\u03c3\u03bc\u03bf\u03c2', '\u039a\u039f\u03a3\u039c\u039f\u03a3 news')?.title,
+			greekUppercaseQuery: match('\u039a\u039f\u03a3\u039c\u039f\u03a3', '\u03ba\u03cc\u03c3\u03bc\u03bf\u03c2 news')?.title,
 		}, {
 			// Highlights cover the original characters, accents included.
 			decomposedTitle: ['Re\u0301sume\u0301'],
@@ -100,6 +103,8 @@ suite('Sessions - SessionsListSearch', () => {
 			decomposedKana: ['\u304b\u3099'],
 			decomposedHangul: ['\u1112\u1161\u11ab'],
 			onlyAnAccent: true,
+			greekUppercaseTitle: ['\u039a\u039f\u03a3\u039c\u039f\u03a3'],
+			greekUppercaseQuery: ['\u03ba\u03cc\u03c3\u03bc\u03bf\u03c2'],
 		});
 	});
 
@@ -150,6 +155,22 @@ suite('Sessions - SessionsListSearch', () => {
 		assert.deepStrictEqual(events, [{
 			name: 'agents/sessionsListSearch',
 			data: { wordCount: 1, resultCount: 3, beyondTitleResultCount: 1, queryChangeCount: 1, openCount: 1, durationMs: 500 },
+		}]);
+	});
+
+	test('logs the results of a query that changed after it was typed, without counting a query change', () => {
+		const events: { readonly name: string; readonly data: unknown }[] = [];
+		const telemetry = new SessionsListSearchTelemetry(upcastPartial<ITelemetryService>({ publicLog2: (name, data) => { events.push({ name, data }); } }), () => 1000);
+
+		// Without a search, there are no results to record.
+		telemetry.resultsChanged(7, 7);
+		telemetry.queryChanged(1, 0, 0);
+		telemetry.resultsChanged(2, 1);
+		telemetry.dispose();
+
+		assert.deepStrictEqual(events, [{
+			name: 'agents/sessionsListSearch',
+			data: { wordCount: 1, resultCount: 2, beyondTitleResultCount: 1, queryChangeCount: 1, openCount: 0, durationMs: 0 },
 		}]);
 	});
 });

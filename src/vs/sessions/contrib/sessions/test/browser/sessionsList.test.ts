@@ -6003,7 +6003,9 @@ suite('Sessions - SessionsList', () => {
 					}
 					const chat = markHighlights(row.querySelector('.session-chat-title'));
 					if (chat !== undefined) {
-						return `    ${chat}`;
+						const chatDetailsHint = markHighlights(row.querySelector('.session-chat-folder-row .session-search-hint-label'));
+						const chatTitleHint = markHighlights(row.querySelector('.session-search-hint-title.visible .session-search-hint-label'));
+						return `    ${chat}${chatDetailsHint ? ` [${chatDetailsHint}]` : ''}${chatTitleHint ? ` {${chatTitleHint}}` : ''}`;
 					}
 					const title = markHighlights(row.querySelector('.session-title'));
 					const detailsHint = markHighlights(row.querySelector('.session-details-row .session-search-hint-label'));
@@ -6199,24 +6201,69 @@ suite('Sessions - SessionsList', () => {
 			}
 		});
 
-		test('matches a done chat on its own row by its title and its session\'s folder only', async () => {
+		test('matches a done chat on its own row by its title and its session\'s folder only, naming the folder it matched', async () => {
 			const { list, search, closeSearch } = renderSearch([
-				createSession('Investigate crash', { branch: 'alex/flake', doneChats: ['Old repro notes'] }),
+				createSession('Investigate crash', { branch: 'alex/flake', gitHub: true, doneChats: ['Old repro notes'] }),
 			]);
 			list.setExcludeArchived(false);
 			try {
 				assert.deepStrictEqual({
 					chatTitle: search('repro'),
 					folder: search('vscode'),
+					owner: search('microsoft'),
 					sessionBranch: search('flake'),
 				}, {
 					chatTitle: ['Archived', '    Old «repro» notes'],
-					folder: ['Recent', '  Investigate crash', 'Archived', '    Old repro notes'],
+					// The session's row shows its folder; the chat's row doesn't.
+					folder: ['Recent', '  Investigate crash', 'Archived', '    Old repro notes [«vscode»]'],
+					owner: ['Recent', '  Investigate crash [«microsoft»/vscode]', 'Archived', '    Old repro notes [«microsoft»/vscode]'],
 					sessionBranch: ['Recent', '  Investigate crash [alex/«flake»]'],
 				});
 			} finally {
 				await closeSearch();
 			}
+		});
+
+		test('names the folder a done chat on its own row matched in next to its title in compact rows, and in its accessible label', async () => {
+			const { list, rows, search, closeSearch } = renderSearch([
+				createSession('Investigate crash', { doneChats: ['Old repro notes'] }),
+			], {}, SessionsGrouping.Date, true);
+			list.setExcludeArchived(false);
+			try {
+				search('vscode');
+				const chatRow = [...mainWindow.document.querySelectorAll<HTMLElement>('.monaco-list-row')].find(row => row.querySelector('.session-chat-title')?.textContent === 'Old repro notes');
+				assert.deepStrictEqual({
+					rows: rows(),
+					hintInLabel: /matches folder vscode$/.test(chatRow?.getAttribute('aria-label') ?? ''),
+				}, {
+					rows: ['Recent', '  Investigate crash {«vscode»}', 'Archived', '    Old repro notes {«vscode»}'],
+					hintInLabel: true,
+				});
+			} finally {
+				await closeSearch();
+			}
+		});
+
+		test('logs the results of a search that sessions arrive for after it was typed', async () => {
+			const events: object[] = [];
+			const { harness, list, rows, search, closeSearch } = renderSearch([createSession('Unrelated work')], instantiationService => instantiationService.stub(ITelemetryService, new class extends NullTelemetryServiceShape {
+				override publicLog2(eventName?: string, data?: object): void {
+					if (eventName === 'agents/sessionsListSearch' && data) {
+						events.push(data);
+					}
+				}
+			}));
+			const beforeArrival = search('hello');
+			harness.managementService.sessions = [...harness.managementService.sessions, createSession('hello world')];
+			list.refresh();
+			const afterArrival = rows();
+			await closeSearch();
+
+			assert.deepStrictEqual({ beforeArrival, afterArrival, events: events.map(event => ({ ...event, durationMs: typeof Reflect.get(event, 'durationMs') })) }, {
+				beforeArrival: [],
+				afterArrival: ['Recent', '  «hello» world'],
+				events: [{ wordCount: 1, resultCount: 1, beyondTitleResultCount: 0, queryChangeCount: 1, openCount: 0, durationMs: 'number' }],
+			});
 		});
 
 		test('reopening the search shows the results of its last query', async () => {
