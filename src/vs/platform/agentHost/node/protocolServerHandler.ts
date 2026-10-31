@@ -2597,6 +2597,21 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			await this._agentService.createTerminal(params, client.telemetryContext.clientType);
 			return null;
 		},
+		openCanvas: async (client, params) => {
+			if (!this._isChannelVisible(client, params.chat)) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Canvas chat is not visible to this client: ${params.chat}`);
+			}
+			await this._agentService.openCanvas(params, this._config.scopedRelayCredentials ? this._getScopedAuthentication(client) : undefined);
+			return null;
+		},
+		disposeCanvas: async (client, params) => {
+			const canvas = this._stateManager.getCanvas(params.channel);
+			if (canvas && !this._isChannelVisible(client, canvas.chat)) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Canvas is not visible to this client.');
+			}
+			await this._agentService.disposeCanvas(URI.parse(params.channel, true), params.channel);
+			return null;
+		},
 		disposeTerminal: async (_client, params) => {
 			await this._agentService.disposeTerminal(URI.parse(params.channel));
 			return null;
@@ -4458,6 +4473,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 		if (envelope.action.type === ActionType.ChatMoved && !isActionKnownToVersion(envelope.action, client.protocolVersion)) {
 			// Older clients learn a moved chat's owner from the sessions' chat lists only.
+			return undefined;
+		}
+		if ((envelope.action.type === ActionType.ChatCanvasRegistryRequested || envelope.action.type === ActionType.ChatCanvasRegistryChanged)
+			&& !isActionKnownToVersion(envelope.action, client.protocolVersion)) {
 			return undefined;
 		}
 		if (!client.legacyChatUris) {

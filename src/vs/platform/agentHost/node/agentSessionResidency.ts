@@ -121,7 +121,11 @@ export class AgentSessionResidency extends Disposable {
 	}
 
 	private _resolveSession(resource: URI): URI | undefined {
-		return resolveAgentHostSession(resource, chat => this._chatOwnership.getChatOwner(chat));
+		return resolveAgentHostSession(
+			resource,
+			chat => this._chatOwnership.getChatOwner(chat),
+			canvas => this._stateManager.getCanvas(canvas)?.chat,
+		);
 	}
 
 	private _hasResidencySubscribers(resource: URI): boolean {

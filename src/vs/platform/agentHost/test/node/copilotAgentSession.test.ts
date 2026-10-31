@@ -4269,7 +4269,7 @@ suite('CopilotAgentSession', () => {
 
 	suite('canvas definition registry stability', () => {
 		test('withholds transient registry listings until extension reload settles', async () => {
-			const { session, mockSession, signals } = await createAgentSession(disposables, {
+			const { session, mockSession } = await createAgentSession(disposables, {
 				configureMockSession: mock => {
 					mock.extensions.push({ id: 'project:preview', name: 'Preview extension', source: 'project', status: 'running' });
 					mock.canvases.push({
@@ -4309,20 +4309,18 @@ suite('CopilotAgentSession', () => {
 				afterGenerationChange: afterGenerationChange?.map(canvas => canvas.canvasId),
 				whileReloading,
 				afterSettledRemoval,
-				membershipInvalidations: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged).length,
 			}, {
 				beforeReload: ['preview'],
 				duringGenerationChange: undefined,
 				afterGenerationChange: ['preview'],
 				whileReloading: undefined,
 				afterSettledRemoval: [],
-				membershipInvalidations: 3,
 			});
 			session.dispose();
 		});
 
 		test('republishes after concurrent callers observe unsettled and settled registries', async () => {
-			const { session, mockSession, signals } = await createAgentSession(disposables, {
+			const { session, mockSession } = await createAgentSession(disposables, {
 				configureMockSession: mock => {
 					mock.extensions.push({ id: 'project:preview', name: 'Preview extension', source: 'project', status: 'running' });
 					mock.canvases.push({
@@ -4367,11 +4365,9 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual({
 				unsettled,
 				settled: settled?.map(canvas => canvas.canvasId),
-				membershipInvalidations: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged).length,
 			}, {
 				unsettled: undefined,
 				settled: ['preview'],
-				membershipInvalidations: 1,
 			});
 			session.dispose();
 		});
@@ -4415,15 +4411,21 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
-	test('republishes live canvas membership when the registry changes', async () => {
-		const { session, mockSession, signals } = await createAgentSession(disposables);
+	test('publishes the Canvas registry without changing live membership', async () => {
+		const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+		signals.length = 0;
+		const published = waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatCanvasRegistryChanged);
 
 		mockSession.fire('session.canvas.registry_changed', { canvases: [] });
+		await published;
 
-		assert.deepStrictEqual(
-			getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged),
-			[{ type: ActionType.ChatCanvasesChanged, canvases: undefined }],
-		);
+		assert.deepStrictEqual({
+			registry: getActions(signals).filter(action => action.type === ActionType.ChatCanvasRegistryChanged),
+			membership: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged),
+		}, {
+			registry: [{ type: ActionType.ChatCanvasRegistryChanged, canvasRegistry: { extensions: [] } }],
+			membership: [],
+		});
 		session.dispose();
 	});
 
@@ -4811,7 +4813,7 @@ suite('CopilotAgentSession', () => {
 			});
 			const resource = handoff.projections[0].resource;
 
-			await replacement.session.closeCanvas({ resource });
+			await replacement.session.closeCanvas({ resource: URI.parse(resource), resourceId: resource });
 			const membershipBeforeAdoption = summarizeCanvasSignals(replacement.signals).membership;
 			const adopted = replacement.session.adoptCanvasHandoff(handoff);
 
@@ -4990,7 +4992,7 @@ suite('CopilotAgentSession', () => {
 	test('closes a projected canvas lifetime once, ignoring stale and unprojected requests, whenever the runtime confirms', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		const canvas = (instanceId: string) => ({ instanceId, extensionId: 'project:preview', canvasId: 'preview', url: `https://example.test/${instanceId}` });
-		const channel = (instanceId: string) => signals.filter(signal => signal.kind === 'canvas').filter(signal => signal.state.instanceId === instanceId).at(-1)?.resource ?? URI.parse('ahp-canvas:/missing');
+		const channel = (instanceId: string) => URI.parse(signals.filter(signal => signal.kind === 'canvas').filter(signal => signal.state.instanceId === instanceId).at(-1)?.resource ?? 'ahp-canvas:/missing');
 		mockSession.fire('session.canvas.opened', canvas('confirmed-first'));
 		mockSession.fire('session.canvas.opened', canvas('confirmed-later'));
 		const first = channel('confirmed-first');
@@ -5024,7 +5026,7 @@ suite('CopilotAgentSession', () => {
 	test('lets a closed event that lags its close response remove only a canvas the runtime no longer reports open', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		const canvas = (instanceId: string) => ({ instanceId, extensionId: 'project:preview', canvasId: 'preview', url: `https://example.test/${instanceId}` });
-		const channel = (instanceId: string) => signals.filter(signal => signal.kind === 'canvas').filter(signal => signal.state.instanceId === instanceId).at(-1)?.resource ?? URI.parse('ahp-canvas:/missing');
+		const channel = (instanceId: string) => URI.parse(signals.filter(signal => signal.kind === 'canvas').filter(signal => signal.state.instanceId === instanceId).at(-1)?.resource ?? 'ahp-canvas:/missing');
 		let listOpenCalls = 0;
 		mockSession.onCanvasListOpen = () => listOpenCalls++;
 		mockSession.fire('session.canvas.opened', canvas('reopened'));

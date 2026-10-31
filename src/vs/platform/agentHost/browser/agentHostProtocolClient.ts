@@ -44,7 +44,7 @@ import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../.
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentPolicyError, type AgentExtensionMode, type AgentExtensionSource, type AgentExtensionStatus, IAgentCreateChatRequestOptions, IAgentCreateChatWorkspace, IAgentCreateSessionConfig, type IAgentExtensionInventory, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { isPolicyResolutionErrorData } from '../common/meta/errorMeta.js';
-import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IMissionControlCredentialSealingRequest, type IAgentImportSessionOptions } from '../common/agentService.js';
+import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, CanvasesEnabledSettingId, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IAgentImportSessionOptions, type IMissionControlCredentialSealingRequest } from '../common/agentService.js';
 import { readAgentHostAuthenticationEncryption, type IAgentHostAuthenticationEncryption } from '../common/meta/agentHostAuthenticationEncryption.js';
 import { sealAgentHostCredential } from './agentHostCredentialSealing.js';
 import { supportsAgentHostDebugLogsCancellation } from '../common/meta/agentHostDebugLogsMeta.js';
@@ -54,6 +54,7 @@ import { supportsAgentHostCopilotExtensions } from '../common/meta/agentHostCopi
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../common/meta/agentHostSavedChatMeta.js';
 import { reviveSavedChat, type IAgentHostSavedChat, type IAgentHostSavedChatContinuation, type IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
 import { McpAuthRequiredReason } from '../common/state/protocol/channels-session/state.js';
+import type { OpenCanvasParams } from '../common/state/protocol/channels-canvas/commands.js';
 import { supportsAgentHostTiming, supportsChatUserInteractionTiming } from '../common/meta/agentHostTimingMeta.js';
 import { readCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
@@ -609,7 +610,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	/** The versions offered in `initialize`; read on every connection, so the setting applies from the next one. */
 	private _offeredProtocolVersions(): string[] {
-		return getAgentHostClientProtocolVersions(this._configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) === true);
+		return getAgentHostClientProtocolVersions(
+			this._configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) === true,
+			this._configurationService.getValue<boolean>(CanvasesEnabledSettingId) === true,
+		);
 	}
 
 	/**
@@ -2405,6 +2409,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				: { kind: ChatMoveDestinationKind.NewSession },
 		});
 		return URI.parse(result.session);
+	}
+
+	async openCanvas(params: OpenCanvasParams): Promise<void> {
+		await this._sendRequest('openCanvas', params);
+	}
+
+	async disposeCanvas(canvas: URI): Promise<void> {
+		await this._sendRequest('disposeCanvas', { channel: canvas.toString() });
 	}
 
 	async listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {

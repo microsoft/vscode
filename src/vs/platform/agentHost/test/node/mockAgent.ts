@@ -62,6 +62,10 @@ export class MockAgent implements IAgent {
 	readonly onDidSpawnChat = Event.None;
 	getTurnDiagnosticSnapshot?: IAgent['getTurnDiagnosticSnapshot'];
 	captureTurnTelemetryContext?: IAgent['captureTurnTelemetryContext'];
+	listSessionCanvases?: IAgent['listSessionCanvases'];
+	materializeSessionCanvases?: IAgent['materializeSessionCanvases'];
+	openSessionCanvas?: IAgent['openSessionCanvas'];
+	closeSessionCanvas?: IAgent['closeSessionCanvas'];
 
 	recordModelCallTurnCorrelation(chat: URI, modelCallId: string, turnId: string): void {
 		this.modelCallTurnCorrelationCalls.push({ chat, modelCallId, turnId });
@@ -135,7 +139,7 @@ export class MockAgent implements IAgent {
 
 	constructor(
 		readonly id: AgentProvider = 'mock',
-		private readonly _capabilities: IAgentCapabilities = { multipleChats: { fork: true } },
+		private _capabilities: IAgentCapabilities = { multipleChats: { fork: true } },
 		readonly agentHostCapabilities: IAgent['agentHostCapabilities'] = { workspaceConversion: false },
 		autoDiscover = true,
 	) {
@@ -152,6 +156,10 @@ export class MockAgent implements IAgent {
 
 	setAuthenticationRequired(requirement: Omit<AuthRequiredParams, 'channel'> | undefined): void {
 		this._authenticationRequired.set(requirement, undefined);
+	}
+
+	setCapabilities(capabilities: IAgentCapabilities): void {
+		this._capabilities = capabilities;
 	}
 
 	getDescriptor(): IAgentDescriptor {

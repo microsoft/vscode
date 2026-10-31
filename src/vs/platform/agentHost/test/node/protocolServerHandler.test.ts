@@ -62,6 +62,7 @@ import type { IArtifactIntegrationAccess } from '../../../artifactIntegrations/c
 import type { IClientArtifactIntegrationRegistry, IClientArtifactIntegrations } from '../../common/clientArtifactIntegrations.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
+import type { OpenCanvasParams } from '../../common/state/protocol/channels-canvas/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { chatToolCallReady, chatToolCallStart, chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
@@ -389,12 +390,20 @@ class MockAgentService extends Disposable implements IAgentService {
 		return this.moveChatResult ?? session;
 	}
 	readonly movedSessions: { session: string; destination: string; after: string | undefined }[] = [];
+	readonly openedCanvases: OpenCanvasParams[] = [];
+	readonly disposedCanvases: string[] = [];
 	async moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {
 		this.movedSessions.push({ session: session.toString(), destination: destination.toString(), after: after?.toString() });
 		if (this.moveChatResult instanceof Error) {
 			throw this.moveChatResult;
 		}
 		return destination;
+	}
+	async openCanvas(params: OpenCanvasParams): Promise<void> {
+		this.openedCanvases.push(params);
+	}
+	async disposeCanvas(canvas: URI): Promise<void> {
+		this.disposedCanvases.push(canvas.toString());
 	}
 	/** Owners of chats that are not registered, as the cold owner lookup would find them. */
 	readonly chatOwners = new Map<string, string>();
@@ -2320,6 +2329,32 @@ suite('ProtocolServerHandler', () => {
 			supported: true, legacy: false, malformed: false, uninitialized: false,
 			response: { jsonrpc: '2.0', id: 20, result: { session: 'ahp-session:/session-1' } },
 			imported: ['copilotcli:/session-1'],
+		});
+	});
+
+	test('routes standard Canvas lifecycle commands with opaque resource identities', async () => {
+		const transport = connectClient('client-canvas-lifecycle');
+		const params = {
+			channel: 'ahp-canvas:/client.example/opaque-preview',
+			chat: 'vendor-chat://opaque.example/threads/chat-1',
+			extensionId: 'opaque-provider-id',
+			canvasId: 'preview',
+		};
+		const open = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, 'openCanvas', params));
+		const dispose = waitForResponse(transport, 21);
+		transport.simulateMessage(request(21, 'disposeCanvas', { channel: params.channel }));
+
+		assert.deepStrictEqual({
+			open: await open,
+			opened: agentService.openedCanvases,
+			dispose: await dispose,
+			disposed: agentService.disposedCanvases,
+		}, {
+			open: { jsonrpc: '2.0', id: 20, result: null },
+			opened: [params],
+			dispose: { jsonrpc: '2.0', id: 21, result: null },
+			disposed: [params.channel],
 		});
 	});
 

@@ -95,6 +95,31 @@ suite('AgentHostSubscriptionService', () => {
 		});
 	});
 
+	test('routes an opaque client-addressed Canvas through its advertised chat owner', () => {
+		const ownerChanges = disposables.add(new Emitter<IChatOwnerChange>());
+		const subscriptions = disposables.add(new AgentHostSubscriptionService(new class extends mock<IAgentHostChatOwnershipService>() {
+			override readonly onDidRegisterChat = Event.None;
+			override readonly onDidChangeChatOwner = ownerChanges.event;
+		}()));
+		const first = 'copilot:/first';
+		const second = 'copilot:/second';
+		const chat = buildChatUri(first, 'peer');
+		const canvas = URI.parse('ahp-canvas:/client.example/opaque-preview');
+
+		subscriptions.addSubscriber(canvas, 'client');
+		subscriptions.setSubscriptionOwner(canvas, first, chat);
+		const before = subscriptions.resolveSubscribedSession(canvas)?.toString();
+		ownerChanges.fire({ chat, previous: first, current: second });
+		const after = subscriptions.resolveSubscribedSession(canvas)?.toString();
+		subscriptions.removeSubscriber(canvas, 'client');
+
+		assert.deepStrictEqual({ before, after, removed: subscriptions.resolveSubscribedSession(canvas) }, {
+			before: first,
+			after: second,
+			removed: undefined,
+		});
+	});
+
 	test('counts a chat-owned changeset subscription for its chat owner whether subscribed before or after the chat registers', () => {
 		const registrations = disposables.add(new Emitter<IChatRegistration>());
 		const subscriptions = disposables.add(new AgentHostSubscriptionService(new class extends mock<IAgentHostChatOwnershipService>() {

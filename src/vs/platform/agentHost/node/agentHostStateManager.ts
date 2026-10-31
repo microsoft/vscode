@@ -24,8 +24,7 @@ import { arrayEquals, structuralEquals } from '../../../base/common/equals.js';
 import { canvasReducer } from '../common/state/protocol/channels-canvas/reducer.js';
 import type { SessionConfigSchema } from '../common/state/protocol/commands.js';
 import type { CanvasState } from '../common/state/protocol/channels-canvas/state.js';
-import { parseCanvasChatUri } from '../common/canvasUri.js';
-import { URI as ResourceURI } from '../../../base/common/uri.js';
+import { AHP_CANVAS_SCHEME, isCanonicalCanvasChannel } from '../common/canvasUri.js';
 import { preserveProviderBackedRootConfigValues } from '../common/agentCustomizationSettings.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
@@ -414,6 +413,8 @@ export class AgentHostStateManager extends Disposable {
 	private _automationCatalog: AutomationState | undefined;
 	private readonly _automationRuns = new Map<string, AutomationRunState>();
 	private readonly _canvases = new Map<string, { readonly chat: string; state: CanvasState }>();
+	/** Canvas channel bindings survive disposal and may only be reused after their owning chat ends. */
+	private readonly _canvasOwners = new Map<string, string>();
 
 	/**
 	 * Active turns per session, keyed by session URI string with the value
@@ -1194,15 +1195,24 @@ export class AgentHostStateManager extends Disposable {
 			this._logService.warn(`[AgentHostStateManager] Canvas state for unavailable chat: ${chat}`);
 			return;
 		}
-		if (parseCanvasChatUri(ResourceURI.parse(resource))?.toString() !== chat) {
-			throw new Error(`Canvas channel does not belong to chat: ${resource}`);
+		if (!isCanonicalCanvasChannel(resource)) {
+			throw new Error(`Canvas channel must use the canonical ${AHP_CANVAS_SCHEME} URI format: ${resource}`);
 		}
+		const boundChat = this._canvasOwners.get(resource);
+		if (boundChat !== undefined && boundChat !== chat) {
+			throw new Error(`Canvas channel is already bound to another chat: ${resource}`);
+		}
+		this._canvasOwners.set(resource, chat);
 		const previous = this._canvases.get(resource);
 		if (previous?.state === state) {
 			return;
 		}
 		this._canvases.set(resource, { chat, state });
 		this.dispatchServerAction(resource, { type: ActionType.CanvasStateChanged, canvas: state });
+	}
+
+	getCanvas(resource: string): { readonly chat: string; readonly state: CanvasState } | undefined {
+		return this._canvases.get(resource);
 	}
 
 	private _pruneChatCanvases(chat: string, resources: ReadonlySet<string>): void {
@@ -2793,6 +2803,11 @@ export class AgentHostStateManager extends Disposable {
 
 	private _invalidateChatEntry(chat: URI): void {
 		this._pruneChatCanvases(chat, new Set());
+		for (const [resource, owner] of this._canvasOwners) {
+			if (owner === chat.toString()) {
+				this._canvasOwners.delete(resource);
+			}
+		}
 		const entry = this._chatEntries.get(chat);
 		if (entry) {
 			entry.valid = false;

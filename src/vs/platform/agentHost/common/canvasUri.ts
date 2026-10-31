@@ -9,6 +9,14 @@ import { isAhpChatChannel } from './state/sessionState.js';
 
 export const AHP_CANVAS_SCHEME = 'ahp-canvas';
 
+/**
+ * Canvas channels use a canonical URI subset so parsing and serializing cannot
+ * change their protocol identity.
+ */
+export function isCanonicalCanvasChannel(resource: string): boolean {
+	return /^ahp-canvas:\/[A-Za-z0-9._~-]+(?:\/[A-Za-z0-9._~-]+)*$/.test(resource);
+}
+
 /** Builds a local host canvas channel with its owning chat and lifetime identifier. */
 export function buildCanvasUri(chat: URI, id: string): URI {
 	return URI.from({
@@ -19,6 +27,11 @@ export function buildCanvasUri(chat: URI, id: string): URI {
 
 /** Reads ownership from a locally constructed canvas channel, not a remote host's URI. */
 export function parseCanvasChatUri(resource: URI): URI | undefined {
+	return parseCanvasUri(resource)?.chat;
+}
+
+/** Reads the chat and client identifier from a locally constructed canvas channel. */
+export function parseCanvasUri(resource: URI): { readonly chat: URI; readonly id: string } | undefined {
 	if (resource.scheme !== AHP_CANVAS_SCHEME || resource.authority !== '' || resource.query !== '' || resource.fragment !== '') {
 		return undefined;
 	}
@@ -28,7 +41,7 @@ export function parseCanvasChatUri(resource: URI): URI | undefined {
 	}
 	try {
 		const chat = URI.parse(decodeBase64(encodedChat).toString(), true);
-		return isAhpChatChannel(chat.toString()) ? chat : undefined;
+		return isAhpChatChannel(chat.toString()) ? { chat, id } : undefined;
 	} catch {
 		return undefined;
 	}

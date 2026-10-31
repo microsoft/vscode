@@ -8,7 +8,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { parseAnnotationsUri } from './annotationsUri.js';
 import { changesetSession, parseChangesetUri, parseFolderChangesetOwnerUri } from './changesetUri.js';
 import { parseNonPtyShellTerminalUri } from './nonPtyShellTerminalUri.js';
-import { parseCanvasChatUri } from './canvasUri.js';
+import { AHP_CANVAS_SCHEME, parseCanvasChatUri } from './canvasUri.js';
 import { isAhpChatChannel, parseSubagentSessionUri } from './state/sessionState.js';
 
 export const IAgentHostSubscriptionService = createDecorator<IAgentHostSubscriptionService>('agentHostSubscriptionService');
@@ -25,7 +25,7 @@ export interface IAgentHostSubscriptionService {
 	removeSubscriber(resource: URI, clientId: string): boolean;
 	hasSubscribers(resource: URI): boolean;
 	/** Records the owning session of a subscribed chat; kept until its last subscriber leaves. */
-	setSubscriptionOwner(resource: URI, session: string): void;
+	setSubscriptionOwner(resource: URI, session: string, chat?: string): void;
 	/** Maps a subscribed resource to its session using the owner recorded for it. */
 	resolveSubscribedSession(resource: URI): URI | undefined;
 	/** Whether any subscribed resource belongs to `session`, using recorded owners. */
@@ -34,12 +34,13 @@ export interface IAgentHostSubscriptionService {
 
 /** Looks up the session that owns a chat from recorded ownership, never from the chat URI. */
 export type AgentHostChatOwnerLookup = (chat: string) => string | undefined;
+export type AgentHostCanvasOwnerLookup = (canvas: string) => string | undefined;
 
 /**
  * Maps a subscribable resource to its owning session. Returns `undefined` for a
  * chat (or chat-scoped canvas) whose owner is not recorded.
  */
-export function resolveAgentHostSession(resource: URI, getChatOwner: AgentHostChatOwnerLookup): URI | undefined {
+export function resolveAgentHostSession(resource: URI, getChatOwner: AgentHostChatOwnerLookup, getCanvasChat?: AgentHostCanvasOwnerLookup): URI | undefined {
 	const resourceString = resource.toString();
 	const changeset = parseChangesetUri(resourceString);
 	if (changeset) {
@@ -50,12 +51,14 @@ export function resolveAgentHostSession(resource: URI, getChatOwner: AgentHostCh
 	const folderSession = parseFolderChangesetOwnerUri(resourceString)?.sessionUri;
 	let sessionString = annotationsSession ?? folderSession;
 	if (sessionString === undefined) {
-		const chat = resourceChat(resource);
+		const chat = resourceChat(resource, getCanvasChat);
 		if (chat !== undefined) {
 			sessionString = getChatOwner(chat);
 			if (sessionString === undefined) {
 				return undefined;
 			}
+		} else if (resource.scheme === AHP_CANVAS_SCHEME) {
+			return undefined;
 		}
 	}
 	return resolveAgentHostRootSession(URI.parse(sessionString ?? resourceString));
@@ -65,14 +68,17 @@ export function resolveAgentHostSession(resource: URI, getChatOwner: AgentHostCh
  * The chat a chat-scoped resource belongs to: a chat channel, a chat's canvas,
  * or a retained terminal link (by the chat it names, not the session it embeds).
  */
-export function resourceChat(resource: URI): string | undefined {
+export function resourceChat(resource: URI, getCanvasChat?: AgentHostCanvasOwnerLookup): string | undefined {
 	const terminalChat = parseNonPtyShellTerminalUri(resource)?.chat.toString();
 	if (terminalChat !== undefined) {
 		return terminalChat;
 	}
-	const canvasChat = parseCanvasChatUri(resource);
-	if (canvasChat) {
-		return canvasChat.toString();
+	if (resource.scheme === AHP_CANVAS_SCHEME) {
+		const recordedChat = getCanvasChat?.(resource.toString());
+		if (recordedChat !== undefined) {
+			return recordedChat;
+		}
+		return parseCanvasChatUri(resource)?.toString();
 	}
 	const resourceString = resource.toString();
 	return isAhpChatChannel(resourceString) ? resourceString : undefined;

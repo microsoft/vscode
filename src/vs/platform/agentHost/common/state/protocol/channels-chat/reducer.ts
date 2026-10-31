@@ -470,6 +470,16 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 				: stateWithoutCanvases;
 		}
 
+		case ActionType.ChatCanvasRegistryRequested:
+			return state;
+
+		case ActionType.ChatCanvasRegistryChanged: {
+			const { canvasRegistry: _omit, ...stateWithoutCanvasRegistry } = state;
+			return action.canvasRegistry
+				? { ...stateWithoutCanvasRegistry, canvasRegistry: action.canvasRegistry }
+				: stateWithoutCanvasRegistry;
+		}
+
 		// ── Working Directories ───────────────────────────────────────────────
 
 		case ActionType.ChatWorkingDirectorySet: {

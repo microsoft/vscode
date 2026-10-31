@@ -19,6 +19,7 @@ import { getMainWindowHost, getWindowHost, IFocusedSessionHostService, ISessionH
 import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
 import { IChat, ISession, ISessionCanvasDefinition } from '../../../services/sessions/common/session.js';
 import { IHostSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ChatInteractivity } from '../../../services/sessions/common/session.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { createSessionCanvasReference, getSessionCanvasDefinitionInstanceId, ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
 import { IPinnedCanvasService } from '../browser/pinnedCanvases.js';
@@ -65,15 +66,18 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 			this.knownOwners.set(canvasOwnerKey(owner), owner);
 			chatService.chatModels.read(reader);
 			const supportsCanvases = session.capabilities.read(reader).supportsCanvases === true;
+			const supportsCanvasCommands = supportsCanvases && (chat.interactivity?.read(reader) ?? ChatInteractivity.Full) === ChatInteractivity.Full;
 			// Open requests are derived from the chat's canvases, so only read them while the session presents canvases.
 			const openRequests = supportsCanvases ? chatService.getSession(chat.resource)?.canvasContext?.read(reader)?.openRequests : undefined;
 			const canvases = supportsCanvases ? chat.canvases ?? constObservable(undefined) : constObservable([]);
-			const definitionProvider = supportsCanvases ? {
-				onDidChangeDefinitions: Event.fromObservableLight(canvases),
+			const canvasDefinitions = supportsCanvases ? chat.canvasDefinitions ?? constObservable(undefined) : constObservable([]);
+			const definitionProvider = supportsCanvasCommands ? {
+				onDidChangeDefinitions: Event.fromObservableLight(canvasDefinitions),
 				listCanvases: () => this.sessionsManagementService.listCanvases(session, chat),
 				openCanvas: (canvas: ICanvasDefinition, instanceId: string) => this.sessionsManagementService.openCanvas(session, chat, canvas, instanceId),
 			} : undefined;
-			return [{ owner, canvases, openRequests, definitionProvider }];
+			const closeCanvas = supportsCanvasCommands ? (canvas: ICanvas) => this.sessionsManagementService.closeCanvas(session, chat, canvas) : undefined;
+			return [{ owner, canvases, openRequests, definitionProvider, closeCanvas }];
 		});
 		this._register(this.sessionsManagementService.onDidChangeSessions(event => {
 			const archived = event.changed.filter(session => session.isArchived.read(undefined));
@@ -212,16 +216,20 @@ export class SessionCanvasRegistryService extends Disposable implements ISession
 	) {
 		super();
 		this.supportsCanvases = derived(this, reader => {
-			const session = focusedSessionHostService.focusedHost.read(reader).session.read(reader);
-			return !!session && !!focusedSessionHostService.focusedHost.read(reader).chat.read(reader)
+			const focusedHost = focusedSessionHostService.focusedHost.read(reader);
+			const session = focusedHost.session.read(reader);
+			const chat = focusedHost.chat.read(reader);
+			return !!session && !!chat
 				&& canvasService.enabled.read(reader)
-				&& session.capabilities.read(reader).supportsCanvases === true;
+				&& session.capabilities.read(reader).supportsCanvases === true
+				&& (chat.interactivity?.read(reader) ?? ChatInteractivity.Full) === ChatInteractivity.Full;
 		});
 		this.availableCanvases = this._register(new CanvasDefinitionStore(reader => {
-			const session = focusedSessionHostService.focusedHost.read(reader).session.read(reader);
-			const chat = focusedSessionHostService.focusedHost.read(reader).chat.read(reader);
-			// Hosts republish canvas membership when their registry changes, so refresh on every emission.
-			chat?.canvases?.read(reader);
+			const focusedHost = focusedSessionHostService.focusedHost.read(reader);
+			const session = focusedHost.session.read(reader);
+			const chat = focusedHost.chat.read(reader);
+			// The subscribed chat republishes its authoritative registry when provider registration changes.
+			chat?.canvasDefinitions?.read(reader);
 			if (!session || !chat || !this.supportsCanvases.read(reader)) {
 				return undefined;
 			}
@@ -242,7 +250,7 @@ export class SessionCanvasRegistryService extends Disposable implements ISession
 			return;
 		}
 		const instanceId = getSessionCanvasDefinitionInstanceId(canvas);
-		const existing = chat.canvases?.get()?.find(candidate => candidate.instanceId === instanceId);
+		const existing = chat.canvases?.get()?.find(candidate => candidate.extensionId === canvas.extensionId && candidate.canvasId === canvas.canvasId);
 		if (existing?.source) {
 			await this.canvasService.revealCanvas(createSessionCanvasReference(session, chat, existing));
 			return;

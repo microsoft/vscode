@@ -3058,7 +3058,7 @@ suite('AgentHostProtocolClient', () => {
 
 	test('subscribes to an opaque host-advertised canvas channel', async () => {
 		const { client, transport } = createClient();
-		const resource = URI.parse('ahp-canvas://other-host/document/preview');
+		const resource = URI.parse('ahp-canvas:/other-host/document/preview');
 		const reference = disposables.add(client.getSubscription(StateComponents.Canvas, resource, 'canvas-test'));
 		await timeout(0);
 		const request = transport.sentMessages.find((message): message is JsonRpcRequest =>
@@ -4215,6 +4215,35 @@ suite('AgentHostProtocolClient', () => {
 		const error = { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found' };
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, error });
 		await assertRemoteProtocolError(result, error);
+	});
+
+	test('opens and disposes client-addressed Canvas resources through standard commands', async () => {
+		const { client, transport } = createClient();
+		const params = {
+			channel: 'ahp-canvas:/client.example/opaque-preview',
+			chat: 'vendor-chat://opaque.example/threads/chat-1',
+			extensionId: 'opaque-provider-id',
+			canvasId: 'preview',
+		};
+		const open = client.openCanvas(params);
+		assert.deepStrictEqual(transport.sentMessages[0], {
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'openCanvas',
+			params,
+		});
+		transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
+		await open;
+
+		const dispose = client.disposeCanvas(URI.parse(params.channel));
+		assert.deepStrictEqual(transport.sentMessages[1], {
+			jsonrpc: '2.0',
+			id: 2,
+			method: 'disposeCanvas',
+			params: { channel: params.channel },
+		});
+		transport.fireMessage({ jsonrpc: '2.0', id: 2, result: null });
+		await dispose;
 	});
 
 	test('deleteAutomation sends exact session identities through the supported extension', async () => {

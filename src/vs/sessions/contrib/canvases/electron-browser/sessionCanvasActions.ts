@@ -169,7 +169,7 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 		const definitionLabels = getSessionCanvasDefinitionLabels(definitions);
 		const targets = canvasService.reopenableCanvases.read(reader);
 		const targetLabels = getCanvasInstanceLabels(targets.map(target => target.canvas));
-		const definitionInstanceIds = new Set(definitions.map(getSessionCanvasDefinitionInstanceId));
+		const definitionKeys = new Set(definitions.map(canvas => `${canvas.extensionId}\u0000${canvas.canvasId}`));
 		// Without canvases of its own, the Session Activity Bar offers the same entries as Add Tab.
 		const inActivityBar = activeCanvases.read(reader).length === 0;
 		const activeKeys = new Set<string>();
@@ -189,7 +189,7 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 		}
 		for (let index = 0; index < targets.length; index++) {
 			const target = targets[index];
-			if (target.canvas.instanceId && definitionInstanceIds.has(target.canvas.instanceId)) {
+			if (target.canvas.extensionId && target.canvas.canvasId && definitionKeys.has(`${target.canvas.extensionId}\u0000${target.canvas.canvasId}`)) {
 				continue;
 			}
 			const key = `reopen:${getCanvasReferenceKey(target.reference)}`;

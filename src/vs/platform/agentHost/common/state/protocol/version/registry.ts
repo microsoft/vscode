@@ -154,6 +154,8 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.ChatMovableChanged]: '0.9.0',
 	[ActionType.ChatChangesetsChanged]: '0.9.0',
 	[ActionType.ChatCanvasesChanged]: '0.10.0',
+	[ActionType.ChatCanvasRegistryRequested]: '1.1.0',
+	[ActionType.ChatCanvasRegistryChanged]: '1.1.0',
 	[ActionType.CanvasStateChanged]: '0.10.0',
 	[ActionType.ChatWorkingDirectorySet]: '0.7.0',
 	[ActionType.ChatWorkingDirectoryRemoved]: '0.7.0',

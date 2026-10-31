@@ -110,7 +110,9 @@ import { ICopilotHomeService } from '../../../../../../platform/environment/comm
 import { TestCopilotHomeService } from '../../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
 import { TestPathService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
-import type { CanvasState } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
+import { CanvasExtensionSource, type CanvasState } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
+import type { OpenCanvasParams } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/commands.js';
+import { buildCanvasUri } from '../../../../../../platform/agentHost/common/canvasUri.js';
 import { buildOpenSessionLinkForChat } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { requireMintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
 
@@ -155,7 +157,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		onWillRemoveListener: () => this._rootStateListenerCount--,
 	});
 	private readonly _onDidRootStateError = new Emitter<Error>();
-	private _rootStateValue: RootState | Error | undefined = { agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo] };
+	private _rootStateValue: RootState | Error | undefined = { agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { canvases: {}, multipleChats: { fork: true } } } as AgentInfo] };
 	private _rootStateSubscription: IAgentSubscription<RootState>;
 	override get rootState(): IAgentSubscription<RootState> { return this._rootStateSubscription; }
 	private readonly _onAgentHostStart = new Emitter<void>();
@@ -195,6 +197,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public canvasListRequests: { session: URI; chat: URI }[] = [];
 	public canvasOpenRequests: { session: URI; chat: URI; request: IAgentCanvasOpenRequest }[] = [];
 	public canvasCloseRequests: { session: URI; chat: URI; request: IAgentCanvasCloseRequest }[] = [];
+	public openedCanvases: OpenCanvasParams[] = [];
+	public disposedCanvases: URI[] = [];
 	override async importSession(session: URI): Promise<void> {
 		this.importedSessions.push(session);
 	}
@@ -224,6 +228,12 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 	override async closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void> {
 		this.canvasCloseRequests.push({ session, chat, request });
+	}
+	override async openCanvas(params: OpenCanvasParams): Promise<void> {
+		this.openedCanvases.push(params);
+	}
+	override async disposeCanvas(canvas: URI): Promise<void> {
+		this.disposedCanvases.push(canvas);
 	}
 	get rootStateListenerCount(): number { return this._rootStateListenerCount; }
 
@@ -1346,7 +1356,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const rawId = 'canvas-owner';
 		fireSessionAdded(agentHost, rawId);
 		const session = provider.getSessions()[0];
-		const resource = 'ahp-canvas://another-host/documents/preview';
+		const resource = 'ahp-canvas:/another-host/documents/preview';
 		const chat = 'ahp-chat:/canvas-owner';
 		const summary: ChatSummary = { resource: chat, title: 'Main', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
 		agentHost.setSessionState(rawId, 'copilotcli', {
@@ -1417,7 +1427,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 		const main = URI.parse('conversation://opaque/main');
 		const peer = URI.parse('conversation://opaque/peer');
-		const resource = 'ahp-canvas://another-host/documents/peer';
+		const resource = 'ahp-canvas:/another-host/documents/peer';
 		agentHost.addSession(createSession('peer-canvases', { chats: [{ chat: main, kind: 'default' }, { chat: peer, kind: 'peer' }] }));
 		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
 		await timeout(0);
@@ -4722,41 +4732,37 @@ suite('LocalAgentHostSessionsProvider', () => {
 		};
 		provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
 		agentHost.setSessionState('chat-canvas-route', 'copilotcli', state);
+		agentHost.setChatState(peerBackend, {
+			...state.chats[1],
+			turns: [],
+			canvasRegistry: {
+				extensions: [{
+					extensionId: 'project:preview',
+					extensionSource: CanvasExtensionSource.Project,
+					canvases: [{
+						canvasId: 'preview',
+						displayName: 'Preview',
+						description: 'Preview.',
+						requiresInput: false,
+					}],
+				}],
+			},
+		});
 		const peer = session.chats.get().find(chat => chat.resource.fragment === 'peer-1');
 		assert.ok(peer);
-		agentHost.canvasDefinitions = [{
-			canvasId: 'preview',
-			extensionId: 'project:preview',
-			extensionSource: 'project',
-			displayName: 'Preview',
-			description: 'Preview.',
-			requiresInput: false,
-			actionCount: 0,
-		}];
 
 		const canvases = await provider.listCanvases(session.sessionId, peer.resource);
 		assert.ok(canvases && canvases.length === 1, 'Expected one canvas definition');
 		await provider.openCanvas(session.sessionId, peer.resource, canvases[0], 'project-preview');
-		const liveCanvas: ISessionCanvas = { resource: URI.parse('ahp-canvas://another-host/documents/preview'), instanceId: 'project-preview', title: 'Preview', source: undefined };
+		const liveCanvas: ISessionCanvas = { resource: URI.parse('ahp-canvas:/another-host/documents/preview'), instanceId: 'project-preview', title: 'Preview', source: undefined };
 		await provider.closeCanvas(session.sessionId, peer.resource, liveCanvas);
 
 		assert.deepStrictEqual({
 			canvases,
 			backendChat: provider.getBackendChatResource(peer.resource)?.toString(),
-			list: agentHost.canvasListRequests.map(request => ({
-				session: request.session.toString(),
-				chat: request.chat.toString(),
-			})),
-			open: agentHost.canvasOpenRequests.map(({ session, chat, request }) => ({
-				session: session.toString(),
-				chat: chat.toString(),
-				request,
-			})),
-			close: agentHost.canvasCloseRequests.map(({ session, chat, request }) => ({
-				session: session.toString(),
-				chat: chat.toString(),
-				resource: request.resource.toString(),
-			})),
+			list: agentHost.canvasListRequests.length,
+			open: agentHost.openedCanvases,
+			close: agentHost.disposedCanvases.map(resource => resource.toString()),
 		}, {
 			canvases: [{
 				canvasId: 'preview',
@@ -4767,24 +4773,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 				requiresInput: false,
 			}],
 			backendChat: peerBackend,
-			list: [{
-				session: AgentSession.uri('copilotcli', 'chat-canvas-route').toString(),
-				chat: peerBackend,
-			}],
+			list: 0,
 			open: [{
-				session: AgentSession.uri('copilotcli', 'chat-canvas-route').toString(),
 				chat: peerBackend,
-				request: {
-					canvasId: 'preview',
-					extensionId: 'project:preview',
-					instanceId: 'project-preview',
-				},
+				channel: buildCanvasUri(URI.parse(peerBackend), 'project-preview').toString(),
+				canvasId: 'preview',
+				extensionId: 'project:preview',
 			}],
-			close: [{
-				session: AgentSession.uri('copilotcli', 'chat-canvas-route').toString(),
-				chat: peerBackend,
-				resource: 'ahp-canvas://another-host/documents/preview',
-			}],
+			close: ['ahp-canvas:/another-host/documents/preview'],
 		});
 	});
 

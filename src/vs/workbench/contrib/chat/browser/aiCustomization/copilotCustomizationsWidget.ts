@@ -1323,7 +1323,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 				return;
 			}
 			const instanceId = getCanvasDefinitionInstanceId(currentItem.canvas);
-			const existing = currentItem.context.canvases.get()?.find(candidate => candidate.instanceId === instanceId);
+			const existing = currentItem.context.canvases.get()?.find(candidate => candidate.extensionId === currentItem.canvas.extensionId && candidate.canvasId === currentItem.canvas.canvasId);
 			if (existing) {
 				await this.canvasService.revealCanvas({ ...currentItem.context.owner, canvas: existing.resource });
 				if (existing.source) {

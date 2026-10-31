@@ -28,7 +28,7 @@ import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { isRenameChatTool } from '../common/serverToolNames.js';
 import { type AgentHostPrewarmSkipReason, type CodexModelProvider, AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { AgentPermissionKind, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type AgentSubagentKind, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal, type IAgentSubagentStartedSignal } from '../common/agent.js';
+import { AgentPermissionKind, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type AgentSubagentKind, type AgentSubagentTaskModelSource, type IAgentCanvasSignal, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal, type IAgentSubagentStartedSignal } from '../common/agent.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
@@ -48,7 +48,7 @@ import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js'
 import { buildOpenSessionLinkForChat } from '../common/openSessionLink.js';
 import { McpServerStatus, ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
 import { CustomizationEnablementKind, type CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
-import { ActionType, isChatAction, StateAction, type ChatDeltaAction, type ChatReasoningAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallResultConfirmedAction, type ChatToolCallStartAction, type ChatTurnStartedAction } from '../common/state/sessionActions.js';
+import { ActionType, isChatAction, StateAction, type ChatAction, type ChatDeltaAction, type ChatReasoningAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallResultConfirmedAction, type ChatToolCallStartAction, type ChatTurnStartedAction } from '../common/state/sessionActions.js';
 import {
 	createErrorResponsePart,
 	getErrorResponsePart,
@@ -287,6 +287,9 @@ export class AgentSideEffects extends Disposable {
 	private readonly _pendingSessionCustomizationPublishes = new Map<ProtocolURI, Promise<void>>();
 	private readonly _pendingMcpServerStarts = new NKeyMap<CancellationTokenSource, [ProtocolURI, string]>();
 	private readonly _pendingCustomizationEnablementRefreshes = new Set<ProtocolURI>();
+	/** Latest provider-published Canvas states and aggregate actions for chats that have not registered yet. */
+	private readonly _pendingCanvasStates = new Map<ProtocolURI, Map<string, IAgentCanvasSignal>>();
+	private readonly _pendingCanvasActions = new Map<ProtocolURI, Map<ActionType, ChatAction>>();
 	/** Reports where overlapped and sequential provider preparation diverge. */
 	private readonly _overlapExperimentTrigger: AgentHostSettingExperimentTrigger;
 
@@ -342,6 +345,25 @@ export class AgentSideEffects extends Disposable {
 			(session, turnId) => this._turnTracker.getSubagentKind(session, turnId),
 		);
 		this._permissionManager = this._register(this._instantiationService.createInstance(SessionPermissionManager, this._stateManager, {}));
+		this._register(this._stateManager.onDidRegisterChat(({ chat }) => {
+			const states = this._pendingCanvasStates.get(chat);
+			this._pendingCanvasStates.delete(chat);
+			for (const signal of states?.values() ?? []) {
+				this._stateManager.setCanvasState(chat, signal.resource, signal.state);
+			}
+			const actions = this._pendingCanvasActions.get(chat);
+			this._pendingCanvasActions.delete(chat);
+			for (const type of [ActionType.ChatCanvasesChanged, ActionType.ChatCanvasRegistryChanged]) {
+				const action = actions?.get(type);
+				if (action) {
+					this._stateManager.dispatchServerAction(chat, action);
+				}
+			}
+		}));
+		this._register(this._stateManager.onDidUnregisterChat(({ chat }) => {
+			this._pendingCanvasStates.delete(chat);
+			this._pendingCanvasActions.delete(chat);
+		}));
 		this._register(this._stateManager.onDidSnapshotDefaultChatTitle(event => this._persistDefaultChatTitleSnapshot(event.session, event.chat, event.title)));
 		this._register(this._chatContributions.registerHost({
 			hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
@@ -761,7 +783,17 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		if (signal.kind === 'canvas') {
-			this._stateManager.setCanvasState(signal.chat.toString(), signal.resource.toString(), signal.state);
+			const chat = signal.chat.toString();
+			if (this._stateManager.getChatState(chat)) {
+				this._stateManager.setCanvasState(chat, signal.resource, signal.state);
+			} else {
+				let pending = this._pendingCanvasStates.get(chat);
+				if (!pending) {
+					pending = new Map();
+					this._pendingCanvasStates.set(chat, pending);
+				}
+				pending.set(signal.resource, signal);
+			}
 			return;
 		}
 		if (signal.kind === 'subagent_started') {
@@ -913,6 +945,15 @@ export class AgentSideEffects extends Disposable {
 				return;
 			}
 			const state = this._stateManager.getChatState(sessionKey);
+			if ((action.type === ActionType.ChatCanvasesChanged || action.type === ActionType.ChatCanvasRegistryChanged) && !state) {
+				let pending = this._pendingCanvasActions.get(sessionKey);
+				if (!pending) {
+					pending = new Map();
+					this._pendingCanvasActions.set(sessionKey, pending);
+				}
+				pending.set(action.type, action);
+				return;
+			}
 			const startedWithSteering = action.type === ActionType.ChatTurnStarted
 				&& action.queuedMessageId !== undefined
 				&& state !== undefined

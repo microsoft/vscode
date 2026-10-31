@@ -8345,7 +8345,7 @@ suite('CopilotAgent', () => {
 					cached: cached.map(canvas => canvas.canvasId),
 					notifications: memberships.length,
 					preservesMembership: memberships.every(membership => membership?.length === 1 && membership[0].resource === memberships[0]?.[0].resource),
-				}, { earlyInventory: ['previous'], cached: ['preview'], notifications: 3, preservesMembership: true });
+				}, { earlyInventory: ['previous'], cached: ['preview'], notifications: 2, preservesMembership: true });
 			} finally {
 				listener.dispose();
 				await disposeAgent(agent);
@@ -11062,7 +11062,7 @@ suite('CopilotAgent', () => {
 						/outside session/,
 					);
 
-					const canvasChannels: URI[] = [];
+					const canvasChannels: string[] = [];
 					disposables.add(restored.onDidChatProgress(signal => {
 						if (signal.kind === 'canvas') {
 							canvasChannels.push(signal.resource);
@@ -11082,7 +11082,7 @@ suite('CopilotAgent', () => {
 					} as SessionEventPayload<'session.canvas.opened'>);
 					const [channel] = canvasChannels;
 					assert.ok(channel);
-					await restored.closeSessionCanvas(session, { resource: channel }, chats[2], context);
+					await restored.closeSessionCanvas(session, { resource: URI.parse(channel), resourceId: channel }, chats[2], context);
 
 					assert.deepStrictEqual({
 						canvases,
@@ -16136,7 +16136,7 @@ suite('CopilotAgent', () => {
 				const workingDirectory = URI.file('/workspace');
 				const handoff: ICopilotCanvasHandoff = {
 					projections: [{
-						resource: URI.parse(`ahp-canvas:/${sessionId}/preview`),
+						resource: `ahp-canvas:/${sessionId}/preview`,
 						canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
 					}],
 				};
@@ -28682,7 +28682,7 @@ suite('CopilotAgent', () => {
 
 		const canvasHandoff: ICopilotCanvasHandoff = {
 			projections: [{
-				resource: URI.parse('ahp-canvas:/config-refresh/preview'),
+				resource: 'ahp-canvas:/config-refresh/preview',
 				canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
 			}],
 		};

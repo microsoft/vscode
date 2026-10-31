@@ -6,20 +6,23 @@
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { derived, derivedOpts, IObservable, mapObservableArrayCached } from '../../../../base/common/observable.js';
+import { derived, derivedOpts, IObservable, IReader, mapObservableArrayCached } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
+import { buildCanvasUri } from '../../../../platform/agentHost/common/canvasUri.js';
 import { getInlineToolInput, parsePartialToolInput } from '../../../../platform/agentHost/common/partialToolInput.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
-import { CanvasReference, CanvasState } from '../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
+import { CanvasExtensionSource as AgentHostCanvasExtensionSource, CanvasReference, type CanvasRegistry, CanvasState } from '../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { ActionType, type ActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
-import { ChatState, ResponsePartKind, StateComponents, ToolCallStatus } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatState, ResponsePartKind, RootState, StateComponents, ToolCallStatus } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { ICanvas, ICanvasContext, ICanvasDefinition, ICanvasDefinitionProvider, ICanvasOpenRequest, ICanvasOwner } from './canvas.js';
+import { type CanvasDefinitionSnapshot, type CanvasExtensionSource, ICanvas, ICanvasContext, ICanvasDefinition, ICanvasDefinitionProvider, ICanvasOpenRequest, ICanvasOwner } from './canvas.js';
 
 export class AgentHostCanvas implements ICanvas {
 	readonly resource: URI;
+	readonly extensionId: string | undefined;
+	readonly canvasId: string | undefined;
 	readonly instanceId: string | undefined;
 	readonly title: string;
 	readonly status: string | undefined;
@@ -33,6 +36,8 @@ export class AgentHostCanvas implements ICanvas {
 		@ILogService logService: ILogService,
 	) {
 		this.resource = resource;
+		this.extensionId = canvas?.extensionId;
+		this.canvasId = canvas?.canvasId;
 		this.instanceId = canvas?.instanceId;
 		this.extensionId = canvas?.extensionId;
 		this.canvasId = canvas?.canvasId;
@@ -54,16 +59,28 @@ export class AgentHostCanvas implements ICanvas {
 }
 
 export class AgentHostCanvasCollection extends Disposable {
+	private readonly rootState: IObservable<RootState | Error | undefined> | undefined;
 
 	constructor(
 		readonly providerId: string,
 		private readonly connection: IAgentConnection,
+		private readonly agentProvider: string | undefined,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+		this.rootState = connection.rootState ? observableFromSubscription(this, connection.rootState) : undefined;
 	}
 
-	createContext(owner: ICanvasOwner, references: IObservable<readonly CanvasReference[] | undefined>, chat?: IObservable<ChatState | undefined>, onDidChangeDefinitions: Event<void> = Event.None): ICanvasContext {
+	supportsCommands(chat: ChatState | undefined, reader: IReader): boolean {
+		const root = this.rootState?.read(reader);
+		const provider = chat?.provider ?? this.agentProvider;
+		if (!provider || root instanceof Error) {
+			return false;
+		}
+		return root?.agents.find(agent => agent.provider === provider)?.capabilities?.canvases !== undefined;
+	}
+
+	createContext(owner: ICanvasOwner, references: IObservable<readonly CanvasReference[] | undefined>, chat?: IObservable<ChatState | undefined>, onDidChangeDefinitions: Event<void> = Event.None, supportsCommands = false): ICanvasContext {
 		const states = mapObservableArrayCached(this, references.map(value => value ?? []), canvas => {
 			const resource = URI.parse(canvas.resource, true);
 			const subscription = derived(this, reader => {
@@ -84,32 +101,64 @@ export class AgentHostCanvasCollection extends Disposable {
 				return !!other && value.id === other.id && value.succeeded === other.succeeded && value.pending === other.pending;
 			}),
 		}, reader => getOpenRequests(chat.read(reader), canvases.read(reader))) : undefined;
-		const definitionProvider: ICanvasDefinitionProvider | undefined = this.connection.listSessionCanvases && this.connection.openSessionCanvas
+		const definitionProvider: ICanvasDefinitionProvider | undefined = supportsCommands && chat && this.connection.openCanvas
 			? {
 				onDidChangeDefinitions,
-				listCanvases: () => this.connection.listSessionCanvases!(owner.session, owner.chat),
-				openCanvas: (canvas: ICanvasDefinition, instanceId: string) => this.connection.openSessionCanvas!(owner.session, {
+				listCanvases: async () => {
+					const registry = chat.get()?.canvasRegistry;
+					if (registry === undefined) {
+						this.connection.dispatch(owner.chat.toString(), { type: ActionType.ChatCanvasRegistryRequested });
+					}
+					return getAgentHostCanvasDefinitions(registry);
+				},
+				openCanvas: (canvas: ICanvasDefinition, instanceId: string) => this.connection.openCanvas!({
+					channel: buildCanvasUri(owner.chat, instanceId).toString(),
+					chat: owner.chat.toString(),
 					canvasId: canvas.canvasId,
 					extensionId: canvas.extensionId,
-					instanceId,
-				}, owner.chat),
+				}),
 			}
 			: undefined;
-		const closeCanvas = this.connection.closeSessionCanvas
-			? (canvas: ICanvas) => this.connection.closeSessionCanvas!(owner.session, { resource: canvas.resource }, owner.chat)
+		const closeCanvas = supportsCommands && this.connection.disposeCanvas
+			? (canvas: ICanvas) => this.connection.disposeCanvas!(canvas.resource)
 			: undefined;
 		return { owner, canvases, openRequests, definitionProvider, closeCanvas };
+	}
+}
+
+export function getAgentHostCanvasDefinitions(registry: CanvasRegistry | undefined): CanvasDefinitionSnapshot {
+	if (registry === undefined) {
+		return undefined;
+	}
+	return registry.extensions.flatMap(extension => extension.canvases.map(canvas => ({
+		canvasId: canvas.canvasId,
+		extensionId: extension.extensionId,
+		extensionSource: toCanvasExtensionSource(extension.extensionSource),
+		...(extension.extensionName !== undefined ? { extensionName: extension.extensionName } : {}),
+		displayName: canvas.displayName,
+		description: canvas.description,
+		requiresInput: canvas.requiresInput,
+	})));
+}
+
+function toCanvasExtensionSource(source: AgentHostCanvasExtensionSource): CanvasExtensionSource {
+	switch (source) {
+		case AgentHostCanvasExtensionSource.User: return 'user';
+		case AgentHostCanvasExtensionSource.Project: return 'project';
+		case AgentHostCanvasExtensionSource.Session: return 'session';
+		case AgentHostCanvasExtensionSource.Plugin: return 'plugin';
+		default: return 'unknown';
 	}
 }
 
 export function getAgentHostCanvasDefinitionsChangedEvent(subscription: IAgentSubscription<ChatState>): Event<void> {
 	const onDidCancelSnapshotRefresh: Event<readonly ActionEnvelope[]> = subscription.onDidCancelSnapshotRefresh ?? Event.None;
 	return Event.any(
-		Event.map(Event.filter(subscription.onDidApplyAction, envelope => envelope.action.type === ActionType.ChatCanvasesChanged), () => undefined),
+		Event.map(Event.filter(subscription.onDidApplyAction, envelope => envelope.action.type === ActionType.ChatCanvasRegistryChanged), () => undefined),
 		Event.map(subscription.onDidApplySnapshot ?? Event.None, () => undefined),
 		Event.map(Event.filter(
 			onDidCancelSnapshotRefresh,
-			envelopes => envelopes.some(envelope => !envelope.rejectionReason && envelope.action.type === ActionType.ChatCanvasesChanged),
+			envelopes => envelopes.some(envelope => !envelope.rejectionReason && envelope.action.type === ActionType.ChatCanvasRegistryChanged),
 		), () => undefined),
 	);
 }

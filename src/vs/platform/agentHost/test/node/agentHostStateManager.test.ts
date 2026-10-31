@@ -260,7 +260,7 @@ suite('AgentHostStateManager', () => {
 
 	test('hosts canvas state independently of chat membership and removes dead sources', () => {
 		manager.createSession(makeSessionSummary());
-		const resource = buildCanvasUri(URI.parse(sessionChatUri), 'preview').toString();
+		const resource = 'ahp-canvas:/client.example/opaque-preview';
 		const canvas: CanvasState = {
 			instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview',
 			url: 'https://example.test/preview',
@@ -277,9 +277,14 @@ suite('AgentHostStateManager', () => {
 		manager.setCanvasState(sessionChatUri, resource, unavailable);
 		const cleared = manager.getSnapshot(resource)?.state;
 		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatCanvasesChanged, canvases: undefined });
+		const types = actions.map(action => action.action.type);
+		const peer = buildChatUri(sessionUri, 'peer');
+		manager.addChat(sessionUri, peer, creationTimeChatStorageResource(sessionUri, peer, buildDefaultChatUri(sessionUri)));
+		assert.throws(() => manager.setCanvasState(peer, resource, canvas), /already bound to another chat/);
+		assert.throws(() => manager.setCanvasState(sessionChatUri, 'ahp-canvas:/encoded%2Fidentity', canvas), /canonical/);
 		assert.deepStrictEqual({
 			ready, cleared, references, removed: manager.getSnapshot(resource),
-			types: actions.map(action => action.action.type),
+			types,
 		}, {
 			ready: canvas, cleared: unavailable, references: [{ resource }], removed: undefined,
 			types: [ActionType.CanvasStateChanged, ActionType.ChatCanvasesChanged, ActionType.CanvasStateChanged, ActionType.ChatCanvasesChanged],

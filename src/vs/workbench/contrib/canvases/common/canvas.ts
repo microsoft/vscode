@@ -24,6 +24,8 @@ export const REVEAL_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.revealCa
 
 export interface ICanvas {
 	readonly resource: URI;
+	readonly extensionId?: string;
+	readonly canvasId?: string;
 	readonly instanceId: string | undefined;
 	readonly title: string;
 	readonly status?: string;
@@ -322,13 +324,7 @@ export function getCanvasDefinitionInstanceId(canvas: ICanvasDefinition): string
 
 /** Returns whether a registered extension canvas can be opened without another input flow. */
 export function isOpenableExtensionCanvasDefinition(canvas: ICanvasDefinition): boolean {
-	return !canvas.requiresInput && (
-		canvas.extensionSource !== 'unknown'
-		|| canvas.extensionId.startsWith('user:')
-		|| canvas.extensionId.startsWith('project:')
-		|| canvas.extensionId.startsWith('session:')
-		|| canvas.extensionId.startsWith('plugin:')
-	);
+	return canvas.extensionSource !== 'unknown' && !canvas.requiresInput;
 }
 
 /** Orders registered canvas types by extension and display name. */

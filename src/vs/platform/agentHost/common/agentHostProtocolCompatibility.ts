@@ -28,12 +28,10 @@ export function getAgentHostSupportedProtocolVersions(): string[] {
 
 /**
  * The protocol versions a client offers in `initialize`, most-preferred first.
- * With chats of one session using different agents enabled, the client also
- * offers the current {@link PROTOCOL_VERSION} first, which hosts require
- * before advertising `multipleChatProviders`; otherwise the offer is exactly
- * {@link getAgentHostSupportedProtocolVersions}.
+ * With a feature that first appeared in the current development protocol
+ * enabled, the client also offers the current {@link PROTOCOL_VERSION} first.
  */
-export function getAgentHostClientProtocolVersions(multipleChatProviders: boolean): string[] {
+export function getAgentHostClientProtocolVersions(multipleChatProviders: boolean, canvases = false): string[] {
 	const supported = getAgentHostSupportedProtocolVersions();
-	return multipleChatProviders && !supported.includes(PROTOCOL_VERSION) ? [PROTOCOL_VERSION, ...supported] : supported;
+	return (multipleChatProviders || canvases) && !supported.includes(PROTOCOL_VERSION) ? [PROTOCOL_VERSION, ...supported] : supported;
 }
