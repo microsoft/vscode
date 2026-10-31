@@ -1894,6 +1894,7 @@ export class TestTerminalGroupService implements ITerminalGroupService {
 	onDidShow = Event.None;
 	onDidChangeGroups = Event.None;
 	onDidChangePanelOrientation = Event.None;
+	onDidChangeSplitOrientation = Event.None;
 	onDidDisposeInstance = Event.None;
 	onDidFocusInstance = Event.None;
 	onDidChangeInstanceCapability = Event.None;

@@ -275,6 +275,8 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	readonly onDidChangeActiveInstance = this._onDidChangeActiveInstance.event;
 	private readonly _onPanelOrientationChanged = this._register(new Emitter<Orientation>());
 	readonly onPanelOrientationChanged = this._onPanelOrientationChanged.event;
+	private readonly _onDidChangeSplitOrientation = this._register(new Emitter<Orientation>());
+	readonly onDidChangeSplitOrientation = this._onDidChangeSplitOrientation.event;
 
 	constructor(
 		private _container: HTMLElement | undefined,
@@ -546,7 +548,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 			if (terminalPositionChanged) {
 				this._panelPosition = newPanelPosition;
 				this._terminalLocation = newTerminalLocation;
-				this._splitPaneContainer.setOrientation(this._getSplitOrientation());
+				this._updateSplitOrientation();
 				this._onPanelOrientationChanged.fire(this._getPanelOrientation());
 			}
 			this._splitPaneContainer.layout(width, height);
@@ -598,8 +600,19 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		}
 	}
 
+	get splitOrientation(): Orientation {
+		return this._splitPaneContainer?.orientation ?? this._getSplitOrientation();
+	}
+
 	private _updateSplitOrientation(): void {
-		this._splitPaneContainer?.setOrientation(this._getSplitOrientation());
+		if (!this._splitPaneContainer) {
+			return;
+		}
+		const orientation = this._getSplitOrientation();
+		if (orientation !== this._splitPaneContainer.orientation) {
+			this._splitPaneContainer.setOrientation(orientation);
+			this._onDidChangeSplitOrientation.fire(orientation);
+		}
 	}
 
 	toggleSplitOrientation(): void {

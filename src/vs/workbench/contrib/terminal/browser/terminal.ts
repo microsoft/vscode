@@ -407,6 +407,12 @@ export interface ITerminalGroup {
 	readonly onDisposed: Event<ITerminalGroup>;
 	readonly onInstancesChanged: Event<void>;
 	readonly onPanelOrientationChanged: Event<Orientation>;
+	readonly onDidChangeSplitOrientation: Event<Orientation>;
+
+	/**
+	 * The orientation of the split panes in this group.
+	 */
+	readonly splitOrientation: Orientation;
 
 	focusPreviousPane(): void;
 	focusNextPane(): void;
@@ -804,6 +810,8 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	/** Fires when the panel has been shown and expanded, so has non-zero dimensions. */
 	readonly onDidShow: Event<void>;
 	readonly onDidChangePanelOrientation: Event<Orientation>;
+	/** Fires when the split orientation of any group changes. */
+	readonly onDidChangeSplitOrientation: Event<Orientation>;
 
 	createGroup(shellLaunchConfig?: IShellLaunchConfig): ITerminalGroup;
 	createGroup(instance?: ITerminalInstance): ITerminalGroup;
