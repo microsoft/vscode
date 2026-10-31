@@ -102,7 +102,7 @@ jobs:
           - ${{ each i in parameters.iterations }}:
             - script: |
                 set -e
-                npm run test-node -- --build
+                pnpm run test-node --build
               displayName: "🧪 Unit test iteration ${{ i }}/${{ length(parameters.iterations) }} (node.js)"
               continueOnError: true
               timeoutInMinutes: 15
@@ -246,7 +246,7 @@ jobs:
             - script: |
                 set -e
                 status=0
-                npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)" || status=$?
+                pnpm run smoketest-no-compile --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)" || status=$?
                 if [ $status -ne 0 ] && [ -d .build/logs/smoke-tests-electron ]; then
                   mv .build/logs/smoke-tests-electron ".build/logs/failed-iteration-${{ i }}"
                 fi

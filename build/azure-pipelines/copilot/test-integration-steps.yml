@@ -22,7 +22,7 @@ steps:
       ${{ else }}:
         scriptType: 'bash'
       scriptLocation: 'inlineScript'
-      inlineScript: npm run setup
+      inlineScript: pnpm run setup
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Setup copilot test environment
     # The Azure login and secret fetch can fail transiently. `npm run setup`
@@ -58,7 +58,7 @@ steps:
       displayName: Compute VS Code build path
 
   # Compile copilot extension for tests
-  - script: npm run compile
+  - script: pnpm run compile
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Compile copilot
 
@@ -68,7 +68,7 @@ steps:
       parameters:
         testId: copilot-extension
         testStep:
-          script: xvfb-run -a npm run test:extension
+          script: xvfb-run -a pnpm run test:extension
           workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
           displayName: 🧪 Run Copilot extension tests
           timeoutInMinutes: 15
@@ -79,7 +79,7 @@ steps:
       parameters:
         testId: copilot-completions-core
         testStep:
-          script: xvfb-run -a npm run test:completions-core
+          script: xvfb-run -a pnpm run test:completions-core
           workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
           displayName: 🧪 Run Copilot completions core tests
           timeoutInMinutes: 15
@@ -90,7 +90,7 @@ steps:
       parameters:
         testId: copilot-sanity
         testStep:
-          script: xvfb-run -a npm run test:sanity
+          script: xvfb-run -a pnpm run test:sanity
           workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
           displayName: 🧪 Run Copilot sanity tests
           timeoutInMinutes: 15
@@ -102,7 +102,7 @@ steps:
       parameters:
         testId: copilot-extension
         testStep:
-          script: npm run test:extension
+          script: pnpm run test:extension
           workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
           displayName: 🧪 Run Copilot extension tests
           timeoutInMinutes: 15
@@ -113,7 +113,7 @@ steps:
       parameters:
         testId: copilot-completions-core
         testStep:
-          script: npm run test:completions-core
+          script: pnpm run test:completions-core
           workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
           displayName: 🧪 Run Copilot completions core tests
           timeoutInMinutes: 15
@@ -124,7 +124,7 @@ steps:
       parameters:
         testId: copilot-sanity
         testStep:
-          script: npm run test:sanity
+          script: pnpm run test:sanity
           workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
           displayName: 🧪 Run Copilot sanity tests
           timeoutInMinutes: 15
@@ -137,7 +137,7 @@ steps:
       parameters:
         testId: copilot-extension
         testStep:
-          powershell: npm run test:extension
+          powershell: pnpm run test:extension
           workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
           displayName: 🧪 Run Copilot extension tests
           timeoutInMinutes: 15
@@ -149,7 +149,7 @@ steps:
       parameters:
         testId: copilot-completions-core
         testStep:
-          powershell: npm run test:completions-core
+          powershell: pnpm run test:completions-core
           workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
           displayName: 🧪 Run Copilot completions core tests
           timeoutInMinutes: 15
@@ -160,7 +160,7 @@ steps:
       parameters:
         testId: copilot-sanity
         testStep:
-          powershell: npm run test:sanity
+          powershell: pnpm run test:sanity
           workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
           displayName: 🧪 Run Copilot sanity tests
           timeoutInMinutes: 15

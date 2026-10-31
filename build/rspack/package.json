@@ -1,6 +1,7 @@
 {
   "name": "code-oss-dev-rspack",
   "version": "1.0.0",
+  "packageManager": "pnpm@12.16.0",
   "private": true,
   "license": "MIT",
   "scripts": {

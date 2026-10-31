@@ -241,7 +241,7 @@ suite('Detect Changes', () => {
 			]),
 			sanityTests: await detect([
 				{ filename: 'test/sanity/src/cli.test.ts' },
-				{ filename: 'test/sanity/package-lock.json' },
+				{ filename: 'test/sanity/pnpm-lock.yaml' },
 			]),
 		}, {
 			workspaceConfiguration: onlyCompileAndHygiene,

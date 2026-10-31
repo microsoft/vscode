@@ -129,7 +129,7 @@ Existing suppressions document audited legacy constraints and deferred work, not
 
 Justifications must explain the concrete failure or lifecycle constraint an async replacement would introduce, not merely describe the synchronous operation. Temporary migration TODOs must name the readiness, sequencing, or ownership change needed to remove the suppression; they do not establish that synchronous I/O is permanently required.
 
-Run the rule and configuration tests with `node --test .eslint-plugin-local/tests/code-no-sync-fs.test.ts`. Custom rule tests also run in CI through `npm run test-build-scripts`.
+Run the rule and configuration tests with `node --test .eslint-plugin-local/tests/code-no-sync-fs.test.ts`. Custom rule tests also run in CI through `pnpm run test-build-scripts`.
 
 (Written by Copilot)
 
@@ -144,7 +144,7 @@ To add a fix for a custom rule:
 
 See the [Double quoted to single quoted string conversion fix](https://github.com/microsoft/vscode/blob/b074375e1884ae01033967bf0bbceeaa4795354a/.eslint-plugin-local/code-no-unexternalized-strings.ts#L128) for an example. The ESLint docs also have [details on adding fixes and the fixer API](https://eslint.org/docs/latest/extend/custom-rules#applying-fixes).
 
-The fixes can be run using `npx eslint --fix` in the VS Code repo.
+The fixes can be run using `pnpm exec eslint --fix` in the VS Code repo.
 
 ## Tests nested inside tests
 

@@ -223,7 +223,7 @@ Status-bar-only progress (including chat setup progress that supplies a command)
 Recorded implementation validation: **92 tests passed**, client compilation/type-check passed, changed-TypeScript ESLint passed without warnings, and module/type layer and cyclic-dependency checks passed. The test selection covers contracts, privacy, model/prompt/dedup behavior, actual toast/center viewport exposure (including arrivals into an initially empty center), dropdown/secondary/keyboard actions, accessibility, progress completion/cancellation/delay, extension bridges, and representative agent-host/SSH producers.
 
 ```bash
-npm run transpile-client
+pnpm run transpile-client
 ./scripts/test.sh --reporter dot \
   --run src/vs/workbench/test/common/notifications.test.ts \
   --run src/vs/workbench/test/common/notificationTelemetry.test.ts \
@@ -236,10 +236,10 @@ npm run transpile-client
   --run src/vs/workbench/api/test/browser/extHostMessagerService.test.ts \
   --run src/vs/workbench/contrib/chat/test/browser/agentSessions/agentHostDownloadProgress.test.ts \
   --run src/vs/sessions/contrib/providers/remoteAgentHost/test/browser/remoteAgentHostActions.test.ts
-npm run typecheck-client
-npm run gulp compile-client
-npm run valid-layers-check
-npm run check-cyclic-dependencies
+pnpm run typecheck-client
+pnpm run gulp compile-client
+pnpm run valid-layers-check
+pnpm run check-cyclic-dependencies
 (git diff --name-only --diff-filter=ACM -z -- '*.ts'; git ls-files --others --exclude-standard -z -- '*.ts') | xargs -0 ./node_modules/.bin/eslint
 ```
 

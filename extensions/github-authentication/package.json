@@ -95,7 +95,7 @@
     "compile-web": "node esbuild.browser.mts",
     "watch": "gulp watch-extension:github-authentication",
     "watch-web": "node esbuild.browser.mts --watch",
-    "vscode:prepublish": "npm run compile"
+    "vscode:prepublish": "pnpm run compile"
   },
   "dependencies": {
     "node-fetch": "2.6.7",

@@ -14,8 +14,8 @@ A scenario is a small JavaScript file run by `test/scenario/out/runScenario.js`.
 ## Prepare
 
 ```bash
-npm install                             # once
-npm --prefix test/scenario run compile  # after any change under test/scenario
+pnpm install                             # once
+pnpm -C test/scenario run compile  # after any change under test/scenario
 ```
 
 **Check `ffmpeg` and `ffprobe` are available before running.** The runner looks on `PATH` and in the usual install locations, so an ffmpeg installed after the editor started is still found. Without them the scenario still runs and keeps the raw recording, but the video is not captioned with step titles. The runner warns at startup; if they are missing, tell the user how to install them rather than silently returning an unannotated video:
@@ -31,11 +31,11 @@ A new terminal may be needed for `PATH` to pick them up, or set `FFMPEG_PATH` an
 | Target | Flags | Also required | Use for |
 |--------|-------|---------------|---------|
 | Installed Insiders, else Stable | *(none — the default)* | nothing | Reproducing a report against shipped behavior |
-| Dev build from this checkout | `--dev` | Matching Electron runtime, `npm run build-fast` | Verifying an unmerged change |
+| Dev build from this checkout | `--dev` | Matching Electron runtime, `pnpm run build-fast` | Verifying an unmerged change |
 | A specific install | `--build <app-root>` | nothing | Pinning an exact build |
-| Web | `--web --headless` | `npm run build-fast -- --client-only` | Browser-only behavior |
+| Web | `--web --headless` | `pnpm run build-fast --client-only` | Browser-only behavior |
 
-Reuse the matching Electron runtime when present; run `npm run electron` only when it is missing or incompatible. Fast builds refresh outputs without type checking; validate types separately when warranted.
+Reuse the matching Electron runtime when present; run `pnpm run electron` only when it is missing or incompatible. Fast builds refresh outputs without type checking; validate types separately when warranted.
 
 With no target flag the runner finds an installed VS Code Insiders (falling back to Stable) and logs which one it chose. `--build` takes the application root — the install directory on Windows and Linux, or the `.app` bundle on macOS:
 

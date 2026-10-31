@@ -121,7 +121,7 @@ suite('API proposal registry', () => {
 				fs.renameSync(originalPath, newPath);
 			}
 			assertReadOnly(fixture.root, () => assert.throws(() => checkApiProposalNames(fixture.root), {
-				message: `API proposal registry ${fixture.registryPath} is out of date. Run "npm run gulp compile-api-proposal-names" from the repository root and include the updated registry with your change.`
+				message: `API proposal registry ${fixture.registryPath} is out of date. Run "pnpm run gulp compile-api-proposal-names" from the repository root and include the updated registry with your change.`
 			}));
 		});
 	}
@@ -137,7 +137,7 @@ suite('API proposal registry', () => {
 		test(`rejects stale ${description} without writes`, context => {
 			const fixture = createFixture(context, registry);
 			assertReadOnly(fixture.root, () => assert.throws(() => checkApiProposalNames(fixture.root), {
-				message: /is out of date.*npm run gulp compile-api-proposal-names/
+				message: /is out of date.*pnpm run gulp compile-api-proposal-names/
 			}));
 		});
 	}
@@ -151,7 +151,7 @@ suite('API proposal registry', () => {
 			}
 			assertReadOnly(fixture.root, () => assert.throws(() => checkApiProposalNames(fixture.root), error => {
 				return error instanceof Error
-					&& error.message === `Cannot read API proposal registry ${fixture.registryPath}. Run "npm run gulp compile-api-proposal-names" from the repository root and include the updated registry with your change.`
+					&& error.message === `Cannot read API proposal registry ${fixture.registryPath}. Run "pnpm run gulp compile-api-proposal-names" from the repository root and include the updated registry with your change.`
 					&& error.cause instanceof Error;
 			}));
 		});
@@ -282,7 +282,7 @@ suite('API proposal registry tasks', () => {
 		try {
 			instrumentCoreCI(coreCI, events, restore);
 			await inDirectory(fixture.root, () => assert.rejects(task.series(coreCI), {
-				message: /is out of date.*npm run gulp compile-api-proposal-names/
+				message: /is out of date.*pnpm run gulp compile-api-proposal-names/
 			}));
 		} finally {
 			restore.reverse().forEach(fn => fn());

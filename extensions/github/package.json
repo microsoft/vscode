@@ -235,7 +235,7 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "pnpm run compile",
     "compile": "gulp compile-extension:github",
     "watch": "gulp watch-extension:github"
   },

@@ -30,6 +30,7 @@ import https from 'https';
 import { fetchUriText } from './apply-overrides.js';
 import { parseNoticeFile } from './parse-notices.js';
 import { parseArgs } from './utils.js';
+import { readPnpmLockfileImporters, type PnpmLockfilePackageEntry } from './pnpm-lockfile.js';
 
 interface LicenseEntry {
 	name: string;
@@ -1823,7 +1824,7 @@ async function main(): Promise<void> {
 	// even though it ships in the win32 product. The legacy OSS tool caught these
 	// because it walked the lockfile, not the installed tree.
 	//
-	// Fix: read the package-lock.json files (the manifest of EVERY dependency,
+	// Fix: read the pnpm-lock.yaml files (the manifest of EVERY dependency,
 	// installed or not) and seed any package that (a) will not install on the
 	// host but (b) ships on a platform we target into the presence index. The
 	// cglicenses.json override then supplies the human-authored license text; if
@@ -1839,10 +1840,13 @@ async function main(): Promise<void> {
 	console.log('=========================================================================');
 
 	const hostPlatform = process.platform;
+	// The root project of the root, remote and build install roots (the root
+	// lockfile also records the workspace members, e.g. extensions, which are
+	// covered elsewhere).
 	const s6LockFiles = [
-		path.join(repoRoot, 'package-lock.json'),
-		path.join(repoRoot, 'remote', 'package-lock.json'),
-		path.join(repoRoot, 'build', 'package-lock.json'),
+		path.join(repoRoot, 'pnpm-lock.yaml'),
+		path.join(repoRoot, 'remote', 'pnpm-lock.yaml'),
+		path.join(repoRoot, 'build', 'pnpm-lock.yaml'),
 	];
 	let s6Seeded = 0;
 	let s6AlreadyResolved = 0;
@@ -1852,24 +1856,18 @@ async function main(): Promise<void> {
 		if (!fs.existsSync(lockPath)) {
 			continue;
 		}
-		let lock: { packages?: Record<string, { version?: string; os?: unknown }> };
+		let rootPackages: PnpmLockfilePackageEntry[];
 		try {
-			lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+			rootPackages = readPnpmLockfileImporters(lockPath).get('.') ?? [];
 		} catch (err) {
 			console.warn(`  WARN: could not parse ${lockPath}: ${(err as Error).message}`);
 			continue;
 		}
-		const pkgs = lock.packages || {};
-		for (const lockKey of Object.keys(pkgs)) {
-			const meta = pkgs[lockKey];
-			if (!isOsGatedShippedElsewhere(meta?.os as string[], hostPlatform)) {
+		for (const meta of rootPackages) {
+			if (!isOsGatedShippedElsewhere(meta.os as string[], hostPlatform)) {
 				continue;
 			}
-			const nmIdx = lockKey.lastIndexOf('node_modules/');
-			if (nmIdx < 0) {
-				continue; // the root project entry, not a dependency
-			}
-			const name = lockKey.slice(nmIdx + 'node_modules/'.length);
+			const name = meta.name;
 			if (!name) {
 				continue;
 			}
