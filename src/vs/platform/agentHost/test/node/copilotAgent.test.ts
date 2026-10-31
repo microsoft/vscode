@@ -31019,19 +31019,28 @@ suite('CopilotAgent', () => {
 		test('reads the recorded worktree of an un-adopted extension-host session only, for deletion to remove it', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
 			const repositoryRoot = await fs.mkdtemp(`${os.tmpdir()}/adopt-repo-`);
+			const worktreesRoot = join(repositoryRoot, '..', `delete.worktrees-${Date.now()}`);
 			// A checkout that exists without a recorded base branch: adoption leaves it to the probe, deletion must not.
-			const worktreePath = join(repositoryRoot, '..', `delete.worktrees-${Date.now()}`, 'feature-d');
+			const worktreePath = join(worktreesRoot, 'feature-d');
+			const sharedWorktreePath = join(worktreesRoot, 'feature-shared');
+			const adoptedWorktreePath = join(worktreesRoot, 'feature-adopted');
 			await fs.mkdir(worktreePath, { recursive: true });
-			const worktreeProperties = { worktreePath, repositoryPath: repositoryRoot, branchName: 'feature/d' };
+			await fs.mkdir(adoptedWorktreePath, { recursive: true });
+			const worktreeProperties = (path: string) => ({ worktreePath: path, repositoryPath: repositoryRoot, branchName: 'feature/d' });
 			const sessionDataService = disposables.add(new TestSessionDataService());
-			const client = new TestCopilotClient([sdkSession('legacy-delete-adopted', worktreePath)]);
+			const client = new TestCopilotClient([sdkSession('legacy-delete-adopted', adoptedWorktreePath)]);
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
-				await writeExtensionHostMarker(userHome, 'legacy-delete-worktree', { origin: 'vscode', worktreeProperties });
+				await writeExtensionHostMarker(userHome, 'legacy-delete-worktree', { origin: 'vscode', worktreeProperties: worktreeProperties(worktreePath) });
+				// The extension host's delete did not count archived siblings.
+				await writeExtensionHostMarker(userHome, 'legacy-delete-archived-sibling', { origin: 'vscode', archived: true, worktreeProperties: worktreeProperties(worktreePath) });
+				await writeExtensionHostMarker(userHome, 'legacy-delete-shared', { origin: 'vscode', worktreeProperties: worktreeProperties(sharedWorktreePath) });
+				// A sibling discovery has not registered yet, working in a folder inside the shared checkout.
+				await writeExtensionHostMarker(userHome, 'legacy-delete-shared-sibling', { origin: 'vscode', workspaceFolder: { folderPath: join(sharedWorktreePath, 'src') } });
 				await writeExtensionHostMarker(userHome, 'legacy-delete-folder', { origin: 'vscode', repositoryProperties: { repositoryPath: repositoryRoot } });
-				await writeExtensionHostMarker(userHome, 'legacy-delete-other-host', { origin: 'other', worktreeProperties });
-				await writeExtensionHostMarker(userHome, 'legacy-delete-adopted', { origin: 'vscode', worktreeProperties });
+				await writeExtensionHostMarker(userHome, 'legacy-delete-other-host', { origin: 'other', worktreeProperties: worktreeProperties(join(worktreesRoot, 'feature-other')) });
+				await writeExtensionHostMarker(userHome, 'legacy-delete-adopted', { origin: 'vscode', worktreeProperties: worktreeProperties(adoptedWorktreePath) });
 				const adoptedSession = AgentSession.uri('copilotcli', 'legacy-delete-adopted');
 				const adopted = (await ensureDefaultChatAdopted(agent, adoptedSession)).adopted;
 
@@ -31039,14 +31048,20 @@ suite('CopilotAgent', () => {
 					const worktree = await agent.readLegacyChatWorktree(AgentSession.uri('copilotcli', sessionId));
 					return worktree && { branchName: worktree.branchName, baseBranch: worktree.baseBranch, worktreePath: worktree.worktreePath.fsPath, repositoryRoot: worktree.repositoryRoot.fsPath };
 				};
+				const sharedWhileSiblingExists = await read('legacy-delete-shared');
+				await fs.rm(join(getCopilotHomePath(userHome.fsPath, {}), 'session-state', 'legacy-delete-shared-sibling'), { recursive: true, force: true });
 				assert.deepStrictEqual({
 					unadopted: await read('legacy-delete-worktree'),
+					sharedWhileSiblingExists,
+					sharedAfterSiblingDeleted: await read('legacy-delete-shared'),
 					folder: await read('legacy-delete-folder'),
 					otherHost: await read('legacy-delete-other-host'),
 					adopted,
 					afterAdoption: await read('legacy-delete-adopted'),
 				}, {
 					unadopted: { branchName: 'feature/d', baseBranch: undefined, worktreePath: URI.file(worktreePath).fsPath, repositoryRoot: URI.file(repositoryRoot).fsPath },
+					sharedWhileSiblingExists: undefined,
+					sharedAfterSiblingDeleted: { branchName: 'feature/d', baseBranch: undefined, worktreePath: URI.file(sharedWorktreePath).fsPath, repositoryRoot: URI.file(repositoryRoot).fsPath },
 					folder: undefined,
 					otherHost: undefined,
 					adopted: true,
@@ -31055,7 +31070,7 @@ suite('CopilotAgent', () => {
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await fs.rm(repositoryRoot, { recursive: true, force: true });
-				await fs.rm(join(worktreePath, '..'), { recursive: true, force: true });
+				await fs.rm(worktreesRoot, { recursive: true, force: true });
 				await disposeAgent(agent);
 			}
 		});

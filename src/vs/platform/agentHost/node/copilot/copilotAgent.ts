@@ -6400,9 +6400,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if ((await this._readStoredSessionMetadata(sessionMetadataScope(session)))?.workingDirectory) {
 			return undefined;
 		}
-		const marker = await this._readExtensionHostCliMarker(AgentSession.id(session));
+		const sessionId = AgentSession.id(session);
+		const marker = await this._readExtensionHostCliMarker(sessionId);
 		const worktree = isExtensionHostCliMarker(marker) ? marker?.worktreeProperties : undefined;
 		if (!worktree?.worktreePath || !worktree.repositoryPath || !worktree.branchName) {
+			return undefined;
+		}
+		if (await this._isLegacyWorktreeUsedByAnotherSession(sessionId, URI.file(worktree.worktreePath))) {
+			this._logService.info(`[Copilot] Keeping the worktree of deleted legacy session ${sessionId}: another session recorded by the extension host still uses it`);
 			return undefined;
 		}
 		return {
@@ -6411,6 +6416,38 @@ export class CopilotAgent extends Disposable implements IAgent {
 			worktreePath: URI.file(worktree.worktreePath),
 			repositoryRoot: URI.file(worktree.repositoryPath),
 		};
+	}
+
+	/**
+	 * Whether another session the extension host recorded works in `worktree`
+	 * and is not archived, as the extension host checked before deleting a
+	 * worktree. Read from the markers on disk rather than the host's registry,
+	 * which discovery may not have filled yet. `true` when that cannot be
+	 * established, which keeps the folder.
+	 */
+	private async _isLegacyWorktreeUsedByAnotherSession(sessionId: string, worktree: URI): Promise<boolean> {
+		const root = resourceJoinPath(this._copilotHomeService.home, 'session-state').fsPath;
+		let sessionIds: string[];
+		try {
+			sessionIds = (await fs.readdir(root, { withFileTypes: true })).filter(entry => entry.isDirectory() && entry.name !== sessionId).map(entry => entry.name);
+		} catch (error) {
+			this._logService.warn(`[Copilot] Failed to list legacy sessions sharing the worktree of ${sessionId}; keeping it`, error);
+			return true;
+		}
+		const limiter = new Limiter<boolean>(16);
+		const usages = await Promise.all(sessionIds.map(id => limiter.queue(async () => {
+			let raw: string;
+			try {
+				raw = await fs.readFile(join(root, id, EXTENSION_HOST_CLI_MARKER_FILE), 'utf8');
+			} catch (error) {
+				const code = getErrorCode(error);
+				return code !== 'ENOENT' && code !== 'ENOTDIR';
+			}
+			const marker = parseExtensionHostCliMarker(raw);
+			return !!marker && marker.archived !== true
+				&& extensionHostCliWorkingDirectoryPaths(marker).some(path => extUriBiasedIgnorePathCase.isEqualOrParent(URI.file(path), worktree));
+		})));
+		return usages.some(used => used);
 	}
 
 	/**
