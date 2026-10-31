@@ -32,6 +32,7 @@ import { TestExperimentTriggerTelemetryService } from '../../../platform/telemet
 import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, IWorkspacesService } from '../../../platform/workspaces/common/workspaces.js';
 import { IWorkbenchAssignmentService } from '../../../workbench/services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../workbench/services/assignment/test/common/nullAssignmentService.js';
+import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 
 suite('VS Code Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -125,6 +126,7 @@ suite('VS Code Actions', () => {
 		const editorWindows: IOpenedMainWindow[] = [{ ...createWindow(agentsWindowId + 1), lastFocusTime: 1 }, { ...createWindow(agentsWindowId + 2), lastFocusTime: 2 }];
 		const recentFolder: IRecentFolder = { folderUri: URI.file('/recent'), label: 'recent' };
 		const recentWorkspace: IRecentWorkspace = { workspace: { id: 'recent', configPath: URI.file('/recent.code-workspace') }, label: 'recent workspace' };
+		const agentsWindowWorkspace: IRecentWorkspace = { workspace: { id: 'agents', configPath: instantiationService.invokeFunction(accessor => accessor.get(IEnvironmentService).agentSessionsWorkspace) }, label: 'Agents Window' };
 		const run = async (treatment: boolean | undefined, windows: IOpenedMainWindow[], recents: (IRecentWorkspace | IRecentFolder)[], session = createSession('folderless', true)) => {
 			const calls: { focus?: number; open?: string[]; forceNewWindow?: boolean; empty?: true }[] = [];
 			const telemetryService = new TestExperimentTriggerTelemetryService();
@@ -163,7 +165,9 @@ suite('VS Code Actions', () => {
 			treatment: await run(true, [agentsWindow, ...editorWindows], [recentFolder]),
 			treatmentWithoutEditorWindowsAndRecentFolder: await run(true, [agentsWindow], [recentFolder, recentWorkspace]),
 			treatmentWithoutEditorWindowsAndRecentWorkspace: await run(true, [agentsWindow], [recentWorkspace, recentFolder]),
-			treatmentWithoutEditorWindowsOrRecents: await run(true, [agentsWindow], []),
+			// Recents can list the Agents window's own workspace, which is already open.
+			treatmentWithoutEditorWindowsAfterAgentsWindowRecent: await run(true, [agentsWindow], [agentsWindowWorkspace, recentFolder]),
+			treatmentWithoutEditorWindowsOrRecents: await run(true, [agentsWindow], [agentsWindowWorkspace]),
 			treatmentForSessionWithFolder: await run(true, [agentsWindow, ...editorWindows], [recentFolder], createSession('folder', true, [URI.file('/repo')])),
 		}, {
 			control: { calls: [{ empty: true }], triggers: triggered },
@@ -171,6 +175,7 @@ suite('VS Code Actions', () => {
 			treatment: { calls: [{ focus: agentsWindowId + 2 }], triggers: triggered },
 			treatmentWithoutEditorWindowsAndRecentFolder: { calls: [{ open: ['file:///recent'], forceNewWindow: true }], triggers: triggered },
 			treatmentWithoutEditorWindowsAndRecentWorkspace: { calls: [{ open: ['file:///recent.code-workspace'], forceNewWindow: true }], triggers: triggered },
+			treatmentWithoutEditorWindowsAfterAgentsWindowRecent: { calls: [{ open: ['file:///recent'], forceNewWindow: true }], triggers: triggered },
 			treatmentWithoutEditorWindowsOrRecents: { calls: [{ empty: true }], triggers: triggered },
 			treatmentForSessionWithFolder: { calls: [{ open: ['file:///repo'], forceNewWindow: true }], triggers: [] },
 		});
