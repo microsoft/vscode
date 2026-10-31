@@ -1625,7 +1625,7 @@ suite('AgentService (node dispatcher)', () => {
 	teardown(() => disposables.clear());
 	// The fake databases stand for durable ones that outlive a simulated host restart, so they are released here.
 	teardown(() => disposeTestSessionStateDatabases());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('the default chat format follows the creating client capability', async () => {
 		registerTestAgentProvider(service, copilotAgent);
@@ -18505,13 +18505,10 @@ suite('AgentService (node dispatcher)', () => {
 				opened.push(s.toString());
 				return originalTryOpen.call(perSession.service, s);
 			};
-			try {
-				const changed = await register(agent, [discoveredChat(session, false)]);
+			testDisposables.add(toDisposable(() => { service.tryOpenDatabase = originalTryOpen; }));
+			const changed = await register(agent, [discoveredChat(session, false)]);
 
-				assert.deepStrictEqual({ changed, opened }, { changed: false, opened: [] });
-			} finally {
-				service.tryOpenDatabase = originalTryOpen;
-			}
+			assert.deepStrictEqual({ changed, opened }, { changed: false, opened: [] });
 		});
 
 		test('discovering new sessions reads central state once for the batch and never imports them', async () => {

@@ -4347,18 +4347,14 @@ suite('stateToProgressAdapter', () => {
 			const warning = result[0];
 			assert.ok(warning.kind === 'warning');
 
-			const rendered = renderMarkdown(warning.content);
-			try {
-				assert.deepStrictEqual({
-					links: [...rendered.element.querySelectorAll('a')].map(anchor => anchor.dataset.href),
-					text: rendered.element.textContent,
-				}, {
-					links: ['command:aiCustomization.openManagementEditor?%5B%22tools%22%5D'],
-					text: `Some tools were dropped. <${injected}> <a href="${injected}">hooks</a> &lt;b&gt; Configure Tools`,
-				});
-			} finally {
-				rendered.dispose();
-			}
+			const rendered = store.add(renderMarkdown(warning.content));
+			assert.deepStrictEqual({
+				links: [...rendered.element.querySelectorAll('a')].map(anchor => anchor.dataset.href),
+				text: rendered.element.textContent,
+			}, {
+				links: ['command:aiCustomization.openManagementEditor?%5B%22tools%22%5D'],
+				text: `Some tools were dropped. <${injected}> <a href="${injected}">hooks</a> &lt;b&gt; Configure Tools`,
+			});
 		});
 
 		test('keeps a managed plugin preparation failure visible and its host text inert', () => {
@@ -4374,22 +4370,18 @@ suite('stateToProgressAdapter', () => {
 			const warning = result[0];
 			assert.ok(warning.kind === 'warning');
 
-			const rendered = renderMarkdown(warning.content);
-			try {
-				assert.deepStrictEqual({
-					keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
-					links: rendered.element.querySelectorAll('a').length,
-					text: rendered.element.textContent,
-					plaintext: renderAsPlaintext(warning.content, { useLinkFormatter: true }),
-				}, {
-					keepVisibleWhenCollapsed: true,
-					links: 0,
-					text,
-					plaintext: text,
-				});
-			} finally {
-				rendered.dispose();
-			}
+			const rendered = store.add(renderMarkdown(warning.content));
+			assert.deepStrictEqual({
+				keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
+				links: rendered.element.querySelectorAll('a').length,
+				text: rendered.element.textContent,
+				plaintext: renderAsPlaintext(warning.content, { useLinkFormatter: true }),
+			}, {
+				keepVisibleWhenCollapsed: true,
+				links: 0,
+				text,
+				plaintext: text,
+			});
 		});
 
 		test('ends a managed plugin preparation failure with a trusted Retry link for its chat', () => {
@@ -4406,23 +4398,19 @@ suite('stateToProgressAdapter', () => {
 			const warning = result[0];
 			assert.ok(warning.kind === 'warning');
 
-			const rendered = renderMarkdown(warning.content);
-			try {
-				const links = [...rendered.element.querySelectorAll('a')].map(anchor => URI.parse(anchor.dataset.href!));
-				assert.deepStrictEqual({
-					isTrusted: warning.content.isTrusted,
-					keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
-					links: links.map(link => ({ scheme: link.scheme, command: link.path, args: JSON.parse(link.query) })),
-					text: rendered.element.textContent,
-				}, {
-					isTrusted: { enabledCommands: [AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID] },
-					keepVisibleWhenCollapsed: true,
-					links: [{ scheme: 'command', command: AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, args: [target] }],
-					text: `${text} Retry`,
-				});
-			} finally {
-				rendered.dispose();
-			}
+			const rendered = store.add(renderMarkdown(warning.content));
+			const links = [...rendered.element.querySelectorAll('a')].map(anchor => URI.parse(anchor.dataset.href!));
+			assert.deepStrictEqual({
+				isTrusted: warning.content.isTrusted,
+				keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
+				links: links.map(link => ({ scheme: link.scheme, command: link.path, args: JSON.parse(link.query) })),
+				text: rendered.element.textContent,
+			}, {
+				isTrusted: { enabledCommands: [AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID] },
+				keepVisibleWhenCollapsed: true,
+				links: [{ scheme: 'command', command: AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, args: [target] }],
+				text: `${text} Retry`,
+			});
 		});
 
 		test('styles workspace transitions as accessible transcript boundaries', () => {
