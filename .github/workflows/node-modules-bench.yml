@@ -2,7 +2,14 @@ name: node_modules restore benchmark
 
 # Throwaway benchmark of ways to restore node_modules on the runners of the PR checks.
 #
-# Run 9 confirms the Windows image: node_modules with the copies of the same content cloned by
+# Run 10 starts from the node_modules of main, as an image of main would hold them, and brings them
+# to a pull request that changes dependencies, instead of reinstalling everything with `npm ci`: the
+# `all` variant runs today's `npm run install-fast`, which reinstalls every folder when any input
+# changed, and the `changed` variant only reinstalls the folders whose hashes differ from the
+# install state that main saved in node_modules/.postinstall-state. The reference jobs run today's
+# `npm ci` of the same merge commit, and the last job compares the installed packages.
+#
+# Run 9 confirmed the Windows image: node_modules with the copies of the same content cloned by
 # CopyFile on ReFS, and a seeded .git: the objects of an older commit of main with a tag, so that
 # the shallow fetch of actions/checkout downloads only what changed. Runs 7 and 8 measured Linux
 # (squashfs and overlays) and macOS (ASIF), whose jobs are off: Windows writes its disk at
@@ -35,12 +42,32 @@ jobs:
     name: Scripts
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      merge-345378: ${{ steps.prs.outputs['merge-345378'] }}
+      base-345378: ${{ steps.prs.outputs['base-345378'] }}
+      merge-345340: ${{ steps.prs.outputs['merge-345340'] }}
+      base-345340: ${{ steps.prs.outputs['base-345340'] }}
     steps:
       - name: Checkout the scripts
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           sparse-checkout: .github/workflows/node_modules_bench
           persist-credentials: false
+      # Two open pull requests that change dependencies: #345378 bumps @github/copilot-sdk in the root
+      # and remote folders, like most dependency changes; #345340 bumps packages of one test folder.
+      # Every job uses the same merge commits, whose first parent is the commit of main to start from.
+      - name: Find the merge commits of the pull requests
+        id: prs
+        run: |
+          set -euo pipefail
+          for pr in 345378 345340; do
+            git fetch --no-tags --depth=1 origin "refs/pull/$pr/merge"
+            merge=$(git rev-parse FETCH_HEAD)
+            base=$(git cat-file -p FETCH_HEAD | awk '/^parent / { print $2; exit }')
+            echo "merge-$pr=$merge" >> "$GITHUB_OUTPUT"
+            echo "base-$pr=$base" >> "$GITHUB_OUTPUT"
+            echo "#$pr: merge commit $merge of $base"
+          done
       # Compiling it in PowerShell takes over 10 seconds on a new Windows runner
       - name: Compile NmbVhd.dll
         run: |
@@ -56,6 +83,7 @@ jobs:
 
   prepare-windows:
     name: 'Prepare: Windows'
+    if: false
     runs-on: vscode-large-runners-windows-8-core
     timeout-minutes: 120
     outputs:
@@ -176,6 +204,7 @@ jobs:
   # Today's PR job, plus the steps that read node_modules
   windows-today:
     name: 'Windows: today'
+    if: false
     runs-on: vscode-large-runners-windows-8-core
     timeout-minutes: 60
     steps:
@@ -200,6 +229,7 @@ jobs:
   # into the checkout, and a seeded .git, which actions/checkout reuses.
   windows-image:
     name: 'Windows: ${{ matrix.name }}'
+    if: false
     needs: [scripts, prepare-windows]
     runs-on: vscode-large-runners-windows-8-core
     timeout-minutes: 60
@@ -560,3 +590,411 @@ jobs:
       - name: Network traffic of the DMG
         if: always() && matrix.flow == 'http'
         run: tail -5 "$RUNNER_TEMP/serve.log"
+
+  # Run 10: the node_modules of main, from today's cache, brought to the merge commit of a pull request
+  windows-mutate:
+    name: 'Windows: main into #${{ matrix.pr }}, ${{ matrix.variant }} folders'
+    needs: scripts
+    runs-on: vscode-large-runners-windows-8-core
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { pr: 345378, variant: all }
+          - { pr: 345378, variant: changed }
+          - { pr: 345340, variant: changed }
+    env:
+      NMB_PR: ${{ matrix.pr }}
+      NMB_VARIANT: ${{ matrix.variant }}
+      NMB_BASE: ${{ needs.scripts.outputs[format('base-{0}', matrix.pr)] }}
+      NMB_MERGE: ${{ needs.scripts.outputs[format('merge-{0}', matrix.pr)] }}
+      VSCODE_ARCH: x64
+      NPM_ARCH: x64
+    steps:
+      - *dev-drive
+      - *download-scripts
+      - &checkout-base
+        name: Checkout main at the base of the pull request
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.NMB_BASE }}
+          lfs: true
+      - *setup-node
+      - *restore-windows
+      - *cache-miss
+      - &manifest-before
+        name: List the packages of main
+        shell: bash
+        run: node "$RUNNER_TEMP/nmb-scripts/mutate.ts" manifest --root . --out "$RUNNER_TEMP/nmb-manifest/before.json"
+      - &checkout-pr
+        name: Check out the merge commit of the pull request
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/nmb-manifest"
+          if ! git fetch --no-tags --depth=1 origin "$NMB_MERGE"; then
+            echo "::warning::$NMB_MERGE is gone, so this job uses the current merge commit of #$NMB_PR"
+            git fetch --no-tags --depth=1 origin "refs/pull/$NMB_PR/merge"
+          fi
+          git -c advice.detachedHead=false checkout --force --detach FETCH_HEAD
+          git log -1 --format='%H %s' | tee "$RUNNER_TEMP/nmb-manifest/commit.txt"
+          git --no-pager diff --stat "$NMB_BASE" HEAD -- '*package.json' '*package-lock.json' '*.npmrc' .nvmrc build/.cachesalt
+      - &install-state
+        name: Compare the install state of main with the pull request
+        shell: bash
+        run: node "$RUNNER_TEMP/nmb-scripts/mutate.ts" state --root .
+      - &changed-only
+        name: Reinstall only the folders that changed
+        if: matrix.variant == 'changed'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node "$RUNNER_TEMP/nmb-scripts/mutate.ts" patch-postinstall --root .
+          echo 'VSCODE_INSTALL_CHANGED_DIRS_ONLY=1' >> "$GITHUB_ENV"
+      - name: Bring node_modules to the pull request
+        shell: pwsh
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          npm_config_foreground_scripts: 'true'
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = 'Stop'
+          $watch = [Diagnostics.Stopwatch]::StartNew()
+          # Like the install step of pr-win32-test.yml
+          exec { node build/npm/preinstall.ts }
+          $preinstall = $watch.Elapsed.TotalSeconds
+          exec { node build/npm/fast-install.ts }
+          Write-Output "::notice title=Mutate::preinstall $([math]::Round($preinstall, 1)) s, fast-install $([math]::Round($watch.Elapsed.TotalSeconds - $preinstall, 1)) s"
+      - &check-lockfiles
+        name: Check that npm left the lockfiles alone
+        # The verification still runs, and the annotation reports it
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          git status --porcelain
+          if git status --porcelain | grep -E 'package(-lock)?\.json$'; then
+            echo '::error::npm changed a lockfile, which npm ci refuses to do'
+            exit 1
+          fi
+      - &verify
+        name: Verify node_modules against the lockfiles
+        shell: bash
+        run: node "$RUNNER_TEMP/nmb-scripts/mutate.ts" verify --root .
+      - &manifest-after
+        name: List the packages of the pull request
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          node "$RUNNER_TEMP/nmb-scripts/mutate.ts" manifest --root . --out "$RUNNER_TEMP/nmb-manifest/after.json"
+          node "$RUNNER_TEMP/nmb-scripts/mutate.ts" compare --a "$RUNNER_TEMP/nmb-manifest/before.json" --b "$RUNNER_TEMP/nmb-manifest/after.json" --title "$RUNNER_OS: what bringing main to #$NMB_PR changed ($NMB_VARIANT folders)"
+      - &upload-manifest
+        name: Upload the package lists
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: 'nmb-manifest-${{ runner.os }}-${{ matrix.pr }}-${{ matrix.variant }}', path: '${{ runner.temp }}/nmb-manifest/', retention-days: 3, if-no-files-found: warn }
+      - &noop
+        name: Bring node_modules to the pull request again, as without dependency changes
+        shell: bash
+        run: time node build/npm/fast-install.ts
+      - &setup-electron
+        name: Setup Electron
+        uses: ./.github/actions/setup-electron
+        with:
+          arch: ${{ env.VSCODE_ARCH }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - &playwright-twice
+        name: Install the Playwright browsers twice, as today and as from an image
+        shell: bash
+        run: |
+          set -euo pipefail
+          browsers=chromium
+          cache="$HOME/.cache/ms-playwright"
+          if [ "$RUNNER_OS" = macOS ]; then browsers='chromium webkit'; cache="$HOME/Library/Caches/ms-playwright"; fi
+          if [ "$RUNNER_OS" = Windows ]; then cache="$(cygpath "$LOCALAPPDATA")/ms-playwright"; fi
+          time npm exec -- playwright install --only-shell $browsers
+          time npm exec -- playwright install --only-shell $browsers
+          du -sh .build/electron "$cache" || true
+      - *transpile
+      - *compile-extensions
+
+  linux-mutate:
+    name: 'Linux: main into #${{ matrix.pr }}, ${{ matrix.variant }} folders'
+    needs: scripts
+    runs-on: vscode-large-runners-ubuntu-8-core
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { pr: 345378, variant: all }
+          - { pr: 345378, variant: changed }
+          - { pr: 345340, variant: changed }
+    env:
+      NMB_PR: ${{ matrix.pr }}
+      NMB_VARIANT: ${{ matrix.variant }}
+      NMB_BASE: ${{ needs.scripts.outputs[format('base-{0}', matrix.pr)] }}
+      NMB_MERGE: ${{ needs.scripts.outputs[format('merge-{0}', matrix.pr)] }}
+      VSCODE_ARCH: x64
+      NPM_ARCH: x64
+    steps:
+      - *download-scripts
+      - *checkout-base
+      - *setup-node
+      - &build-packages
+        # The packages of the system services step of pr-linux-test.yml, which native modules build with
+        name: Install the build packages
+        run: |
+          set -e
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config xvfb libgtk-3-0 libxkbfile-dev libkrb5-dev libgbm1 rpm bubblewrap socat
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: ./.github/actions/restore-node-modules
+        with:
+          key-prefix: node_modules-linux
+          key-args: "linux x64 $(node -p process.arch)"
+      - *cache-miss
+      - *manifest-before
+      - *checkout-pr
+      - *install-state
+      - *changed-only
+      - name: Bring node_modules to the pull request
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          now() { node -p 'Date.now() / 1000'; }
+          start=$(now)
+          # Like the install step of pr-linux-test.yml. An image would hold the sysroots that it downloads.
+          source ./build/azure-pipelines/linux/setup-env.sh
+          sysroots=$(now)
+          node build/npm/fast-install.ts
+          end=$(now)
+          node -p "'::notice title=Mutate::setup-env.sh ' + ($sysroots - $start).toFixed(1) + ' s, fast-install ' + ($end - $sysroots).toFixed(1) + ' s'"
+      - *check-lockfiles
+      - *verify
+      - *manifest-after
+      - *upload-manifest
+      - *noop
+      - *setup-electron
+      - *playwright-twice
+      - *transpile
+      - *compile-extensions
+
+  macos-mutate:
+    name: 'macOS: main into #${{ matrix.pr }}, ${{ matrix.variant }} folders'
+    needs: scripts
+    runs-on: vscode-large-runners-macos-5-core-0
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { pr: 345378, variant: all }
+          - { pr: 345378, variant: changed }
+          - { pr: 345340, variant: changed }
+    env:
+      NMB_PR: ${{ matrix.pr }}
+      NMB_VARIANT: ${{ matrix.variant }}
+      NMB_BASE: ${{ needs.scripts.outputs[format('base-{0}', matrix.pr)] }}
+      NMB_MERGE: ${{ needs.scripts.outputs[format('merge-{0}', matrix.pr)] }}
+      VSCODE_ARCH: arm64
+      NPM_ARCH: arm64
+    steps:
+      - *download-scripts
+      - *checkout-base
+      - *setup-node
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: ./.github/actions/restore-node-modules
+        with:
+          key-prefix: node_modules-macos
+          key-args: "darwin arm64 $(node -p process.arch)"
+      - *cache-miss
+      - *manifest-before
+      - *checkout-pr
+      - *install-state
+      - *changed-only
+      - name: Bring node_modules to the pull request
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GYP_DEFINES: 'kerberos_use_rtld=false'
+        run: |
+          set -e
+          now() { node -p 'Date.now() / 1000'; }
+          start=$(now)
+          # Like the install step of pr-darwin-test.yml
+          python3 -m pip install --break-system-packages setuptools
+          setuptools=$(now)
+          node build/npm/fast-install.ts
+          end=$(now)
+          node -p "'::notice title=Mutate::setuptools ' + ($setuptools - $start).toFixed(1) + ' s, fast-install ' + ($end - $setuptools).toFixed(1) + ' s'"
+      - *check-lockfiles
+      - *verify
+      - *manifest-after
+      - *upload-manifest
+      - *noop
+      - *setup-electron
+      - *playwright-twice
+      - *transpile
+      - *compile-extensions
+
+  # Today's `npm ci` of the same merge commit, as on a cache miss, to compare the packages with
+  windows-reference:
+    name: 'Windows: npm ci of #345378, as today'
+    needs: scripts
+    runs-on: vscode-large-runners-windows-8-core
+    timeout-minutes: 60
+    env:
+      NMB_PR: 345378
+      NMB_BASE: ${{ needs.scripts.outputs['base-345378'] }}
+      NMB_MERGE: ${{ needs.scripts.outputs['merge-345378'] }}
+      VSCODE_ARCH: x64
+      NPM_ARCH: x64
+    steps:
+      - *dev-drive
+      - *download-scripts
+      - *checkout-base
+      - *setup-node
+      - *checkout-pr
+      - name: Install dependencies
+        # Same as in pr-win32-test.yml, without the retries
+        shell: pwsh
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          npm_config_foreground_scripts: 'true'
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = 'Stop'
+          exec { node build/npm/preinstall.ts }
+          exec { npm ci }
+      - &verify-reference
+        # Checks the checks: npm ci passes them
+        name: Verify node_modules against the lockfiles
+        continue-on-error: true
+        shell: bash
+        run: node "$RUNNER_TEMP/nmb-scripts/mutate.ts" verify --root .
+      - &manifest-reference
+        name: List the packages
+        shell: bash
+        run: node "$RUNNER_TEMP/nmb-scripts/mutate.ts" manifest --root . --out "$RUNNER_TEMP/nmb-manifest/reference.json"
+      - &upload-reference
+        name: Upload the package list
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: 'nmb-manifest-${{ runner.os }}-345378-reference', path: '${{ runner.temp }}/nmb-manifest/', retention-days: 3, if-no-files-found: warn }
+
+  linux-reference:
+    name: 'Linux: npm ci of #345378, as today'
+    needs: scripts
+    runs-on: vscode-large-runners-ubuntu-8-core
+    timeout-minutes: 60
+    env:
+      NMB_PR: 345378
+      NMB_BASE: ${{ needs.scripts.outputs['base-345378'] }}
+      NMB_MERGE: ${{ needs.scripts.outputs['merge-345378'] }}
+      VSCODE_ARCH: x64
+      NPM_ARCH: x64
+    steps:
+      - *download-scripts
+      - *checkout-base
+      - *setup-node
+      - *build-packages
+      - *checkout-pr
+      - name: Install build dependencies
+        # Same as in pr-linux-test.yml, without the retries
+        working-directory: build
+        run: npm ci
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install dependencies
+        # Same as in pr-linux-test.yml, without the retries
+        run: |
+          set -e
+          source ./build/azure-pipelines/linux/setup-env.sh
+          npm ci
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - *verify-reference
+      - *manifest-reference
+      - *upload-reference
+
+  macos-reference:
+    name: 'macOS: npm ci of #345378, as today'
+    needs: scripts
+    runs-on: vscode-large-runners-macos-5-core-0
+    timeout-minutes: 60
+    env:
+      NMB_PR: 345378
+      NMB_BASE: ${{ needs.scripts.outputs['base-345378'] }}
+      NMB_MERGE: ${{ needs.scripts.outputs['merge-345378'] }}
+      VSCODE_ARCH: arm64
+      NPM_ARCH: arm64
+    steps:
+      - *download-scripts
+      - *checkout-base
+      - *setup-node
+      - *checkout-pr
+      - name: Install dependencies
+        # Same as in pr-darwin-test.yml, without the retries
+        run: |
+          set -e
+          python3 -m pip install --break-system-packages setuptools
+          npm ci
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GYP_DEFINES: 'kerberos_use_rtld=false'
+      - *verify-reference
+      - *manifest-reference
+      - *upload-reference
+
+  compare:
+    name: Compare with npm ci
+    needs: [windows-mutate, linux-mutate, macos-mutate, windows-reference, linux-reference, macos-reference]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - *download-scripts
+      - *setup-node-early
+      - name: Download the package lists
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: nmb-manifest-*
+          path: ${{ runner.temp }}/manifests
+      - name: Compare the packages of main brought to the pull request with those of npm ci
+        run: |
+          set -uo pipefail
+          m="$RUNNER_TEMP/manifests"
+          for os in Windows Linux macOS; do
+            echo "== $os"
+            for commit in "$m"/nmb-manifest-$os-345378-*/commit.txt; do echo "$commit: $(cat "$commit")"; done
+            ref="$m/nmb-manifest-$os-345378-reference/reference.json"
+            for variant in all changed; do
+              mutated="$m/nmb-manifest-$os-345378-$variant/after.json"
+              if [ -f "$ref" ] && [ -f "$mutated" ]; then
+                node "$RUNNER_TEMP/nmb-scripts/mutate.ts" compare --a "$mutated" --b "$ref" --title "$os: main brought to #345378 ($variant folders), then npm ci"
+              fi
+            done
+          done
