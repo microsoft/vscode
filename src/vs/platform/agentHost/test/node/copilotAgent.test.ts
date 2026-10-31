@@ -67,6 +67,7 @@ import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 import { AgentHostDynamicAutoTiersEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
 import { agentModelCatalogStatusKey } from '../../common/agentModelCatalogStatus.js';
+import { readImageGenerationModelChoices } from '../../common/imageGenerationConfiguration.js';
 import { isAgentModelFusion, readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, readAgentModelFusionInlineChatTier } from '../../common/meta/agentModelMeta.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
@@ -1675,7 +1676,7 @@ function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationServic
 	const launchPlan: CopilotSessionLaunchPlan = {
 		kind: 'create',
 		client: {
-			rpc: { managedSettings: options?.managedSettings ?? createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			rpc: { managedSettings: options?.managedSettings ?? createUnmanagedCopilotSettings(), models: new class extends mock<CopilotClient['rpc']['models']>() { }, account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 			createSession: async options => {
 				createOptions = options;
 				reportManagedSettings(options);
@@ -17225,7 +17226,7 @@ suite('CopilotAgent', () => {
 		});
 	});
 
-	test('the Sunburst setting never exposes image models in the chat model catalog', async () => {
+	test('runtime image models populate settings without entering the chat model catalog', async () => {
 		const client = new TestCopilotClient([], [{ id: 'chat-model', name: 'Chat Model' }]);
 		const listModels = client.rpc.models.list;
 		const modelsList = stub(client.rpc.models, 'list').callsFake(async params => ({
@@ -17233,9 +17234,12 @@ suite('CopilotAgent', () => {
 			imageModels: [{
 				id: 'gpt-image-2.5-sunburst', name: 'GPT Image 2.5 Sunburst', supportedOperations: ['generate', 'edit'],
 				isDefault: true, availability: 'available',
+			}, {
+				id: 'another-image-model', name: 'Another Image Model', supportedOperations: ['generate'],
+				isDefault: false, availability: 'available',
 			}],
 		}));
-		const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+		const { agent, configurationService, stateManager } = createTestAgentContext(disposables, { copilotClient: client });
 		const observations = [];
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
@@ -17245,7 +17249,49 @@ suite('CopilotAgent', () => {
 				observations.push(agent.models.get().map(model => ({ id: model.id, images: model._meta?.['vscode.imageModels'] })));
 			}
 			assert.deepStrictEqual(observations, Array.from({ length: 3 }, () => [{ id: 'chat-model', images: undefined }]));
+			assert.deepStrictEqual(
+				readImageGenerationModelChoices(stateManager.rootState)?.map(choice => ({ id: choice.id, label: choice.label })),
+				[
+					{ id: 'gpt-image-2.5-sunburst', label: 'GPT Image 2.5 Sunburst' },
+					{ id: 'another-image-model', label: 'Another Image Model' },
+				],
+			);
 		} finally {
+			modelsList.restore();
+			await disposeAgent(agent);
+		}
+	});
+
+	test('an empty chat refresh still publishes the independently returned image catalog', async () => {
+		const client = new TestCopilotClient([], [{ id: 'chat-model', name: 'Chat Model' }]);
+		const listModels = client.rpc.models.list;
+		let imageModels: NonNullable<Awaited<ReturnType<CopilotClient['rpc']['models']['list']>>['imageModels']> = [{
+			id: 'first-image-model', name: 'First Image Model', availability: 'available',
+			isDefault: false, supportedOperations: ['generate'],
+		}];
+		const modelsList = stub(client.rpc.models, 'list').callsFake(async params => ({
+			...await listModels(params),
+			imageModels,
+		}));
+		const { agent, stateManager } = createTestAgentContext(disposables, { copilotClient: client });
+		let clock: ReturnType<typeof useFakeTimers> | undefined;
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			const previousChatModels = agent.models.get();
+			clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+			imageModels = [{
+				id: 'replacement-image-model', name: 'Replacement Image Model', availability: 'available',
+				isDefault: false, supportedOperations: ['edit'],
+			}];
+			client.modelListResponses.push([]);
+			await agent.refreshModels();
+			assert.deepStrictEqual({
+				chats: agent.models.get(),
+				images: readImageGenerationModelChoices(stateManager.rootState)?.map(choice => choice.id),
+			}, { chats: previousChatModels, images: ['replacement-image-model'] });
+		} finally {
+			clock?.restore();
 			modelsList.restore();
 			await disposeAgent(agent);
 		}

@@ -87,6 +87,7 @@ import { getByokLmAgentModelId, resolveByokLmEnablement } from '../../common/age
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { CopilotImageGenerationModelChoicesKey, createImageGenerationModelChoices, type IImageGenerationModelChoice } from '../../common/imageGenerationConfiguration.js';
 import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
@@ -460,6 +461,7 @@ class ScopedCopilotClient extends Disposable {
 
 interface ICopilotModelCatalog {
 	readonly models: readonly IAgentModelInfo[];
+	readonly imageModelChoices: readonly IImageGenerationModelChoice[] | undefined;
 	readonly autoTierMetadata: CopilotAutoTierMetadata | undefined;
 	readonly freeLongContextModels: ReadonlySet<string>;
 	readonly fallbackAuto: boolean;
@@ -3833,7 +3835,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					this._scopedModelClients.set(source, runtime);
 					try {
 						const client = await raceCancellationError(runtime.starting, token);
-						const catalog = await raceCancellationError(this._listModels(client, credential.token, []), token);
+						const catalog = await raceCancellationError(this._listModels(client, credential.token), token);
 						const policy = await this._managedSettingsResolver.resolve(client.rpc.managedSettings, credential.token, undefined, token);
 						const current = source.getCredential({ resource: resource.resource });
 						if (this._store.isDisposed || !current || !credentials.isCurrentCredential(current)) {
@@ -3943,15 +3945,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!tokenAtRefreshStart) {
 			this._capiModels = [];
 			this._managedModelPolicy = undefined;
+			this._configurationService.publishRootTransientValues?.({ [CopilotImageGenerationModelChoicesKey]: null });
 			this._publishModels();
 			this._publishModelCatalogStatus('ready');
 			return;
 		}
 		try {
 			const client = await this._ensureClient();
-			const { models, autoTierMetadata, freeLongContextModels } = await this._listModels(client, tokenAtRefreshStart);
+			const { models, imageModelChoices, autoTierMetadata, freeLongContextModels, fallbackAuto } = await this._listModels(client, tokenAtRefreshStart);
 			if (this._githubCredentials.token !== tokenAtRefreshStart || this._modelCatalogGeneration !== generation || this._shutdownPromise) {
 				return;
+			}
+			this._configurationService.publishRootTransientValues?.({ [CopilotImageGenerationModelChoicesKey]: imageModelChoices ?? null });
+			// A successful image catalog is independent of retaining the last known chat catalog.
+			if (fallbackAuto && this._capiModels.some(model => !this._fallbackAutoModels.has(model))) {
+				throw new Error('Model refresh returned an empty catalog; retaining the previous models');
 			}
 			const modelPolicy = await this._managedSettingsResolver.resolve(client.rpc.managedSettings, tokenAtRefreshStart);
 			if (this._githubCredentials.token === tokenAtRefreshStart && this._modelCatalogGeneration === generation) {
@@ -5469,14 +5477,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/** Returns the tier metadata with the models, so the caller applies both under one ownership check. */
-	private async _listModels(client: CopilotClient, gitHubToken: string, previousModels = this._capiModels): Promise<ICopilotModelCatalog> {
+	private async _listModels(client: CopilotClient, gitHubToken: string): Promise<ICopilotModelCatalog> {
 		this._logService.info('[Copilot] Listing models...');
-		const { models, auto } = await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken });
+		const { models, imageModels, auto } = await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken });
 		const promotions = auto ? collectAutoTierPromotions(auto.tiers) : [];
-		// Empty SDK results can also mean discovery failed, so do not replace an already loaded catalog.
-		if (!models.length && previousModels.some(model => !this._fallbackAutoModels.has(model))) {
-			throw new Error('Model refresh returned an empty catalog; retaining the previous models');
-		}
 		const freeLongContextModels = new Set<string>();
 		const result = models.map((m): IAgentModelInfo => {
 			const billing = normalizeCAPIBilling(m.billing);
@@ -5511,7 +5515,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.info('[Copilot] No models listed; offering Auto');
 			result.push(this._getFallbackAutoModel(auto, promotions));
 		}
-		return { models: result, autoTierMetadata: auto, freeLongContextModels, fallbackAuto: result.some(model => this._fallbackAutoModels.has(model)) };
+		return { models: result, imageModelChoices: imageModels && createImageGenerationModelChoices(imageModels), autoTierMetadata: auto, freeLongContextModels, fallbackAuto: result.some(model => this._fallbackAutoModels.has(model)) };
 	}
 
 	/** The Auto entry offered when the runtime lists no models, with its routing profiles. */

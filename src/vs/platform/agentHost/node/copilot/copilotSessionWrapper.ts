@@ -86,6 +86,7 @@ export class CopilotSessionWrapper extends Disposable {
 		readonly launchByokConfig: ICopilotByokSessionConfig,
 		readonly launchImageGenerationEnabled: boolean,
 		readonly launchImageGenerationWatermark: boolean,
+		readonly launchImageGenerationModel: string | undefined,
 		/** The trust the SDK session was created with for its working directory; `undefined` for a resume or no grant. */
 		readonly launchWorkingDirectoryTrust: SessionConfig['trustWorkingDirectory'],
 		@ILogService private readonly _logService: ILogService,

@@ -7,6 +7,7 @@ import { PolicyUnavailableAgentHostContentProvider } from './agentHostPolicyUnav
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { mark } from '../../../../../../base/common/performance.js';
@@ -21,6 +22,9 @@ import { NotificationType } from '../../../../../../platform/agentHost/common/st
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
+import { CopilotImageGenerationModelSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { getImageGenerationModelConfiguration, imageGenerationConfigurationProperties, readImageGenerationModelChoices } from '../../../../../../platform/agentHost/common/imageGenerationConfiguration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -270,6 +274,16 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private _handleRootStateChange(rootState: RootState | Error | undefined): void {
 		if (!this._agentHostEnablementService.enabled.get()) {
 			return;
+		}
+		const choices = getImageGenerationModelConfiguration(readImageGenerationModelChoices(rootState));
+		const imageModelProperty = imageGenerationConfigurationProperties[CopilotImageGenerationModelSettingId];
+		if (!structuralEquals(choices.enum, imageModelProperty.enum)
+			|| !structuralEquals(choices.enumItemLabels, imageModelProperty.enumItemLabels)
+			|| !structuralEquals(choices.markdownEnumDescriptions, imageModelProperty.markdownEnumDescriptions)) {
+			Object.assign(imageModelProperty, choices);
+			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).notifyConfigurationSchemaUpdated({
+				properties: { [CopilotImageGenerationModelSettingId]: imageModelProperty },
+			});
 		}
 		const allowed = rootState && !(rootState instanceof Error) ? rootState.agents.filter(a => this._shouldRegisterAgent(a.provider)) : undefined;
 		const incoming = allowed ? new Set(allowed.map(a => a.provider)) : undefined;

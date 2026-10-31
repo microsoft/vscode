@@ -31,6 +31,7 @@ import { getCopilotApprovalPolicy, isManagedWorkspaceRetrievalWithheld, isWithhe
 import { AGENT_HOST_COPILOT_CLIENT_NAME, type CopilotManagedSettingsActivityReporter, type CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { omitCopilotManagedModelDefaults, type CopilotManagedModelPolicy } from './copilotManagedModelConfiguration.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
+import { CopilotImageGenerationModels } from '../../common/imageGenerationConfiguration.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { projectCopilotSandboxPolicy } from './copilotSandboxPolicy.js';
@@ -102,7 +103,7 @@ type AgentHostReasoningEffort = ReasoningEffortLevel;
 
 // Every create and resume config states both image generation options, so finalizing a session reads them without defaults.
 interface ICopilotSessionConfig extends ResumeSessionConfig {
-	imageGeneration: { enabled: boolean; watermark: boolean };
+	imageGeneration: { enabled: boolean; watermark: boolean; model?: string };
 }
 
 function disabledMcpServersSessionOption(plugins: readonly ICopilotPluginInfo[], disabledRootMcpServers: readonly string[] | undefined, additionalDisabledMcpServers: readonly string[] | undefined): Partial<SessionConfig> {
@@ -397,7 +398,9 @@ export interface ICopilotSessionLauncher {
 }
 
 type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession'> & {
-	readonly rpc: Pick<CopilotClient['rpc'], 'account' | 'sandbox' | 'managedSettings'>;
+	readonly rpc: Pick<CopilotClient['rpc'], 'account' | 'sandbox' | 'managedSettings'> & {
+		readonly models: Pick<CopilotClient['rpc']['models'], 'list'>;
+	};
 };
 
 interface ICopilotSessionLaunchBase {
@@ -490,6 +493,19 @@ function getNativeAgentSelection(plan: CopilotSessionLaunchPlan): AgentCustomiza
 
 /** How the chat surface that created a chat's owning session scopes its runtime. */
 export type CopilotChatSurface = Pick<ICopilotSessionLaunchBase, 'hasScopedEditSurface' | 'isInlineChatSurface'>;
+
+/** Default-only runtimes ignore a model override, so verify nondefault selections before enabling the tool. */
+export async function assertCopilotImageGenerationModel(plan: Pick<CopilotSessionLaunchPlan, 'client' | 'githubCredentials'>, model: string | undefined): Promise<void> {
+	if (!model || model === CopilotImageGenerationModels[0]) {
+		return;
+	}
+	const credentials = plan.githubCredentials.sdkSessionOptions;
+	const gitHubToken = credentials.gitHubTokenProvider ? plan.githubCredentials.token : credentials.gitHubToken;
+	const { imageModels } = await plan.client.rpc.models.list(gitHubToken ? { gitHubToken } : {});
+	if (!imageModels?.some(entry => entry.id === model && entry.availability === 'available')) {
+		throw new Error(localize('copilotAgent.imageModelUnavailable', "The connected Copilot runtime does not advertise image model \"{0}\" as available. Select an available image model or update the runtime. No image request was sent.", model));
+	}
+}
 
 /**
  * The trust a created SDK session grants its working directory, forwarding
@@ -1303,7 +1319,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				return undefined;
 			}));
 		}
-		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, config.imageGeneration.enabled, config.imageGeneration.watermark, trustWorkingDirectory, this._logService);
+		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, config.imageGeneration.enabled, config.imageGeneration.watermark, config.imageGeneration.model, trustWorkingDirectory, this._logService);
 	}
 
 	private async _configureExecutionSubagentTool(session: CopilotSessionWrapper['session'], config: ResumeSessionConfig): Promise<boolean> {
@@ -1650,6 +1666,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			})}`);
 		}
 		const enableSessionTelemetry = isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService);
+		const imageGenerationEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGeneration) === true;
+		const imageGenerationModel = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGenerationModel);
+		if (imageGenerationEnabled) {
+			await assertCopilotImageGenerationModel(plan, imageGenerationModel);
+		}
 		const config: ICopilotSessionConfig = {
 			...byok,
 			...disabledMcpServers,
@@ -1670,8 +1691,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			},
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
 			imageGeneration: {
-				enabled: this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGeneration) === true,
+				enabled: imageGenerationEnabled,
 				watermark: this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGenerationWatermark) === true,
+				...(imageGenerationModel !== undefined
+					? { model: imageGenerationModel }
+					: {}),
 			},
 			...(hydraFusionEnabled ? { enableExperimentalMode: true } : {}),
 			interactiveUser: true,
