@@ -274,6 +274,11 @@ declare module 'vscode' {
 		 * request if either document changes. Providers must honor cancellation
 		 * and must not mix content from different document versions.
 		 *
+		 * The two versions need not exist as separate files on disk. A provider
+		 * may use the same backing `file:` URI for language-service identity, but
+		 * must analyze each supplied document's contents rather than the backing
+		 * file's current disk contents.
+		 *
 		 * @param originalDocument The original version of the document.
 		 * @param modifiedDocument The modified version of the document.
 		 * @param context The paired textual changes to classify.
@@ -292,11 +297,16 @@ declare module 'vscode' {
 		/**
 		 * Registers a structural diff provider.
 		 *
-		 * Providers are selected using the modified document and must support
+		 * Providers are selected using only the modified document and must support
 		 * analyzing both supplied documents. Providers are ordered by their
 		 * {@link languages.match selector score} and queried in sequence. The
 		 * first non-null result is used; trees from different providers are not
 		 * merged. A failing provider does not prevent querying another provider.
+		 *
+		 * The original document need not match the selector and may use a different
+		 * URI scheme. For example, Git working-tree changes pair a `git:` original
+		 * with a `file:` modified document, whereas staged changes pair two `git:`
+		 * documents.
 		 *
 		 * Structural diffs can be requested for documents that are not open, and the
 		 * editor only offers them while a provider is registered. Register providers
