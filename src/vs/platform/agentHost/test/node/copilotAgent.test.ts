@@ -2412,7 +2412,8 @@ suite('CopilotAgent', () => {
 		{ name: 'target failed', enabled: true, statuses: ['failed'], succeeds: false, expectedError: /After enabling 'preview', this chat couldn't finish updating canvas extensions because 'preview' failed to start/ },
 		{ name: 'target absent', enabled: false, statuses: [], succeeds: false, expectedError: /After disabling 'preview', this chat couldn't finish updating canvas extensions because 'preview' couldn't be stopped/ },
 		{ name: 'conflicting duplicate target states', enabled: false, statuses: ['disabled', 'running'], succeeds: false, expectedError: /After disabling 'preview', this chat couldn't finish updating canvas extensions because 'preview' couldn't be stopped/ },
-		{ name: 'conflicting duplicate target states while enabling', enabled: true, statuses: ['disabled', 'running'], succeeds: false, expectedError: /After enabling 'preview', this chat couldn't finish updating canvas extensions because 'preview' failed to start/ },
+		{ name: 'conflicting duplicate target states while enabling', enabled: true, statuses: ['disabled', 'running'], succeeds: false, expectedError: /Canvas extension 'preview' was enabled in settings, but couldn't be started in this chat. unrelated extension did not become ready/ },
+		{ name: 'unknown target state while enabling', enabled: true, statuses: ['unknown'], succeeds: false, expectedError: /Canvas extension 'preview' was enabled in settings, but couldn't be started in this chat. unrelated extension did not become ready/ },
 		{ name: 'verification unavailable', enabled: false, statuses: ['disabled'], succeeds: false, expectedError: /Canvas extension 'preview' was disabled in settings/ },
 		{ name: 'disposed during verification', enabled: true, statuses: ['running'], succeeds: false, expectedError: /Canvas extension 'preview' was enabled in settings/ },
 		{ name: 'disposed during disable verification', enabled: false, statuses: ['disabled'], succeeds: false, expectedError: /Canvas extension 'preview' was disabled in settings/ },
@@ -2464,7 +2465,9 @@ suite('CopilotAgent', () => {
 					persisted: [{ ids: ['user:preview'] }],
 					warned: scenario.name !== 'verification unavailable'
 						&& scenario.name !== 'disposed during verification'
-						&& scenario.name !== 'disposed during disable verification',
+						&& scenario.name !== 'disposed during disable verification'
+						&& scenario.name !== 'conflicting duplicate target states while enabling'
+						&& scenario.name !== 'unknown target state while enabling',
 				});
 			} finally {
 				warnings.restore();

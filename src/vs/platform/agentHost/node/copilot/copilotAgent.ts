@@ -3119,7 +3119,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					.filter(extension => extension.id !== extensionId && extension.status === 'failed')
 					.map(extension => [extension.id, extension])).values()]
 				: [];
-			if ((!enabled && targetSettled || targetConsistentlyStarting) && failedExtensions.length === 0) {
+			if ((!enabled && targetSettled || enabled && !targetFailed) && failedExtensions.length === 0) {
 				throw error;
 			}
 			this._logService.warn(`[Copilot:${session.sessionId}] Extension '${extensionId}' reconciliation reported a lifecycle failure`, error);
