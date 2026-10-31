@@ -455,6 +455,32 @@ suite('CanvasService', () => {
 		});
 	});
 
+	test('acknowledges historical requests after an inactive recovery', async () => {
+		const harness = createHarness();
+		harness.visible.set(new Set(), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		harness.openEditors.length = 0;
+		harness.openRequests.set(new Map([['preview', { id: 'historical-request', succeeded: true }]]), undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			opened: harness.opened.length,
+			options: harness.openOptions,
+		}, {
+			opened: 1,
+			options: [{
+				pinned: true,
+				preserveFocus: true,
+				inactive: true,
+				activation: EditorActivation.PRESERVE,
+			}],
+		});
+	});
+
 	test('does not let a stale reveal clear newer recovery intent after a foreground open', async () => {
 		const harness = createHarness();
 		const pending = harness.delayOpen();
@@ -476,6 +502,26 @@ suite('CanvasService', () => {
 				{ pinned: true, revealIfOpened: true, preserveFocus: false },
 				{ pinned: true, revealIfOpened: true, preserveFocus: false },
 			],
+		});
+	});
+
+	test('rolls back unavailable reveal intent and dismissal', async () => {
+		const harness = createHarness();
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		harness.opened[0].dispose();
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		const pendingReveal = await harness.service.revealCanvas(harness.opened[0].reference);
+		pendingReveal?.rollback();
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			opened: harness.opened.length,
+			reopenable: harness.service.reopenableCanvases.get().map(target => target.canvas.instanceId),
+		}, {
+			opened: 1,
+			reopenable: ['preview'],
 		});
 	});
 

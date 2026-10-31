@@ -9,7 +9,7 @@ import { constObservable, derived, IObservable, IReader } from '../../../../base
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { CanvasInput, canvasOwnerKey, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasOwner, ICanvasService, ICanvasWorkingSets } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { CanvasInput, canvasOwnerKey, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasOwner, ICanvasRevealRequest, ICanvasService, ICanvasWorkingSets } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasDefinitionStore } from '../../../../workbench/contrib/canvases/common/canvasDefinitionStore.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -164,13 +164,19 @@ export class SessionCanvasRegistryService extends Disposable implements ISession
 		const chat = session.activeChat.get();
 		const instanceId = getSessionCanvasDefinitionInstanceId(canvas);
 		const existing = chat.canvases?.get()?.find(candidate => candidate.instanceId === instanceId);
+		let pendingReveal: ICanvasRevealRequest | undefined;
 		if (existing) {
-			await this.canvasService.revealCanvas(createSessionCanvasReference(session, chat, existing));
+			pendingReveal = await this.canvasService.revealCanvas(createSessionCanvasReference(session, chat, existing));
 			if (existing.source) {
 				return;
 			}
 		}
-		await this.sessionsManagementService.openCanvas(session, chat, canvas, instanceId);
+		try {
+			await this.sessionsManagementService.openCanvas(session, chat, canvas, instanceId);
+		} catch (error) {
+			pendingReveal?.rollback();
+			throw error;
+		}
 	}
 }
 

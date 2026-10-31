@@ -119,7 +119,7 @@ suite('CopilotCanvasesWidget', () => {
 			override readonly enabled = enabled;
 			override readonly reopenableCanvases = constObservable([]);
 			override isOwnerPresentable() { return true; }
-			override async revealCanvas(reference: ICanvasReference) { reveals.push(reference.canvas.toString()); }
+			override async revealCanvas(reference: ICanvasReference) { reveals.push(reference.canvas.toString()); return undefined; }
 			override async reopenCanvas() { }
 		}();
 		const listRequests: { session: URI; token: CancellationToken }[] = [];

@@ -25,7 +25,7 @@ suite('CanvasCommands', () => {
 		const revealed: ICanvasReference[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ICanvasService, upcastPartial<ICanvasService>({
-			revealCanvas: async canvas => { revealed.push(canvas); },
+			revealCanvas: async canvas => { revealed.push(canvas); return undefined; },
 		}));
 		store.add(registerCanvasCommands());
 		const command = CommandsRegistry.getCommand(REVEAL_CANVAS_COMMAND_ID);

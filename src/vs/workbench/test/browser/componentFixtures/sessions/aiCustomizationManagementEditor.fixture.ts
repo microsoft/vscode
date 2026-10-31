@@ -1405,7 +1405,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		override readonly enabled = constObservable(true);
 		override readonly reopenableCanvases = constObservable([]);
 		override isOwnerPresentable() { return true; }
-		override async revealCanvas() { }
+		override async revealCanvas() { return undefined; }
 		override async reopenCanvas() { }
 	}();
 	ctx.container.dataset.connectorConnectCalls = '0';

@@ -95,6 +95,10 @@ export interface ICanvasModelResolution {
 	readonly reused: boolean;
 }
 
+export interface ICanvasRevealRequest {
+	rollback(): void;
+}
+
 /**
  * The owner of an editor working set: a whole session, or a single chat of it
  * when the window scopes its layout to chats.
@@ -158,7 +162,7 @@ export interface ICanvasService {
 	readonly enabled: IObservable<boolean>;
 	readonly reopenableCanvases: IObservable<readonly ICanvasReopenTarget[]>;
 	isOwnerPresentable(reference: ICanvasReference, reader?: IReader): boolean;
-	revealCanvas(reference: ICanvasReference): Promise<void>;
+	revealCanvas(reference: ICanvasReference): Promise<ICanvasRevealRequest | undefined>;
 	reopenCanvas(reference: ICanvasReference): Promise<void>;
 	/** Restores a canvas admitted by this live service instance from its opaque working-set identifier. */
 	restoreCanvasInput(serializationId: string): CanvasInput | undefined;

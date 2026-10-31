@@ -137,7 +137,7 @@ suite('EditorCanvasActions', () => {
 		const canvasService = upcastPartial<ICanvasService>({
 			enabled,
 			reopenableCanvases,
-			revealCanvas: async reference => { revealed.push(reference.canvas.toString()); },
+			revealCanvas: async reference => { revealed.push(reference.canvas.toString()); return undefined; },
 			reopenCanvas: async reference => { reopened.push(reference.canvas.toString()); },
 		});
 		const registration = registerEditorCanvasActions(

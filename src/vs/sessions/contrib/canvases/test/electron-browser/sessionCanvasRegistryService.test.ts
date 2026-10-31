@@ -57,6 +57,7 @@ suite('SessionCanvasRegistryService', () => {
 		const listedChats: URI[] = [];
 		const didListCanvases = store.add(new Emitter<URI>());
 		const opened: Array<{ chat: URI; canvas: ISessionCanvasDefinition; instanceId: string }> = [];
+		let openCanvasError: Error | undefined;
 		let currentDefinitions: readonly ISessionCanvasDefinition[] | undefined = definitions;
 		let listingGate: DeferredPromise<void> | undefined;
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({
@@ -71,15 +72,22 @@ suite('SessionCanvasRegistryService', () => {
 				return currentDefinitions;
 			},
 			openCanvas: async (_session, targetChat, canvas, instanceId) => {
+				if (openCanvasError) {
+					throw openCanvasError;
+				}
 				opened.push({ chat: targetChat.resource, canvas, instanceId });
 			},
 		});
 		const enabled = observableValue('enabled', true);
 		const revealed: ICanvasReference[] = [];
+		let revealRollbacks = 0;
 		const canvasService = upcastPartial<ICanvasService>({
 			enabled,
 			reopenableCanvases: observableValue('reopenableCanvases', []),
-			revealCanvas: async reference => { revealed.push(reference); },
+			revealCanvas: async reference => {
+				revealed.push(reference);
+				return { rollback: () => revealRollbacks++ };
+			},
 			reopenCanvas: async () => { },
 		});
 		const contextService = upcastPartial<ICanvasContextService>({
@@ -111,6 +119,8 @@ suite('SessionCanvasRegistryService', () => {
 			onDidListCanvases: didListCanvases.event,
 			opened,
 			registryService,
+			get revealRollbacks() { return revealRollbacks; },
+			setOpenCanvasError: (error: Error | undefined) => openCanvasError = error,
 			setDefinitions: (value: readonly ISessionCanvasDefinition[] | undefined) => currentDefinitions = value,
 			holdListing: () => {
 				listingGate = new DeferredPromise<void>();
@@ -461,6 +471,38 @@ suite('SessionCanvasRegistryService', () => {
 				canvasId: 'preview',
 				instanceId: getSessionCanvasDefinitionInstanceId(definition),
 			}],
+		});
+	});
+
+	test('rolls back an unavailable reveal when Add Tab reopen fails', async () => {
+		const definition: ISessionCanvasDefinition = {
+			canvasId: 'preview',
+			extensionId: 'user:preview',
+			extensionSource: 'user',
+			displayName: 'Preview',
+			description: 'Interactive preview.',
+			requiresInput: false,
+		};
+		const harness = createHarness([definition]);
+		await waitForState(harness.registryService.availableCanvases, canvases => canvases.length === 1);
+		harness.canvases.set([{
+			resource: URI.parse('agent-host-canvas:/preview'),
+			instanceId: getSessionCanvasDefinitionInstanceId(definition),
+			title: 'Preview',
+			source: undefined,
+		}], undefined);
+		harness.setOpenCanvasError(new Error('open failed'));
+
+		await assert.rejects(harness.registryService.openCanvas(definition), /open failed/);
+
+		assert.deepStrictEqual({
+			revealed: harness.revealed.length,
+			opened: harness.opened.length,
+			revealRollbacks: harness.revealRollbacks,
+		}, {
+			revealed: 1,
+			opened: 0,
+			revealRollbacks: 1,
 		});
 	});
 
