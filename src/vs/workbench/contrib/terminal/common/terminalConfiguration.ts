@@ -519,6 +519,17 @@ export const terminalConfiguration: IStringDictionary<IConfigurationPropertySche
 		],
 		default: 'inherited'
 	},
+	[TerminalSettingId.SplitOrientation]: {
+		description: localize('terminal.integrated.splitOrientation', "Controls how split terminals are arranged. This can be overridden per terminal group with the Toggle Split Orientation command."),
+		type: 'string',
+		enum: ['auto', 'horizontal', 'vertical'],
+		enumDescriptions: [
+			localize('terminal.integrated.splitOrientation.auto', "Split terminals are placed side by side when the terminal is in a horizontal panel and stacked otherwise."),
+			localize('terminal.integrated.splitOrientation.horizontal', "Split terminals are always placed side by side."),
+			localize('terminal.integrated.splitOrientation.vertical', "Split terminals are always stacked on top of each other."),
+		],
+		default: 'auto'
+	},
 	[TerminalSettingId.WordSeparators]: {
 		markdownDescription: localize('terminal.integrated.wordSeparators', "A string containing all characters to be considered word separators when double-clicking to select word and in the fallback 'word' link detection. Since this is used for link detection, including characters such as `:` that are used when detecting links will cause the line and column part of links like `file:10:5` to be ignored."),
 		type: 'string',

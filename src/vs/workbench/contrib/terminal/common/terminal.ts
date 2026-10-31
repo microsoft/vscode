@@ -183,6 +183,7 @@ export interface ITerminalConfiguration {
 	environmentChangesRelaunch: boolean;
 	showExitAlert: boolean;
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
+	splitOrientation: 'auto' | 'horizontal' | 'vertical';
 	windowsUseConptyDll?: boolean;
 	windowsReparentConsoleWindow?: boolean;
 	wordSeparators: string;
@@ -442,6 +443,7 @@ export const enum TerminalCommandId {
 	SplitActiveTab = 'workbench.action.terminal.splitActiveTab',
 	SplitInActiveWorkspace = 'workbench.action.terminal.splitInActiveWorkspace',
 	Unsplit = 'workbench.action.terminal.unsplit',
+	ToggleSplitOrientation = 'workbench.action.terminal.toggleSplitOrientation',
 	JoinActiveTab = 'workbench.action.terminal.joinActiveTab',
 	Join = 'workbench.action.terminal.join',
 	Relaunch = 'workbench.action.terminal.relaunch',
