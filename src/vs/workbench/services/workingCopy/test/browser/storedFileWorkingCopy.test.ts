@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { Event, Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { StoredFileWorkingCopy, StoredFileWorkingCopyState, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, isStoredFileWorkingCopySaveEvent, IStoredFileWorkingCopySaveEvent } from '../../common/storedFileWorkingCopy.js';
@@ -14,13 +15,16 @@ import { getLastResolvedFileStat, TestServiceAccessor, workbenchInstantiationSer
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, IFileStatWithMetadata, IWriteFileOptions, NotModifiedSinceFileOperationError } from '../../../../../platform/files/common/files.js';
-import { SaveReason, SaveSourceRegistry } from '../../../../common/editor.js';
+import { SaveReason, SaveSourceRegistry, IResourceDiffEditorInput, IEditorIdentifier } from '../../../../common/editor.js';
 import { Promises, timeout } from '../../../../../base/common/async.js';
 import { consumeReadable, consumeStream, isReadableStream } from '../../../../../base/common/stream.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { SnapshotContext } from '../../common/fileWorkingCopy.js';
 import { assertReturnsDefined } from '../../../../../base/common/types.js';
+import { INotification, NoOpNotification } from '../../../../../platform/notification/common/notification.js';
+import { FileOnDiskFileSystemProvider } from '../../common/fileOnDiskFileSystemProvider.js';
+import { RegisteredEditorPriority } from '../../../editor/common/editorResolverService.js';
 
 export class TestStoredFileWorkingCopyModel extends Disposable implements IStoredFileWorkingCopyModel {
 
@@ -153,7 +157,7 @@ suite('StoredFileWorkingCopy (with custom save)', function () {
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		const resource = URI.file('test/resource');
-		workingCopy = disposables.add(new StoredFileWorkingCopy<TestStoredFileWorkingCopyModelWithCustomSave>('testStoredFileWorkingCopyType', resource, basename(resource), factory, options => workingCopy.resolve(options), accessor.fileService, accessor.logService, accessor.workingCopyFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.progressService));
+		workingCopy = disposables.add(new StoredFileWorkingCopy<TestStoredFileWorkingCopyModelWithCustomSave>('testStoredFileWorkingCopyType', resource, basename(resource), factory, options => workingCopy.resolve(options), accessor.fileService, accessor.logService, accessor.workingCopyFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.progressService, accessor.editorResolverService));
 	});
 
 	teardown(() => {
@@ -251,7 +255,7 @@ suite('StoredFileWorkingCopy', function () {
 	let workingCopy: StoredFileWorkingCopy<TestStoredFileWorkingCopyModel>;
 
 	function createWorkingCopy(uri: URI = resource) {
-		const workingCopy: StoredFileWorkingCopy<TestStoredFileWorkingCopyModel> = new StoredFileWorkingCopy<TestStoredFileWorkingCopyModel>('testStoredFileWorkingCopyType', uri, basename(uri), factory, options => workingCopy.resolve(options), accessor.fileService, accessor.logService, accessor.workingCopyFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.progressService);
+		const workingCopy: StoredFileWorkingCopy<TestStoredFileWorkingCopyModel> = new StoredFileWorkingCopy<TestStoredFileWorkingCopyModel>('testStoredFileWorkingCopyType', uri, basename(uri), factory, options => workingCopy.resolve(options), accessor.fileService, accessor.logService, accessor.workingCopyFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.progressService, accessor.editorResolverService);
 
 		return workingCopy;
 	}
@@ -271,6 +275,7 @@ suite('StoredFileWorkingCopy', function () {
 		}
 
 		disposables.clear();
+		sinon.restore();
 	});
 
 	test('registers with working copy service', async () => {
@@ -867,6 +872,71 @@ suite('StoredFileWorkingCopy', function () {
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE), false);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.CONFLICT), false);
 		assert.strictEqual(workingCopy.isDirty(), false);
+	});
+
+	function setupSaveConflict(editorCanShowDiff: boolean) {
+		const notifications: INotification[] = [];
+		sinon.stub(accessor.notificationService, 'notify').callsFake(notification => {
+			notifications.push(notification);
+			return new NoOpNotification();
+		});
+		const openEditor = sinon.stub(accessor.editorService, 'openEditor').resolves(undefined);
+
+		// the working copy is shown in an editor that can (or cannot) open a diff editor
+		sinon.stub(accessor.workingCopyEditorService, 'findEditor').returns({ groupId: 1, editor: { editorId: 'testEditor' } } as unknown as IEditorIdentifier);
+		const createEditorInput = () => { throw new Error('not expected to open'); };
+		disposables.add(accessor.editorResolverService.registerEditor('*.test', { id: 'testEditor', label: 'Test Editor', priority: RegisteredEditorPriority.default }, {}, editorCanShowDiff ? { createEditorInput, createDiffEditorInput: createEditorInput } : { createEditorInput }));
+
+		const saveWithConflict = async () => {
+			workingCopy.model?.updateContents(`hello conflict ${notifications.length}`);
+			try {
+				accessor.fileService.writeShouldThrowError = new FileOperationError('write error conflict', FileOperationResult.FILE_MODIFIED_SINCE);
+				await workingCopy.save();
+			} finally {
+				accessor.fileService.writeShouldThrowError = undefined;
+			}
+			return notifications[notifications.length - 1].actions?.primary ?? [];
+		};
+
+		return { notifications, openEditor, saveWithConflict };
+	}
+
+	test('save (errors, conflict offers to compare with the file on disk)', async () => {
+		const { notifications, openEditor, saveWithConflict } = setupSaveConflict(true);
+
+		await workingCopy.resolve();
+
+		// nothing to compare with unless the file on disk can be read
+		assert.deepStrictEqual((await saveWithConflict()).map(action => action.id), ['fileWorkingCopy.overwrite', 'fileWorkingCopy.revert']);
+
+		disposables.add(accessor.fileService.registerProvider(FileOnDiskFileSystemProvider.SCHEME, disposables.add(new FileOnDiskFileSystemProvider(accessor.fileService))));
+		const actions = await saveWithConflict();
+		assert.deepStrictEqual(actions.map(action => action.id), ['fileWorkingCopy.compare', 'fileWorkingCopy.overwrite', 'fileWorkingCopy.revert']);
+
+		// a comparison that is already open gets reloaded from disk
+		const fileOnDiskWorkingCopy = disposables.add(createWorkingCopy(FileOnDiskFileSystemProvider.toFileOnDisk(resource)));
+		await fileOnDiskWorkingCopy.resolve();
+		const reloadFileOnDisk = sinon.spy(fileOnDiskWorkingCopy, 'resolve');
+
+		const notificationCount = notifications.length;
+		await actions[0].run();
+
+		const diff = openEditor.firstCall.args[0] as IResourceDiffEditorInput;
+		assert.deepStrictEqual(
+			{ original: diff.original.resource?.toString(), modified: diff.modified.resource?.toString(), options: diff.options, reloadedFileOnDisk: reloadFileOnDisk.calledBefore(openEditor) },
+			{ original: FileOnDiskFileSystemProvider.toFileOnDisk(resource).toString(), modified: resource.toString(), options: { pinned: true, override: 'testEditor' }, reloadedFileOnDisk: true }
+		);
+		assert.strictEqual(notifications.length, notificationCount + 1);
+		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.CONFLICT), true);
+	});
+
+	test('save (errors, conflict does not offer to compare when the editor cannot show the unsaved changes in a diff)', async () => {
+		const { saveWithConflict } = setupSaveConflict(false);
+
+		await workingCopy.resolve();
+		disposables.add(accessor.fileService.registerProvider(FileOnDiskFileSystemProvider.SCHEME, disposables.add(new FileOnDiskFileSystemProvider(accessor.fileService))));
+
+		assert.deepStrictEqual((await saveWithConflict()).map(action => action.id), ['fileWorkingCopy.overwrite', 'fileWorkingCopy.revert']);
 	});
 
 	test('save (errors, bubbles up with `ignoreErrorHandler`)', async () => {
