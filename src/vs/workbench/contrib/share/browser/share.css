@@ -19,3 +19,14 @@ div.share-dialog-input-link {
 	white-space: nowrap;
 	text-overflow: ellipsis;
 }
+
+div.share-private-gist-preview {
+	max-height: 180px;
+	overflow: auto;
+	white-space: pre-wrap;
+	word-break: break-word;
+	font-family: var(--vscode-editor-font-family);
+	font-size: var(--vscode-editor-font-size);
+	line-height: 1.4;
+	margin-top: 8px;
+}
