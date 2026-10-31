@@ -1172,8 +1172,13 @@ suite('ContextView', () => {
 
 	suite('window controls overlay', () => {
 		let disposables: DisposableStore;
+		// One stub per window per test; layouts swap the rect source instead of re-stubbing
+		let overlaySources: Map<Window, { getRect: (targetWindow: Window) => DOMRect | undefined }>;
 
-		setup(() => disposables = new DisposableStore());
+		setup(() => {
+			disposables = new DisposableStore();
+			overlaySources = new Map();
+		});
 		teardown(() => disposables.dispose());
 
 		const allPositions = [
@@ -1194,10 +1199,17 @@ suite('ContextView', () => {
 			targetDocument.body.appendChild(container);
 			disposables.add(toDisposable(() => container.remove()));
 			const containerWindow = getWindow(container);
-			disposables.add(stubWindowControlsOverlay(containerWindow, {
-				get visible() { return getRect(containerWindow) !== undefined; },
-				getTitlebarAreaRect: () => getRect(containerWindow)!,
-			}));
+			const source = overlaySources.get(containerWindow);
+			if (source) {
+				source.getRect = getRect;
+			} else {
+				const newSource = { getRect };
+				overlaySources.set(containerWindow, newSource);
+				disposables.add(stubWindowControlsOverlay(containerWindow, {
+					get visible() { return newSource.getRect(containerWindow) !== undefined; },
+					getTitlebarAreaRect: () => newSource.getRect(containerWindow)!,
+				}));
+			}
 			const contextView = disposables.add(new ContextView(container, domPosition));
 			contextView.show({
 				getAnchor: () => isHTMLElement(anchor) ? anchor : { ...anchor, width: 1, height: 1 },
@@ -1347,6 +1359,19 @@ suite('ContextView', () => {
 				shown: { top: 30, left: 10, classes: ['bottom', 'left'] },
 				after: { top: 1, left: 10, classes: ['bottom', 'left'] },
 			});
+		});
+
+		test('restores the original overlay after multiple layouts', () => {
+			const original = Object.getOwnPropertyDescriptor(mainWindow.navigator, 'windowControlsOverlay');
+			const overlay = new DOMRect(80, 0, mainWindow.innerWidth - 200, 30);
+			layout(ContextViewDOMPosition.FIXED, { x: 10, y: 0 }, () => overlay);
+			layout(ContextViewDOMPosition.ABSOLUTE, { x: 10, y: 0 }, () => undefined);
+			layout(ContextViewDOMPosition.POPOVER, { x: 10, y: 0 }, () => overlay);
+			const stubbed = (mainWindow.navigator as Navigator & { windowControlsOverlay?: { readonly visible: boolean } }).windowControlsOverlay?.visible;
+
+			disposables.dispose();
+
+			assert.deepStrictEqual({ stubbed, restored: Object.getOwnPropertyDescriptor(mainWindow.navigator, 'windowControlsOverlay') }, { stubbed: true, restored: original });
 		});
 	});
 });
