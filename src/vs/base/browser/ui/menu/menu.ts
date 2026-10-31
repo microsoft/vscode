@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFirefox } from '../../browser.js';
+import { getVisibleWCOTitlebarAreaRect, isFirefox } from '../../browser.js';
 import { EventType as TouchEventType, Gesture } from '../../touch.js';
 import { $, addDisposableListener, append, clearNode, Dimension, EventHelper, EventLike, EventType, getActiveElement, getWindow, IDomNodePagePosition, isAncestor, isInShadowDOM, ModifierKeyEmitter } from '../../dom.js';
 import { createStyleSheet } from '../../domStylesheets.js';
@@ -11,6 +11,7 @@ import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { StandardMouseEvent } from '../../mouseEvent.js';
 import { ActionBar, ActionsOrientation, IActionViewItemProvider } from '../actionbar/actionbar.js';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../actionbar/actionViewItems.js';
+import { avoidWindowControlsOverlay } from '../contextview/windowControlsOverlay.js';
 import { DomScrollableElement } from '../scrollbar/scrollableElement.js';
 import { EmptySubmenuAction, getActionForAltMode, IAction, IActionRunner, Separator, SubmenuAction } from '../../../common/actions.js';
 import { RunOnceScheduler } from '../../../common/async.js';
@@ -60,6 +61,12 @@ export interface IMenuOptions {
 	expandDirection?: IMenuDirection;
 	useEventAsContext?: boolean;
 	submenuIds?: Set<string>;
+	/**
+	 * Returns the visible Window Controls Overlay titlebar area of the given window, in client
+	 * coordinates, or `undefined` when no overlay is visible. Submenus are placed so they do
+	 * not cover the window controls. Defaults to reading the window's `navigator.windowControlsOverlay`.
+	 */
+	getWindowControlsOverlayRect?: (targetWindow: Window) => DOMRect | undefined;
 }
 
 export interface IMenuStyles {
@@ -1013,7 +1020,13 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			width: entryBox.width
 		};
 		const viewBox = this.submenuContainer.getBoundingClientRect();
-		const { top, left } = this.calculateSubmenuMenuLayout(new Dimension(window.innerWidth, window.innerHeight), Dimension.lift(viewBox), entryBoxUpdated, this.expandDirection);
+		const layoutResult = this.calculateSubmenuMenuLayout(new Dimension(window.innerWidth, window.innerHeight), Dimension.lift(viewBox), entryBoxUpdated, this.expandDirection);
+		const { top, left } = avoidWindowControlsOverlay(
+			(this.submenuOptions?.getWindowControlsOverlayRect ?? getVisibleWCOTitlebarAreaRect)(window),
+			{ top: 0, left: 0, width: window.innerWidth, height: window.innerHeight },
+			{ width: viewBox.width, height: viewBox.height },
+			layoutResult
+		);
 		this.submenuContainer.style.left = `${left - viewBox.left}px`;
 		this.submenuContainer.style.top = `${top - viewBox.top}px`;
 	}

@@ -9,7 +9,7 @@ import { $, append, EventType, getWindow, ModifierKeyEmitter } from '../../../..
 import { getMenuWidgetCSS, Menu, unthemedMenuStyles } from '../../../../browser/ui/menu/menu.js';
 import { Action, ActionRunner, SubmenuAction, toAction } from '../../../../common/actions.js';
 import { EventType as TouchEventType } from '../../../../browser/touch.js';
-import { toDisposable } from '../../../../common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../common/lifecycle.js';
 import { isLinux, isWindows } from '../../../../common/platform.js';
 import { ResolvedKeybinding } from '../../../../common/keybindings.js';
 import { upcastPartial } from '../../../common/mock.js';
@@ -317,6 +317,151 @@ suite('Menu', () => {
 			});
 		}
 	}
+
+	suite('window controls overlay (#165454)', () => {
+		interface IOpenOptions {
+			readonly overlay: DOMRect | undefined;
+			readonly left: number;
+			readonly top: number;
+			readonly nested?: boolean;
+			readonly childCount?: number;
+		}
+
+		/**
+		 * Opens a submenu (and optionally a nested submenu) and returns the
+		 * client rects of every opened submenu level, outermost first.
+		 */
+		const openSubmenus = ({ overlay, left, top, nested, childCount = 2 }: IOpenOptions) => {
+			const host = append(document.body, $('div'));
+			host.style.position = 'fixed';
+			host.style.top = `${top}px`;
+			host.style.left = `${left}px`;
+			const store = disposables.add(new DisposableStore());
+			store.add(toDisposable(() => host.remove()));
+			const root = append(host, $('.context-view'));
+			const children = Array.from({ length: childCount }, (_, i) => store.add(new Action(`child${i}`, `Child ${i}`)));
+			const leaf = new SubmenuAction('nested', 'Nested', children);
+			const submenu = new SubmenuAction('submenu', 'Submenu', nested ? [leaf] : children);
+			store.add(new Menu(root, [submenu], { getWindowControlsOverlayRect: () => overlay }, unthemedMenuStyles));
+			const open = (parent: HTMLElement) => {
+				parent.querySelector<HTMLElement>('.monaco-submenu-item')!.dispatchEvent(new KeyboardEvent(EventType.KEY_UP, { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+				return parent.querySelector<HTMLElement>('.monaco-submenu')!;
+			};
+			const containers = [open(root)];
+			if (nested) {
+				containers.push(open(containers[0]));
+			}
+			const rects = containers.map(container => container.getBoundingClientRect());
+			store.dispose();
+			return rects;
+		};
+
+		const openSubmenu = (options: IOpenOptions) => openSubmenus(options).at(-1)!;
+
+		const window = getWindow(document.body);
+		const overlay = () => new DOMRect(80, 0, window.innerWidth - 200, 30);
+
+		/**
+		 * An overlay whose left or right window-control strip covers the given
+		 * unadjusted submenu box, so that the box genuinely needs to move.
+		 */
+		const overlayCovering = (box: DOMRect, side: 'left' | 'right') => {
+			const x = side === 'left' ? box.right + 10 : 40;
+			const right = side === 'left' ? window.innerWidth - 40 : box.left - 10;
+			return new DOMRect(x, 0, right - x, 30);
+		};
+
+		const intersects = (box: DOMRect, left: number, right: number, bottom: number) =>
+			right > left && box.left < right && box.right > left && box.top < bottom && box.bottom > 0;
+
+		const describe = (box: DOMRect, wco: DOMRect) => ({
+			clearOfLeftButtons: !intersects(box, 0, wco.x, wco.height),
+			clearOfRightButtons: !intersects(box, wco.x + wco.width, window.innerWidth, wco.height),
+			inViewport: box.left >= 0 && box.top >= 0 && box.right <= window.innerWidth && box.bottom <= window.innerHeight,
+			hasSize: box.width > 0 && box.height > 0,
+		});
+
+		const clear = { clearOfLeftButtons: true, clearOfRightButtons: true, inViewport: true, hasSize: true };
+
+		for (const { side, position } of [
+			{ side: 'left', position: () => ({ left: 0, top: 0 }) },
+			{ side: 'right', position: () => ({ left: window.innerWidth - 150, top: 0 }) },
+		] as const) {
+			test(`submenus at the ${side} corner move clear of the buttons`, () => {
+				const without = openSubmenu({ overlay: undefined, ...position() });
+				const wco = overlayCovering(without, side);
+				const withOverlay = openSubmenu({ overlay: wco, ...position() });
+				assert.deepStrictEqual({
+					withoutOverlay: describe(without, wco),
+					withOverlay: describe(withOverlay, wco),
+					movedDown: withOverlay.top >= wco.height,
+					left: withOverlay.left,
+				}, {
+					withoutOverlay: { ...clear, [side === 'left' ? 'clearOfLeftButtons' : 'clearOfRightButtons']: false },
+					withOverlay: clear,
+					movedDown: true,
+					left: without.left,
+				});
+			});
+		}
+
+		test('tall submenus placed upward into the titlebar band move clear of the buttons', () => {
+			// A tall submenu opened near the bottom of the window does not fit below its
+			// entry, so the layout places it upward near the top of the window. The band
+			// is sized from that unadjusted placement so the submenu genuinely starts
+			// inside it and overlaps the left buttons.
+			const position = { left: 0, top: window.innerHeight - 40 };
+			const childCount = 200;
+			const without = openSubmenu({ overlay: undefined, ...position, childCount });
+			const covering = overlayCovering(without, 'left');
+			const wco = new DOMRect(covering.x, 0, covering.width, Math.max(without.top, 0) + 10);
+			const withOverlay = openSubmenu({ overlay: wco, ...position, childCount });
+			assert.deepStrictEqual({
+				startsInBand: without.top < wco.height && without.bottom > wco.height,
+				withoutOverlay: describe(without, wco),
+				withOverlay: describe(withOverlay, wco),
+			}, {
+				startsInBand: true,
+				withoutOverlay: { ...clear, clearOfLeftButtons: false },
+				withOverlay: clear,
+			});
+		});
+
+		test('submenus already clear of the buttons are not moved', () => {
+			const wco = overlay();
+			const position = { left: 200, top: 100 };
+			const without = openSubmenu({ overlay: undefined, ...position });
+			const withOverlay = openSubmenu({ overlay: wco, ...position });
+			assert.deepStrictEqual({
+				withOverlay: describe(withOverlay, wco),
+				position: [withOverlay.left, withOverlay.top],
+			}, {
+				withOverlay: clear,
+				position: [without.left, without.top],
+			});
+		});
+
+		test('nested submenus inherit the overlay option', () => {
+			// The first-level submenu sits in the usable titlebar area, clear of both
+			// strips, while the nested submenu expands into the right strip. Only
+			// overlay handling at the nested level can move the nested submenu.
+			const [parent, nested] = openSubmenus({ overlay: undefined, left: 0, top: 0, nested: true });
+			const x = parent.left - 10;
+			const wco = new DOMRect(x, 0, nested.left + 10 - x, 30);
+			const [parentWithOverlay, nestedWithOverlay] = openSubmenus({ overlay: wco, left: 0, top: 0, nested: true });
+			assert.deepStrictEqual({
+				parent: describe(parent, wco),
+				parentPosition: [parentWithOverlay.left, parentWithOverlay.top],
+				nestedWithoutOverlay: describe(nested, wco),
+				nestedWithOverlay: describe(nestedWithOverlay, wco),
+			}, {
+				parent: clear,
+				parentPosition: [parent.left, parent.top],
+				nestedWithoutOverlay: { ...clear, clearOfRightButtons: false },
+				nestedWithOverlay: clear,
+			});
+		});
+	});
 
 	test('high contrast selection outline does not apply to nested submenu items (#327543)', () => {
 		const host = append(document.body, $('div'));

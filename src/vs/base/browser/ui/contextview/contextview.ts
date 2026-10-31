@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getVisibleWCOTitlebarAreaRect } from '../../browser.js';
 import { BrowserFeatures } from '../../canIUse.js';
 import * as DOM from '../../dom.js';
 import { createStyleSheet } from '../../domStylesheets.js';
@@ -12,6 +13,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../..
 import { AnchorAlignment, AnchorAxisAlignment, AnchorPosition, IRect, layout2d } from '../../../common/layout.js';
 import * as platform from '../../../common/platform.js';
 import { OmitOptional } from '../../../common/types.js';
+import { avoidWindowControlsOverlay } from './windowControlsOverlay.js';
 import './contextview.css';
 
 export { AnchorAlignment, AnchorAxisAlignment, AnchorPosition } from '../../../common/layout.js';
@@ -49,6 +51,14 @@ export interface IContextViewOptions {
 	 * Defaults to the owner's document body.
 	 */
 	readonly getFallbackContainer?: (owner: HTMLElement) => HTMLElement;
+
+	/**
+	 * Returns the titlebar area rect of the visible window controls overlay of
+	 * the given window, or `undefined` when there is none. The view is kept
+	 * clear of the native window controls next to that rect.
+	 * Defaults to reading `navigator.windowControlsOverlay`.
+	 */
+	readonly getWindowControlsOverlayRect?: (targetWindow: Window) => DOMRect | undefined;
 }
 
 export interface IAnchor {
@@ -616,11 +626,18 @@ export class ContextView extends Disposable {
 		const anchorAlignment = this.delegate!.anchorAlignment;
 		const anchorAxisAlignment = this.delegate!.anchorAxisAlignment;
 		const layoutResult = layout2d(viewport, view, anchor, { anchorAlignment, anchorPosition, anchorAxisAlignment });
-		const { top, left } = layoutResult;
+		const getWindowControlsOverlayRect = this.options.getWindowControlsOverlayRect ?? getVisibleWCOTitlebarAreaRect;
+		const adjusted = avoidWindowControlsOverlay(getWindowControlsOverlayRect(containerWindow), viewport, view, layoutResult);
+		const { top, left } = adjusted;
 
 		this.view.classList.remove('top', 'bottom', 'left', 'right');
-		this.view.classList.add(layoutResult.anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
-		this.view.classList.add(layoutResult.anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
+		if (adjusted === layoutResult) {
+			this.view.classList.add(layoutResult.anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
+			this.view.classList.add(layoutResult.anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
+		} else {
+			this.view.classList.add(top >= anchor.top + anchor.height ? 'bottom' : 'top');
+			this.view.classList.add(left >= anchor.left ? 'left' : 'right');
+		}
 
 		this.view.style.top = `${top - positioningOrigin.top}px`;
 		this.view.style.left = `${left - positioningOrigin.left}px`;
