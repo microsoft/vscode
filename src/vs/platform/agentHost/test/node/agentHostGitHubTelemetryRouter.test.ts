@@ -8,8 +8,9 @@ import assert from 'assert';
 import { createHash } from 'crypto';
 import * as zlib from 'zlib';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostGitHubTelemetryRouter } from '../../node/agentHostGitHubTelemetryRouter.js';
-import type { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
+import { AgentHostRestrictedTelemetrySender, type IAgentHostInternalTelemetryContext, type IAgentHostRestrictedTelemetry, type IAgentHostRestrictedTelemetryContext, type TelemetryMeasurements, type TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 
 interface ICapturedEvent {
 	readonly destination: 'enhancedGH' | 'internalMSFT';
@@ -120,7 +121,7 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 		const telemetry = new TestRestrictedTelemetry();
 		const router = new AgentHostGitHubTelemetryRouter(telemetry);
 
-		await router.route(notification('engine.messages'), internalContext, { initiatorClientType: 'agents_window' });
+		await router.route(notification('conversation.repetition.detected'), internalContext, { initiatorClientType: 'agents_window' });
 		const existingModelCallId = notification('engine.messages');
 		existingModelCallId.event.properties.modelCallId = 'existing-model-call';
 		await router.route(existingModelCallId, internalContext);
@@ -128,7 +129,7 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 		assert.deepStrictEqual(telemetry.events, [
 			{
 				destination: 'enhancedGH',
-				eventName: 'engine.messages',
+				eventName: 'conversation.repetition.detected',
 				properties: { existing: 'value', modelCallId: 'model-call-1', initiatorClientType: 'agents_window' },
 				measurements: { count: 2 },
 			},
@@ -139,6 +140,70 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 				measurements: { count: 2 },
 			},
 		]);
+	});
+
+	test('does not substitute SDK IDs for missing engine pairing IDs', async () => {
+		const telemetry = new TestRestrictedTelemetry();
+		const router = new AgentHostGitHubTelemetryRouter(telemetry);
+		for (const kind of ['engine.messages', 'engine.messages.length']) {
+			await router.route(notification(kind), internalContext);
+		}
+
+		assert.deepStrictEqual(telemetry.events.map(event => event.properties), [
+			{ existing: 'value' },
+			{ existing: 'value' },
+			{ existing: 'value' },
+		]);
+	});
+
+	test('preserves independent engine call pairs through the restricted sender', async () => {
+		const envelopes: { data: { baseData: { name: string; properties: TelemetryProps } } }[] = [];
+		const sender = new AgentHostRestrictedTelemetrySender(
+			{ sessionID: 'telemetry-process' },
+			new NullLogService(),
+			'https://telemetry.example/telemetry',
+			undefined,
+			async (_url, init) => {
+				envelopes.push(JSON.parse(String(init?.body)));
+				return new Response(null, { status: 200 });
+			},
+		);
+		const router = new AgentHostGitHubTelemetryRouter(sender);
+		const ownership = JSON.stringify({ version: 1, provider: 'copilot', conversationKey: 'chat-key', agentSessionId: 'owner', sdkSessionId: 'sdk-session', agentKind: 'root' });
+		const calls = ['engine-call-1', 'engine-call-2'];
+		for (const modelCallId of calls) {
+			for (const direction of ['input', 'output']) {
+				const source = notification('engine.messages');
+				source.event.properties = {
+					modelCallId,
+					message_direction: direction,
+					headerRequestId: `${direction}-${modelCallId}`,
+					engineOwnership: ownership,
+					messagesJson: JSON.stringify([{ role: direction === 'input' ? 'user' : 'assistant', content: null, tool_calls: [{ id: 'tool-1', type: 'function', function: { name: 'view', arguments: '{"path":"synthetic"}' } }] }]),
+				};
+				await router.route(source, internalContext);
+				await router.route(source, { ...internalContext, restrictedTelemetryEnabled: false, isInternal: false });
+				await router.route({ ...source, restricted: false }, internalContext);
+			}
+		}
+
+		assert.deepStrictEqual(envelopes.map(({ data: { baseData } }) => ({
+			name: baseData.name,
+			call: baseData.properties.modelCallId,
+			direction: baseData.properties.message_direction,
+			header: baseData.properties.headerRequestId,
+			ownership: baseData.properties.engineOwnership,
+			tracking: baseData.properties.copilot_trackingId,
+			process: baseData.properties.client_sessionid,
+		})), calls.flatMap(call => ['input', 'output'].map(direction => ({
+			name: 'copilot-chat/engine.messages',
+			call,
+			direction,
+			header: `${direction}-${call}`,
+			ownership,
+			tracking: 'tracking-id',
+			process: 'telemetry-process',
+		}))));
 	});
 
 	test('preserves runtime content metadata through compressed engine message routing', async () => {
