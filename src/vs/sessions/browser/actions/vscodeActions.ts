@@ -82,6 +82,7 @@ export class OpenInVSCodeAction extends Action2 {
 			return;
 		}
 
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- opens the remote folder in a new window from its wrapped host URI
 		const folderUri = rawFolderUri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(rawFolderUri) : rawFolderUri;
 		const remoteAuthority = resolveRemoteAuthority(
 			activeSession.providerId, sessionsProvidersService, remoteAgentHostService);

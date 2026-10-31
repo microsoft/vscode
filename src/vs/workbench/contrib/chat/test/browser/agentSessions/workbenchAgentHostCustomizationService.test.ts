@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -11,11 +12,11 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { ActionType, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, withSessionFolderPickerDecision } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
@@ -35,20 +36,19 @@ import { MockPromptsService } from '../../common/promptSyntax/service/mockPrompt
 suite('WorkbenchAgentHostCustomizationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const transportMapped of [false, true]) {
-		test(`keeps ${transportMapped ? 'transport-mapped' : 'host-side'} roots in client space through hydration and subscription errors`, async () => {
+	for (const kind of agentHostConnectionKinds) {
+		test(`keeps roots in client space through hydration and subscription errors (${kind.name})`, async () => {
 			const snapshotRoot = (path: string) => URI.from({
-				scheme: transportMapped ? Schemas.vscodeRemote : Schemas.file,
-				authority: transportMapped ? 'dev-container+test' : '',
+				scheme: Schemas.file,
+				authority: '',
 				path,
 			});
 			const expectedRoots = (...paths: string[]) => ({
 				session: paths.map(path => snapshotRoot(path).toString()),
-				client: paths.map(path => ({
-					scheme: transportMapped ? Schemas.vscodeRemote : AGENT_HOST_SCHEME,
-					authority: transportMapped ? 'dev-container+test' : 'remote-test',
-					path,
-				})),
+				client: paths.map(path => {
+					const uri = kind.toClient(snapshotRoot(path));
+					return { scheme: uri.scheme, authority: uri.authority, path: uri.path };
+				}),
 			});
 			const instantiationService = store.add(new TestInstantiationService());
 			instantiationService.stub(ILoggerService, store.add(new NullLoggerService()));
@@ -65,14 +65,16 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 				onDidChange: subscriptionChanged.event,
 				onDidError: subscriptionError.event,
 			} as unknown as IAgentSubscription<SessionState> & { value: SessionState | Error | undefined; verifiedValue: SessionState | undefined };
+			const dispatched: SessionAction[] = [];
 			const connection = {
+				dispatch: (_channel: string, action: SessionAction) => dispatched.push(action),
 				onDidAction: Event.None,
 				rootState: { value: undefined },
-				resourceUris: createAgentHostResourceUriMapper('remote-test'),
+				resourceUris: kind.resourceUris,
 				getSubscription: () => ({ object: subscription, dispose: () => { } }),
 			} as unknown as IAgentConnection;
 			let backend = URI.parse('agent-host:/provisional-a');
-			let provisionalRoots = [URI.parse('vscode-remote://dev-container+test/provisional')];
+			let provisionalRoots = [kind.toClient(snapshotRoot('/provisional'))];
 			const provisionalChanged = store.add(new Emitter<URI>());
 			const provisionalService = {
 				onDidChange: provisionalChanged.event,
@@ -114,6 +116,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			const backendPeerChat = buildChatUri('copilot:/session', 'peer');
 			subscription.verifiedValue = {
 				workingDirectories: [snapshotRoot('/verified').toString(), snapshotRoot('/second workspace').toString()],
+				_meta: withSessionFolderPickerDecision(undefined, { hidden: true, primary: snapshotRoot('/verified').toString() }),
 				defaultChat: backendDefaultChat,
 				chats: [
 					{ resource: backendDefaultChat },
@@ -143,13 +146,15 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			subscription.value = subscription.verifiedValue;
 			subscriptionChanged.fire();
 			const verified = readRoots();
+			const folderPickerDecision = service.getFolderPickerDecision(session);
+			service.setCustomizationEnablement(session, 'playwright', [{ kind: CustomizationEnablementKind.Workspace, uri: kind.toClient(snapshotRoot('/verified')).toString(), enabled: false }], CustomizationEnablementKind.Session, true);
 			const backendChats = {
 				default: service.getBackendChatResource(session)?.toString(),
 				peer: service.getBackendChatResource(session.with({ fragment: 'peer' }))?.toString(),
 				missing: service.getBackendChatResource(session.with({ fragment: 'missing' }))?.toString(),
 			};
 			const itemProvider = store.add(new AgentCustomizationItemProvider(
-				'remote-test',
+				{ clientId: 'vscode', resourceUris: connection.resourceUris },
 				undefined,
 				undefined,
 				new class extends mock<IFileService>() { }(),
@@ -175,7 +180,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			subscriptionChanged.fire();
 			const omittedRoots = readRoots();
 			backend = URI.parse('agent-host:/provisional-b');
-			provisionalRoots = [URI.parse('vscode-remote://dev-container+test/replacement')];
+			provisionalRoots = [kind.toClient(snapshotRoot('/replacement'))];
 			subscription.value = undefined;
 			subscription.verifiedValue = undefined;
 			provisionalChanged.fire(session);
@@ -184,6 +189,8 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			assert.deepStrictEqual({
 				provisional,
 				verified,
+				folderPickerDecision,
+				toggle: dispatched.find(action => action.type === ActionType.SessionCustomizationToggled),
 				backendChats,
 				optimistic,
 				afterError,
@@ -194,8 +201,10 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 				toolInventory,
 				folders: folders.map(folder => ({ source: folder.source, uri: folder.uri.toString() })),
 			}, {
-				provisional: { session: ['vscode-remote://dev-container%2Btest/provisional'], client: [{ scheme: 'vscode-remote', authority: 'dev-container+test', path: '/provisional' }] },
+				provisional: expectedRoots('/provisional'),
 				verified: expectedRoots('/verified', '/second workspace'),
+				folderPickerDecision: { hidden: true, primary: kind.toClient(snapshotRoot('/verified')).toString() },
+				toggle: { type: ActionType.SessionCustomizationToggled, id: 'playwright', enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }, { kind: CustomizationEnablementKind.Workspace, uri: 'file:///verified', enabled: false }] },
 				backendChats: {
 					default: backendDefaultChat,
 					peer: backendPeerChat,
@@ -206,12 +215,12 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 				changesAfterError: 1,
 				emptySnapshot: { session: [], client: [] },
 				omittedRoots: { session: [], client: [] },
-				replacement: { session: ['vscode-remote://dev-container%2Btest/replacement'], client: [{ scheme: 'vscode-remote', authority: 'dev-container+test', path: '/replacement' }] },
+				replacement: expectedRoots('/replacement'),
 				toolInventory: [
 					{ name: 'publisher.extension/extensionTool', description: 'Provided by an extension', availability: 'available' },
 					{ name: 'playwright/*', availability: 'disabled' },
 				],
-				folders: [{ source: 'local', uri: connection.resourceUris.fromAgentHost(snapshotRoot('/verified/.github/skills')).toString() }],
+				folders: [{ source: 'local', uri: kind.toClient(snapshotRoot('/verified/.github/skills')).toString() }],
 			});
 		});
 	}

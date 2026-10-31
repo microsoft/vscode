@@ -120,6 +120,8 @@ export interface INewChatComposerInputOptions {
 	readonly onDidChangeWorkspaceSelection?: Event<void>;
 	readonly canApplyWorkspaceDefault?: () => boolean;
 	readonly sendRequest: (request: INewChatInputSendRequest) => Promise<boolean>;
+	/** Keep an in-place composer's read-only editor focusable while confirming and sending. */
+	readonly preserveInputFocusOnSend?: boolean;
 	/**
 	 * Asks the host about a request before it is sent. Answering is not part of the request's latency,
 	 * so it runs before the request is measured. Resolves `false` to cancel the send.

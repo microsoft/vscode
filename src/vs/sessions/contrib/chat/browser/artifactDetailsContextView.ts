@@ -102,13 +102,18 @@ export class ArtifactDetailsContextView extends Disposable implements IArtifactD
 		}, true));
 	}
 
-	toggle(presentation: ArtifactIntegrationPresentation, target: HTMLElement, section?: ArtifactDetailsSelection): void {
+	toggle(presentation: ArtifactIntegrationPresentation, target?: HTMLElement, section?: ArtifactDetailsSelection): void {
 		if (this.entitlementService.sentiment.hidden || this._store.isDisposed) {
 			return;
 		}
 		if (this.selected.get() === presentation && !section) {
 			this.close(true);
 			return;
+		}
+		if (!target) {
+			const active = getActiveElement();
+			target = !isHTMLElement(active) || !active.isConnected || active === active.ownerDocument.body ? this.getPills()
+				: this.element.contains(active) ? this.target ?? this.getPills() : active;
 		}
 		this.hoverService.hideHover(true);
 		this.target = target;

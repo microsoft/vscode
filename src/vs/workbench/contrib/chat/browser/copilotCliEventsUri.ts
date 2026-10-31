@@ -70,6 +70,7 @@ export function buildRemoteEventsUri(connection: IRemoteAgentHostConnectionInfo,
 		path: `${trimmed}/.copilot/session-state/${rawSessionId}/events.jsonl`,
 	});
 	const authority = agentHostAuthority(connection.address);
+	// eslint-disable-next-line local/code-agent-host-uri-mapping -- addresses the remote CLI events log through the Agent Host filesystem provider
 	return toAgentHostUri(remoteFileUri, authority);
 }
 
@@ -88,6 +89,7 @@ export function buildRemoteCopilotLogsUri(connection: IRemoteAgentHostConnection
 		path: `${trimmed}/.copilot/logs`,
 	});
 	const authority = agentHostAuthority(connection.address);
+	// eslint-disable-next-line local/code-agent-host-uri-mapping -- addresses the remote CLI logs directory through the Agent Host filesystem provider
 	return toAgentHostUri(remoteFileUri, authority);
 }
 
@@ -283,5 +285,6 @@ export function buildHostLocalEventsPath(
 	// real path on the remote host where the agent (and the skill) execute. Strip
 	// the leading slash from a Windows drive-letter path (`/c:/…` → `c:/…`) so the
 	// injected path is usable by host-side tooling; POSIX paths are left as-is.
+	// eslint-disable-next-line local/code-agent-host-uri-mapping -- extracts a host-local skill filesystem path for host-side tooling, including Windows drive normalization
 	return fromAgentHostUri(result.resource).path.replace(/^\/([a-zA-Z]:)/, '$1');
 }

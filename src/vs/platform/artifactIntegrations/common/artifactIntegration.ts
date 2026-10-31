@@ -73,9 +73,9 @@ export interface ArtifactSectionPresentation extends ArtifactPartPresentation {
 }
 
 /**
- * How one artifact contributes to a grouped presentation of several artifacts of the same integration.
- * Only the artifact's main integration is consulted, and priorities are compared only among that integration's
- * artifacts: the group shows the icon with the highest priority, and ties keep the earlier artifact.
+ * How one artifact contributes to a grouped presentation of several artifacts sharing a {@link ArtifactContributionView.groupId}.
+ * Only the artifact's main integration is consulted, and priorities are compared only among the group's artifacts:
+ * the group shows the icon with the highest priority, and ties keep the earlier artifact.
  */
 export interface ArtifactGroupPresentation {
 	readonly icon: ArtifactIcon;
@@ -104,7 +104,13 @@ export interface ArtifactActionView extends ArtifactActionAvailability {
 export interface ArtifactContributionView {
 	readonly availability: ArtifactAvailability;
 	readonly main?: ArtifactPartPresentation;
-	/** This artifact's contribution to a group of several artifacts of the same integration. */
+	/**
+	 * Gives the artifact a pill of its own, shared with the other artifacts whose main integration assigns the same ID,
+	 * including those of other integrations. Without one, the artifact is listed in the pill for its kind, such as
+	 * Artifacts, with the other artifacts. Only the main integration's ID is consulted.
+	 */
+	readonly groupId?: string;
+	/** This artifact's contribution to a group of several artifacts sharing its {@link groupId}. */
 	readonly group?: ArtifactGroupPresentation;
 	readonly sections: readonly ArtifactSectionPresentation[];
 	/** Independent state lists, including lists without a compact pill section. */
@@ -270,7 +276,7 @@ export interface IArtifactIntegration<TResource extends IDisposable> {
 	readonly label: string;
 	/** Plain text naming the recorded resources this integration supports, so agents know when to use it. */
 	readonly description?: string;
-	/** One line of plain text naming several of this integration's artifacts, such as "Pull Requests", when they are grouped. */
+	/** One line of plain text naming several of this integration's artifacts, such as "Pull Requests", when they share a group ID. */
 	readonly groupLabel?: string;
 	readonly automationOptions: readonly ArtifactAutomationOption[];
 	/** Higher priority wins; ties are resolved by integration ID, never response order. */

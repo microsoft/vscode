@@ -68,10 +68,16 @@ export function assertIsResponseVM(item: unknown): asserts item is IChatResponse
 	}
 }
 
-export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetHiddenEvent | null;
+export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetHiddenEvent | IChatChangeResponseEvent | null;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
+}
+
+/** The content or state of an existing response changed. */
+export interface IChatChangeResponseEvent {
+	kind: 'changeResponse';
+	response: IChatResponseViewModel;
 }
 
 export interface IChangePlaceholderEvent {
@@ -399,7 +405,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		this._responseDisposables.set(responseModel.id, store);
 		const response = store.add(this.instantiationService.createInstance(ChatResponseViewModel, responseModel, this));
 		store.add(response.onDidChange(() => {
-			return this._onDidChange.fire(null);
+			return this._onDidChange.fire({ kind: 'changeResponse', response });
 		}));
 		this._visibleItemsCache = undefined;
 		this._items.splice(index, 0, response);

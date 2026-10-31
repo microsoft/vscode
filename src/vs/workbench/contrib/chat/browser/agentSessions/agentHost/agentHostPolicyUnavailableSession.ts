@@ -16,6 +16,7 @@ import { IAgentSessionMetadata } from '../../../../../../platform/agentHost/comm
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostSavedChat } from '../../../../../../platform/agentHost/common/agentHostSavedChat.js';
+import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IChatSession, IChatSessionContentProvider } from '../../../common/chatSessionsService.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatModeKind } from '../../../common/constants.js';
@@ -60,10 +61,10 @@ export async function readAgentHostSavedChat(resource: URI, connection: IAgentCo
 }
 
 /** Restores portable draft content, without copying a disabled agent's model or permissions. */
-export function savedChatDraftInput(saved: IAgentHostSavedChat): ISerializableChatModelInputState | undefined {
+export function savedChatDraftInput(saved: IAgentHostSavedChat, resourceUris: IAgentHostResourceUriMapper): ISerializableChatModelInputState | undefined {
 	return saved.draft ? {
 		inputText: saved.draft.text,
-		attachments: messageAttachmentsToVariableData(saved.draft.attachments, '', saved.draft.text)?.variables ?? [],
+		attachments: messageAttachmentsToVariableData(saved.draft.attachments, '', saved.draft.text, resourceUris)?.variables ?? [],
 		selections: [],
 		mode: { id: 'agent', kind: ChatModeKind.Agent },
 		selectedModel: undefined,
@@ -95,7 +96,7 @@ class PolicyUnavailableAgentHostSession extends Disposable implements IChatSessi
 		super();
 		this.history = turnsToHistory(saved.session, saved.turns, sessionResource.scheme, '', undefined, undefined, undefined, connection.resourceUris);
 		this.title = saved.title;
-		this.transferredState = { editingSession: undefined, inputState: savedChatDraftInput(saved) };
+		this.transferredState = { editingSession: undefined, inputState: savedChatDraftInput(saved, connection.resourceUris) };
 	}
 
 	override dispose(): void {

@@ -763,7 +763,12 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 		case ActionType.ChatReasoning:
 			return updateResponsePart(state, action.turnId, action.partId, part => {
 				if (part.kind === ResponsePartKind.Reasoning) {
-					return { ...part, content: part.content + action.content };
+					return {
+						...part,
+						content: part.content + action.content,
+						...(action.startedAt !== undefined ? { startedAt: action.startedAt } : {}),
+						...(action.duration !== undefined ? { duration: action.duration } : {}),
+					};
 				}
 				return part;
 			});

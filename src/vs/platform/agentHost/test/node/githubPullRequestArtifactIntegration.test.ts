@@ -315,8 +315,11 @@ suite('GitHub pull request artifact integration', () => {
 		states.closedDraft = group();
 		f.snapshot.set({ ...base, core: { status: 'loading', complete: false } }, undefined);
 		states.loading = group();
-		assert.deepStrictEqual({ groupLabel: f.model.snapshot.get().contributions[0].groupLabel, states }, {
+		const contribution = f.model.snapshot.get().contributions[0];
+		assert.deepStrictEqual({ groupLabel: contribution.groupLabel, groupId: contribution.view.groupId, states }, {
 			groupLabel: 'Pull Requests',
+			// Pull requests keep a pill of their own, grouped with each other.
+			groupId: 'github.pullRequest',
 			states: {
 				open: '4:git-pull-request:charts.green main=git-pull-request',
 				failing: '6:git-pull-request-error:charts.orange main=git-pull-request',

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../base/browser/dom.js';
+import { $, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableFromEvent, observableValue, runOnChange } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -38,6 +38,8 @@ export interface IWindowCanvasDescriptor {
 	readonly title: string;
 	readonly icon: ThemeIcon;
 	readonly ctor: SyncDescriptor<IWindowCanvas>;
+	/** Retain this canvas's focused control across background working-set replacement. Defaults to false. */
+	readonly retainFocusOnRestore?: boolean;
 }
 
 export interface IWindowCanvasPresentation {
@@ -142,10 +144,35 @@ export class WindowCanvasService extends Disposable implements IWindowCanvasServ
 	connectWorkingSets(workingSets: ICanvasWorkingSets): IDisposable {
 		this.workingSets = workingSets;
 		const store = new DisposableStore();
+		let focusedCanvas: { entry: ICanvasEntry; element: HTMLElement } | undefined;
+		let restoreVersion = 0;
 		store.add(runOnChange(workingSets.state, state => {
+			const version = ++restoreVersion;
+			if (state.restoring) {
+				const activeElement = getActiveElement();
+				if (!focusedCanvas && isHTMLElement(activeElement)) {
+					const entry = [...this.entries.values()].find(entry => entry.input.descriptor.retainFocusOnRestore && entry.presentation?.element.contains(activeElement));
+					if (entry) {
+						focusedCanvas = { entry, element: activeElement };
+					}
+				}
+				return;
+			}
+			const focusToRestore = focusedCanvas;
+			focusedCanvas = undefined;
 			if (!state.restoring && this.entries.size > 0) {
 				const suppression = workingSets.suppressEditorPartAutoVisibility();
 				void Promise.all([...this.entries.keys()].map(id => this.reveal(id, true)))
+					.then(() => {
+						// Detaching the canvas can drop focus to body; never override a control the user focused instead.
+						if (focusToRestore && !store.isDisposed && version === restoreVersion
+							&& [...this.entries.values()].includes(focusToRestore.entry)
+							&& focusToRestore.element.isConnected
+							&& getActiveElement() === focusToRestore.element.ownerDocument.body) {
+							focusToRestore.entry.presentation?.content.focus();
+							focusToRestore.element.focus();
+						}
+					})
 					.catch(error => this.logService.error('[WindowCanvasService] Restoring canvas failed', error))
 					.finally(() => suppression.dispose());
 			}

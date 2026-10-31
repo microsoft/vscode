@@ -109,6 +109,13 @@ jobs:
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
+      # PipAuthenticate@1 exposes its access token to all later steps inside the
+      # PIP_INDEX_URL environment variable, from where they can write it to logs.
+      # Only installing dependencies needs it, so clear it now.
+      - script: echo "##vso[task.setvariable variable=PIP_INDEX_URL]"
+        displayName: Clear package feed credentials
+        condition: always()
+
       - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Verify native optional dependency binaries
