@@ -6,6 +6,12 @@
 import assert from 'assert';
 import { agentHostConnectionKinds } from '../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { Event } from '../../../../../base/common/event.js';
+import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { Action } from '../../../../../base/common/actions.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IHoverLifecycleOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -14,7 +20,7 @@ import { PluginFormat } from '../../../../../platform/agentPlugins/common/plugin
 import { CustomizationEnablementKind, CustomizationType, type PluginCustomization } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { createPolicyManagedEnablementAction, createUninstallPluginAction, getAgentHostPluginEnablementActions, getPluginPolicyEnablement, isPluginPolicyBlocked, removePluginWithMarketplaceOwnership } from '../../browser/agentPluginActions.js';
+import { createPolicyManagedEnablementAction, createUninstallPluginAction, OrganizationRequiredUninstallActionViewItem, getAgentHostPluginEnablementActions, getPluginPolicyEnablement, isPluginPolicyBlocked, removePluginWithMarketplaceOwnership } from '../../browser/agentPluginActions.js';
 import { IAgentHostCustomizationService } from '../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { createCustomizationMarketplaceInstallationSnapshot, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { ContributionEnablementState } from '../../common/enablement.js';
@@ -128,8 +134,61 @@ suite('AgentPluginActions', () => {
 		assert.strictEqual(createUninstallPluginAction(createPlugin()), undefined);
 	});
 
-	test('does not create uninstall action for a force-enabled plugin', () => {
-		assert.strictEqual(createUninstallPluginAction(createPlugin(async () => true, true)), undefined);
+	test('creates a disabled uninstall action that explains organization control for a required plugin', async () => {
+		let removeCount = 0;
+		const action = createUninstallPluginAction(createPlugin(async () => {
+			removeCount++;
+			return true;
+		}, true));
+
+		assert.ok(action);
+		store.add(action);
+		const removed = await action.runAndGetResult();
+		assert.deepStrictEqual({ enabled: action.enabled, label: action.label, tooltip: action.tooltip, removed, removeCount }, {
+			enabled: false,
+			label: 'Uninstall',
+			tooltip: 'This plugin is managed by your organization.',
+			removed: false,
+			removeCount: 0,
+		});
+	});
+
+	test('keeps a required plugin\'s Uninstall keyboard-reachable and explained in an action bar that skips disabled items', async () => {
+		let removeCount = 0;
+		const action = createUninstallPluginAction(createPlugin(async () => {
+			removeCount++;
+			return true;
+		}, true))!;
+		const otherDisabled = store.add(new Action('test.disabled', 'Other', undefined, false));
+		store.add(action);
+		const hovers: { content: unknown; keyboard: boolean | undefined }[] = [];
+		const hoverService = new class extends mock<IHoverService>() {
+			override setupDelayedHover(_target: HTMLElement, options: Parameters<IHoverService['setupDelayedHover']>[1], lifecycle?: IHoverLifecycleOptions): IDisposable {
+				hovers.push({ content: typeof options === 'function' ? options().content : options.content, keyboard: lifecycle?.setupKeyboardEvents });
+				return Disposable.None;
+			}
+		}();
+		const actionBar = store.add(new ActionBar(mainWindow.document.createElement('div'), {
+			actionViewItemProvider: (candidate, options) => candidate === action ? new OrganizationRequiredUninstallActionViewItem(action, options, hoverService) : undefined,
+			focusOnlyEnabledItems: true,
+		}));
+		actionBar.push([otherDisabled, action], { icon: true, label: true });
+		actionBar.setFocusable(true);
+		await actionBar.run(action);
+		const labels = [...actionBar.getContainer().querySelectorAll<HTMLElement>('.action-label')];
+
+		assert.deepStrictEqual({
+			labels: labels.map(label => ({ text: label.textContent, tabIndex: label.tabIndex, disabled: label.getAttribute('aria-disabled'), ariaLabel: label.getAttribute('aria-label') })),
+			hovers,
+			removeCount,
+		}, {
+			labels: [
+				{ text: 'Other', tabIndex: -1, disabled: 'true', ariaLabel: 'Other' },
+				{ text: 'Uninstall', tabIndex: 0, disabled: 'true', ariaLabel: 'Uninstall. This plugin is managed by your organization.' },
+			],
+			hovers: [{ content: 'This plugin is managed by your organization.', keyboard: true }],
+			removeCount: 0,
+		});
 	});
 
 	test('reads managed plugin enablement in both directions', () => {

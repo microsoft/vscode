@@ -522,9 +522,44 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		if (current) {
 			return current;
 		}
-		const deletion = this._deleteHistory(resource).finally(() => this._historyDeletionPromises.delete(resource));
+		const deletion = this._enqueueMutation(() => this._markHistoryDeletionActive(resource)).then(() => this._deleteHistory(resource)).catch(async error => {
+			await this._enqueueMutation(() => this._markHistoryDeletionInterrupted(resource));
+			throw error;
+		}).finally(() => this._historyDeletionPromises.delete(resource));
 		this._historyDeletionPromises.set(resource, deletion);
 		return deletion;
+	}
+
+	private async _markHistoryDeletionActive(resource: string): Promise<void> {
+		const catalog = this._requireCatalog();
+		const existing = catalog.entries.find(automation => automation.resource === resource);
+		if (!existing || !this._historyDeletions.has(resource) || getAgentHostAutomationHistoryState(existing) !== 'deleting' || !existing.operations.includes(AutomationOperation.Remove)) {
+			return;
+		}
+		const automation = {
+			...existing,
+			operations: existing.operations.filter(operation => operation !== AutomationOperation.Remove),
+		};
+		const next = automationReducer(catalog, { type: ActionType.AutomationSet, automation }, this._log);
+		await this._persist(next, this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations);
+		this._catalog = next;
+		this._publishAutomation(next, resource);
+	}
+
+	private async _markHistoryDeletionInterrupted(resource: string): Promise<void> {
+		const catalog = this._requireCatalog();
+		const existing = catalog.entries.find(automation => automation.resource === resource);
+		if (!existing || !this._historyDeletions.has(resource) || getAgentHostAutomationHistoryState(existing) !== 'deleting') {
+			return;
+		}
+		const automation = {
+			...existing,
+			operations: [AutomationOperation.Remove],
+		};
+		const next = automationReducer(catalog, { type: ActionType.AutomationSet, automation }, this._log);
+		await this._persist(next, this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations);
+		this._catalog = next;
+		this._publishAutomation(next, resource);
 	}
 
 	private async _deleteHistory(resource: string): Promise<readonly string[]> {
@@ -643,7 +678,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			const automation = withRunWindow({
 				resource: run.automation,
 				definition: {
-					title: localize('deletedAutomation', "Deleted automation"),
+					title: localize('deletedAutomationNameUnavailable', "Deleted automation (name unavailable)"),
 					message: { text: '', origin: { kind: MessageKind.Automation } },
 					session: { provider },
 					enabled: false,
@@ -1060,7 +1095,11 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			}
 			definition = entry.definition;
 			const sessionTemplate = getExecutionSessionTemplate(definition);
-			const template = { ...sessionTemplate, agent: this._customizations.resolveAgent(sessionTemplate, entry.customizations ?? []) };
+			const agent = this._customizations.resolveAgent({
+				...sessionTemplate,
+				agent: definition.message.agent ?? sessionTemplate.agent,
+			}, entry.customizations ?? []);
+			const template = { ...sessionTemplate, agent };
 			const activeClient = this._customizations.toRunActiveClient(entry);
 			if (!this._execution.isSessionTemplateAvailable(template)) {
 				this._logService.info(`[AgentHostAutomationService] Deferring Automation run until its provider is available: run=${initialRun.resource}.`);
@@ -1078,10 +1117,12 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				await this._execution.cancelSession(session);
 				return;
 			}
-			// Clients restore the last turn's model configuration, not the SDK's creation defaults.
-			const message: Message = definition.message.model === undefined && template.model !== undefined
-				? { ...definition.message, model: template.model }
-				: definition.message;
+			// Each turn applies its own model and agent, independently of the session's creation defaults.
+			const message: Message = {
+				...definition.message,
+				...(definition.message.model === undefined && template.model !== undefined ? { model: template.model } : {}),
+				...(template.agent !== undefined ? { agent: template.agent } : {}),
+			};
 			await this._execution.startSession(session, message);
 		} catch (error) {
 			try {

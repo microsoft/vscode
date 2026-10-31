@@ -56,7 +56,7 @@ import { AgentHostDynamicAutoTiersEnabledSettingId, CopilotCliConfigKey } from '
 import { dynamicAutoTiersConfigurationProperties } from '../../common/dynamicAutoTiersConfiguration.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostArtifactIntegrationsConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentHostArtifactIntegrationsConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostWorkspaceTrustConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
 import { AgentSandboxSettingId } from '../../../sandbox/common/settings.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
@@ -118,7 +118,7 @@ import { DEFAULT_RECONNECT_POLICY, type IRemoteAgentHostReconnectPolicy } from '
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, type ResourceTrustRequestOptions } from '../../../workspace/common/workspaceTrust.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
-type RootConfigValue = boolean | string | AgentHostTerminalAutoApproveRules | undefined;
+type RootConfigValue = boolean | string | IAgentHostWorkspaceTrust | undefined;
 
 class TestClientIdentityTelemetryService implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
@@ -288,23 +288,6 @@ class CountingLogService extends NullLogService {
 
 	override warn(_message: string, ..._args: unknown[]): void {
 		this.warnCount++;
-	}
-}
-
-class TerminalAutoApproveConfigurationService extends TestConfigurationService {
-
-	constructor(
-		configuration: Record<string, AgentHostTerminalAutoApproveRules | boolean>,
-		private readonly _terminalAutoApproveInspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>>,
-	) {
-		super(configuration);
-	}
-
-	override inspect<T>(key: string): IConfigurationValue<T> {
-		if (key === TERMINAL_AUTO_APPROVE_SETTING_ID) {
-			return this._terminalAutoApproveInspectValue as IConfigurationValue<T>;
-		}
-		return super.inspect<T>(key);
 	}
 }
 
@@ -3287,19 +3270,6 @@ suite('AgentHostProtocolClient', () => {
 				},
 			},
 		});
-		const terminalAutoApproveRules = findRootConfigNotification(transport.sentMessages, AgentHostTerminalAutoApproveRulesConfigKey);
-		assert.deepStrictEqual(terminalAutoApproveRules, {
-			jsonrpc: '2.0',
-			method: 'dispatchAction',
-			params: {
-				channel: ROOT_STATE_URI,
-				clientSeq: 0,
-				action: {
-					type: ActionType.RootConfigChanged,
-					config: { [AgentHostTerminalAutoApproveRulesConfigKey]: {} },
-				},
-			},
-		});
 	});
 
 	test('forwards the actual telemetry service restriction during initialization and config sync', async () => {
@@ -3553,10 +3523,9 @@ suite('AgentHostProtocolClient', () => {
 		});
 	}
 
-	test('keeps personal terminal approval settings on the bypassable root-config path', async () => {
+	test('keeps the personal terminal approval toggle on the bypassable root-config path', async () => {
 		const configurationService = new TestConfigurationService({
 			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: false,
-			[TERMINAL_AUTO_APPROVE_SETTING_ID]: { ls: false, rm: false },
 		});
 		const { client, transport } = createClientForIdentity(
 			LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
@@ -3572,19 +3541,15 @@ suite('AgentHostProtocolClient', () => {
 		const initial = {
 			managed: findLastManagedSettingsNotification(transport.sentMessages),
 			terminalEnabled: findRootConfigValue(transport.sentMessages, AgentHostTerminalAutoApproveEnabledConfigKey),
-			terminalRules: findRootConfigValue(transport.sentMessages, AgentHostTerminalAutoApproveRulesConfigKey),
 		};
 
 		transport.sentMessages.length = 0;
 		await configurationService.setUserConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, true);
 		fireConfigurationChange(configurationService, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID);
-		await configurationService.setUserConfiguration(TERMINAL_AUTO_APPROVE_SETTING_ID, { ls: true, rm: false });
-		fireConfigurationChange(configurationService, TERMINAL_AUTO_APPROVE_SETTING_ID);
 
 		const updated = {
 			managed: findLastManagedSettingsNotification(transport.sentMessages),
 			terminalEnabled: findRootConfigValue(transport.sentMessages, AgentHostTerminalAutoApproveEnabledConfigKey),
-			terminalRules: findRootConfigValue(transport.sentMessages, AgentHostTerminalAutoApproveRulesConfigKey),
 		};
 		const emptyManagedSettings = {
 			jsonrpc: '2.0',
@@ -3596,12 +3561,10 @@ suite('AgentHostProtocolClient', () => {
 			initial: {
 				managed: emptyManagedSettings,
 				terminalEnabled: false,
-				terminalRules: { ls: false, rm: false },
 			},
 			updated: {
 				managed: emptyManagedSettings,
 				terminalEnabled: true,
-				terminalRules: { ls: true, rm: false },
 			},
 		});
 	});
@@ -3636,63 +3599,6 @@ suite('AgentHostProtocolClient', () => {
 			jsonrpc: '2.0',
 			method: 'setClientManagedSettingsPermissions',
 			params: { permissions: {} },
-		});
-	});
-
-	test('forwards terminal auto-approve rules on connect', async () => {
-		const configurationService = new TestConfigurationService({
-			[TERMINAL_AUTO_APPROVE_SETTING_ID]: {
-				echo: null,
-				python: true,
-				'/^npm run build$/': { approve: true, matchCommandLine: true },
-			},
-		});
-		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
-
-		await connectClient(client, transport);
-
-		const terminalAutoApproveRules = findRootConfigNotification(transport.sentMessages, AgentHostTerminalAutoApproveRulesConfigKey);
-		assert.deepStrictEqual(getRootConfig(terminalAutoApproveRules), {
-			[AgentHostTerminalAutoApproveRulesConfigKey]: {
-				echo: null,
-				python: true,
-				'/^npm run build$/': { approve: true, matchCommandLine: true },
-			},
-		});
-	});
-
-	test('redispatches terminal auto-approve rules when the rule setting changes', async () => {
-		const configurationService = new TestConfigurationService();
-		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
-		await connectClient(client, transport);
-		transport.sentMessages.length = 0;
-
-		await configurationService.setUserConfiguration(TERMINAL_AUTO_APPROVE_SETTING_ID, { python: true });
-		fireConfigurationChange(configurationService, TERMINAL_AUTO_APPROVE_SETTING_ID);
-
-		const terminalAutoApproveRules = findLastRootConfigNotification(transport.sentMessages, AgentHostTerminalAutoApproveRulesConfigKey);
-		assert.deepStrictEqual(getRootConfig(terminalAutoApproveRules), {
-			[AgentHostTerminalAutoApproveRulesConfigKey]: { python: true },
-		});
-	});
-
-	test('redispatches terminal auto-approve rules when ignored defaults change', async () => {
-		const configurationService = new TerminalAutoApproveConfigurationService({
-			[TERMINAL_AUTO_APPROVE_SETTING_ID]: { echo: true, python: true },
-		}, {
-			default: { value: { echo: true } },
-			user: { value: { python: true } },
-		});
-		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
-		await connectClient(client, transport);
-		transport.sentMessages.length = 0;
-
-		await configurationService.setUserConfiguration(TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, true);
-		fireConfigurationChange(configurationService, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID);
-
-		const terminalAutoApproveRules = findLastRootConfigNotification(transport.sentMessages, AgentHostTerminalAutoApproveRulesConfigKey);
-		assert.deepStrictEqual(getRootConfig(terminalAutoApproveRules), {
-			[AgentHostTerminalAutoApproveRulesConfigKey]: { python: true },
 		});
 	});
 

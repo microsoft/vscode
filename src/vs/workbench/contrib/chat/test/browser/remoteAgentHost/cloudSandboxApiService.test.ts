@@ -42,7 +42,7 @@ import { ITelemetryService, type ITelemetryData } from '../../../../../../platfo
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { CloudSandboxLifecycleTelemetry } from '../../../browser/remoteAgentHost/cloudSandboxLifecycleTelemetry.js';
 
-function jsonResponse(body: unknown, statusCode = 200, headers: Record<string, string> = {}): IRequestContext {
+function jsonResponse(body: unknown, statusCode = 200, headers: Record<string, string | string[]> = {}): IRequestContext {
 	return {
 		res: { headers: { date: new Date().toUTCString(), ...headers }, statusCode },
 		stream: bufferToStream(VSBuffer.fromString(JSON.stringify(body))),
@@ -2945,7 +2945,7 @@ suite('CloudSandboxApiService repository resolution', () => {
 				if (url.searchParams.get('page') === '11') {
 					cancellation.cancel();
 				}
-				return jsonResponse({ tasks: [] }, 200, { link: '<https://api.github.com/agents/tasks?page=2>; rel="next"' });
+				return jsonResponse({ tasks: [] }, 200, { link: `<?page=${Number(url.searchParams.get('page')) + 1}>; rel="next"` });
 			},
 		});
 
@@ -2953,6 +2953,105 @@ suite('CloudSandboxApiService repository resolution', () => {
 		assert.deepStrictEqual(requestedUrls.map(url => new URL(url).searchParams.get('page')),
 			Array.from({ length: 11 }, (_, i) => String(i + 1)));
 	});
+});
+
+suite('CloudSandboxApiService pagination', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('follows relative cursor links through empty pages in every discovery scope', async () => {
+		const date = 'Tue, 22 Sep 2026 10:00:00 GMT';
+		const tasks: ITestTask[] = [
+			task('repo', 'Repository', 42, 'repo-session', 'repo-environment'),
+			task('no-repo', 'No repository', undefined, 'no-repo-session', 'no-repo-environment'),
+			{ ...task('archived-repo', 'Archived repository', 42, 'archived-repo-session', 'archived-repo-environment'), archived_at: date },
+			{ ...task('archived-no-repo', 'Archived without repository', undefined, 'archived-no-repo-session', 'archived-no-repo-environment'), archived_at: date },
+		];
+		const cursors = ['second+/= opaque', 'third'];
+		const { service, requestedUrls } = createService(store, {
+			tasks, repositories: new Map([[42, { full_name: 'owner/repo' }]]),
+			onRequest: url => {
+				if (url.pathname !== '/agents/tasks') {
+					return undefined;
+				}
+				const page = cursors.indexOf(url.searchParams.get('cursor') ?? '') + 1;
+				if (page === cursors.length) {
+					return jsonResponse({
+						tasks: tasks.filter(task => (task.repository !== undefined) === (url.searchParams.get('with_repo') === 'true')
+							&& !!task.archived_at === (url.searchParams.get('is_archived') === 'true')),
+					}, 200, { date, link: '<?page=1>; rel="first"' });
+				}
+				return jsonResponse({ tasks: [] }, 200, { date, link: ['<?page=1>; rel="first"', `<?cursor=${encodeURIComponent(cursors[page])}>; rel="next"`] });
+			},
+		});
+
+		const result = await service.listSessions(CancellationToken.None);
+		const requests = requestedUrls.map(url => new URL(url)).filter(url => url.pathname === '/agents/tasks');
+
+		assert.deepStrictEqual({
+			kind: result.kind,
+			tasks: result.kind === 'failed' ? [] : result.sessions.map(session => session.taskId),
+			requests: requests.map(url => [url.origin, url.searchParams.get('with_repo'), url.searchParams.get('is_archived'), url.searchParams.get('page'), url.searchParams.get('cursor')]),
+		}, {
+			kind: 'complete',
+			tasks: tasks.map(task => task.id),
+			requests: [false, true].flatMap(archived => [true, false].flatMap(withRepository => [null, ...cursors].map(cursor =>
+				['https://api.githubcopilot.com', String(withRepository), String(archived), cursor ? null : '1', cursor]))),
+		});
+	});
+
+	test('keeps the API endpoint and omitted scope filters when following a numbered link', async () => {
+		const older = task('older', 'Older task', undefined, 'older-session', 'older-environment');
+		const { service, requestedUrls } = createService(store, {
+			tasks: [older], repositories: new Map(),
+			onRequest: url => {
+				if (url.pathname !== '/agents/tasks' || url.searchParams.get('with_repo') !== 'false' || url.searchParams.get('is_archived') !== 'false') {
+					return undefined;
+				}
+				return url.searchParams.get('page') === '7'
+					? jsonResponse({ tasks: [older] })
+					: jsonResponse({ tasks: [] }, 200, { link: '<https://api.github.com/agents/tasks?page=7&per_page=100>; rel="next"' });
+			},
+		});
+
+		const result = await service.listSessions(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			kind: result.kind,
+			tasks: result.kind === 'failed' ? [] : result.sessions.map(session => session.taskId),
+			pages: requestedUrls.map(url => new URL(url))
+				.filter(url => url.pathname === '/agents/tasks' && url.searchParams.get('with_repo') === 'false' && url.searchParams.get('is_archived') === 'false')
+				.map(url => [url.origin, url.searchParams.get('page'), url.searchParams.get('sort'), url.searchParams.get('direction')]),
+		}, {
+			kind: 'complete',
+			tasks: ['older'],
+			pages: [
+				['https://api.githubcopilot.com', '1', 'updated_at', 'desc'],
+				['https://api.githubcopilot.com', '7', 'updated_at', 'desc'],
+			],
+		});
+	});
+
+	for (const [link, reason, requests] of [
+		['<https://example.com/agents/tasks?cursor=opaque>; rel="next"', 'Task list returned an invalid pagination URL', 1],
+		['</agents/tasks/opaque/events?cursor=opaque>; rel="next"', 'Task list returned an invalid pagination URL', 1],
+		['<?cursor=opaque>; rel=next', 'Task list returned an unsupported pagination link', 1],
+		['<?page=2>; rel="next"', 'Task list repeated a pagination URL', 2],
+	] as const) {
+		test(`fails the scan instead of following ${link}`, async () => {
+			const { service, requestedUrls } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: () => jsonResponse({ tasks: [] }, 200, { link }),
+			});
+
+			assert.deepStrictEqual({
+				result: await service.listSessions(CancellationToken.None),
+				requests: requestedUrls.length,
+			}, {
+				result: { kind: 'failed', reason: `listTasks failed: ${reason}` },
+				requests,
+			});
+		});
+	}
 });
 
 suite('CloudSandboxApiService discovery logs', () => {

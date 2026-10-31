@@ -31,7 +31,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { type AutomationCatalogueState, type IAutomationProviderDescriptor, type IAutomationRefreshOptions, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationCatalogueState, type AutomationHistoryState, type IAutomationProviderDescriptor, type IAutomationRefreshOptions, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationDialogCreateInitialValues, IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
@@ -184,7 +184,7 @@ interface IAutomationHistoryGroup {
 
 interface IAutomationHistoryOwnerRow extends IDisposable {
 	readonly element: HTMLElement;
-	update(run: IAutomationRun, name: string, state: 'retained' | 'deleting', canDelete: boolean): void;
+	update(run: IAutomationRun, name: string, state: AutomationHistoryState, canDelete: boolean): void;
 }
 
 interface IAutomationHistorySessionList extends IDisposable {
@@ -1751,8 +1751,10 @@ class AutomationHistorySection extends Disposable {
 		const disposables = new DisposableStore();
 		const element = DOM.append(this.ownersContainer, $('.automations-history-owner.session-item', { role: 'group' }));
 		const main = DOM.append(element, $('.session-main'));
-		const title = DOM.append(main, $('span.session-title'));
-		const description = DOM.append(main, $('span.session-description'));
+		const titleRow = DOM.append(main, $('.session-title-row'));
+		const title = DOM.append(titleRow, $('span.session-title'));
+		const detailsRow = DOM.append(main, $('.session-details-row'));
+		const description = DOM.append(detailsRow, $('span.session-description'));
 		const actions = DOM.append(element, $('.automations-run-actions'));
 		const button = disposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true }));
 		disposables.add(button.onDidClick(() => void this.confirmAndDeleteHistory(run)));
@@ -1761,12 +1763,17 @@ class AutomationHistorySection extends Disposable {
 			update: (nextRun, name, state, canDelete) => {
 				run = nextRun;
 				title.textContent = name;
-				const retrying = state === 'deleting';
-				description.textContent = retrying
-					? localize('automationHistoryDeletionInterrupted', "Run history deletion was interrupted.")
-					: localize('automationHistoryRetained', "Run history is retained.");
-				button.label = retrying ? localize('retryDeleteHistory', "Retry Delete Run History") : localize('deleteHistory', "Delete Run History");
-				button.enabled = canDelete;
+				description.textContent = state === 'deleting'
+					? localize('automationHistoryDeleting', "Deleting run history...")
+					: state === 'interrupted'
+						? localize('automationHistoryDeletionInterrupted', "Run history deletion was interrupted.")
+						: localize('automationHistoryRetained', "Run history is retained.");
+				button.label = state === 'deleting'
+					? localize('deletingHistory', "Deleting...")
+					: state === 'interrupted'
+						? localize('retryDeleteHistory', "Retry Delete Run History")
+						: localize('deleteHistory', "Delete Run History");
+				button.enabled = state !== 'deleting' && canDelete;
 				element.setAttribute('aria-label', localize('automationHistoryOwnerState', "{0}, {1}", name, description.textContent));
 			},
 			dispose: () => {
@@ -2106,7 +2113,7 @@ class AutomationHistorySection extends Disposable {
 
 	private async confirmAndDeleteHistory(run: IAutomationRun): Promise<void> {
 		const name = this.getAutomationName(run);
-		const retrying = this.automationService.getAutomationHistoryState?.(run.automationId) === 'deleting';
+		const retrying = this.automationService.getAutomationHistoryState?.(run.automationId) === 'interrupted';
 		const confirmed = await this.dialogService.confirm({
 			message: retrying
 				? localize('confirmRetryDeleteAutomationHistory', "Retry deleting run history for \"{0}\"?", name)
@@ -2295,7 +2302,7 @@ function formatSchedule(schedule: IAutomationSchedule): string {
 	const { interval, scheduleHour, scheduleMinute } = localSchedule;
 	const time = formatHourMinute(scheduleHour, scheduleMinute);
 	switch (interval) {
-		case 'cron': return localize('scheduleCron', "CRON: {0}", schedule.cronExpression);
+		case 'cron': return localize('scheduleCron', "Cron: {0}", schedule.cronExpression);
 		case 'hourly': return localize('scheduleHourly', "Hourly");
 		case 'daily': return localize('scheduleDailyAt', "Daily at {0}", time);
 		case 'weekdays': return localize('scheduleWeekdaysAt', "Weekdays at {0}", time);
@@ -2383,7 +2390,7 @@ function getAutomationBlueprintErrorMessage(error: unknown): string {
 		case 'invalidId':
 			return localize('automationBlueprint.invalidId', "The blueprint id '{0}' is invalid.", error.property ?? '');
 		case 'unsupportedSchedule':
-			return localize('automationBlueprint.unsupportedSchedule', "The CRON expression '{0}' cannot be represented by the current Automation editor.", error.property ?? '');
+			return localize('automationBlueprint.unsupportedSchedule', "The cron expression '{0}' cannot be represented by the current Automation editor.", error.property ?? '');
 		case 'unsupportedTimeZone':
 			return localize('automationBlueprint.unsupportedTimeZone', "The time zone '{0}' is not supported. Use 'local' so the schedule follows the importing user's time zone.", error.property ?? '');
 		case 'missingPrompt':
@@ -2748,7 +2755,7 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 			},
 			group: '2_delete',
 			order: 1,
-			when: AutomationRunHistoryStateContext.isEqualTo('deleting'),
+			when: AutomationRunHistoryStateContext.isEqualTo('interrupted'),
 		}),
 	);
 }

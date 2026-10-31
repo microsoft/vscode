@@ -3606,8 +3606,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: inline-block;
 }
 
-/* Hover chevron indicator for collapsible parts */
-.chat-used-context-label .chat-collapsible-hover-chevron.codicon {
+/* Hover chevron indicator for collapsible parts. Include the chat owner to outrank
+	`.monaco-workbench .codicon[class*='codicon-']`, which otherwise resets a chevron that sits
+	outside its header button (e.g. beside edit stats) to 16px when the workbench stylesheet loads later. */
+.interactive-session .chat-used-context-label .chat-collapsible-hover-chevron.codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
 }
@@ -5257,6 +5259,20 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-loading-compact,
 .chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-debug-disconnect-compact {
 	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-editorWidget-border));
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label:is(.codicon-mic-compact, .codicon-mic-filled, .codicon-mic-download-compact, .codicon-voice-mode-compact, .codicon-loading-compact, .codicon-debug-disconnect-compact):focus-visible {
+	outline: none;
+	position: relative;
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label:is(.codicon-mic-compact, .codicon-mic-filled, .codicon-mic-download-compact, .codicon-voice-mode-compact, .codicon-loading-compact, .codicon-debug-disconnect-compact):focus-visible::after {
+	content: '';
+	position: absolute;
+	inset: -1px;
+	border: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	border-radius: var(--vscode-cornerRadius-circle);
+	pointer-events: none;
 }
 
 @keyframes chat-voice-icon-glow {

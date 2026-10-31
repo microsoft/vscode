@@ -71,6 +71,8 @@ class TestAutomationConnection {
 	readonly historyDeletionReceipts = new Map<string, readonly string[]>();
 	readonly historyDeletionAcknowledgements: string[] = [];
 	readonly historyDeletionAcknowledged = new DeferredPromise<void>();
+	readonly historyDeleteStarted = new DeferredPromise<void>();
+	historyDeleteBarrier: Promise<void> | undefined;
 	historyDeleteError: Error | undefined;
 	historyDeleteErrorBeforePublication = false;
 	historyDeleteAcknowledgements: readonly string[] | undefined;
@@ -88,6 +90,9 @@ class TestAutomationConnection {
 		assert.ok(entry);
 		const deleted = this.historyDeleteAcknowledgements ?? (deleteHistory ? sessions.map(session => session.toString()) : []);
 		if (deleteHistory && (!this.historyDeleteError || !this.historyDeleteErrorBeforePublication)) {
+			this.setAutomation({ ...entry, _meta: withAgentHostAutomationHistoryState(entry._meta, 'deleting') });
+			this.historyDeleteStarted.complete();
+			await this.historyDeleteBarrier;
 			this._catalog = { entries: this._catalog.entries.filter(entry => entry.resource !== resource) };
 			this._onDidCatalogChange.fire(this._catalog);
 			if (requestId) {
@@ -1137,6 +1142,70 @@ suite('AgentHostAutomationStore', () => {
 		}, { definitions: [], name: automation.name, requests: [false] });
 	});
 
+	test('distinguishes active and interrupted retained history deletion', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		connection.initializeResult.set({ ...connection.initializeResult.get()!, _meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, false, true) }, undefined);
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const first = await store.createAutomation({ ...createOptions(), target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' } });
+		await store.deleteAutomation(first.id, undefined, { deleteHistory: false });
+		const release = new DeferredPromise<void>();
+		connection.historyDeleteBarrier = release.p;
+		const deletion = store.deleteAutomationHistory(first.id);
+		await connection.historyDeleteStarted.p;
+		const active = { state: store.getAutomationHistoryState(first.id), canDelete: store.canDeleteAutomationHistory(first.id) };
+		release.complete();
+		await deletion;
+
+		const second = await store.createAutomation({ ...createOptions(), target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' } });
+		await store.deleteAutomation(second.id, undefined, { deleteHistory: false });
+		connection.historyDeleteBarrier = undefined;
+		connection.historyDeleteError = new Error('offline');
+		await assert.rejects(store.deleteAutomationHistory(second.id), /offline/);
+
+		assert.deepStrictEqual({
+			active,
+			completed: store.getAutomationHistoryState(first.id),
+			interrupted: { state: store.getAutomationHistoryState(second.id), canDelete: store.canDeleteAutomationHistory(second.id) },
+		}, {
+			active: { state: 'deleting', canDelete: false },
+			completed: undefined,
+			interrupted: { state: 'interrupted', canDelete: true },
+		});
+	});
+
+	test('preserves interrupted deletion retry for older hosts', () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		connection.initializeResult.set({
+			...connection.initializeResult.get()!,
+			_meta: { 'vscode.automationHistory': true },
+		}, undefined);
+		connection.setAutomation({
+			resource: 'ahp-automation:/history',
+			definition: {
+				title: 'History',
+				message: { text: '', origin: { kind: MessageKind.Automation } },
+				session: {},
+				enabled: false,
+				triggers: [],
+			},
+			runs: [],
+			operations: [],
+			createdAt: '2026-01-01T00:00:00Z',
+			modifiedAt: '2026-01-01T00:00:00Z',
+			_meta: withAgentHostAutomationHistoryState(undefined, 'deleting'),
+		});
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), disposables.add(new InMemoryStorageService()), activeClientService));
+
+		assert.deepStrictEqual({
+			state: store.getAutomationHistoryState('local-agent-host:ahp-automation:/history'),
+			canDelete: store.canDeleteAutomationHistory('local-agent-host:ahp-automation:/history'),
+		}, {
+			state: 'interrupted',
+			canDelete: true,
+		});
+	});
+
 	for (const outcome of ['acknowledged', 'unacknowledged', 'failureBeforePublication'] as const) {
 		test(`legacy cleanup requires exact backend acknowledgement (${outcome})`, async () => {
 			const connection = disposables.add(new TestAutomationConnection());
@@ -1476,6 +1545,59 @@ suite('AgentHostAutomationStore', () => {
 		});
 	});
 
+	for (const [expression, preset] of [
+		['1 * * * *', 'hourly'],
+		['1 9 * * *', 'daily'],
+		['1 9 * * 1-5', 'weekdays'],
+		['1 9 * * 1', 'weekly'],
+	] as const) {
+		test(`keeps CRON instead of inferring ${preset} across serialized mutations and reconnect`, async () => {
+			const connection = disposables.add(new class extends TestAutomationConnection {
+				override dispatch(channel: string, action: Parameters<IAgentConnection['dispatch']>[1]): void {
+					super.dispatch(channel, JSON.parse(JSON.stringify(action)));
+				}
+			}());
+			const storage = disposables.add(new InMemoryStorageService());
+			const createStore = () => disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+			const store = createStore();
+			const schedule = {
+				interval: 'cron' as const, cronExpression: expression, cronTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+				scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0,
+			};
+			const created = await store.createAutomation({
+				name: 'CRON review', prompt: 'Review changes.', schedule,
+				target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+			});
+			const create = connection.dispatched[0].action;
+			assert.ok(create.type === ActionType.AutomationCreateRequested);
+			store.dispose();
+			const reopened = createStore();
+			const restored = reopened.getAutomation(created.id)!;
+			const renamed = await reopened.updateAutomation(created.id, { name: 'Renamed' });
+			const rename = connection.dispatched.at(-1)?.action;
+			assert.ok(rename?.type === ActionType.AutomationUpdateRequested);
+			const changedSchedule = { ...schedule, cronExpression: expression.replace(/^1 /, '2 ') };
+			const edited = await reopened.updateAutomation(created.id, { schedule: changedSchedule });
+			const switched = await reopened.updateAutomation(created.id, { schedule: { interval: preset, scheduleHour: 9, scheduleMinute: 1, scheduleDay: 1 } });
+			const switchAction = connection.dispatched.at(-1)?.action;
+			assert.ok(switchAction?.type === ActionType.AutomationUpdateRequested);
+			const switchedBack = await reopened.updateAutomation(created.id, { schedule });
+			assert.deepStrictEqual({
+				schedules: [created, restored, renamed, switchedBack].map(automation => automation.schedule),
+				edited: edited.schedule,
+				switched: switched.schedule.interval,
+				renamedTriggers: rename.changes.triggers,
+				clearedMeta: switchAction.changes._meta,
+			}, {
+				schedules: [schedule, schedule, schedule, schedule],
+				edited: changedSchedule,
+				switched: preset,
+				renamedTriggers: create.definition.triggers,
+				clearedMeta: {},
+			});
+		});
+	}
+
 	test('round trips cron expressions and their time zone through host create and update', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
@@ -1515,7 +1637,7 @@ suite('AgentHostAutomationStore', () => {
 			name: 'Cron', prompt: 'Review',
 			schedule: { interval: 'cron', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
 			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
-		}), /A CRON expression is required\./);
+		}), /A cron expression is required\./);
 		assert.deepStrictEqual(connection.dispatched, []);
 	});
 

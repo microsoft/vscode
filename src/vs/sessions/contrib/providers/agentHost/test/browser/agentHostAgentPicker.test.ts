@@ -209,15 +209,16 @@ suite('agentHostAgentPicker', () => {
 	});
 
 	for (const kind of agentHostConnectionKinds) {
-		for (const [scheme, clientId] of [['agent-host-copilotcli', undefined], ['custom-host', undefined], ['custom-host', 'vscode'], ['custom-host', 'foreign']] as const) {
-			test(`restores the last-used agent after an automatic fallback for ${scheme} (${clientId ?? 'host'}, ${kind.name})`, () => {
+		for (const [scheme, clientId, rememberedSource] of ([['agent-host-copilotcli', undefined], ['custom-host', undefined], ['custom-host', 'vscode'], ['custom-host', 'foreign']] as const).flatMap(([scheme, clientId]) => [[scheme, clientId, false], [scheme, clientId, true]] as const)) {
+			test(`restores the last-used agent after an automatic fallback for ${scheme}${rememberedSource ? ' using its draft source' : ''} (${clientId ?? 'host'}, ${kind.name})`, () => {
 				const storage = disposables.add(new TestStorageService());
 				const fromHost = (uri: URI) => kind.resourceUris.fromAgentHost(uri);
 				const alpha = { ...agents[0], uri: 'file:///agents/alpha.agent.md' };
 				const beta = { ...agents[1], uri: 'file:///agents/beta.agent.md' };
 				const clientAlpha = kind.toClient(URI.parse(alpha.uri)).toString();
 				const key = agentHostAgentPickerStorageKey(scheme);
-				storage.store(key, alpha.uri, StorageScope.PROFILE, StorageTarget.MACHINE);
+				const rememberedUri = rememberedSource ? 'client-agent:/alpha' : alpha.uri;
+				storage.store(key, rememberedUri, StorageScope.PROFILE, StorageTarget.MACHINE);
 				const createSession = (id: string, agent: AgentCustomization | undefined, status: SessionStatus) => {
 					const mode = observableValue<ReturnType<ISession['mode']['get']>>('mode', agent ? { id: kind.toClient(URI.parse(agent.uri)).toString(), kind: 'agent' } : undefined);
 					const session = upcastPartial<IActiveSession>({
@@ -238,6 +239,7 @@ suite('agentHostAgentPicker', () => {
 				const provider = upcastPartial<IAgentHostSessionsProvider>({
 					id: LOCAL_AGENT_HOST_PROVIDER_ID,
 					getCustomAgents: () => availableAgents,
+					resolveCustomAgent: (_id, uri) => rememberedSource && uri === rememberedUri ? availableAgents.find(agent => agent.uri === alpha.uri) : undefined,
 					getCustomizations: () => clientId !== undefined
 						? [{ type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///client/plugin', name: 'Plugin', clientId, children: [...availableAgents] }]
 						: [{ type: CustomizationType.Directory, id: 'agents', uri: 'file:///agents', name: 'Agents', contents: CustomizationType.Agent, enabled: true, writable: true, children: [...availableAgents] }],
@@ -277,9 +279,9 @@ suite('agentHostAgentPicker', () => {
 				agentsChanged.fire();
 
 				assert.deepStrictEqual({ afterFallback, beforeDiscovery, afterDiscovery: snapshot() }, {
-					afterFallback: { mode: undefined, remembered: alpha.uri },
-					beforeDiscovery: { mode: undefined, remembered: alpha.uri },
-					afterDiscovery: { mode: clientAlpha, remembered: alpha.uri },
+					afterFallback: { mode: undefined, remembered: rememberedUri },
+					beforeDiscovery: { mode: undefined, remembered: rememberedUri },
+					afterDiscovery: { mode: clientAlpha, remembered: rememberedUri },
 				});
 			});
 		}

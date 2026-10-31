@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 import * as fs from 'fs';
 import * as path from 'path';
-import { SimpleRPC } from '../../src/extension/onboardDebug/node/copilotDebugWorker/rpc';
 import { createServiceIdentifier } from '../../src/util/common/services';
 import { ITestRunResult } from '../testExecutor';
 import { SimulationTest, toDirname } from './stest';
@@ -19,30 +18,6 @@ export interface ISimulationOutcome {
 }
 
 type TestSubset = Pick<SimulationTest, 'outcomeCategory' | 'fullName'>;
-
-export class ProxiedSimulationOutcome implements ISimulationOutcome {
-
-	declare readonly _serviceBrand: undefined;
-
-	public static registerTo(instance: ISimulationOutcome, rpc: SimpleRPC): ISimulationOutcome {
-		rpc.registerMethod('ProxiedSimulationOutcome.get', (test) => instance.get(test));
-		rpc.registerMethod('ProxiedSimulationOutcome.set', ({ test, results }) => instance.set(test, results));
-		return instance;
-	}
-
-	constructor(
-		private readonly rpc: SimpleRPC,
-	) {
-	}
-
-	get(test: TestSubset): Promise<OutcomeEntry | undefined> {
-		return this.rpc.callMethod('ProxiedSimulationOutcome.get', { fullName: test.fullName, outcomeCategory: test.outcomeCategory } satisfies TestSubset);
-	}
-
-	set(test: TestSubset, results: ITestRunResult[]): Promise<void> {
-		return this.rpc.callMethod('ProxiedSimulationOutcome.set', { test: { fullName: test.fullName, outcomeCategory: test.outcomeCategory } satisfies TestSubset, results });
-	}
-}
 
 export const outcomePath = path.join(__dirname, '../test/outcome');
 

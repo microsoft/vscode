@@ -11,8 +11,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { FileService } from '../../../files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
 import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, findRelocatedAgentName, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
@@ -35,8 +34,7 @@ suite('copilotPluginConverters', () => {
 	let fileService: FileService;
 
 	setup(() => {
-		fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 	});
 
 
@@ -871,6 +869,70 @@ suite('copilotPluginConverters', () => {
 			// leaving "node path" without inner quoting which cmd.exe handles cleanly.
 			const command = `node ${filePath}`;
 			return { command, cleanup: () => { try { unlinkSync(filePath); } catch { /* ignore */ } } };
+		}
+
+		test('onUserPromptTransformed returns the replacement prompt', async () => {
+			const expected = { modifiedTransformedPrompt: 'Host context with plugin guidance' };
+			const { command, cleanup } = echoJsonCmd(expected);
+			try {
+				const hooks = toSdkHooks([makeHookGroup('UserPromptTransformed', command)]);
+				const input = { prompt: 'Original', transformedPrompt: 'Host context', timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
+				assert.deepStrictEqual(await hooks.onUserPromptTransformed!(input, { sessionId: 'test' }), expected);
+			} finally {
+				cleanup();
+			}
+		});
+
+		test('onUserPromptTransformed composes commands without changing the submitted prompt or retaining previous input', async () => {
+			const dir = fileURLToPath(new URL('.', import.meta.url));
+			const filePath = `${dir}/vscode-test-prompt-transform-${Date.now()}.js`;
+			writeFileSync(filePath, `
+				let stdin = '';
+				for await (const chunk of process.stdin) { stdin += chunk; }
+				const input = JSON.parse(stdin);
+				process.stdout.write(JSON.stringify({ modifiedTransformedPrompt: input.transformedPrompt + '/' + input.prompt }));
+			`);
+			try {
+				const group = makeHookGroup('UserPromptTransformed', `node ${filePath}`);
+				const hooks = toSdkHooks([group, group]);
+				const input = { prompt: 'Original', transformedPrompt: 'Host context', timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
+				const first = await hooks.onUserPromptTransformed!(input, { sessionId: 'test' });
+				const next = await hooks.onUserPromptTransformed!({ ...input, transformedPrompt: 'New context' }, { sessionId: 'test' });
+				assert.deepStrictEqual({ first, next, original: input.transformedPrompt }, {
+					first: { modifiedTransformedPrompt: 'Host context/Original/Original' },
+					next: { modifiedTransformedPrompt: 'New context/Original/Original' },
+					original: 'Host context',
+				});
+			} finally {
+				unlinkSync(filePath);
+			}
+		});
+
+		test('onUserPromptTransformed preserves an empty replacement across a failed command', async () => {
+			const { command, cleanup } = echoJsonCmd({ modifiedTransformedPrompt: '' });
+			try {
+				const hooks = toSdkHooks([
+					makeHookGroup('UserPromptTransformed', command),
+					makeHookGroup('UserPromptTransformed', 'exit 1'),
+				]);
+				const input = { prompt: 'Original', transformedPrompt: 'Host context', timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
+				assert.deepStrictEqual(await hooks.onUserPromptTransformed!(input, { sessionId: 'test' }), { modifiedTransformedPrompt: '' });
+			} finally {
+				cleanup();
+			}
+		});
+
+		for (const output of [{}, { modifiedTransformedPrompt: 42 }]) {
+			test(`onUserPromptTransformed ignores output without a string replacement: ${JSON.stringify(output)}`, async () => {
+				const { command, cleanup } = echoJsonCmd(output);
+				try {
+					const hooks = toSdkHooks([makeHookGroup('UserPromptTransformed', command)]);
+					const input = { prompt: 'Original', transformedPrompt: 'Host context', timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
+					assert.strictEqual(await hooks.onUserPromptTransformed!(input, { sessionId: 'test' }), undefined);
+				} finally {
+					cleanup();
+				}
+			});
 		}
 
 		test('onPostToolUse returns parsed JSON output as hook result', async () => {

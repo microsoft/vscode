@@ -79,7 +79,7 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { ISessionsManagementService, IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { getSessionComparisonHarnessLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsListModelService, SessionSortEntry, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { getSessionGroupIdOfSection, getSessionGroupSectionId, ISessionGroup, ISessionGroupAppearance, ISessionGroupPlacement, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { IInputOptions, InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
@@ -2451,12 +2451,15 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 	// TODO@BenV: Move automation-specific code into an AutomationSectionRenderer subclass.
 	readonly automationStatus = derived(this, reader => {
 		const automationSessions = this.automationSessions.read(reader);
+		const personalAutomationIds = new Set(this.automationService.automations.read(reader)
+			.filter(automation => automation.ownership !== 'repository')
+			.map(automation => automation.id));
 		// A run whose session the Sessions list shows reports its status on that row instead,
 		// unless the row cannot: a cloud run can still be active while its session reports it finished.
 		const runs = this.automationService.runs.read(reader).map(run => {
 			const sessionResource = run.sessionResource;
 			const session = sessionResource && automationSessions.find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, sessionResource));
-			return { status: run.status, session };
+			return { automationId: run.automationId, status: run.status, session };
 		}).filter(({ status, session }) => {
 			if (!session || !this.isSessionListed(session, reader)) {
 				return true;
@@ -2470,7 +2473,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			return SessionStatus.NeedsInput;
 		}
 
-		if (runs.some(({ status }) => status === 'pending' || status === 'running')) {
+		if (runs.some(({ automationId, status }) => personalAutomationIds.has(automationId) && (status === 'pending' || status === 'running'))) {
 			return SessionStatus.InProgress;
 		}
 		const hasUnreadRun = runs.some(({ status, session }) => (status === 'completed' || status === 'failed')
@@ -5125,7 +5128,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
-		this._register(this._sessionsListModelService.onDidChange(() => {
+		this._register(this._sessionsListModelService.onDidChange(e => {
+			this.expandPinnedSectionForNewPins(e);
 			if (this.visible) {
 				this.update();
 			}
@@ -8389,6 +8393,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const state = this.readSectionCollapseState();
 		state[sectionId] = collapsed;
 		this.writeSectionCollapseState(state);
+	}
+
+	/**
+	 * Keeps a newly pinned session visible. The Pinned section is hidden while
+	 * empty and defaults to collapsed, so the first pin would otherwise create a
+	 * collapsed section that hides the session. A collapse the user chose is kept.
+	 */
+	private expandPinnedSectionForNewPins(e: ISessionListModelChangeEvent): void {
+		const changedIds = new Set(e.changes.filter(change => change.kind === SessionListModelChangeKind.Pinned).map(change => change.sessionId));
+		if (changedIds.size === 0 || this.getSavedCollapseState('pinned') !== undefined) {
+			return;
+		}
+		if (this._sessionsManagementService.getSessions().some(session => changedIds.has(session.sessionId) && this._sessionsListModelService.isSessionPinned(session))) {
+			this.saveSectionCollapseState('pinned', false);
+		}
 	}
 
 	private saveBulkCollapseState(collapsed: boolean): void {

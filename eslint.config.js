@@ -197,19 +197,15 @@ export default defineConfig(
 			'local/code-no-sync-fs': 'error',
 		},
 	},
-	// Opt in migrated areas without introducing warnings in the remaining callback APIs.
+	// Enforce this rule in migrated areas only.
 	{
 		files: [
-			'src/vs/platform/agentHost/node/claude/claudeAgent.ts',
-			'src/vs/platform/agentHost/node/claude/claudeAgentSdkService.ts',
-			'src/vs/platform/agentHost/node/claude/claudeFileEditObserver.ts',
-			'src/vs/platform/agentHost/node/claude/claudePromptQueue.ts',
-			'src/vs/platform/agentHost/node/claude/claudeSdkMessageRouter.ts',
+			'src/vs/platform/agentHost/node/claude/**/*.ts',
 			'src/vs/workbench/api/browser/mainThreadMcp.ts',
 			'src/vs/workbench/api/common/extHostQuickOpen.ts',
 		],
 		rules: {
-			'local/code-prefer-event-or-observable': 'warn',
+			'local/code-prefer-event-or-observable': 'error',
 		},
 	},
 	// Disallow bracket notation for property names that can use dot notation.
@@ -2782,7 +2778,7 @@ export default defineConfig(
 							from: ['./extensions/copilot/src/extension']
 						},
 						{
-							target: ['./extensions/copilot/test', '!./extensions/copilot/test/base/extHostContext/*.ts'],
+							target: './extensions/copilot/test',
 							from: ['**/vscode-node/**', '**/vscode-worker/**']
 						},
 						{
@@ -2957,7 +2953,6 @@ export default defineConfig(
 			'extensions/copilot/src/platform/configuration/test/common/inMemoryConfigurationService.ts',
 			'extensions/copilot/src/platform/configuration/vscode/configurationServiceImpl.ts',
 			'extensions/copilot/src/platform/customInstructions/common/customInstructionsService.ts',
-			'extensions/copilot/src/platform/debug/vscode/debugOutputListener.ts',
 			'extensions/copilot/src/platform/diff/node/diffWorkerMain.ts',
 			'extensions/copilot/src/platform/editing/common/notebookDocumentSnapshot.ts',
 			'extensions/copilot/src/platform/editing/common/textDocumentSnapshot.ts',
@@ -3015,7 +3010,6 @@ export default defineConfig(
 			'extensions/copilot/src/platform/telemetry/node/spyingTelemetryService.ts',
 			'extensions/copilot/src/platform/terminal/common/terminalService.ts',
 			'extensions/copilot/src/platform/terminal/vscode/terminalServiceImpl.ts',
-			'extensions/copilot/src/platform/test/common/endpointTestFixtures.ts',
 			'extensions/copilot/src/platform/test/common/testExtensionsService.ts',
 			'extensions/copilot/src/platform/test/node/extensionContext.ts',
 			'extensions/copilot/src/platform/test/node/fetcher.ts',

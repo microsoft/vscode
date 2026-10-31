@@ -9,7 +9,7 @@ import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable, type IReference } from '../../../../../base/common/lifecycle.js';
 import { stableStringify } from '../../../../../base/common/objects.js';
-import { derived, type IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { derived, type IObservable, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -17,7 +17,7 @@ import { AgentSession } from '../../../../../platform/agentHost/common/agent.js'
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { getAgentHostAutomationHistoryState, supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryReceipts, type AgentHostAutomationHistoryState } from '../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { getAgentHostAutomationHistoryState, getAgentHostAutomationScheduleKind, supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryDeletionState, supportsAgentHostAutomationHistoryReceipts, withAgentHostAutomationScheduleKind } from '../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
 import { isCustomizationEnabled } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { omitAutomationSessionTemplateConfigValues, pickAutomationDefinitionOwnedConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -30,7 +30,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { type IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { assertAutomationSessionTemplate, type AutomationTarget, type IAutomationDescriptor, type IAutomationRun, type IAutomationSchedule, type IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationUnavailableError, type AutomationCatalogueState, assertAutomationSessionTemplateAuthority, type AutomationMutationGuard, type IAutomationCustomizationChoice, type IAutomationRunRequestResult, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, serializeAutomationEditableState, type IUpdateAutomationOptions, type IDeleteAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationUnavailableError, type AutomationCatalogueState, type AutomationHistoryState, assertAutomationSessionTemplateAuthority, type AutomationMutationGuard, type IAutomationCustomizationChoice, type IAutomationRunRequestResult, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, serializeAutomationEditableState, type IUpdateAutomationOptions, type IDeleteAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import type { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 
 const MUTATION_TIMEOUT_MS = 30_000;
@@ -97,6 +97,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	private readonly _cleanupKey: string;
 	private readonly _deletionRequestKey: string;
 	private readonly _deletingResources = new Set<string>();
+	private readonly _historyDeletionChanged = observableSignal(this);
 	private readonly _historyDeletionPromises = new Map<string, Promise<void>>();
 
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
@@ -144,10 +145,12 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		}
 		this.automations = derived(this, reader => {
 			this._catalogChanged.read(reader);
+			this._historyDeletionChanged.read(reader);
 			return this._projectAutomations();
 		});
 		this.runs = derived(this, reader => {
 			this._catalogChanged.read(reader);
+			this._historyDeletionChanged.read(reader);
 			sessionResolutionChanged.read(reader);
 			return distinctById([...this._projectRuns(), ...this._archivedRuns.read(reader)])
 				.sort((first, second) => second.startedAt.localeCompare(first.startedAt));
@@ -167,9 +170,18 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return request && this._resourceId(request.resource) === id ? request.title : undefined;
 	}
 
-	getAutomationHistoryState(id: string): AgentHostAutomationHistoryState | undefined {
+	getAutomationHistoryState(id: string): AutomationHistoryState | undefined {
 		const entry = this._findAutomationEntry(id, true);
-		return entry ? getAgentHostAutomationHistoryState(entry) : this._readHistoryDeletionRequests()?.some(request => this._resourceId(request.resource) === id) ? 'deleting' : undefined;
+		if (entry) {
+			const state = getAgentHostAutomationHistoryState(entry);
+			return state === 'deleting'
+				&& !this._deletingResources.has(entry.resource)
+				&& (!supportsAgentHostAutomationHistoryDeletionState(this._connection.initializeResult.get()) || entry.operations.includes(AutomationOperation.Remove))
+				? 'interrupted'
+				: state;
+		}
+		const request = this._readHistoryDeletionRequests()?.find(request => this._resourceId(request.resource) === id);
+		return request ? this._deletingResources.has(request.resource) ? 'deleting' : 'interrupted' : undefined;
 	}
 
 	canRunAutomation(automationId: string): boolean {
@@ -188,7 +200,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		const state = this.getAutomationHistoryState(automationId);
 		return this.catalogueState.get() === 'ready'
 			&& this._connection.deleteAutomation !== undefined
-			&& (state === 'retained' || state === 'deleting');
+			&& (state === 'retained' || state === 'interrupted');
 	}
 
 	supportsDeleteHistoryChoice(automationId: string): boolean {
@@ -328,7 +340,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			const cleanup = this._prepareArchiveCleanup(resource);
 			const pending = this._readHistoryDeletionRequests()?.find(request => request.resource === resource);
 			const request = supportsAgentHostAutomationHistoryReceipts(this._connection.initializeResult.get()) && this._connection.acknowledgeAutomationDeletion
-				? pending ?? this._createHistoryDeletionRequest(resource, this.getAutomationHistoryName(id) ?? localize('agentHostAutomation.deleted', "Deleted automation"), cleanup)
+				? pending ?? this._createHistoryDeletionRequest(resource, this.getAutomationHistoryName(id) ?? localize('agentHostAutomation.deletedNameUnavailable', "Deleted automation (name unavailable)"), cleanup)
 				: undefined;
 			if (request && !pending) {
 				this._writeHistoryDeletionRequests([...this._requireHistoryDeletionRequests().filter(candidate => candidate.resource !== resource), request]);
@@ -362,7 +374,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			const cleanup = pending ? undefined : this._prepareArchiveCleanup(resource);
 			const request = pending ?? (
 				supportsAgentHostAutomationHistoryReceipts(this._connection.initializeResult.get()) && this._connection.acknowledgeAutomationDeletion
-					? this._createHistoryDeletionRequest(resource, entry?.definition.title ?? localize('agentHostAutomation.deleted', "Deleted automation"), cleanup)
+					? this._createHistoryDeletionRequest(resource, entry?.definition.title ?? localize('agentHostAutomation.deletedNameUnavailable', "Deleted automation (name unavailable)"), cleanup)
 					: undefined
 			);
 			if (request && !pending) {
@@ -391,6 +403,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		request: IHistoryDeletionRequest | undefined,
 	): Promise<void> {
 		this._deletingResources.add(resource);
+		this._historyDeletionChanged.trigger(undefined);
 		let completed = false;
 		try {
 			if (this._store.isDisposed) {
@@ -420,6 +433,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			completed = true;
 		} finally {
 			this._deletingResources.delete(resource);
+			this._historyDeletionChanged.trigger(undefined);
 			if (completed) {
 				this._reconcileArchiveCleanup();
 			}
@@ -542,7 +556,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		}
 		const modelId = this._projectModelId(state.definition.session.model?.id, state.definition.session.provider);
 		const newestRun = state.runs[0];
-		const schedule = projectSchedule(state.definition.triggers);
+		const schedule = projectSchedule(state.definition);
 		return {
 			id: this._resourceId(state.resource),
 			name: state.definition.title,
@@ -803,8 +817,10 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			setOptional(config, SessionConfigKey.Isolation, undefined);
 			setOptional(config, SessionConfigKey.Branch, undefined);
 		}
-		const meta = existing?._meta ?? {};
-		const existingSchedule = existing ? projectSchedule(existing.triggers) : undefined;
+		const existingSchedule = existing ? projectSchedule(existing) : undefined;
+		const scheduleUnchanged = existingSchedule !== undefined && stableStringify(existingSchedule) === stableStringify(descriptor.schedule);
+		const meta = scheduleUnchanged ? existing?._meta ?? {}
+			: withAgentHostAutomationScheduleKind(existing?._meta, descriptor.schedule.interval === 'cron' ? 'cron' : undefined);
 		return {
 			title: descriptor.name,
 			message: { text: descriptor.prompt, origin: { kind: MessageKind.Automation } },
@@ -822,10 +838,11 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				...(existingSession?.customizations !== undefined && this._connection.initializeResult.get()?.automations?.customizations ? { customizations: existingSession.customizations } : {}),
 			},
 			enabled: descriptor.enabled,
-			triggers: existing && existingSchedule && stableStringify(existingSchedule) === stableStringify(descriptor.schedule)
+			triggers: existing && scheduleUnchanged
 				? existing.triggers
 				: scheduleTrigger(descriptor.schedule),
-			_meta: Object.keys(meta).length > 0 ? meta : undefined,
+			// An empty object clears the persisted preference over JSON; undefined would be omitted.
+			_meta: Object.keys(meta).length > 0 || existing?._meta !== undefined ? meta : undefined,
 		};
 	}
 
@@ -1189,7 +1206,8 @@ function isTerminalRun(run: AutomationRunSummary): boolean {
 const cronWeekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
 // Projects Agent Host triggers into the editor-facing schedule model.
-function projectSchedule(triggers: AutomationDefinition['triggers']): IAutomationSchedule {
+function projectSchedule(definition: AutomationDefinition): IAutomationSchedule {
+	const { triggers } = definition;
 	const trigger = triggers.find(trigger => trigger.kind === AutomationTriggerKind.Schedule);
 	if (!trigger) {
 		return { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
@@ -1202,7 +1220,7 @@ function projectSchedule(triggers: AutomationDefinition['triggers']): IAutomatio
 			scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0,
 		}
 		: { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
-	if (remaining.length > 0 || dayOfMonth !== '*' || month !== '*') {
+	if (getAgentHostAutomationScheduleKind(definition) === 'cron' || remaining.length > 0 || dayOfMonth !== '*' || month !== '*') {
 		return unrepresentable;
 	}
 	if (triggers.length !== 1
@@ -1254,7 +1272,7 @@ function scheduleTrigger(schedule: IAutomationSchedule): AutomationDefinition['t
 	switch (schedule.interval) {
 		case 'cron':
 			if (!schedule.cronExpression?.trim()) {
-				throw new Error(localize('automationCronRequired', "A CRON expression is required."));
+				throw new Error(localize('automationCronRequired', "A cron expression is required."));
 			}
 			expression = schedule.cronExpression.trim();
 			break;

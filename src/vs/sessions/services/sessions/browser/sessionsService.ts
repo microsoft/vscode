@@ -83,7 +83,7 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	readonly cancelRestore?: boolean;
 	/** Keep the current navigation intent when the composer creates or updates its own draft. */
 	readonly preserveNavigation?: boolean;
-	/** Prepare a draft without navigating away from its hosting custom view. */
+	/** Prepare a draft without changing the Sessions grid or navigation, or hiding its hosting custom view. */
 	readonly preserveCustomView?: boolean;
 
 	/**
@@ -306,7 +306,7 @@ export interface ISessionsService {
 	 * active session. Returns the activated session, or `undefined` when no
 	 * provider supports quick chats. Automatic fallbacks preserve pending navigation.
 	 */
-	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession | undefined;
+	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean, preserveFocus?: boolean): IActiveSession | undefined;
 
 	/**
 	 * Switch to the new-chat-in-session view.
@@ -1655,8 +1655,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 			if (token.isCancellationRequested) {
 				return { session: undefined, trustDeclined: false };
 			}
-			this._beginNavigation(intent, token, options?.preserveNavigation);
-			this._startOpenSession();
+			if (!options?.preserveCustomView) {
+				this._beginNavigation(intent, token, options?.preserveNavigation);
+				this._startOpenSession();
+			}
 			try {
 				const session = this.sessionsManagementService.createNewSession(folderUri, options);
 				if (options?.requireDevContainer) {
@@ -1672,7 +1674,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 						throw error;
 					}
 				}
-				this._activateOrInsert(session, options?.toSide, intent);
+				if (!options?.preserveCustomView) {
+					this._activateOrInsert(session, options?.toSide, intent);
+				}
 				if (intent === 'explicit' && !options?.preserveNavigation) {
 					this._navigation.recordOpened({ kind: 'newSession' });
 				}
@@ -1683,6 +1687,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 				// through to the folder-less composer view.
 				this.logService.trace(`[SessionsView] openNewSession: createNewSession failed for folder ${folderUri.toString()}, falling back to composer view`);
 			}
+		}
+
+		if (options?.preserveCustomView) {
+			return { session: this.sessionsManagementService.newSession.get(), trustDeclined: false };
 		}
 
 		// Without a folder (or when folder resolution failed above): switch to
@@ -1718,7 +1726,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const targetSession = options?.toSide && newSession?.sessionId === activeSession?.sessionId
 			? undefined
 			: newSession;
-		this._activateOrInsert(targetSession, options?.toSide, intent);
+		this._activateOrInsert(targetSession, options?.toSide, intent, options?.preserveCustomView);
 		if (intent === 'explicit' && !options?.preserveNavigation) {
 			this._navigation.recordOpened({ kind: 'newSession' });
 		}
@@ -1726,7 +1734,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	/** Open or move beside the active session when requested, keeping a single empty slot. */
-	private _activateOrInsert(session: ISession | undefined, toSide: boolean | undefined, intent: SessionNavigationIntent): void {
+	private _activateOrInsert(session: ISession | undefined, toSide: boolean | undefined, intent: SessionNavigationIntent, preserveFocus?: boolean): void {
 		const activeSession = this._visibility.activeSession.get();
 		const activeSessionId = activeSession?.sessionId;
 		const sessionId = session?.sessionId;
@@ -1751,19 +1759,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 				return;
 			}
 		}
-		this._activate(session, undefined, intent);
+		this._activate(session, preserveFocus, intent);
 	}
 
-	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation = false): IActiveSession | undefined {
-		return this._openQuickChat(options, preserveNavigation ? 'automatic' : 'explicit');
+	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation = false, preserveFocus?: boolean): IActiveSession | undefined {
+		return this._openQuickChat(options, preserveNavigation ? 'automatic' : 'explicit', preserveFocus);
 	}
 
-	private _openQuickChat(options: ICreateNewSessionOptions | undefined, intent: SessionNavigationIntent): IActiveSession | undefined {
+	private _openQuickChat(options: ICreateNewSessionOptions | undefined, intent: SessionNavigationIntent, preserveFocus?: boolean): IActiveSession | undefined {
 		this._beginNavigation(intent);
 		this._startOpenSession();
 		try {
 			const session = this.sessionsManagementService.createQuickChat(options);
-			return this._activate(session, undefined, intent);
+			return this._activate(session, preserveFocus, intent);
 		} catch (e) {
 			// No provider supports quick chats: leave whatever was visible as-is
 			// rather than activating an unrelated workspace-bound draft.

@@ -228,6 +228,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._protocolClient?.initializeResult ?? constObservable(undefined);
 	}
 
+	openTcpConnection(target: { host: string; port: number }) {
+		return this._requireClient().openTcpConnection(target);
+	}
+
 	get supportsConversationImport(): boolean {
 		return this._protocolClient?.supportsConversationImport ?? false;
 	}

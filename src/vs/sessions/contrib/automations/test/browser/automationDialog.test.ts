@@ -906,21 +906,26 @@ suite('Automation dialog creation', () => {
 			select.selectedIndex = Array.from(select.options).findIndex(option => option.textContent === 'Weekly');
 			select.dispatchEvent(new (DOM.getWindow(select).Event)('change'));
 			const weeklyTriggerWidth = trigger.getBoundingClientRect().width;
-			select.selectedIndex = Array.from(select.options).findIndex(option => option.textContent === 'CRON');
+			select.selectedIndex = Array.from(select.options).findIndex(option => option.textContent === 'Cron');
 			select.dispatchEvent(new (DOM.getWindow(select).Event)('change'));
 			const cron = row.querySelector<HTMLElement>('.automation-form-cron-group');
 			const cronControl = cron?.querySelector<HTMLElement>('.automation-cron-segments');
-			cronControl!.style.font = '16px Arial, sans-serif';
+			cronControl!.style.fontSize = '16px';
 			cronControl!.style.setProperty('--vscode-fontSize-body2', 'initial');
 			const cronLabel = cron?.querySelector<HTMLElement>('.automation-form-label');
 			const timeZoneHint = cron?.querySelector<HTMLElement>('#automation-cron-hint');
 			const triggerBounds = trigger.getBoundingClientRect();
 			const cronBounds = cron?.getBoundingClientRect();
+			const fieldBounds = Array.from(cron!.querySelectorAll<HTMLElement>('.automation-cron-segment'), field => field.getBoundingClientRect());
+			const fieldCenters = fieldBounds.map(field => field.left + field.width / 2);
+			const fieldGaps = fieldCenters.slice(1).map((center, index) => center - fieldCenters[index]);
 			results.push({
 				width,
 				visibleGroups: Array.from(row.children).filter(element => DOM.getWindow(row).getComputedStyle(element).display !== 'none').length,
 				triggerUsesOneColumn: Math.abs(triggerBounds.width - weeklyTriggerWidth) < 1,
 				cronSpansTwoColumns: !!cronBounds && Math.abs(cronBounds.width - (2 * triggerBounds.width + cronBounds.left - triggerBounds.right)) < 1,
+				equalFieldWidths: fieldBounds.every(field => Math.abs(field.width - fieldBounds[0].width) < 1),
+				evenlySpacedFields: fieldGaps.every(gap => Math.abs(gap - fieldGaps[0]) < 1),
 				aligned: !!cronBounds && Math.abs(triggerBounds.top - cronBounds.top) < 1,
 				beside: !!cronBounds && cronBounds.left > triggerBounds.right,
 				hintBesideLabel: !!cronLabel && !!timeZoneHint && cronLabel.nextElementSibling === timeZoneHint
@@ -944,7 +949,7 @@ suite('Automation dialog creation', () => {
 			await dialog.result;
 		}
 		assert.deepStrictEqual(results, [640, 360].flatMap(width => [{
-			width, visibleGroups: 2, triggerUsesOneColumn: true, cronSpansTwoColumns: true, aligned: true, beside: true, hintBesideLabel: true, matchingPickerHeight: true, inputsAligned: true, inputTextFits: true, captionsFit: true,
+			width, visibleGroups: 2, triggerUsesOneColumn: true, cronSpansTwoColumns: true, equalFieldWidths: true, evenlySpacedFields: true, aligned: true, beside: true, hintBesideLabel: true, matchingPickerHeight: true, inputsAligned: true, inputTextFits: true, captionsFit: true,
 			controls: ['Trigger', 'Minute', 'Hour', 'Day of month', 'Month', 'Day of week'],
 		}, { width, presetColumnsEqual: true }]));
 	});
@@ -962,7 +967,7 @@ suite('Automation dialog creation', () => {
 			select.dispatchEvent(new (DOM.getWindow(select).Event)('change'));
 		};
 		const before = snapshot();
-		selectInterval('CRON');
+		selectInterval('Cron');
 		const empty = snapshot();
 		const data = new DataTransfer();
 		data.setData('text/plain', '*/5 * * * *');
@@ -989,7 +994,7 @@ suite('Automation dialog creation', () => {
 		inputs[2].dispatchEvent(new InputEvent('input'));
 		selectInterval('Daily');
 		const preset = snapshot();
-		selectInterval('CRON');
+		selectInterval('Cron');
 		const restored = snapshot();
 		dialog.cancelButton.click();
 		await dialog.result;
@@ -1013,7 +1018,7 @@ suite('Automation dialog creation', () => {
 				dialog.setName('Unsaved Cron draft');
 				dialog.setPrompt('Keep this prompt');
 				const select = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
-				select.selectedIndex = Array.from(select.options).findIndex(option => option.textContent === 'CRON');
+				select.selectedIndex = Array.from(select.options).findIndex(option => option.textContent === 'Cron');
 				select.dispatchEvent(new (DOM.getWindow(select).Event)('change'));
 				const inputs = Array.from(dialog.container.querySelectorAll<HTMLInputElement>('.automation-cron-segments input'));
 				const data = new DataTransfer();
@@ -1636,7 +1641,7 @@ suite('Automation dialog creation', () => {
 		}, cloudConfiguration());
 		await dialog.setCloud(true);
 		const interval = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
-		const blocked = { cronAvailable: Array.from(interval.options).some(option => option.textContent === 'CRON'), disabled: dialog.saveButton.getAttribute('aria-disabled') };
+		const blocked = { cronAvailable: Array.from(interval.options).some(option => option.textContent === 'Cron'), disabled: dialog.saveButton.getAttribute('aria-disabled') };
 		interval.selectedIndex = Array.from(interval.options).findIndex(option => option.textContent === 'Daily');
 		interval.dispatchEvent(new (DOM.getWindow(interval).Event)('change', { bubbles: true }));
 		assert.deepStrictEqual({ blocked, recovered: dialog.saveButton.getAttribute('aria-disabled') }, {
@@ -1666,7 +1671,7 @@ suite('Automation dialog creation', () => {
 		dialog.saveButton.click();
 		await timeout(0);
 		assert.deepStrictEqual({ ...initial, commits }, {
-			options: ['Choose a trigger', 'Manual', 'Hourly', 'Daily', 'Weekdays', 'Weekly', 'CRON'],
+			options: ['Choose a trigger', 'Manual', 'Hourly', 'Daily', 'Weekdays', 'Weekly', 'Cron'],
 			selected: 'Choose a trigger', placeholderDisabled: true, saveDisabled: 'true',
 			error: 'Choose a supported schedule.',
 			commits: 0,
@@ -1677,7 +1682,7 @@ suite('Automation dialog creation', () => {
 			options: Array.from(interval.options, option => option.textContent),
 			selected: interval.selectedOptions[0].textContent,
 			saveDisabled: dialog.saveButton.getAttribute('aria-disabled'),
-		}, { options: ['Manual', 'Hourly', 'Daily', 'Weekdays', 'Weekly', 'CRON'], selected: 'Weekdays', saveDisabled: 'false' });
+		}, { options: ['Manual', 'Hourly', 'Daily', 'Weekdays', 'Weekly', 'Cron'], selected: 'Weekdays', saveDisabled: 'false' });
 		dialog.saveButton.click();
 		const result = await dialog.result;
 		assert.deepStrictEqual({ kind: result?.kind, schedule: result?.value.schedule, commits }, {
@@ -3311,7 +3316,7 @@ suite('Automation dialog layout', () => {
 				borderError: !!cronRow.querySelector('.automation-cron-segments.invalid'),
 			};
 		};
-		selectInterval('CRON');
+		selectInterval('Cron');
 		const empty = enterCron('');
 		assert.strictEqual(cronInput.placeholder, '*');
 		cronInput.dispatchEvent(new FocusEvent('focus'));
@@ -3323,7 +3328,7 @@ suite('Automation dialog layout', () => {
 		cronInput.dispatchEvent(disallowed);
 		selectInterval('Daily');
 		const hidden = cronRow.style.display === 'none';
-		selectInterval('CRON');
+		selectInterval('Cron');
 		assert.deepStrictEqual({ empty, invalid, valid, prevented: disallowed.defaultPrevented, hidden, restored: cronInputs.map(input => input.value).join(' ') }, {
 			empty: { value: '', invalid: 'false', error: '', borderError: false },
 			invalid: { value: '0 24 * * *', invalid: 'true', error: 'Hour value is outside 0-23.', borderError: true },

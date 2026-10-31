@@ -86,6 +86,21 @@ suite('importedTurnsFromChatModel', () => {
 		}));
 	}
 
+	test('preserves local reasoning timing when importing into an agent session', () => {
+		const turns = importedTurnsFromChatModel(model([request('q', response([
+			{ kind: 'thinking', value: 'Measured', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 },
+			{ kind: 'thinking', value: 'Immediate', reasoningDurationMs: 0 },
+			{ kind: 'thinking', value: 'Older history' },
+		]))]));
+
+		assert.deepStrictEqual(turns[0].responseParts.flatMap(part => part.kind === ResponsePartKind.Reasoning
+			? [{ content: part.content, startedAt: part.startedAt, duration: part.duration }] : []), [
+			{ content: 'Measured', startedAt: '1970-01-01T00:00:01.000Z', duration: 45_000 },
+			{ content: 'Immediate', startedAt: undefined, duration: 0 },
+			{ content: 'Older history', startedAt: undefined, duration: undefined },
+		]);
+	});
+
 	test('maps markdown, reasoning and inline references in stream order', () => {
 		const result = project(model([request('q', response([
 			markdown('Found in '),

@@ -19,11 +19,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/runWithFakedTimers.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentSession, AgentSignal, IAgent, resolveAgentHostInstructions, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import { AgentPermissionKind, AgentSession, AgentSignal, IAgent, resolveAgentHostInstructions, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
@@ -201,6 +201,7 @@ function createNoopCustomizationEnablementService(): IAgentHostCustomizationEnab
 		_serviceBrand: undefined,
 		onDidChange: Event.None,
 		initializeSession: async () => { },
+		adoptMcpServerOwnership: () => { },
 		getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
 		resolve: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
 		applyClientGlobalEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
@@ -454,9 +455,7 @@ suite('AgentSideEffects', () => {
 	}
 
 	setup(async () => {
-		fileService = disposables.add(new FileService(new NullLogService()));
-		const memFs = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(Schemas.inMemory, memFs));
+		fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 
 		// Seed a file so the handleBrowseDirectory tests can distinguish files from dirs
 		const testDir = URI.from({ scheme: Schemas.inMemory, path: '/testDir' });
@@ -1915,8 +1914,7 @@ suite('AgentSideEffects', () => {
 			});
 			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
-			const diskFileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const diskFileService = createInMemoryFileService(disposables, Schemas.file);
 			await diskFileService.writeFile(URI.joinPath(repository, 'meta.json'), VSBuffer.fromString(''));
 			const telemetry = new TestTelemetryService();
 			let turnService: IAgentHostTurnService | undefined;
@@ -1954,8 +1952,7 @@ suite('AgentSideEffects', () => {
 			});
 			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
-			const diskFileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const diskFileService = createInMemoryFileService(disposables, Schemas.file);
 			await diskFileService.writeFile(URI.joinPath(repository, 'meta.json'), VSBuffer.fromString(''));
 			// Hold the first turn at its turn-start checkpoint, after the outgoing-turn contributions and before the final cancellation check.
 			const firstCapture = new DeferredPromise<void>();
@@ -2016,8 +2013,7 @@ suite('AgentSideEffects', () => {
 			});
 			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
-			const diskFileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const diskFileService = createInMemoryFileService(disposables, Schemas.file);
 			await diskFileService.writeFile(URI.joinPath(repository, 'meta.json'), VSBuffer.fromString(''));
 			const telemetry = new TestTelemetryService();
 			// `/rename` persists the new title, so it needs a real session database.
@@ -2064,8 +2060,7 @@ suite('AgentSideEffects', () => {
 			});
 			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
-			const diskFileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const diskFileService = createInMemoryFileService(disposables, Schemas.file);
 			await diskFileService.writeFile(URI.joinPath(repository, 'repo-only.ts'), VSBuffer.fromString(''));
 			await diskFileService.writeFile(URI.joinPath(worktree, 'meta.json'), VSBuffer.fromString(''));
 			const worktreeIsolation = disposables.add(new FirstSendWorktreeIsolation());
@@ -3208,8 +3203,7 @@ suite('AgentSideEffects', () => {
 			});
 			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
-			const diskFileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const diskFileService = createInMemoryFileService(disposables, Schemas.file);
 			await diskFileService.writeFile(URI.joinPath(repository, 'meta.json'), VSBuffer.fromString(''));
 			// Hold the provider turn at its turn-start checkpoint: after the outgoing-turn contributions, before dispatch.
 			const capture = new DeferredPromise<void>();
@@ -5954,7 +5948,7 @@ suite('AgentSideEffects', () => {
 							status: ToolCallStatus.PendingConfirmation, toolCallId: 'held-tool', toolName, displayName: 'Run tests',
 							contributor, invocationMessage: 'Run tests', toolInput: 'npm test', confirmationTitle: 'Allow tests?',
 						},
-						permissionKind: toolName === 'shell' ? 'shell' : 'custom-tool', permissionPath: undefined,
+						permissionKind: toolName === 'shell' ? AgentPermissionKind.Shell : AgentPermissionKind.CustomTool, permissionPath: undefined,
 					};
 					agent.fireProgress(pending);
 					const state = await waitForState(stateManager, () => {
@@ -6024,7 +6018,7 @@ suite('AgentSideEffects', () => {
 				agent.fireProgress({
 					kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
 					state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'stale-tool', toolName: 'runTests', displayName: 'Run tests', invocationMessage: 'Run tests', confirmationTitle: 'Allow tests?' },
-					permissionKind: 'custom-tool', permissionPath: undefined,
+					permissionKind: AgentPermissionKind.CustomTool, permissionPath: undefined,
 				});
 				stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 100 });
 				if (nextTurn) {
@@ -6061,7 +6055,7 @@ suite('AgentSideEffects', () => {
 						invocationMessage: 'Run command', confirmationTitle: 'Allow command?',
 						contributor: kind === 'client-auto' ? { kind: ToolCallContributorKind.Client, clientId: 'test-client' } : undefined,
 					},
-					permissionKind: 'shell', permissionPath: undefined,
+					permissionKind: AgentPermissionKind.Shell, permissionPath: undefined,
 				});
 				assert.deepStrictEqual({ approved: await response.p, actions: envelopes.map(envelope => envelope.action.type) }, {
 					approved: false, actions: [],
@@ -6079,7 +6073,7 @@ suite('AgentSideEffects', () => {
 			agent.fireProgress({
 				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri), managedApprovalRequired: true,
 				state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'managed-tool', toolName: 'shell', displayName: 'Shell', invocationMessage: 'Run command', confirmationTitle: 'Managed approval required' },
-				permissionKind: 'shell', permissionPath: undefined,
+				permissionKind: AgentPermissionKind.Shell, permissionPath: undefined,
 			});
 			const state = await waitForState(stateManager, () => {
 				const s = stateManager.getSessionState(defaultChatUri);
@@ -6174,11 +6168,11 @@ suite('AgentSideEffects', () => {
 				'tool call should advance to PendingConfirmation for permission-gated tool_ready');
 		});
 
-		test('tool_ready marks autoApproveRuleResolvable only for eligible shell confirmations', async () => {
+		test('tool_ready leaves shell approval choices to host confirmation options', async () => {
 			setupSession();
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
-			// Rule resolvability requires a successful tree-sitter parse.
+			// Scoped shell options require a successful tree-sitter parse.
 			await sideEffects.initialize();
 
 			const cases = [
@@ -6192,7 +6186,6 @@ suite('AgentSideEffects', () => {
 					action: {
 						type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 						toolCallId, toolName: 'shell', displayName: 'Shell', contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' },
-						_meta: { toolKind: undefined, language: undefined },
 					},
 				});
 				agent.fireProgress({
@@ -6203,7 +6196,7 @@ suite('AgentSideEffects', () => {
 						invocationMessage: 'Run command', toolInput: 'foo --bar',
 						confirmationTitle: 'Run in terminal?', edits: undefined,
 					},
-					permissionKind: 'shell', permissionPath: undefined,
+					permissionKind: AgentPermissionKind.Shell, permissionPath: undefined,
 					...signalOverrides,
 				});
 			}
@@ -6214,9 +6207,12 @@ suite('AgentSideEffects', () => {
 				return parts?.length === cases.length && parts.every(p => p.kind === ResponsePartKind.ToolCall && p.toolCall.status === ToolCallStatus.PendingConfirmation) ? s : undefined;
 			});
 			assert.deepStrictEqual(
-				state.activeTurn?.responseParts.map(p => p.kind === ResponsePartKind.ToolCall ? p.toolCall._meta?.['autoApproveRuleResolvable'] : undefined),
-				[true, undefined, undefined],
-				'only the rule-resolvable shell confirmation is marked; sandbox-bypass and managed confirmations are not');
+				state.activeTurn?.responseParts.map(p => p.kind === ResponsePartKind.ToolCall ? { meta: p.toolCall._meta, options: p.toolCall.status === ToolCallStatus.PendingConfirmation ? p.toolCall.options?.map(option => option.id) : undefined } : undefined),
+				[
+					{ meta: undefined, options: ['allow-once', 'allow-session-rules:["Shell(foo *)"]', 'allow-session-rules:["Shell(foo --bar)"]', 'allow-always-rules:["Shell(foo *)"]', 'allow-always-rules:["Shell(foo --bar)"]', 'skip'] },
+					{ meta: { 'agentHost.sandboxBypass': true }, options: ['allow-once', 'skip'] },
+					{ meta: undefined, options: ['allow-once', 'skip'] },
+				]);
 		});
 
 		test('tool_ready forwards the signal shell language into shell approval', async () => {
@@ -6254,7 +6250,7 @@ suite('AgentSideEffects', () => {
 						toolInput: structured ? JSON.stringify({ command: 'get-childitem', description: 'Inspect the directory' }) : 'get-childitem',
 						confirmationTitle: 'Run in terminal?', edits: undefined,
 					},
-					permissionKind: 'shell', permissionPath: undefined,
+					permissionKind: AgentPermissionKind.Shell, permissionPath: undefined,
 					shellLanguage,
 					shellCommand: structured ? 'get-childitem' : undefined,
 				});
@@ -6267,10 +6263,10 @@ suite('AgentSideEffects', () => {
 			});
 			assert.deepStrictEqual(
 				state.activeTurn?.responseParts.map(p => p.kind === ResponsePartKind.ToolCall
-					? [p.toolCall._meta?.['autoApproveBySetting'], p.toolCall._meta?.['autoApproveRuleResolvable']]
+					? p.toolCall._meta?.['autoApproveBySetting']
 					: undefined),
-				[[true, undefined], [undefined, true], [undefined, undefined], [true, undefined], [undefined, true], [undefined, undefined]],
-				'powershell auto-approves; bash stays rule-resolvable; missing language is neither');
+				[true, undefined, undefined, true, undefined, undefined],
+				'only PowerShell auto-approves; Bash and missing language require confirmation');
 		});
 
 		test('tool_ready is dropped when the tool completes while permission lookup is pending', async () => {
@@ -6298,7 +6294,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Get VS Code API References', toolInput: '{"query":"test"}',
 					confirmationTitle: 'Allow tool call?', edits: undefined,
 				},
-				permissionKind: 'custom-tool', permissionPath: undefined,
+				permissionKind: AgentPermissionKind.CustomTool, permissionPath: undefined,
 			});
 
 			stateManager.dispatchServerAction(defaultChatUri, {
@@ -6388,15 +6384,17 @@ suite('AgentSideEffects', () => {
 				readyEnvelopeChannel: chatUri,
 			});
 
-			sideEffects.handleAction(chatUri, {
+			const confirmation: ChatAction = {
 				type: ActionType.ChatToolCallConfirmed,
 				turnId: 'turn-peer',
 				toolCallId: 'tc-peer-perm',
 				approved: true,
-				confirmed: 'user-action' as const,
+				confirmed: ToolCallConfirmationReason.UserAction,
 				selectedOptionId: 'allow-session',
 				_meta: { 'agentHost.permissionDecisionSource': 'human_response' },
-			} as ChatAction, 'test-client', undefined, undefined, false, 7);
+			};
+			stateManager.dispatchClientAction(chatUri, confirmation, { clientId: 'test-client', clientSeq: 7 });
+			sideEffects.handleAction(chatUri, confirmation, 'test-client', undefined, undefined, false, 7);
 
 			assert.deepStrictEqual(responses, [
 				['tc-peer-perm', true, { decisionSource: 'human_response', selectedOptionId: 'allow-session', origin: { clientId: 'test-client', clientSeq: 7 } }],
@@ -6455,7 +6453,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Get problems', toolInput: '{}',
 					confirmationTitle: undefined, edits: undefined,
 				},
-				permissionKind: 'custom-tool', permissionPath: undefined,
+				permissionKind: AgentPermissionKind.CustomTool, permissionPath: undefined,
 			});
 
 			// The subagent chat must contain the ChatToolCallReady.
@@ -6549,7 +6547,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Reading file.ts', toolInput: '{"path":"file.ts"}',
 					confirmationTitle: undefined, edits: undefined,
 				},
-				permissionKind: 'read', permissionPath: '/workspace/file.ts',
+				permissionKind: AgentPermissionKind.Read, permissionPath: '/workspace/file.ts',
 			});
 
 			await response.p;
@@ -6770,7 +6768,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Write .env', toolInput: undefined,
 					confirmationTitle: undefined, edits: undefined,
 				},
-				permissionKind: 'write', permissionPath: '/workspace/.env',
+				permissionKind: AgentPermissionKind.Write, permissionPath: '/workspace/.env',
 			});
 
 			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
@@ -6810,7 +6808,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Run rm -rf /', toolInput: 'rm -rf /',
 					confirmationTitle: undefined, edits: undefined,
 				},
-				permissionKind: 'shell', permissionPath: undefined,
+				permissionKind: AgentPermissionKind.Shell, permissionPath: undefined,
 			});
 
 			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
@@ -6843,7 +6841,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Run cat ~/something.txt', toolInput: 'cat ~/something.txt',
 					confirmationTitle: 'Run command', edits: undefined,
 				},
-				permissionKind: 'shell', permissionPath: undefined,
+				permissionKind: AgentPermissionKind.Shell, permissionPath: undefined,
 				requestSandboxBypass: true,
 			});
 
@@ -6876,7 +6874,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Run task', toolInput: '{"task":"build"}',
 					confirmationTitle: 'Run task', edits: undefined,
 				},
-				permissionKind: 'custom-tool', permissionPath: undefined,
+				permissionKind: AgentPermissionKind.CustomTool, permissionPath: undefined,
 			});
 
 			const state = await waitForState(stateManager, () => {
@@ -6939,7 +6937,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Write .env', toolInput: undefined,
 					confirmationTitle: undefined, edits: undefined,
 				},
-				permissionKind: 'write', permissionPath: '/workspace/.env',
+				permissionKind: AgentPermissionKind.Write, permissionPath: '/workspace/.env',
 			});
 
 			// .env should still be blocked with default config
@@ -6982,7 +6980,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Write .env', toolInput: undefined,
 					confirmationTitle: undefined, edits: undefined,
 				},
-				permissionKind: 'write', permissionPath: '/workspace/.env',
+				permissionKind: AgentPermissionKind.Write, permissionPath: '/workspace/.env',
 			});
 
 			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
@@ -7028,7 +7026,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Write src/app.ts', toolInput: undefined,
 					confirmationTitle: undefined, edits: undefined,
 				},
-				permissionKind: 'write', permissionPath: '/workspace/src/app.ts',
+				permissionKind: AgentPermissionKind.Write, permissionPath: '/workspace/src/app.ts',
 			});
 
 			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
@@ -7071,7 +7069,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Write .env', toolInput: undefined,
 					confirmationTitle: 'Write .env', edits: undefined,
 				},
-				permissionKind: 'write', permissionPath: '/workspace/.env',
+				permissionKind: AgentPermissionKind.Write, permissionPath: '/workspace/.env',
 			});
 
 			// Should NOT auto-approve — .env is excluded
@@ -7112,7 +7110,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Write package.json', toolInput: undefined,
 					confirmationTitle: 'Write package.json', edits: undefined,
 				},
-				permissionKind: 'write', permissionPath: '/workspace/package.json',
+				permissionKind: AgentPermissionKind.Write, permissionPath: '/workspace/package.json',
 			});
 
 			assert.strictEqual(agent.respondToPermissionCalls.length, 0);
@@ -7148,7 +7146,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Write yarn.lock', toolInput: undefined,
 					confirmationTitle: 'Write yarn.lock', edits: undefined,
 				},
-				permissionKind: 'write', permissionPath: '/workspace/yarn.lock',
+				permissionKind: AgentPermissionKind.Write, permissionPath: '/workspace/yarn.lock',
 			});
 
 			assert.strictEqual(agent.respondToPermissionCalls.length, 0);
@@ -7184,7 +7182,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Write .git/config', toolInput: undefined,
 					confirmationTitle: 'Write .git/config', edits: undefined,
 				},
-				permissionKind: 'write', permissionPath: '/workspace/.git/config',
+				permissionKind: AgentPermissionKind.Write, permissionPath: '/workspace/.git/config',
 			});
 
 			assert.strictEqual(agent.respondToPermissionCalls.length, 0);
@@ -7225,7 +7223,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Read src/app.ts', toolInput: undefined,
 					confirmationTitle: undefined, edits: undefined,
 				},
-				permissionKind: 'read', permissionPath: '/workspace/src/app.ts',
+				permissionKind: AgentPermissionKind.Read, permissionPath: '/workspace/src/app.ts',
 			});
 
 			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
@@ -7267,7 +7265,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Read /etc/passwd', toolInput: undefined,
 					confirmationTitle: undefined, edits: undefined,
 				},
-				permissionKind: 'read', permissionPath: '/etc/passwd',
+				permissionKind: AgentPermissionKind.Read, permissionPath: '/etc/passwd',
 			});
 
 			assert.strictEqual(agent.respondToPermissionCalls.length, 0);
@@ -8776,7 +8774,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Read src/app.ts', toolInput: undefined,
 					confirmationTitle: undefined, edits: undefined,
 				},
-				permissionKind: 'read', permissionPath: '/workspace/src/app.ts',
+				permissionKind: AgentPermissionKind.Read, permissionPath: '/workspace/src/app.ts',
 			});
 
 			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
@@ -8837,7 +8835,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Write /tmp/foo', toolInput: undefined,
 					confirmationTitle: undefined, edits: undefined,
 				},
-				permissionKind: 'write', permissionPath: '/tmp/foo',
+				permissionKind: AgentPermissionKind.Write, permissionPath: '/tmp/foo',
 			});
 
 			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
@@ -9306,7 +9304,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Run custom tool', toolInput: undefined,
 					confirmationTitle: 'Run custom tool', edits: undefined,
 				},
-				permissionKind: 'custom-tool', permissionPath: undefined,
+				permissionKind: AgentPermissionKind.CustomTool, permissionPath: undefined,
 			});
 
 			const state = await waitForState(stateManager, () => {
@@ -9325,7 +9323,7 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(tc.toolCall.options!.map(o => o.id), ['allow-session', 'allow-once', 'skip']);
 		});
 
-		test('ChatToolCallConfirmed with allow-session adds tool to session permissions', () => {
+		test('ChatToolCallConfirmed with allow-session adds tool to session permissions', async () => {
 			setupSession();
 			stateManager.setSessionConfig(sessionUri.toString(), {
 				schema: { type: 'object', properties: {} },
@@ -9359,17 +9357,24 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Run custom tool', toolInput: undefined,
 					confirmationTitle: 'Run custom tool', edits: undefined,
 				},
-				permissionKind: 'custom-tool', permissionPath: undefined,
+				permissionKind: AgentPermissionKind.CustomTool, permissionPath: undefined,
 			});
 
-			sideEffects.handleAction(defaultChatUri, {
+			await waitForState(stateManager, () => {
+				const part = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'tc-perm-2');
+				return part?.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.PendingConfirmation || undefined;
+			});
+
+			const confirmation: ChatAction = {
 				type: ActionType.ChatToolCallConfirmed,
 				turnId: 'turn-1',
 				toolCallId: 'tc-perm-2',
 				approved: true,
-				confirmed: 'user-action' as const,
+				confirmed: ToolCallConfirmationReason.UserAction,
 				selectedOptionId: 'allow-session',
-			} as ChatAction);
+			};
+			stateManager.dispatchClientAction(defaultChatUri, confirmation, { clientId: 'test-client', clientSeq: 1 });
+			sideEffects.handleAction(defaultChatUri, confirmation);
 
 			const updatedState = stateManager.getSessionState(sessionUri.toString());
 			assert.deepStrictEqual(
@@ -9412,7 +9417,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Run custom tool', toolInput: undefined,
 					confirmationTitle: 'Run custom tool', edits: undefined,
 				},
-				permissionKind: 'custom-tool', permissionPath: undefined,
+				permissionKind: AgentPermissionKind.CustomTool, permissionPath: undefined,
 			});
 
 			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
@@ -9452,7 +9457,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Run managed custom tool', toolInput: undefined,
 					confirmationTitle: 'Run managed custom tool', edits: undefined,
 				},
-				permissionKind: 'custom-tool',
+				permissionKind: AgentPermissionKind.CustomTool,
 				managedApprovalRequired: true,
 			});
 
@@ -9500,7 +9505,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Run managed tool', toolInput: undefined,
 					confirmationTitle: 'Run managed tool', edits: undefined,
 				},
-				permissionKind: 'custom-tool',
+				permissionKind: AgentPermissionKind.CustomTool,
 				managedApprovalRequired: true,
 			});
 
@@ -9515,7 +9520,7 @@ suite('AgentSideEffects', () => {
 				turnId: 'turn-1',
 				toolCallId: 'tc-managed',
 				approved: true,
-				confirmed: 'user-action',
+				confirmed: ToolCallConfirmationReason.UserAction,
 				selectedOptionId: 'allow-session',
 			} as ChatAction);
 
@@ -9586,13 +9591,43 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Run custom tool', toolInput: undefined,
 					confirmationTitle: 'Run custom tool', edits: undefined,
 				},
-				permissionKind: 'custom-tool', permissionPath: undefined,
+				permissionKind: AgentPermissionKind.CustomTool, permissionPath: undefined,
 			});
 
 			await waitForState(stateManager, () => agent.respondToPermissionCalls.length > 0 || undefined);
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'inner-perm-1', approved: true },
 			]);
+		});
+
+		test('permission denies reject with host_policy despite Allow All and dispatch no ready action', async () => {
+			setupSession();
+			stateManager.setSessionConfig(sessionUri.toString(), {
+				schema: { type: 'object', properties: {} },
+				values: { [SessionConfigKey.AutoApprove]: 'autoApprove', [SessionConfigKey.Permissions]: { allow: ['CustomTool'], deny: ['CustomTool'] } },
+			});
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [AgentHostGlobalAutoApproveEnabledConfigKey]: true } });
+			startTurn('turn-denied');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const responses: Parameters<IAgent['respondToPermissionRequest']>[] = [];
+			agent.respondToPermissionRequest = (...args) => { responses.push(args); };
+			const readyActions: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.ChatToolCallReady) {
+					readyActions.push(envelope);
+				}
+			}));
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: { type: ActionType.ChatToolCallStart, turnId: 'turn-denied', toolCallId: 'tc-denied', toolName: 'CustomTool', displayName: 'Custom Tool' },
+			});
+			agent.fireProgress({
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
+				state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tc-denied', toolName: 'CustomTool', displayName: 'Custom Tool', invocationMessage: 'Run tool', confirmationTitle: 'Run tool?' },
+				permissionKind: AgentPermissionKind.CustomTool,
+			});
+			await waitForState(stateManager, () => responses.length > 0 || undefined);
+			assert.deepStrictEqual({ responses, readyActions }, { responses: [['tc-denied', false, { decisionSource: 'host_policy' }]], readyActions: [] });
 		});
 
 		test('hard-denies a write to a snapshot under the session attachments dir, even with global auto-approve, and dispatches no confirmation-ready action (#331154)', async () => {
@@ -9644,7 +9679,7 @@ suite('AgentSideEffects', () => {
 					invocationMessage: 'Edit file', toolInput: undefined,
 					confirmationTitle: 'Edit file', edits: undefined,
 				},
-				permissionKind: 'write',
+				permissionKind: AgentPermissionKind.Write,
 				permissionPath: '/session-data/session-1/attachments/abc/Pasted text #1.txt',
 			});
 
