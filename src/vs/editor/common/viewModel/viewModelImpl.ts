@@ -204,7 +204,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			return [];
 		}
 		const decorations = this.model.getCustomLineHeightsDecorations(this._editorId);
-		return CustomLineHeightData.fromDecorations(decorations, this.coordinatesConverter, this._configuration);
+		return CustomLineHeightData.fromDecorations(decorations, this.coordinatesConverter, this._configuration, this._lines.getHiddenAreas());
 	}
 
 	private _getCustomLineHeightsForLines(fromLineNumber: number, toLineNumber: number): CustomLineHeightData[] {
@@ -214,7 +214,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		}
 		const modelRange = new Range(fromLineNumber, 1, toLineNumber, this.model.getLineMaxColumn(toLineNumber));
 		const decorations = this.model.getCustomLineHeightsDecorationsInRange(modelRange, this._editorId);
-		return CustomLineHeightData.fromDecorations(decorations, this.coordinatesConverter, this._configuration);
+		return CustomLineHeightData.fromDecorations(decorations, this.coordinatesConverter, this._configuration, this._lines.getHiddenAreas());
 	}
 
 	private _updateConfigurationViewLineCountNow(): void {
@@ -481,8 +481,11 @@ export class ViewModel extends Disposable implements IViewModel {
 				this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
 					for (const change of filteredChanges) {
 						const { decorationId, lineNumber, lineHeightMultiplier } = change;
-						const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
 						if (lineHeightMultiplier !== null) {
+							if (!this.coordinatesConverter.modelPositionIsVisible(new Position(lineNumber, 1))) {
+								continue;
+							}
+							const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
 							accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeightMultiplier * this._configuration.options.get(EditorOption.lineHeight));
 						} else {
 							accessor.removeCustomLineHeight(decorationId);
