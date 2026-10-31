@@ -18,9 +18,9 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { resizeImage } from '../../contrib/chat/browser/chatImageUtils.js';
 import { ILanguageModelIgnoredFilesService } from '../../contrib/chat/common/ignoredFiles.js';
-import { IChatMessage, IChatResponsePart, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
+import { getLanguageModelAccessAccountName, IChatMessage, IChatResponsePart, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
-import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationProviderSessionOptions, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
@@ -54,6 +54,8 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	private readonly _proxy: ExtHostLanguageModelsShape;
 	private readonly _store = new DisposableStore();
 	private readonly _providerRegistrations = new DisposableMap<string>();
+	private readonly _authenticationProviderRegistrations = new DisposableMap<string>();
+	private readonly _providerModelMetadata = new Map<string, ILanguageModelChatMetadataAndIdentifier[]>();
 	private readonly _lmProviderChange = new Emitter<{ vendor: string }>();
 	private readonly _pendingProgress = new Map<number, { defer: DeferredPromise<unknown>; stream: AsyncIterableSource<IChatResponsePart | IChatResponsePart[]> }>();
 	private readonly _pendingCancelCTS = new DisposableMap<number, RequestCancellationTokenSource>();
@@ -76,7 +78,18 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		// re-publish models with metadata-only diffs many times per second; firing on those lets listeners
 		// that re-resolve models (e.g. `selectChatModels`) spin an unbounded CPU-pinning feedback loop.
 		let lastModelIds = new Set(this._chatProviderService.getLanguageModelIds());
-		this._store.add(this._chatProviderService.onDidChangeLanguageModels(() => {
+		this._store.add(this._chatProviderService.onDidChangeLanguageModels(vendor => {
+			if (this._providerModelMetadata.has(vendor)) {
+				const models: ILanguageModelChatMetadataAndIdentifier[] = [];
+				for (const identifier of this._chatProviderService.getLanguageModelIds()) {
+					const metadata = this._chatProviderService.lookupLanguageModel(identifier);
+					if (metadata?.vendor === vendor) {
+						models.push({ identifier, metadata });
+					}
+				}
+				this._providerModelMetadata.set(vendor, models);
+				this._updateAuthenticationProviders();
+			}
 			const currentModelIds = new Set(this._chatProviderService.getLanguageModelIds());
 			if (equalSets(lastModelIds, currentModelIds)) {
 				return;
@@ -89,6 +102,8 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	dispose(): void {
 		this._lmProviderChange.dispose();
 		this._providerRegistrations.dispose();
+		this._authenticationProviderRegistrations.dispose();
+		this._providerModelMetadata.clear();
 		this._pendingProgress.clear();
 		this._pendingCancelCTS.dispose();
 		this._ignoredFileProviderRegistrations.dispose();
@@ -102,11 +117,19 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 				onDidChange: Event.filter(this._lmProviderChange.event, e => e.vendor === vendor, disposables) as unknown as Event<void>,
 				provideLanguageModelChatInfo: async (options, token) => {
 					const modelsAndIdentifiers = await this._proxy.$provideLanguageModelChatInfo(vendor, options, token);
+					if (disposables.isDisposed) {
+						return [];
+					}
 					const copilotExtensionId = this._productService.defaultChatAgent?.chatExtensionId;
+					// Discovery can return one configured group at a time. Preserve other groups
+					// until the service publishes the complete vendor catalogue above.
+					const models = new Map((this._providerModelMetadata.get(vendor) ?? []).map(model => [model.identifier, model]));
+					for (const model of modelsAndIdentifiers) {
+						models.set(model.identifier, model);
+					}
+					this._providerModelMetadata.set(vendor, [...models.values()]);
+					this._updateAuthenticationProviders();
 					return modelsAndIdentifiers.map(m => {
-						if (m.metadata.auth) {
-							disposables.add(this._registerAuthenticationProvider(m.metadata.extension, m.metadata.auth));
-						}
 						if (m.metadata.isBYOK !== undefined) {
 							return m; // provider declared it explicitly
 						}
@@ -165,7 +188,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 					} satisfies ILanguageModelChatResponse;
 				},
 				provideTokenCount: (modelId, str, token) => {
-					return this._proxy.$provideTokenLength(modelId, str, token);
+					return this._proxy.$provideTokenLength(modelId, typeof str === 'string' ? str : new SerializableObjectWithBuffers(str), token);
 				},
 			}));
 			this._providerRegistrations.set(vendor, disposables);
@@ -206,6 +229,8 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 
 	$unregisterProvider(vendor: string): void {
 		this._providerRegistrations.deleteAndDispose(vendor);
+		this._providerModelMetadata.delete(vendor);
+		this._updateAuthenticationProviders();
 	}
 
 	$cancelLanguageModelChatRequest(requestId: number): void {
@@ -216,8 +241,29 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		return this._chatProviderService.selectLanguageModels(selector);
 	}
 
+	async $lookupChatModels(identifiers: string[]): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
+		const result: ILanguageModelChatMetadataAndIdentifier[] = [];
+		for (const identifier of identifiers) {
+			const metadata = this._chatProviderService.lookupLanguageModel(identifier);
+			if (metadata) {
+				result.push({ identifier, metadata });
+			}
+		}
+		return result;
+	}
+
 	async $tryStartChatRequest(extension: ExtensionIdentifier, modelIdentifier: string, requestId: number, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: {}, token: CancellationToken): Promise<void> {
 		this._logService.trace('[CHAT] request STARTED', extension.value, requestId);
+		const metadata = this._chatProviderService.lookupLanguageModel(modelIdentifier);
+		if (!metadata) {
+			throw LanguageModelError.NotFound(modelIdentifier);
+		}
+		if (metadata.auth && !ExtensionIdentifier.equals(extension, metadata.extension)) {
+			const providerId = INTERNAL_AUTH_PROVIDER_PREFIX + metadata.extension.value;
+			if (this._authenticationAccessService.isAccessAllowed(providerId, getLanguageModelAccessAccountName(metadata.auth), extension.value) !== true) {
+				throw LanguageModelError.NoPermissions(`Language model '${modelIdentifier}' cannot be used by '${extension.value}'.`);
+			}
+		}
 
 		// Create a local CTS so cancellation can be signalled via
 		// $cancelLanguageModelChatRequest even after the RPC cancel
@@ -264,29 +310,63 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	}
 
 
-	$countTokens(modelId: string, value: string | IChatMessage, token: CancellationToken): Promise<number> {
-		return this._chatProviderService.computeTokenLength(modelId, value, token);
+	$countTokens(modelId: string, value: string | SerializableObjectWithBuffers<IChatMessage>, token: CancellationToken): Promise<number> {
+		return this._chatProviderService.computeTokenLength(modelId, typeof value === 'string' ? value : value.value, token);
 	}
 
-	private _registerAuthenticationProvider(extension: ExtensionIdentifier, auth: { providerLabel: string; accountLabel?: string | undefined }): IDisposable {
+	private _updateAuthenticationProviders(): void {
+		const accountsByOwner = new Map<string, { extension: ExtensionIdentifier; auth: NonNullable<ILanguageModelChatMetadataAndIdentifier['metadata']['auth']>; labels: Set<string> }>();
+		for (const models of this._providerModelMetadata.values()) {
+			for (const { metadata } of models) {
+				if (metadata.auth) {
+					const key = ExtensionIdentifier.toKey(metadata.extension);
+					let entry = accountsByOwner.get(key);
+					if (!entry) {
+						entry = { extension: metadata.extension, auth: metadata.auth, labels: new Set() };
+						accountsByOwner.set(key, entry);
+					}
+					entry.labels.add(getLanguageModelAccessAccountName(metadata.auth));
+				}
+			}
+		}
+		for (const key of this._authenticationProviderRegistrations.keys()) {
+			if (!accountsByOwner.has(key)) {
+				this._authenticationProviderRegistrations.deleteAndDispose(key);
+			}
+		}
+		for (const [key, { extension, auth, labels }] of accountsByOwner) {
+			const registration = this._registerAuthenticationProvider(extension, auth, labels);
+			if (registration !== Disposable.None) {
+				this._authenticationProviderRegistrations.set(key, registration);
+			}
+		}
+	}
+
+	private _registerAuthenticationProvider(extension: ExtensionIdentifier, auth: { providerLabel: string; accountLabel?: string | undefined }, accountLabels: ReadonlySet<string>): IDisposable {
 		// This needs to be done in both MainThread & ExtHost ChatProvider
 		const authProviderId = INTERNAL_AUTH_PROVIDER_PREFIX + extension.value;
 
 		// Only register one auth provider per extension
 		if (this._authenticationService.getProviderIds().includes(authProviderId)) {
+			const provider = this._authenticationService.getProvider(authProviderId);
+			if (provider instanceof LanguageModelAccessAuthProvider) {
+				provider.updateAccountLabels(accountLabels);
+			}
 			return Disposable.None;
 		}
 
-		const accountLabel = auth.accountLabel ?? localize('languageModelsAccountId', 'Language Models');
 		const disposables = new DisposableStore();
-		const provider = new LanguageModelAccessAuthProvider(authProviderId, auth.providerLabel, accountLabel);
+		const provider = new LanguageModelAccessAuthProvider(authProviderId, auth.providerLabel, accountLabels);
 		this._authenticationService.registerAuthenticationProvider(authProviderId, provider);
 		disposables.add(toDisposable(() => {
 			this._authenticationService.unregisterAuthenticationProvider(authProviderId);
 			provider.dispose();
 		}));
 		disposables.add(this._authenticationAccessService.onDidChangeExtensionSessionAccess(async (e) => {
-			const allowedExtensions = this._authenticationAccessService.readAllowedExtensions(authProviderId, accountLabel);
+			if (e.providerId !== authProviderId || !provider.accountLabels.has(e.accountName)) {
+				return;
+			}
+			const allowedExtensions = this._authenticationAccessService.readAllowedExtensions(authProviderId, e.accountName);
 			const accessList = [];
 			for (const allowedExtension of allowedExtensions) {
 				const from = await this._extensionService.getExtension(allowedExtension.id);
@@ -320,36 +400,68 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 
 // The fake AuthenticationProvider that will be used to gate access to the Language Model. There will be one per provider.
 class LanguageModelAccessAuthProvider implements IAuthenticationProvider {
-	supportsMultipleAccounts = false;
+	supportsMultipleAccounts = true;
 
 	// Important for updating the UI
 	private _onDidChangeSessions: Emitter<AuthenticationSessionsChangeEvent> = new Emitter<AuthenticationSessionsChangeEvent>();
 	readonly onDidChangeSessions: Event<AuthenticationSessionsChangeEvent> = this._onDidChangeSessions.event;
 
-	private _session: AuthenticationSession | undefined;
+	private readonly _sessions = new Map<string, AuthenticationSession>();
+	private _accountLabels: ReadonlySet<string>;
 
-	constructor(readonly id: string, readonly label: string, private readonly _accountLabel: string) { }
+	constructor(readonly id: string, readonly label: string, accountLabels: ReadonlySet<string>) {
+		this._accountLabels = new Set(accountLabels);
+	}
 
-	async getSessions(scopes?: string[] | undefined): Promise<readonly AuthenticationSession[]> {
+	get accountLabels(): ReadonlySet<string> {
+		return this._accountLabels;
+	}
+
+	updateAccountLabels(accountLabels: ReadonlySet<string>): void {
+		this._accountLabels = new Set(accountLabels);
+		const removed: AuthenticationSession[] = [];
+		for (const [label, session] of this._sessions) {
+			if (!accountLabels.has(label)) {
+				this._sessions.delete(label);
+				removed.push(session);
+			}
+		}
+		if (removed.length) {
+			this._onDidChangeSessions.fire({ added: [], changed: [], removed });
+		}
+	}
+
+	async getSessions(scopes: string[] | undefined, options: IAuthenticationProviderSessionOptions = {}): Promise<readonly AuthenticationSession[]> {
 		// If there are no scopes and no session that means no extension has requested a session yet
 		// and the user is simply opening the Account menu. In that case, we should not return any "sessions".
-		if (scopes === undefined && !this._session) {
-			return [];
+		const labels = options.account ? [options.account.label].filter(label => this._accountLabels.has(label)) : [...this._accountLabels];
+		const sessions: AuthenticationSession[] = [];
+		for (const label of labels) {
+			const session = this._sessions.get(label);
+			if (session) {
+				sessions.push(session);
+			} else if (scopes !== undefined) {
+				sessions.push(await this.createSession(scopes, { account: { id: label, label } }));
+			}
 		}
-		if (this._session) {
-			return [this._session];
-		}
-		return [await this.createSession(scopes || [])];
+		return sessions;
 	}
-	async createSession(scopes: string[]): Promise<AuthenticationSession> {
-		this._session = this._createFakeSession(scopes);
-		this._onDidChangeSessions.fire({ added: [this._session], changed: [], removed: [] });
-		return this._session;
+	async createSession(scopes: string[], options: IAuthenticationProviderSessionOptions = {}): Promise<AuthenticationSession> {
+		const label = options.account?.label ?? this._accountLabels.values().next().value;
+		if (label === undefined || !this._accountLabels.has(label)) {
+			throw LanguageModelError.NotFound('The requested language model account is unavailable.');
+		}
+		const session = this._createFakeSession(scopes, label);
+		this._sessions.set(label, session);
+		this._onDidChangeSessions.fire({ added: [session], changed: [], removed: [] });
+		return session;
 	}
 	removeSession(sessionId: string): Promise<void> {
-		if (this._session) {
-			this._onDidChangeSessions.fire({ added: [], changed: [], removed: [this._session] });
-			this._session = undefined;
+		for (const [label, session] of this._sessions) {
+			if (session.id === sessionId) {
+				this._sessions.delete(label);
+				this._onDidChangeSessions.fire({ added: [], changed: [], removed: [session] });
+			}
 		}
 		return Promise.resolve();
 	}
@@ -358,12 +470,12 @@ class LanguageModelAccessAuthProvider implements IAuthenticationProvider {
 		return localize('confirmLanguageModelAccess', "The extension '{0}' wants to access the language models provided by {1}.", extensionName, this.label);
 	}
 
-	private _createFakeSession(scopes: string[]): AuthenticationSession {
+	private _createFakeSession(scopes: string[], accountLabel: string): AuthenticationSession {
 		return {
-			id: 'fake-session',
+			id: `fake-session:${accountLabel}`,
 			account: {
-				id: this.id,
-				label: this._accountLabel,
+				id: accountLabel,
+				label: accountLabel,
 			},
 			accessToken: 'fake-access-token',
 			scopes,
