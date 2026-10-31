@@ -69,6 +69,7 @@ import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { buildMcpResourceUri, buildToolResultResourceUri } from '../../common/mcpResourceUri.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, isChatAction, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
+import { chatToolCallComplete, chatToolCallStart, chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta, type MessageAttachment } from '../../common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../common/state/sessionReducers.js';
@@ -17223,10 +17224,7 @@ Use the attached image as context.
 						executions: mockSession.samplingExecutions,
 						responses: mockSession.samplingResponses,
 					}, {
-						start: {
-							type: ActionType.ChatToolCallStart, turnId: 'turn-sampling',
-							toolCallId: ready.toolCallId, toolName: 'mcp_sampling', displayName: 'MCP Sampling',
-						},
+						start: chatToolCallStart('turn-sampling', ready.toolCallId, 'mcp_sampling', 'MCP Sampling'),
 						ready: {
 							type: ActionType.ChatToolCallReady, turnId: 'turn-sampling', toolCallId: '<sampling-id>',
 							invocationMessage: 'MCP server \'test-server\' wants to send a 32-character long message to the language model.',
@@ -17572,10 +17570,7 @@ Use the attached image as context.
 				}, {
 					executions: [],
 					responses: [],
-					completions: [{
-						type: ActionType.ChatToolCallComplete, turnId: 'turn-sampling', toolCallId: ready.toolCallId,
-						result: { success: false, pastTenseMessage: 'Sampling for test-server did not complete' },
-					}],
+					completions: [chatToolCallComplete('turn-sampling', ready.toolCallId, { success: false, pastTenseMessage: 'Sampling for test-server did not complete' })],
 					acceptsLateApproval: false,
 				});
 			});
@@ -20230,7 +20225,7 @@ Use the attached image as context.
 								message: signal.kind === 'subagent_resumed' && signal.message ? signal.message : { text: 'Seed', origin: { kind: MessageKind.Tool } },
 							});
 						} else if (signal.kind === 'subagent_completed' && signal.toolCallId === 'task' && chat.activeTurn) {
-							chat = chatReducer(chat, { type: ActionType.ChatTurnComplete, turnId: chat.activeTurn.id, duration: 0 });
+							chat = chatReducer(chat, chatTurnComplete(chat.activeTurn.id, 0));
 						} else if (signal.kind === 'action' && signal.parentToolCallId === 'task' && chat.activeTurn && isChatAction(signal.action) && hasKey(signal.action, { turnId: true })) {
 							chat = chatReducer(chat, { ...signal.action, turnId: chat.activeTurn.id });
 						}
@@ -23960,13 +23955,7 @@ Use the attached image as context.
 			assert.deepStrictEqual(skillActions, [
 				{
 					parentToolCallId: 'tc-subagent',
-					action: {
-						type: ActionType.ChatToolCallStart,
-						turnId: 'turn-1',
-						toolCallId: 'synth-skill-skill-event',
-						toolName: 'skill',
-						displayName: 'Read Skill',
-					},
+					action: chatToolCallStart('turn-1', 'synth-skill-skill-event', 'skill', 'Read Skill'),
 				},
 				{
 					parentToolCallId: 'tc-subagent',
@@ -28764,10 +28753,7 @@ Use the attached image as context.
 				const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, {
 					serverToolHost, clientSnapshot, activeClientToolSet, resume,
 				});
-				stateManager.dispatchServerAction(buildDefaultChatUri(sessionUri), {
-					type: ActionType.ChatTurnStarted, turnId: 'artifact-tools', startedAt: new Date(0).toISOString(),
-					message: { text: 'Manage the recorded artifacts', origin: { kind: MessageKind.User } },
-				});
+				stateManager.dispatchServerAction(buildDefaultChatUri(sessionUri), chatTurnStarted('artifact-tools', 'Manage the recorded artifacts', new Date(0).toISOString()));
 				const [search] = runtime.createClientSdkTools(true);
 				const tools = runtime.createServerSdkTools();
 				const definitions = serverToolHost.getDefinitionsForSession(sessionUri);

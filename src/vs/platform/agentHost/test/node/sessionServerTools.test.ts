@@ -15,6 +15,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { buildChatUri, buildDefaultChatUri, ChatInteractivity, ChatOriginKind, getAgentHostChatId, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, withSessionWorkspaceless, type ModelSelection, type ResponsePart, type SessionActiveClient, type ToolCallState, type ToolDefinition, type Turn } from '../../common/state/sessionState.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
@@ -2874,12 +2875,7 @@ suite('SessionServerTools', () => {
 			modifiedAt: new Date(0).toISOString(),
 			defaultChat: buildDefaultChatUri(targetSession),
 		});
-		stateManager.dispatchServerAction(targetChat, {
-			type: ActionType.ChatTurnStarted,
-			turnId: 'active-turn',
-			startedAt: new Date(0).toISOString(),
-			message: { text: 'running', origin: { kind: MessageKind.User } },
-		});
+		stateManager.dispatchServerAction(targetChat, chatTurnStarted('active-turn', 'running', new Date(0).toISOString()));
 		const prompts: string[] = [];
 		const group = createSessionServerToolGroup(createAccessor({
 			listSessions: async () => [sessionMeta('s1', SessionStatus.InProgress, workspace), sessionMeta('s2', SessionStatus.InProgress, workspace)],
@@ -3002,10 +2998,7 @@ suite('SessionServerTools', () => {
 				resource: targetSession, provider: 'copilot', title: 'Target', status: SessionStatus.InProgress,
 				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: targetChat,
 			});
-			stateManager.dispatchServerAction(targetChat, {
-				type: ActionType.ChatTurnStarted, turnId: 'running', startedAt: new Date(0).toISOString(),
-				message: { text: 'Running', origin: { kind: MessageKind.User } },
-			});
+			stateManager.dispatchServerAction(targetChat, chatTurnStarted('running', 'Running', new Date(0).toISOString()));
 			const accessor = createAccessor({
 				listSessions: async () => [sessionMeta('s1', SessionStatus.InProgress, workspace), sessionMeta('s2', SessionStatus.InProgress, workspace)],
 				getCredentialSource: chat => ({
@@ -3034,12 +3027,7 @@ suite('SessionServerTools', () => {
 			modifiedAt: new Date(0).toISOString(),
 			defaultChat: buildDefaultChatUri(targetSession),
 		});
-		stateManager.dispatchServerAction(targetChat, {
-			type: ActionType.ChatTurnStarted,
-			turnId: 'active-turn',
-			startedAt: new Date(0).toISOString(),
-			message: { text: 'running', origin: { kind: MessageKind.User } },
-		});
+		stateManager.dispatchServerAction(targetChat, chatTurnStarted('active-turn', 'running', new Date(0).toISOString()));
 		const group = createSessionServerToolGroup(createAccessor({
 			listSessions: async () => [sessionMeta('s1', SessionStatus.InProgress, workspace), sessionMeta('s2', SessionStatus.InProgress, workspace)],
 		}));
@@ -3088,12 +3076,7 @@ suite('SessionServerTools', () => {
 			modifiedAt: new Date(0).toISOString(),
 			defaultChat: buildDefaultChatUri(targetSession),
 		});
-		stateManager.dispatchServerAction(targetChat, {
-			type: ActionType.ChatTurnStarted,
-			turnId: 'active-turn',
-			startedAt: new Date(0).toISOString(),
-			message: { text: 'running', origin: { kind: MessageKind.User } },
-		});
+		stateManager.dispatchServerAction(targetChat, chatTurnStarted('active-turn', 'running', new Date(0).toISOString()));
 		const group = createSessionServerToolGroup(createAccessor({
 			listSessions: async () => [sessionMeta('s1', SessionStatus.InProgress, workspace), sessionMeta('s2', SessionStatus.InProgress, workspace), sessionMeta('s3', SessionStatus.InProgress, workspace)],
 		}));
@@ -3121,7 +3104,7 @@ suite('SessionServerTools', () => {
 
 		const queuedMessage = stateManager.getChatState(targetChat)?.queuedMessages?.[0]?.message;
 		assert.ok(queuedMessage);
-		stateManager.dispatchServerAction(targetChat, { type: ActionType.ChatTurnComplete, turnId: 'active-turn', duration: 1 });
+		stateManager.dispatchServerAction(targetChat, chatTurnComplete('active-turn', 1));
 		stateManager.dispatchServerAction(targetChat, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'delegated-turn',
@@ -3132,7 +3115,7 @@ suite('SessionServerTools', () => {
 		const processing = JSON.parse(await group.execute(stateManager, source, SessionServerToolName.SendMessage, {
 			operation: 'replace', session: targetSession, messageId: first.messageId, expectedRevision: 2, message: 'too late',
 		}));
-		stateManager.dispatchServerAction(targetChat, { type: ActionType.ChatTurnComplete, turnId: 'delegated-turn', duration: 1 });
+		stateManager.dispatchServerAction(targetChat, chatTurnComplete('delegated-turn', 1));
 		const completed = JSON.parse(await group.execute(stateManager, source, SessionServerToolName.SendMessage, {
 			operation: 'replace', session: targetSession, messageId: first.messageId, expectedRevision: 2, message: 'still too late',
 		}));

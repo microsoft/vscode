@@ -11,7 +11,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { mock } from '../../../../base/test/common/mock.js';
 import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey } from '../../common/agentHostSchema.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, buildDefaultChatUri, isSessionStatusArchived, MessageKind, SessionStatus, withSessionExternal, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { chatTurnStarted } from '../common/chatActionBuilders.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, buildDefaultChatUri, isSessionStatusArchived, SessionStatus, withSessionExternal, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import type { IAgentHostPullRequestStatus, IAgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
@@ -312,12 +313,7 @@ suite('AgentHostSessionLifecycle', () => {
 			status: mergedPullRequestStatus(),
 			onResolve: (_configurationService, manager, resource, resolveCount) => {
 				if (resolveCount === 2) {
-					manager.dispatchServerAction(buildDefaultChatUri(resource.toString()), {
-						type: ActionType.ChatTurnStarted,
-						turnId: 'turn-1',
-						startedAt: new Date(NOW).toISOString(),
-						message: { text: 'continue', origin: { kind: MessageKind.User } },
-					});
+					manager.dispatchServerAction(buildDefaultChatUri(resource.toString()), chatTurnStarted('turn-1', 'continue', new Date(NOW).toISOString()));
 				}
 			},
 		});

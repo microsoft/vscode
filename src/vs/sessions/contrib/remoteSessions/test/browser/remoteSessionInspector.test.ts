@@ -21,7 +21,7 @@ import { IAgentConnection, IAgentHostService } from '../../../../../platform/age
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentSubscriptionManager, IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { chatTurnStarted } from '../../../../../platform/agentHost/test/common/chatActionBuilders.js';
 import { IStateSnapshot } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { buildChatUri, buildDefaultChatUri, ChatState, ComponentToState, createChatState, createSessionState, MessageKind, ResponsePartKind, SessionLifecycle, SessionState, SessionStatus, StateComponents, TurnState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -260,10 +260,7 @@ suite('RemoteSessionInspector', () => {
 		const chat = store.add(first.getSubscription(StateComponents.Chat, URI.parse(defaultChat), 'existing-owner'));
 		await readRemoteSessionState(session.object, CancellationToken.None);
 		const original = await readRemoteSessionState(chat.object, CancellationToken.None);
-		first.manager.dispatchOptimistic(defaultChat, {
-			type: ActionType.ChatTurnStarted, turnId: 'unconfirmed', startedAt: '2026-01-01T00:01:00.000Z',
-			message: { text: 'Not acknowledged yet', origin: { kind: MessageKind.User } },
-		});
+		first.manager.dispatchOptimistic(defaultChat, chatTurnStarted('unconfirmed', 'Not acknowledged yet', '2026-01-01T00:01:00.000Z'));
 		const before = first.manager.getActiveSubscriptions();
 		const result = await inspect();
 		assert.deepStrictEqual({

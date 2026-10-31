@@ -22,7 +22,8 @@ import { IAgentService } from '../../common/agentService.js';
 import { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, ROOT_STATE_URI, SessionStatus, withSessionExternal, type ISessionWithDefaultChat, type SessionSummary } from '../../common/state/sessionState.js';
+import { chatTurnStarted } from '../common/chatActionBuilders.js';
+import { buildDefaultChatUri, ROOT_STATE_URI, SessionStatus, withSessionExternal, type ISessionWithDefaultChat, type SessionSummary } from '../../common/state/sessionState.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
@@ -511,10 +512,7 @@ suite('Mission Control host integration', () => {
 					envelopes.push(envelope);
 				}
 			}));
-			f.state.dispatchServerAction(buildDefaultChatUri(session), {
-				type: ActionType.ChatTurnStarted, turnId: 'first-turn', startedAt: summary.createdAt,
-				message: { text: 'First user message', origin: { kind: MessageKind.User } },
-			});
+			f.state.dispatchServerAction(buildDefaultChatUri(session), chatTurnStarted('first-turn', 'First user message', summary.createdAt));
 			f.state.dispatchServerAction(session, { type: ActionType.SessionReady });
 			f.state.dispatchServerAction(session, { type: ActionType.SessionTitleChanged, title: 'Real conversation' });
 			await f.publisher.registerSession(session);
@@ -560,10 +558,7 @@ suite('Mission Control host integration', () => {
 				_meta: withSessionExternal(undefined, true),
 			}, [], creationTimeChatStorageResource);
 			f.state.dispatchServerAction(session, { type: ActionType.SessionTitleChanged, title: 'Renamed' });
-			f.state.dispatchServerAction(buildDefaultChatUri(session), {
-				type: ActionType.ChatTurnStarted, turnId: 'external-turn', startedAt: '2026-10-07T18:00:00Z',
-				message: { text: 'External user message', origin: { kind: MessageKind.User } },
-			});
+			f.state.dispatchServerAction(buildDefaultChatUri(session), chatTurnStarted('external-turn', 'External user message', '2026-10-07T18:00:00Z'));
 			f.clock.runAll();
 			assert.deepStrictEqual({
 				events: f.events, sessions: f.mirror.statistics.sessions, registrations: register.callCount,
