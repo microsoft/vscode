@@ -107,6 +107,27 @@ suite('restoreMissingLegacyMarkers', () => {
 		});
 	});
 
+	test('writes nothing for markers that already exist', async () => {
+		await sessionFolders('backfilled');
+		await fs.writeFile(join(sessionStateRoot, 'backfilled', 'vscode.metadata.json'), JSON.stringify({ origin: 'vscode', customTitle: 'Kept' }));
+		await fs.writeFile(sharedBulkFile, JSON.stringify({ 'backfilled': { origin: 'vscode', customTitle: 'Bulk copy' } }));
+		const writes: string[] = [];
+		const fileSystem: typeof fs = {
+			...fs,
+			writeFile: async (...args: Parameters<typeof fs.writeFile>) => { writes.push('writeFile'); return fs.writeFile(...args); },
+			link: async (...args: Parameters<typeof fs.link>) => { writes.push('link'); return fs.link(...args); },
+			unlink: async (...args: Parameters<typeof fs.unlink>) => { writes.push('unlink'); return fs.unlink(...args); },
+		};
+
+		const result = await restoreMissingLegacyMarkers(sessionStateRoot, sharedBulkFile, undefined, 'vscode.metadata.json', new NullLogService(), fileSystem);
+
+		assert.deepStrictEqual({ exists: result.exists, writes, marker: await readMarker('backfilled') }, {
+			exists: 1,
+			writes: [],
+			marker: { origin: 'vscode', customTitle: 'Kept' },
+		});
+	});
+
 	test('never replaces a concurrent marker, and leaves the marker untouched where hard links are unsupported', async () => {
 		await sessionFolders('no-links', 'updated-without-links', 'raced');
 		await fs.writeFile(sharedBulkFile, JSON.stringify({

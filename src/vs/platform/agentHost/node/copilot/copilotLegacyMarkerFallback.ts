@@ -61,6 +61,11 @@ const SAFE_SESSION_ID = /^[\w.-]+$/;
  * workspace properties); only sessions whose folder exists are written; and the
  * marker is created only when absent, so a marker any other writer created is
  * never replaced. The entry is written as stored, without `writtenToDisc`.
+ *
+ * A marker is published only by hard-linking a fully written temporary file, the
+ * one create-only publication that is atomic. Where hard links are unsupported
+ * (some FAT or network file systems) the session is not restored and is counted
+ * as failed: it stays un-adoptable, as it was without this fallback.
  */
 export async function restoreMissingLegacyMarkers(sessionStateRoot: string, sharedBulkFile: string, perInstallBulkFile: string | undefined, markerFileName: string, logService: ILogService, fileSystem: LegacyMarkerFallbackFileSystem = fs): Promise<ILegacyMarkerFallbackResult> {
 	const [shared, perInstall] = await Promise.all([
@@ -173,6 +178,15 @@ function isNotFound(error: unknown): boolean {
  * so a concurrent update could be overwritten, or deleted on cleanup.
  */
 async function writeFileIfAbsent(path: string, content: string, fileSystem: LegacyMarkerFallbackFileSystem): Promise<boolean> {
+	// Most markers already exist after the extension's backfill; checking first avoids a temporary file for each.
+	try {
+		await fileSystem.stat(path);
+		return false;
+	} catch (error) {
+		if (getErrorCode(error) !== 'ENOENT') {
+			throw error;
+		}
+	}
 	const temp = join(dirname(path), `.${basename(path)}.${generateUuid()}.tmp`);
 	try {
 		await fileSystem.writeFile(temp, content, { flag: 'wx' });

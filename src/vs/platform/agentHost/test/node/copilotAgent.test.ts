@@ -29651,6 +29651,42 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('adopts a session the bulk metadata restored even when reporting the fallback throws', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workspace = await fs.mkdtemp(`${os.tmpdir()}/adopt-workspace-`);
+			const copilotHome = getCopilotHomePath(userHome.fsPath, {});
+			const ids = ['bulk-first', 'bulk-second'];
+			const telemetryService = new class extends NullTelemetryServiceShape {
+				override publicLog2(name?: string): void {
+					if (name === 'agentHost.legacyCopilotCliMarkerFallback') {
+						throw new Error('telemetry failed');
+					}
+				}
+			};
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient(ids.map(id => sdkSession(id, workspace)));
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome, telemetryService });
+			afterTest(async () => {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workspace, { recursive: true, force: true });
+				await disposeAgent(agent);
+			});
+			await agent.authenticate('https://api.github.com', 'token');
+			const workspaceFolder = { folderPath: workspace, timestamp: 1 };
+			for (const id of ids) {
+				await fs.mkdir(join(copilotHome, 'session-state', id), { recursive: true });
+			}
+			await fs.writeFile(join(copilotHome, 'vscode.session.metadata.cache.json'), JSON.stringify(Object.fromEntries(ids.map(id => [id, { origin: 'vscode', workspaceFolder }]))));
+
+			// The second adoption reuses the fallback's settled result.
+			const adopted: boolean[] = [];
+			for (const id of ids) {
+				adopted.push((await ensureDefaultChatAdopted(agent, AgentSession.uri('copilotcli', id))).adopted);
+			}
+
+			assert.deepStrictEqual(adopted, [true, true]);
+		});
+
 		test('keeps a deleted worktree as the working directory so resume can recreate it', async () => {
 			// Parity with native worktree sessions: the checkout is recreated from the
 			// recorded branch rather than the session being re-rooted at the repository.

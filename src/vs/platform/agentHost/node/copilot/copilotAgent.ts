@@ -82,7 +82,7 @@ import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/session
 import { getRepositoryRootFromWorktree } from '../../common/worktreePaths.js';
 import { CustomizationLoadStatus, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, ResponsePartKind, SessionStatus, withSessionEhcliAdoptable, withSessionStatusFlag, withSessionWorkspaceless, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { CopilotChatDiscovery, ICopilotChatDiscoveryScan } from './copilotChatDiscovery.js';
-import { EXTENSION_HOST_CLI_PER_INSTALL_BULK_FILE, EXTENSION_HOST_CLI_SHARED_BULK_FILE, ILegacyMarkerFallbackResult, restoreMissingLegacyMarkers } from './copilotLegacyMarkerFallback.js';
+import { EXTENSION_HOST_CLI_PER_INSTALL_BULK_FILE, EXTENSION_HOST_CLI_SHARED_BULK_FILE, restoreMissingLegacyMarkers } from './copilotLegacyMarkerFallback.js';
 import { getByokLmAgentModelId, resolveByokLmEnablement } from '../../common/agentHostByokLm.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
@@ -6389,38 +6389,37 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * those sessions un-adoptable, as before.
 	 */
 	private _restoreLegacyMarkersOnce(): Promise<void> {
-		return this._legacyMarkerFallback ??= (async () => {
-			const startTime = Date.now();
-			const settingsHome: URI | undefined = this._environmentService.appSettingsHome;
-			let result: ILegacyMarkerFallbackResult;
-			try {
-				result = await restoreMissingLegacyMarkers(
-					resourceJoinPath(this._copilotHomeService.home, 'session-state').fsPath,
-					resourceJoinPath(this._copilotHomeService.home, EXTENSION_HOST_CLI_SHARED_BULK_FILE).fsPath,
-					settingsHome ? resourceJoinPath(settingsHome, ...EXTENSION_HOST_CLI_PER_INSTALL_BULK_FILE).fsPath : undefined,
-					EXTENSION_HOST_CLI_MARKER_FILE,
-					this._logService,
-				);
-			} catch (error) {
-				this._logService.warn('[Copilot] Failed to restore extension-host markers from bulk metadata', error);
-				return;
-			}
-			if (result.sharedBulkFile === 'missing' && result.perInstallBulkFile === 'missing') {
-				return;
-			}
-			this._logService.info(`[Copilot] Restored extension-host markers from bulk metadata: shared=${result.sharedBulkFile}, perInstall=${result.perInstallBulkFile}, candidates=${result.candidates}, notVSCode=${result.notVSCode}, exists=${result.exists}, missingSessionDirectory=${result.missingSessionDirectory}, written=${result.written}, failed=${result.failed}`);
-			this._telemetryService.publicLog2<LegacyMarkerFallbackEvent, LegacyMarkerFallbackClassification>('agentHost.legacyCopilotCliMarkerFallback', {
-				sharedBulkFile: result.sharedBulkFile,
-				perInstallBulkFile: result.perInstallBulkFile,
-				candidateCount: result.candidates,
-				notVSCodeCount: result.notVSCode,
-				existingFileCount: result.exists,
-				missingSessionDirectoryCount: result.missingSessionDirectory,
-				writtenCount: result.written,
-				failedCount: result.failed,
-				durationMs: Date.now() - startTime,
-			});
-		})();
+		// Memoized for the process, so it must never reject: that would stop discovery and every later adoption.
+		return this._legacyMarkerFallback ??= this._restoreLegacyMarkers().catch(error => {
+			this._logService.warn('[Copilot] Failed to restore extension-host markers from bulk metadata', error);
+		});
+	}
+
+	private async _restoreLegacyMarkers(): Promise<void> {
+		const startTime = Date.now();
+		const settingsHome: URI | undefined = this._environmentService.appSettingsHome;
+		const result = await restoreMissingLegacyMarkers(
+			resourceJoinPath(this._copilotHomeService.home, 'session-state').fsPath,
+			resourceJoinPath(this._copilotHomeService.home, EXTENSION_HOST_CLI_SHARED_BULK_FILE).fsPath,
+			settingsHome ? resourceJoinPath(settingsHome, ...EXTENSION_HOST_CLI_PER_INSTALL_BULK_FILE).fsPath : undefined,
+			EXTENSION_HOST_CLI_MARKER_FILE,
+			this._logService,
+		);
+		if (result.sharedBulkFile === 'missing' && result.perInstallBulkFile === 'missing') {
+			return;
+		}
+		this._logService.info(`[Copilot] Restored extension-host markers from bulk metadata: shared=${result.sharedBulkFile}, perInstall=${result.perInstallBulkFile}, candidates=${result.candidates}, notVSCode=${result.notVSCode}, exists=${result.exists}, missingSessionDirectory=${result.missingSessionDirectory}, written=${result.written}, failed=${result.failed}`);
+		this._telemetryService.publicLog2<LegacyMarkerFallbackEvent, LegacyMarkerFallbackClassification>('agentHost.legacyCopilotCliMarkerFallback', {
+			sharedBulkFile: result.sharedBulkFile,
+			perInstallBulkFile: result.perInstallBulkFile,
+			candidateCount: result.candidates,
+			notVSCodeCount: result.notVSCode,
+			existingFileCount: result.exists,
+			missingSessionDirectoryCount: result.missingSessionDirectory,
+			writtenCount: result.written,
+			failedCount: result.failed,
+			durationMs: Date.now() - startTime,
+		});
 	}
 
 	private async _readExtensionHostCliMarker(sessionId: string): Promise<IExtensionHostCliMarker | undefined> {
