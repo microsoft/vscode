@@ -754,6 +754,8 @@ suite('ListView', function () {
 			rowsInDom: 1,
 			disposedElements: 1
 		});
+		// Cancel pending scroll updates before they invoke the throwing renderer again.
+		listView.dispose();
 	});
 
 	test('does not promote a retained row after a reentrant splice', function () {
