@@ -643,7 +643,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		const previousNewSession = this._newSession.get();
 		const session = provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, options));
-		this._newSession.set(session, undefined);
 		this.storageService.store(LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY, sessionTypeId, StorageScope.PROFILE, StorageTarget.USER);
 
 		// Mirror `createNewSession`: dispose the previous new session this
@@ -651,7 +650,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// create so a throw above leaves the previous one intact.
 		if (previousNewSession && previousNewSession.sessionId !== session.sessionId) {
 			this._getProvider(previousNewSession)?.deleteNewSession(previousNewSession.sessionId);
+			this._onDidReplaceNewDraftSession.fire({ from: previousNewSession, to: session });
 		}
+		this._newSession.set(session, undefined);
 		return session;
 	}
 

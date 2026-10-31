@@ -916,7 +916,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				this._confirmingSend.set(true, tx);
 			});
 			// The request is already captured, so edits made while the host confirms would be lost.
-			widget.input.setInputEnabled(false);
+			widget.input.setInputEnabled(false, this.options.preserveInputFocusOnSend);
 			let confirmed = false;
 			try {
 				confirmed = await this.options.confirmSend(query);
@@ -944,7 +944,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		});
 		this._userInteractionSource.value = toDisposable(() => userInteraction?.disposeSource());
 		this._sending.set(true, undefined);
-		widget.input.setInputEnabled(false);
+		widget.input.setInputEnabled(false, this.options.preserveInputFocusOnSend);
 		// The send can dispose the input widget, e.g. when the composer is left while a workspace is
 		// applied or the send waits; the send itself completes and only the gone input is skipped.
 		const isInputAlive = () => this._widget === widget && !!widget.input;

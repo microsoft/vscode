@@ -4,7 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { InboxNotificationKind, InboxNotificationPriority } from '../common/inboxNotificationsService.js';
+import { IInboxNotificationItem, IInboxSessionRow, InboxNotificationKind, InboxNotificationPriority, InboxTab } from '../common/inboxNotificationsService.js';
+
+export function getInboxTabLabel(tab: InboxTab): string {
+	switch (tab) {
+		case InboxTab.ReadyForYou: return localize('inbox.tab.readyForYou', "Ready for you");
+		case InboxTab.Working: return localize('inbox.tab.working', "Working");
+		case InboxTab.ReadyToMerge: return localize('inbox.tab.readyToMerge', "Ready to merge");
+		case InboxTab.OnHold: return localize('inbox.tab.onHold', "On hold");
+		case InboxTab.Done: return localize('inbox.tab.done', "Done");
+	}
+}
 
 export function getInboxNotificationKindLabel(kind: InboxNotificationKind): string {
 	switch (kind) {
@@ -26,6 +36,10 @@ export function getInboxNotificationKindLabel(kind: InboxNotificationKind): stri
 		default:
 			return localize('inboxNotifications.kind.external', "Event");
 	}
+}
+
+export function getInboxNotificationLabel(item: Pick<IInboxNotificationItem, 'kind'> & Partial<Pick<IInboxSessionRow, 'tab' | 'notifications'>>): string {
+	return item.tab && item.notifications?.length === 0 ? getInboxTabLabel(item.tab) : getInboxNotificationKindLabel(item.kind);
 }
 
 export function getInboxNotificationPriorityLabel(priority: InboxNotificationPriority): string {

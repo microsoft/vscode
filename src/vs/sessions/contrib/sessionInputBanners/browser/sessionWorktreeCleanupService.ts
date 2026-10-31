@@ -398,7 +398,11 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			if (linkedPaths.has(path) || !isWorktreeCleanupBranchSupported({ unlinkedWorktree: worktree })) {
 				continue;
 			}
-			unlinked.push({ unlinkedWorktree: worktree, sizeBytes: undefined, worktreeCount: 1, cleanupState: 'unlinked', cleanupStatus: worktree.cleanupStatus, worktreeExists: true, isListedByHost: true });
+			const entry: ISessionWorktree = { unlinkedWorktree: worktree, sizeBytes: undefined, worktreeCount: 1, cleanupState: 'unlinked', cleanupStatus: worktree.cleanupStatus, worktreeExists: true, isListedByHost: true };
+			unlinked.push(entry);
+			if (worktree.cleanupStatus?.state === 'pending' || worktree.cleanupStatus?.state === 'running') {
+				this._requestedManagedCleanups.add(getWorktreeCleanupId(entry));
+			}
 		}
 		for (const previous of this._unlinkedWorktrees) {
 			if (previous.unlinkedWorktree && isWorktreeCleanupBranchSupported(previous) && this._requestedManagedCleanups.has(getWorktreeCleanupId(previous))

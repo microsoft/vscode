@@ -48,7 +48,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, fixedChatOwnerRef } from '../../common/agent.js';
+import { AgentPermissionKind, AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, fixedChatOwnerRef } from '../../common/agent.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGitHubMcpServerEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
@@ -107,6 +107,7 @@ import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
 import { mintedTestChatOwner, requireMintedTestChatOwner, isMintedTestDefaultChat } from '../common/mintedChatUri.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
+import { RecordingOTelService } from '../common/recordingOTelService.js';
 
 // #region Test fakes
 
@@ -1101,33 +1102,6 @@ const ALL_MODELS: readonly CCAModel[] = [
 
 // #region Test harness
 
-/**
- * Records `emitSessionTitleChanged` invocations so the OTel title-span wiring
- * test can assert what the agent forwarded to the host telemetry pipeline. All
- * other {@link IAgentHostOTelService} members are inert no-ops.
- */
-class RecordingOTelService implements IAgentHostOTelService {
-	readonly _serviceBrand: undefined;
-	readonly enabled = false;
-	readonly diagnosticsEnabled = false;
-	emitTurnTiming(): void { }
-	emitFirstResponse(): void { }
-	emitUserInteraction(): void { }
-	readonly titleChanges: Array<{ conversationId: string; sessionUri: string; title: string }> = [];
-	async getSdkTelemetryConfig(): Promise<undefined> { return undefined; }
-	async getNativeSdkTelemetryConfig(): Promise<undefined> { return undefined; }
-	getSessionTraceContext(): undefined { return undefined; }
-	setSessionComparisonMetadata(): void { }
-	releaseSessionTraceContext(): void { }
-	withTraceContext<T>(_context: undefined, fn: () => T): T { return fn(); }
-	getCurrentTraceContext(): undefined { return undefined; }
-	getSpansDbPath(): undefined { return undefined; }
-	emitSessionTitleChanged(conversationId: string, sessionUri: string, title: string): void {
-		this.titleChanges.push({ conversationId, sessionUri, title });
-	}
-	async flush(): Promise<void> { }
-}
-
 interface ITestContext {
 	readonly agent: ClaudeAgent;
 	readonly proxy: FakeClaudeProxyService;
@@ -1344,6 +1318,7 @@ function reducerBackedEnablementService(stateManager: AgentHostStateManager): IC
 		_serviceBrand: undefined,
 		onDidChange: reducerBackedEnablementChangeEvent(stateManager),
 		initializeSession: async () => { },
+		adoptMcpServerOwnership: () => { },
 		getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
 		resolve,
 		applyClientGlobalEnablement: resolve,
@@ -7098,7 +7073,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 				toolInput: '{}',
 				confirmationTitle: 'Read file?',
 			},
-			permissionKind: 'read',
+			permissionKind: AgentPermissionKind.Read,
 		});
 		session.dispose();
 
@@ -7266,7 +7241,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 				invocationMessage: 'Change this chat\'s workspace to a new worktree of /workspace/app? Other chats keep their workspaces.',
 				toolInput: undefined,
 				confirmationTitle: 'Change Workspace to app?',
-				permissionKind: 'mcp',
+				permissionKind: AgentPermissionKind.Mcp,
 			},
 		});
 	});
@@ -7349,9 +7324,45 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 				confirmationTitle: 'Read file?',
 				_meta: { toolKind: 'read' },
 			},
-			permissionKind: 'read',
+			permissionKind: AgentPermissionKind.Read,
 			permissionPath: '/tmp/foo.txt',
 		});
+	});
+
+	test('WebFetch permission signals carry a URL, not a filesystem path', async () => {
+		const { ctx, canUseTool } = await materialize();
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(signal => signals.push(signal)));
+		const input = { url: 'https://api.example.com/path', prompt: 'Summarize' };
+		const pending = canUseTool('WebFetch', input, makeOptions('tu_webfetch'));
+		await tick();
+		const signal = signals.find(signal => signal.kind === 'pending_confirmation');
+		ctx.agent.respondToPermissionRequest('tu_webfetch', true);
+		assert.deepStrictEqual({
+			result: await pending,
+			kind: signal?.kind === 'pending_confirmation' ? signal.permissionKind : undefined,
+			url: signal?.kind === 'pending_confirmation' ? signal.permissionUrl : undefined,
+			path: signal?.kind === 'pending_confirmation' ? signal.permissionPath : undefined,
+		}, { result: { behavior: 'allow', updatedInput: input }, kind: AgentPermissionKind.Url, url: input.url, path: undefined });
+	});
+
+	test('Bash permission signals carry the shell language and command', async () => {
+		const { ctx, canUseTool } = await materialize();
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(signal => signals.push(signal)));
+		const input = { command: 'my-command --flag && other --test' };
+		const pending = canUseTool('Bash', input, makeOptions('tu_bash'));
+		await tick();
+		const signal = signals.find(signal => signal.kind === 'pending_confirmation');
+		ctx.agent.respondToPermissionRequest('tu_bash', true);
+		assert.deepStrictEqual({
+			result: await pending,
+			kind: signal?.kind === 'pending_confirmation' ? signal.permissionKind : undefined,
+			shellLanguage: signal?.kind === 'pending_confirmation' ? signal.shellLanguage : undefined,
+			shellCommand: signal?.kind === 'pending_confirmation' ? signal.shellCommand : undefined,
+			url: signal?.kind === 'pending_confirmation' ? signal.permissionUrl : undefined,
+			path: signal?.kind === 'pending_confirmation' ? signal.permissionPath : undefined,
+		}, { result: { behavior: 'allow', updatedInput: input }, kind: AgentPermissionKind.Shell, shellLanguage: 'bash', shellCommand: input.command, url: undefined, path: undefined });
 	});
 
 	test('Test 8 — synchronous auto-respond inside pending_confirmation listener resolves canUseTool', async () => {
@@ -7668,7 +7679,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 						{ id: 'deny', label: 'Deny', kind: 'deny' },
 					],
 				},
-				permissionKind: 'custom-tool',
+				permissionKind: AgentPermissionKind.CustomTool,
 			},
 			result: { behavior: 'allow', updatedInput: { plan: '1. Read foo\n2. Edit foo' } },
 			recordedModes: [],
@@ -8839,6 +8850,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 				onDidChange: reducerBackedEnablementChangeEvent(stateManager),
 				initializeSession: async () => { },
 				getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
+				adoptMcpServerOwnership: () => { },
 				resolve: resolveReducerEnablement,
 				applyClientGlobalEnablement: (session, target, clientEnablement) => {
 					const existing = resolveReducerEnablement(session, target);

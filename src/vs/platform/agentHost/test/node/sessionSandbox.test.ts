@@ -15,8 +15,9 @@ import { AgentHostSandboxKey, ISandboxConfigValue } from '../../common/sandboxCo
 import { readSessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
 import { readChatSandboxState, readChatSandboxStates, readSessionSandboxState, withChatSandboxState, withSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
 import { omitTransientSessionConfigValues, SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, ChatOriginKind, MessageKind, SessionStatus, ToolCallStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, ChatOriginKind, SessionStatus, ToolCallStatus } from '../../common/state/sessionState.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { chatToolCallStart, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { getCopilotBrowserSandboxNetworkRestrictions, projectCopilotSandboxPolicy } from '../../node/copilot/copilotSandboxPolicy.js';
@@ -1398,11 +1399,8 @@ suite('Session sandbox configuration', () => {
 		const peer = buildChatUri(owner, 'peer');
 		manager.addChat(owner, peer, creationTimeChatStorageResource(owner, peer, buildDefaultChatUri(owner)));
 		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService(), createTestChatOwnershipService(manager)));
-		manager.dispatchServerAction(peer, {
-			type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: '2026-01-01T00:00:00Z',
-			message: { text: 'run', origin: { kind: MessageKind.User } },
-		});
-		manager.dispatchServerAction(peer, { type: ActionType.ChatToolCallStart, turnId: 'turn', toolCallId: 'tool', toolName: 'bash', displayName: 'Bash' });
+		manager.dispatchServerAction(peer, chatTurnStarted('turn', 'run', '2026-01-01T00:00:00Z'));
+		manager.dispatchServerAction(peer, chatToolCallStart('turn', 'tool', 'bash', 'Bash'));
 		const ready = permissions.createToolReadyAction({
 			kind: 'pending_confirmation', chat: URI.parse(peer), requestSandboxBypass: true,
 			state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tool', toolName: 'bash', displayName: 'Bash', invocationMessage: 'run', confirmationTitle: 'Outside sandbox?' },
