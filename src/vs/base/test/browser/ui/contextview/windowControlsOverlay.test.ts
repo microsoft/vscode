@@ -43,15 +43,21 @@ suite('avoidWindowControlsOverlay', () => {
 			spansBothStrips: avoidWindowControlsOverlay(rect, shortViewport, { width: 800, height: 40 }, { top: 0, left: 0 }),
 			shiftBlockedByOtherStrip: avoidWindowControlsOverlay({ x: 100, y: 0, width: 20, height: 30 }, shortViewport, { width: 50, height: 40 }, { top: 0, left: 0 }),
 			bandClampedToViewport: avoidWindowControlsOverlay({ x: 100, y: 0, width: 600, height: 1000 }, viewport, view, { top: 0, left: 0 }),
+			tallViewStaysInViewport: avoidWindowControlsOverlay(rect, viewport, { width: 800, height: 590 }, { top: 0, left: 0 }),
+			tallViewStaysInScrolledViewport: avoidWindowControlsOverlay(rect, { top: 200, left: 300, width: 800, height: 600 }, { width: 800, height: 590 }, { top: 200, left: 300 }),
+			viewTallerThanViewport: avoidWindowControlsOverlay(rect, viewport, { width: 800, height: 700 }, { top: 0, left: 0 }),
 		}, {
 			leftStrip: { top: 30, left: 0 },
 			rightStrip: { top: 30, left: 750 },
 			scrolled: { top: 230, left: 300 },
 			shiftLeftStrip: { top: 0, left: 100 },
 			shiftRightStrip: { top: 0, left: 650 },
-			spansBothStrips: { top: 30, left: 0 },
-			shiftBlockedByOtherStrip: { top: 30, left: 0 },
+			spansBothStrips: { top: 20, left: 0 },
+			shiftBlockedByOtherStrip: { top: 20, left: 0 },
 			bandClampedToViewport: { top: 0, left: 100 },
+			tallViewStaysInViewport: { top: 10, left: 0 },
+			tallViewStaysInScrolledViewport: { top: 210, left: 300 },
+			viewTallerThanViewport: { top: 0, left: 0 },
 		});
 	});
 });

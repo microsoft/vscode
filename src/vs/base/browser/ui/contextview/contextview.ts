@@ -51,14 +51,6 @@ export interface IContextViewOptions {
 	 * Defaults to the owner's document body.
 	 */
 	readonly getFallbackContainer?: (owner: HTMLElement) => HTMLElement;
-
-	/**
-	 * Returns the titlebar area rect of the visible window controls overlay of
-	 * the given window, or `undefined` when there is none. The view is kept
-	 * clear of the native window controls next to that rect.
-	 * Defaults to reading `navigator.windowControlsOverlay`.
-	 */
-	readonly getWindowControlsOverlayRect?: (targetWindow: Window) => DOMRect | undefined;
 }
 
 export interface IAnchor {
@@ -626,8 +618,7 @@ export class ContextView extends Disposable {
 		const anchorAlignment = this.delegate!.anchorAlignment;
 		const anchorAxisAlignment = this.delegate!.anchorAxisAlignment;
 		const layoutResult = layout2d(viewport, view, anchor, { anchorAlignment, anchorPosition, anchorAxisAlignment });
-		const getWindowControlsOverlayRect = this.options.getWindowControlsOverlayRect ?? getVisibleWCOTitlebarAreaRect;
-		const adjusted = avoidWindowControlsOverlay(getWindowControlsOverlayRect(containerWindow), viewport, view, layoutResult);
+		const adjusted = avoidWindowControlsOverlay(getVisibleWCOTitlebarAreaRect(containerWindow), viewport, view, layoutResult);
 		const { top, left } = adjusted;
 
 		this.view.classList.remove('top', 'bottom', 'left', 'right');

@@ -106,8 +106,9 @@ export function avoidWindowControlsOverlay(
 		}
 	}
 
-	// 3. Push the view below the titlebar band anyway
-	return { top: bandBottom, left: position.left };
+	// 3. Move the view as far down as the viewport allows. A view too tall to
+	// clear the titlebar band still covers the controls, but is not clipped.
+	return { top: Math.max(viewport.top, viewport.top + viewport.height - view.height), left: position.left };
 }
 
 function clamp(value: number, min: number, max: number): number {

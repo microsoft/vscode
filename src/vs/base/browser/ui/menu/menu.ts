@@ -61,12 +61,6 @@ export interface IMenuOptions {
 	expandDirection?: IMenuDirection;
 	useEventAsContext?: boolean;
 	submenuIds?: Set<string>;
-	/**
-	 * Returns the visible Window Controls Overlay titlebar area of the given window, in client
-	 * coordinates, or `undefined` when no overlay is visible. Submenus are placed so they do
-	 * not cover the window controls. Defaults to reading the window's `navigator.windowControlsOverlay`.
-	 */
-	getWindowControlsOverlayRect?: (targetWindow: Window) => DOMRect | undefined;
 }
 
 export interface IMenuStyles {
@@ -1022,7 +1016,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		const viewBox = this.submenuContainer.getBoundingClientRect();
 		const layoutResult = this.calculateSubmenuMenuLayout(new Dimension(window.innerWidth, window.innerHeight), Dimension.lift(viewBox), entryBoxUpdated, this.expandDirection);
 		const { top, left } = avoidWindowControlsOverlay(
-			(this.submenuOptions?.getWindowControlsOverlayRect ?? getVisibleWCOTitlebarAreaRect)(window),
+			getVisibleWCOTitlebarAreaRect(window),
 			{ top: 0, left: 0, width: window.innerWidth, height: window.innerHeight },
 			{ width: viewBox.width, height: viewBox.height },
 			layoutResult

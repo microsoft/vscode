@@ -9,11 +9,29 @@ import { $, append, EventType, getWindow, ModifierKeyEmitter } from '../../../..
 import { getMenuWidgetCSS, Menu, unthemedMenuStyles } from '../../../../browser/ui/menu/menu.js';
 import { Action, ActionRunner, SubmenuAction, toAction } from '../../../../common/actions.js';
 import { EventType as TouchEventType } from '../../../../browser/touch.js';
-import { DisposableStore, toDisposable } from '../../../../common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../common/lifecycle.js';
 import { isLinux, isWindows } from '../../../../common/platform.js';
 import { ResolvedKeybinding } from '../../../../common/keybindings.js';
 import { upcastPartial } from '../../../common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
+
+
+/**
+ * Replaces `navigator.windowControlsOverlay` on the given window so the real
+ * browser helpers observe a controlled overlay. Restores the original on dispose.
+ */
+function stubWindowControlsOverlay(targetWindow: Window, stub: { readonly visible: boolean; getTitlebarAreaRect(): DOMRect }): IDisposable {
+	const navigator = targetWindow.navigator as Navigator & { windowControlsOverlay?: unknown };
+	const original = Object.getOwnPropertyDescriptor(navigator, 'windowControlsOverlay');
+	Object.defineProperty(navigator, 'windowControlsOverlay', { configurable: true, get: () => stub });
+	return toDisposable(() => {
+		if (original) {
+			Object.defineProperty(navigator, 'windowControlsOverlay', original);
+		} else {
+			delete navigator.windowControlsOverlay;
+		}
+	});
+}
 
 suite('Menu', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -342,7 +360,8 @@ suite('Menu', () => {
 			const children = Array.from({ length: childCount }, (_, i) => store.add(new Action(`child${i}`, `Child ${i}`)));
 			const leaf = new SubmenuAction('nested', 'Nested', children);
 			const submenu = new SubmenuAction('submenu', 'Submenu', nested ? [leaf] : children);
-			store.add(new Menu(root, [submenu], { getWindowControlsOverlayRect: () => overlay }, unthemedMenuStyles));
+			store.add(stubWindowControlsOverlay(getWindow(host), { visible: !!overlay, getTitlebarAreaRect: () => overlay! }));
+			store.add(new Menu(root, [submenu], {}, unthemedMenuStyles));
 			const open = (parent: HTMLElement) => {
 				parent.querySelector<HTMLElement>('.monaco-submenu-item')!.dispatchEvent(new KeyboardEvent(EventType.KEY_UP, { key: 'ArrowRight', keyCode: 39, bubbles: true }));
 				return parent.querySelector<HTMLElement>('.monaco-submenu')!;
@@ -441,7 +460,7 @@ suite('Menu', () => {
 			});
 		});
 
-		test('nested submenus inherit the overlay option', () => {
+		test('nested submenus also move clear of the buttons', () => {
 			// The first-level submenu sits in the usable titlebar area, clear of both
 			// strips, while the nested submenu expands into the right strip. Only
 			// overlay handling at the nested level can move the nested submenu.

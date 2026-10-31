@@ -10,8 +10,26 @@ import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTIO
 import { mainWindow } from '../../../../browser/window.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../common/errors.js';
 import { DeferredPromise, timeout } from '../../../../common/async.js';
-import { DisposableStore, toDisposable } from '../../../../common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
+
+
+/**
+ * Replaces `navigator.windowControlsOverlay` on the given window so the real
+ * browser helpers observe a controlled overlay. Restores the original on dispose.
+ */
+function stubWindowControlsOverlay(targetWindow: Window, stub: { readonly visible: boolean; getTitlebarAreaRect(): DOMRect }): IDisposable {
+	const navigator = targetWindow.navigator as Navigator & { windowControlsOverlay?: unknown };
+	const original = Object.getOwnPropertyDescriptor(navigator, 'windowControlsOverlay');
+	Object.defineProperty(navigator, 'windowControlsOverlay', { configurable: true, get: () => stub });
+	return toDisposable(() => {
+		if (original) {
+			Object.defineProperty(navigator, 'windowControlsOverlay', original);
+		} else {
+			delete navigator.windowControlsOverlay;
+		}
+	});
+}
 
 suite('ContextView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1175,7 +1193,12 @@ suite('ContextView', () => {
 			}
 			targetDocument.body.appendChild(container);
 			disposables.add(toDisposable(() => container.remove()));
-			const contextView = disposables.add(new ContextView(container, domPosition, { getWindowControlsOverlayRect: targetWindow => getRect(targetWindow) }));
+			const containerWindow = getWindow(container);
+			disposables.add(stubWindowControlsOverlay(containerWindow, {
+				get visible() { return getRect(containerWindow) !== undefined; },
+				getTitlebarAreaRect: () => getRect(containerWindow)!,
+			}));
+			const contextView = disposables.add(new ContextView(container, domPosition));
 			contextView.show({
 				getAnchor: () => isHTMLElement(anchor) ? anchor : { ...anchor, width: 1, height: 1 },
 				render: view => {
