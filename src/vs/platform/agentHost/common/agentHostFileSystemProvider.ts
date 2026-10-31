@@ -10,7 +10,9 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { newWriteableStream, ReadableStreamEvents, WriteableStream } from '../../../base/common/stream.js';
+import { setTimeout0 } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
 import { createFileSystemProviderError, FileChangeType, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileReadStreamOptions, IFileSystemProvider, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileRealpathCapability, IFileWriteOptions, IStat, IWatchOptions, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { supportsAgentHostResourceReadRanges, type IAgentHostResourceReadRange } from './meta/agentHostResourceReadRangeMeta.js';
 import { fromAgentHostUri, isAgentHostContentRefUri, toAgentHostUri } from './agentHostUri.js';
@@ -235,8 +237,11 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	 */
 	static readonly FIRST_READ_BYTES = 16 * 1024;
 
-	/** Promise continuations the reader gets to react to the first bytes (the text file service needs about five). */
-	private static readonly _READER_DECISION_TURNS = 32;
+	/**
+	 * `stat` requests in flight, by resource. `FileService.readFileStream` starts a streamed read together with a stat
+	 * of the same resource and hands the stream to its reader only once that stat resolves (see {@link _whenReaderReady}).
+	 */
+	private readonly _pendingStats = new Map<string, Promise<unknown>>();
 
 	constructor(
 		private readonly _connectionGraceMs: number = AHPFileSystemProvider._DEFAULT_CONNECTION_GRACE_MS,
@@ -471,7 +476,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		}
 
 		try {
-			const resolved = await this._readFromConnection(resource.authority, connection => this._resolve(connection, decoded));
+			const resolved = await this._trackStat(resource, this._readFromConnection(resource.authority, connection => this._resolve(connection, decoded)));
 
 			return {
 				type: resolved.type === 'directory' ? FileType.Directory
@@ -534,35 +539,76 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		const decoded = this._decodeUri(resource);
 		const position = opts.position ?? 0;
 		const end = opts.length === undefined ? undefined : position + opts.length;
+		// `FileService` checks the limit against the stat size, which is 0 for content references: check what is read.
+		const sizeLimit = opts.limits?.size;
+		let emitted = 0;
+		const emit = (bytes: Uint8Array) => {
+			emitted += bytes.byteLength;
+			if (typeof sizeLimit === 'number' && emitted > sizeLimit) {
+				throw createFileSystemProviderError(localize('fileTooLargeError', "File is too large to open"), FileSystemProviderErrorCode.FileTooLarge);
+			}
+			stream.write(bytes);
+		};
 		// Content references are produced whole on the host, so reading them in parts would only add work.
 		const allowRange = !this._isContentRef(resource, decoded);
 
-		const firstLength = end === undefined ? AHPFileSystemProvider.FIRST_READ_BYTES : Math.min(AHPFileSystemProvider.FIRST_READ_BYTES, end - position);
+		// Ranged reads never ask for more than one byte past the limit: reaching it fails the read anyway.
+		const firstLength = Math.min(AHPFileSystemProvider.FIRST_READ_BYTES, end === undefined ? Infinity : end - position, typeof sizeLimit === 'number' ? sizeLimit + 1 : Infinity);
 		const first = await this._readBytes(resource.authority, decoded, { position, length: firstLength }, allowRange);
 		if (first.whole) {
-			stream.write(first.bytes.subarray(Math.min(position, first.bytes.byteLength), end));
+			emit(first.bytes.subarray(Math.min(position, first.bytes.byteLength), end));
 			return;
 		}
-		stream.write(first.bytes);
+		emit(first.bytes);
 		if (first.bytes.byteLength < firstLength || (end !== undefined && position + firstLength >= end)) {
 			return;
 		}
 
-		// Binary detection cancels the token from promise continuations of the task that delivers the first bytes: let
-		// those run first. Waiting for a later task instead (a timer) would also wait for unrelated work in the window
-		// and delay text files.
-		for (let i = 0; i < AHPFileSystemProvider._READER_DECISION_TURNS && !token.isCancellationRequested; i++) {
-			await Promise.resolve();
-		}
+		await this._whenReaderReady(resource, token);
 		if (token.isCancellationRequested) {
 			return;
 		}
 		const restPosition = position + firstLength;
-		const restRange: IAgentHostResourceReadRange = end === undefined ? { position: restPosition } : { position: restPosition, length: end - restPosition };
+		let restLength = end === undefined ? undefined : end - restPosition;
+		if (typeof sizeLimit === 'number') {
+			restLength = Math.min(restLength ?? Infinity, sizeLimit - emitted + 1);
+		}
+		const restRange: IAgentHostResourceReadRange = restLength === undefined ? { position: restPosition } : { position: restPosition, length: restLength };
 		const rest = await this._readBytes(resource.authority, decoded, restRange, allowRange);
 		if (!token.isCancellationRequested) {
 			// A connection that reconnected to a host without ranged reads returns the whole file.
-			stream.write(rest.whole ? rest.bytes.subarray(Math.min(restPosition, rest.bytes.byteLength), end) : rest.bytes);
+			emit(rest.whole ? rest.bytes.subarray(Math.min(restPosition, rest.bytes.byteLength), end) : rest.bytes);
+		}
+	}
+
+	/**
+	 * Resolves once the reader of {@link readFileStream} has had its chance to look at the first bytes and cancel.
+	 *
+	 * `FileService.readFileStream` starts the read together with a stat of the same resource, buffers what the
+	 * provider writes, and hands the stream to its reader only after that stat resolves. The text file service then
+	 * attaches, receives the buffered bytes and, for a binary file, cancels, all in promise continuations of the task
+	 * that resolved the stat. So wait for an in-flight stat of the resource, if any, and then for the next task.
+	 */
+	private async _whenReaderReady(resource: URI, token: CancellationToken): Promise<void> {
+		const stat = this._pendingStats.get(resource.toString());
+		if (stat && !token.isCancellationRequested) {
+			// A failed stat cancels the read in `FileService`.
+			await stat.catch(() => undefined);
+		}
+		if (!token.isCancellationRequested) {
+			await new Promise<void>(resolve => setTimeout0(resolve));
+		}
+	}
+
+	private async _trackStat<T>(resource: URI, stat: Promise<T>): Promise<T> {
+		const key = resource.toString();
+		this._pendingStats.set(key, stat);
+		try {
+			return await stat;
+		} finally {
+			if (this._pendingStats.get(key) === stat) {
+				this._pendingStats.delete(key);
+			}
 		}
 	}
 

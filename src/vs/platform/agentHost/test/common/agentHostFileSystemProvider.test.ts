@@ -5,13 +5,15 @@
 
 import assert from 'assert';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
-import { VSBuffer, encodeBase64 } from '../../../../base/common/buffer.js';
+import { VSBuffer, encodeBase64, streamToBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../../../base/common/event.js';
 import { constObservable, type IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileChangeType, FilePermission, FileSystemProviderErrorCode, FileType, IFileChange, type IFileReadStreamOptions, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
+import { FileChangeType, FileOperationError, FileOperationResult, FilePermission, FileSystemProviderErrorCode, FileType, IFileChange, type IFileReadStreamOptions, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection, type IRemoteWatchHandle } from '../../common/agentHostFileSystemProvider.js';
 import type { IAgentHostResourceReadRange } from '../../common/meta/agentHostResourceReadRangeMeta.js';
 import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
@@ -1674,5 +1676,49 @@ suite('AgentHostFileSystemProvider - streamed reads', () => {
 		const error = await read(provider, agentHostUri('host', '/workspace/missing.txt')).then(() => undefined, (error: Error) => error);
 
 		assert.strictEqual(error && toFileSystemProviderErrorCode(error), FileSystemProviderErrorCode.FileNotFound);
+	});
+
+	suite('size limit', () => {
+		const failure = (promise: Promise<unknown>) => promise.then(() => 'no error', (error: Error) => toFileSystemProviderErrorCode(error));
+
+		test('fails a ranged read past the limit without asking for more than one byte past it', async () => {
+			const { provider, connection } = createProvider(content(1024 * 1024), true);
+
+			const result = await failure(read(provider, agentHostUri('host', '/workspace/big.json'), { limits: { size: 100_000 } }));
+
+			assert.deepStrictEqual({ result, reads: connection.reads }, {
+				result: FileSystemProviderErrorCode.FileTooLarge,
+				reads: [{ position: 0, length: FIRST }, { position: FIRST, length: 100_000 - FIRST + 1 }],
+			});
+		});
+
+		test('reads a file exactly at the limit', async () => {
+			const file = content(100_000);
+			const { provider } = createProvider(file, true);
+
+			const result = await read(provider, agentHostUri('host', '/workspace/fits.json'), { limits: { size: 100_000 } });
+
+			assert.ok(result.equals(file));
+		});
+
+		test('fails a whole read past the limit from a host without ranged reads', async () => {
+			const { provider, connection } = createProvider(content(1024 * 1024), false);
+
+			const result = await failure(read(provider, agentHostUri('host', '/workspace/big.json'), { limits: { size: 100_000 } }));
+
+			assert.deepStrictEqual({ result, reads: connection.reads }, { result: FileSystemProviderErrorCode.FileTooLarge, reads: ['whole'] });
+		});
+
+		test('fails a content reference past the limit, although its stat size is 0', async () => {
+			const { provider } = createProvider(content(1024 * 1024), true);
+			const resource = toAgentHostUri(URI.from({ scheme: 'git-blob', path: '/repo/big.json' }), 'host');
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(AGENT_HOST_SCHEME, provider));
+
+			const stat = await fileService.stat(resource);
+			const error = await fileService.readFileStream(resource, { limits: { size: 100_000 } }).then(content => streamToBuffer(content.value)).then(() => undefined, (error: FileOperationError) => error);
+
+			assert.deepStrictEqual({ statSize: stat.size, result: error?.fileOperationResult }, { statSize: 0, result: FileOperationResult.FILE_TOO_LARGE });
+		});
 	});
 });
