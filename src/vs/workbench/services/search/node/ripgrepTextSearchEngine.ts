@@ -758,16 +758,12 @@ export function fixRegexNewline(pattern: string): string {
 				// no-op in a lookbehind, see #100569
 			} else if (parent.type === 'CharacterClass') {
 				if (parent.negate) {
-					// negative bracket expr, [^a-z\n] -> (?![a-z]|\r?\n)
+					// negative bracket expr, [^a-z\n] -> (?:(?![a-z]|\r?\n)[\s\S])
+					// The lookahead only asserts that the next character is allowed, so it
+					// must be paired with `[\s\S]` to consume it. Otherwise the class would
+					// match without consuming input and capture nothing. See #234067.
 					const otherContent = pattern.slice(parent.start + 2, char.start) + pattern.slice(char.end, parent.end - 1);
-					if (parent.parent?.type === 'Quantifier') {
-						// If quantified, we can't use a negative lookahead in a quantifier.
-						// But `.` already doesn't match new lines, so we can just use that
-						// (with any other negations) instead.
-						replace(parent.start, parent.end, otherContent ? `[^${otherContent}]` : '.');
-					} else {
-						replace(parent.start, parent.end, '(?!\\r?\\n' + (otherContent ? `|[${otherContent}]` : '') + ')');
-					}
+					replace(parent.start, parent.end, '(?:(?!\\r?\\n' + (otherContent ? `|[${otherContent}]` : '') + ')[\\s\\S])');
 				} else {
 					// positive bracket expr, [a-z\n] -> (?:[a-z]|\r?\n)
 					const otherContent = pattern.slice(parent.start + 1, char.start) + pattern.slice(char.end, parent.end - 1);
