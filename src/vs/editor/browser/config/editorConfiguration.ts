@@ -13,7 +13,7 @@ import { ElementSizeObserver } from './elementSizeObserver.js';
 import { FontMeasurements } from './fontMeasurements.js';
 import { migrateOptions } from './migrateOptions.js';
 import { TabFocus } from './tabFocus.js';
-import { ComputeOptionsMemory, ConfigurationChangedEvent, EditorOption, editorOptionsRegistry, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, IEnvironmentalOptions } from '../../common/config/editorOptions.js';
+import { ComputeOptionsMemory, ConfigurationChangedEvent, EditorOption, editorGpuAcceleration, editorOptionsRegistry, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, IEnvironmentalOptions } from '../../common/config/editorOptions.js';
 import { EditorZoom } from '../../common/config/editorZoom.js';
 import { BareFontInfo, FontInfo, IValidatedEditorOptions } from '../../common/config/fontInfo.js';
 import { createBareFontInfoFromValidatedSettings } from '../../common/config/fontInfoFromSettings.js';
@@ -98,6 +98,10 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 		this._register(PixelRatio.getInstance(getWindow(container)).onDidChange(() => this._recomputeOptions()));
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => this._recomputeOptions()));
 		this._register(InputMode.onDidChangeInputMode(() => this._recomputeOptions()));
+		this._register(editorGpuAcceleration.onDidChangeAvailability(() => {
+			this._validatedOptions = EditorOptionsUtil.validateOptions(this._rawOptions);
+			this._recomputeOptions();
+		}));
 	}
 
 	private _recomputeOptions(): void {
