@@ -22,7 +22,7 @@ import { IChatEntitlementService } from '../../../services/chat/common/chatEntit
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../browserView/common/browserView.js';
-import { CanvasInput, canvasOwnerKey, getCanvasReferenceKey, ICanvas, ICanvasContextService, ICanvasModelResolution, ICanvasOwner, ICanvasReference, ICanvasReopenTarget, ICanvasService, ICanvasWorkingSetOwner, ICanvasWorkingSetState, isCanvasOwner } from '../common/canvas.js';
+import { CanvasInput, canvasOwnerKey, getCanvasReferenceKey, ICanvas, ICanvasContextService, ICanvasModelResolution, ICanvasOpenRequest, ICanvasOwner, ICanvasReference, ICanvasReopenTarget, ICanvasService, ICanvasWorkingSetOwner, ICanvasWorkingSetState, isCanvasOwner } from '../common/canvas.js';
 
 interface ICanvasPresentation {
 	readonly reference: ICanvasReference;
@@ -44,6 +44,16 @@ interface ICanvasLookup {
 	readonly canvas: ICanvas | undefined;
 }
 
+interface ICanvasSourceState {
+	readonly reference: ICanvasReference;
+	available: boolean;
+	recovering: boolean;
+	recoveryGeneration: number;
+	observedRequestId: string | undefined;
+	foregroundRequestId: string | undefined;
+	foregroundRecovery: boolean;
+}
+
 const settledWorkingSet: ICanvasWorkingSetState = Object.freeze({ owner: undefined, restoring: false, applying: false });
 
 export class CanvasService extends Disposable implements ICanvasService {
@@ -58,7 +68,8 @@ export class CanvasService extends Disposable implements ICanvasService {
 	private readonly presentations = new Map<string, ICanvasPresentation>();
 	private readonly presentationsBySerializationId = new Map<string, ICanvasPresentation>();
 	private readonly requests = new Map<string, string | undefined>();
-	private readonly opening = new Map<CanvasInput, { readonly value: Promise<void>; readonly restoreFallback: boolean }>();
+	private readonly sourceStates = new Map<string, ICanvasSourceState>();
+	private readonly opening = new Map<CanvasInput, { readonly value: Promise<void>; readonly restore: boolean }>();
 	private readonly programmaticCloses = new Set<CanvasInput>();
 	private readonly workingSetSuspensions = new Set<CanvasInput>();
 	private readonly dismissedChanged = observableSignal(this);
@@ -155,10 +166,30 @@ export class CanvasService extends Disposable implements ICanvasService {
 						this.requests.set(key, request?.id);
 					}
 					const requestId = this.requests.get(key);
+					const sourceState = this.updateSourceState(key, reference, canvas, request);
+					const sourceRecovered = canvas.source !== undefined && sourceState.recovering;
+					const recoveryGeneration = sourceState.recoveryGeneration;
+					const foregroundIntent = sourceRecovered && (sourceState.foregroundRecovery || requestId !== undefined && sourceState.foregroundRequestId === requestId);
 					const dismissed = this.dismissed.get(key);
-					if (!visible || !workingSetPresented || canvas.source === undefined
-						|| (dismissed && (dismissed.requestId === requestId || !request?.succeeded))
-						|| (presentation?.opened && (presentation.requestId === requestId || !request?.succeeded))) {
+					if (!visible || !workingSetPresented || canvas.source === undefined) {
+						continue;
+					}
+					if (dismissed && (dismissed.requestId === requestId || !request?.succeeded)) {
+						if (!request?.pending) {
+							this.completeRequestIntent(key, requestId);
+						}
+						if (sourceRecovered) {
+							this.completeSourceRecovery(key, recoveryGeneration);
+						}
+						continue;
+					}
+					if (!foregroundIntent && presentation?.opened && (presentation.requestId === requestId || !request?.succeeded)) {
+						if (!request?.pending) {
+							this.completeRequestIntent(key, requestId);
+						}
+						if (sourceRecovered) {
+							this.completeSourceRecovery(key, recoveryGeneration);
+						}
 						continue;
 					}
 					const input = existingInput ?? this.getOrCreateInput(reference, canvas);
@@ -166,11 +197,24 @@ export class CanvasService extends Disposable implements ICanvasService {
 						continue;
 					}
 					this.deleteDismissed(key);
-					if (presentation?.opened && request?.succeeded && this.editorService.isVisible(input)) {
+					if (!foregroundIntent && presentation?.opened && request?.succeeded && this.editorService.isVisible(input)) {
 						presentation.requestId = requestId;
+						this.completeRequestIntent(key, requestId);
+						if (sourceRecovered) {
+							this.completeSourceRecovery(key, recoveryGeneration);
+						}
 						continue;
 					}
-					void this.openInput(key, input, presentation?.admitted === true && !presentation.opened)
+					const restore = !foregroundIntent && (presentation?.admitted === true && !presentation.opened || sourceRecovered);
+					if (foregroundIntent) {
+						this.consumeForegroundIntent(sourceState, requestId);
+					}
+					void this.openInput(key, input, restore)
+						.finally(() => {
+							if (sourceRecovered) {
+								this.completeSourceRecovery(key, recoveryGeneration);
+							}
+						})
 						.catch(error => this.reportError('Failed to reveal canvas', error));
 				}
 			}
@@ -178,6 +222,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 				if (knownOwners.has(canvasOwnerKey(dismissed.reference)) && !liveKeys.has(key)) {
 					this.deleteDismissed(key);
 					this.requests.delete(key);
+					this.sourceStates.delete(key);
 				}
 			}
 			if (!enabled) {
@@ -188,6 +233,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 			for (const key of this.requests.keys()) {
 				if (!liveKeys.has(key) && !this.inputs.has(key) && !this.dismissed.has(key) && !this.presentations.has(key)) {
 					this.requests.delete(key);
+					this.sourceStates.delete(key);
 				}
 			}
 			for (const [key, input] of this.inputs) {
@@ -216,11 +262,40 @@ export class CanvasService extends Disposable implements ICanvasService {
 		const key = getCanvasReferenceKey(reference);
 		this.deleteDismissed(key);
 		if (canvas.source === undefined) {
+			const sourceState = this.sourceStates.get(key) ?? this.updateSourceState(key, reference, canvas, undefined);
+			if (!sourceState.recovering) {
+				sourceState.recovering = true;
+				sourceState.recoveryGeneration++;
+			}
+			sourceState.foregroundRecovery = true;
 			return;
 		}
 		const input = this.getOrCreateInput(reference, canvas);
 		input.setCanvas(canvas);
-		await this.openInput(key, input);
+		const sourceState = this.sourceStates.get(key) ?? this.updateSourceState(key, reference, canvas, undefined);
+		sourceState.foregroundRecovery = true;
+		let recoveryGeneration = sourceState.recoveryGeneration;
+		const pending = this.opening.get(input);
+		if (pending) {
+			await pending.value;
+			const currentState = this.sourceStates.get(key);
+			if (!pending.restore) {
+				this.consumeForegroundIntent(currentState, this.requests.get(key));
+				this.completeSourceRecovery(key, currentState?.recoveryGeneration);
+				return;
+			}
+			if (this.inputs.get(key) !== input || input.isDisposed() || input.canvas.get()?.source === undefined
+				|| !this.isOwnerPresentable(reference)) {
+				return;
+			}
+			recoveryGeneration = currentState?.recoveryGeneration ?? recoveryGeneration;
+		}
+		this.consumeForegroundIntent(this.sourceStates.get(key), this.requests.get(key));
+		try {
+			await this.openInput(key, input);
+		} finally {
+			this.completeSourceRecovery(key, recoveryGeneration);
+		}
 	}
 
 	async reopenCanvas(reference: ICanvasReference): Promise<void> {
@@ -310,31 +385,34 @@ export class CanvasService extends Disposable implements ICanvasService {
 		return true;
 	}
 
-	private openInput(key: string, input: CanvasInput, restoreFallback = false): Promise<void> {
+	private openInput(key: string, input: CanvasInput, restore = false): Promise<void> {
 		const pending = this.opening.get(input);
 		if (pending) {
-			if (!restoreFallback && pending.restoreFallback) {
-				return pending.value.then(() => this.openInput(key, input, false));
-			}
 			return pending.value;
 		}
-		const opening = this.doOpenInput(key, input, restoreFallback).finally(() => this.opening.delete(input));
-		this.opening.set(input, { value: opening, restoreFallback });
+		const opening = this.doOpenInput(key, input, restore).finally(() => {
+			this.opening.delete(input);
+			if (!this._store.isDisposed) {
+				this.presentationsChanged.trigger(undefined);
+			}
+		});
+		this.opening.set(input, { value: opening, restore });
 		return opening;
 	}
 
-	private async doOpenInput(key: string, input: CanvasInput, restoreFallback: boolean): Promise<void> {
+	private async doOpenInput(key: string, input: CanvasInput, restore: boolean): Promise<void> {
 		const canvas = input.canvas.get();
 		if (!canvas) {
 			throw new Error(localize('canvas.closed', "This canvas is no longer available."));
 		}
 		const presentation = this.getOrCreatePresentation(input.reference, canvas);
-		const suppression = restoreFallback ? this.contextService.workingSets?.suppressEditorPartAutoVisibility() : undefined;
+		const requestId = this.requests.get(key);
+		const suppression = restore ? this.contextService.workingSets?.suppressEditorPartAutoVisibility() : undefined;
 		try {
 			if (!this.isOwnerPresentable(input.reference)) {
 				return;
 			}
-			const options: IEditorOptions = restoreFallback
+			const options: IEditorOptions = restore
 				? {
 					pinned: true,
 					preserveFocus: true,
@@ -342,7 +420,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 					activation: EditorActivation.PRESERVE,
 				}
 				: { pinned: true, revealIfOpened: true, preserveFocus: false };
-			const group = this.contextService.getEditorGroup(input.reference, input, restoreFallback);
+			const group = this.contextService.getEditorGroup(input.reference, input, restore);
 			const pane = this.moveToGroup(input, options, group) ? undefined : await this.editorService.openEditor(input, options, group);
 			if (this._store.isDisposed || input.isDisposed() || this.inputs.get(key) !== input || this.presentations.get(key) !== presentation) {
 				await this.closeEditors(input);
@@ -355,7 +433,8 @@ export class CanvasService extends Disposable implements ICanvasService {
 			presentation.admitted = true;
 			presentation.opened = true;
 			presentation.restoreActive = false;
-			presentation.requestId = this.requests.get(key);
+			presentation.requestId = requestId;
+			this.completeRequestIntent(key, requestId);
 			input.setSerializationId(presentation.serializationId);
 			this.presentationsChanged.trigger(undefined);
 			if (!this.isOwnerPresentable(input.reference)) {
@@ -506,6 +585,68 @@ export class CanvasService extends Disposable implements ICanvasService {
 			: { known: true, canvas: current.find(candidate => isEqual(candidate.resource, reference.canvas)) };
 	}
 
+	private updateSourceState(key: string, reference: ICanvasReference, canvas: ICanvas, request: ICanvasOpenRequest | undefined): ICanvasSourceState {
+		const requestId = request?.id;
+		let state = this.sourceStates.get(key);
+		if (!state) {
+			// Existing requests can be historical after restore; only later request IDs create foreground intent.
+			state = {
+				reference,
+				available: canvas.source !== undefined,
+				recovering: false,
+				recoveryGeneration: 0,
+				observedRequestId: requestId,
+				foregroundRequestId: undefined,
+				foregroundRecovery: false,
+			};
+			this.sourceStates.set(key, state);
+			return state;
+		}
+		if (request && request.id !== state.observedRequestId) {
+			state.observedRequestId = request.id;
+			state.foregroundRequestId = request.pending || request.succeeded ? request.id : undefined;
+		} else if (request && !request.pending && !request.succeeded && state.foregroundRequestId === request.id) {
+			state.foregroundRequestId = undefined;
+		}
+		if (canvas.source === undefined) {
+			if (canvas.instanceId !== undefined && state.available) {
+				state.available = false;
+				state.recovering = true;
+				state.recoveryGeneration++;
+			}
+		} else {
+			state.available = true;
+		}
+		return state;
+	}
+
+	private completeSourceRecovery(key: string, recoveryGeneration: number | undefined): void {
+		const state = this.sourceStates.get(key);
+		if (!state || recoveryGeneration === undefined || state.recoveryGeneration !== recoveryGeneration
+			|| state.foregroundRecovery || state.foregroundRequestId !== undefined) {
+			return;
+		}
+		state.recovering = false;
+		state.foregroundRecovery = false;
+	}
+
+	private completeRequestIntent(key: string, requestId: string | undefined): void {
+		const state = this.sourceStates.get(key);
+		if (state && state.foregroundRequestId === requestId) {
+			state.foregroundRequestId = undefined;
+		}
+	}
+
+	private consumeForegroundIntent(state: ICanvasSourceState | undefined, requestId: string | undefined): void {
+		if (!state) {
+			return;
+		}
+		state.foregroundRecovery = false;
+		if (state.foregroundRequestId === requestId) {
+			state.foregroundRequestId = undefined;
+		}
+	}
+
 	private removeOwner(owner: ICanvasOwner): void {
 		for (const [key, presentation] of this.presentations) {
 			if (isCanvasOwner(presentation.reference, owner)) {
@@ -521,6 +662,11 @@ export class CanvasService extends Disposable implements ICanvasService {
 		for (const [key, input] of this.inputs) {
 			if (isCanvasOwner(input.reference, owner)) {
 				void this.closeInput(key, input).catch(error => this.reportError('Failed to close canvas', error));
+			}
+		}
+		for (const [key, state] of this.sourceStates) {
+			if (isCanvasOwner(state.reference, owner)) {
+				this.sourceStates.delete(key);
 			}
 		}
 	}
@@ -541,6 +687,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 		} else {
 			this.deletePresentation(key);
 			this.requests.delete(key);
+			this.sourceStates.delete(key);
 		}
 		try {
 			await this.closeEditors(input);
@@ -613,6 +760,10 @@ export class CanvasService extends Disposable implements ICanvasService {
 	}
 
 	private rememberDismissed(key: string, reference: ICanvasReference): void {
+		const sourceState = this.sourceStates.get(key);
+		if (sourceState) {
+			sourceState.foregroundRecovery = false;
+		}
 		this.dismissed.delete(key);
 		this.dismissed.set(key, { reference, requestId: this.requests.get(key) });
 		this.dismissedChanged.trigger(undefined);

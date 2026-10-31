@@ -12,6 +12,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CanvasesEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { EditorActivation, IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotification, INotificationHandle } from '../../../../../platform/notification/common/notification.js';
@@ -38,13 +39,18 @@ suite('CanvasService', () => {
 		const contexts = observableValue<readonly ICanvasContext[]>('contexts', [{ owner, canvases, openRequests }]);
 		const visible = observableValue<ReadonlySet<string>>('visible', new Set([canvasOwnerKey(owner)]));
 		const removed = store.add(new Emitter<ICanvasOwner>());
+		const groupRestores: boolean[] = [];
 		const contextService = upcastPartial<ICanvasContextService>({
 			contexts, onDidRemoveOwner: removed.event,
 			isOwnerVisible: (owner, reader) => visible.read(reader).has(canvasOwnerKey(owner)),
 			getContext: (owner, reader) => contexts.read(reader).find(context => isCanvasOwner(context.owner, owner)),
-			getEditorGroup: () => targetGroup,
+			getEditorGroup: (_owner, _input, restore) => {
+				groupRestores.push(restore);
+				return targetGroup;
+			},
 		});
 		const opened: CanvasInput[] = [];
+		const openOptions: (IEditorOptions | undefined)[] = [];
 		const openEditors: IEditorIdentifier[] = [];
 		const closed: CanvasInput[] = [];
 		const moves: string[] = [];
@@ -73,6 +79,7 @@ suite('CanvasService', () => {
 					throw new Error('Expected a canvas input');
 				}
 				opened.push(input);
+				openOptions.push(args[1] as IEditorOptions | undefined);
 				if (pendingOpen) {
 					await pendingOpen.p;
 				}
@@ -113,7 +120,7 @@ suite('CanvasService', () => {
 		const service = store.add(new CanvasService(contextService, editorService, editorGroupsService, instantiationService, upcastPartial<IBrowserViewWorkbenchService>({}), entitlementService,
 			new TestConfigurationService({ [CanvasesEnabledSettingId]: true }), new NullLogService(), notificationService));
 		return {
-			owner, canvas, canvases, contexts, openRequests, visible, removed, opened, openEditors, closed, moves, notifications, service,
+			owner, canvas, canvases, contexts, openRequests, visible, removed, opened, openOptions, openEditors, closed, moves, groupRestores, notifications, service,
 			delayOpen: () => pendingOpen = new DeferredPromise<void>(),
 			failOpen: (value: boolean) => failOpen = value,
 			hideAI: () => { hidden = true; sentiment.fire(); },
@@ -142,7 +149,7 @@ suite('CanvasService', () => {
 		harness.opened[0].dispose();
 		harness.canvases.set([{ ...harness.canvas, title: 'Updated', source: URI.parse('https://example.test/replacement') }], undefined);
 		const afterMetadata = harness.opened.length;
-		harness.openRequests.set(new Map([['preview', { id: 'second', succeeded: false }]]), undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'second', succeeded: false, pending: true }]]), undefined);
 		const beforeSuccess = harness.opened.length;
 		harness.openRequests.set(new Map([['preview', { id: 'second', succeeded: true }]]), undefined);
 		await timeout(0);
@@ -153,7 +160,7 @@ suite('CanvasService', () => {
 
 	test('does not undo a user close after the corresponding model open started', async () => {
 		const harness = createHarness();
-		harness.openRequests.set(new Map([['preview', { id: 'opening', succeeded: false }]]), undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'opening', succeeded: false, pending: true }]]), undefined);
 		harness.canvases.set([harness.canvas], undefined);
 		await timeout(0);
 		harness.opened[0].dispose();
@@ -163,7 +170,7 @@ suite('CanvasService', () => {
 
 	test('acknowledges successful opens of a visible canvas without repeatedly revealing it', async () => {
 		const harness = createHarness();
-		harness.openRequests.set(new Map([['preview', { id: 'first', succeeded: false }]]), undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'first', succeeded: false, pending: true }]]), undefined);
 		harness.canvases.set([harness.canvas], undefined);
 		await timeout(0);
 		harness.openRequests.set(new Map([['preview', { id: 'first', succeeded: true }]]), undefined);
@@ -226,6 +233,300 @@ suite('CanvasService', () => {
 			afterUnavailableReveal: 1,
 			afterRecovery: 2,
 			sameLifetime: true,
+		});
+	});
+
+	test('restores a recovered canvas source without stealing focus', async () => {
+		const harness = createHarness();
+		harness.visible.set(new Set(), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			opened: harness.opened.length,
+			options: harness.openOptions,
+			groupRestores: harness.groupRestores,
+		}, {
+			opened: 1,
+			options: [{
+				pinned: true,
+				preserveFocus: true,
+				inactive: true,
+				activation: EditorActivation.PRESERVE,
+			}],
+			groupRestores: [true],
+		});
+	});
+
+	test('foregrounds an explicitly revealed canvas when its source recovers', async () => {
+		const harness = createHarness();
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		await harness.service.revealCanvas({ ...harness.owner, canvas: harness.canvas.resource });
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			opened: harness.opened.length,
+			options: harness.openOptions,
+			groupRestores: harness.groupRestores,
+		}, {
+			opened: 1,
+			options: [{ pinned: true, revealIfOpened: true, preserveFocus: false }],
+			groupRestores: [false],
+		});
+	});
+
+	test('foregrounds an explicitly revealed recovery for an existing presentation', async () => {
+		const harness = createHarness();
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		harness.openEditors.length = 0;
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		await harness.service.revealCanvas({ ...harness.owner, canvas: harness.canvas.resource });
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			opened: harness.opened.length,
+			options: harness.openOptions,
+		}, {
+			opened: 2,
+			options: [
+				{ pinned: true, revealIfOpened: true, preserveFocus: false },
+				{ pinned: true, revealIfOpened: true, preserveFocus: false },
+			],
+		});
+	});
+
+	test('preserves explicit reveal intent across repeated provider outages', async () => {
+		const harness = createHarness();
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		await harness.service.revealCanvas({ ...harness.owner, canvas: harness.canvas.resource });
+		harness.visible.set(new Set(), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			opened: harness.opened.length,
+			options: harness.openOptions,
+		}, {
+			opened: 1,
+			options: [{ pinned: true, revealIfOpened: true, preserveFocus: false }],
+		});
+	});
+
+	test('foregrounds a newly requested canvas when its source recovers', async () => {
+		const harness = createHarness();
+		harness.visible.set(new Set(), undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'original', succeeded: true }]]), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'new-request', succeeded: false, pending: true }]]), undefined);
+		harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			opened: harness.opened.length,
+			options: harness.openOptions,
+		}, {
+			opened: 1,
+			options: [{ pinned: true, revealIfOpened: true, preserveFocus: false }],
+		});
+	});
+
+	test('waits for a successful request before recovering a dismissed canvas', async () => {
+		const harness = createHarness();
+		harness.openRequests.set(new Map([['preview', { id: 'original', succeeded: true }]]), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		harness.opened[0].dispose();
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'new-request', succeeded: false, pending: true }]]), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		const beforeSuccess = harness.opened.length;
+		harness.openRequests.set(new Map([['preview', { id: 'new-request', succeeded: true }]]), undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			beforeSuccess,
+			afterSuccess: harness.opened.length,
+			options: harness.openOptions,
+		}, {
+			beforeSuccess: 1,
+			afterSuccess: 2,
+			options: [
+				{ pinned: true, revealIfOpened: true, preserveFocus: false },
+				{ pinned: true, revealIfOpened: true, preserveFocus: false },
+			],
+		});
+	});
+
+	test('foregrounds a request that starts before the canvas source becomes unavailable', async () => {
+		const harness = createHarness();
+		harness.visible.set(new Set(), undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'original', succeeded: true }]]), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'new-request', succeeded: false, pending: true }]]), undefined);
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			opened: harness.opened.length,
+			options: harness.openOptions,
+		}, {
+			opened: 1,
+			options: [{ pinned: true, revealIfOpened: true, preserveFocus: false }],
+		});
+	});
+
+	test('upgrades an in-flight recovery when a new request arrives', async () => {
+		const harness = createHarness();
+		harness.visible.set(new Set(), undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'original', succeeded: true }]]), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), undefined);
+		const pending = harness.delayOpen();
+		harness.canvases.set([harness.canvas], undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'new-request', succeeded: false, pending: true }]]), undefined);
+		await pending.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			opened: harness.opened.length,
+			options: harness.openOptions,
+		}, {
+			opened: 2,
+			options: [
+				{
+					pinned: true,
+					preserveFocus: true,
+					inactive: true,
+					activation: EditorActivation.PRESERVE,
+				},
+				{ pinned: true, revealIfOpened: true, preserveFocus: false },
+			],
+		});
+	});
+
+	test('does not foreground a cancelled request after a recovery open starts', async () => {
+		const harness = createHarness();
+		harness.visible.set(new Set(), undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'original', succeeded: true }]]), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), undefined);
+		const pending = harness.delayOpen();
+		harness.canvases.set([harness.canvas], undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'new-request', succeeded: false, pending: true }]]), undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'new-request', succeeded: false }]]), undefined);
+		await pending.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			opened: harness.opened.length,
+			options: harness.openOptions,
+		}, {
+			opened: 1,
+			options: [{
+				pinned: true,
+				preserveFocus: true,
+				inactive: true,
+				activation: EditorActivation.PRESERVE,
+			}],
+		});
+	});
+
+	test('does not foreground an unavailable canvas after a newer outage starts', async () => {
+		const harness = createHarness();
+		harness.visible.set(new Set(), undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'original', succeeded: true }]]), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), undefined);
+		const pending = harness.delayOpen();
+		harness.canvases.set([harness.canvas], undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'new-request', succeeded: false, pending: true }]]), undefined);
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		await pending.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			opened: harness.opened.length,
+			options: harness.openOptions,
+		}, {
+			opened: 1,
+			options: [{
+				pinned: true,
+				preserveFocus: true,
+				inactive: true,
+				activation: EditorActivation.PRESERVE,
+			}],
+		});
+	});
+
+	test('keeps a failed foreground recovery dismissed for manual retry', async () => {
+		const harness = createHarness();
+		harness.visible.set(new Set(), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), undefined);
+		await harness.service.revealCanvas({ ...harness.owner, canvas: harness.canvas.resource });
+		harness.failOpen(true);
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		harness.visible.set(new Set(), undefined);
+		harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			opened: harness.opened.length,
+			notifications: harness.notifications.length,
+			reopenable: harness.service.reopenableCanvases.get().map(target => target.canvas.instanceId),
+		}, {
+			opened: 1,
+			notifications: 1,
+			reopenable: ['preview'],
+		});
+	});
+
+	test('does not let an older recovery clear a newer foreground recovery', async () => {
+		const harness = createHarness();
+		harness.visible.set(new Set(), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), undefined);
+		const pending = harness.delayOpen();
+		harness.canvases.set([harness.canvas], undefined);
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		await harness.service.revealCanvas({ ...harness.owner, canvas: harness.canvas.resource });
+		await pending.complete();
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			opened: harness.opened.length,
+			options: harness.openOptions,
+		}, {
+			opened: 2,
+			options: [
+				{
+					pinned: true,
+					preserveFocus: true,
+					inactive: true,
+					activation: EditorActivation.PRESERVE,
+				},
+				{ pinned: true, revealIfOpened: true, preserveFocus: false },
+			],
 		});
 	});
 
