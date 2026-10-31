@@ -7,10 +7,10 @@ import assert from 'assert';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { INativeHostService } from '../../../platform/native/common/native.js';
-import { IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable, isFolderToOpen } from '../../../platform/window/common/window.js';
+import { IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable, isFolderToOpen, isWorkspaceToOpen } from '../../../platform/window/common/window.js';
 import { constObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
-import { getChatSessionToOpenInEditor, openSessionInVSCode, returnToVSCodeEditor, shouldShowReturnToVSCodeEditor } from '../../electron-browser/actions/vscodeActions.js';
+import { FOLDERLESS_OPEN_IN_EDITOR_REVEALS_RECENT_WINDOW_TREATMENT, getChatSessionToOpenInEditor, openSessionInVSCode, returnToVSCodeEditor, shouldShowReturnToVSCodeEditor } from '../../electron-browser/actions/vscodeActions.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { IChat } from '../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
@@ -25,6 +25,14 @@ import { OperatingSystem } from '../../../base/common/platform.js';
 import { splitRecentLabel } from '../../../base/common/labels.js';
 import { ILabelService } from '../../../platform/label/common/label.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { getWindowId } from '../../../base/browser/dom.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { TestExperimentTriggerTelemetryService } from '../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
+import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, IWorkspacesService } from '../../../platform/workspaces/common/workspaces.js';
+import { IWorkbenchAssignmentService } from '../../../workbench/services/assignment/common/assignmentService.js';
+import { NullWorkbenchAssignmentService } from '../../../workbench/services/assignment/test/common/nullAssignmentService.js';
+import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 
 suite('VS Code Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -38,6 +46,7 @@ suite('VS Code Actions', () => {
 		instantiationService.stub(ILabelService, labelService);
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() { }());
 		instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() { }());
+		instantiationService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 	});
 
 	test('shows return action only when there is no other main window', () => {
@@ -111,18 +120,65 @@ suite('VS Code Actions', () => {
 		}]);
 	});
 
-	test('opens an empty editor window when the active chat has no workspace', async () => {
-		const calls: { empty: boolean }[] = [];
-		const nativeHostService = new class extends mock<INativeHostService>() {
-			override async openWindow(toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[]): Promise<void> {
-				calls.push({ empty: !Array.isArray(toOpen) });
-			}
-		}();
+	test('reveals a recent editor window instead of an empty one for folderless sessions only in the experiment treatment', async () => {
+		const agentsWindowId = getWindowId(mainWindow);
+		const agentsWindow: IOpenedMainWindow = { ...createWindow(agentsWindowId), lastFocusTime: 3 };
+		const editorWindows: IOpenedMainWindow[] = [{ ...createWindow(agentsWindowId + 1), lastFocusTime: 1 }, { ...createWindow(agentsWindowId + 2), lastFocusTime: 2 }];
+		const recentFolder: IRecentFolder = { folderUri: URI.file('/recent'), label: 'recent' };
+		const recentWorkspace: IRecentWorkspace = { workspace: { id: 'recent', configPath: URI.file('/recent.code-workspace') }, label: 'recent workspace' };
+		const agentsWindowWorkspace: IRecentWorkspace = { workspace: { id: 'agents', configPath: instantiationService.invokeFunction(accessor => accessor.get(IEnvironmentService).agentSessionsWorkspace) }, label: 'Agents Window' };
+		const run = async (treatment: boolean | undefined, windows: IOpenedMainWindow[], recents: (IRecentWorkspace | IRecentFolder)[], session = createSession('folderless', true)) => {
+			const calls: { focus?: number; open?: string[]; forceNewWindow?: boolean; empty?: true }[] = [];
+			const telemetryService = new TestExperimentTriggerTelemetryService();
+			instantiationService.stub(ITelemetryService, telemetryService);
+			instantiationService.stub(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() {
+				override async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
+					return (name === FOLDERLESS_OPEN_IN_EDITOR_REVEALS_RECENT_WINDOW_TREATMENT ? treatment : undefined) as T | undefined;
+				}
+			}());
+			instantiationService.stub(IWorkspacesService, new class extends mock<IWorkspacesService>() {
+				override async getRecentlyOpened(): Promise<IRecentlyOpened> {
+					return { workspaces: recents, files: [] };
+				}
+			}());
+			instantiationService.stub(INativeHostService, new class extends mock<INativeHostService>() {
+				override async getWindows(): Promise<IOpenedMainWindow[]> {
+					return windows;
+				}
+				override async focusWindow(options?: { targetWindowId?: number }): Promise<void> {
+					calls.push({ focus: options?.targetWindowId });
+				}
+				override async openWindow(toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
+					calls.push(Array.isArray(toOpen)
+						? { open: toOpen.map(openable => (isFolderToOpen(openable) ? openable.folderUri : isWorkspaceToOpen(openable) ? openable.workspaceUri : openable.fileUri).toString()), forceNewWindow: options?.forceNewWindow }
+						: { empty: true });
+				}
+			}());
+			await instantiationService.invokeFunction(openSessionInVSCode, session);
+			return { calls, triggers: telemetryService.triggers };
+		};
+		const triggered = [FOLDERLESS_OPEN_IN_EDITOR_REVEALS_RECENT_WINDOW_TREATMENT];
 
-		instantiationService.stub(INativeHostService, nativeHostService);
-		await instantiationService.invokeFunction(openSessionInVSCode, createSession('no-workspace', true));
-
-		assert.deepStrictEqual(calls, [{ empty: true }]);
+		assert.deepStrictEqual({
+			control: await run(false, [agentsWindow, ...editorWindows], [recentFolder]),
+			unassigned: await run(undefined, [agentsWindow, ...editorWindows], [recentFolder]),
+			treatment: await run(true, [agentsWindow, ...editorWindows], [recentFolder]),
+			treatmentWithoutEditorWindowsAndRecentFolder: await run(true, [agentsWindow], [recentFolder, recentWorkspace]),
+			treatmentWithoutEditorWindowsAndRecentWorkspace: await run(true, [agentsWindow], [recentWorkspace, recentFolder]),
+			// Recents can list the Agents window's own workspace, which is already open.
+			treatmentWithoutEditorWindowsAfterAgentsWindowRecent: await run(true, [agentsWindow], [agentsWindowWorkspace, recentFolder]),
+			treatmentWithoutEditorWindowsOrRecents: await run(true, [agentsWindow], [agentsWindowWorkspace]),
+			treatmentForSessionWithFolder: await run(true, [agentsWindow, ...editorWindows], [recentFolder], createSession('folder', true, [URI.file('/repo')])),
+		}, {
+			control: { calls: [{ empty: true }], triggers: triggered },
+			unassigned: { calls: [{ empty: true }], triggers: triggered },
+			treatment: { calls: [{ focus: agentsWindowId + 2 }], triggers: triggered },
+			treatmentWithoutEditorWindowsAndRecentFolder: { calls: [{ open: ['file:///recent'], forceNewWindow: true }], triggers: triggered },
+			treatmentWithoutEditorWindowsAndRecentWorkspace: { calls: [{ open: ['file:///recent.code-workspace'], forceNewWindow: true }], triggers: triggered },
+			treatmentWithoutEditorWindowsAfterAgentsWindowRecent: { calls: [{ open: ['file:///recent'], forceNewWindow: true }], triggers: triggered },
+			treatmentWithoutEditorWindowsOrRecents: { calls: [{ empty: true }], triggers: triggered },
+			treatmentForSessionWithFolder: { calls: [{ open: ['file:///repo'], forceNewWindow: true }], triggers: [] },
+		});
 	});
 
 	for (const folders of [
