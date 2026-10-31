@@ -10,7 +10,7 @@
     "@types/node": "24.x",
     "@types/rimraf": "^2.0.4",
     "@types/tmp": "0.1.0",
-    "rimraf": "^2.6.1",
+    "rimraf": "^4.1.4",
     "tmp": "0.2.7",
     "tree-kill": "1.2.2",
     "vscode-uri": "^3.0.2"
