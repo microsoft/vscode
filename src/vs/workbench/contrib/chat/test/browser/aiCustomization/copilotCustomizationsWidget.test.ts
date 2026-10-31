@@ -17,13 +17,18 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentExtensionInventory } from '../../../../../../platform/agentHost/common/agent.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { getCanvasDefinitionInstanceId, ICanvas, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasReference, ICanvasService } from '../../../../canvases/common/canvas.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationManagementCommands } from '../../../common/aiCustomizationWorkspaceService.js';
+import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { CopilotCanvasesWidget } from '../../../browser/aiCustomization/copilotCustomizationsWidget.js';
 import { ICopilotExtensionsService } from '../../../browser/aiCustomization/copilotExtensionsService.js';
@@ -76,6 +81,8 @@ suite('CopilotCanvasesWidget', () => {
 		readonly mutationError?: Error;
 		readonly onMutation?: () => void;
 		readonly plugins?: readonly IAgentPlugin[];
+		readonly discoveryAvailable?: boolean;
+		readonly customizationSessionResource?: URI;
 	}) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.copilot-canvases-test.ai-customization-management-editor'));
 		container.style.width = '900px';
@@ -83,6 +90,7 @@ suite('CopilotCanvasesWidget', () => {
 		store.add({ dispose: () => container.remove() });
 		const ownerSuffix = options?.ownerSuffix ?? 'owner';
 		const frontendSessionResource = URI.parse(`agent-host-copilotcli:/frontend-${ownerSuffix}`);
+		const customizationSessionResource = options?.customizationSessionResource ?? frontendSessionResource;
 		let definitions = options?.definitions ?? [definition()];
 		let extensionInventory = options?.extensionInventory ?? inventory(definitions);
 		const definitionsChanged = store.add(new Emitter<void>());
@@ -155,10 +163,29 @@ suite('CopilotCanvasesWidget', () => {
 		const plugins = observableValue<readonly IAgentPlugin[]>('plugins', options?.plugins ?? []);
 		const menuActions: IAction[] = [];
 		let hideMenu = () => { };
+		const canvasMarketplaceSetting = 'test.canvasMarketplace.enabled';
+		const discoveryAvailable = options?.discoveryAvailable ?? true;
+		const configurationService = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: discoveryAvailable,
+			[canvasMarketplaceSetting]: discoveryAvailable,
+		});
+		store.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 		const instantiationService = workbenchInstantiationService({}, store);
 		instantiationService.stub(ICanvasContextService, canvasContextService);
 		instantiationService.stub(ICanvasService, canvasService);
 		instantiationService.stub(ICopilotExtensionsService, extensionsService);
+		instantiationService.stub(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+			override readonly activeSessionResource = constObservable(customizationSessionResource);
+		}());
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [{
+				id: 'canvasMarketplace',
+				displayName: 'Canvas Marketplace',
+				enablementSetting: canvasMarketplaceSetting,
+			}];
+			override readonly onDidChangeSources = Event.None;
+		}());
 		instantiationService.stub(IOpenerService, new class extends mock<IOpenerService>() {
 			override async open(resource: URI | string): Promise<boolean> {
 				openedLinks.push(resource.toString());
@@ -211,6 +238,7 @@ suite('CopilotCanvasesWidget', () => {
 			definitionsChanged,
 			enabled,
 			frontendSessionResource,
+			configurationService,
 			listRequests,
 			setRequests,
 			get listCalls() { return listCalls; },
@@ -353,6 +381,65 @@ suite('CopilotCanvasesWidget', () => {
 		});
 	});
 
+	test('opens Canvas discovery from the header when available', async () => {
+		const customizationSessionResource = URI.parse('agent-host-copilotcli:/customization-session');
+		const available = createHarness({ contextAvailable: false, customizationSessionResource });
+		const unavailable = createHarness({ contextAvailable: false, discoveryAvailable: false });
+		const create = available.container.querySelector<HTMLElement>('[aria-label="Create a Canvas"]');
+		const browse = available.container.querySelector<HTMLElement>('[aria-label="Browse Canvas Extensions"]');
+		const hiddenBrowse = unavailable.container.querySelector<HTMLElement>('[aria-label="Browse Canvas Extensions"]');
+		assert.ok(create);
+		assert.ok(browse);
+		assert.ok(hiddenBrowse);
+		create.click();
+		browse.click();
+		await timeout(0);
+		const visibleDisplay = browse.style.display;
+		await available.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+		available.configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean {
+				return section === CustomizationMarketplaceConfiguration.MarketplaceEnabled;
+			}
+		}());
+		const hiddenAfterConfigurationChange = browse.style.display;
+		await available.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
+		available.configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean {
+				return section === CustomizationMarketplaceConfiguration.MarketplaceEnabled;
+			}
+		}());
+
+		assert.deepStrictEqual({
+			createLabel: create.textContent,
+			createAriaLabel: create.getAttribute('aria-label'),
+			label: browse.textContent,
+			ariaLabel: browse.getAttribute('aria-label'),
+			commands: available.commands,
+			visibleDisplay,
+			hiddenAfterConfigurationChange,
+			restoredDisplay: browse.style.display,
+			hiddenDisplay: hiddenBrowse.style.display,
+			hiddenAccessibilityMentionsBrowse: unavailable.widget.getAccessibilityContent().includes('Use Browse'),
+		}, {
+			createLabel: 'Create a Canvas...',
+			createAriaLabel: 'Create a Canvas',
+			label: 'Browse',
+			ariaLabel: 'Browse Canvas Extensions',
+			commands: [
+				{ id: AICustomizationManagementCommands.CreateCanvas, args: [] },
+				{
+					id: AICustomizationManagementCommands.OpenEditor,
+					args: [{ showDiscover: true, searchQuery: '@type:canvas', sessionResource: customizationSessionResource }],
+				},
+			],
+			visibleDisplay: '',
+			hiddenAfterConfigurationChange: 'none',
+			restoredDisplay: '',
+			hiddenDisplay: 'none',
+			hiddenAccessibilityMentionsBrowse: false,
+		});
+	});
+
 	test('distinguishes a missing compatible chat from a chat with no Canvases', async () => {
 		const withoutContext = createHarness({ contextAvailable: false });
 		const withoutCanvases = createHarness({ definitions: [] });
@@ -366,13 +453,13 @@ suite('CopilotCanvasesWidget', () => {
 		}, {
 			withoutContext: [
 				'Canvases',
-				'Canvas availability follows the chats currently visible in this window.',
+				'Canvas availability follows the chats currently visible in this window. Use Create a Canvas to start a guided authoring session, or Browse to find and install Canvas extensions.',
 				'Canvases are only available inside a session',
 				'Select an active Copilot session and then open this Customizations menu again',
 			].join('\n\n'),
 			withoutCanvases: [
 				'Canvases',
-				'Canvas availability follows the chats currently visible in this window.',
+				'Canvas availability follows the chats currently visible in this window. Use Create a Canvas to start a guided authoring session, or Browse to find and install Canvas extensions.',
 				'No Canvases Available',
 				'None of the current Copilot chats provide any Canvases.',
 			].join('\n\n'),

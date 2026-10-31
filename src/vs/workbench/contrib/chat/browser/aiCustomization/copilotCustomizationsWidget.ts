@@ -27,7 +27,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import type { AgentExtensionMode, IAgentExtensionInfo, IAgentExtensionInventory } from '../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -36,11 +38,12 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { canvasOwnerKey, type CanvasDefinitionSnapshot, getCanvasDefinitionInstanceId, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService, isCanvasOwner, isOpenableExtensionCanvasDefinition } from '../../../canvases/common/canvas.js';
 import { CanvasDefinitionStore } from '../../../canvases/common/canvasDefinitionStore.js';
 import { AICustomizationManagementCommands } from '../../common/aiCustomizationWorkspaceService.js';
 import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { extensionIcon, pluginIcon, userIcon, workspaceIcon } from './aiCustomizationIcons.js';
 import { IAICustomizationManagementSectionWidget } from './aiCustomizationManagementSectionRegistry.js';
@@ -49,6 +52,7 @@ import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CU
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeAriaLabel, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
 import { CustomizationToggle } from './customizationToggle.js';
 import { ICopilotExtensionsService } from './copilotExtensionsService.js';
+import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
 
 const $ = DOM.$;
 const COPILOT_EXTENSION_ITEM_HEIGHT = 48;
@@ -436,6 +440,8 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 	readonly onDidChangeItemCount = this._onDidChangeItemCount.event;
 
 	private readonly searchInput: InputBox;
+	private readonly createCanvasButton: Button;
+	private readonly browseCanvasesButton: Button;
 	private readonly treeContainer: HTMLElement;
 	private readonly tree: WorkbenchObjectTree<CopilotCanvasTreeEntry>;
 	private readonly extensionRenderer: CopilotCanvasExtensionRenderer;
@@ -471,8 +477,11 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		@ICanvasContextService private readonly canvasContextService: ICanvasContextService,
 		@ICanvasService private readonly canvasService: ICanvasService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
+		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@ICustomizationMarketplaceService private readonly customizationMarketplaceService: ICustomizationMarketplaceService,
 		@IHoverService hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -489,6 +498,38 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		const header = DOM.append(this.element, $('.section-title-header'));
 		const titleRow = DOM.append(header, $('.section-title-row'));
 		DOM.append(titleRow, $('h2.section-title')).textContent = localize('copilotCanvases.title', "Canvases");
+		const titleActions = DOM.append(titleRow, $('.section-title-actions'));
+		const createLabel = localize('copilotCanvases.create', "Create a Canvas...");
+		const createAriaLabel = localize('copilotCanvases.createAriaLabel', "Create a Canvas");
+		this.createCanvasButton = this._register(new Button(titleActions, {
+			...defaultButtonStyles,
+			secondary: true,
+			small: true,
+			title: createAriaLabel,
+			ariaLabel: createAriaLabel,
+		}));
+		this.createCanvasButton.label = createLabel;
+		this._register(this.createCanvasButton.onDidClick(() => {
+			void this.commandService.executeCommand(AICustomizationManagementCommands.CreateCanvas);
+		}));
+		const browseLabel = localize('copilotCanvases.browse', "Browse");
+		const browseAriaLabel = localize('copilotCanvases.browseAriaLabel', "Browse Canvas Extensions");
+		this.browseCanvasesButton = this._register(new Button(titleActions, {
+			...defaultButtonStyles,
+			secondary: true,
+			small: true,
+			title: browseAriaLabel,
+			ariaLabel: browseAriaLabel,
+		}));
+		this.browseCanvasesButton.label = browseLabel;
+		this._register(this.browseCanvasesButton.onDidClick(() => {
+			void this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, {
+				showDiscover: true,
+				searchQuery: '@type:canvas',
+				sessionResource: this.customizationHarnessService.activeSessionResource.get(),
+			});
+		}));
+		this.updateHeaderActions();
 		const description = DOM.append(header, $('p.section-title-description'));
 		DOM.append(description, $('span.section-title-description-text')).textContent = localize('copilotCanvases.description', "Canvases are interactive visual surfaces shared by you and the agent.");
 		description.appendChild(document.createTextNode(' '));
@@ -499,6 +540,14 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			event.preventDefault();
 			void openerService.open(URI.parse(learnMore.href));
 		}));
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (affectsCustomizationDiscoveryAvailability(event, this.customizationMarketplaceService)) {
+				this.updateHeaderActions();
+			}
+		}));
+		if (this.customizationMarketplaceService.onDidChangeSources) {
+			this._register(this.customizationMarketplaceService.onDidChangeSources(() => this.updateHeaderActions()));
+		}
 
 		const searchRow = DOM.append(this.element, $('.tools-list-search-and-button-container'));
 		const searchContainer = DOM.append(searchRow, $('.tools-list-search-container'));
@@ -695,7 +744,9 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 	getAccessibilityContent(): string {
 		const extensions = this.getFilteredExtensions();
 		const groups = this.getExtensionGroups(extensions, !!this.searchInput.value.trim());
-		const description = localize('copilotCanvases.availableDescription', "Canvas availability follows the chats currently visible in this window.");
+		const description = isCustomizationDiscoveryAvailable(this.configurationService, this.customizationMarketplaceService)
+			? localize('copilotCanvases.availableDescriptionWithBrowse', "Canvas availability follows the chats currently visible in this window. Use Create a Canvas to start a guided authoring session, or Browse to find and install Canvas extensions.")
+			: localize('copilotCanvases.availableDescription', "Canvas availability follows the chats currently visible in this window. Use Create a Canvas to start a guided authoring session.");
 		if (extensions.length === 0) {
 			return [localize('copilotCanvases.title', "Canvases"), description, this.emptyText.textContent, this.emptySubtext.textContent].filter(Boolean).join('\n\n');
 		}
@@ -741,6 +792,17 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 
 	setCloseCustomizationEditor(closeCustomizationEditor: () => Promise<boolean>): void {
 		this.closeCustomizationEditor = closeCustomizationEditor;
+	}
+
+	private updateHeaderActions(): void {
+		const display = isCustomizationDiscoveryAvailable(this.configurationService, this.customizationMarketplaceService) ? '' : 'none';
+		if (this.browseCanvasesButton.element.style.display === display) {
+			return;
+		}
+		this.browseCanvasesButton.element.style.display = display;
+		if (this.lastHeight > 0) {
+			this.layout(new DOM.Dimension(this.lastWidth, this.lastHeight));
+		}
 	}
 
 	private updateActiveOwners(activeOwnerKeys: Set<string>): void {

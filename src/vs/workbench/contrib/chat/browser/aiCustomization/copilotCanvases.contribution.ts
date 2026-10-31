@@ -5,16 +5,17 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import * as DOM from '../../../../../base/browser/dom.js';
-import { localize } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CanvasesEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { isCopilotCliSessionType } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR, CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION } from './aiCustomizationManagement.js';
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
@@ -31,6 +32,23 @@ aiCustomizationManagementSectionRegistry.register({
 	initializeOnEditorOpen: true,
 	supportsHarness: isCopilotCliSessionType,
 	create: (instantiationService, container) => instantiationService.createInstance(CopilotCanvasesWidget, container),
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: AICustomizationManagementCommands.CreateCanvas,
+			title: localize2('copilotCanvases.create', "Create a Canvas..."),
+			precondition: ChatContextKeys.enabled,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editor = accessor.get(IEditorService).activeEditorPane;
+		if (editor instanceof AICustomizationManagementEditor) {
+			await editor.createCanvas();
+		}
+	}
 });
 
 class CopilotCanvasesAccessibility implements IAccessibleViewImplementation {
@@ -58,8 +76,8 @@ class CopilotCanvasesAccessibility implements IAccessibleViewImplementation {
 			AccessibleViewProviderId.CustomizationDiscovery,
 			{ type: this.type, language: 'plaintext' },
 			() => this.type === AccessibleViewType.Help ? [
-				localize('copilotCanvases.help.overview', "Canvases are interactive visual surfaces shared by you and the agent. The Learn more about canvases link below the heading opens the documentation."),
-				localize('copilotCanvases.help.navigation', "The tree groups canvas extension parents under User, Workspace, Plugin, or Other sections, with each canvas extension's Canvases as children. Use Tab and Shift+Tab to move between the documentation link, search, the tree, and actions in the focused row. Use the Up Arrow, Down Arrow, Home, and End keys to navigate. Use the Left Arrow and Right Arrow keys to collapse or expand sections and canvas extensions."),
+				localize('copilotCanvases.help.overview', "Canvases are interactive visual surfaces shared by you and the agent. Create a Canvas starts a new Copilot session with the Canvas authoring flow ready. The Browse button, when available, opens Discover filtered to Canvases so you can install a Canvas extension. Focus moves to Discover; use the Canvases entry in the section list to return. The Learn more about canvases link below the heading opens the documentation."),
+				localize('copilotCanvases.help.navigation', "The tree groups canvas extension parents under User, Workspace, Plugin, or Other sections, with each canvas extension's Canvases as children. Use Tab and Shift+Tab to move between Create a Canvas, Browse when available, the documentation link, search, the tree, and actions in the focused row. Use the Up Arrow, Down Arrow, Home, and End keys to navigate. Use the Left Arrow and Right Arrow keys to collapse or expand sections and canvas extensions."),
 				localize('copilotCanvases.help.enablement', "For User and Plugin canvas extensions, Tab to the switch and press Space to enable or disable it. Workspace canvas extension enablement cannot be changed here. When disabling stops a canvas extension from reporting definitions, its children are labeled as last known and remain listed so the canvas extension can be enabled again."),
 				localize('copilotCanvases.help.actions', "Single-click a Canvas child to select it. To open an enabled Canvas, use Open Canvas in More Actions, double-click, or press Enter. Use More Actions on a canvas extension to open its source or plugin and change enablement. Show Plugin opens the owning plugin's details; use Back to return to Canvases."),
 			].join('\n\n') : content!,
