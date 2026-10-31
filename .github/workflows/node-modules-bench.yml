@@ -94,6 +94,8 @@ jobs:
 
   linux:
     name: Linux
+    # Runs 1 and 2 measured Linux and macOS consistently; later runs only benchmark Windows
+    if: false
     runs-on: vscode-large-runners-ubuntu-8-core
     timeout-minutes: 120
     steps:
@@ -135,6 +137,7 @@ jobs:
 
   macos:
     name: macOS
+    if: false
     runs-on: vscode-large-runners-macos-5-core-0
     timeout-minutes: 180
     steps:
