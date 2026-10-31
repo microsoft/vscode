@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { load } from 'js-yaml';
-import { getWebCdnConfiguration, validateMobileWebCdnIdentity } from './cdnConfiguration.ts';
+import { getWebCdnConfiguration, validateMobileWebCdnIdentity } from '../../azure-pipelines/web/cdnConfiguration.ts';
 
 const commit = '0123456789abcdef0123456789abcdef01234567';
 
@@ -45,7 +45,7 @@ test('mobile CDN publication verifies the pipeline commit and quality without a 
 });
 
 test('the standard publisher registers mobile separately while preserving web and server-web platform names', () => {
-	const moduleUrl = new URL('../common/publish.ts', import.meta.url).href;
+	const moduleUrl = new URL('../../azure-pipelines/common/publish.ts', import.meta.url).href;
 	const output = execFileSync(process.execPath, ['--input-type=module', '-e', `
 		const { getPlatform } = await import(${JSON.stringify(moduleUrl)});
 		console.log(JSON.stringify(['mobile', 'standalone', 'x64'].map(arch => getPlatform('web', 'linux', arch, 'archive-unsigned'))));
@@ -54,7 +54,7 @@ test('the standard publisher registers mobile separately while preserving web an
 });
 
 test('both product pipeline entry points keep mobile opt-in and require the existing Web stage', async () => {
-	for (const file of ['../product-build.yml', '../product-build-template.yml']) {
+	for (const file of ['../../azure-pipelines/product-build.yml', '../../azure-pipelines/product-build-template.yml']) {
 		const source = await readFile(new URL(file, import.meta.url), 'utf8');
 		const pipeline = load(source) as { parameters: { name: string; default: boolean }[] };
 		assert.equal(pipeline.parameters.find(parameter => parameter.name === 'VSCODE_BUILD_WEB_MOBILE')?.default, false);
@@ -64,14 +64,15 @@ test('both product pipeline entry points keep mobile opt-in and require the exis
 });
 
 test('the existing Web job builds a normal archive before publication and guards mobile CDN writes', async () => {
-	const source = await readFile(new URL('./product-build-web.yml', import.meta.url), 'utf8');
+	const source = await readFile(new URL('../../azure-pipelines/web/product-build-web.yml', import.meta.url), 'utf8');
 	const pipeline = load(source) as { parameters: { name: string; default: boolean }[]; jobs: { templateContext: { outputs: object[] } }[] };
 	assert.equal(pipeline.parameters.find(parameter => parameter.name === 'VSCODE_BUILD_WEB_MOBILE')?.default, false);
 	assert.ok(JSON.stringify(pipeline.jobs[0].templateContext.outputs).includes('vscode_web_linux_mobile_archive-unsigned'));
 	assert.ok(source.includes('npm run test-mobile-preview'));
-	assert.ok(source.includes('node --test build/azure-pipelines/web/cdnConfiguration.test.ts'));
+	assert.ok(source.includes('node --test build/lib/test/mobileWebPublication.test.ts'));
 	assert.ok(source.includes('npm run bundle-mobile-preview'));
-	assert.ok(source.includes('-C out-mobile-preview out node_modules extensions mobile-preview.json'));
+	assert.ok(source.includes('--transform=\'s,^out-mobile-preview,vscode-web-mobile,\''));
+	assert.ok(source.includes('out-mobile-preview/mobile-preview.json'));
 	assert.ok(source.includes('condition: and(succeeded(), eq(variables[\'VSCODE_PUBLISH\'], \'True\'))'));
 	assert.ok(source.indexOf('Build and validate mobile web archive') < source.indexOf('node build/azure-pipelines/upload-cdn.ts --mobile'));
 	assert.ok(!source.includes('publish-mobile-preview'));

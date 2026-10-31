@@ -217,10 +217,13 @@ jobs:
         - script: |
             set -e
             npm run test-mobile-preview
-            node --test build/azure-pipelines/web/cdnConfiguration.test.ts
+            node --test build/lib/test/mobileWebPublication.test.ts
             npm run bundle-mobile-preview
-            tar --owner=0 --group=0 -czf "$(Build.ArtifactStagingDirectory)/out/web/vscode-web-mobile.tar.gz" \
-              -C out-mobile-preview out node_modules extensions mobile-preview.json
+            mkdir -p "$(Build.ArtifactStagingDirectory)/out/web"
+            tar --owner=0 --group=0 --transform='s,^out-mobile-preview,vscode-web-mobile,' \
+              -czf "$(Build.ArtifactStagingDirectory)/out/web/vscode-web-mobile.tar.gz" \
+              out-mobile-preview/out out-mobile-preview/node_modules \
+              out-mobile-preview/extensions out-mobile-preview/mobile-preview.json
           displayName: Build and validate mobile web archive
 
         - script: |

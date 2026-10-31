@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { mobilePreviewDirectory, mobilePreviewManifestName, type MobilePreviewManifest } from '../../next/mobilePreview.ts';
+import type { MobilePreviewManifest } from '../../next/mobilePreview.ts';
 
 /** Mobile has a separate root and inventory; the normal web preloader must never discover it. */
 export function getWebCdnConfiguration(args: readonly string[], quality: string | undefined, commit: string | undefined) {
@@ -17,16 +17,16 @@ export function getWebCdnConfiguration(args: readonly string[], quality: string 
 	assert.match(quality ?? '', /^(stable|insider|exploration)$/, 'Mobile publication requires an official build quality');
 	assert.match(commit ?? '', /^[0-9a-f]{40}$/, 'Mobile publication requires BUILD_SOURCEVERSION');
 	return {
-		source: mobilePreviewDirectory,
+		source: 'out-mobile-preview',
 		prefix: `agents/mobile/${quality}/${commit}/`,
-		patterns: ['out/**', 'node_modules/**', 'extensions/**', mobilePreviewManifestName],
+		patterns: ['out/**', 'node_modules/**', 'extensions/**', 'mobile-preview.json'],
 		mobile: true,
 	};
 }
 
 /** The build registry, CDN assets and archive must all describe the same source revision. */
 export async function validateMobileWebCdnIdentity(directory: string, quality: string, commit: string): Promise<void> {
-	const manifest: MobilePreviewManifest = JSON.parse(await readFile(join(directory, mobilePreviewManifestName), 'utf8'));
+	const manifest: MobilePreviewManifest = JSON.parse(await readFile(join(directory, 'mobile-preview.json'), 'utf8'));
 	assert.equal(manifest.schemaVersion, 2, 'Unsupported mobile build inventory');
 	assert.equal(manifest.kind, 'sessions-mobile-preview', 'Expected a mobile web build');
 	assert.equal(manifest.build?.commit, commit, 'Mobile build does not match BUILD_SOURCEVERSION');
