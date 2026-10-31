@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { addDisposableListener } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorunDelta } from '../../../../base/common/observable.js';
 // eslint-disable-next-line local/code-translation-remind -- Experimental entry is excluded from production translation resources.
 import { localize } from '../../../../nls.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
@@ -17,36 +20,26 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 /** Swallows the brief idle gap between a turn ending and a queued turn starting. */
 const COMPLETED_DELAY_MS = 1_500;
 
-/**
- * Tells the user their phone needs them while the app is in the background.
- *
- * A phone user starts a long-running session and switches apps; the desktop
- * notifier cannot reach them because its OS toasts come from Electron. This
- * contribution uses the Web Notifications API when the page is hidden: a
- * session that finishes, fails, or asks a question posts a system notification
- * (and a short vibration where supported), and tapping it brings the app back
- * and opens that session. Nothing is shown while the page is visible — the
- * transcript and the session list already show the change.
- *
- * Permission is requested lazily, the first time a notification would be
- * useful, so the prompt appears in context rather than at startup.
- */
-class MobileBackgroundNotifier extends Disposable implements IWorkbenchContribution {
+export interface IMobileNotificationHost {
+	readonly permission: NotificationPermission;
+	isHidden(): boolean;
+	requestPermission(): Promise<NotificationPermission>;
+	createNotification(title: string, options: NotificationOptions): EventTarget & { close(): void };
+	focus(): void;
+	vibrate(pattern: VibratePattern): void;
+}
 
-	static readonly ID = 'workbench.contrib.mobileBackgroundNotifier';
-
+/** Notifies about current session changes while the phone app is hidden. */
+export class MobileBackgroundNotifier extends Disposable {
 	private readonly _statusListeners = this._register(new DisposableMap<string>());
-	private readonly _shown = new Map<string, Notification>();
+	private readonly _shown = this._register(new DisposableMap<string>());
 
 	constructor(
+		private readonly _host: IMobileNotificationHost,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
-
-		if (typeof Notification === 'undefined') {
-			return;
-		}
 
 		for (const session of this._sessionsManagementService.getSessions()) {
 			this._track(session);
@@ -60,21 +53,22 @@ class MobileBackgroundNotifier extends Disposable implements IWorkbenchContribut
 				this._track(session);
 			}
 		}));
-		this._register(toDisposable(() => {
-			for (const notification of this._shown.values()) {
-				notification.close();
-			}
-			this._shown.clear();
-		}));
 	}
 
 	private _track(session: ISession): void {
 		const store = new DisposableStore();
-		const completed = store.add(new RunOnceScheduler(() => void this._notify(session, SessionStatus.Completed), COMPLETED_DELAY_MS));
+		this._statusListeners.set(session.sessionId, store);
+		let generation = 0;
+		const notify = (status: SessionStatus) => {
+			const currentGeneration = generation;
+			void this._notify(session, status, () => !store.isDisposed && generation === currentGeneration).catch(onUnexpectedError);
+		};
+		const completed = store.add(new RunOnceScheduler(() => notify(SessionStatus.Completed), COMPLETED_DELAY_MS));
 		store.add(autorunDelta(session.status, ({ lastValue, newValue }) => {
 			if (lastValue === undefined || lastValue === newValue) {
 				return;
 			}
+			generation++;
 			this._close(session);
 			if (newValue === SessionStatus.Completed) {
 				completed.schedule();
@@ -82,17 +76,17 @@ class MobileBackgroundNotifier extends Disposable implements IWorkbenchContribut
 				completed.cancel();
 			}
 			if (newValue === SessionStatus.NeedsInput || newValue === SessionStatus.Error) {
-				void this._notify(session, newValue);
+				notify(newValue);
 			}
 		}));
-		this._statusListeners.set(session.sessionId, store);
 	}
 
-	private async _notify(session: ISession, status: SessionStatus): Promise<void> {
-		if (session.status.get() !== status || !mainWindow.document.hidden) {
+	private async _notify(session: ISession, status: SessionStatus, isCurrent: () => boolean): Promise<void> {
+		const canNotify = () => !this._store.isDisposed && isCurrent() && session.status.get() === status && this._host.isHidden();
+		if (!canNotify()) {
 			return;
 		}
-		if (!(await this._ensurePermission())) {
+		if (!(await this._ensurePermission()) || !canNotify()) {
 			return;
 		}
 
@@ -103,40 +97,59 @@ class MobileBackgroundNotifier extends Disposable implements IWorkbenchContribut
 				? localize('mobileNotify.failed', "Stopped with an error")
 				: localize('mobileNotify.completed', "Finished");
 
-		const notification = new Notification(title, {
+		const notificationStore = new DisposableStore();
+		this._shown.set(session.sessionId, notificationStore);
+		const notification = this._host.createNotification(title, {
 			body,
 			tag: session.resource.toString(),
 			icon: 'favicon.ico',
 		});
-		notification.onclick = () => {
-			mainWindow.focus();
-			void this._sessionsService.openSession(session.resource, { source: 'notification' });
-			notification.close();
-		};
-		this._shown.set(session.sessionId, notification);
+		notificationStore.add(toDisposable(() => notification.close()));
+		notificationStore.add(addDisposableListener(notification, 'click', () => {
+			this._host.focus();
+			void this._sessionsService.openSession(session.resource, { source: 'notification' }).catch(onUnexpectedError);
+			this._close(session);
+		}));
 
-		// Optional on the web platform: absent on desktop browsers and iOS Safari.
-		navigator.vibrate?.(status === SessionStatus.NeedsInput ? [60, 40, 60] : 40);
+		this._host.vibrate(status === SessionStatus.NeedsInput ? [60, 40, 60] : 40);
 	}
 
 	private async _ensurePermission(): Promise<boolean> {
-		if (Notification.permission === 'granted') {
+		if (this._host.permission === 'granted') {
 			return true;
 		}
-		if (Notification.permission === 'denied') {
+		if (this._host.permission === 'denied') {
 			return false;
 		}
 		try {
-			return (await Notification.requestPermission()) === 'granted';
+			return (await this._host.requestPermission()) === 'granted';
 		} catch {
 			return false;
 		}
 	}
 
 	private _close(session: ISession): void {
-		this._shown.get(session.sessionId)?.close();
-		this._shown.delete(session.sessionId);
+		this._shown.deleteAndDispose(session.sessionId);
 	}
 }
 
-registerWorkbenchContribution2(MobileBackgroundNotifier.ID, MobileBackgroundNotifier, WorkbenchPhase.Eventually);
+class MobileBackgroundNotifierContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.mobileBackgroundNotifier';
+
+	constructor(@IInstantiationService instantiationService: IInstantiationService) {
+		super();
+		if (typeof Notification === 'undefined') {
+			return;
+		}
+		this._register(instantiationService.createInstance(MobileBackgroundNotifier, {
+			get permission() { return Notification.permission; },
+			isHidden: () => mainWindow.document.hidden,
+			requestPermission: () => Notification.requestPermission(),
+			createNotification: (title, options) => new Notification(title, options),
+			focus: () => mainWindow.focus(),
+			vibrate: pattern => mainWindow.navigator.vibrate?.(pattern),
+		}));
+	}
+}
+
+registerWorkbenchContribution2(MobileBackgroundNotifierContribution.ID, MobileBackgroundNotifierContribution, WorkbenchPhase.Eventually);

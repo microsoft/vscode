@@ -60,6 +60,15 @@ suite('Sessions presentation entry isolation', () => {
 			assert.deepStrictEqual(services.filter(file => dependencies.has(file)), services);
 		});
 
+		test(`${entry} loads policy-continuation and shared composer contributions`, () => {
+			const dependencies = collectSourceDependencies(entry);
+			const contributions = [
+				'src/vs/sessions/contrib/providers/agentHost/browser/agentHostPolicyContinuationPresenter.ts',
+				'src/vs/sessions/contrib/chat/browser/sharedChatInputComposer.contribution.ts',
+			];
+			assert.deepStrictEqual(contributions.filter(file => dependencies.has(file)), contributions);
+		});
+
 		test(`${entry} includes redesigned input and edit rendering only for experimental mobile`, () => {
 			const dependencies = collectSourceDependencies(entry);
 			const mobile = entry.includes('.mobile.');
@@ -72,6 +81,23 @@ suite('Sessions presentation entry isolation', () => {
 			assert.deepStrictEqual(implementations.map(file => dependencies.has(file)), implementations.map(() => mobile));
 		});
 	}
+
+	test('mobile core registers the artifact and MCP OAuth services required by shared customers', () => {
+		const file = 'src/vs/sessions/sessions.core.main.ts';
+		const source = ts.createSourceFile(file, fs.readFileSync(path.join(repositoryRoot, file), 'utf8'), ts.ScriptTarget.Latest, true);
+		const registrations = source.statements.flatMap(statement => {
+			if (!ts.isExpressionStatement(statement) || !ts.isCallExpression(statement.expression)
+				|| !ts.isIdentifier(statement.expression.expression) || statement.expression.expression.text !== 'registerSingleton') {
+				return [];
+			}
+			return [statement.expression.arguments.slice(0, 2).map(argument => argument.getText(source))];
+		});
+		const required = [
+			['IArtifactIntegrationRegistry', 'ArtifactIntegrationRegistry'],
+			['IAgentHostMcpOAuthMetadataService', 'AgentHostMcpOAuthMetadataService'],
+		];
+		assert.deepStrictEqual(required.map(([id]) => registrations.find(([service]) => service === id)), required);
+	});
 
 	for (const entry of [
 		'src/vs/sessions/sessions.web.main.internal.ts',

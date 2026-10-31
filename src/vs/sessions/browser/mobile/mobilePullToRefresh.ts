@@ -6,6 +6,7 @@
 import './media/mobilePullToRefresh.css';
 import * as dom from '../../../base/browser/dom.js';
 import { Codicon } from '../../../base/common/codicons.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { localize } from '../../../nls.js';
@@ -96,17 +97,20 @@ export function installPullToRefresh(container: HTMLElement, options: IPullToRef
 		setPull(REFRESHING_OFFSET_PX, true);
 		try {
 			await options.refresh();
+			live.textContent = localize('mobilePullToRefresh.done', "Refreshed");
+		} catch (error) {
+			live.textContent = localize('mobilePullToRefresh.failed', "Could not refresh");
+			throw error;
 		} finally {
 			refreshing = false;
 			indicator.classList.remove('refreshing');
 			setArmed(false);
 			glyph.className = `mobile-pull-glyph ${ThemeIcon.asClassName(Codicon.arrowDown)}`;
-			live.textContent = localize('mobilePullToRefresh.done', "Refreshed");
 			setPull(0, true);
 		}
 	};
-	store.add(dom.addDisposableListener(container, 'touchend', () => void end(), { passive: true }));
-	store.add(dom.addDisposableListener(container, 'touchcancel', () => void end(), { passive: true }));
+	store.add(dom.addDisposableListener(container, 'touchend', () => void end().catch(onUnexpectedError), { passive: true }));
+	store.add(dom.addDisposableListener(container, 'touchcancel', () => void end().catch(onUnexpectedError), { passive: true }));
 
 	store.add({ dispose: () => { indicator.remove(); live.remove(); } });
 	return store;
