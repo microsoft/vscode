@@ -113,7 +113,9 @@ import { IArtifactModel } from '../../../../../platform/artifactIntegrations/com
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import type { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, ISessionChatMoveDestination, SessionMoveRefusedError, IDeleteChatOptions, type INestedChatFolderInfo, type INestedChatWorkspace, type INestedChatWorkspaceSupport, NestedChatWorkspaceError, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, ICreateNewChatOptions, IHarnessPresentation } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, ISessionChatMoveDestination, SessionMoveRefusedError, IDeleteChatOptions, type INestedChatFolderInfo, type INestedChatWorkspace, type INestedChatWorkspaceSupport, NestedChatWorkspaceError, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, ICreateNewChatOptions, IHarnessPresentation, type SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
+import type { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { LEGACY_MIGRATION_OPEN_TIMEOUT_MS, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
 import { AgentHostChatMoveTracker } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatMoveTracker.js';
 import type { AgentChatMoveDestination } from '../../../../../platform/agentHost/common/agentHostChatMove.js';
 import { toChatMoveError } from './agentHostChatMoveErrors.js';
@@ -4542,6 +4544,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * reconstruct every `IAgentSessionMetadata` field from observables.
 	 */
 	private readonly _metadataBySession = new Map<string, IAgentSessionMetadata>();
+	/** Un-adopted legacy Copilot CLI rows opened from this list, watched until the host adopts them. */
+	private readonly _adoptableRowOpens = this._register(new DisposableMap<string, DisposableStore>());
 
 	/**
 	 * Set when {@link _sessionCache} has changed since the last persist. The
@@ -5537,6 +5541,50 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			sessions.set(pendingSession.resource.toString(), pendingSession);
 		}
 		return [...sessions.values()];
+	}
+
+	/**
+	 * Reports `agentHost.legacyCopilotCliMigrationOpen` when `resource` is an
+	 * un-adopted legacy Copilot CLI row of this list being opened, and returns
+	 * whether it is one. Opening such a row subscribes to the session, which the
+	 * host adopts without the client probe; without delaying the open, this
+	 * waits for the adopted summary that clears the row's adoptable marker.
+	 */
+	protected _reportAdoptableRowOpen(resource: URI, reason: SessionResourceResolveReason | undefined, telemetryService: ITelemetryService): boolean {
+		this._ensureSessionCache();
+		let rawId: string | undefined;
+		let backendSession: URI | undefined;
+		for (const [key, cached] of this._sessionCache) {
+			if (isEqual(cached.resource, resource)) {
+				rawId = key;
+				backendSession = cached.backendUri;
+				break;
+			}
+		}
+		if (rawId === undefined || backendSession === undefined || !readSessionEhcliAdoptable(this._metadataBySession.get(rawId)?._meta)) {
+			return false;
+		}
+		if (this._adoptableRowOpens.has(rawId)) {
+			// The open that started the watch reports it.
+			return true;
+		}
+		const key = rawId;
+		const source = reason ?? 'open';
+		const row = { entry: 'agentHostRow', backendSession } as const;
+		const store = new DisposableStore();
+		this._adoptableRowOpens.set(key, store);
+		const settle = (adopted: boolean) => {
+			this._adoptableRowOpens.deleteAndDispose(key);
+			reportLegacyMigrationOpen(telemetryService, source, resource, adopted, undefined, row);
+		};
+		store.add(disposableTimeout(() => settle(false), source === 'restore' ? LEGACY_MIGRATION_RESTORE_TIMEOUT_MS : LEGACY_MIGRATION_OPEN_TIMEOUT_MS));
+		store.add(this._onDidChangeSessionsImmediately(() => {
+			// A row the host replaces while adopting it is briefly absent; only the time limit decides it was not adopted.
+			if (this._sessionCache.has(key) && !readSessionEhcliAdoptable(this._metadataBySession.get(key)?._meta)) {
+				settle(true);
+			}
+		}));
+		return true;
 	}
 
 	getSessionByResource(resource: URI): ISession | undefined {

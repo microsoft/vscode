@@ -414,7 +414,7 @@ suite('ChatEditorInput', () => {
 				events: [{
 					name: 'agentHost.legacyCopilotCliMigrationOpen', error: throws,
 					data: {
-						source: 'restore', surfaced: false,
+						source: 'restore', entry: 'legacyRow', surfaced: false,
 						migrationSessionId: '6a27283bcdda2b8d8ca87884c1ae452dcded34fc',
 						reason: throws ? 'resolveFailed' : 'sessionNotSurfaced',
 						errorCode: undefined, errorMessage: throws ? 'load failed' : undefined,
