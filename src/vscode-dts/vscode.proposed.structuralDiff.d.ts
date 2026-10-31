@@ -10,15 +10,28 @@ declare module 'vscode' {
 	 *
 	 * Ranges use zero-based lines and UTF-16 character offsets, with an exclusive end.
 	 * Replacement ranges need not have the same length.
+	 *
+	 * For example, if the first line of the original document is `foo(a, b)`:
+	 * - Deletion: removing `, b` gives `foo(a)`. The original range is
+	 *   `new Range(0, 5, 0, 8)`, which covers `, b`. The modified range is the empty
+	 *   range `new Range(0, 5, 0, 5)`, the position between `a` and `)`.
+	 * - Change: replacing `b` with `42` gives `foo(a, 42)`. The original range is
+	 *   `new Range(0, 7, 0, 8)`, which covers `b`. The modified range is
+	 *   `new Range(0, 7, 0, 9)`, which covers `42`.
+	 * - Insertion: adding `, c` gives `foo(a, b, c)`. The original range is the empty
+	 *   range `new Range(0, 8, 0, 8)`, the position between `b` and `)`. The modified
+	 *   range is `new Range(0, 8, 0, 11)`, which covers `, c`.
 	 */
 	export interface StructuralDiffTextChange {
 		/**
-		 * The changed range in the original document. Empty for an insertion.
+		 * The changed range in the original document. Empty for an insertion, where it
+		 * is the position at which the text is inserted.
 		 */
 		readonly originalRange: Range;
 
 		/**
-		 * The changed range in the modified document. Empty for a deletion.
+		 * The changed range in the modified document. Empty for a deletion, where it
+		 * is the position at which the text was deleted.
 		 * At least one of the two ranges must be non-empty.
 		 */
 		readonly modifiedRange: Range;
