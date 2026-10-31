@@ -12,7 +12,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -509,7 +509,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		);
 	});
 
-	test('announces loading only after the scheduled catalog search starts', async () => {
+	test('does not announce loading progress after a scheduled catalog search starts', async () => {
 		const ariaHost = DOM.append(mainWindow.document.body, DOM.$('div'));
 		store.add(toDisposable(() => ariaHost.remove()));
 		setARIAContainer(ariaHost);
@@ -537,8 +537,38 @@ suite('AICustomizationDiscoveryPage', () => {
 
 		assert.deepStrictEqual({ pending, loading, complete }, {
 			pending: { requests: 1, busy: 'true', announcements: [] },
-			loading: { requests: 2, announcements: ['Loading customizations...'] },
+			loading: { requests: 2, announcements: [] },
 			complete: ['1 customizations found.'],
+		});
+	});
+
+	test('announces the same catalog error again after Retry', async () => {
+		const ariaHost = DOM.append(mainWindow.document.body, DOM.$('div'));
+		store.add(toDisposable(() => ariaHost.remove()));
+		setARIAContainer(ariaHost);
+		const fixture = createPage();
+		fixture.page.setSearchQuery('mail');
+		fixture.page.setVisible(true);
+
+		await fixture.requests[0].result.error(new Error('temporary failure'));
+		await timeout(0);
+		const announcements = [...ariaHost.querySelectorAll('.monaco-status')];
+		const first = announcements.map(element => element.textContent).findIndex(Boolean);
+		const firstAnnouncement = { index: first, message: announcements[first]?.textContent };
+		const retry = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-results .customization-discovery-state .monaco-button');
+		assert.ok(retry);
+		retry.click();
+		await waitForRequestCount(fixture.requests, 2);
+		await fixture.requests[1].result.error(new Error('temporary failure'));
+		await timeout(0);
+		const second = announcements.map(element => element.textContent).findIndex(Boolean);
+
+		assert.deepStrictEqual({
+			first: firstAnnouncement,
+			second: { index: second, message: announcements[second]?.textContent },
+		}, {
+			first: { index: 0, message: 'Could not load available customizations. temporary failure' },
+			second: { index: 1, message: 'Could not load available customizations. temporary failure' },
 		});
 	});
 
@@ -946,19 +976,21 @@ suite('AICustomizationDiscoveryPage', () => {
 	}
 
 	for (const query of ['', 'mail', '@type:plugin mail']) {
-		test(`initial loading reserves progress space without loading text or placeholders (${query || 'browse'})`, async () => {
+		test(`initial loading collapses empty status space without loading text or placeholders (${query || 'browse'})`, async () => {
 			const fixture = createPage();
 			fixture.page.setSearchQuery(query);
 			fixture.page.setVisible(true);
 			const search = fixture.container.querySelector<HTMLElement>('.customization-discovery-search-row')!;
 			const progress = fixture.container.querySelector<HTMLElement>('.customization-discovery-progress')!;
-			const pendingPosition = { top: search.getBoundingClientRect().top, progressHeight: progress.offsetHeight };
+			const browseStatus = fixture.container.querySelector<HTMLElement>('.customization-discovery-browse > .customization-discovery-state')!;
+			const pendingPosition = { top: search.getBoundingClientRect().top, progressHeight: progress.offsetHeight, statusHeight: browseStatus.offsetHeight };
 			assert.ok(progress.offsetHeight > 0);
 			assert.deepStrictEqual(loadingState(fixture.container), {
 				progress: true, placeholder: false, status: ['', ''],
 			});
+			assert.strictEqual(browseStatus.offsetHeight, 0);
 			assert.strictEqual(progress.querySelector('[role="progressbar"]')?.getAttribute('aria-label'), 'Loading customizations');
-			assert.ok(fixture.page.getAccessibilityContent().includes('Loading customizations...'));
+			assert.ok(fixture.page.getAccessibilityContent().includes('Loading customizations.'));
 
 			await fixture.requests[0].result.complete({
 				items: [resource('mail-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })],
@@ -966,11 +998,12 @@ suite('AICustomizationDiscoveryPage', () => {
 			await timeout(0);
 			assert.deepStrictEqual({
 				state: loadingState(fixture.container),
-				position: { top: search.getBoundingClientRect().top, progressHeight: progress.offsetHeight },
+				position: { top: search.getBoundingClientRect().top, progressHeight: progress.offsetHeight, statusHeight: browseStatus.offsetHeight },
 			}, {
 				state: { progress: false, placeholder: false, status: ['', ''] },
 				position: pendingPosition,
 			});
+			assert.ok(!fixture.page.getAccessibilityContent().includes('Loading customizations.'));
 		});
 	}
 
@@ -1052,6 +1085,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		list.reveal(24);
 		const placeholder = fixture.container.querySelector<HTMLElement>('.customization-discovery-result-content.loading')!;
 		assert.ok(placeholder.inert);
+		assert.ok(fixture.container.querySelector('.monaco-list-row[aria-label="Loading more customizations"]'));
 		placeholder.querySelector<HTMLButtonElement>('button')!.click();
 		const spinner = placeholder.querySelector<HTMLElement>('.customization-discovery-result-loading')!;
 		assert.deepStrictEqual({
@@ -2286,6 +2320,138 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
+	function createRequiredPlugin(policyEnablement: IObservable<boolean | undefined>, removals: string[]): IAgentPlugin {
+		return new class extends mock<IAgentPlugin>() {
+			override readonly uri = URI.file('/plugins/handy-commands');
+			override readonly label = 'handy-commands';
+			override readonly policyEnablement = policyEnablement;
+			override async remove(): Promise<boolean> {
+				removals.push(this.label);
+				return true;
+			}
+		}();
+	}
+
+	test('organization-required plugin browse cards keep a disabled Uninstall that explains why', async () => {
+		const candidate = resource('handy-commands', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin });
+		const removals: string[] = [];
+		const policyEnablement = observableValue<boolean | undefined>('policyEnablement', undefined);
+		const plugin = createRequiredPlugin(policyEnablement, removals);
+		const fixture = createPage(['agentFinder'], [AICustomizationManagementSection.Plugins], [plugin]);
+		fixture.setInstallState(candidate, { kind: 'installed', target: { kind: 'plugin', uri: plugin.uri } });
+		fixture.notifyInstallChange();
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [candidate] });
+		await timeout(0);
+		const getAction = () => {
+			const action = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-card-actions .monaco-button');
+			return { label: action?.textContent, disabled: action?.getAttribute('aria-disabled'), ariaLabel: action?.getAttribute('aria-label') };
+		};
+		const unmanaged = getAction();
+		policyEnablement.set(true, undefined);
+		const required = getAction();
+		fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-card-actions .monaco-button')?.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({ unmanaged, required, afterClick: getAction(), uninstalls: fixture.uninstalls, removals }, {
+			unmanaged: { label: 'Uninstall', disabled: 'false', ariaLabel: 'Uninstall handy-commands' },
+			required: { label: 'Uninstall', disabled: 'true', ariaLabel: 'Uninstall handy-commands. This plugin is managed by your organization.' },
+			afterClick: { label: 'Uninstall', disabled: 'true', ariaLabel: 'Uninstall handy-commands. This plugin is managed by your organization.' },
+			uninstalls: [],
+			removals: [],
+		});
+	});
+
+	test('customizations contributed by an organization-required plugin keep a disabled Uninstall', async () => {
+		const removals: string[] = [];
+		const plugin = createRequiredPlugin(constObservable(true), removals);
+		const fixture = createPage(['agentFinder'], [AICustomizationManagementSection.Skills], [plugin]);
+		fixture.setInstalledSkills([
+			{ id: 'plugin-skill', uri: URI.joinPath(plugin.uri, 'skills', 'triage', 'SKILL.md'), name: 'handy-commands:triage', filename: 'SKILL.md', description: 'Contributed', source: 'plugin', pluginUri: plugin.uri, promptType: PromptsType.skill, disabled: false },
+			{ id: 'nested-skill', uri: URI.joinPath(plugin.uri, 'skills', 'review', 'SKILL.md'), name: 'handy-commands:review', filename: 'SKILL.md', description: 'Contributed without a recorded plugin', source: 'plugin', promptType: PromptsType.skill, disabled: false },
+			{ id: 'local-skill', uri: URI.file('/workspace/.github/skills/handy/SKILL.md'), name: 'handy-local', filename: 'SKILL.md', description: 'Local', source: 'local', promptType: PromptsType.skill, disabled: false },
+		]);
+		fixture.page.setSearchQuery('@installed handy');
+		fixture.page.setVisible(true);
+		await timeout(0);
+		const buttons = [...fixture.container.querySelectorAll<HTMLButtonElement>('.customization-discovery-results .monaco-list-row .monaco-button')];
+		const rows = buttons.map(button => ({ disabled: button.getAttribute('aria-disabled'), ariaLabel: button.getAttribute('aria-label') }));
+		for (const button of buttons) {
+			button.click();
+		}
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			rows,
+			deletedUris: fixture.commands.filter(command => command.id === DELETE_AI_CUSTOMIZATION_ID).map(command => (command.args[0] as { uri: URI }).uri.path),
+			removals,
+		}, {
+			rows: [
+				{ disabled: 'true', ariaLabel: 'Uninstall handy-commands:review. This plugin is managed by your organization.' },
+				{ disabled: 'true', ariaLabel: 'Uninstall handy-commands:triage. This plugin is managed by your organization.' },
+				{ disabled: 'false', ariaLabel: 'Uninstall handy-local' },
+			],
+			deletedUris: ['/workspace/.github/skills/handy/SKILL.md'],
+			removals: [],
+		});
+		for (const deletion of fixture.deletions) {
+			await deletion.complete();
+		}
+	});
+
+	test('search rows follow organization plugin requirements as they change', async () => {
+		const removals: string[] = [];
+		const policyEnablement = observableValue<boolean | undefined>('policyEnablement', undefined);
+		const plugin = createRequiredPlugin(policyEnablement, removals);
+		const fixture = createPage(['agentFinder'], [AICustomizationManagementSection.Plugins], [plugin]);
+		fixture.page.setSearchQuery('@installed handy');
+		fixture.page.setVisible(true);
+		await timeout(0);
+		const getAction = () => {
+			const action = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-results .monaco-list-row .monaco-button');
+			return { disabled: action?.getAttribute('aria-disabled'), ariaLabel: action?.getAttribute('aria-label') };
+		};
+		const unmanaged = getAction();
+		policyEnablement.set(true, undefined);
+		const required = getAction();
+		policyEnablement.set(undefined, undefined);
+
+		assert.deepStrictEqual({ unmanaged, required, released: getAction(), removals }, {
+			unmanaged: { disabled: 'false', ariaLabel: 'Uninstall handy-commands' },
+			required: { disabled: 'true', ariaLabel: 'Uninstall handy-commands. This plugin is managed by your organization.' },
+			released: { disabled: 'false', ariaLabel: 'Uninstall handy-commands' },
+			removals: [],
+		});
+	});
+
+	test('organization-required plugin search rows never offer Retry Uninstall', async () => {
+		const removals: string[] = [];
+		const plugin = createRequiredPlugin(constObservable(true), removals);
+		const fixture = createPage(['agentFinder'], [AICustomizationManagementSection.Plugins], [plugin]);
+		fixture.page.setSearchQuery('@installed handy');
+		fixture.page.setVisible(true);
+		await timeout(0);
+		const action = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-results .monaco-list-row .monaco-button');
+		action?.click();
+		await timeout(0);
+		const row = fixture.container.querySelector<HTMLElement>('.customization-discovery-results .monaco-list-row');
+		const after = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-results .monaco-list-row .monaco-button');
+
+		assert.deepStrictEqual({
+			label: after?.textContent,
+			disabled: after?.getAttribute('aria-disabled'),
+			ariaLabel: after?.getAttribute('aria-label'),
+			rowMentionsOrganization: row?.getAttribute('aria-label')?.endsWith('This plugin is managed by your organization.'),
+			removals,
+		}, {
+			label: 'Uninstall',
+			disabled: 'true',
+			ariaLabel: 'Uninstall handy-commands. This plugin is managed by your organization.',
+			rowMentionsOrganization: true,
+			removals: [],
+		});
+	});
+
 	test('installed Connector browse cards preserve the Connector identity', async () => {
 		const candidate = resource('mail', {
 			sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
@@ -3268,10 +3434,10 @@ suite('AICustomizationDiscoveryPage', () => {
 			item: fixture.container.querySelector('.customization-discovery-card-name')?.textContent,
 			status: fixture.container.querySelector('.customization-discovery-browse .customization-discovery-state')?.textContent,
 			busy: fixture.container.querySelector('.customization-discovery-browse')?.getAttribute('aria-busy'),
-			accessible: fixture.page.getAccessibilityContent().includes('Loading customizations... 1 of 2 sources loaded.'),
+			accessible: fixture.page.getAccessibilityContent().includes('Loading customizations'),
 		}, {
 			item: undefined,
-			status: 'Loading customizations... 1 of 2 sources loaded.',
+			status: '',
 			busy: 'true',
 			accessible: true,
 		});
@@ -3345,7 +3511,30 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
-	test('rate limits Browse loading announcements', async () => {
+	test('keeps cached refresh progress free of visible, announced, and reserved status text space', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		fixture.page.setVisible(true);
+		fixture.requests[0].onProgress?.({
+			page: { items: [resource('cached-source')] },
+			completedSourceIds: ['agentFinder'],
+			cachedSourceIds: ['agentFinder'],
+			totalSourceCount: 2,
+		});
+
+		assert.deepStrictEqual({
+			status: fixture.container.querySelector('.customization-discovery-browse .customization-discovery-state')?.textContent,
+			statusHeight: fixture.container.querySelector<HTMLElement>('.customization-discovery-browse > .customization-discovery-state')?.offsetHeight,
+			accessible: fixture.page.getAccessibilityContent().includes('Refreshing customizations'),
+		}, {
+			status: '',
+			statusHeight: 0,
+			accessible: false,
+		});
+
+		await fixture.requests[0].result.complete({ items: [resource('cached-source')] });
+	});
+
+	test('does not announce Browse loading progress', async () => {
 		const ariaHost = DOM.append(mainWindow.document.body, DOM.$('div'));
 		store.add(toDisposable(() => ariaHost.remove()));
 		setARIAContainer(ariaHost);
@@ -3365,13 +3554,13 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 		const immediate = [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean);
 
-		await timeout(1_050);
-		const settled = [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean);
 		await fixture.requests[0].result.complete({ items: [resource('fast-source'), resource('second-source')] });
+		await timeout(0);
+		const settled = [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean);
 
 		assert.deepStrictEqual({ immediate, settled }, {
-			immediate: ['Loading customizations... 1 of 3 sources loaded.'],
-			settled: ['Loading customizations... 2 of 3 sources loaded.'],
+			immediate: [],
+			settled: [],
 		});
 	});
 

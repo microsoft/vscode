@@ -21,8 +21,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../base/common/observable.js';
-import { basename, isEqual } from '../../../../../base/common/resources.js';
+import { autorun, derivedOpts } from '../../../../../base/common/observable.js';
+import { basename, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -49,13 +49,14 @@ import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/
 import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
 import { IMcpWorkbenchService, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
 import { CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource, RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
-import { AICustomizationManagementSection, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, AICustomizationSources, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
 import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
 import { isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID } from '../actions/chatPluginActions.js';
+import { getPluginManagedByOrganizationMessage, isPluginRequiredByPolicy } from '../agentPluginActions.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS, ItemsModelSection } from './aiCustomizationItemsModel.js';
 import { DELETE_AI_CUSTOMIZATION_ID } from './aiCustomizationManagement.js';
@@ -76,7 +77,6 @@ const maxFilteredCatalogPagesPerLoad = 8;
 /** Bounds how many pages an in-place refresh re-fetches to restore the results the user had loaded. */
 const maxRefreshCatalogPages = 20;
 const leadingBrowseItemCount = 4;
-const loadingAnnouncementDelay = 1000;
 
 type CustomizationMarketplaceBrowseRenderedEvent = {
 	view: 'curated' | 'fallback';
@@ -192,6 +192,7 @@ type DiscoveryListEntry = (IInstalledDiscoveryItem | ICatalogDiscoveryItem | { r
 	readonly installationState?: CustomizationMarketplaceInstallState;
 	readonly uninstalling?: boolean;
 	readonly installError?: string;
+	readonly uninstallBlockedMessage?: string;
 };
 type LinkedConnectionRole = 'connector' | 'alternative';
 
@@ -555,6 +556,7 @@ function renderRecordedCustomizationActions(
 	name: string,
 	state: RecordedCustomizationMarketplaceInstallState,
 	operationError: string | undefined,
+	uninstallBlockedMessage: string | undefined,
 	disposables: DisposableStore,
 	hoverService: IHoverService,
 	onRepair: () => void,
@@ -578,21 +580,27 @@ function renderRecordedCustomizationActions(
 	}
 
 	const cancellable = isCancellableConnectorOperation(resource, state);
-	const uninstallUnavailableMessage = state.kind === 'installed' ? state.uninstallUnavailableMessage : undefined;
+	const uninstallUnavailableMessage = cancellable
+		? undefined
+		: uninstallBlockedMessage && (state.kind === 'installed' || state.kind === 'missing' || state.kind === 'error')
+			? uninstallBlockedMessage
+			: state.kind === 'installed' ? state.uninstallUnavailableMessage : undefined;
 	const button = disposables.add(new Button(container, { ...defaultButtonStyles, secondary: true, small: true }));
 	button.label = cancellable
 		? localize('customizationDiscovery.connectorCancel', "Cancel")
-		: state.kind === 'repairing'
-			? localize('customizationDiscovery.repairingProgress', "Repairing...")
-			: state.kind === 'checking'
-				? localize('customizationDiscovery.checkingProgress', "Checking...")
-				: state.kind === 'uninstalling'
-					? localize('customizationDiscovery.uninstalling', "Uninstalling...")
-					: operationError && state.kind === 'installed' && !uninstallUnavailableMessage
-						? localize('customizationDiscovery.retryUninstall', "Retry Uninstall")
-						: connector
-							? localize('customizationDiscovery.connectorDisconnect', "Disconnect")
-							: localize('customizationDiscovery.uninstall', "Uninstall");
+		: uninstallUnavailableMessage
+			? localize('customizationDiscovery.uninstall', "Uninstall")
+			: state.kind === 'repairing'
+				? localize('customizationDiscovery.repairingProgress', "Repairing...")
+				: state.kind === 'checking'
+					? localize('customizationDiscovery.checkingProgress', "Checking...")
+					: state.kind === 'uninstalling'
+						? localize('customizationDiscovery.uninstalling', "Uninstalling...")
+						: operationError && state.kind === 'installed'
+							? localize('customizationDiscovery.retryUninstall', "Retry Uninstall")
+							: connector
+								? localize('customizationDiscovery.connectorDisconnect', "Disconnect")
+								: localize('customizationDiscovery.uninstall', "Uninstall");
 	button.enabled = !uninstallUnavailableMessage && (cancellable || state.kind === 'installed' || state.kind === 'missing' || state.kind === 'error');
 	button.setAriaLabel(uninstallUnavailableMessage
 		? localize('customizationDiscovery.uninstallUnavailableLabel', "Uninstall {0}. {1}", name, uninstallUnavailableMessage)
@@ -604,7 +612,11 @@ function renderRecordedCustomizationActions(
 	button.element.setAttribute('aria-busy', String(!cancellable && (state.kind === 'uninstalling' || state.kind === 'repairing' || state.kind === 'checking')));
 	disposables.add(DOM.addDisposableListener(button.element, DOM.EventType.CLICK, event => event.stopPropagation()));
 	disposables.add(button.onDidClick(cancellable ? onCancel : onUninstall));
-	const uninstallError = uninstallUnavailableMessage ?? (state.kind === 'error' ? state.message : state.kind === 'installed' ? operationError : undefined);
+	if (uninstallUnavailableMessage) {
+		disposables.add(hoverService.setupDelayedHover(button.element, { content: uninstallUnavailableMessage }, { setupKeyboardEvents: true }));
+		return;
+	}
+	const uninstallError = state.kind === 'error' ? state.message : state.kind === 'installed' ? operationError : undefined;
 	if (uninstallError) {
 		disposables.add(hoverService.setupDelayedHover(button.element, { content: uninstallError }));
 	}
@@ -862,6 +874,7 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 				element.name,
 				state,
 				error,
+				element.uninstallBlockedMessage,
 				templateData.elementDisposables,
 				this.hoverService,
 				() => this.onRepair(element.catalogResource!),
@@ -869,16 +882,22 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 				() => this.onUninstall(element),
 			);
 		} else if (element.removable) {
-			const uninstalling = this.isDirectUninstalling(element);
+			const uninstallBlockedMessage = element.uninstallBlockedMessage;
+			const uninstalling = !uninstallBlockedMessage && this.isDirectUninstalling(element);
 			const button = templateData.elementDisposables.add(new Button(templateData.actions, { ...defaultButtonStyles, secondary: true, small: true }));
 			button.label = uninstalling
 				? localize('customizationDiscovery.uninstalling', "Uninstalling...")
 				: localize('customizationDiscovery.uninstall', "Uninstall");
-			button.enabled = !uninstalling;
-			button.setAriaLabel(localize('customizationDiscovery.uninstallLabel', "{0} {1}", button.label, element.name));
+			button.enabled = !uninstalling && !uninstallBlockedMessage;
+			button.setAriaLabel(uninstallBlockedMessage
+				? localize('customizationDiscovery.uninstallUnavailableLabel', "Uninstall {0}. {1}", element.name, uninstallBlockedMessage)
+				: localize('customizationDiscovery.uninstallLabel', "{0} {1}", button.label, element.name));
 			button.element.setAttribute('aria-busy', String(uninstalling));
 			templateData.elementDisposables.add(DOM.addDisposableListener(button.element, DOM.EventType.CLICK, event => event.stopPropagation()));
 			templateData.elementDisposables.add(button.onDidClick(() => this.onUninstall(element)));
+			if (uninstallBlockedMessage) {
+				templateData.elementDisposables.add(this.hoverService.setupDelayedHover(button.element, { content: uninstallBlockedMessage }, { setupKeyboardEvents: true }));
+			}
 		}
 	}
 
@@ -925,6 +944,10 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private readonly pendingInstalls = new Set<string>();
 	private readonly pendingUninstalls = new Set<string>();
 	private readonly pendingDirectUninstalls = new Set<string>();
+	private readonly requiredPluginUris = derivedOpts<readonly URI[]>(
+		{ owner: this, equalsFn: (a, b) => equals(a, b, isEqual) },
+		reader => this.pluginService.plugins.read(reader).filter(plugin => isPluginRequiredByPolicy(plugin, reader)).map(plugin => plugin.uri),
+	);
 	private readonly expandedAlternatives = new Set<string>();
 	private forceMarketplaceRefresh = false;
 	private clearMarketplaceResults = false;
@@ -969,16 +992,6 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private providerPluginSequence = 0;
 	private lastDimension: DOM.Dimension | undefined;
 	private lastAnnouncement: string | undefined;
-	private lastLoadingAnnouncement: string | undefined;
-	private pendingLoadingAnnouncement: string | undefined;
-	private readonly loadingAnnouncementScheduler = this._register(new RunOnceScheduler(() => {
-		const message = this.pendingLoadingAnnouncement;
-		this.pendingLoadingAnnouncement = undefined;
-		if (message && this.loading) {
-			this.lastLoadingAnnouncement = message;
-			this.announce(message);
-		}
-	}, loadingAnnouncementDelay));
 	private lastBrowseTelemetryView: 'curated' | 'fallback' | undefined;
 	private catalogLoadProgress: IMarketplaceLoadProgress | undefined;
 	private curatedLoadProgress: IMarketplaceLoadProgress | undefined;
@@ -1149,6 +1162,16 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			}
 			this.pluginService.plugins.read(reader);
 			this.refreshInstalledItems();
+		}));
+		// Only organizations that require plugins populate this list; it stays empty, and never re-renders, otherwise.
+		// Search rows snapshot their uninstall policy, so a preserving render still replaces the affected rows.
+		let renderedRequiredPluginUris = this.requiredPluginUris.get();
+		this._register(autorun(reader => {
+			const uris = this.requiredPluginUris.read(reader);
+			if (uris !== renderedRequiredPluginUris) {
+				renderedRequiredPluginUris = uris;
+				this.render(true);
+			}
 		}));
 		this._register(this.mcpWorkbenchService.onChange(() => this.refreshInstalledItems()));
 		this._register(this.mcpWorkbenchService.onReset(() => this.refreshInstalledItems()));
@@ -1755,7 +1778,6 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.continuationScheduler.cancel();
 		this.request.value?.cancel();
 		this.request.clear();
-		this.resetLoadingAnnouncement();
 		this.loading = false;
 		this.loadingMore = false;
 		this.catalogLoadProgress = undefined;
@@ -1916,6 +1938,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.request.value = request;
 		this.loading = true;
 		this.loadingMore = append;
+		this.lastAnnouncement = undefined;
 		if (browseRequest) {
 			this.lastBrowseTelemetryView = undefined;
 			this.browseLoadStartedAt = Date.now();
@@ -2058,7 +2081,6 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				if (browseRequest) {
 					this.logBrowseLoaded();
 				}
-				this.resetLoadingAnnouncement();
 				this.loading = false;
 				this.request.clear();
 				this.render();
@@ -2194,23 +2216,6 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}
 	}
 
-	private getLoadingLabel(): string {
-		const progress = this.query.isEmpty() && !this.loadingMore
-			? {
-				completed: (this.catalogLoadProgress?.completed ?? 0) + (this.curatedLoadProgress?.completed ?? 0),
-				total: (this.catalogLoadProgress?.total ?? 0) + (this.curatedLoadProgress?.total ?? 0),
-				cached: (this.catalogLoadProgress?.cached ?? 0) + (this.curatedLoadProgress?.cached ?? 0),
-			}
-			: undefined;
-		return this.loadingMore
-			? localize('customizationDiscovery.loadingMore', "Loading more customizations...")
-			: progress?.total ? progress.cached
-				? localize('customizationDiscovery.refreshingProgress', "Refreshing customizations... {0} of {1} sources refreshed.", progress.completed, progress.total)
-				: localize('customizationDiscovery.loadingProgress', "Loading customizations... {0} of {1} sources loaded.", progress.completed, progress.total)
-				: this.catalogItems.length ? localize('customizationDiscovery.reloading', "Reloading customizations...")
-					: localize('customizationDiscovery.loading', "Loading customizations...");
-	}
-
 	private getSearchMarketplaceResources(): readonly IPrioritizedMarketplaceResource[] {
 		const resources = new Map(this.catalogItems.map(resource => [getCustomizationMarketplaceResourceKey(resource), resource]));
 		if (!this.selectedSourceId || this.query.installed) {
@@ -2336,6 +2341,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				installationState: resource ? this.getInstallState(resource) : undefined,
 				uninstalling: entry.kind === 'installed' && this.pendingDirectUninstalls.has(entry.id),
 				installError: resource ? this.installErrors.get(getCustomizationMarketplaceResourceKey(resource)) : undefined,
+				uninstallBlockedMessage: entry.kind === 'installed' ? this.getUninstallBlockedMessage(entry) : undefined,
 			};
 		});
 		const resultCount = entries.length;
@@ -2385,9 +2391,6 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					: localize('customizationDiscovery.noResults', "No customizations match this search.");
 		} else {
 			this.resultStatus.textContent = '';
-		}
-		if (this.loading) {
-			this.announceLoading(this.getLoadingLabel());
 		}
 		if (!catalogPending && !this.errorMessage) {
 			this.announce([
@@ -2483,9 +2486,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			}
 		}
 		if (this.loading) {
-			const loadingLabel = this.getLoadingLabel();
-			this.browseStatus.textContent = loadingLabel;
-			this.announceLoading(loadingLabel);
+			this.browseStatus.textContent = '';
 		} else if (this.errorMessage) {
 			const message = localize('customizationDiscovery.error', "Could not load available customizations. {0}", this.errorMessage);
 			this.browseStatus.textContent = message;
@@ -2633,6 +2634,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				item.displayName,
 				state,
 				installError,
+				this.getRequiredPluginMessage(state.target.kind === 'plugin' ? state.target.uri : undefined),
 				this.browseDisposables,
 				this.hoverService,
 				() => void this.repair(item),
@@ -2774,7 +2776,35 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}
 	}
 
+	/**
+	 * Explains why a plugin the organization requires cannot be uninstalled, or `undefined` when it can.
+	 * With `includeContents`, `uri` may also be a file inside the plugin.
+	 */
+	private getRequiredPluginMessage(uri: URI | undefined, includeContents = false): string | undefined {
+		const required = this.requiredPluginUris.get();
+		return uri && required.length && required.some(plugin => includeContents ? isEqualOrParent(uri, plugin) : isEqual(uri, plugin))
+			? getPluginManagedByOrganizationMessage()
+			: undefined;
+	}
+
+	private getUninstallBlockedMessage(item: IInstalledDiscoveryItem): string | undefined {
+		if (item.type !== 'plugin') {
+			// Uninstalling a customization that a plugin contributes uninstalls the whole plugin.
+			return item.promptDetail?.source === AICustomizationSources.plugin
+				? this.getRequiredPluginMessage(item.promptDetail.pluginUri ?? item.promptDetail.uri, true)
+				: undefined;
+		}
+		if (item.pluginDetail?.kind === AgentPluginItemKind.Installed) {
+			return this.getRequiredPluginMessage(item.pluginDetail.plugin.uri);
+		}
+		const state = item.catalogResource ? this.getInstallState(item.catalogResource) : undefined;
+		return this.getRequiredPluginMessage(state && hasInstallationTarget(state) && state.target.kind === 'plugin' ? state.target.uri : item.uri);
+	}
+
 	private async uninstall(item: IInstalledDiscoveryItem): Promise<void> {
+		if (this.getUninstallBlockedMessage(item)) {
+			return;
+		}
 		if (!item.catalogResource) {
 			if (this.pendingDirectUninstalls.has(item.id)) {
 				return;
@@ -2829,7 +2859,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const connector = isCopilotConnectorResource(resource);
 		const resourceKey = getCustomizationMarketplaceResourceKey(resource);
 		const state = this.installService.getInstallState(resource);
-		if (this.pendingUninstalls.has(resourceKey) || state.kind !== 'installed' && state.kind !== 'missing') {
+		if (this.pendingUninstalls.has(resourceKey) || state.kind !== 'installed' && state.kind !== 'missing' || state.target.kind === 'plugin' && this.getRequiredPluginMessage(state.target.uri)) {
 			return;
 		}
 		const query = this.query;
@@ -2950,30 +2980,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}
 	}
 
-	private announceLoading(message: string): void {
-		if (message === this.lastLoadingAnnouncement) {
-			this.pendingLoadingAnnouncement = undefined;
-			this.loadingAnnouncementScheduler.cancel();
-		} else if (this.lastLoadingAnnouncement === undefined) {
-			this.lastLoadingAnnouncement = message;
-			this.announce(message);
-		} else {
-			this.pendingLoadingAnnouncement = message;
-			if (!this.loadingAnnouncementScheduler.isScheduled()) {
-				this.loadingAnnouncementScheduler.schedule();
-			}
-		}
-	}
-
-	private resetLoadingAnnouncement(): void {
-		this.loadingAnnouncementScheduler.cancel();
-		this.lastLoadingAnnouncement = undefined;
-		this.pendingLoadingAnnouncement = undefined;
-	}
-
 	private getEntryAriaLabel(entry: DiscoveryListEntry): string {
 		if (entry.kind === 'loading') {
-			return this.getLoadingLabel();
+			return localize('customizationDiscovery.loadingMoreAriaLabel', "Loading more customizations");
 		}
 		if (entry.kind === 'installed') {
 			if (entry.linkedConnectionRole === 'alternative' && !entry.alternativeExpanded) {
@@ -2983,7 +2992,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			const stateLabel = state ? getInstallationStateLabel(state, isCopilotConnectorResource(entry.catalogResource)) : localize('customizationDiscovery.installed', "Installed");
 			const stateDetail = state?.kind === 'error' ? localize('customizationDiscovery.verificationErrorDetail', ", {0}", state.message) : '';
 			const verified = isVerifiedCopilotConnector(entry.catalogResource) ? localize('customizationDiscovery.verifiedAriaLabel', ", verified by GitHub") : '';
-			return localize('customizationDiscovery.installedAriaLabel', "{0}, {1}, {2}{3}{4}{5}. {6}", entry.name, getTypeLabel(entry.type), `${stateLabel}${stateDetail}`, entry.sourceLabel ? localize('customizationDiscovery.sourceAriaLabel', ", source {0}", entry.sourceLabel) : '', verified, entry.disabled ? localize('customizationDiscovery.disabledAriaLabel', ", disabled") : '', entry.description);
+			const label = localize('customizationDiscovery.installedAriaLabel', "{0}, {1}, {2}{3}{4}{5}. {6}", entry.name, getTypeLabel(entry.type), `${stateLabel}${stateDetail}`, entry.sourceLabel ? localize('customizationDiscovery.sourceAriaLabel', ", source {0}", entry.sourceLabel) : '', verified, entry.disabled ? localize('customizationDiscovery.disabledAriaLabel', ", disabled") : '', entry.description);
+			const uninstallBlockedMessage = this.getUninstallBlockedMessage(entry);
+			return uninstallBlockedMessage ? localize('customizationDiscovery.installedManagedAriaLabel', "{0}. {1}", label, uninstallBlockedMessage) : label;
 		}
 		if (entry.linkedConnectionRole === 'alternative' && !entry.alternativeExpanded) {
 			return localize('customizationDiscovery.collapsedAlternativeAriaLabel', "1 alternative customization, collapsed");
@@ -3168,7 +3179,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.selectedSourceId
 				? localize('customizationDiscovery.accessibleSource', "Source: {0}", this.getMarketplaceSourceLabel(this.selectedSourceId))
 				: localize('customizationDiscovery.accessibleAllSources', "Source: All Sources"),
-			this.loading ? this.getLoadingLabel() : undefined,
+			this.isCatalogPending() ? localize('customizationDiscovery.accessibleLoading', "Loading customizations.") : undefined,
 			this.errorMessage,
 			this.sourceWarnings.getAccessibilityContent(),
 			...collapsedAlternatives.map(() => getAlternativeDisclosureLabel()),

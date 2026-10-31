@@ -30,6 +30,23 @@ export type CloudSandboxRequestAction = 'connect' | 'reconnect' | 'connectSessio
  */
 export type CloudSandboxRequestOutcome = 'succeeded' | 'waking' | 'clientError' | 'serverError' | 'networkError' | 'unexpectedStatus';
 
+/**
+ * What a session feed attempt or established socket did. A closed set, so it is safe to send
+ * verbatim. `unavailable` is the server declining the feed for this account; `negotiationFailed`
+ * and `socketFailed` are retried attempts that leave the window on discovery polling meanwhile.
+ */
+export type CloudSandboxSessionFeedOutcome = 'connected' | 'unavailable' | 'negotiationFailed' | 'socketFailed' | 'disconnected' | 'invalidMessage';
+
+export interface ICloudSandboxSessionFeedTelemetryData {
+	readonly outcome: CloudSandboxSessionFeedOutcome;
+	/** Dropped sockets and failed attempts since the last healthy connection, including this failure. */
+	readonly consecutiveFailures: number;
+	/** Delay before the next automatic attempt; absent when the feed connected or stopped retrying. */
+	readonly retryDelayMs?: number;
+	/** HTTP status of a rejected negotiation request, when that caused the failure. */
+	readonly statusCode?: number;
+}
+
 export type CloudSandboxConnectionStage = 'credentials' | 'connection' | 'relay' | 'protocol' | 'authentication' | 'restoration';
 export type CloudSandboxConnectionOutcome = 'success' | 'failure' | 'cancelled';
 export type CloudSandboxConnectionSurface = 'agentsDesktop' | 'agentsWeb' | 'editorDesktop' | 'editorWeb' | 'unknown';
@@ -101,6 +118,9 @@ export interface ICloudSandboxTelemetryService {
 
 	/** Report a permanent rejection or exhausted credential retry budget; token expiry does not close an established socket. */
 	reportCredentialRefreshStopped(reason: CloudSandboxRefreshStopReason, consecutiveFailures: number, error?: unknown): void;
+
+	/** Report a session feed transition: connections after a gap, failed attempts with their retry delay, and give-ups that leave the window on discovery polling. */
+	reportSessionFeed(data: ICloudSandboxSessionFeedTelemetryData): void;
 
 	/** Track a logical connection; aggregate metrics stay separate from ID-correlated lifecycle observations. */
 	trackConnection(stage: CloudSandboxConnectionStage, surface?: CloudSandboxConnectionSurface, source?: CloudSandboxConnectionSource, context?: CloudSandboxConnectionContext): ICloudSandboxConnectionTelemetry;
@@ -301,6 +321,18 @@ export class CloudSandboxTelemetryService extends Disposable implements ICloudSa
 				reason,
 				consecutiveFailures,
 				statusCode: error instanceof CloudSandboxRequestError ? error.statusCode : undefined,
+			},
+		);
+	}
+
+	reportSessionFeed(data: ICloudSandboxSessionFeedTelemetryData): void {
+		this._telemetryService.publicLog2<CloudSandboxSessionFeedEvent, CloudSandboxSessionFeedClassification>(
+			'cloudSandboxSessionFeed',
+			{
+				outcome: data.outcome,
+				consecutiveFailures: data.consecutiveFailures,
+				retryDelayMs: data.retryDelayMs,
+				statusCode: data.statusCode,
 			},
 		);
 	}
@@ -928,4 +960,20 @@ type CloudSandboxRefreshStoppedClassification = {
 	statusCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'HTTP status that caused a permanent stop, when the stop was caused by a rejected request.' };
 	owner: 'osortega';
 	comment: 'Reports that credential refresh for a cloud sandbox connection stopped, so unrecoverable sandbox sessions can be distinguished from transient failures.';
+};
+
+type CloudSandboxSessionFeedEvent = {
+	outcome: string;
+	consecutiveFailures: number;
+	retryDelayMs: number | undefined;
+	statusCode: number | undefined;
+};
+
+type CloudSandboxSessionFeedClassification = {
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'What happened: connected after a gap, unavailable for the account, a failed negotiation or socket handshake, a dropped socket, or an invalid feed message.' };
+	consecutiveFailures: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Dropped sockets and failed attempts since the last healthy connection, including this failure; for a connection, the failures the retries recovered from.' };
+	retryDelayMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds until the next automatic attempt; absent when the feed connected or stopped retrying.' };
+	statusCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'HTTP status of a rejected negotiation request, when that caused the failure.' };
+	owner: 'osortega';
+	comment: 'Reports cloud sandbox session feed connections, failures and retries, so windows left on discovery polling can be told apart from windows receiving push updates.';
 };
