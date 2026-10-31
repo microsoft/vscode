@@ -183,7 +183,6 @@ export interface IDropdownMenuOptions extends IBaseDropdownOptions {
 	closeAnimation?: IContextViewCloseAnimation;
 	getAnchor?: () => HTMLElement;
 	menuAsChild?: boolean; // scope down for #99448
-	menuAsPopover?: boolean; // host the menu as a popover inside the dropdown element
 	readonly skipTelemetry?: boolean;
 }
 
@@ -237,8 +236,7 @@ export class DropdownMenu extends BaseDropdown {
 			onHide: () => this.onHide(),
 			actionRunner: this.menuOptions ? this.menuOptions.actionRunner : undefined,
 			anchorAlignment: this.menuOptions ? this.menuOptions.anchorAlignment : AnchorAlignment.LEFT,
-			domForShadowRoot: this._options.menuAsChild || this._options.menuAsPopover ? this.element : undefined,
-			hostAsPopover: this._options.menuAsPopover,
+			domForShadowRoot: this._options.menuAsChild ? this.element : undefined,
 			skipTelemetry: this._options.skipTelemetry
 		});
 	}
