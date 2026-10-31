@@ -1628,7 +1628,7 @@ suite('ChatPetWidget', () => {
 			}(),
 			workbenchInstantiationService(undefined, disposables),
 		);
-		disposables.add(toDisposable(() => {
+		const cleanup = disposables.add(toDisposable(() => {
 			widget.dispose();
 			service.dispose();
 			storageService.dispose();
@@ -1636,10 +1636,15 @@ suite('ChatPetWidget', () => {
 			movementBounds.remove();
 			clock.restore();
 		}));
-		service.setOnTheRun(true);
-		clock.tick(10_000);
+		try {
+			service.setOnTheRun(true);
+			clock.tick(10_000);
 
-		assert.strictEqual(Reflect.get(widget, '_transientState').get(), undefined);
+			assert.strictEqual(Reflect.get(widget, '_transientState').get(), undefined);
+		} finally {
+			// Restore the clock before ResizeObserver can queue fake animation frames between the test and teardown.
+			cleanup.dispose();
+		}
 	});
 
 	test('moves one pet instance between chat hosts without respawning it', () => {

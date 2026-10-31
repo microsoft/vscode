@@ -1562,7 +1562,7 @@ async function centralCustomizationDirectory(agent: CopilotAgent, session: URI):
 	return values.get('copilot.customizationDirectory');
 }
 
-function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; copilotHome?: string; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; byokProxyService?: IByokLmProxyService; otelService?: IAgentHostOTelService; customizationEnablementService?: ICustomizationEnablementService; useRealCustomizationEnablementService?: boolean; worktreeIsolation?: IAgentHostWorktreeIsolation; rootConfig?: Record<string, unknown>; now?: () => number; startupPerformance?: IAgentHostStartupPerformance; productService?: IProductService; localModelSetupService?: ILocalModelSetupService }): { agent: CopilotAgent; instantiationService: IInstantiationService; authenticationService: AgentHostAuthenticationService; configurationService: IAgentConfigurationService; worktreeIsolation: IAgentHostWorktreeIsolation; managedSettingsService: IAgentHostManagedSettingsService; fileService: FileService; stateManager: AgentHostStateManager } {
+function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; copilotHome?: string; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; byokProxyService?: IByokLmProxyService; otelService?: IAgentHostOTelService; customizationEnablementService?: ICustomizationEnablementService; useRealCustomizationEnablementService?: boolean; worktreeIsolation?: IAgentHostWorktreeIsolation; rootConfig?: Record<string, unknown>; now?: () => number; startupPerformance?: IAgentHostStartupPerformance; productService?: IProductService; localModelSetupService?: ILocalModelSetupService; appSettingsHome?: URI }): { agent: CopilotAgent; instantiationService: IInstantiationService; authenticationService: AgentHostAuthenticationService; configurationService: IAgentConfigurationService; worktreeIsolation: IAgentHostWorktreeIsolation; managedSettingsService: IAgentHostManagedSettingsService; fileService: FileService; stateManager: AgentHostStateManager } {
 	const services = new ServiceCollection();
 	const logService = options?.logService ?? new NullLogService();
 	const authenticationService = disposables.add(new AgentHostAuthenticationService(logService));
@@ -1640,6 +1640,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 			userHome: options?.userHome ?? URI.from({ scheme: Schemas.inMemory, path: '/mock-home' }),
 			tmpDir: URI.from({ scheme: Schemas.inMemory, path: '/mock-tmp' }),
 			userDataPath: '/mock-userdata',
+			...(options?.appSettingsHome ? { appSettingsHome: options.appSettingsHome } : {}),
 		} as INativeEnvironmentService;
 		services.set(INativeEnvironmentService, environmentService);
 	}
@@ -17911,6 +17912,38 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('discovers a legacy chat recorded only in the bulk metadata, restoring its marker only while migration is on', async () => {
+			const discovered = async (migrate: boolean) => {
+				const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/bulk-only-home-`));
+				const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/bulk-only-cwd-`);
+				const sessionId = `bulk-only-${migrate}`;
+				const copilotHome = getCopilotHomePath(userHome.fsPath, {});
+				const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+				await fs.mkdir(join(copilotHome, 'session-state', sessionId), { recursive: true });
+				await fs.writeFile(join(copilotHome, 'vscode.session.metadata.cache.json'), JSON.stringify({
+					[sessionId]: { origin: 'vscode', workspaceFolder: { folderPath: workingDirectory, timestamp: 1 } },
+				}));
+				const { agent } = createTestAgentContext(disposables, { copilotClient: client, userHome });
+				const discoveredChats: Array<readonly IAgentChatMetadata[]> = [];
+				const listener = agent.onDidDiscoverChats(chats => discoveredChats.push(chats));
+				try {
+					await agent.startChatDiscovery({ migrateLegacyChats: migrate });
+					const markerWritten = await fs.stat(join(copilotHome, 'session-state', sessionId, 'vscode.metadata.json')).then(() => true, () => false);
+					return { chats: discoveredChats.flatMap(chats => chats.map(chat => sessionIdOfChat(chat.chat))), markerWritten };
+				} finally {
+					listener.dispose();
+					await fs.rm(userHome.fsPath, { recursive: true, force: true });
+					await fs.rm(workingDirectory, { recursive: true, force: true });
+					await disposeAgent(agent);
+				}
+			};
+
+			assert.deepStrictEqual({ on: await discovered(true), off: await discovered(false) }, {
+				on: { chats: ['bulk-only-true'], markerWritten: true },
+				off: { chats: [], markerWritten: false },
+			});
+		});
+
 		test('does not discover an extension-host chat with an empty Agent Host database', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/ghost-migration-event-home-`));
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/ghost-migration-event-cwd-`);
@@ -29576,6 +29609,83 @@ suite('CopilotAgent', () => {
 			await fs.mkdir(dir, { recursive: true });
 			await fs.writeFile(join(dir, 'vscode.requests.metadata.json'), JSON.stringify(details), 'utf8');
 		}
+
+		test('adopts sessions the extension recorded only in its shared or per-install bulk metadata', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const settingsHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-settings-`));
+			const workspace = await fs.mkdtemp(`${os.tmpdir()}/adopt-workspace-`);
+			const copilotHome = getCopilotHomePath(userHome.fsPath, {});
+			const ids = ['bulk-shared', 'bulk-per-install', 'bulk-other-app'];
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient(ids.map(id => sdkSession(id, workspace)));
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome, appSettingsHome: settingsHome });
+			afterTest(async () => {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(settingsHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workspace, { recursive: true, force: true });
+				await disposeAgent(agent);
+			});
+			await agent.authenticate('https://api.github.com', 'token');
+			for (const id of ids) {
+				await fs.mkdir(join(copilotHome, 'session-state', id), { recursive: true });
+			}
+			const workspaceFolder = { folderPath: workspace, timestamp: 1 };
+			await fs.writeFile(join(copilotHome, 'vscode.session.metadata.cache.json'), JSON.stringify({
+				'bulk-shared': { origin: 'vscode', workspaceFolder, customTitle: 'From the shared file' },
+				'bulk-other-app': { origin: 'other', workspaceFolder },
+			}));
+			const perInstallFile = join(settingsHome.fsPath, 'globalStorage', 'github.copilot-chat', 'copilotcli', 'copilotcli.session.metadata.json');
+			await fs.mkdir(dirname(perInstallFile), { recursive: true });
+			await fs.writeFile(perInstallFile, JSON.stringify({ 'bulk-per-install': { origin: 'vscode', workspaceFolder } }));
+
+			const results: Record<string, unknown> = {};
+			for (const id of ids) {
+				const { adopted, reason, listVisible } = await ensureDefaultChatAdopted(agent, AgentSession.uri('copilotcli', id));
+				results[id] = { adopted, reason, title: listVisible?.title };
+			}
+
+			assert.deepStrictEqual(results, {
+				'bulk-shared': { adopted: true, reason: 'adopted', title: 'From the shared file' },
+				'bulk-per-install': { adopted: true, reason: 'adopted', title: 'SDK bulk-per-install' },
+				'bulk-other-app': { adopted: false, reason: 'notLegacyChat', title: undefined },
+			});
+		});
+
+		test('adopts a session the bulk metadata restored even when reporting the fallback throws', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workspace = await fs.mkdtemp(`${os.tmpdir()}/adopt-workspace-`);
+			const copilotHome = getCopilotHomePath(userHome.fsPath, {});
+			const ids = ['bulk-first', 'bulk-second'];
+			const telemetryService = new class extends NullTelemetryServiceShape {
+				override publicLog2(name?: string): void {
+					if (name === 'agentHost.legacyCopilotCliMarkerFallback') {
+						throw new Error('telemetry failed');
+					}
+				}
+			};
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient(ids.map(id => sdkSession(id, workspace)));
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome, telemetryService });
+			afterTest(async () => {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workspace, { recursive: true, force: true });
+				await disposeAgent(agent);
+			});
+			await agent.authenticate('https://api.github.com', 'token');
+			const workspaceFolder = { folderPath: workspace, timestamp: 1 };
+			for (const id of ids) {
+				await fs.mkdir(join(copilotHome, 'session-state', id), { recursive: true });
+			}
+			await fs.writeFile(join(copilotHome, 'vscode.session.metadata.cache.json'), JSON.stringify(Object.fromEntries(ids.map(id => [id, { origin: 'vscode', workspaceFolder }]))));
+
+			// The second adoption reuses the fallback's settled result.
+			const adopted: boolean[] = [];
+			for (const id of ids) {
+				adopted.push((await ensureDefaultChatAdopted(agent, AgentSession.uri('copilotcli', id))).adopted);
+			}
+
+			assert.deepStrictEqual(adopted, [true, true]);
+		});
 
 		test('keeps a deleted worktree as the working directory so resume can recreate it', async () => {
 			// Parity with native worktree sessions: the checkout is recreated from the

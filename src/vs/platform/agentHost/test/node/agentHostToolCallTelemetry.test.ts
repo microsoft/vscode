@@ -25,6 +25,7 @@ import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelatio
 import { withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { CustomizationType, McpServerStatus, SessionInputRequestKind, type McpServerCustomization } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
+import { chatToolCallComplete, chatToolCallReady, chatToolCallStart, chatTurnComplete } from '../common/chatActionBuilders.js';
 import { buildDefaultChatUri, buildSubagentChatUri, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
@@ -148,15 +149,15 @@ suite('AgentSideEffects — tool call telemetry', () => {
 	}
 
 	function toolStart(turnId: string, toolCallId: string, toolName: string, contributor?: ToolCallContributor): void {
-		fire({ type: ActionType.ChatToolCallStart, turnId, toolCallId, toolName, displayName: toolName, contributor });
+		fire(chatToolCallStart(turnId, toolCallId, toolName, toolName, { contributor }));
 	}
 
 	function toolComplete(turnId: string, toolCallId: string, result: ToolCallResult): void {
-		fire({ type: ActionType.ChatToolCallComplete, turnId, toolCallId, result });
+		fire(chatToolCallComplete(turnId, toolCallId, result));
 	}
 
 	function completeTurn(turnId: string): void {
-		fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1000 });
+		fire(chatTurnComplete(turnId, 1000));
 	}
 
 	function registerClientConnection(clientId: string, initiallyConnected: boolean): (connected: boolean) => void {
@@ -355,13 +356,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		startTurn('turn-1');
 
 		toolStart('turn-1', 'tc-1', 'bash');
-		fire({
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-1',
-			toolCallId: 'tc-1',
-			invocationMessage: 'run',
-			confirmed: ToolCallConfirmationReason.NotNeeded,
-		});
+		fire(chatToolCallReady('turn-1', 'tc-1', 'run', { confirmed: ToolCallConfirmationReason.NotNeeded }));
 		toolComplete('turn-1', 'tc-1', { success: true, pastTenseMessage: 'ran' });
 		completeTurn('turn-1');
 
@@ -412,8 +407,8 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId, agentName: 'agent', agentDisplayName: 'Agent', ...phase });
 			const turnId = stateManager.getActiveTurnId(chatUri) ?? 'missing-subagent-turn';
 			const fireOnChat = (action: ChatAction) => agent.fireProgress({ kind: 'action', resource: URI.parse(chatUri), action });
-			fireOnChat({ type: ActionType.ChatToolCallStart, turnId, toolCallId: `${toolCallId}-view`, toolName: 'view', displayName: 'view' });
-			fireOnChat({ type: ActionType.ChatToolCallComplete, turnId, toolCallId: `${toolCallId}-view`, result: { success: true, pastTenseMessage: 'viewed' } });
+			fireOnChat(chatToolCallStart(turnId, `${toolCallId}-view`, 'view', 'view'));
+			fireOnChat(chatToolCallComplete(turnId, `${toolCallId}-view`, { success: true, pastTenseMessage: 'viewed' }));
 			agent.fireProgress({ kind: 'subagent_completed', chat: URI.parse(defaultChatUri), toolCallId });
 		};
 		runSubagentTool('call-task');
@@ -595,13 +590,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		startTurn('turn-1');
 
 		toolStart('turn-1', 'tc-client', 'run_tests', { kind: ToolCallContributorKind.Client, clientId: 'client-1' });
-		fire({
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-1',
-			toolCallId: 'tc-client',
-			invocationMessage: 'run tests',
-			confirmed: ToolCallConfirmationReason.NotNeeded,
-		});
+		fire(chatToolCallReady('turn-1', 'tc-client', 'run tests', { confirmed: ToolCallConfirmationReason.NotNeeded }));
 		toolComplete('turn-1', 'tc-client', { success: true, pastTenseMessage: 'ran tests' });
 		completeTurn('turn-1');
 
@@ -734,13 +723,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		setupSession();
 		startTurn('turn-1');
 		toolStart('turn-1', 'tc-confirm-timing', 'write');
-		fire({
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-1',
-			toolCallId: 'tc-confirm-timing',
-			invocationMessage: 'Write file',
-			confirmationTitle: 'Write file',
-		});
+		fire(chatToolCallReady('turn-1', 'tc-confirm-timing', 'Write file', { confirmationTitle: 'Write file' }));
 		await timeout(10_000);
 
 		const confirmed: ChatAction = {
@@ -849,20 +832,8 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		startTurn('turn-1');
 
 		toolStart('turn-1', 'tc-confirm', 'write');
-		fire({
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-1',
-			toolCallId: 'tc-confirm',
-			invocationMessage: 'Write file',
-			confirmationTitle: 'Write file',
-		});
-		fire({
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-1',
-			toolCallId: 'tc-confirm',
-			invocationMessage: 'Write file',
-			confirmationTitle: 'Write file',
-		});
+		fire(chatToolCallReady('turn-1', 'tc-confirm', 'Write file', { confirmationTitle: 'Write file' }));
+		fire(chatToolCallReady('turn-1', 'tc-confirm', 'Write file', { confirmationTitle: 'Write file' }));
 
 		await timeout(5 * 60 * 1000);
 
@@ -887,13 +858,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		startTurn('turn-1');
 
 		toolStart('turn-1', 'tc-client-stall', 'run_tests', { kind: ToolCallContributorKind.Client, clientId: 'client-1' });
-		fire({
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-1',
-			toolCallId: 'tc-client-stall',
-			invocationMessage: 'Run tests',
-			confirmationTitle: 'Run tests',
-		});
+		fire(chatToolCallReady('turn-1', 'tc-client-stall', 'Run tests', { confirmationTitle: 'Run tests' }));
 		fire({
 			type: ActionType.ChatToolCallConfirmed,
 			turnId: 'turn-1',
@@ -927,13 +892,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		startTurn('turn-1');
 
 		toolStart('turn-1', 'tc-disconnected', 'run_tests', { kind: ToolCallContributorKind.Client, clientId: 'client-1' });
-		fire({
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-1',
-			toolCallId: 'tc-disconnected',
-			invocationMessage: 'Run tests',
-			confirmed: ToolCallConfirmationReason.NotNeeded,
-		});
+		fire(chatToolCallReady('turn-1', 'tc-disconnected', 'Run tests', { confirmed: ToolCallConfirmationReason.NotNeeded }));
 
 		await timeout(5 * 60 * 1000);
 
@@ -945,23 +904,11 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		startTurn('turn-1');
 
 		toolStart('turn-1', 'tc-complete', 'run_tests', { kind: ToolCallContributorKind.Client, clientId: 'client-1' });
-		fire({
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-1',
-			toolCallId: 'tc-complete',
-			invocationMessage: 'Run tests',
-			confirmed: ToolCallConfirmationReason.NotNeeded,
-		});
+		fire(chatToolCallReady('turn-1', 'tc-complete', 'Run tests', { confirmed: ToolCallConfirmationReason.NotNeeded }));
 		toolComplete('turn-1', 'tc-complete', { success: true, pastTenseMessage: 'ran tests' });
 
 		toolStart('turn-1', 'tc-cancel', 'write');
-		fire({
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-1',
-			toolCallId: 'tc-cancel',
-			invocationMessage: 'Write file',
-			confirmationTitle: 'Write file',
-		});
+		fire(chatToolCallReady('turn-1', 'tc-cancel', 'Write file', { confirmationTitle: 'Write file' }));
 		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 1000 });
 
 		await timeout(5 * 60 * 1000);
@@ -977,13 +924,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		startTurn('turn-1');
 
 		toolStart('turn-1', 'tc-recovered', 'run_tests', { kind: ToolCallContributorKind.Client, clientId: 'client-1' });
-		fire({
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-1',
-			toolCallId: 'tc-recovered',
-			invocationMessage: 'Run tests',
-			confirmed: ToolCallConfirmationReason.NotNeeded,
-		});
+		fire(chatToolCallReady('turn-1', 'tc-recovered', 'Run tests', { confirmed: ToolCallConfirmationReason.NotNeeded }));
 
 		await timeout(5 * 60 * 1000);
 		setClientConnected(false);
