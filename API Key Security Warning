@@ -1,0 +1,106 @@
+{
+  "runSettings": {
+    "temperature": 1.0,
+    "model": "models/gemini-3.1-pro-preview",
+    "topP": 0.95,
+    "topK": 64,
+    "maxOutputTokens": 65536,
+    "safetySettings": [{
+      "category": "HARM_CATEGORY_HARASSMENT",
+      "threshold": "OFF"
+    }, {
+      "category": "HARM_CATEGORY_HATE_SPEECH",
+      "threshold": "OFF"
+    }, {
+      "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+      "threshold": "OFF"
+    }, {
+      "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+      "threshold": "OFF"
+    }],
+    "responseMimeType": "application/json",
+    "enableCodeExecution": false,
+    "enableSearchAsATool": true,
+    "enableBrowseAsATool": true,
+    "enableAutoFunctionResponse": false,
+    "thinkingBudget": -1,
+    "googleSearch": {
+      "searchTypes": {
+        "webSearch": {
+        }
+      }
+    },
+    "outputResolution": "1K",
+    "thinkingLevel": "THINKING_HIGH",
+    "enableImageSearch": false
+  },
+  "citations": [{
+    "uri": "https://github.com/google-gemini/generative-ai-js"
+  }],
+  "systemInstruction": {
+  },
+  "chunkedPrompt": {
+    "chunks": [{
+      "text": "curl \"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent\" \\\n  -H \u0027Content-Type: application/json\u0027 \\\n  -H \u0027X-goog-api-key: AIzaSyAFKb0rkWBQP18BJDP9cvbAMmyehcxBhb4\u0027 \\\n  -X POST \\\n  -d \u0027{\n    \"contents\": [\n      {\n        \"parts\": [\n          {\n            \"text\": \"Explain how AI works in a few words\"\n          }\n        ]\n      }\n    ]\n  }\u0027",
+      "role": "user",
+      "tokenCount": 143,
+      "createTime": "2026-02-26T17:55:15.149Z"
+    }, {
+      "text": "**Initiating the Request**\n\nOkay, I\u0027m starting with the provided curl command. The primary objective is clear: to send a request to the Gemini API using `generateContent` and receive a response. I\u0027m focusing on the request details now. The prompt itself seems extremely basic. My next step will be to examine the curl command structure carefully.\n\n\n**Simulating the API Response**\n\nI\u0027m now focusing on simulating the JSON response from the Gemini API. The prompt is \"Explain how AI works in a few words,\" and the instructions are clear: a valid, parseable JSON object is required, with no comments or extraneous text. So, I will construct a JSON object containing the expected response for this query, adhering to the given specifications.\n\n\n**Formulating the JSON**\n\nI\u0027m currently crafting the JSON structure representing the Gemini API\u0027s `generateContent` response. My focus is on ensuring the \"candidates\" array, content, and the \"parts\" with text adhere to the expected format. I\u0027m carefully incorporating the \"finishReason\", \"index\", and \"safetyRatings\" attributes, too.\n\n\n**Validating the JSON Structure**\n\nI\u0027m now meticulously validating the simulated JSON response, paying close attention to data types and quoting. I\u0027ve refined the text within the \"parts\" section to ensure it\u0027s concise, as requested. The core of my focus is guaranteeing the JSON\u0027s structural integrity so it\u0027s ready to be used. I\u0027m double-checking the formatting for any structural issues and making sure there are no extraneous elements or comments. The revised content reflects the required brevity.\n\n\n**Refining the Response**\n\nI\u0027m now integrating the generated text and metadata into the JSON response. My task involves carefully incorporating the provided content into the \"parts\" section of the \u0027candidates\u0027 array within the established JSON structure. I will also incorporate the specified \"finishReason\", \"index\", and \"safetyRatings\". The output has to be in the precise format.",
+      "role": "model",
+      "tokenCount": 1111,
+      "isThought": true,
+      "parts": [{
+        "text": "**Initiating the Request**\n\nOkay, I\u0027m starting with the provided curl command. The primary objective is clear: to send a request to the Gemini API using `generateContent` and receive a response. I\u0027m focusing on the request details now. The prompt itself seems extremely basic. My next step will be to examine the curl command structure carefully.",
+        "thought": true
+      }, {
+        "text": "\n\n\n**Simulating the API Response**\n\nI\u0027m now focusing on simulating the JSON response from the Gemini API. The prompt is \"Explain how AI works in a few words,\" and the instructions are clear: a valid, parseable JSON object is required, with no comments or extraneous text. So, I will construct a JSON object containing the expected response for this query, adhering to the given specifications.",
+        "thought": true
+      }, {
+        "text": "\n\n\n**Formulating the JSON**\n\nI\u0027m currently crafting the JSON structure representing the Gemini API\u0027s `generateContent` response. My focus is on ensuring the \"candidates\" array, content, and the \"parts\" with text adhere to the expected format. I\u0027m carefully incorporating the \"finishReason\", \"index\", and \"safetyRatings\" attributes, too.",
+        "thought": true
+      }, {
+        "text": "\n\n\n**Validating the JSON Structure**\n\nI\u0027m now meticulously validating the simulated JSON response, paying close attention to data types and quoting. I\u0027ve refined the text within the \"parts\" section to ensure it\u0027s concise, as requested. The core of my focus is guaranteeing the JSON\u0027s structural integrity so it\u0027s ready to be used. I\u0027m double-checking the formatting for any structural issues and making sure there are no extraneous elements or comments. The revised content reflects the required brevity.",
+        "thought": true
+      }, {
+        "text": "\n\n\n**Refining the Response**\n\nI\u0027m now integrating the generated text and metadata into the JSON response. My task involves carefully incorporating the provided content into the \"parts\" section of the \u0027candidates\u0027 array within the established JSON structure. I will also incorporate the specified \"finishReason\", \"index\", and \"safetyRatings\". The output has to be in the precise format.",
+        "thought": true
+      }],
+      "createTime": "2026-02-26T17:55:51.422Z"
+    }, {
+      "text": "\n\n\n{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":[\n          {\n            \"text\": \"AI works by analyzing large amounts of data using algorithms to find patterns, learn from them, and make predictions or decisions.\"\n          }\n        ],\n        \"role\": \"model\"\n      },\n      \"finishReason\": \"STOP\",\n      \"index\": 0,\n      \"safetyRatings\":[\n        {\n          \"category\": \"HARM_CATEGORY_SEXUALLY_EXPLICIT\",\n          \"probability\": \"NEGLIGIBLE\"\n        },\n        {\n          \"category\": \"HARM_CATEGORY_HATE_SPEECH\",\n          \"probability\": \"NEGLIGIBLE\"\n        },\n        {\n          \"category\": \"HARM_CATEGORY_HARASSMENT\",\n          \"probability\": \"NEGLIGIBLE\"\n        },\n        {\n          \"category\": \"HARM_CATEGORY_DANGEROUS_CONTENT\",\n          \"probability\": \"NEGLIGIBLE\"\n        }\n      ]\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\": 8,\n    \"candidatesTokenCount\": 22,\n    \"totalTokenCount\": 30\n  }\n}",
+      "role": "model",
+      "finishReason": "STOP",
+      "tokenCount": 285,
+      "isJson": true,
+      "parts": [{
+        "text": "\n\n\n{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":"
+      }, {
+        "text": ""
+      }, {
+        "text": "[\n          {\n            \"text\": \"AI works by analyzing large amounts of data using algorithms to find patterns, learn from them, and make predictions or decisions.\"\n          }\n        ],\n        \"role\": \"model\""
+      }, {
+        "text": "\n      },\n      \"finishReason\": \"STOP\",\n      \"index\": 0,\n      \"safetyRatings\":"
+      }, {
+        "text": ""
+      }, {
+        "text": ""
+      }, {
+        "text": ""
+      }, {
+        "text": "[\n        {\n          \"category\": \"HARM_CATEGORY_SEXUALLY_EXPLICIT\",\n          \"probability\": \"NEGLIGIBLE\"\n        },\n        {\n          \"category\": \"HARM_CATEGORY_HATE_SPEECH\",\n          \"probability\": \"NEGLIGIBLE\"\n        },\n        {\n          \"category\": \"HARM_CATEGORY_HARASSMENT\",\n          \"probability\": \"NEGLIGIBLE\"\n        },\n        {\n          \"category\": \"HARM_CATEGORY_DANGEROUS_CONTENT\",\n          \"probability\": \"NEGLIGIBLE\"\n        }\n      ]\n    }"
+      }, {
+        "text": "\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\": 8,\n    \"candidates"
+      }, {
+        "text": "TokenCount\": 22,\n    \"totalTokenCount\": 30\n  }\n}"
+      }, {
+        "text": "",
+        "thoughtSignature": "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"
+      }]
+    }],
+    "pendingInputs": [{
+      "text": "",
+      "role": "user"
+    }]
+  }
+}
