@@ -4837,6 +4837,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		.monaco-toolbar .action-item.chat-restore-checkpoint-item {
 			display: flex;
 			align-items: stretch;
+			box-sizing: border-box;
+			height: 22px;
 			margin-left: var(--vscode-spacing-size60);
 		}
 
@@ -4850,6 +4852,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label:first-child,
 		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label.chat-restore-checkpoint-cancel {
+			height: 100%;
 			color: var(--vscode-foreground);
 			border: none;
 			border-radius: 0;
