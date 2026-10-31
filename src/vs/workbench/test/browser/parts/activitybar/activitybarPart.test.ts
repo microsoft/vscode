@@ -33,6 +33,7 @@ import { IUpdateService, StateType } from '../../../../../platform/update/common
 import { CustomMenubarControl } from '../../../../browser/parts/titlebar/menubarControl.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { getMenuBarVisibility } from '../../../../../platform/window/common/window.js';
 
 function stubMenubarServices(instantiationService: TestInstantiationService): void {
 	// The custom menu bar expects the main menu to have at least one (possibly empty) group.
@@ -824,11 +825,15 @@ suite('ActivitybarPart', () => {
 		overflowActionSize: 48,
 	};
 
-	function createActivityBarCompositeBar(menuBarVisibility: string, activityBarLocation: string) {
+	// Compact menus are unsupported where the platform forces a native menu (e.g. native macOS).
+	const compactSupported = getMenuBarVisibility(new TestConfigurationService({ 'window.menuBarVisibility': 'compact' })) === 'compact';
+
+	function createActivityBarCompositeBar(menuBarVisibility: string, activityBarLocation: string, sideBarLocation = 'left') {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService({
 			'window.menuBarVisibility': menuBarVisibility,
 			[LayoutSettings.ACTIVITY_BAR_LOCATION]: activityBarLocation,
+			'workbench.sideBar.location': sideBarLocation,
 		});
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IWorkbenchLayoutService, new TestFloatingPanelsLayoutService());
@@ -875,7 +880,10 @@ suite('ActivitybarPart', () => {
 		target.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true } as KeyboardEventInit));
 	}
 
-	test('activity bar owns the compact menu exactly when the titlebar does not, across location changes', () => {
+	test('activity bar owns the compact menu exactly when the titlebar does not, across location changes', function () {
+		if (!compactSupported) {
+			this.skip();
+		}
 		const harness = createActivityBarCompositeBar('compact', 'default');
 		const observed: { location: string; activityBarMenubars: number; titlebarOwns: boolean }[] = [];
 		const record = (location: string) => observed.push({ location, activityBarMenubars: harness.menubars(), titlebarOwns: isCompactMenuInTitlebar(harness.configurationService) });
@@ -897,7 +905,10 @@ suite('ActivitybarPart', () => {
 		]);
 	});
 
-	test('activity bar does not install the compact menu when created with the activity bar at the top', () => {
+	test('activity bar does not install the compact menu when created with the activity bar at the top', function () {
+		if (!compactSupported) {
+			this.skip();
+		}
 		const harness = createActivityBarCompositeBar('compact', 'top');
 		const atTop = harness.menubars();
 		harness.setLocation('default');
@@ -906,7 +917,10 @@ suite('ActivitybarPart', () => {
 		assert.deepStrictEqual({ atTop, afterMovingToSide }, { atTop: 0, afterMovingToSide: 1 });
 	});
 
-	test('activity bar does not install the compact menu for non-compact menu bar visibility', () => {
+	test('activity bar does not install the compact menu for non-compact menu bar visibility', function () {
+		if (!compactSupported) {
+			this.skip();
+		}
 		const classic = createActivityBarCompositeBar('classic', 'default');
 		const toggle = createActivityBarCompositeBar('toggle', 'default');
 		const compact = createActivityBarCompositeBar('compact', 'default');
@@ -922,7 +936,10 @@ suite('ActivitybarPart', () => {
 		);
 	});
 
-	test('compact menu keyboard navigation works after reinstall and is removed with the menu', () => {
+	test('compact menu keyboard navigation works after reinstall and is removed with the menu', function () {
+		if (!compactSupported) {
+			this.skip();
+		}
 		const harness = createActivityBarCompositeBar('compact', 'default');
 		const firstContainer = harness.parent.querySelector<HTMLElement>('.menubar')!;
 
@@ -954,7 +971,10 @@ suite('ActivitybarPart', () => {
 		);
 	});
 
-	test('disposing the activity bar removes the compact menu control', () => {
+	test('disposing the activity bar removes the compact menu control', function () {
+		if (!compactSupported) {
+			this.skip();
+		}
 		const harness = createActivityBarCompositeBar('compact', 'default');
 		const before = harness.menubars();
 		const container = harness.parent.querySelector<HTMLElement>('.menubar')!;
@@ -962,6 +982,26 @@ suite('ActivitybarPart', () => {
 		pressKey(container, 'ArrowDown', 40);
 
 		assert.deepStrictEqual({ before, focusAfterDispose: harness.focusCount() }, { before: 1, focusAfterDispose: 0 });
+	});
+
+	test('compact menu opens away from the sidebar edge', function () {
+		if (!compactSupported) {
+			this.skip();
+		}
+		const openMenu = (sideBarLocation: string) => {
+			const harness = createActivityBarCompositeBar('compact', 'default', sideBarLocation);
+			const button = harness.parent.querySelector<HTMLElement>('.menubar .menubar-menu-button')!;
+			button.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+			const holder = harness.parent.querySelector<HTMLElement>('.menubar-menu-items-holder');
+			const result = { opened: !!holder, opensLeftward: holder?.style.left === 'auto' };
+			harness.bar.dispose();
+			return result;
+		};
+
+		assert.deepStrictEqual(
+			{ left: openMenu('left'), right: openMenu('right') },
+			{ left: { opened: true, opensLeftward: false }, right: { opened: true, opensLeftward: true } }
+		);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -19,7 +19,8 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { IUpdateService, StateType } from '../../../../../platform/update/common/update.js';
-import { getMenuBarVisibility } from '../../../../../platform/window/common/window.js';
+import { isMacintosh, isWeb } from '../../../../../base/common/platform.js';
+import { getMenuBarVisibility, hasNativeMenu } from '../../../../../platform/window/common/window.js';
 import { CustomMenubarControl } from '../../../../browser/parts/titlebar/menubarControl.js';
 import { BrowserTitlebarPart } from '../../../../browser/parts/titlebar/titlebarPart.js';
 import { WindowTitle } from '../../../../browser/parts/titlebar/windowTitle.js';
@@ -347,6 +348,8 @@ suite('Workbench - Titlebar Part', () => {
 			workbench: { activityBar: { location: ActivityBarPosition.DEFAULT } }
 		});
 		const compactSupported = getMenuBarVisibility(new TestConfigurationService({ window: { menuBarVisibility: 'compact' } })) === 'compact';
+		// Mirrors the production install guard: native menus (e.g. native macOS) never get a custom menu bar.
+		const customSupported = !hasNativeMenu(new TestConfigurationService({ window: { menuBarVisibility: 'classic' } })) && (!isMacintosh || isWeb);
 		const { part, container } = createTitlebar(configurationService);
 
 		const states: Record<string, { count: number; compact: boolean }> = { classic: menubarState(container) };
@@ -362,13 +365,15 @@ suite('Workbench - Titlebar Part', () => {
 		states.compactTopThird = menubarState(container);
 		part.dispose();
 
-		const titlebarCompact = { count: 1, compact: compactSupported };
+		const none = { count: 0, compact: false };
+		const classic = customSupported ? { count: 1, compact: false } : none;
+		const titlebarCompact = customSupported ? { count: 1, compact: compactSupported } : none;
 		assert.deepStrictEqual(states, {
-			classic: { count: 1, compact: false },
+			classic,
 			compactTop: titlebarCompact,
-			compactDefault: compactSupported ? { count: 0, compact: false } : { count: 1, compact: false },
+			compactDefault: compactSupported ? none : classic,
 			compactTopAgain: titlebarCompact,
-			classicAgain: { count: 1, compact: false },
+			classicAgain: classic,
 			compactTopThird: titlebarCompact,
 		});
 	});
