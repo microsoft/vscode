@@ -281,6 +281,7 @@ suite('CanvasService', () => {
 
 	test('foregrounds an explicitly revealed recovery for an existing presentation', async () => {
 		const harness = createHarness();
+		harness.openRequests.set(new Map([['preview', { id: 'original', succeeded: true }]]), undefined);
 		harness.canvases.set([harness.canvas], undefined);
 		await timeout(0);
 		harness.openEditors.length = 0;

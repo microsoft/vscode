@@ -207,7 +207,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 						}
 						continue;
 					}
-					if (presentation?.opened && request?.succeeded && sourceState.foregroundRequestId !== requestId) {
+					if (!foregroundIntent && presentation?.opened && request?.succeeded && sourceState.foregroundRequestId !== requestId) {
 						presentation.requestId = requestId;
 						if (sourceRecovered) {
 							this.completeSourceRecovery(key, recoveryGeneration);
