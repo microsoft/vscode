@@ -126,7 +126,7 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 
 		const left = editorLayout.contentLeft + this._maxPrefixTrim.read(reader).prefixLeftOffset - horizontalScrollOffset;
 
-		if (right <= left) {
+		if (right <= left || selectionBottom < selectionTop) {
 			return null;
 		}
 
