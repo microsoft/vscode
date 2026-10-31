@@ -176,6 +176,17 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	//
 	private static readonly FILE_CHANGES_HANDLER_DELAY = 75;
 
+	// Interval in which we check whether the watched root path
+	// still exists. This is needed because renaming or moving the
+	// watched folder can leave the underlying watcher handle alive
+	// on some platforms (Windows, macOS) so that no events are
+	// reported at all although watching silently broke. When the
+	// root turns out to be gone, we simulate the deletion event
+	// so that all of the existing handling applies as if the path
+	// had been deleted, enabling clients to recover.
+	// (https://github.com/microsoft/vscode/issues/309241)
+	private static readonly ROOT_EXISTENCE_CHECK_DELAY = 5007;
+
 	// Reduce likelyhood of spam from file events via throttling.
 	// (https://github.com/microsoft/vscode/issues/124723)
 	private readonly throttledFileChangesEmitter = this._register(new ThrottledWorker<IFileChange>(
@@ -392,6 +403,42 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 			watcher.notifyWatchFailed();
 			this._onDidWatchFail.fire(request);
 		}
+
+		// Watch for the watched root path disappearing without any event being
+		// reported: renaming or moving the folder can keep the underlying watcher
+		// handle alive (Windows, macOS) and watching silently stops working. As
+		// soon as we detect the path is gone, simulate the deletion so that all
+		// of the existing deletion handling applies as usual.
+		//
+		// The event is added to the same worker queue as real events to preserve
+		// ordering and coalescing with any changes still buffered. On Linux,
+		// renames are already reported as real events and mark the watcher as
+		// failed, so this check stops before it could report a duplicate.
+		// (https://github.com/microsoft/vscode/issues/309241)
+		const rootExistenceScheduler = new RunOnceScheduler(async () => {
+			if (watcher.token.isCancellationRequested || watcher.failed || watcher.stopped) {
+				return; // watcher is no longer active
+			}
+
+			try {
+				await promises.access(request.path);
+			} catch (error) {
+				if (!watcher.token.isCancellationRequested && !watcher.failed && !watcher.stopped && (error as NodeJS.ErrnoException).code === 'ENOENT') {
+
+					this.trace(`Watched root path no longer exists without an event being reported: ${request.path}`);
+
+					// Simulate the root deletion event through the regular event
+					// worker so that all of the existing deletion handling applies
+					// as if the event had been reported by the watcher.
+					watcher.worker.work({ type: FileChangeType.DELETED, resource: URI.file(request.path), cId: request.correlationId });
+				}
+				return; // stop checking once the root is gone or unreadable
+			}
+
+			rootExistenceScheduler.schedule();
+		}, ParcelWatcher.ROOT_EXISTENCE_CHECK_DELAY);
+		rootExistenceScheduler.schedule();
+		watcher.token.onCancellationRequested(() => rootExistenceScheduler.dispose());
 	}
 
 	private addPredefinedExcludes(initialExcludes: string[]): string[] {
