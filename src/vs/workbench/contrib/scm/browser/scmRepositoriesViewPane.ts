@@ -646,8 +646,9 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 		// HistoryItemRef changed
 		disposables.add(autorun(async reader => {
+			const explorerEnabled = this.scmViewService.explorerEnabledConfig.read(reader);
 			const historyProvider = repository.provider.historyProvider.read(reader);
-			if (!historyProvider) {
+			if (!explorerEnabled || !historyProvider) {
 				return;
 			}
 
@@ -780,6 +781,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			}
 
 			await this.updateParentRepository(repository);
+			return;
 		}
 
 		// Explorer mode
