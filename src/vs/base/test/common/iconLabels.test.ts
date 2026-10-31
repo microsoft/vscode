@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { IMatch } from '../../common/filters.js';
-import { escapeIcons, getCodiconAriaLabel, IParsedLabelWithIcons, markdownEscapeEscapedIcons, matchesFuzzyIconAware, parseLabelWithIcons, stripIcons } from '../../common/iconLabels.js';
+import { escapeIcons, escapeIconsWithHighlights, getCodiconAriaLabel, IParsedLabelWithIcons, markdownEscapeEscapedIcons, matchesFuzzyIconAware, parseLabelWithIcons, stripIcons } from '../../common/iconLabels.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 interface IIconFilter {
@@ -103,6 +103,33 @@ suite('Icon Labels', () => {
 		assert.strictEqual(escapeIcons('$(Hello World'), '$(Hello World');
 		assert.strictEqual(escapeIcons('$(Hello) World'), '\\$(Hello) World');
 		assert.strictEqual(escapeIcons('\\$(Hello) W$(oi)rld'), '\\$(Hello) W\\$(oi)rld');
+	});
+
+	test('escapeIconsWithHighlights', () => {
+		// no icons
+		assert.deepStrictEqual(escapeIconsWithHighlights('Hello World', [{ start: 6, end: 11 }]), { text: 'Hello World', highlights: [{ start: 6, end: 11 }] });
+
+		// icon before and after highlight
+		assert.deepStrictEqual(escapeIconsWithHighlights('$(copy) foobar', [{ start: 8, end: 14 }]), { text: '\\$(copy) foobar', highlights: [{ start: 9, end: 15 }] });
+		assert.deepStrictEqual(escapeIconsWithHighlights('foobar $(copy)', [{ start: 0, end: 6 }]), { text: 'foobar \\$(copy)', highlights: [{ start: 0, end: 6 }] });
+
+		// icon adjacent to highlight boundaries
+		assert.deepStrictEqual(escapeIconsWithHighlights('foo$(copy)bar', [{ start: 0, end: 3 }, { start: 10, end: 13 }]), { text: 'foo\\$(copy)bar', highlights: [{ start: 0, end: 3 }, { start: 11, end: 14 }] });
+
+		// icon fully inside highlight
+		assert.deepStrictEqual(escapeIconsWithHighlights('a $(copy) b', [{ start: 2, end: 9 }]), { text: 'a \\$(copy) b', highlights: [{ start: 2, end: 10 }] });
+
+		// icon split by highlight is left untouched
+		assert.deepStrictEqual(escapeIconsWithHighlights('$(copy) foobar', [{ start: 2, end: 6 }]), { text: '$(copy) foobar', highlights: [{ start: 2, end: 6 }] });
+
+		// empty highlight inside icon does not split it
+		assert.deepStrictEqual(escapeIconsWithHighlights('$(copy) foobar', [{ start: 3, end: 3 }]), { text: '\\$(copy) foobar', highlights: [{ start: 4, end: 4 }] });
+
+		// already escaped icon keeps its backslash
+		assert.deepStrictEqual(escapeIconsWithHighlights('\\$(copy) foo', [{ start: 9, end: 12 }]), { text: '\\\\$(copy) foo', highlights: [{ start: 10, end: 13 }] });
+
+		// multiple icons
+		assert.deepStrictEqual(escapeIconsWithHighlights('$(a) x $(b~spin) y', [{ start: 5, end: 6 }, { start: 17, end: 18 }]), { text: '\\$(a) x \\$(b~spin) y', highlights: [{ start: 6, end: 7 }, { start: 19, end: 20 }] });
 	});
 
 	test('markdownEscapeEscapedIcons', () => {
