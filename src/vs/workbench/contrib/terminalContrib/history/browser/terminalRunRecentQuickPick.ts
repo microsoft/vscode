@@ -73,8 +73,9 @@ export async function showRunRecentQuickPick(
 		placeholder = isMacintosh ? localize('selectRecentCommandMac', 'Select a command to run (hold Option-key to edit the command)') : localize('selectRecentCommand', 'Select a command to run (hold Alt-key to edit the command)');
 		const cmdDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
 		const commands = cmdDetection?.commands;
-		// Current session history
-		const executingCommand = cmdDetection?.executingCommand;
+		// Current session history. Only list command lines that shell integration verified
+		// with its nonce, since any output written to the terminal can report a command line.
+		const executingCommand = cmdDetection?.executingCommandObject?.isTrusted ? cmdDetection.executingCommand : undefined;
 		if (executingCommand) {
 			commandMap.add(executingCommand);
 		}
@@ -92,7 +93,7 @@ export async function showRunRecentQuickPick(
 				// Trim off any whitespace and/or line endings, replace new lines with the
 				// Downwards Arrow with Corner Leftwards symbol
 				const label = entry.command.trim();
-				if (label.length === 0 || commandMap.has(label)) {
+				if (label.length === 0 || commandMap.has(label) || !entry.isTrusted) {
 					continue;
 				}
 				let description = collapseTildePath(entry.cwd, instance.userHome, instance.os === OperatingSystem.Windows ? '\\' : '/');
@@ -129,7 +130,7 @@ export async function showRunRecentQuickPick(
 			items.unshift({
 				label: formatLabel(executingCommand),
 				rawLabel: executingCommand,
-				description: cmdDetection.cwd
+				description: cmdDetection?.cwd
 			});
 		}
 		if (items.length > 0) {
