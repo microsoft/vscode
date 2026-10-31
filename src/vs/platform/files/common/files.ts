@@ -1630,7 +1630,8 @@ export class ByteSize {
 export function getLargeFileConfirmationLimit(remoteAuthority?: string): number;
 export function getLargeFileConfirmationLimit(uri?: URI): number;
 export function getLargeFileConfirmationLimit(arg?: string | URI): number {
-	const isRemote = typeof arg === 'string' || arg?.scheme === Schemas.vscodeRemote;
+	// Agent Host files are read over the Agent Host connection, like remote files
+	const isRemote = typeof arg === 'string' || arg?.scheme === Schemas.vscodeRemote || arg?.scheme === Schemas.vscodeAgentHost;
 	const isLocal = typeof arg !== 'string' && arg?.scheme === Schemas.file;
 
 	if (isLocal) {
