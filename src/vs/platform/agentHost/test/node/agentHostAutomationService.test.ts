@@ -1539,6 +1539,69 @@ suite('AgentHostAutomationService', () => {
 		})));
 	});
 
+	for (const initiallyAvailable of [false, true]) {
+		test(`persists a manual request that reuses a ${initiallyAvailable ? 'running' : 'pending'} run across completion and restart`, async () => {
+			const session = URI.parse('mock:/reused-request');
+			const started = new DeferredPromise<void>();
+			let available = initiallyAvailable;
+			let createCalls = 0;
+			const execution: Partial<IAgentHostAutomationExecution> = {
+				isSessionTemplateAvailable: () => available,
+				createSession: async () => {
+					createCalls++;
+					stateManager.createSession({
+						resource: session.toString(), provider: 'mock', title: '', status: SessionStatus.Idle,
+						createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+						defaultChat: buildDefaultChatUri(session.toString()),
+					});
+					return session;
+				},
+				startSession: async (createdSession, message) => {
+					stateManager.dispatchServerAction(buildDefaultChatUri(createdSession), {
+						type: ActionType.ChatTurnStarted, turnId: 'reused-turn', startedAt: new Date().toISOString(), message,
+					});
+					if (!started.isSettled) {
+						await started.complete();
+					}
+				},
+			};
+			const service = createService(execution);
+			await enableAndCreate(service);
+			const params: RunAutomationParams = {
+				channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'initial-request',
+			};
+			const first = await service.runAutomation(params);
+			if (initiallyAvailable) {
+				await started.p;
+			}
+			const reusedParams = { ...params, requestId: 'reused-request' };
+			const reused = await service.runAutomation(reusedParams);
+			available = true;
+			service.handleAgentsChanged();
+			await started.p;
+			const completed = terminalRun(first.resource);
+			stateManager.dispatchServerAction(buildDefaultChatUri(session), {
+				type: ActionType.ChatTurnComplete, turnId: 'reused-turn', duration: 0,
+			});
+			await completed;
+			const replayed = await service.runAutomation(reusedParams);
+			service.dispose();
+			const restored = createService(execution);
+			const replayedAfterRestart = await restored.runAutomation(reusedParams);
+			assert.deepStrictEqual({
+				reused: reused.resource,
+				replayed: replayed.resource,
+				replayedAfterRestart: replayedAfterRestart.resource,
+				createCalls,
+			}, {
+				reused: first.resource,
+				replayed: first.resource,
+				replayedAfterRestart: first.resource,
+				createCalls: 1,
+			});
+		});
+	}
+
 	for (const hasMessageModel of [false, true]) {
 		test(hasMessageModel ? 'preserves an explicit Automation message model' : 'records the Automation model configuration on its first turn', async () => {
 			const session = URI.parse('mock:/model-configuration-run');
