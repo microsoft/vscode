@@ -6,6 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { $, append } from '../../../../base/browser/dom.js';
+import { ObjectTree } from '../../../../base/browser/ui/tree/objectTree.js';
 import { unthemedInboxStyles } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
 import { unthemedListStyles } from '../../../../base/browser/ui/list/listWidget.js';
@@ -28,7 +29,7 @@ import { IConfigurationService } from '../../../configuration/common/configurati
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ILayoutService } from '../../../layout/browser/layoutService.js';
 import { IContextMenuService, IContextViewService } from '../../../contextview/browser/contextView.js';
-import { IListService, ListService } from '../../../list/browser/listService.js';
+import { IListService, ListService, WorkbenchListWidget } from '../../../list/browser/listService.js';
 import { IContextKeyService } from '../../../contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../contextkey/browser/contextKeyService.js';
 import { NoMatchingKb } from '../../../keybinding/common/keybindingResolver.js';
@@ -80,6 +81,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	let controller: QuickInputController;
 	let fixture: HTMLElement;
 	let instantiationService: TestInstantiationService;
+	let getRegisteredLists: () => readonly WorkbenchListWidget[];
 
 	setup(() => {
 		fixture = document.createElement('div');
@@ -92,7 +94,10 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		instantiationService.stub(IThemeService, new TestThemeService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
-		instantiationService.stub(IListService, store.add(new ListService()));
+		const listService = store.add(new ListService());
+		const registrations = sinon.spy(listService, 'register');
+		getRegisteredLists = () => registrations.getCalls().map(call => call.args[0]);
+		instantiationService.stub(IListService, listService);
 		instantiationService.stub(ILayoutService, {
 			_serviceBrand: undefined,
 			activeContainer: fixture,
@@ -268,6 +273,83 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 			active.push(picker.activeItems.map(item => item.label));
 		}
 		assert.deepStrictEqual(active, [['B1'], ['A1'], ['B1']]);
+	});
+
+	test('next section wraps to the first visible item when filtering hides the original first item', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+		const first = { label: 'hit one' };
+		const last = { label: 'hit two' };
+		picker.items = [{ label: 'hidden' }, first, { type: 'separator' }, last];
+		picker.sortByLabel = false;
+		picker.value = 'hit';
+		picker.show();
+		picker.activeItems = [last];
+		const active: string[][] = [];
+		for (let index = 0; index < 3; index++) {
+			picker.focus(QuickPickFocus.NextSeparator);
+			active.push(picker.activeItems.map(item => item.label));
+		}
+		assert.deepStrictEqual(active, [['hit one'], ['hit two'], ['hit one']]);
+	});
+
+	test('previous section distinguishes an action section interior, first item, and header', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+		const first = { label: 'A1' };
+		const second = { label: 'A2' };
+		const third = { label: 'B1' };
+		const fourth = { label: 'B2' };
+		picker.items = [
+			{ type: 'separator', label: 'A', buttons: [{ iconClass: 'codicon-add', tooltip: 'Add' }] }, first, second,
+			{ type: 'separator', label: 'B', buttons: [{ iconClass: 'codicon-add', tooltip: 'Add' }] }, third, fourth,
+		];
+		picker.show();
+		const list = fixture.querySelector<HTMLElement>('.quick-input-list > .monaco-list')!;
+		const tree = getRegisteredLists().find(widget => widget.getHTMLElement() === list);
+		if (!(tree instanceof ObjectTree)) {
+			throw new Error('Expected the Quick Input tree');
+		}
+		picker.activeItems = [fourth];
+		picker.focus(QuickPickFocus.PreviousSeparator);
+		const fromInterior = picker.activeItems.map(item => item.label);
+		picker.focus(QuickPickFocus.PreviousSeparator);
+		const fromFirstItem = picker.activeItems.map(item => item.label);
+		picker.activeItems = [third];
+		const header = tree.getParentElement(tree.getFocus()[0]);
+		if (!header) {
+			throw new Error('Expected an action-bearing section header');
+		}
+		tree.setFocus([header]);
+		picker.focus(QuickPickFocus.PreviousSeparator);
+		assert.deepStrictEqual({
+			fromInterior,
+			fromFirstItem,
+			fromHeader: picker.activeItems.map(item => item.label),
+		}, { fromInterior: ['B1'], fromFirstItem: ['A1'], fromHeader: ['A1'] });
+	});
+
+	test('title-bar corners follow the picker frame across radius changes', () => {
+		const picker = store.add(controller.createQuickWidget());
+		picker.title = 'Change group icon';
+		picker.widget = mainWindow.document.createElement('div');
+		picker.show();
+		const frame = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+		const title = fixture.querySelector<HTMLElement>('.quick-input-titlebar')!;
+		const corners = () => {
+			const frameStyle = mainWindow.getComputedStyle(frame);
+			const titleStyle = mainWindow.getComputedStyle(title);
+			return {
+				left: titleStyle.borderTopLeftRadius === frameStyle.borderTopLeftRadius,
+				right: titleStyle.borderTopRightRadius === frameStyle.borderTopRightRadius,
+			};
+		};
+		const states = [];
+		for (const radius of ['12px', '20px']) {
+			fixture.style.setProperty('--vscode-cornerRadius-xLarge', radius);
+			states.push(corners());
+		}
+		assert.deepStrictEqual(states, [{ left: true, right: true }, { left: true, right: true }]);
 	});
 
 	test('close motion requires modern UI with motion enabled', () => {
