@@ -1299,6 +1299,7 @@ export class ChatPetWidget extends Disposable {
 	private readonly _speechBubble: ChatPetSpriteElement;
 	private _speechBubbleState: 'rendering' | 'achievementUnlocked' | undefined;
 	private readonly _eyes: HTMLElement;
+	private readonly _propellerPoseContainer: HTMLElement;
 	private readonly _propellerContainer: HTMLElement;
 	private readonly _propeller: HTMLCanvasElement;
 	private readonly _eyeAccessoryContainer: HTMLElement;
@@ -1487,9 +1488,9 @@ export class ChatPetWidget extends Disposable {
 			const eye = dom.append(this._eyes, dom.$(`.chat-pet-eye.${side}`));
 			this._pupils.push(dom.append(eye, dom.$('.chat-pet-pupil')));
 		}
-		this._propellerContainer = dom.append(this._visual, dom.$('.chat-pet-propeller.hidden', { 'aria-hidden': 'true' }));
-		const propellerPose = dom.append(this._propellerContainer, dom.$('.chat-pet-propeller-pose'));
-		this._propeller = dom.append(propellerPose, dom.$('canvas.chat-pet-propeller-canvas')) as HTMLCanvasElement;
+		this._propellerPoseContainer = dom.append(this._visual, dom.$('.chat-pet-propeller-pose', { 'aria-hidden': 'true' }));
+		this._propellerContainer = dom.append(this._propellerPoseContainer, dom.$('.chat-pet-propeller.hidden'));
+		this._propeller = dom.append(this._propellerContainer, dom.$('canvas.chat-pet-propeller-canvas')) as HTMLCanvasElement;
 		this._propeller.width = CHAT_PET_SOURCE_SIZE;
 		this._propeller.height = CHAT_PET_SOURCE_SIZE;
 		this._blinkController = this._register(new ChatPetBlinkController(blinking => this._eyes.classList.toggle('blink', blinking)));
@@ -3166,7 +3167,7 @@ export class ChatPetWidget extends Disposable {
 		setChatPetWideLayerOffset(wideSpriteOffset, [
 			...(this._activeSprite ? [this._activeSprite.container] : []),
 			this._eyes,
-			this._propellerContainer,
+			this._propellerPoseContainer,
 			this._eyeAccessoryContainer,
 		]);
 	}
@@ -3688,6 +3689,9 @@ export class ChatPetWidget extends Disposable {
 			state
 		);
 		this._button.element.dataset.state = state;
+		if (state === 'yapping') {
+			this._restartPropellerPoseAnimation();
+		}
 		this._renderedState = state;
 		this._setRenderedFacingState(state, this._isDragging.get());
 		this._updateEyes(state);
@@ -4023,8 +4027,8 @@ export class ChatPetWidget extends Disposable {
 		if (this._propeller.width !== source.frameWidth || this._propeller.height !== frameHeight) {
 			this._propeller.width = source.frameWidth;
 			this._propeller.height = frameHeight;
-			this._propellerContainer.style.width = `${source.frameWidth * displayScale}px`;
-			this._propellerContainer.style.height = `${frameHeight * displayScale}px`;
+			this._propellerPoseContainer.style.width = `${source.frameWidth * displayScale}px`;
+			this._propellerPoseContainer.style.height = `${frameHeight * displayScale}px`;
 			this._propeller.style.width = `${source.frameWidth * displayScale}px`;
 			this._propeller.style.height = `${frameHeight * displayScale}px`;
 		}
@@ -4033,6 +4037,12 @@ export class ChatPetWidget extends Disposable {
 			context.imageSmoothingEnabled = false;
 			drawChatPetPropeller(context, accessoryImage, state, rigFrameIndex);
 		}
+	}
+
+	private _restartPropellerPoseAnimation(): void {
+		this._propellerPoseContainer.style.animation = 'none';
+		void this._propellerPoseContainer.offsetWidth;
+		this._propellerPoseContainer.style.animation = '';
 	}
 
 	private _updateSpeechBubble(state: ChatPetState | undefined, restart = false): void {

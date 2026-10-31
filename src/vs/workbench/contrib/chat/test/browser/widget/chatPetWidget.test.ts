@@ -108,7 +108,7 @@ suite('ChatPetWidget', () => {
 		}
 	}
 
-	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport', color?: ChatPetColor, intersectionObserverCtor?: typeof IntersectionObserver, setPlatformOccupation?: IChatPetWidgetHost['setPlatformOccupation'], supportsJumpGame = false) {
+	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport', color?: ChatPetColor, intersectionObserverCtor?: typeof IntersectionObserver, setPlatformOccupation?: IChatPetWidgetHost['setPlatformOccupation'], supportsJumpGame = false, initializeService?: (service: ChatPetService) => void) {
 		const root = mainWindow.document.createElement('div');
 		root.style.cssText = 'position:fixed;left:0;top:0;width:800px;height:640px';
 		if (supportsJumpGame) {
@@ -169,6 +169,7 @@ suite('ChatPetWidget', () => {
 			service.unlockAchievement(ChatPetAchievementIds.Blobby);
 			service.setColor(color);
 		}
+		initializeService?.(service);
 		const widget = disposables.add(new ChatPetWidget(
 			firstHost, { resizeObserverCtor: TestResizeObserver, intersectionObserverCtor }, service, accessibilityService,
 			new class extends mock<IContextMenuService>() {
@@ -997,6 +998,54 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
+	test('restarts the propeller pose for repeated yapping in both facing directions', async () => {
+		const { button } = createHostTransitionHarness(false, 'teleport', 'stable', TestIntersectionObserver, undefined, false, service => {
+			service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.PropellerHat).id);
+			service.setAccessory(ChatPetAccessoryIds.PropellerHat);
+		});
+		await waitForPetAnimation(() => !button.querySelector('.chat-pet-propeller')!.classList.contains('hidden'));
+		const pose = button.querySelector<HTMLElement>('.chat-pet-propeller-pose')!;
+		const propeller = button.querySelector<HTMLElement>('.chat-pet-propeller')!;
+		const random = sinon.stub(Math, 'random').returns(0.01);
+		const click = () => button.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true }));
+		click();
+		await waitForPetAnimation(() => button.dataset.state === 'yapping');
+		const firstSprite = button.querySelector('.chat-pet-sprite:not(.hidden)')!;
+		const firstAnimation = pose.getAnimations()[0];
+		assert.ok(firstAnimation);
+		await timeout(120);
+		const firstAnimationTime = Number(firstAnimation.currentTime);
+		click();
+		await waitForPetAnimation(() => button.dataset.state === 'yapping' && button.querySelector('.chat-pet-sprite:not(.hidden)') !== firstSprite);
+		const restartedAnimationTime = Number(pose.getAnimations()[0]?.currentTime);
+		const spriteCanvas = button.querySelector<HTMLCanvasElement>('.chat-pet-sprite:not(.hidden) .chat-pet-canvas')!;
+		const readFacingTransforms = (facing: 'left' | 'right') => {
+			button.dataset.facing = facing;
+			return [
+				mainWindow.getComputedStyle(spriteCanvas).transform,
+				mainWindow.getComputedStyle(propeller).transform,
+			];
+		};
+		const rightFacingTransforms = readFacingTransforms('right');
+		const leftFacingTransforms = readFacingTransforms('left');
+		random.restore();
+		assert.deepStrictEqual({
+			firstAnimationTimePassed: firstAnimationTime > 0,
+			animationRestarted: restartedAnimationTime < firstAnimationTime,
+			rightFacingTransforms,
+			leftFacingTransformsMatch: leftFacingTransforms[0] === leftFacingTransforms[1],
+			facingChangesTransform: leftFacingTransforms[0] !== rightFacingTransforms[0],
+			poseWrapsFacingLayer: propeller.parentElement === pose,
+		}, {
+			firstAnimationTimePassed: true,
+			animationRestarted: true,
+			rightFacingTransforms: ['none', 'none'],
+			leftFacingTransformsMatch: true,
+			facingChangesTransform: true,
+			poseWrapsFacingLayer: true,
+		});
+	});
+
 	test('moves the pet without reading its changed bounds and commits the translated release position', async () => {
 		const { root, button } = createHostTransitionHarness(true, 'teleport', 'stable', TestIntersectionObserver);
 		root.classList.add('monaco-workbench', 'monaco-reduce-motion');
@@ -1337,7 +1386,7 @@ suite('ChatPetWidget', () => {
 			layers: Array.from(visual.children).map(child => child.className).slice(0, 5),
 			achievementPupilHeight: mainWindow.getComputedStyle(achievementPupil).height,
 		}, {
-			layers: ['chat-pet-sprite hidden', 'chat-pet-sprite hidden', 'chat-pet-eyes', 'chat-pet-propeller hidden', 'chat-pet-eye-accessory hidden'],
+			layers: ['chat-pet-sprite hidden', 'chat-pet-sprite hidden', 'chat-pet-eyes', 'chat-pet-propeller-pose', 'chat-pet-eye-accessory hidden'],
 			achievementPupilHeight: '8px',
 		});
 	});
