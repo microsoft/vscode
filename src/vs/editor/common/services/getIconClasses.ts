@@ -69,6 +69,14 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 					const dotSegments = name.split('.');
 					for (let i = 1; i < dotSegments.length; i++) {
 						classes.push(`${dotSegments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
+
+						// Handle underscore-suffixed base names (e.g., foo_test.go → _test.go)
+						// to enable icon themes to target naming conventions like Go's _test.go files
+						const precedingSegment = dotSegments[i - 1];
+						const lastUnderscore = precedingSegment.lastIndexOf('_');
+						if (lastUnderscore > 0 && lastUnderscore < precedingSegment.length - 1) {
+							classes.push(`${precedingSegment.substring(lastUnderscore)}.${dotSegments.slice(i).join('.')}-ext-file-icon`);
+						}
 					}
 				}
 				classes.push(`ext-file-icon`); // extra segment to increase file-ext score
