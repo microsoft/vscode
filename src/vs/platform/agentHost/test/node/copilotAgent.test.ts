@@ -2412,8 +2412,10 @@ suite('CopilotAgent', () => {
 		{ name: 'target failed', enabled: true, statuses: ['failed'], succeeds: false, expectedError: /After enabling 'preview', this chat couldn't finish updating canvas extensions because 'preview' failed to start/ },
 		{ name: 'target absent', enabled: false, statuses: [], succeeds: false, expectedError: /After disabling 'preview', this chat couldn't finish updating canvas extensions because 'preview' couldn't be stopped/ },
 		{ name: 'conflicting duplicate target states', enabled: false, statuses: ['disabled', 'running'], succeeds: false, expectedError: /After disabling 'preview', this chat couldn't finish updating canvas extensions because 'preview' couldn't be stopped/ },
+		{ name: 'conflicting duplicate target states while enabling', enabled: true, statuses: ['disabled', 'running'], succeeds: false, expectedError: /After enabling 'preview', this chat couldn't finish updating canvas extensions because 'preview' failed to start/ },
 		{ name: 'verification unavailable', enabled: false, statuses: ['disabled'], succeeds: false, expectedError: /Canvas extension 'preview' was disabled in settings/ },
 		{ name: 'disposed during verification', enabled: true, statuses: ['running'], succeeds: false, expectedError: /Canvas extension 'preview' was enabled in settings/ },
+		{ name: 'disposed during disable verification', enabled: false, statuses: ['disabled'], succeeds: false, expectedError: /Canvas extension 'preview' was disabled in settings/ },
 	] as const) {
 		test(`verifies extension enablement after reconciliation failure: ${scenario.name}`, async () => {
 			const client = new TestCopilotClient([]);
@@ -2426,17 +2428,21 @@ suite('CopilotAgent', () => {
 			const agent = createTestAgent(disposables, { copilotClient: client, logService });
 			const session = AgentSession.uri('copilotcli', 'partial-extension-reconcile');
 			let reconciled = false;
-			let listed = false;
+			let listedAfterReconcile = false;
 			setDefaultSessionStub(agent, 'partial-extension-reconcile', {
-				get isDisposed() { return listed && scenario.name === 'disposed during verification'; },
+				get isDisposed() { return listedAfterReconcile && (scenario.name === 'disposed during verification' || scenario.name === 'disposed during disable verification'); },
 				reconcileExtensions: async () => {
 					reconciled = true;
-					throw new Error('unrelated extension did not become ready');
+					throw Object.assign(new Error('unrelated extension did not become ready'), {
+						data: { code: 'extension_reconciliation_lifecycle_failed' },
+					});
 				},
 				listExtensions: async () => {
-					listed = true;
-					if (reconciled && scenario.name === 'verification unavailable') {
-						throw new Error('inventory unavailable');
+					if (reconciled) {
+						listedAfterReconcile = true;
+						if (scenario.name === 'verification unavailable') {
+							throw new Error('inventory unavailable');
+						}
 					}
 					return [
 						...scenario.statuses.map(status => ({ id: 'user:preview', name: 'preview', source: 'user', status })),
@@ -2456,7 +2462,9 @@ suite('CopilotAgent', () => {
 					warned: warnings.calledOnce,
 				}, {
 					persisted: [{ ids: ['user:preview'] }],
-					warned: scenario.succeeds,
+					warned: scenario.name !== 'verification unavailable'
+						&& scenario.name !== 'disposed during verification'
+						&& scenario.name !== 'disposed during disable verification',
 				});
 			} finally {
 				warnings.restore();
@@ -2464,6 +2472,71 @@ suite('CopilotAgent', () => {
 			}
 		});
 	}
+
+	test('preserves non-lifecycle reconciliation failures without inspecting inventory', async () => {
+		const client = new TestCopilotClient([]);
+		client.extensionInventory = {
+			mode: 'load_and_augment',
+			extensions: [{ id: 'user:preview', name: 'preview', path: '/extensions/preview.mjs', source: 'user', enabled: true }],
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const session = AgentSession.uri('copilotcli', 'non-lifecycle-extension-reconcile');
+		let reconciled = false;
+		let verificationCalls = 0;
+		setDefaultSessionStub(agent, 'non-lifecycle-extension-reconcile', {
+			reconcileExtensions: async () => {
+				reconciled = true;
+				throw Object.assign(new Error('workspace unavailable'), {
+					data: { code: 'extension_reconciliation_workspace_unavailable' },
+				});
+			},
+			listExtensions: async () => {
+				if (reconciled) {
+					verificationCalls++;
+				}
+				return [{ id: 'plugin:other', name: 'other', source: 'plugin', status: 'failed' }];
+			},
+		});
+		try {
+			await assert.rejects(agent.setAgentExtensionEnabled('user:preview', false, session), /workspace unavailable/);
+			assert.strictEqual(verificationCalls, 0);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('preserves a lifecycle reconciliation failure when a disable settled without a visible failing extension', async () => {
+		const client = new TestCopilotClient([]);
+		client.extensionInventory = {
+			mode: 'load_and_augment',
+			extensions: [{ id: 'user:preview', name: 'preview', path: '/extensions/preview.mjs', source: 'user', enabled: true }],
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const session = AgentSession.uri('copilotcli', 'hidden-lifecycle-extension-reconcile');
+		let reconciled = false;
+		setDefaultSessionStub(agent, 'hidden-lifecycle-extension-reconcile', {
+			reconcileExtensions: async () => {
+				reconciled = true;
+				throw Object.assign(new Error('session extension did not become ready'), {
+					data: { code: 'extension_reconciliation_lifecycle_failed' },
+				});
+			},
+			listExtensions: async () => reconciled
+				? [
+					{ id: 'user:preview', name: 'preview', source: 'user', status: 'disabled' },
+					{ id: 'plugin:other', name: 'other', source: 'plugin', status: 'starting' },
+				]
+				: [{ id: 'user:preview', name: 'preview', source: 'user', status: 'running' }],
+		});
+		try {
+			await assert.rejects(
+				agent.setAgentExtensionEnabled('user:preview', false, session),
+				/Canvas extension 'preview' was disabled in settings, but couldn't be stopped in this chat. session extension did not become ready/,
+			);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
 
 	test('handles cold and forward-compatible extension inventory', async () => {
 		const client = new TestCopilotClient([]);

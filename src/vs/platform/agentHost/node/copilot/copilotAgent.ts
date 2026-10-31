@@ -552,8 +552,19 @@ interface IWorkingDirectoryChangeTransactionOptions {
 /** Stable empty host-customization snapshot used before the host publishes one. */
 const NO_HOST_CUSTOMIZATIONS: readonly Customization[] = Object.freeze([]);
 const CHAT_QUEUE_STALL_WARNING_MS = 60_000;
+const EXTENSION_RECONCILIATION_LIFECYCLE_FAILED = 'extension_reconciliation_lifecycle_failed';
 
 class IncompleteCopilotSessionMarkerError extends Error { }
+
+function isExtensionLifecycleReconciliationError(error: unknown): boolean {
+	if (!error || typeof error !== 'object') {
+		return false;
+	}
+	const data = (error as { readonly data?: unknown }).data;
+	return !!data
+		&& typeof data === 'object'
+		&& (data as { readonly code?: unknown }).code === EXTENSION_RECONCILIATION_LIFECYCLE_FAILED;
+}
 
 class CopilotExtensionReconciliationError extends Error {
 	constructor(message: string, readonly failedExtensions: readonly IAgentExtensionInfo[]) {
@@ -3081,7 +3092,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			await session.reconcileExtensions();
 		} catch (error) {
-			if (session.isDisposed) {
+			if (session.isDisposed || !isExtensionLifecycleReconciliationError(error)) {
 				throw error;
 			}
 			let extensions: readonly IAgentExtensionInfo[];
@@ -3100,12 +3111,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return;
 			}
 			const targetFailed = targets.some(extension => extension.status === 'failed');
-			const canAttributeOtherFailures = targets.length > 0 && !targetFailed && (enabled || targetSettled);
+			const targetStatuses = new Set(targets.map(extension => extension.status));
+			const targetConsistentlyStarting = enabled && targetStatuses.size === 1 && targetStatuses.has('starting');
+			const canAttributeOtherFailures = !targetFailed && (targetSettled || targetConsistentlyStarting);
 			const failedExtensions = canAttributeOtherFailures
 				? [...new Map(extensions
-					.filter(extension => extension.id !== extensionId && (extension.status === 'failed' || extension.status === 'starting'))
+					.filter(extension => extension.id !== extensionId && extension.status === 'failed')
 					.map(extension => [extension.id, extension])).values()]
 				: [];
+			if ((!enabled && targetSettled || targetConsistentlyStarting) && failedExtensions.length === 0) {
+				throw error;
+			}
+			this._logService.warn(`[Copilot:${session.sessionId}] Extension '${extensionId}' reconciliation reported a lifecycle failure`, error);
 			throw new CopilotExtensionReconciliationError(getErrorMessage(error), failedExtensions);
 		}
 	}
