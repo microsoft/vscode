@@ -57,7 +57,7 @@ function isExtensionGalleryManifestResponse(candidate: unknown): candidate is Ex
 }
 
 class MarketplaceAuthRequiredError extends Error {
-	constructor() {
+	constructor(readonly statusCode: number) {
 		super('Marketplace requires authentication.');
 	}
 }
@@ -214,6 +214,11 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 							return;
 						}
 						if (error instanceof MarketplaceAuthRequiredError) {
+							if (error.statusCode === 401 && account?.requiresScopeConfiguration) {
+								this.logService.error('[Marketplace] The marketplace requires authentication but its protected resource metadata does not advertise usable resource scopes. Contact the marketplace administrator to configure scopes_supported.');
+								this.update(null, ExtensionGalleryManifestStatus.RequiresConfiguration);
+								return;
+							}
 							this.logService.debug('[Marketplace] Marketplace still requires authentication for the resolved account');
 							this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
 							return;
@@ -279,7 +284,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			// The expected first exchange with a gated marketplace, not a failure.
 			const statusCode = context.res.statusCode;
 			if (statusCode === 401 || statusCode === 403) {
-				throw new MarketplaceAuthRequiredError();
+				throw new MarketplaceAuthRequiredError(statusCode);
 			}
 
 			const extensionGalleryManifest = await asJson<unknown>(context);

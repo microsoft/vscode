@@ -149,6 +149,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 				),
 				ContextKeyExpr.or(
 					CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.RequiresSignIn),
+					CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.RequiresConfiguration),
 					CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.AccessDenied)
 				)
 			),
@@ -158,16 +159,21 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		const viewRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		viewRegistry.registerViews(viewDescriptors, this.container);
 
-		viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
+		this._register(viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
 			content: localize('sign in', "[Sign in to access Extensions Marketplace]({0})", `command:workbench.extensions.actions.gallery.signIn`),
 			when: CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.RequiresSignIn)
-		});
+		}));
+
+		this._register(viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
+			content: localize('marketplace scope configuration', "The Extensions Marketplace requires authentication, but does not advertise usable marketplace scopes. Contact your marketplace administrator to configure scopes_supported in its protected resource metadata, then reload this window."),
+			when: CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.RequiresConfiguration)
+		}));
 
 		// Access denied applies to every provider (microsoft/github/default), so gate on status alone.
-		viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
+		this._register(viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
 			content: localize('access denied', "Your account does not have access to the Extensions Marketplace. Please contact your administrator."),
 			when: CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.AccessDenied)
-		});
+		}));
 	}
 
 	private createDefaultExtensionsViewDescriptors(): IViewDescriptor[] {
@@ -1158,6 +1164,9 @@ export class ExtensionMarketplaceStatusUpdater extends Disposable implements IWo
 				break;
 			case ExtensionGalleryManifestStatus.AccessDenied:
 				badge = new WarningBadge(() => localize('accessDenied', "Access denied to marketplace"));
+				break;
+			case ExtensionGalleryManifestStatus.RequiresConfiguration:
+				badge = new WarningBadge(() => localize('marketplaceConfigurationRequired', "Marketplace authentication scopes are not configured. Contact your marketplace administrator."));
 				break;
 		}
 

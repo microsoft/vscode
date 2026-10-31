@@ -160,7 +160,7 @@ export class GitHubGalleryAccountProvider extends AbstractGalleryAccountProvider
 	}
 }
 
-/** Entitlement decided locally from the token's tenant claim. The bearer travels with it. */
+/** Entitlement from the sign-in token's tenant claim; only resource-scoped bearers leave the provider. */
 export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvider {
 
 	constructor(
@@ -206,11 +206,14 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 			return {};
 		}
 		const protectedResource = await this.discoverProtectedResource(serviceIndexUrl);
-		if (!protectedResource) {
-			return { accessToken: session.accessToken };
-		}
 		this.protectedResource = protectedResource;
-		return { accessToken: (await this.getResourceSession(session, protectedResource))?.accessToken ?? session.accessToken };
+		if (!protectedResource) {
+			return {};
+		}
+		if (!this.hasResourceScopes(protectedResource.scopes)) {
+			return { requiresScopeConfiguration: true };
+		}
+		return { accessToken: (await this.getResourceSession(session, protectedResource))?.accessToken };
 	}
 
 	/** Work/school tenant is eligible, personal is not. Fails closed on an unreadable token. */
@@ -247,6 +250,12 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 		return session;
 	}
 
+	private hasResourceScopes(scopes: readonly string[]): boolean {
+		// Microsoft authentication turns OIDC-only requests into Graph token requests.
+		return scopes.every(scope => !scope.startsWith('VSCODE_'))
+			&& scopes.some(scope => !['openid', 'email', 'profile', 'offline_access'].includes(scope));
+	}
+
 	/**
 	 * Requests the resource-scoped session (RFC 8707) for the already-chosen account. The
 	 * marketplace names its own authorization server, so it is the authentication provider that
@@ -254,12 +263,11 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 	 * treated here as simply having no session.
 	 */
 	private async getResourceSession(session: AuthenticationSession, protectedResource: IMarketplaceProtectedResource): Promise<AuthenticationSession | undefined> {
-		const resourceScopes = protectedResource.scopes.length ? [...protectedResource.scopes] : this.scopes;
-		if (!resourceScopes) {
+		if (!this.hasResourceScopes(protectedResource.scopes)) {
 			return undefined;
 		}
 		try {
-			const sessions = await this.authenticationService.getSessions('microsoft', resourceScopes, {
+			const sessions = await this.authenticationService.getSessions('microsoft', [...protectedResource.scopes], {
 				account: session.account,
 				authorizationServer: URI.parse(protectedResource.authorizationServer)
 			});
@@ -286,7 +294,9 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 			if (!authorizationServer) {
 				return undefined;
 			}
-			return { authorizationServer, scopes: metadata.scopes_supported ?? [] };
+			const scopes = metadata.scopes_supported ?? [];
+			const validScopes = scopes.every(scope => typeof scope === 'string' && scope.length > 0 && !/\s/.test(scope));
+			return { authorizationServer, scopes: validScopes ? scopes : [] };
 		} catch {
 			return undefined;
 		}
@@ -358,18 +368,14 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 	 */
 	private async consentToProtectedResource(session: AuthenticationSession): Promise<void> {
 		const protectedResource = this.protectedResource;
-		if (!protectedResource) {
+		if (!protectedResource || !this.hasResourceScopes(protectedResource.scopes)) {
 			return;
 		}
 		if (await this.getResourceSession(session, protectedResource)) {
 			return;
 		}
-		const resourceScopes = protectedResource.scopes.length ? [...protectedResource.scopes] : this.scopes;
-		if (!resourceScopes) {
-			return;
-		}
 		try {
-			await this.authenticationService.createSession('microsoft', resourceScopes, {
+			await this.authenticationService.createSession('microsoft', [...protectedResource.scopes], {
 				account: session.account,
 				authorizationServer: URI.parse(protectedResource.authorizationServer)
 			});
