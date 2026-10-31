@@ -10,7 +10,7 @@ import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/e
 import { Event } from '../../../../base/common/event.js';
 import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, ITransaction, autorun, autorunWithStore, derived, derivedDisposable, disposableObservableValue, observableFromEvent, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../base/common/observable.js';
+import { IObservable, ISettableObservable, ITransaction, autorun, autorunWithStore, derived, derivedDisposable, disposableObservableValue, observableFromEvent, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../base/common/observable.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -40,7 +40,7 @@ import { DiffEditorEditors } from './components/diffEditorEditors.js';
 import { DiffEditorSash, SashLayout } from './components/diffEditorSash.js';
 import { DiffEditorViewZones } from './components/diffEditorViewZones/diffEditorViewZones.js';
 import { DelegatingEditor } from './delegatingEditorImpl.js';
-import { DiffEditorOptions, DiffEditorVariant } from './diffEditorOptions.js';
+import { DiffEditorOptions, DiffEditorVariant, DiffEditorWidthBasedLayout } from './diffEditorOptions.js';
 import { DiffEditorViewModel, DiffMapping, DiffState } from './diffEditorViewModel.js';
 import { DiffEditorGutter } from './features/gutterFeature.js';
 import { HideUnchangedRegionsFeature } from './features/hideUnchangedRegionsFeature.js';
@@ -57,6 +57,11 @@ export interface IDiffCodeEditorWidgetOptions {
 	modifiedEditor?: ICodeEditorWidgetOptions;
 	runWithOriginalEditorScrollAnchor?: (anchorLineNumber: number, update: () => void) => void;
 	runWithModifiedEditorScrollAnchor?: (anchorLineNumber: number, update: () => void) => void;
+	/**
+	 * Shares the width based layout (see {@link DiffEditorWidget.temporaryInlineMode}) with other diff editors.
+	 * It is not reset when the diff editor shows different documents.
+	 */
+	widthBasedLayout?: ISettableObservable<DiffEditorWidthBasedLayout>;
 }
 
 export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
@@ -73,6 +78,15 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	private readonly _contextKeyService;
 	private readonly _instantiationService;
 	private readonly _rootSizeObserver: ObservableElementSizeObserver;
+	/** The width that a width change is compared against to detect a resize. */
+	private _lastObservedWidth: number | undefined;
+	/**
+	 * Set when a diff editor that shares its width based layout (i.e. is reused by a multi diff editor) shows other documents.
+	 * Its next layout places it at its new width (which might differ from a stale width it was last laid out with)
+	 * and must not be mistaken for a resize.
+	 */
+	private _takeWidthBaselineOnNextLayout = false;
+	private readonly _sharesWidthBasedLayout: boolean;
 
 
 	private readonly _sashLayout: SashLayout;
@@ -208,8 +222,8 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._rootSizeObserver = this._register(new ObservableElementSizeObserver(this.elements.root, options.dimension));
 		this._rootSizeObserver.setAutomaticLayout(options.automaticLayout ?? false);
 
-		this._options = this._instantiationService.createInstance(DiffEditorOptions, options);
-		let lastWidth: number | undefined;
+		this._options = this._instantiationService.createInstance(DiffEditorOptions, options, codeEditorWidgetOptions.widthBasedLayout);
+		this._sharesWidthBasedLayout = !!codeEditorWidgetOptions.widthBasedLayout;
 		let resizeStartWidth: number | undefined;
 		let windowResizeEventCount = 0;
 		let resizeWasPointerDriven = false;
@@ -245,6 +259,8 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._register(addDisposableListener(targetWindow, 'touchcancel', onPointerUp, true));
 		this._register(autorun(reader => {
 			const width = this._rootSizeObserver.width.read(reader);
+			const lastWidth = this._takeWidthBaselineOnNextLayout ? undefined : this._lastObservedWidth;
+			this._takeWidthBaselineOnNextLayout = false;
 			let smoothResizeStartWidth: number | undefined;
 			if (lastWidth !== undefined && width !== lastWidth) {
 				if (resizeStartWidth === undefined) {
@@ -257,7 +273,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 				smoothResizeScheduler.schedule();
 			}
 			this._options.setWidth(width, smoothResizeStartWidth);
-			lastWidth = width;
+			this._lastObservedWidth = width;
 		}));
 
 		this._contextKeyService.createKey(EditorContextKeys.isEmbeddedDiffEditor.key, false);
@@ -531,6 +547,11 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 	override layout(dimension?: IDimension | undefined): void {
 		this._rootSizeObserver.observe(dimension);
+		if (this._takeWidthBaselineOnNextLayout) {
+			// The width did not change (so it was not observed) or its observation is batched in a transaction.
+			this._takeWidthBaselineOnNextLayout = false;
+			this._lastObservedWidth = this._rootSizeObserver.width.get();
+		}
 	}
 
 	override hasTextFocus(): boolean { return this._editors.original.hasTextFocus() || this._editors.modified.hasTextFocus(); }
@@ -590,7 +611,8 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 					currentModel?.model.original !== vm?.model.original
 					|| currentModel?.model.modified !== vm?.model.modified
 				) {
-					this._options.resetWidthBasedLayout(tx);
+					this._takeWidthBaselineOnNextLayout = this._sharesWidthBasedLayout;
+					this._options.resetWidthBasedLayoutForNewDocuments(tx);
 				}
 				/** @description DiffEditorWidget.setModel */
 				observableFromEvent.batchEventsGlobally(tx, () => {

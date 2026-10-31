@@ -142,6 +142,9 @@ export class MultiDiffEditorWidget extends Disposable {
 		// view state, clear any pending restoration state so the new model cannot
 		// inherit the previous model's collapsed/selection/scroll state.
 		transaction(tx => {
+			if (viewModel !== this._viewModel.get()) {
+				this._widgetImpl.get().resetWidthBasedLayout(tx);
+			}
 			this._viewModel.set(viewModel, tx);
 			if (options?.viewState) {
 				this._widgetImpl.get().setViewState(options.viewState, tx);
