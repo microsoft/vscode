@@ -24,8 +24,6 @@ export const INLINE_INITIAL_DOC_TAG = 'inline-initial-doc-tag';
 export const INLINE_CHANGED_DOC_TAG = 'inline-changed-doc-tag';
 export const INLINE_STATE_TAG = 'inline-state-tag';
 
-export const SIDEBAR_RAW_RESPONSE_TAG = 'sidebar-raw-response-tag';
-
 export const NES_USER_EDITS_HISTORY_TAG = 'nes-user-edits-history-tag';
 export const NES_LOG_CONTEXT_TAG = 'nes-log-context-tag';
 export const NEXT_EDIT_SUGGESTION_TAG = 'next-edit-suggestion-tag';
@@ -34,7 +32,6 @@ export const SIMULATION_FOLDER_NAME = '.simulation';
 export const STDOUT_FILENAME = 'stdout.json.txt'; // using .txt instead of .json to avoid breaking automation scripts
 export const OLD_BASELINE_FILENAME = 'baseline.old.json.txt'; // using .txt instead of .json to avoid breaking automation scripts
 export const PRODUCED_BASELINE_FILENAME = 'baseline.produced.json.txt'; // using .txt instead of .json to avoid breaking automation scripts
-export const AML_OUTPUT_PATH = 'test/aml/out';
 export const REPORT_FILENAME = 'report.json';
 export const SCORECARD_FILENAME = 'scorecard.csv';
 export const RUN_METADATA = 'metadata.json';

@@ -7,7 +7,8 @@ import { Event } from '../../../../../base/common/event.js';
 import { CancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { ISettableObservable, observableFromEvent } from '../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableFromEvent } from '../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
@@ -481,7 +482,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const ambientScope = agentStore.add(this._activeClientService.acquireScope(sessionType, []));
 
 		const itemProvider = agentStore.add(this._instantiationService.createInstance(AgentCustomizationItemProvider,
-			sanitized,
+			connection,
 			(customization, clientId) => {
 				if (clientId !== undefined) {
 					// Customization came from the client; we don't allow actions on these since they're read-only reflections of client state.
@@ -527,6 +528,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			connectionAuthority: sanitized,
 			extensionId: 'vscode.remote-agent-host',
 			extensionDisplayName: 'Remote Agent Host',
+			// The Agents window gates availability per session through its sessions provider.
+			supportsCanvasPresentation: this._isSessionsWindow && !isWeb && agent.provider === 'copilotcli' ? constObservable(true) : undefined,
 			resolveWorkingDirectory,
 			prepareSession: prepareSession ? async (sessionResource, token) => {
 				const directory = await prepareSession(resolveWorkingDirectory(sessionResource) ?? undefined, token);

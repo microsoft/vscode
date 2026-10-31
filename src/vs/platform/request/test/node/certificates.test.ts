@@ -11,27 +11,20 @@ import { tmpdir } from 'os';
 import { rootCertificates } from 'tls';
 import { basename, dirname, join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../log/common/log.js';
 import { normalizeCertificates, writeCertificatesFile, writeUserDataCertificatesFile } from '../../node/certificates.js';
+import { TestWarningLogService } from '../../../log/test/common/testWarningLogService.js';
 
 const [certificateA, certificateB] = rootCertificates.slice(0, 2).map(certificate => new X509Certificate(certificate).toString());
 const invalidCertificate = '-----BEGIN CERTIFICATE-----\ninvalid-secret-certificate\n-----END CERTIFICATE-----';
 
-class TestLogService extends NullLogService {
-	readonly warnings: string[] = [];
-	override warn(message: string): void {
-		this.warnings.push(message);
-	}
-}
-
 suite('Certificate bundles', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 	let directory: string;
-	let logService: TestLogService;
+	let logService: TestWarningLogService;
 
 	setup(async () => {
 		directory = await mkdtemp(join(tmpdir(), 'vscode-certificates-test-'));
-		logService = new TestLogService();
+		logService = new TestWarningLogService();
 	});
 
 	teardown(async () => {

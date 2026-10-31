@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import '../../../../../workbench/contrib/modernUI/browser/media/frostedGlass.css';
+
 import { Event } from '../../../../../base/common/event.js';
 import { Color } from '../../../../../base/common/color.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -12,10 +14,11 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { TokenizationRegistry } from '../../../../../editor/common/languages.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { AgentFeedbackEditorWidget } from '../../browser/agentFeedbackEditorWidget.js';
 import { AgentFeedbackEditorWidgetContribution } from '../../browser/agentFeedbackEditorWidgetContribution.js';
-import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ICodeReviewService, ICodeReviewSuggestion } from '../../../codeReview/browser/codeReviewService.js';
 import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
 import { ISessionEditorComment, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
@@ -24,6 +27,15 @@ import { ISession, ISessionFileChange } from '../../../../services/sessions/comm
 
 const sessionResource = URI.parse('vscode-agent-session://fixture/session-1');
 const fileResource = URI.parse('inmemory://model/agent-feedback-widget.ts');
+const defaultAccountService = new class extends mock<IDefaultAccountService>() {
+	override readonly onDidChangeDefaultAccount = Event.None;
+	override readonly currentDefaultAccount = {
+		accountName: 'username',
+		authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+		sessionId: 'fixture',
+		enterprise: false,
+	};
+}();
 
 const sampleCode = [
 	'function alpha() {',
@@ -58,6 +70,9 @@ const longSampleCode = Array.from({ length: 100 }, (_, i) => {
 }).join('\n');
 
 interface IFixtureOptions {
+	readonly width?: number;
+	readonly code?: string;
+	readonly frostedGlass?: boolean;
 	readonly expanded?: boolean;
 	readonly focusedCommentId?: string;
 	readonly hidden?: boolean;
@@ -96,6 +111,7 @@ function createPRReviewComment(id: string, text: string, startLineNumber: number
 		source: SessionEditorCommentSource.PRReview,
 		kind: AgentFeedbackKind.PRReview,
 		text,
+		author: 'reviewer',
 		resourceUri: fileResource,
 		range: createRange(startLineNumber, endLineNumber),
 		sessionResource,
@@ -185,10 +201,14 @@ function ensureTokenColorMap(): void {
 
 function renderWidget(context: ComponentFixtureContext, options: IFixtureOptions): void {
 	const scopedDisposables = context.disposableStore.add(new DisposableStore());
-	context.container.style.width = '760px';
+	context.container.style.width = `${options.width ?? 760}px`;
 	context.container.style.height = '420px';
 	context.container.style.border = '1px solid var(--vscode-editorWidget-border)';
 	context.container.style.background = 'var(--vscode-editor-background)';
+	if (options.frostedGlass) {
+		context.container.classList.add('modern-ui-frosted-glass');
+		context.container.style.setProperty('--modern-ui-glass-opacity', '75%');
+	}
 
 	ensureTokenColorMap();
 
@@ -197,12 +217,14 @@ function renderWidget(context: ComponentFixtureContext, options: IFixtureOptions
 	const instantiationService = createEditorServices(scopedDisposables, {
 		colorTheme: context.theme,
 		additionalServices: reg => {
+			registerWorkbenchServices(reg);
+			reg.defineInstance(IDefaultAccountService, defaultAccountService);
 			reg.defineInstance(IAgentFeedbackService, agentFeedbackService);
 			reg.defineInstance(ICodeReviewService, codeReviewService);
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 		},
 	});
-	const model = scopedDisposables.add(createTextModel(instantiationService, sampleCode, fileResource, 'typescript'));
+	const model = scopedDisposables.add(createTextModel(instantiationService, options.code ?? sampleCode, fileResource, 'typescript'));
 
 	const editorOptions: ICodeEditorWidgetOptions = {
 		contributions: [],
@@ -323,6 +345,8 @@ function renderViaContribution(context: ComponentFixtureContext, code: string, c
 	const instantiationService = createEditorServices(scopedDisposables, {
 		colorTheme: context.theme,
 		additionalServices: reg => {
+			registerWorkbenchServices(reg);
+			reg.defineInstance(IDefaultAccountService, defaultAccountService);
 			reg.defineInstance(IAgentFeedbackService, agentFeedbackService);
 			reg.defineInstance(ISessionsManagementService, sessionsManagementService);
 			reg.defineInstance(ICodeReviewService, codeReviewService);
@@ -415,7 +439,156 @@ const longFileFeedback = [
 	createFeedbackComment('lf-2', 'This computation is duplicated further down — extract a helper.', 20),
 ];
 
+const proposalText = 'The PR title/description says this is meant to improve sash-handle visibility, but this change reduces the dot size and brings the dots closer together via box-shadow in the vertical/horizontal rules. If the intent is stronger visibility, please confirm this direction or consider increasing these values instead.';
+const codeBehindComment = sampleCode.replace('const first = 1;', 'const first = "The editor content continues underneath the floating comment card so its frosted background remains visible.";');
+
+function createDesignComment(kind: AgentFeedbackKind, state: AgentFeedbackState, author?: string): ISessionEditorComment {
+	return { ...createFeedbackComment('design', proposalText, 2), kind, state, author };
+}
+
 export default defineThemedFixtureGroup({ path: 'sessions/agentFeedback/' }, {
+	OversizedCommentStack: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		deferPaint: true,
+		virtualTime: { enabled: false },
+		render: context => renderWidget(context, {
+			code: longSampleCode,
+			commentItems: Array.from({ length: 10 }, (_, index) => createFeedbackComment(`stack-${index}`, `Comment ${index + 1}: Keep every comment reachable within the editor.`, 2)),
+		}),
+	}),
+
+	FrostedHumanComment: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		deferPaint: true,
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderWidget(context, {
+			code: codeBehindComment,
+			frostedGlass: true,
+			commentItems: [createFeedbackComment('frosted-human', 'This is a short comment', 2)],
+		}),
+	}),
+
+	FrostedPRComment: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		deferPaint: true,
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderWidget(context, {
+			code: codeBehindComment,
+			frostedGlass: true,
+			expanded: true,
+			commentItems: [createDesignComment(AgentFeedbackKind.PRReview, AgentFeedbackState.Created, 'copilot-pull-request-reviewer[bot]')],
+		}),
+	}),
+
+	ShortHumanComment: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkModern', 'darkHighContrast', 'lightHighContrast'],
+		render: context => renderWidget(context, {
+			commentItems: [createFeedbackComment('short', 'This is a short comment', 2)],
+		}),
+	}),
+
+	CollapsedHumanComment: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWidget(context, {
+			commentItems: [createDesignComment(AgentFeedbackKind.UserReview, AgentFeedbackState.Accepted)],
+		}),
+	}),
+
+	ExpandedHumanComment: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWidget(context, {
+			commentItems: [createDesignComment(AgentFeedbackKind.UserReview, AgentFeedbackState.Accepted)],
+			expanded: true,
+		}),
+	}),
+
+	CollapsedAgentComment: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWidget(context, {
+			commentItems: [createDesignComment(AgentFeedbackKind.AgentReview, AgentFeedbackState.Accepted)],
+		}),
+	}),
+
+	ExpandedAgentComment: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWidget(context, {
+			commentItems: [createDesignComment(AgentFeedbackKind.AgentReview, AgentFeedbackState.Accepted)],
+			expanded: true,
+		}),
+	}),
+
+	CollapsedPRCopilotComment: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWidget(context, {
+			commentItems: [createDesignComment(AgentFeedbackKind.PRReview, AgentFeedbackState.Created, 'copilot-pull-request-reviewer[bot]')],
+		}),
+	}),
+
+	ExpandedPRCopilotComment: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkModern', 'darkHighContrast', 'lightHighContrast'],
+		render: context => renderWidget(context, {
+			commentItems: [createDesignComment(AgentFeedbackKind.PRReview, AgentFeedbackState.Created, 'copilot-pull-request-reviewer[bot]')],
+			expanded: true,
+		}),
+	}),
+
+	AcceptedPRCopilotComment: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWidget(context, {
+			commentItems: [createDesignComment(AgentFeedbackKind.PRReview, AgentFeedbackState.Accepted, 'copilot-pull-request-reviewer[bot]')],
+			expanded: true,
+		}),
+	}),
+
+	InvestigatingPRCopilotComment: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWidget(context, {
+			commentItems: [createDesignComment(AgentFeedbackKind.PRReview, AgentFeedbackState.Submitted, 'copilot-pull-request-reviewer[bot]')],
+			expanded: true,
+		}),
+	}),
+
+	CollapsedPRHumanComment: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWidget(context, {
+			commentItems: [createDesignComment(AgentFeedbackKind.PRReview, AgentFeedbackState.Created, 'reviewer')],
+		}),
+	}),
+
+	ExpandedPRHumanComment: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWidget(context, {
+			commentItems: [createDesignComment(AgentFeedbackKind.PRReview, AgentFeedbackState.Created, 'reviewer')],
+			expanded: true,
+		}),
+	}),
+
+	AcceptedPRHumanComment: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWidget(context, {
+			commentItems: [createDesignComment(AgentFeedbackKind.PRReview, AgentFeedbackState.Accepted, 'reviewer')],
+			expanded: true,
+		}),
+	}),
+
+	InvestigatingHumanComment: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWidget(context, {
+			commentItems: [createDesignComment(AgentFeedbackKind.UserReview, AgentFeedbackState.Submitted)],
+			expanded: true,
+		}),
+	}),
+
+	NarrowPRComment: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWidget(context, {
+			width: 360,
+			commentItems: [createDesignComment(AgentFeedbackKind.PRReview, AgentFeedbackState.Accepted, 'reviewer-with-a-long-username')],
+		}),
+	}),
+
 	CollapsedSingleComment: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderWidget(context, {

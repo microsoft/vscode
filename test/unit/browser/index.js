@@ -17,7 +17,7 @@ const minimatch = require('minimatch');
 const fs = require('fs');
 const playwright = require('@playwright/test');
 const { applyReporter } = require('../reporter');
-const { getWorkerCount, removeArgument, runInWorkers, writeWorkerReport, createTestFileClaims, trackTestFiles, distributeClaimedTestFiles } = require('../parallel.ts');
+const { getWorkerCount, getWorkerCountForFiles, removeArgument, runInWorkers, writeWorkerReport, createTestFileClaims, trackTestFiles, distributeClaimedTestFiles } = require('../parallel.ts');
 const yaserver = require('yaserver');
 const http = require('http');
 const { randomBytes } = require('crypto');
@@ -75,7 +75,7 @@ const args = minimist(process.argv.slice(2), {
 		tfs: 'tfs',
 		'stall-timeout': 'abort with diagnostics when no test progress is reported for <seconds> (0 disables)',
 		'rerun-failed-files': 'rerun the failed tests in a freshly launched browser up to <count> more times',
-		workers: 'run all test files in <count> parallel processes, each with its own browser',
+		workers: 'run all test files, or those of --runList, in <count> parallel processes, each with its own browser',
 		help: 'show the help'
 	}
 });
@@ -96,7 +96,7 @@ Options:
 --tfs <tfs>          tfs
 --stall-timeout <seconds> abort with diagnostics when no test progress is reported for <seconds> (default 300, 0 disables)
 --rerun-failed-files <count> rerun the failed tests (the suite of a failed hook) in a freshly launched browser up to <count> more times, or their whole test files when there are too many failures
---workers <count>    run all test files in <count> parallel processes, each with its own browser, at most one per CPU and per 2 GB of memory; browsers run one at a time; ignored when only some files or tests run; reruns use one browser
+--workers <count>    run all test files, or those of --runList, in <count> parallel processes, each with its own browser, at most one per CPU and per 2 GB of memory; with --runList, one per 75 test files that run, but at least 2 and at most one per file; browsers run one at a time; ignored with --run, --runGlob, --grep or --debug; reruns use one browser
 --help, -h           show the help`);
 	process.exit(0);
 }
@@ -107,7 +107,7 @@ const runList = args.runList ? new Set(fs.readFileSync(args.runList, 'utf8').spl
 const isDebug = !!args.debug;
 const stallTimeoutMs = isDebug ? 0 : Math.max(0, Number(args['stall-timeout']) || 0) * 1000;
 
-// Only a run of all test files is spread across worker processes, reruns of failed tests run in one browser
+// A run of all test files, or of those of --runList, is spread across worker processes, reruns of failed tests run in one browser
 let workerCount = 1;
 try {
 	workerCount = getWorkerCount(args.workers);
@@ -115,10 +115,9 @@ try {
 	console.error(/** @type {Error} */ (error).message);
 	process.exit(1);
 }
-const workersApply = args.workers !== undefined && !args.run && !args.runList && !args.runGlob && !args.grep && !isDebug;
-const runInParallel = workersApply && workerCount > 1;
+const workersApply = args.workers !== undefined && !args.run && !args.runGlob && !args.grep && !isDebug;
 if (workerCount > 1 && !workersApply) {
-	console.log('Running in a single browser, because --workers only applies when all test files run without --grep or --debug');
+	console.log('Running in a single browser, because --workers only applies when all test files or those of --runList run, without --run, --runGlob, --grep or --debug');
 }
 
 /** this process is a worker of a parallel run, which only runs the test files it claims */
@@ -687,16 +686,17 @@ class EchoRunner extends events.EventEmitter {
  */
 
 /**
- * Runs all test files once in `workerCount` worker processes. Each worker is a separate
+ * Runs the test files once in `count` worker processes. Each worker is a separate
  * instance of this script that runs the test files it claims in its own browser, and does not
  * rerun its failures: this process reruns them in one browser.
  * @param {string} browserName the browser, with its channel if any
+ * @param {number} count
  * @returns {Promise<{ message: string | undefined; failures: IFailure[]; passed: IPassed[]; unattributedFailures: string[] }>}
  */
-async function runFirstAttemptInWorkers(browserName) {
+async function runFirstAttemptInWorkers(browserName, count) {
 	const report = await runInWorkers({
 		name: `Browser unit tests (${browserName})`,
-		count: workerCount,
+		count,
 		command: process.execPath,
 		args: [...process.execArgv, __filename, ...removeArgument(removeArgument(removeArgument(process.argv.slice(2), 'workers'), 'rerun-failed-files'), 'browser'), `--browser=${browserName}`],
 	});
@@ -720,9 +720,10 @@ async function runFirstAttemptInWorkers(browserName) {
  * @param {string[]} modules
  * @param {string} browserType
  * @param {string | undefined} browserChannel
+ * @param {number} workers the number of worker processes for the first attempt, which runs in this process with 1
  * @returns {Promise<string | undefined>}
  */
-async function runTestsWithReruns(modules, browserType, browserChannel) {
+async function runTestsWithReruns(modules, browserType, browserChannel, workers) {
 	// the browser stays open for debugging
 	const maxReruns = isDebug ? 0 : Math.max(0, Number(args['rerun-failed-files']) || 0);
 	const browserName = browserChannel ? `${browserType}-${browserChannel}` : browserType;
@@ -740,8 +741,8 @@ async function runTestsWithReruns(modules, browserType, browserChannel) {
 	for (let attempt = 1; ; attempt++) {
 		/** @type {{ message: string | undefined; failures: IFailure[]; passed: IPassed[]; unattributedFailures: string[] }} */
 		let result;
-		if (attempt === 1 && runInParallel) {
-			result = await runFirstAttemptInWorkers(browserName);
+		if (attempt === 1 && workers > 1) {
+			result = await runFirstAttemptInWorkers(browserName, workers);
 		} else {
 			result = await runTestsInBrowser(attemptModules, browserType, browserChannel, grep, attempt, plan?.targets);
 			if (worker) {
@@ -937,11 +938,17 @@ function escapeRegExp(value) {
 testModules.then(async modules => {
 
 	if (runList) {
-		console.log(`Running the ${modules.length} browser test files of the ${runList.size} files listed in ${args.runList}`);
+		// the process that starts the workers reports the listed files they run
+		if (!worker) {
+			console.log(`Running the ${modules.length} browser test files of the ${runList.size} files listed in ${args.runList}`);
+		}
 		if (modules.length === 0) {
 			process.exit(0);
 		}
 	}
+
+	// With --runList, only as many workers as the listed test files that run need, see getWorkerCountForFiles
+	const workers = !workersApply ? 1 : runList ? getWorkerCountForFiles(workerCount, modules.length) : workerCount;
 
 	// run tests in selected browsers
 	const browsers = Array.isArray(args.browser)
@@ -951,16 +958,16 @@ testModules.then(async modules => {
 	let didFail = false;
 
 	try {
-		// The workers of a browser already use the CPUs, so browsers run one at a time with them, also when the cap allows only one
+		// The workers of a browser already use the CPUs, so browsers run one at a time with them, also when the cap or a short --runList leaves only one
 		if (args.sequential || workersApply) {
 			for (const browser of browsers) {
 				const [browserType, browserChannel] = browser.split('-');
-				messages.push(await runTestsWithReruns(modules, browserType, browserChannel));
+				messages.push(await runTestsWithReruns(modules, browserType, browserChannel, workers));
 			}
 		} else {
 			messages = await Promise.all(browsers.map(async browser => {
 				const [browserType, browserChannel] = browser.split('-');
-				return await runTestsWithReruns(modules, browserType, browserChannel);
+				return await runTestsWithReruns(modules, browserType, browserChannel, 1);
 			}));
 		}
 	} catch (err) {

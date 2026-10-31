@@ -173,6 +173,11 @@
 	}
 }
 
+.interactive-session .chat-thinking-box .chat-thinking-run-duration {
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: var(--vscode-spacing-size40);
+}
+
 /* Lay a conversation's reasoning on its tool rows' line grid: the row keeps their body size, so
 	its icon and rails match theirs, and centers its smaller text on that line. */
 .interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box.chat-thinking-conversation .chat-used-context-list.chat-thinking-collapsible > .chat-thinking-item.markdown-content {

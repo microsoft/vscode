@@ -10,6 +10,7 @@ import { extUriBiasedIgnorePathCase, getComparisonKey, isEqual } from '../../../
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import type { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionMatchesByProjectRoot, readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
@@ -25,6 +26,7 @@ import { isActionKnownToVersion } from '../../../../../../platform/agentHost/com
  */
 export interface IAgentHostSessionListConnection {
 	readonly onDidNotification: Event<INotification>;
+	readonly resourceUris: IAgentHostResourceUriMapper;
 	readonly initializeResult?: IObservable<InitializeResult | undefined>;
 	/** Fires when the same logical connection finishes reconnecting. */
 	readonly onDidReconnect?: Event<void>;
@@ -424,6 +426,9 @@ export class AgentHostSessionListStore extends Disposable {
 			}
 
 			const { activity, ...changes } = notification.changes;
+			if (changes.workingDirectories) {
+				changes.workingDirectories = changes.workingDirectories.map(directory => this._connection.resourceUris.fromAgentHost(URI.parse(directory)).toString());
+			}
 			const updated: IAgentHostSessionListEntry = {
 				provider,
 				rawId: cached.rawId,
@@ -502,7 +507,10 @@ export class AgentHostSessionListStore extends Disposable {
 			provider,
 			rawId: AgentSession.id(summary.resource),
 			statusKnown: true,
-			summary,
+			summary: {
+				...summary,
+				...(summary.workingDirectories ? { workingDirectories: summary.workingDirectories.map(directory => this._connection.resourceUris.fromAgentHost(URI.parse(directory)).toString()) } : {}),
+			},
 		};
 	}
 

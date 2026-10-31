@@ -10,6 +10,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { errorHandler } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { normalizeDriveLetter } from '../../../../../base/common/labels.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -382,25 +383,22 @@ suite('WorkspaceTrustedUrisTable', () => {
 		spacer.style.height = '300px';
 		content.appendChild(container);
 		mainWindow.document.body.appendChild(viewport);
-		try {
-			createTable(Array.from({ length: 20 }, (_, i) => `n-${String(i).padStart(2, '0')}`), scrollableElement);
-			scrollableElement.scanDomNode();
-			scrollableElement.setScrollPosition({ scrollTop: Number.MAX_SAFE_INTEGER });
-			const scrollTopBefore = scrollableElement.getScrollPosition().scrollTop;
+		store.add(toDisposable(() => viewport.remove()));
+		createTable(Array.from({ length: 20 }, (_, i) => `n-${String(i).padStart(2, '0')}`), scrollableElement);
+		scrollableElement.scanDomNode();
+		scrollableElement.setScrollPosition({ scrollTop: Number.MAX_SAFE_INTEGER });
+		const scrollTopBefore = scrollableElement.getScrollPosition().scrollTop;
 
-			await addFolder([folder('a-first')]);
+		await addFolder([folder('a-first')]);
 
-			const row = Array.from(container.querySelectorAll('.monaco-list-row')).find(row => label(row) === 'a-first')!;
-			const rowRect = row.getBoundingClientRect();
-			const viewportRect = viewport.getBoundingClientRect();
-			assert.deepStrictEqual({
-				scrolledUp: scrollableElement.getScrollPosition().scrollTop < scrollTopBefore,
-				rowVisible: rowRect.top >= viewportRect.top && rowRect.bottom <= viewportRect.bottom,
-				focused: getState().focused,
-			}, { scrolledUp: true, rowVisible: true, focused: ['a-first'] });
-		} finally {
-			viewport.remove();
-		}
+		const row = Array.from(container.querySelectorAll('.monaco-list-row')).find(row => label(row) === 'a-first')!;
+		const rowRect = row.getBoundingClientRect();
+		const viewportRect = viewport.getBoundingClientRect();
+		assert.deepStrictEqual({
+			scrolledUp: scrollableElement.getScrollPosition().scrollTop < scrollTopBefore,
+			rowVisible: rowRect.top >= viewportRect.top && rowRect.bottom <= viewportRect.bottom,
+			focused: getState().focused,
+		}, { scrolledUp: true, rowVisible: true, focused: ['a-first'] });
 	});
 
 	test('moves focus only after the addition completes', async () => {
