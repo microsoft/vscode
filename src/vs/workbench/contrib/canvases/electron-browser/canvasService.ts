@@ -171,7 +171,8 @@ export class CanvasService extends Disposable implements ICanvasService {
 						continue;
 					}
 					const restoreFallback = presentation?.admitted === true && !presentation.opened;
-					void this.openInput(key, input, restoreFallback, restoreFallback || this.editorGroupsService.activeModalEditorPart !== undefined)
+					const freshRequest = request?.succeeded && requestId !== presentation?.requestId && requestId !== dismissed?.requestId;
+					void this.openInput(key, input, restoreFallback, restoreFallback || this.editorGroupsService.activeModalEditorPart !== undefined && !freshRequest)
 						.catch(error => this.reportError('Failed to reveal canvas', error));
 				}
 			}

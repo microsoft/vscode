@@ -201,6 +201,18 @@ suite('CanvasService', () => {
 		assert.deepStrictEqual(harness.groupRestores, [false, false]);
 	});
 
+	test('fresh model opens foreground despite an active modal', async () => {
+		const harness = createHarness();
+		harness.setModalActive(true);
+		harness.openRequests.set(new Map([['preview', { id: 'fresh-request', succeeded: true }]]), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.openOptions, [
+			{ pinned: true, revealIfOpened: true, preserveFocus: false },
+		]);
+	});
+
 	test('keeps hidden owners out of presentation and isolates identical instances in different chats', async () => {
 		const harness = createHarness();
 		harness.visible.set(new Set(), undefined);
