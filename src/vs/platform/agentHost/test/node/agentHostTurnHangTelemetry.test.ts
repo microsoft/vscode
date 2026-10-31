@@ -64,7 +64,7 @@ import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../n
 import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
 import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
-import { createNoopGitService, createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
+import { createNoopChangesetService, createNoopGitService, createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
 import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows, createTestWorktreeCleanupService } from './chatMetadataTestHelpers.js';
 import { IAgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
 import { createNoopWorktreeIsolation } from './worktreeTestHelpers.js';
@@ -75,37 +75,6 @@ import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
-
-class FakeChangesetService implements IAgentHostChangesetService {
-	declare readonly _serviceBrand: undefined;
-	registerStaticChangesets(): void { }
-	restoreStaticChangeset(): void { }
-	parsePersistedStaticChangesets(): { session?: undefined } { return {}; }
-	applyPersistedStaticChangesets(): void { }
-	restorePersistedStaticChangesets(): { session?: undefined } { return {}; }
-	persistChangesSummary(): void { }
-	isStaticChangesetComputeActive(): boolean { return false; }
-	getListMetadataKeys() { return undefined; }
-	computeListEntryChanges() { return undefined; }
-	refreshBranchChangeset(): void { }
-	refreshSessionChangeset(): void { }
-	refreshWorkingSetChangeset(): void { }
-	refreshChangesetCatalog(): void { }
-	onWorkingDirectoryAvailable(): void { }
-	recomputeSubscribedChangesets(): void { }
-	async computeUncommittedChangeset(session: string): Promise<string> { return `${session}/changeset/uncommitted`; }
-	async computeTurnChangeset(session: string): Promise<string> { return `${session}/x`; }
-	async computeCompareTurnsChangeset(session: string): Promise<string> { return `${session}/y`; }
-	onToolCallEditsApplied(): void { }
-	onTurnComplete(): void { }
-	onSessionTruncated(): void { }
-	openTrackedTurnDatabase(): undefined { return undefined; }
-	openTrackedSessionDatabases() { return { sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }; }
-	onFileEditsDiscarded(): void { }
-	onFileEditsAccepted(): void { }
-	ensureChatChangesSummary(): void { }
-	refreshChatChangesSummary(): void { }
-}
 
 class CapturingTelemetryService implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
@@ -258,7 +227,12 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			[IAgentHostLocalTurns, sharedLocalTurns],
 			[ILogService, logService],
 			[IAgentConfigurationService, configService],
-			[IAgentHostChangesetService, new FakeChangesetService()],
+			[IAgentHostChangesetService, {
+				...createNoopChangesetService(),
+				computeUncommittedChangeset: async session => `${session}/changeset/uncommitted`,
+				computeTurnChangeset: async session => `${session}/x`,
+				computeCompareTurnsChangeset: async session => `${session}/y`,
+			} satisfies IAgentHostChangesetService],
 			[IAgentHostCheckpointService, checkpointService],
 			[IAgentHostGitStateService, createNoopGitStateService()],
 			[IAgentHostGitService, createNoopGitService()],
