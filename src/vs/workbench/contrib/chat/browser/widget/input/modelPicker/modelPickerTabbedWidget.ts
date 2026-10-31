@@ -1419,7 +1419,7 @@ export class TabbedModelPicker extends Disposable {
 				},
 			} : undefined,
 			modelChoices: ownTiers.length ? {
-				ariaLabel: localize('chat.modelPicker.hydraFusionTiers', "HydraFusion tier"),
+				ariaLabel: localize('chat.modelPicker.hydraFusionTiers', "Copilot Fusion effort level"),
 				choices: ownTiers.map(tier => ({ label: getHydraFusionTierLabel(tier.metadata.id), model: tier })),
 			} : undefined,
 			// Only Fusion offers HydraFusion among its tiers, each described as the tier it is.

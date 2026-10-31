@@ -738,6 +738,19 @@ function handleRequest(req: import('http').IncomingMessage, res: import('http').
 		return;
 	}
 
+	// -- Model catalog with Auto's tiers, which the Copilot runtime reads with `DYNAMIC_AUTO_TIERS` --
+	// A single non-Fusion tier keeps Auto presented as Auto.
+	if (path === '/meta' && req.method === 'GET') {
+		json(200, {
+			models: { data: ALL_MODELS },
+			auto: {
+				default_tier: 'balance',
+				tiers: [{ id: 'balance', display_name: 'Balance', description: 'A balance of speed and capability', type: 'auto', status: { enabled: true } }],
+			},
+		});
+		return;
+	}
+
 	// -- Model by ID (DomainService.capiModelsURL/{id}) --------------
 	if (path.startsWith('/models/') && req.method === 'GET') {
 		const modelId = path.split('/models/')[1]?.split('/')[0];

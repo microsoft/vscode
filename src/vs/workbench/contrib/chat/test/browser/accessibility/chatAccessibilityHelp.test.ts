@@ -545,7 +545,7 @@ suite('Chat Accessibility Help', () => {
 		}, { managedDefault: true, perChatChoice: true, auto: true });
 	});
 
-	test('documents model details, Auto\'s Optimize for preferences, and HydraFusion\'s Default and Max', () => {
+	test('documents model details, Auto\'s Optimize for preferences, and Copilot Fusion, without HydraFusion as a model of its own', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
 			details: help.includes('Tab to reach its configuration button'),
@@ -556,12 +556,10 @@ suite('Chat Accessibility Help', () => {
 			preferences: help.includes('Auto\'s details hold its "Optimize for" preference: Efficiency, Balance, or Intelligence.'),
 			activation: help.includes('Choosing a preference selects Auto and keeps its details open'),
 			discount: help.includes('When Auto has a discount, it is described below the preferences'),
-			hydra: help.includes('HydraFusion, a research preview, is listed after Auto as a model of its own'),
-			hydraTiers: help.includes('HydraFusion\'s details offer two tiers, Default and Max, along with a Learn more link'),
-			hydraSelection: help.includes('HydraFusion stays in the model list with that tier as its readout'),
+			hydraFusion: help.includes('HydraFusion'),
 			autoEntry: help.includes('The preference readout beside Auto in the chat input opens the same details'),
 			fusion: help.includes('When Auto\'s tiers come from the Copilot service, Auto is presented as Copilot Fusion, and its details hold an "Effort Level" setting instead'),
-		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, preferences: true, activation: true, discount: true, hydra: true, hydraTiers: true, hydraSelection: true, autoEntry: true, fusion: true });
+		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, preferences: true, activation: true, discount: true, hydraFusion: false, autoEntry: true, fusion: true });
 	});
 
 	test('documents Right Arrow details, provider tab keys, and the Back keys', () => {

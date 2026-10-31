@@ -53,8 +53,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChatState, type Message, type SessionState } from '../../common/state/sessionState.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
-import { AgentHostDynamicAutoTiersEnabledSettingId, CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
-import { dynamicAutoTiersConfigurationProperties } from '../../common/dynamicAutoTiersConfiguration.js';
+import { LegacyDynamicAutoTiersConfigKey } from '../../common/copilotCliConfig.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostArtifactIntegrationsConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostWorkspaceTrustConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
@@ -86,7 +85,6 @@ const syncTestConfigurationNode = {
 	id: 'testAgentHostProtocolClientSync',
 	type: 'object' as const,
 	properties: {
-		...dynamicAutoTiersConfigurationProperties,
 		[ArtifactIntegrationsSettingId]: artifactToolsConfigurationProperties[ArtifactIntegrationsSettingId],
 		[AgentMergeSettingId.Enabled]: { type: 'boolean' as const, default: false, agentHost: { key: AgentMergeConfigKey.Enabled } },
 		[SYNC_SETTING_A]: {
@@ -193,8 +191,8 @@ function getDynamicAutoTiersUpdates(messages: readonly ProtocolTransportMessage[
 		}
 		const params = (message as JsonRpcNotification).params as ITestRootConfigNotificationParams | undefined;
 		const config = params?.action?.config;
-		return params?.action?.type === ActionType.RootConfigChanged && config && Object.hasOwn(config, CopilotCliConfigKey.DynamicAutoTiers)
-			? [config[CopilotCliConfigKey.DynamicAutoTiers]]
+		return params?.action?.type === ActionType.RootConfigChanged && config && Object.hasOwn(config, LegacyDynamicAutoTiersConfigKey)
+			? [config[LegacyDynamicAutoTiersConfigKey]]
 			: [];
 	});
 }
@@ -3380,16 +3378,12 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
-	test('forwards Dynamic Auto Tiers setting changes to a tunnel', async () => {
-		const configurationService = new TestConfigurationService({ [AgentHostDynamicAutoTiersEnabledSettingId]: true });
-		const { client, transport } = createClientForIdentity('tunnel:host', undefined, undefined, undefined, undefined, configurationService);
+	test('tells a tunnel to take Auto\'s tiers from the service, for hosts that still read the legacy key', async () => {
+		const { client, transport } = createClientForIdentity('tunnel:host');
 
 		await connectClient(client, transport);
-		await configurationService.setUserConfiguration(AgentHostDynamicAutoTiersEnabledSettingId, false);
-		fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId);
-		fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId, ConfigurationTarget.WORKSPACE);
 
-		assert.deepStrictEqual(getDynamicAutoTiersUpdates(transport.sentMessages), [true, false]);
+		assert.deepStrictEqual(getDynamicAutoTiersUpdates(transport.sentMessages), [true]);
 	});
 
 	test('ignores configuration changes from layers excluded by global mirroring', async () => {
@@ -3401,8 +3395,6 @@ suite('AgentHostProtocolClient', () => {
 		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.WORKSPACE);
 		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.WORKSPACE_FOLDER);
 		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.MEMORY);
-		fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId, ConfigurationTarget.WORKSPACE);
-		fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId, ConfigurationTarget.MEMORY);
 
 		assert.deepStrictEqual(transport.sentMessages, []);
 	});
@@ -5280,8 +5272,6 @@ suite('AgentHostProtocolClient', () => {
 				await connecting;
 				await configurationService.setUserConfiguration(SYNC_SETTING_A, false);
 				fireConfigurationChange(configurationService, SYNC_SETTING_A);
-				await configurationService.setUserConfiguration(AgentHostDynamicAutoTiersEnabledSettingId, true);
-				fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId);
 				await configurationService.setUserConfiguration(TELEMETRY_SETTING_ID, TelemetryConfiguration.OFF);
 				fireConfigurationChange(configurationService, TELEMETRY_SETTING_ID);
 				await configurationService.setUserConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID, false);
@@ -6503,14 +6493,11 @@ suite('AgentHostProtocolClient', () => {
 			return { transport, request };
 		}
 
-		test('re-forwards Dynamic Auto Tiers to a remote after reconnect', async () => {
-			const { client, transports, configurationService } = createFactoryClient();
-			await configurationService.setUserConfiguration(AgentHostDynamicAutoTiersEnabledSettingId, true);
+		test('re-forwards the legacy Dynamic Auto Tiers value to a remote after reconnect', async () => {
+			const { client, transports } = createFactoryClient();
 			await completeHandshake(transports[0], client.connect());
 
 			const { transport, request } = await beginRecovery(client, transports);
-			await configurationService.setUserConfiguration(AgentHostDynamicAutoTiersEnabledSettingId, false);
-			fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId);
 			const whileDisconnected = getDynamicAutoTiersUpdates(transport.sentMessages);
 			const reconnected = Event.toPromise(Event.filter(client.onDidChangeConnectionState, state => state === AgentHostClientState.Connected));
 			transport.fireMessage({
@@ -6526,7 +6513,7 @@ suite('AgentHostProtocolClient', () => {
 			}, {
 				initialConnection: [true],
 				whileDisconnected: [],
-				reconnected: [false],
+				reconnected: [true],
 			});
 		});
 

@@ -70,14 +70,6 @@ export const enum CopilotCliConfigKey {
 	ToolSearchEnabled = 'toolSearchEnabled',
 	/** Minimum tool count before MCP/external tools are deferred behind tool search. 0 = always defer. */
 	ToolSearchDeferThreshold = 'toolSearchDeferThreshold',
-	/** Enable the experimental HydraFusion synthetic model. Off by default. */
-	HydraFusion = 'hydraFusion',
-	/** Use HydraFusion v2. Off by default; requires {@link HydraFusion}. */
-	HydraFusionV2 = 'hydraFusionV2',
-	/** Ask CAPI to keep a conversation's HydraFusion root model across turns. Set by the `'multiRoot'` HydraFusion setting value; requires {@link HydraFusionV2}. */
-	HydraFusionMultiRoot = 'hydraFusionMultiRoot',
-	/** Launch the runtime with `DYNAMIC_AUTO_TIERS`, so Auto's tiers (including HydraFusion ones) come from the service. Startup key; off by default. */
-	DynamicAutoTiers = 'dynamicAutoTiers',
 	/** Enable Copilot Memory for Copilot SDK sessions. Off by default. */
 	Memory = 'memory',
 	/** Store Copilot Memory in the repository instead of GitHub's cloud memory service. Off by default; requires {@link Memory}. */
@@ -142,14 +134,11 @@ export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolS
 
 export const AgentHostToolSearchDeferThresholdSettingId = 'chat.agentHost.copilot.toolSearch.deferThreshold';
 
-export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.enabled';
-
 /**
- * `true` enables HydraFusion (v1), `'v2'` enables HydraFusion v2, and `'multiRoot'` enables v2 plus the
- * sticky-root hint that lets CAPI keep a conversation's root model across turns. Experiments assign any value.
+ * Root config key that hosts before Auto's tiers always came from the Copilot service read to launch the runtime
+ * with `DYNAMIC_AUTO_TIERS`. Current hosts always do; clients keep sending `true` so older hosts present Auto the same way.
  */
-export type AgentHostHydraFusionSettingValue = boolean | 'v2' | 'multiRoot';
-export const AgentHostDynamicAutoTiersEnabledSettingId = 'chat.copilot.dynamicAutoTiers.enabled';
+export const LegacyDynamicAutoTiersConfigKey = 'dynamicAutoTiers';
 
 export const AgentHostCopilotMemoryEnabledSettingId = 'chat.copilot.memory.enabled';
 
@@ -355,30 +344,6 @@ export const copilotCliConfigSchema = createSchema({
 		title: localize('agentHost.config.toolSearchDeferThreshold.title', "Tool Search Defer Threshold"),
 		description: localize('agentHost.config.toolSearchDeferThreshold.description', "Minimum number of tools before MCP and external tools are deferred behind tool search. Set to 0 to always defer external tools. Only effective when tool search is enabled."),
 		default: 1,
-	}),
-	[CopilotCliConfigKey.HydraFusion]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.hydraFusion.title', "HydraFusion"),
-		description: localize('agentHost.config.hydraFusion.description', "When enabled, Copilot SDK sessions can use the experimental HydraFusion model."),
-		default: false,
-	}),
-	[CopilotCliConfigKey.HydraFusionV2]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.hydraFusionV2.title', "HydraFusion V2"),
-		description: localize('agentHost.config.hydraFusionV2.description', "When enabled together with HydraFusion, Copilot SDK sessions use HydraFusion v2."),
-		default: false,
-	}),
-	[CopilotCliConfigKey.HydraFusionMultiRoot]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.hydraFusionMultiRoot.title', "HydraFusion Multi-Root"),
-		description: localize('agentHost.config.hydraFusionMultiRoot.description', "When enabled together with HydraFusion v2, Copilot SDK sessions ask the service to keep reusing the previous turn's root model when it fits the next turn's workflow."),
-		default: false,
-	}),
-	[CopilotCliConfigKey.DynamicAutoTiers]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.dynamicAutoTiers.title', "Dynamic Auto Tiers"),
-		description: localize('agentHost.config.dynamicAutoTiers.description', "When enabled, Auto's \"Optimize for\" tiers come from the Copilot service instead of the built-in list. Takes effect when the Copilot runtime restarts."),
-		default: false,
 	}),
 	[CopilotCliConfigKey.Memory]: schemaProperty<boolean>({
 		type: 'boolean',

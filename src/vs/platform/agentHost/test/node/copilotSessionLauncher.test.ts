@@ -68,6 +68,7 @@ const disabledWorkflowTools = ['builtin:run_dynamic_workflow', 'builtin:dynamic_
 const alwaysDisabledTools = [...disabledWorkflowTools, 'builtin:semantic_code_search'];
 const defaultDisabledTools = [...alwaysDisabledTools, 'builtin:search_code_subagent'];
 const catalogInstallationFeatureFlags = { CATALOG_SEARCH: true, AGENT_FINDER_PLUGIN_INSTALL: true, AGENT_FINDER_SKILL_INSTALL: true };
+const hydraFusionFeatureFlags = { HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true, HYDRAFUSION_INTERRUPTED_COMMIT: true, HYDRAFUSION_PLAN_V2: true, HYDRAFUSION_STICKY_ROOT: true };
 const emptyAgentCatalog: Pick<CopilotSession['rpc']['agent'], 'list'> = { list: async () => ({ agents: [] }) };
 function reportManagedSettings(config: ResumeSessionConfig | undefined): void {
 	config?.onEvent?.({
@@ -1703,7 +1704,7 @@ suite('CopilotSessionLauncher Connectors', () => {
 				warnings: logService.warnings.map(warning => warning.message),
 			}, {
 				adopted: scenario !== 'disabled',
-				featureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: scenario !== 'disabled', TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, ...(scenario === 'disabled' ? {} : { MANAGED_MCP_SERVERS: true }) },
+				featureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: scenario !== 'disabled', TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, ...hydraFusionFeatureFlags, copilot_swe_agent_memory_in_repo_store: false, ...(scenario === 'disabled' ? {} : { MANAGED_MCP_SERVERS: true }) },
 				connectorCalls: scenario === 'disabled' ? []
 					: scenario === 'unsupported' ? ['capabilities']
 						: scenario === 'noAccount' ? ['capabilities', 'account']
@@ -2298,7 +2299,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createLargeOutput: { maxSizeBytes: 8192 },
 				createManagedSettings: { permissions: managedSettingsPermissions },
 				createStrictModelEnforcement: undefined,
-				createFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: true },
+				createFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, ...hydraFusionFeatureFlags, copilot_swe_agent_memory_in_repo_store: true },
 				createStreaming: true,
 				createEnableSessionStore: true,
 				createRequestExtensions: true,
@@ -2333,7 +2334,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeLargeOutput: { maxSizeBytes: 8192 },
 				resumeManagedSettings: { permissions: managedSettingsPermissions },
 				resumeStrictModelEnforcement: undefined,
-				resumeFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: true },
+				resumeFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, ...hydraFusionFeatureFlags, copilot_swe_agent_memory_in_repo_store: true },
 				resumeStreaming: true,
 				resumeEnableSessionStore: true,
 				resumeRequestExtensions: true,
@@ -3381,6 +3382,10 @@ suite('getCopilotAutoTier', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	// A provider that advertises the classic tiers; tests that need other provider tiers, or none, set their own.
+	setup(() => setAdvertisedAutoModeTiers(autoModeTiers));
+	teardown(() => setAdvertisedAutoModeTiers(undefined));
+
 	test('reads a valid profile from the Auto model only', () => {
 		assert.deepStrictEqual(
 			[
@@ -3407,16 +3412,7 @@ suite('getCopilotAutoTier', () => {
 		], ['intelligence', 'efficiency', undefined, undefined]);
 	});
 
-	// The picker offers `autoModeTiers` verbatim, so a value this guard rejects would render as a
-	// selectable profile that the runtime then refuses.
-	test('accepts every profile the picker offers', () => {
-		assert.deepStrictEqual(
-			autoModeTiers.map(tier => getCopilotAutoTier({ id: 'auto', config: { tier } })),
-			[...autoModeTiers]
-		);
-	});
-
-	test('accepts exactly the provider-advertised tiers while the provider sends Auto metadata', () => {
+	test('accepts exactly the provider-advertised tiers, and none without provider metadata', () => {
 		const tiersOf = () => ['balance', 'hydrafusion', 'efficiency', 'premium-v2'].map(tier => getCopilotAutoTier({ id: 'auto', config: { tier } }));
 		let advertised, noneRunnable;
 		try {
@@ -3430,7 +3426,8 @@ suite('getCopilotAutoTier', () => {
 		assert.deepStrictEqual({ advertised, noneRunnable, noMetadata: tiersOf() }, {
 			advertised: ['balance', 'hydrafusion', undefined, 'premium-v2'],
 			noneRunnable: [undefined, undefined, undefined, undefined],
-			noMetadata: ['balance', undefined, 'efficiency', undefined],
+			// Without provider tiers Auto has no picker, and the runtime would reject any tier.
+			noMetadata: [undefined, undefined, undefined, undefined],
 		});
 	});
 
@@ -3447,8 +3444,8 @@ suite('getCopilotAutoTier', () => {
 		} finally {
 			setAdvertisedAutoModeTiers(undefined);
 		}
-		// Without provider tiers that present Auto as Fusion, Efficiency stays Efficiency.
-		assert.deepStrictEqual({ withBalance, withoutBalance, builtIn: resolve() }, { withBalance: 'balance', withoutBalance: undefined, builtIn: 'efficiency' });
+		// Without provider tiers, no tier is sent at all.
+		assert.deepStrictEqual({ withBalance, withoutBalance, noProviderTiers: resolve() }, { withBalance: 'balance', withoutBalance: undefined, noProviderTiers: undefined });
 	});
 
 	test('under Fusion, an Efficiency override the provider cannot run as Balance still takes precedence over the picker', () => {
@@ -3560,7 +3557,7 @@ suite('getCopilotAutoTier', () => {
 		}, {
 			fusion: ['balance', 'intelligence', 'balance'],
 			providerTiersWithoutFusion: ['efficiency', 'intelligence', 'efficiency'],
-			noProviderTiers: ['efficiency', 'intelligence', 'efficiency'],
+			noProviderTiers: [undefined, undefined, undefined],
 			noRunnableProviderTiers: false,
 		});
 	});
@@ -3911,96 +3908,35 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
-	test('enables experimental mode with HydraFusion or dynamic Auto tiers opt-in', async () => {
-		const store = disposables.add(new DisposableStore());
-		const enabled = await buildResumeConfig(createLauncher(store, { hydraFusion: true }), { id: 'hydrafusion' });
-		const v2 = await buildResumeConfig(createLauncher(store, { hydraFusion: true, hydraFusionV2: true }), { id: 'hydrafusion' });
-		const v2WithoutHydraFusion = await buildResumeConfig(createLauncher(store, { hydraFusionV2: true }), { id: 'gpt-5' });
-		const fusion = await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.DynamicAutoTiers]: true, hydraFusion: false, hydraFusionV2: false }), { id: 'auto' });
-		const disabled = await buildResumeConfig(createLauncher(store, { hydraFusion: false }), { id: 'gpt-5' });
-		const notOptedIn = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
-		const connectors = await buildResumeConfig(createLauncher(store, { [AgentHostMcpConnectorsEnabledConfigKey]: true }), { id: 'gpt-5' });
-
-		assert.deepStrictEqual({
-			model: enabled.model,
-			enabledExperimentalMode: enabled.enableExperimentalMode,
-			enabledFeatureFlags: enabled.featureFlags,
-			v2FeatureFlags: v2.featureFlags,
-			v2WithoutHydraFusionFeatureFlags: v2WithoutHydraFusion.featureFlags,
-			fusionExperimentalMode: fusion.enableExperimentalMode,
-			fusionFeatureFlags: fusion.featureFlags,
-			disabledExperimentalMode: disabled.enableExperimentalMode,
-			disabledFeatureFlags: disabled.featureFlags,
-			defaultExperimentalMode: notOptedIn.enableExperimentalMode,
-			defaultFeatureFlags: notOptedIn.featureFlags,
-			connectorFeatureFlags: connectors.featureFlags,
-		}, {
-			model: undefined,
-			enabledExperimentalMode: true,
-			enabledFeatureFlags: {
-				...catalogInstallationFeatureFlags,
-				AUTO_APPROVAL: true,
-				CONNECTORS: false,
-				TGREP: true,
-				CONTENT_EXCLUSION: true,
-				DETACH_LONG_LIVED_SERVICES: true,
-				copilot_swe_agent_memory_in_repo_store: false,
-				HYDRAFUSION: true,
-				HYDRAFUSION_ROLLOUT: true,
-				HYDRAFUSION_INTERRUPTED_COMMIT: true,
-			},
-			v2FeatureFlags: {
-				...catalogInstallationFeatureFlags,
-				AUTO_APPROVAL: true,
-				CONNECTORS: false,
-				TGREP: true,
-				CONTENT_EXCLUSION: true,
-				DETACH_LONG_LIVED_SERVICES: true,
-				copilot_swe_agent_memory_in_repo_store: false,
-				HYDRAFUSION: true,
-				HYDRAFUSION_ROLLOUT: true,
-				HYDRAFUSION_INTERRUPTED_COMMIT: true,
-				HYDRAFUSION_PLAN_V2: true,
-			},
-			v2WithoutHydraFusionFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
-			fusionExperimentalMode: true,
-			fusionFeatureFlags: {
-				...catalogInstallationFeatureFlags,
-				AUTO_APPROVAL: true,
-				CONNECTORS: false,
-				TGREP: true,
-				CONTENT_EXCLUSION: true,
-				DETACH_LONG_LIVED_SERVICES: true,
-				copilot_swe_agent_memory_in_repo_store: false,
-				HYDRAFUSION: true,
-				HYDRAFUSION_ROLLOUT: true,
-				HYDRAFUSION_INTERRUPTED_COMMIT: true,
-				HYDRAFUSION_PLAN_V2: true,
-			},
-			disabledExperimentalMode: undefined,
-			disabledFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
-			defaultExperimentalMode: undefined,
-			defaultFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
-			connectorFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: true, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
-		});
-	});
-
-	test('sends the HydraFusion multi-root flag only with HydraFusion v2', async () => {
+	test('always enables experimental mode and HydraFusion v2 with the sticky root, since Auto\'s tiers come from the service', async () => {
 		const store = disposables.add(new DisposableStore());
 		const configs = {
-			v2: await buildResumeConfig(createLauncher(store, { hydraFusion: true, hydraFusionV2: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'hydrafusion' }),
-			fusion: await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.DynamicAutoTiers]: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'auto' }),
-			v1: await buildResumeConfig(createLauncher(store, { hydraFusion: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'hydrafusion' }),
-			withoutHydraFusion: await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'gpt-5' }),
-			notOptedIn: await buildResumeConfig(createLauncher(store, { hydraFusion: true, hydraFusionV2: true }), { id: 'hydrafusion' }),
+			hydraFusion: await buildResumeConfig(createLauncher(store, {}), { id: 'hydrafusion' }),
+			auto: await buildResumeConfig(createLauncher(store, {}), { id: 'auto' }),
+			concrete: await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' }),
+		};
+		const connectors = await buildResumeConfig(createLauncher(store, { [AgentHostMcpConnectorsEnabledConfigKey]: true }), { id: 'gpt-5' });
+		const featureFlags = {
+			...catalogInstallationFeatureFlags,
+			AUTO_APPROVAL: true,
+			CONNECTORS: false,
+			TGREP: true,
+			CONTENT_EXCLUSION: true,
+			DETACH_LONG_LIVED_SERVICES: true,
+			copilot_swe_agent_memory_in_repo_store: false,
+			...hydraFusionFeatureFlags,
 		};
 
-		assert.deepStrictEqual(Object.fromEntries(Object.entries(configs).map(([name, config]) => [name, config.featureFlags?.HYDRAFUSION_STICKY_ROOT])), {
-			v2: true,
-			fusion: true,
-			v1: undefined,
-			withoutHydraFusion: undefined,
-			notOptedIn: undefined,
+		assert.deepStrictEqual({
+			configs: Object.fromEntries(Object.entries(configs).map(([name, config]) => [name, { enableExperimentalMode: config.enableExperimentalMode, featureFlags: config.featureFlags }])),
+			connectorFeatureFlags: connectors.featureFlags,
+		}, {
+			configs: {
+				hydraFusion: { enableExperimentalMode: true, featureFlags },
+				auto: { enableExperimentalMode: true, featureFlags },
+				concrete: { enableExperimentalMode: true, featureFlags },
+			},
+			connectorFeatureFlags: { ...featureFlags, CONNECTORS: true, MANAGED_MCP_SERVERS: true },
 		});
 	});
 
@@ -4094,8 +4030,8 @@ suite('CopilotSessionLauncher resume config', () => {
 			disabled: disabled.featureFlags,
 			enabled: enabled.featureFlags,
 		}, {
-			disabled: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
-			enabled: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, STABILITY_ORDERED_SYSTEM_PROMPT_V2: true },
+			disabled: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, ...hydraFusionFeatureFlags, copilot_swe_agent_memory_in_repo_store: false },
+			enabled: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, ...hydraFusionFeatureFlags, copilot_swe_agent_memory_in_repo_store: false, STABILITY_ORDERED_SYSTEM_PROMPT_V2: true },
 		});
 	});
 
@@ -4405,6 +4341,10 @@ suite('CopilotSessionLauncher auto tier', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	// A provider that advertises the classic tiers; tests that need other provider tiers, or none, set their own.
+	setup(() => setAdvertisedAutoModeTiers(autoModeTiers));
+	teardown(() => setAdvertisedAutoModeTiers(undefined));
+
 	/** Launches a session and returns the `capi` options the SDK was called with. */
 	async function capiOptionsFor(kind: 'create' | 'resume' | 'fallback', model: ModelSelection | undefined, override?: string, isInlineChatSurface?: boolean): Promise<SessionConfig['capi'][]> {
 		const capiCalls: SessionConfig['capi'][] = [];
@@ -4459,6 +4399,17 @@ suite('CopilotSessionLauncher auto tier', () => {
 		}
 		return capiCalls;
 	}
+
+	test('sends no Auto tier without provider metadata, not even a preference or override for a built-in tier', async () => {
+		setAdvertisedAutoModeTiers(undefined);
+		assert.deepStrictEqual({
+			savedPreference: await capiOptionsFor('create', { id: 'auto', config: { tier: 'intelligence' } }),
+			override: await capiOptionsFor('create', { id: 'auto' }, 'balance'),
+		}, {
+			savedPreference: [undefined],
+			override: [undefined],
+		});
+	});
 
 	test('resolves the override and picker preference when creating a session', async () => {
 		const model: ModelSelection = { id: 'auto', config: { tier: 'intelligence' } };
