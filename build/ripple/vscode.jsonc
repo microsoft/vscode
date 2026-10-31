@@ -189,5 +189,147 @@
 	"moduleLoaders": [
 		"importAMDNodeModule",
 		"resolveAmdNodeModulePath"
-	]
+	],
+
+	// The platform analysis (see Platform analysis in README.md): what a change runs on Windows
+	// (`win32`) and macOS (`darwin`), besides Linux, which runs every test. `ripple plan` writes it
+	// to the `platforms` of plan.json. A change runs an operating system's unit tier when:
+	// - a changed file matches `paths`: every test that ripple selects runs there;
+	// - the version of a package that `signals` names changed: the same;
+	// - a changed declaration uses a signal, at most `depth` edges away: the tests that depend on it
+	//   run there;
+	// - a selected test uses a `selectedTestSignals` signal: it runs there;
+	// - changed test code uses a `testSignals` signal, outside the `testLayers` it excludes: its
+	//   test file runs there;
+	// - changed code of a `modules` file (analyzed only for this) uses a signal, or a
+	//   `testSignals` signal in `moduleTests`: the tests of its package run there.
+	// The groups of an operating system are its own and `nonLinux`. `e2e` decides the end-to-end
+	// tier (smoke, remote and browser integration tests) of both, with `paths` and `signals` only.
+	// A change that runs every test (`runEverything`) runs both tiers on both.
+	//
+	// Signals name, as glob patterns: a declaration (`src/x.ts#name`, `src/x.ts#Class.member`) or
+	// every declaration of a module (`src/x.ts`), a Node.js module or its export (`node:fs`,
+	// `node:fs#realpath`), an npm package or its export (`npm:electron`,
+	// `npm:electron#systemPreferences`), a property of a global object (`global:process.platform`)
+	// or a string literal (`literal:win32`). A pattern also matches the members and exports of what
+	// it names.
+	//
+	// The signals read the current operating system. Naming one does not (`OperatingSystem.Windows`,
+	// `Platform.Mac`, `'win32'`): code that compares a value with one is tested on Linux with every
+	// value, and tests that pin one with it, such as `env: { OS: OperatingSystem.Windows }`, behave
+	// the same everywhere. Code that branches on the current one reads it too (`OS`, `isWindows`,
+	// `process.platform`).
+	"platforms": {
+		"win32": {
+			"signals": [
+				"src/vs/base/common/platform.ts#isWindows",
+				"src/vs/base/common/path.ts#win32",
+				"node:path#win32",
+				"node:path/win32",
+				"node:os#EOL",
+				"npm:@vscode/windows-*"
+			],
+			"paths": [
+				"**/win32/**",
+				"**/*.win32.ts",
+				"**/*.{bat,cmd,ps1,psm1}",
+				"build/win32/**",
+				"resources/win32/**"
+			],
+			// Paths, the file system and processes behave differently on Windows: drive letters,
+			// separators, CRLF line endings, file locking and quoting.
+			"testSignals": [
+				"src/vs/base/common/uri.ts#URI.file",
+				"src/vs/base/common/{path,extpath,resources}.ts",
+				"node:path",
+				"node:fs",
+				"node:os#tmpdir",
+				"node:child_process",
+				"npm:vscode#Uri.file"
+			],
+			// A test that branches on the operating system has code that only runs there, but most
+			// selections include one: replaying Oct 20-29, this rule alone ran the unit tier for 30%
+			// of the commits, and caught no labeled failure that the other rules miss.
+			"selectedTestSignals": []
+		},
+		"darwin": {
+			"signals": [
+				"src/vs/base/common/platform.ts#isMacintosh",
+				"npm:electron#systemPreferences"
+			],
+			"paths": [
+				"**/darwin/**",
+				"build/darwin/**",
+				"resources/darwin/**"
+			],
+			// The temporary folder of macOS is behind a symbolic link (/var is /private/var).
+			"testSignals": [
+				"node:fs#realpath*",
+				"node:os#tmpdir"
+			],
+			"selectedTestSignals": []
+		},
+		// What behaves differently on every operating system but Linux.
+		"nonLinux": {
+			"signals": [
+				"src/vs/base/common/platform.ts#{isLinux,OS,platform}",
+				"src/vs/base/common/process.ts#platform",
+				"global:process.platform",
+				"global:navigator.platform",
+				"node:os#{platform,type}",
+				"node:child_process",
+				"node:fs#{realpath*,symlink*,chmod*,watch*}",
+				"npm:{node-pty,@parcel/watcher,native-keymap,@vscode/sqlite3,@vscode/spdlog,kerberos,electron}"
+			],
+			"paths": [
+				"src/bootstrap-*.ts",
+				"src/{main,cli,server-main}.ts",
+				"**/electron-main/**",
+				"**/electron-utility/**",
+				"test/{smoke,automation}/**",
+				"scripts/**",
+				".npmrc",
+				"build/checksums/electron.txt",
+				"build/lib/electron.ts",
+				".github/workflows/**",
+				".github/actions/**"
+			],
+			"selectedTestSignals": []
+		},
+		"e2e": {
+			"paths": [
+				".github/workflows/**",
+				".github/actions/**",
+				"test/{smoke,automation}/**",
+				"src/bootstrap-*.ts",
+				"src/{main,cli,server-main}.ts",
+				"**/electron-main/**",
+				"**/electron-utility/**",
+				"src/vs/code/**",
+				"scripts/**",
+				".npmrc",
+				"build/checksums/electron.txt"
+			],
+			// Native packages.
+			"signals": [
+				"npm:{node-pty,@parcel/watcher,native-keymap,electron}"
+			]
+		},
+		// Changed test code in the browser layers runs the same everywhere.
+		"testLayers": [
+			"!**/common/**",
+			"!**/browser/**"
+		],
+		"depth": 1,
+		// Extensions are not part of the module graph: their changed code only decides whether
+		// their tests run on an operating system.
+		"modules": [
+			"extensions/*/src/**/*.ts",
+			"extensions/*/src/**/*.tsx"
+		],
+		"moduleTests": [
+			"extensions/*/src/**/test/**",
+			"extensions/*/src/**/*.test.ts"
+		]
+	}
 }

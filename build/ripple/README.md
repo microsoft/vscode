@@ -24,6 +24,7 @@ The Rust code knows TypeScript, JavaScript, npm and git, and nothing about this 
 - `packages`: npm packages that build or run every test but that no `runEverything` script loads, such as a command line tool (`toolchain`: ripple finds the packages those scripts load itself), npm scripts the unit test jobs run (`testScripts`), and `package.json` fields no test reads (`ignoredFields`).
 - `injectedGlobals`: files the test runners expose as globals (`globalThis._VSCODE_PRODUCT_JSON` is `product.json`).
 - `pure`, `implicitMethods` and `moduleLoaders`: the repository's conventions that refine the analysis: functions and objects whose calls have no side effects (`localize`, `URI`), methods called without naming them (`dispose`), and functions that load the module or package their first argument names, like `require` (`importAMDNodeModule`).
+- `platforms`: what makes a change platform-sensitive, for the [platform analysis](#platform-analysis): paths and signals for Windows (`win32`), macOS (`darwin`), every operating system but Linux (`nonLinux`) and the end-to-end suites (`e2e`), the signals that only count in changed test code (`testSignals`, outside the `testLayers`) or in selected tests (`selectedTestSignals`), how far a changed declaration can be from a signal (`depth`), and files analyzed only for signals (`modules`, the extensions, with their test code `moduleTests`).
 
 The configuration is strict: unknown fields are errors. Glob patterns use `*` within a path segment and `**` across segments, and patterns starting with `!` exclude.
 
@@ -52,6 +53,49 @@ The configuration is strict: unknown fields are errors. Glob patterns use `*` wi
 
    A reverse traversal gives the candidate tests; each candidate is then confirmed by a forward traversal that only enters an instance method once the traversal has seen its name used (`x.send()`, `{ send } = x`, `'send'`). This keeps a test that merely constructs a large service from depending on every one of its methods. Code outside the analysis calls methods by names that the analyzed code may never use: Node.js streams call `_flush`, the DOM calls `connectedCallback`, an npm package calls the methods of its interfaces. So reaching a class reaches all of its methods when it extends or implements something that is not analyzed (a global, a Node.js module or an npm package), directly, through its analyzed superclasses, or through analyzed types that re-export one, alias it or extend it.
 
+## Platform analysis
+
+Linux runs every unit and integration test on every push. A change needs macOS and Windows only when it can behave differently there, which `ripple plan` decides for each operating system (`win32` and `darwin`) from `platforms` in the configuration, and writes to `platforms` in plan.json:
+
+```json
+"platforms": {
+	"win32": {
+		"unit": true, "e2e": false, "all": false, "share": 0.0571,
+		"tests": ["src/vs/platform/agentHost/test/node/agentConfigurationService.test.ts", "..."],
+		"extensions": [],
+		"reasons": [
+			{ "tier": "unit", "rule": "declaration", "group": "win32", "change": "src/vs/platform/agentHost/node/sessionPermissions.ts#SessionPermissionManager.prototype.getPathConfirmationOptions", "signal": "src/vs/base/common/path.ts#win32" },
+			{ "tier": "unit", "rule": "changedTest", "group": "win32", "change": "src/vs/platform/agentHost/test/node/claudeAgent.test.ts#test 'dispose with parked permission unblocks SDK (Test 17)'", "signal": "src/vs/base/common/uri.ts#URI.file" }
+		]
+	},
+	"darwin": { "unit": true, "e2e": false, "all": false, "share": 0.0548, "tests": ["..."], "extensions": [], "reasons": ["..."] }
+}
+```
+
+That is the plan of a change to the Agent Host's permission rules (#345113): of the 948 unit test files it selects, Windows runs the 50 that reach changed code that branches on Windows or uses Windows paths, or whose changed test cases use paths, and `ripple why --platform win32 --test <file>` shows the path from each to its signal.
+
+`unit` says whether the operating system runs its unit tier (unit tests, node.js integration tests, Agent Host E2E and extension tests): it does when there are `tests` to run (all of them with `all`), or changed `extensions` whose tests run there. `e2e` says whether it runs the end-to-end tier (smoke, remote and browser integration tests). `reasons` explains both, by rule:
+
+| Rule | Plan | Applies when | Runs there |
+| --- | --- | --- | --- |
+| `runEverything` | | the change runs every test (`runEverything`, a parse error) | every test, both tiers |
+| `path` | R1 | a changed file matches the `paths` of a group of the operating system, such as `**/win32/**` | every test that ripple selects |
+| `package` | R3 | the version of a package that a signal names changed, such as `npm:@vscode/windows-*` | every test that ripple selects |
+| `declaration` | R2, R3 | a changed declaration uses a signal at most `depth` edges away | the tests that depend on the declaration |
+| `selectedTest` | R4 | a selected test uses a `selectedTestSignals` signal (by default `signals`) | that test |
+| `changedTest` | R5 | changed test code, outside the `testLayers` that it excludes, uses a `testSignals` signal | that test file |
+| `extension` | | changed code of a `modules` file uses a signal, or does not parse | the tests of its package |
+
+The groups of an operating system are its own and `nonLinux`, which holds what behaves differently on every operating system but Linux, such as `process.platform` and `node:child_process`. `e2e` decides the end-to-end tier of both, from `paths` and `signals` (`declaration` and `package` work the same).
+
+Signals are nodes of the graph, so the analysis works per declaration like selection, and `why` can explain it. A signal names a declaration (`src/vs/base/common/platform.ts#isWindows`, `src/vs/base/common/uri.ts#URI.file`), every declaration of a module (`src/vs/base/common/path.ts`), a Node.js module or its export (`node:child_process`, `node:fs#realpath`, which also matches `fs.promises.realpath`, through a named or a namespace import, and `fs/promises`), an npm package or its export (`npm:electron`, `npm:electron#systemPreferences`), a property of a global object that no local declaration shadows (`global:process.platform`), or a string literal in code, not in types (`literal:win32`). The analyzer records the signals that the configuration names; the nodes for Node.js modules, package exports, globals and literals are leaves that no change seeds, so they never change what `unit` and `integration` select. The signals of vscode.jsonc read the current operating system (`isWindows`, `OS`, `process.platform`). Naming one does not (`OperatingSystem.Windows`, `'win32'`): code that compares a value with one is tested on Linux with every value, and tests that pin one with it, such as `env: { OS: OperatingSystem.Windows }`, behave the same everywhere.
+
+The initializer of a test file is all of its suites, so changing one test would make the whole file use what any test uses. For this analysis only, the analyzer splits the initializer into its test cases (the `test(...)` and `it(...)` statements, also as `test.skip` or `(isWindows ? test.skip : test)`), each with a hash of its own code and of the imports it uses, and the references of that code, of the code that decides whether it runs (the conditions and suite calls around it, such as `if (isWindows) { suite(...) }` or `(isWindows ? suite : suite.skip)(...)`) and of the suite's helper functions it calls. When the code outside the test cases (suite setup, helpers, those conditions) did not change, only the changed test cases count; adding a test case changes nothing else. When none changed, as when a file that the test reads by path changed, the whole initializer counts.
+
+Extensions are not part of the module graph, which they would change: `modules` lists the files that the analysis reads on their own instead. A changed declaration of one that uses a signal (or a `testSignals` signal, in test code that `moduleTests` names, by test case like the tests of the graph), directly or through the declarations of its own file, runs the tests of its package (the closest folder with a `package.json`, such as `extensions/git`) there. Its imports of other files count by name (`extensions/git/src/util.ts#isWindows`), not by what those files use.
+
+`ripple plan --out-dir` also writes the tests of each operating system to `win32.txt` and `darwin.txt`, unless it runs every test, and on GitHub Actions the outputs `win32-unit`, `win32-e2e`, `darwin-unit` and `darwin-e2e`, and a section of the job summary that explains each decision. CI does not read them yet: the macOS and Windows jobs still run the `unit.txt` and `integration.txt` of every change.
+
 ## Commands
 
 ```bash
@@ -72,12 +116,15 @@ head=$(git stash create)
 ./target/release/ripple affected --config vscode.jsonc --base "$(git merge-base origin/main HEAD)" --head "${head:-HEAD}"
 
 # JSON plan for CI: the unit and integration test files to run. `--out-dir <dir>` also writes
-# plan.json and, when only the selected files should run, unit.txt and integration.txt; on GitHub
-# Actions it writes the output `select` and a job summary.
+# plan.json and, when only the selected files should run, unit.txt and integration.txt, and the
+# test files that each operating system runs (win32.txt and darwin.txt, see Platform analysis); on
+# GitHub Actions it writes the outputs `select`, `win32-unit`, `win32-e2e`, `darwin-unit` and
+# `darwin-e2e`, and a job summary.
 ./target/release/ripple plan --config vscode.jsonc --base "$(git merge-base origin/main HEAD)" --head HEAD --out-dir ../../.build/test-plan
 
-# Replay first-parent history and compare selection strategies
-./target/release/ripple replay --config vscode.jsonc --since 2026-10-06 --until origin/main --out replay.jsonl --hubs 1
+# Replay first-parent history and compare selection strategies. `--platforms 1` adds how often each
+# operating system runs its tiers, and which rules and signals make it.
+./target/release/ripple replay --config vscode.jsonc --since 2026-10-06 --until origin/main --out replay.jsonl --hubs 1 --platforms 1
 
 # Culprit finding: the commits in a range whose changes can affect a failing test
 ./target/release/ripple blame --config vscode.jsonc --test src/vs/.../foo.test.ts --since <last green> --until <first red>
@@ -85,6 +132,14 @@ head=$(git stash create)
 # Why a change selects a test: a path from the test's code to what the change changed, through the
 # declarations, whole modules, packages and globals in between
 ./target/release/ripple why --config vscode.jsonc --test src/vs/.../foo.test.ts --base "$(git merge-base origin/main HEAD)" --head HEAD
+
+# Why a change runs tests on Windows (or macOS: darwin), and with --test, why it runs that test
+# there: down to the signal that the changed code uses
+./target/release/ripple why --config vscode.jsonc --platform win32 [--test src/vs/.../foo.test.ts] --base "$(git merge-base origin/main HEAD)" --head HEAD
+
+# Recall of the platform analysis on labeled CI failures: whether each change runs the tier that
+# failed on that operating system, and which rules alone catch which failures
+./target/release/ripple eval --config vscode.jsonc --labels os-only-failures.json
 ```
 
 All commands accept `--repo <path>`. oxc requires Rust 1.97 or newer; `rust-toolchain.toml` pins the version CI uses.
@@ -106,6 +161,16 @@ Selection works per declaration, so what an edit selects depends on what it chan
 - **Recall on real CI failures.** 75 pull request runs with failing Linux unit test jobs (Oct 17 to 20): the failing test files were taken from the job logs and checked against what ripple selects for the pull request's own change. Of 36 failures caused by the pull request, ripple selected 34. The two misses were tests that only passed because other test files had leaked registrations into a global registry earlier in the same process; the pull request (a test-only change) stopped the leak. Two further Linux-only misses were timing flakes unrelated to their change. A test failing on 31 unrelated branches at the same time (a broken `main`) was correctly not attributed to those pull requests.
 - **Culprit finding.** On Oct 19, `main` broke through a semantic conflict between two pull requests that each passed the full matrix (#342479, then #342104). `ripple blame` over the 55 commits merged that day returned 4 candidates in 18 seconds, including both halves of the conflict.
 
+- **Platform analysis**, replaying 918 first-parent commits of Oct 20 to 29 (`replay --platforms 1`), and the 38 groups of macOS- and Windows-only CI failures that pull requests caused in Oct 9 to 29, labeled from job logs and fixes (`eval --labels`; 64 of their 70 failed jobs have both commits available):
+
+  | | Unit tier runs | E2E tier runs | Recall: OS semantics | Recall: CI and runners |
+  | --- | --- | --- | --- | --- |
+  | Today | 100% | 100% | 21 of 21 | 4 of 4 |
+  | `platforms` with every rule as first specified | 73.7% | 11.1% | 18 of 21 | 4 of 4 |
+  | **`platforms` of vscode.jsonc** | **38.2%** | **11.1%** | **18 of 21** | **4 of 4** |
+
+  The unit tier runs on Windows for 37.8% of the commits, on macOS for 30.3%. 7.0% of the commits run everything (`runEverything`); the rules run the unit tier for 33.6% of the others, and then Windows runs 2.3% of the unit test work on average (median 0.6%). OS semantics are path separators and drive letters (8 of 11 caught), process spawning and quoting (4 of 4), CRLF (2 of 2), file permissions, file identity, case-insensitive file systems and Electron window integration (1 of 1 each). The three misses are two tests in `browser/` layers that build POSIX paths (`testLayers` excludes them: changed tests in every layer would run the unit tier much more often) and a Copilot SDK update that only changed a data file. Failures from slower runners (6 groups) and browser engines (6) are not platform semantics; the rules catch 6 and 2 of them by chance. Two changes to the rules come from these numbers: selected tests that use a signal (`selectedTest`) ran the unit tier on their own for 30% of the commits and caught no failure that the other rules miss, so `selectedTestSignals` is empty; and the initializer of a test file counts by test case, which took the unit tier from 44.3% to 38.2% without losing a failure. The plan's selection does not change: `unit` and `integration` are the same on every replayed commit. The analysis takes 24 ms per commit.
+
 ## Known limits
 
 - Static selection cannot see dependencies through shared mutable global state between test files (registries populated by one test and read by another, or by the modules that the test runners load), dynamic property access with computed names, files read with paths computed without a static folder (`join(dir, name)` with a `dir` from elsewhere, unless the folder's name appears in a string), or module state or a global mutated through an alias (`const list = state.items; list.push(x)`, `const proto = Array.prototype; proto.last = f`) or by a method of a local value whose members are not tracked. Linux running every unit test on every push, and the full matrix after merge, are the safety net; an isolation sweep that runs each test file alone finds tests relying on such leaks.
@@ -117,3 +182,4 @@ Selection works per declaration, so what an edit selects depends on what it chan
 - A path from the root never reaches what the module it names loads, so code that runs a module through a path computed from the repository root (`fork(join(root, 'src/worker.ts'))`) does not depend on that module's dependencies. The unit tests run the compiled modules in `out`, which is not in the repository, so no path from the root names one.
 - Selected test files that no longer exist (deleted or renamed tests) are dropped from the plan; their surviving dependents are still found through the base snapshot.
 - Only unit tests and integration tests (the node.js integration tests and the Agent Host E2E suites) are selected. The extension host, browser, remote and smoke suites run in full.
+- The platform analysis only sees what code uses, not timing on slower runners, rendering or browser engines, or file locking. A signal that a test reaches through state that another test set up, or through `setup` code of its suite that did not change, does not count. Removed test code does not run, so it uses nothing. A test case is a `test(...)` or `it(...)` statement in the initializer of a test file: test cases that a helper function at the top level of the module defines, or that a loop creates, count as the code outside test cases, so changing one counts the whole initializer. Platform modules are analyzed one file at a time: what the files they import use does not count.

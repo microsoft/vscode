@@ -574,8 +574,8 @@ pub struct Selection {
 	/// only the integration tests depend on it (`runEveryIntegrationTest`). Every test runs anyway
 	/// when `run_all` is set.
 	pub run_all_integration: Option<String>,
-	/// npm packages whose resolved version changed.
-	pub packages: usize,
+	/// npm packages whose resolved version changed, sorted.
+	pub changed_packages: Vec<String>,
 	/// The nodes that the change changed in the head and in the base graph, which the selected
 	/// tests depend on: declarations (see `changed_nodes`), packages and injected globals.
 	pub head_seeds: Vec<u32>,
@@ -594,7 +594,7 @@ fn collect(snap: &Snapshot, marks: &[bool], out: &mut HashSet<Arc<str>>) {
 /// The files among `roots` whose code depends on a seed: candidates from the reverse closure,
 /// confirmed by a forward closure that only reaches instance methods whose names the file's code
 /// uses.
-fn dependents(graph: &Graph, seeds: &[u32], roots: impl Fn(usize) -> bool) -> Vec<usize> {
+pub fn dependents(graph: &Graph, seeds: &[u32], roots: impl Fn(usize) -> bool) -> Vec<usize> {
 	if seeds.is_empty() {
 		return Vec::new();
 	}
@@ -659,11 +659,12 @@ pub fn select(
 		run_all_integration = run_all_integration.or_else(|| first(Scope::Integration));
 	}
 	let deps = dependency_impact(config, read, head, changes)?;
-	let mut packages = 0;
+	let mut changed_packages = Vec::new();
 	if let Some(deps) = &deps {
 		run_all = run_all.or_else(|| deps.run_all.clone());
 		run_all_integration = run_all_integration.or_else(|| deps.run_all_integration.clone());
-		packages = deps.packages.len();
+		changed_packages = deps.packages.iter().cloned().collect();
+		changed_packages.sort();
 		for name in &deps.packages {
 			head_seeds.extend(hg.packages.get(name));
 			base_seeds.extend(bg.packages.get(name));
@@ -695,7 +696,7 @@ pub fn select(
 		changed_decls: head_seeds.len() + base_seeds.len(),
 		run_all,
 		run_all_integration,
-		packages,
+		changed_packages,
 		head_seeds,
 		base_seeds,
 	};
@@ -738,12 +739,12 @@ pub fn select(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
 	use super::*;
 	use crate::config::for_tests;
 	use xxhash_rust::xxh3::xxh3_64;
 
-	fn snapshot(files: &[(&str, &str)]) -> Snapshot {
+	pub(crate) fn snapshot(files: &[(&str, &str)]) -> Snapshot {
 		let config = for_tests();
 		let mut entries: Vec<Entry> = files
 			.iter()
@@ -763,38 +764,81 @@ mod tests {
 		Snapshot { entries }
 	}
 
+	/// The snapshots, graphs and changes of a change from `base` to `head`, with the contents of
+	/// their files by blob id.
+	pub(crate) struct Fixture {
+		pub bs: Snapshot,
+		pub hs: Snapshot,
+		pub bg: Graph,
+		pub hg: Graph,
+		pub changes: Vec<Change>,
+		contents: HashMap<String, String>,
+	}
+
+	impl Fixture {
+		pub fn new(base: &[(&str, &str)], head: &[(&str, &str)]) -> Self {
+			let config = for_tests();
+			let (bs, hs) = (snapshot(base), snapshot(head));
+			let (bg, hg) = (Graph::build(&bs, config), Graph::build(&hs, config));
+			let mut paths: Vec<&str> = bs
+				.entries
+				.iter()
+				.chain(&hs.entries)
+				.map(|e| &*e.path)
+				.collect();
+			paths.sort_unstable();
+			paths.dedup();
+			let oid =
+				|s: &Snapshot, p: &str| s.find(p).map(|i| s.entries[i as usize].oid.to_string());
+			let changes: Vec<Change> = paths
+				.into_iter()
+				.filter_map(|p| {
+					let (old, new) = (oid(&bs, p), oid(&hs, p));
+					(old != new).then(|| Change {
+						path: p.to_owned(),
+						old,
+						new,
+					})
+				})
+				.collect();
+			let contents: HashMap<String, String> = base
+				.iter()
+				.chain(head)
+				.map(|(_, c)| (format!("{:016x}", xxh3_64(c.as_bytes())), (*c).to_owned()))
+				.collect();
+			Self {
+				bs,
+				hs,
+				bg,
+				hg,
+				changes,
+				contents,
+			}
+		}
+
+		/// Reads the contents of a file by blob id.
+		pub fn read(&self) -> impl FnMut(&str) -> Result<String> + '_ {
+			|oid: &str| Ok(self.contents[oid].clone())
+		}
+
+		pub fn select(&self) -> Selection {
+			let mut read = self.read();
+			select(
+				for_tests(),
+				&mut read,
+				&self.bs,
+				&self.bg,
+				&self.hs,
+				&self.hg,
+				&self.changes,
+			)
+			.unwrap()
+		}
+	}
+
 	/// The selection for the change from `base` to `head`.
 	fn selection(base: &[(&str, &str)], head: &[(&str, &str)]) -> Selection {
-		let config = for_tests();
-		let (bs, hs) = (snapshot(base), snapshot(head));
-		let (bg, hg) = (Graph::build(&bs, config), Graph::build(&hs, config));
-		let mut paths: Vec<&str> = bs
-			.entries
-			.iter()
-			.chain(&hs.entries)
-			.map(|e| &*e.path)
-			.collect();
-		paths.sort_unstable();
-		paths.dedup();
-		let oid = |s: &Snapshot, p: &str| s.find(p).map(|i| s.entries[i as usize].oid.to_string());
-		let changes: Vec<Change> = paths
-			.into_iter()
-			.filter_map(|p| {
-				let (old, new) = (oid(&bs, p), oid(&hs, p));
-				(old != new).then(|| Change {
-					path: p.to_owned(),
-					old,
-					new,
-				})
-			})
-			.collect();
-		let contents: HashMap<String, String> = base
-			.iter()
-			.chain(head)
-			.map(|(_, c)| (format!("{:016x}", xxh3_64(c.as_bytes())), (*c).to_owned()))
-			.collect();
-		let mut read = |oid: &str| -> Result<String> { Ok(contents[oid].clone()) };
-		select(config, &mut read, &bs, &bg, &hs, &hg, &changes).unwrap()
+		Fixture::new(base, head).select()
 	}
 
 	/// The test files selected for the change from `base` to `head`.

@@ -68,6 +68,55 @@ struct File {
 	implicit_methods: Vec<String>,
 	#[serde(default)]
 	module_loaders: Vec<String>,
+	#[serde(default)]
+	platforms: Option<PlatformsFile>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct PlatformsFile {
+	#[serde(default)]
+	win32: GroupFile,
+	#[serde(default)]
+	darwin: GroupFile,
+	#[serde(default)]
+	non_linux: GroupFile,
+	#[serde(default)]
+	e2e: E2eFile,
+	#[serde(default)]
+	test_layers: Vec<String>,
+	#[serde(default = "default_depth")]
+	depth: u32,
+	#[serde(default)]
+	modules: Vec<String>,
+	#[serde(default)]
+	module_tests: Vec<String>,
+}
+
+fn default_depth() -> u32 {
+	1
+}
+
+#[derive(Default, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct GroupFile {
+	#[serde(default)]
+	signals: Vec<String>,
+	#[serde(default)]
+	paths: Vec<String>,
+	#[serde(default)]
+	test_signals: Vec<String>,
+	#[serde(default)]
+	selected_test_signals: Option<Vec<String>>,
+}
+
+#[derive(Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct E2eFile {
+	#[serde(default)]
+	signals: Vec<String>,
+	#[serde(default)]
+	paths: Vec<String>,
 }
 
 #[derive(Default, Deserialize)]
@@ -101,35 +150,303 @@ struct Pure {
 	objects: Vec<String>,
 }
 
+fn glob(pattern: &str) -> Result<globset::Glob> {
+	GlobBuilder::new(pattern)
+		.literal_separator(true)
+		.build()
+		.with_context(|| format!("invalid glob pattern '{pattern}'"))
+}
+
 /// Glob patterns, where patterns starting with `!` exclude the paths they match.
 struct Patterns {
 	include: GlobSet,
 	exclude: GlobSet,
+	/// The patterns of `include`, in order.
+	included: Vec<String>,
 }
 
 impl Patterns {
 	fn new(patterns: &[String]) -> Result<Self> {
 		let (mut include, mut exclude) = (GlobSetBuilder::new(), GlobSetBuilder::new());
+		let mut included = Vec::new();
 		for pattern in patterns {
-			let (set, glob) = match pattern.strip_prefix('!') {
-				Some(glob) => (&mut exclude, glob),
-				None => (&mut include, pattern.as_str()),
+			match pattern.strip_prefix('!') {
+				Some(g) => exclude.add(glob(g)?),
+				None => {
+					included.push(pattern.clone());
+					include.add(glob(pattern)?)
+				}
 			};
-			set.add(
-				GlobBuilder::new(glob)
-					.literal_separator(true)
-					.build()
-					.with_context(|| format!("invalid glob pattern '{pattern}'"))?,
-			);
 		}
 		Ok(Self {
 			include: include.build()?,
 			exclude: exclude.build()?,
+			included,
 		})
 	}
 
 	fn matches(&self, path: &str) -> bool {
 		self.include.is_match(path) && !self.exclude.is_match(path)
+	}
+
+	/// The first pattern that includes `path`, unless a `!` pattern excludes it.
+	fn matching(&self, path: &str) -> Option<&str> {
+		if self.exclude.is_match(path) {
+			return None;
+		}
+		let i = *self.include.matches(path).first()?;
+		Some(&self.included[i])
+	}
+}
+
+/// Names of what code can use that behaves differently on some operating systems, as glob
+/// patterns (see `platforms` in `vscode.jsonc`): a declaration (`src/a.ts#isWindows`) or a whole
+/// module (`src/path.ts`), a Node.js module or its export (`node:fs`, `node:fs#realpath`), an npm
+/// package or its export (`npm:electron`, `npm:electron#systemPreferences`), a property of a global
+/// object (`global:process.platform`) or a string literal (`literal:win32`). A pattern without a
+/// `#` member also matches the members of what it names.
+pub struct Signals {
+	patterns: Vec<String>,
+	full: GlobSet,
+	/// The patterns without a member, by their index in `patterns`.
+	whole: GlobSet,
+	whole_index: Vec<usize>,
+	/// What each pattern names without its member (`node:fs` for `node:fs#realpath`).
+	owners: GlobSet,
+}
+
+impl Signals {
+	fn new(patterns: &[String]) -> Result<Self> {
+		let (mut full, mut whole, mut owners) = (
+			GlobSetBuilder::new(),
+			GlobSetBuilder::new(),
+			GlobSetBuilder::new(),
+		);
+		let mut whole_index = Vec::new();
+		for (i, pattern) in patterns.iter().enumerate() {
+			let kind = pattern.split_once(':').map(|(k, _)| k);
+			if pattern.starts_with('!') {
+				anyhow::bail!("signal patterns cannot exclude: '{pattern}'");
+			}
+			if let Some("global") = kind {
+				global_object(pattern)?;
+			}
+			full.add(glob(pattern)?);
+			match pattern.split_once('#') {
+				Some((owner, _)) => {
+					owners.add(glob(owner)?);
+				}
+				None => {
+					owners.add(glob(pattern)?);
+					whole.add(glob(pattern)?);
+					whole_index.push(i);
+				}
+			}
+		}
+		Ok(Self {
+			patterns: patterns.to_vec(),
+			full: full.build()?,
+			whole: whole.build()?,
+			whole_index,
+			owners: owners.build()?,
+		})
+	}
+
+	pub fn is_empty(&self) -> bool {
+		self.patterns.is_empty()
+	}
+
+	/// The first pattern that matches a name such as `node:fs#realpath`: the name itself, what
+	/// it is a member of (`npm:vscode#Uri` for `npm:vscode#Uri.file`, `global:process` for
+	/// `global:process.platform`), or its owner (`node:fs`).
+	pub fn matching(&self, name: &str) -> Option<&str> {
+		let members = match name.split_once('#') {
+			Some((owner, _)) => owner.len() + 1,
+			None => name
+				.strip_prefix("global:")
+				.map_or(name.len(), |_| "global:".len()),
+		};
+		let prefixes = std::iter::once(name).chain(
+			name[members..]
+				.rmatch_indices('.')
+				.map(|(i, _)| &name[..members + i]),
+		);
+		for prefix in prefixes {
+			if let Some(&i) = self.full.matches(prefix).first() {
+				return Some(&self.patterns[i]);
+			}
+		}
+		let (owner, _) = name.split_once('#')?;
+		let i = *self.whole.matches(owner).first()?;
+		Some(&self.patterns[self.whole_index[i]])
+	}
+
+	/// The first pattern that names `owner` or one of its members: a module path, `node:fs` or
+	/// `npm:electron`.
+	pub fn naming(&self, owner: &str) -> Option<&str> {
+		let i = *self.owners.matches(owner).first()?;
+		Some(&self.patterns[i])
+	}
+}
+
+/// The object of a `global:<object>.<property>` signal, which must be an identifier.
+fn global_object(pattern: &str) -> Result<&str> {
+	let rest = pattern.strip_prefix("global:").unwrap_or(pattern);
+	let object = rest.split_once('.').map_or(rest, |(o, _)| o);
+	let identifier = object
+		.chars()
+		.next()
+		.is_some_and(|c| c.is_ascii_alphabetic() || c == '_' || c == '$')
+		&& object
+			.chars()
+			.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$');
+	if !identifier {
+		anyhow::bail!("'{pattern}' must name a global object: global:<object>.<property>");
+	}
+	Ok(object)
+}
+
+/// A group of `platforms`: the paths and signals that make a change platform-sensitive.
+pub struct Group {
+	pub name: &'static str,
+	paths: Patterns,
+	pub signals: Signals,
+	/// Signals that only count in changed test code (see `Platforms::in_test_layers`).
+	pub test_signals: Signals,
+	/// Signals that make a selected test run (`signals` unless configured).
+	selected_test_signals: Option<Signals>,
+}
+
+impl Group {
+	fn new(name: &'static str, file: GroupFile) -> Result<Self> {
+		Ok(Self {
+			name,
+			paths: Patterns::new(&file.paths)?,
+			signals: Signals::new(&file.signals)?,
+			test_signals: Signals::new(&file.test_signals)?,
+			selected_test_signals: file
+				.selected_test_signals
+				.as_deref()
+				.map(Signals::new)
+				.transpose()?,
+		})
+	}
+
+	/// The signals that make a selected test that uses one run: `selectedTestSignals`, or else
+	/// `signals`.
+	pub fn selected_test_signals(&self) -> &Signals {
+		self.selected_test_signals.as_ref().unwrap_or(&self.signals)
+	}
+
+	/// The first path pattern that matches `path`.
+	pub fn matching_path(&self, path: &str) -> Option<&str> {
+		self.paths.matching(path)
+	}
+}
+
+/// The operating systems that `platforms` plans for, besides Linux, which runs every test.
+pub const OSES: [&str; 2] = ["win32", "darwin"];
+
+/// The platform analysis of the configuration (see `platforms` in `vscode.jsonc`).
+pub struct Platforms {
+	win32: Group,
+	darwin: Group,
+	/// What behaves differently on every operating system but Linux.
+	non_linux: Group,
+	/// What the end-to-end suites (smoke, remote, browser integration) depend on.
+	pub e2e: Group,
+	test_layers: Patterns,
+	/// How many edges a changed declaration can be from a signal.
+	pub depth: u32,
+	/// Files analyzed only for platform signals, which are not part of the module graph.
+	modules: Patterns,
+	/// The files of `modules` that are test code, where `testSignals` count too.
+	module_tests: Patterns,
+	/// Every signal pattern: the graph has a node for each name one of them matches.
+	all: Signals,
+	/// The objects that `global:` signals name.
+	global_objects: HashSet<String>,
+	/// The values that `literal:` signals match.
+	literals: GlobSet,
+}
+
+impl Platforms {
+	fn new(file: PlatformsFile) -> Result<Self> {
+		let mut all: Vec<String> = Vec::new();
+		for group in [&file.win32, &file.darwin, &file.non_linux] {
+			all.extend(group.signals.iter().cloned());
+			all.extend(group.test_signals.iter().cloned());
+			all.extend(group.selected_test_signals.iter().flatten().cloned());
+		}
+		all.extend(file.e2e.signals.iter().cloned());
+		let mut global_objects = HashSet::new();
+		let mut literals = GlobSetBuilder::new();
+		for pattern in &all {
+			if pattern.starts_with("global:") {
+				global_objects.insert(global_object(pattern)?.to_owned());
+			} else if let Some(value) = pattern.strip_prefix("literal:") {
+				literals.add(glob(value)?);
+			}
+		}
+		Ok(Self {
+			win32: Group::new("win32", file.win32)?,
+			darwin: Group::new("darwin", file.darwin)?,
+			non_linux: Group::new("nonLinux", file.non_linux)?,
+			e2e: Group::new(
+				"e2e",
+				GroupFile {
+					signals: file.e2e.signals,
+					paths: file.e2e.paths,
+					test_signals: Vec::new(),
+					selected_test_signals: Some(Vec::new()),
+				},
+			)?,
+			test_layers: Patterns::new(&file.test_layers)?,
+			depth: file.depth,
+			modules: Patterns::new(&file.modules)?,
+			module_tests: Patterns::new(&file.module_tests)?,
+			all: Signals::new(&all)?,
+			global_objects,
+			literals: literals.build()?,
+		})
+	}
+
+	/// The groups that apply to an operating system of `OSES`: its own, then `nonLinux`.
+	pub fn groups(&self, os: &str) -> [&Group; 2] {
+		match os {
+			"win32" => [&self.win32, &self.non_linux],
+			"darwin" => [&self.darwin, &self.non_linux],
+			_ => unreachable!("unknown operating system {os}"),
+		}
+	}
+
+	/// Every group, each once.
+	pub fn all_groups(&self) -> [&Group; 4] {
+		[&self.win32, &self.darwin, &self.non_linux, &self.e2e]
+	}
+
+	/// Whether the graph has a node for a signal name: whether any pattern matches it.
+	pub fn is_signal(&self, name: &str) -> bool {
+		self.all.matching(name).is_some()
+	}
+
+	/// Whether changed test code in `path` counts for `testSignals`. With only `!` patterns,
+	/// every test file that they do not exclude counts.
+	pub fn in_test_layers(&self, path: &str) -> bool {
+		(self.test_layers.included.is_empty() || self.test_layers.include.is_match(path))
+			&& !self.test_layers.exclude.is_match(path)
+	}
+
+	/// Whether a file is only analyzed for platform signals.
+	pub fn is_platform_module(&self, path: &str) -> bool {
+		let declarations = [".d.ts", ".d.mts", ".d.cts"];
+		self.modules.matches(path) && !declarations.iter().any(|d| path.ends_with(d))
+	}
+
+	/// Whether `testSignals` count in the changed code of a file only analyzed for platform
+	/// signals: whether it is test code (`moduleTests`) outside the excluded `testLayers`.
+	pub fn is_platform_module_test(&self, path: &str) -> bool {
+		self.module_tests.matches(path) && self.in_test_layers(path)
 	}
 }
 
@@ -164,6 +481,8 @@ pub struct Config {
 	/// Methods called without their name at the call site.
 	pub implicit_methods: Vec<String>,
 	module_loaders: HashSet<String>,
+	/// The platform analysis, if configured.
+	pub platforms: Option<Platforms>,
 }
 
 impl Config {
@@ -199,6 +518,7 @@ impl Config {
 			pure_objects: file.pure.objects.into_iter().collect(),
 			implicit_methods: file.implicit_methods,
 			module_loaders: file.module_loaders.into_iter().collect(),
+			platforms: file.platforms.map(Platforms::new).transpose()?,
 		})
 	}
 
@@ -286,6 +606,29 @@ impl Config {
 	pub fn is_injected_global(&self, name: &str) -> bool {
 		self.injected_globals.iter().any(|(n, _)| n == name)
 	}
+
+	/// Whether the platform analysis records the properties of a global object, such as
+	/// `process` for `global:process.platform`.
+	pub fn is_signal_global(&self, object: &str) -> bool {
+		self.platforms
+			.as_ref()
+			.is_some_and(|p| p.global_objects.contains(object))
+	}
+
+	/// Whether the platform analysis records a string literal, such as `win32` for
+	/// `literal:win32`.
+	pub fn is_signal_literal(&self, value: &str) -> bool {
+		value.len() <= 100
+			&& self
+				.platforms
+				.as_ref()
+				.is_some_and(|p| !p.literals.is_empty() && p.literals.is_match(value))
+	}
+
+	/// Whether the graph has a node for a platform signal name (see `Signals`).
+	pub fn is_platform_signal(&self, name: &str) -> bool {
+		self.platforms.as_ref().is_some_and(|p| p.is_signal(name))
+	}
 }
 
 /// Turns JSONC into JSON: removes comments and trailing commas, keeping line numbers.
@@ -360,6 +703,31 @@ pub fn for_tests() -> &'static Config {
 				"pure": { "functions": ["localize"], "objects": ["URI"] },
 				"implicitMethods": ["dispose"],
 				"moduleLoaders": ["loadModule"],
+				"platforms": {
+					"win32": {
+						"signals": ["src/lib/platform.ts#isWindows", "node:path#win32", "literal:win32", "npm:windows-*"],
+						"paths": ["**/win32/**"],
+						"testSignals": ["node:fs", "src/lib/uri.ts#URI.file", "npm:vscode#Uri"],
+						"selectedTestSignals": [],
+					},
+					"darwin": {
+						"signals": ["src/lib/platform.ts#isMacintosh", "npm:electron#systemPreferences"],
+						"paths": ["**/darwin/**"],
+						"testSignals": ["node:os#tmpdir"],
+					},
+					"nonLinux": {
+						"signals": ["global:process.platform", "node:child_process", "npm:native-*"],
+						"paths": ["src/main.ts"],
+					},
+					"e2e": {
+						"paths": ["test/smoke/**"],
+						"signals": ["npm:native-*"],
+					},
+					"testLayers": ["!**/common/**"],
+					"depth": 1,
+					"modules": ["extensions/*/src/**/*.ts"],
+					"moduleTests": ["extensions/*/src/test/**"],
+				},
 			}"#,
 		)
 		.unwrap()
@@ -451,6 +819,42 @@ mod tests {
 	fn unknown_fields_are_errors() {
 		assert!(Config::parse(r#"{ "modules": [], "module": [] }"#).is_err());
 		assert!(Config::parse(r#"{ "modules": [], "pure": { "function": [] } }"#).is_err());
+	}
+
+	#[test]
+	fn signals_match_what_they_name_and_its_members() {
+		let signals = Signals::new(&[
+			"node:fs".to_owned(),
+			"npm:vscode#Uri".to_owned(),
+			"global:process".to_owned(),
+			"src/a.ts#{isWindows,OS}".to_owned(),
+		])
+		.unwrap();
+		let names = [
+			"node:fs#realpath",
+			"npm:vscode#Uri.file",
+			"npm:vscode#Uris",
+			"global:process.platform",
+			"src/a.ts#OS",
+			"src/a.ts#OSes",
+			"src/a.ts",
+		];
+		assert_eq!(
+			names.map(|n| signals.matching(n)),
+			[
+				Some("node:fs"),
+				Some("npm:vscode#Uri"),
+				None,
+				Some("global:process"),
+				Some("src/a.ts#{isWindows,OS}"),
+				None,
+				None,
+			]
+		);
+		assert_eq!(
+			(signals.naming("src/a.ts"), signals.naming("npm:vscode")),
+			(Some("src/a.ts#{isWindows,OS}"), Some("npm:vscode#Uri"))
+		);
 	}
 
 	#[test]

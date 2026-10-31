@@ -69,6 +69,14 @@ pub enum Ref {
 	All(u32),
 	/// A global injected by the test runners (see `injectedGlobals` in the configuration).
 	Global(Box<str>),
+	/// A platform signal that the code uses: a property of a global object
+	/// (`global:process.platform`) or a string literal (`literal:win32`), see `platforms` in the
+	/// configuration. It does not change the declaration's hash, which covers its tokens.
+	Signal(Box<str>),
+	/// Two levels of members of a namespace or default import, such as `promises.chmod` in
+	/// `fs.promises.chmod` or `Uri.file` in `vscode.Uri.file`, for the platform analysis only (the
+	/// import itself is a `Ref::Import` with the first member).
+	ImportPath { binding: u32, path: Box<str> },
 }
 
 /// What a class extends or implements, when code outside the analysis may call its methods.
@@ -157,7 +165,26 @@ pub struct FileFacts {
 	/// The types that the module declares or exports (interfaces, type aliases, classes and
 	/// re-exports), with the types they extend, are aliases of or re-export, sorted by name.
 	pub type_decls: Vec<(String, Vec<TypeOrigin>)>,
+	/// The test cases of the module initializer (`test(...)` and `it(...)` calls in its
+	/// statements, such as in `suite` callbacks), in source order. Only the platform analysis
+	/// reads them: the initializer of a test file is all of its suites, and changing one test case
+	/// does not change the others.
+	pub cases: Vec<TestCase>,
+	/// The hash of the initializer's code outside its test cases, such as suite setup and shared
+	/// helpers, when it has test cases.
+	pub init_rest: u64,
 	pub error: bool,
+}
+
+/// A test case of a module initializer (see `FileFacts::cases`).
+#[derive(Debug, Clone, Default)]
+pub struct TestCase {
+	/// The title of the test, and its occurrence when several tests have that title.
+	pub key: String,
+	pub hash: u64,
+	/// What the test's code references, and the code of the initializer outside test cases that
+	/// it calls, such as helper functions of its suite.
+	pub refs: Vec<Ref>,
 }
 
 impl FileFacts {
@@ -762,6 +789,33 @@ fn is_identifier_like(s: &str) -> bool {
 		&& s.len() < 80
 }
 
+/// Whether a callee defines a test case: `test` or `it`, also as `test.skip` or
+/// `(isWindows ? test.skip : test)`.
+fn is_test_callee(e: &Expression) -> bool {
+	match e.get_inner_expression() {
+		Expression::Identifier(id) => matches!(id.name.as_str(), "test" | "it"),
+		Expression::StaticMemberExpression(m) => is_test_callee(&m.object),
+		Expression::ConditionalExpression(c) => {
+			is_test_callee(&c.consequent) || is_test_callee(&c.alternate)
+		}
+		_ => false,
+	}
+}
+
+/// The title of a test case: its first argument.
+fn test_title(c: &CallExpression) -> String {
+	match c.arguments.first() {
+		Some(Argument::StringLiteral(s)) => js_str(&s.value),
+		Some(Argument::TemplateLiteral(t)) => t
+			.quasis
+			.iter()
+			.map(|q| q.value.raw.as_str())
+			.collect::<Vec<_>>()
+			.join("${}"),
+		_ => "<test>".to_owned(),
+	}
+}
+
 /// Analyzes one module. Never fails: on a fatal parse error the whole file becomes a single
 /// initializer node whose hash covers the full source.
 pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
@@ -1060,7 +1114,9 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 		}
 	}
 
-	// Value-level references between declarations.
+	// Value-level references between declarations. The references of the initializer, by
+	// position, are also the references of its test cases (see `FileFacts::cases`).
+	let mut init_refs: Vec<(u32, Ref)> = Vec::new();
 	for (sym, target) in &targets {
 		for &rid in scoping.get_resolved_reference_ids(*sym) {
 			let reference = scoping.get_reference(rid);
@@ -1096,10 +1152,40 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 			match target {
 				SymbolTarget::Binding(b) => {
 					facts.bindings[*b as usize].value_used = true;
-					facts.decls[src as usize].refs.push(Ref::Import {
+					let whole = matches!(
+						facts.bindings[*b as usize].imported,
+						Imported::Namespace | Imported::Default
+					);
+					let path = match (&member, nodes.parent_kind(node_id)) {
+						(Some(first), AstKind::StaticMemberExpression(m))
+							if whole && config.platforms.is_some() =>
+						{
+							match nodes.parent_kind(nodes.parent_id(node_id)) {
+								AstKind::StaticMemberExpression(m2)
+									if m2.object.span() == m.span =>
+								{
+									Some(format!("{first}.{}", m2.property.name).into_boxed_str())
+								}
+								_ => None,
+							}
+						}
+						_ => None,
+					};
+					let r = Ref::Import {
 						binding: *b,
 						member,
-					});
+					};
+					if src == 0 {
+						init_refs.push((span.start, r.clone()));
+					}
+					facts.decls[src as usize].refs.push(r);
+					if let Some(path) = path {
+						let r = Ref::ImportPath { binding: *b, path };
+						if src == 0 {
+							init_refs.push((span.start, r.clone()));
+						}
+						facts.decls[src as usize].refs.push(r);
+					}
 				}
 				SymbolTarget::Locals(locals) => {
 					for &t in locals {
@@ -1111,6 +1197,9 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 							None => t,
 						};
 						if t != src {
+							if src == 0 {
+								init_refs.push((span.start, Ref::Local(t)));
+							}
 							facts.decls[src as usize].refs.push(Ref::Local(t));
 						}
 					}
@@ -1326,6 +1415,14 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 	let mut data_folders: Vec<(u32, String, bool, String, String)> = Vec::new();
 	let mut dynamic: Vec<(u32, String)> = Vec::new();
 	let mut globals: Vec<(u32, String)> = Vec::new();
+	let mut signals: Vec<(u32, String)> = Vec::new();
+	// The test cases of the initializer, as (span, title), and its references to the symbols of
+	// nested scopes, such as the helper functions of a suite, as (position, symbol).
+	let mut case_spans: Vec<(Span, String)> = Vec::new();
+	// For each test case, the code that decides whether it runs: the conditions and the suite
+	// calls around it, such as `if (isWindows)` or `(isWindows ? suite : suite.skip)`.
+	let mut case_guards: Vec<Vec<Span>> = Vec::new();
+	let mut init_symbols: Vec<(u32, SymbolId)> = Vec::new();
 	let mut uses: Vec<(u32, u64)> = Vec::new();
 	// What the code of each declaration or member does when it runs later (function bodies,
 	// constructors, methods): effects outside the module, and the local functions and members it
@@ -1560,15 +1657,62 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 						}
 					}
 				}
+				if is_test_callee(&c.callee)
+					&& node_at(c.span.start) == Some(0)
+					&& case_spans.last().is_none_or(|(s, _)| s.end <= c.span.start)
+				{
+					// The statement, with its semicolon: adding a test case only adds to it.
+					let span = match nodes.parent_kind(id) {
+						AstKind::ExpressionStatement(s) => s.span,
+						_ => c.span,
+					};
+					case_spans.push((span, test_title(c)));
+					let mut guards = Vec::new();
+					let mut child = id;
+					while child.index() != 0 {
+						let parent = nodes.parent_id(child);
+						let from = nodes.get_node(child).kind().span();
+						let guard = match nodes.get_node(parent).kind() {
+							AstKind::IfStatement(i) => Some(i.test.span()),
+							AstKind::ConditionalExpression(c) => Some(c.test.span()),
+							AstKind::CallExpression(c) => Some(c.callee.span()),
+							AstKind::LogicalExpression(l) => Some(l.left.span()),
+							AstKind::ForOfStatement(f) => Some(f.right.span()),
+							AstKind::ForInStatement(f) => Some(f.right.span()),
+							AstKind::ForStatement(f) => f.test.as_ref().map(|t| t.span()),
+							AstKind::WhileStatement(w) => Some(w.test.span()),
+							AstKind::SwitchStatement(w) => Some(w.discriminant.span()),
+							_ => None,
+						};
+						guards.extend(guard.filter(|g| *g != from));
+						child = parent;
+					}
+					case_guards.push(guards);
+				}
+			}
+			AstKind::IdentifierReference(r) => {
+				if let Some(sym) = symbol_of(r) {
+					if !locals_of.contains_key(&sym)
+						&& !binding_by_symbol.contains_key(&sym)
+						&& node_at(r.span.start) == Some(0)
+					{
+						init_symbols.push((r.span.start, sym));
+					}
+				}
 			}
 			AstKind::StaticMemberExpression(m) => {
 				let name = m.property.name.as_str();
 				uses.push((m.span.start, name_id(name)));
-				if config.is_injected_global(name) {
-					if let Expression::Identifier(o) = m.object.get_inner_expression() {
-						if matches!(o.name.as_str(), "globalThis" | "self" | "window") {
-							globals.push((m.span.start, name.to_owned()));
-						}
+				if let Expression::Identifier(o) = m.object.get_inner_expression() {
+					let object = o.name.as_str();
+					if config.is_injected_global(name)
+						&& matches!(object, "globalThis" | "self" | "window")
+					{
+						globals.push((m.span.start, name.to_owned()));
+					}
+					// A property of a global object, unless a local declaration shadows it.
+					if config.is_signal_global(object) && symbol_of(o).is_none() {
+						signals.push((m.span.start, format!("global:{object}.{name}")));
 					}
 				}
 			}
@@ -1652,6 +1796,10 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 				if matches!(kind, AstKind::StringLiteral(_)) && is_identifier_like(&value) {
 					uses.push((pos, name_id(&value)));
 				}
+				let constant = match kind {
+					AstKind::TemplateLiteral(t) => t.expressions.is_empty(),
+					_ => true,
+				};
 				let module_specifier = matches!(
 					nodes.parent_kind(id),
 					AstKind::ImportDeclaration(_)
@@ -1659,6 +1807,9 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 						| AstKind::ExportFromDeclaration(_)
 						| AstKind::ImportExpression(_)
 				);
+				if constant && !module_specifier && config.is_signal_literal(&value) {
+					signals.push((pos, format!("literal:{value}")));
+				}
 				if module_specifier {
 				} else if looks_like_path(&value, config) {
 					path_strings.push((pos, value));
@@ -2070,14 +2221,22 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 		i > 0 && pos < merged[i - 1].end
 	};
 
-	let add_all = |facts: &mut FileFacts, pos: u32, specifier: String, root: bool| {
-		if is_excluded(pos) {
+	// Adds a reference at a position to the declaration there, and to the initializer's
+	// references by position.
+	let mut add_ref = |facts: &mut FileFacts, pos: u32, r: Ref| {
+		let Some(src) = node_at(pos) else { return };
+		if src == 0 {
+			init_refs.push((pos, r.clone()));
+		}
+		facts.decls[src as usize].refs.push(r);
+	};
+	let mut add_all = |facts: &mut FileFacts, pos: u32, specifier: String, root: bool| {
+		if is_excluded(pos) || node_at(pos).is_none() {
 			return None;
 		}
-		let src = node_at(pos)?;
 		let spec = push_spec(facts, specifier, false);
 		facts.specs[spec as usize].root = root;
-		facts.decls[src as usize].refs.push(Ref::All(spec));
+		add_ref(facts, pos, Ref::All(spec));
 		Some(spec)
 	};
 	for (pos, specifier) in dynamic.into_iter().chain(path_strings) {
@@ -2092,10 +2251,11 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 		}
 	}
 	for (pos, name) in globals {
-		if let Some(src) = node_at(pos) {
-			facts.decls[src as usize]
-				.refs
-				.push(Ref::Global(name.into_boxed_str()));
+		add_ref(&mut facts, pos, Ref::Global(name.into_boxed_str()));
+	}
+	for (pos, name) in signals {
+		if !is_excluded(pos) {
+			add_ref(&mut facts, pos, Ref::Signal(name.into_boxed_str()));
 		}
 	}
 	for (pos, name) in uses {
@@ -2319,6 +2479,14 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 	let tokens = &ret.tokens;
 	let bytes = source.as_bytes();
 	let mut hashers: Vec<Xxh3> = (0..facts.decls.len()).map(|_| Xxh3::new()).collect();
+	// The test cases of the initializer, and the rest of it, hash their own tokens and nodes too
+	// (see `FileFacts::cases`).
+	let case_at = |pos: u32| -> Option<usize> {
+		let i = case_spans.partition_point(|(s, _)| s.start <= pos);
+		(i > 0 && pos < case_spans[i - 1].0.end).then(|| i - 1)
+	};
+	let mut case_hashers: Vec<Xxh3> = case_spans.iter().map(|_| Xxh3::new()).collect();
+	let mut rest_hasher = Xxh3::new();
 	for (si, span) in stmt_spans.iter().enumerate() {
 		let d = match owners[si] {
 			Owner::Decl(d) => d as usize,
@@ -2363,6 +2531,14 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 			let h = &mut hashers[target];
 			h.update(&bytes[t.start() as usize..t.end() as usize]);
 			h.update(&[0xff]);
+			if target == 0 && !case_spans.is_empty() {
+				let h = match case_at(t.start()) {
+					Some(c) => &mut case_hashers[c],
+					None => &mut rest_hasher,
+				};
+				h.update(&bytes[t.start() as usize..t.end() as usize]);
+				h.update(&[0xff]);
+			}
 			statement.update(&bytes[t.start() as usize..t.end() as usize]);
 			statement.update(&[0xff]);
 		}
@@ -2406,6 +2582,12 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 		}
 		if let Some(d) = node_at(kind.span().start) {
 			hashers[d as usize].update(&[0xfb, kind.ty() as u8]);
+			if d == 0 && !case_spans.is_empty() {
+				match case_at(kind.span().start) {
+					Some(c) => case_hashers[c].update(&[0xfb, kind.ty() as u8]),
+					None => rest_hasher.update(&[0xfb, kind.ty() as u8]),
+				}
+			}
 		}
 	}
 
@@ -2438,6 +2620,7 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 					h.update(name.as_bytes());
 					h.update(&[0xfc]);
 				}
+				Ref::Signal(_) | Ref::ImportPath { .. } => {}
 			}
 		}
 		decl.hash = h.digest();
@@ -2457,6 +2640,81 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 				xxh3_64(&[decl.hash.to_le_bytes(), previous.unwrap_or(0).to_le_bytes()].concat());
 		}
 		previous = (kind == MemberKind::Enum).then_some(decl.hash);
+	}
+
+	// The test cases of the initializer: the references in their code, and in the code of the
+	// initializer outside test cases that they call, such as the helper functions of their suite.
+	if !case_spans.is_empty() {
+		init_refs.sort_by_key(|(pos, _)| *pos);
+		init_symbols.sort_by_key(|(pos, _)| *pos);
+		let refs_in = |span: Span| {
+			let start = init_refs.partition_point(|(p, _)| *p < span.start);
+			let end = init_refs.partition_point(|(p, _)| *p < span.end);
+			&init_refs[start..end]
+		};
+		let symbols_in = |span: Span| {
+			let start = init_symbols.partition_point(|(p, _)| *p < span.start);
+			let end = init_symbols.partition_point(|(p, _)| *p < span.end);
+			&init_symbols[start..end]
+		};
+		// Import statements have no hashed tokens: retargeting an import changes the test cases that
+		// use it, or else the code outside them.
+		for (pos, r) in &init_refs {
+			if let Ref::Import { binding, .. } = r {
+				let b = &facts.bindings[*binding as usize];
+				let h = match case_at(*pos) {
+					Some(c) => &mut case_hashers[c],
+					None => &mut rest_hasher,
+				};
+				h.update(facts.specs[b.spec as usize].specifier.as_bytes());
+				h.update(&[0xfe]);
+				match &b.imported {
+					Imported::Named(n) => h.update(n.as_bytes()),
+					Imported::Default => h.update(b"<default>"),
+					Imported::Namespace => h.update(b"<namespace>"),
+				}
+			}
+		}
+		let mut titles: HashMap<&str, u32> = HashMap::new();
+		for (i, (span, title)) in case_spans.iter().enumerate() {
+			let code = std::iter::once(*span).chain(case_guards[i].iter().copied());
+			let mut refs: Vec<Ref> = Vec::new();
+			let mut work: Vec<SymbolId> = Vec::new();
+			for span in code {
+				refs.extend(refs_in(span).iter().map(|(_, r)| r.clone()));
+				work.extend(symbols_in(span).iter().map(|(_, s)| *s));
+			}
+			let mut seen: HashSet<SymbolId> = HashSet::new();
+			while let Some(sym) = work.pop() {
+				if !seen.insert(sym) {
+					continue;
+				}
+				let declared = nodes
+					.get_node(scoping.symbol_declaration(sym))
+					.kind()
+					.span();
+				if case_at(declared.start).is_some() || node_at(declared.start) != Some(0) {
+					continue;
+				}
+				refs.extend(refs_in(declared).iter().map(|(_, r)| r.clone()));
+				work.extend(symbols_in(declared).iter().map(|(_, s)| *s));
+			}
+			refs.sort_unstable();
+			refs.dedup();
+			let count = titles.entry(title).or_insert(0);
+			let key = if *count == 0 {
+				title.clone()
+			} else {
+				format!("{title}#{count}")
+			};
+			*count += 1;
+			facts.cases.push(TestCase {
+				key,
+				hash: case_hashers[i].digest(),
+				refs,
+			});
+		}
+		facts.init_rest = rest_hasher.digest();
 	}
 
 	exports.sort_by(|a, b| a.0.cmp(&b.0));
@@ -2756,6 +3014,72 @@ mod tests {
 		assert_eq!(
 			(&product.decls[1].refs, &product.decls[2].refs),
 			(&vec![Ref::Global("_PRODUCT".into())], &vec![])
+		);
+	}
+
+	#[test]
+	fn platform_signals_are_global_properties_and_literals_in_code() {
+		let f = analyze(
+			"a.ts",
+			"export function a() { return process.platform === 'win32'; }\nexport function b(process) { return process.platform; }\nexport type P = 'win32';\nexport function c(p: 'win32') { return 'linux'; }\n",
+		);
+		let signals = |key: &str| -> Vec<String> {
+			find(&f, key)
+				.1
+				.refs
+				.iter()
+				.filter_map(|r| match r {
+					Ref::Signal(s) => Some(s.to_string()),
+					_ => None,
+				})
+				.collect()
+		};
+		// A parameter shadows the global, and types are not code.
+		assert_eq!(
+			(signals("a"), signals("b"), signals("c")),
+			(
+				vec![
+					"global:process.platform".to_owned(),
+					"literal:win32".to_owned()
+				],
+				vec![],
+				vec![]
+			)
+		);
+	}
+
+	#[test]
+	fn test_cases_have_their_own_hashes_and_references() {
+		let f = analyze(
+			"a.test.ts",
+			"import { isWindows } from './platform.js';\nsuite('s', () => {\n\tfunction helper() { return isWindows; }\n\ttest('a', () => helper());\n\t(isWindows ? test.skip : test)('b', () => 1);\n\ttest('b', () => 2);\n});\n",
+		);
+		let cases: Vec<(&str, usize)> = f
+			.cases
+			.iter()
+			.map(|c| (c.key.as_str(), c.refs.len()))
+			.collect();
+		// `a` uses the suite's helper, the first `b` its own condition.
+		assert_eq!(cases, vec![("a", 1), ("b", 1), ("b#1", 0)]);
+		let g = analyze(
+			"a.test.ts",
+			"import { isWindows } from './platform.js';\nsuite('s', () => {\n\tfunction helper() { return isWindows; }\n\ttest('a', () => helper());\n\t(isWindows ? test.skip : test)('b', () => 1);\n\ttest('b', () => 3);\n});\n",
+		);
+		// Adding a test case changes no other test case, nor the code outside them.
+		let h = analyze(
+			"a.test.ts",
+			"import { isWindows } from './platform.js';\nsuite('s', () => {\n\tfunction helper() { return isWindows; }\n\ttest('a', () => helper());\n\t(isWindows ? test.skip : test)('b', () => 1);\n\ttest('b', () => 3);\n\ttest('c', () => 4);\n});\n",
+		);
+		let hashes = |f: &FileFacts| -> Vec<u64> { f.cases.iter().map(|c| c.hash).collect() };
+		assert_eq!(
+			(
+				f.init_rest == g.init_rest,
+				hashes(&f)[..2] == hashes(&g)[..2],
+				hashes(&f)[2] == hashes(&g)[2],
+				g.init_rest == h.init_rest,
+				hashes(&g)[..] == hashes(&h)[..3],
+			),
+			(true, true, false, true, true)
 		);
 	}
 

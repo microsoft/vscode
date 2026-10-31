@@ -14,7 +14,7 @@ use std::sync::Arc;
 use crate::analyze::{
 	ExportTarget, FileFacts, Heritage, IMPLICIT_METHODS, Imported, Ref, TypeOrigin, name_id,
 };
-use crate::config::{Config, Role};
+use crate::config::{Config, Role, Signals};
 
 #[derive(Clone)]
 pub struct Entry {
@@ -81,6 +81,8 @@ enum Res {
 	/// `Linker::data_dirs`.
 	DataDir(u32),
 	Pkg(u32),
+	/// A Node.js built-in module: index into `Linker::builtins`.
+	Builtin(u32),
 }
 
 const BUILTINS: &[&str] = &[
@@ -137,6 +139,43 @@ pub fn package_name(spec: &str) -> Option<String> {
 		_ => return None,
 	};
 	(!BUILTINS.contains(&name.as_str())).then_some(name)
+}
+
+/// The Node.js built-in module that a module specifier loads, such as `fs` for `node:fs` and
+/// `fs/promises`.
+pub fn builtin_module(spec: &str) -> Option<&str> {
+	let (name, prefixed) = match spec.strip_prefix("node:") {
+		Some(name) => (name, true),
+		None => (spec, false),
+	};
+	let name = name.strip_suffix("/promises").unwrap_or(name);
+	let first = name.split('/').next()?;
+	(prefixed || BUILTINS.contains(&first)).then_some(name)
+}
+
+/// The platform signal name of two levels of members of a namespace or default import (see
+/// `Ref::ImportPath`): `node:fs#chmod` for `fs.promises.chmod`, `npm:vscode#Uri.file` for
+/// `vscode.Uri.file`.
+pub fn import_path_signal(owner: &str, path: &str) -> String {
+	match path.strip_prefix("promises.") {
+		Some(m) if owner.starts_with("node:") => format!("{owner}#{m}"),
+		_ => format!("{owner}#{path}"),
+	}
+}
+
+/// The platform signal name of what code uses through an import of a Node.js module or an npm
+/// package (`owner` is `node:fs` or `npm:vscode`): `node:fs#realpath` for `fs.realpath`,
+/// `import { realpath } from 'fs'` and `import { promises } from 'fs'` with `promises.realpath`,
+/// `npm:vscode#Uri.file` for `import { Uri } from 'vscode'` with `Uri.file`, or the owner itself
+/// for a use of the whole module.
+pub fn import_signal(owner: &str, imported: &Imported, member: Option<&str>) -> String {
+	match (imported, member) {
+		(Imported::Named(n), Some(m)) if n == "promises" => format!("{owner}#{m}"),
+		(Imported::Named(n), Some(m)) => format!("{owner}#{n}.{m}"),
+		(Imported::Named(n), None) => format!("{owner}#{n}"),
+		(_, Some(m)) => format!("{owner}#{m}"),
+		(_, None) => owner.to_owned(),
+	}
 }
 
 /// Something a module loads when it is evaluated.
@@ -219,6 +258,10 @@ struct Linker<'s> {
 	new_surfaces: Vec<(u32, u32)>,
 	packages: HashMap<String, u32>,
 	globals: HashMap<String, u32>,
+	/// Platform signals that code uses (see `Signals`), by name, such as `node:fs#realpath`.
+	signals: HashMap<String, u32>,
+	builtins: Vec<Box<str>>,
+	builtin_index: HashMap<Box<str>, u32>,
 	reads: Vec<Box<str>>,
 	read_index: HashMap<Box<str>, u32>,
 	/// Computed paths: (directory, static start, static end of the path in the directory).
@@ -226,9 +269,88 @@ struct Linker<'s> {
 	data_dir_index: HashMap<DataPattern, u32>,
 	file_nodes_end: u32,
 	next: u32,
+	/// Imports of names that a module does not export (see `Graph::unresolved`).
+	unresolved: u32,
 }
 
 impl<'s> Linker<'s> {
+	/// Adds the nodes that a reference of module `f` depends on to `out`, and returns the file or
+	/// folder that it reads by path, if any (`Res::Read` or `Res::DataDir`). `count` counts an
+	/// import that cannot be resolved (see `Graph::unresolved`): the references of test cases
+	/// are references of their initializer too.
+	fn ref_targets(&mut self, f: u32, r: &Ref, out: &mut Vec<u32>, count: bool) -> Res {
+		let snap = self.snap;
+		let facts = snap.entries[f as usize].facts.as_deref().unwrap();
+		let b = self.base[f as usize];
+		match r {
+			Ref::Local(t) => out.push(b + t),
+			Ref::Import { binding, member } => {
+				let spec = facts.bindings[*binding as usize].spec;
+				// What the code uses of a Node.js module or npm package, for the platform
+				// analysis: the npm package itself is a node already.
+				if let Some(owner) = self.signal_owner(f, spec) {
+					let name = import_signal(
+						&owner,
+						&facts.bindings[*binding as usize].imported,
+						member.as_deref(),
+					);
+					if (name.contains('#') || owner.starts_with("node:"))
+						&& self.config.is_platform_signal(&name)
+					{
+						out.push(self.signal(&name));
+					}
+				}
+				let targets = self.resolve_binding(f, *binding, member.as_deref(), 0);
+				if targets.is_empty() {
+					// A module that does not export the name (for example a type used as a value or
+					// a non-module file): depend on the whole module. Built-ins are leaves.
+					if let Res::File(t) = self.spec_res(f, spec) {
+						self.unresolved += count as u32;
+						if count && std::env::var_os("RIPPLE_DEBUG").is_some() {
+							let binding = &facts.bindings[*binding as usize];
+							eprintln!(
+								"unresolved: {} imports {:?} from {}",
+								snap.entries[f as usize].path,
+								binding.imported,
+								facts.specs[binding.spec as usize].specifier
+							);
+						}
+						out.push(self.surface(t));
+					}
+				}
+				out.extend(targets);
+			}
+			Ref::All(spec) => match self.spec_res(f, *spec) {
+				Res::File(t) => out.push(self.surface(t)),
+				read @ (Res::Read(_) | Res::DataDir(_)) => return read,
+				Res::Pkg(p) => out.push(p),
+				Res::Builtin(m) => {
+					let name = format!("node:{}", self.builtins[m as usize]);
+					if self.config.is_platform_signal(&name) {
+						out.push(self.signal(&name));
+					}
+				}
+				_ => {}
+			},
+			Ref::Global(name) => out.push(self.global(name)),
+			Ref::Signal(name) => {
+				if self.config.is_platform_signal(name) {
+					out.push(self.signal(name));
+				}
+			}
+			Ref::ImportPath { binding, path } => {
+				let spec = facts.bindings[*binding as usize].spec;
+				if let Some(owner) = self.signal_owner(f, spec) {
+					let name = import_path_signal(&owner, path);
+					if self.config.is_platform_signal(&name) {
+						out.push(self.signal(&name));
+					}
+				}
+			}
+		}
+		Res::None
+	}
+
 	fn node_count(&self, f: u32) -> u32 {
 		self.snap.entries[f as usize]
 			.facts
@@ -251,6 +373,30 @@ impl<'s> Linker<'s> {
 		id
 	}
 
+	/// The node of a platform signal, a leaf that only the platform analysis reads.
+	fn signal(&mut self, name: &str) -> u32 {
+		if let Some(&id) = self.signals.get(name) {
+			return id;
+		}
+		let id = self.next;
+		self.next += 1;
+		self.signals.insert(name.to_owned(), id);
+		id
+	}
+
+	/// The platform signal name of the Node.js module or npm package that a spec names:
+	/// `node:fs` or `npm:electron`.
+	fn signal_owner(&mut self, f: u32, spec: u32) -> Option<String> {
+		match self.spec_res(f, spec) {
+			Res::Builtin(b) => Some(format!("node:{}", self.builtins[b as usize])),
+			Res::Pkg(_) => {
+				let facts = self.snap.entries[f as usize].facts.as_ref()?;
+				package_name(&facts.specs[spec as usize].specifier).map(|p| format!("npm:{p}"))
+			}
+			_ => None,
+		}
+	}
+
 	/// The node of `member` when `v` is a declaration with tracked members, otherwise `v`.
 	fn member_node(&self, v: u32, member: &str) -> u32 {
 		if v >= self.file_nodes_end {
@@ -267,6 +413,15 @@ impl<'s> Linker<'s> {
 	}
 
 	fn package(&mut self, spec: &str) -> Res {
+		if let Some(module) = builtin_module(spec) {
+			if let Some(&b) = self.builtin_index.get(module) {
+				return Res::Builtin(b);
+			}
+			let b = self.builtins.len() as u32;
+			self.builtins.push(module.into());
+			self.builtin_index.insert(module.into(), b);
+			return Res::Builtin(b);
+		}
 		let Some(name) = package_name(spec) else {
 			return Res::None;
 		};
@@ -655,6 +810,9 @@ pub struct Graph {
 	data_dirs: HashMap<Box<str>, Vec<(Box<str>, Box<str>, u32, u32)>>,
 	/// Globals injected by the test runners, and the nodes standing for them.
 	pub globals: HashMap<String, u32>,
+	/// Platform signals that code uses, by name, and the leaf nodes standing for them (see
+	/// `Signals`).
+	pub signals: HashMap<String, u32>,
 	/// Modules loaded by each entry's initializer.
 	pub loads: Vec<Box<[u32]>>,
 	/// The modules and npm packages loaded by each entry's initializer, in load order.
@@ -665,6 +823,9 @@ pub struct Graph {
 	implicit: Vec<u64>,
 	pub edges: usize,
 	pub unresolved: u32,
+	/// The nodes that each test case of a module initializer references, by module (see
+	/// `FileFacts::cases`). They are not edges of the graph: only the platform analysis reads them.
+	cases: HashMap<u32, Vec<Box<[u32]>>>,
 }
 
 impl Graph {
@@ -686,12 +847,16 @@ impl Graph {
 			new_surfaces: Vec::new(),
 			packages: HashMap::new(),
 			globals: HashMap::new(),
+			signals: HashMap::new(),
+			builtins: Vec::new(),
+			builtin_index: HashMap::new(),
 			reads: Vec::new(),
 			read_index: HashMap::new(),
 			data_dirs: Vec::new(),
 			data_dir_index: HashMap::new(),
 			file_nodes_end: next,
 			next,
+			unresolved: 0,
 		};
 		let mut loads: Vec<Box<[u32]>> = vec![Box::new([]); n];
 		let mut load_order: Vec<Box<[Load]>> = vec![Box::new([]); n];
@@ -701,7 +866,8 @@ impl Graph {
 		let mut edges: Vec<(u32, u32)> = Vec::new();
 		let mut files_all: Vec<(u32, u32)> = Vec::new();
 		let mut files_runtime: Vec<(u32, u32)> = Vec::new();
-		let mut unresolved = 0;
+		let mut targets: Vec<u32> = Vec::new();
+		let mut case_targets: HashMap<u32, Vec<Box<[u32]>>> = HashMap::new();
 		for f in 0..n as u32 {
 			let Some(facts) = snap.entries[f as usize].facts.as_deref() else {
 				continue;
@@ -726,44 +892,30 @@ impl Graph {
 					edges.push((u, b + child));
 				}
 				for r in &decl.refs {
-					match r {
-						Ref::Local(t) => edges.push((u, b + t)),
-						Ref::Import { binding, member } => {
-							let targets = linker.resolve_binding(f, *binding, member.as_deref(), 0);
-							if targets.is_empty() {
-								// A module that does not export the name (for example a type used as a value
-								// or a non-module file): depend on the whole module. Built-ins are leaves.
-								if let Res::File(t) =
-									linker.spec_res(f, facts.bindings[*binding as usize].spec)
-								{
-									unresolved += 1;
-									if std::env::var_os("RIPPLE_DEBUG").is_some() {
-										let binding = &facts.bindings[*binding as usize];
-										eprintln!(
-											"unresolved: {} imports {:?} from {}",
-											snap.entries[f as usize].path,
-											binding.imported,
-											facts.specs[binding.spec as usize].specifier
-										);
-									}
-									edges.push((u, linker.surface(t)));
-								}
-							}
-							edges.extend(targets.into_iter().map(|v| (u, v)));
-						}
-						Ref::All(spec) => match linker.spec_res(f, *spec) {
-							Res::File(t) => edges.push((u, linker.surface(t))),
-							Res::Read(d) => read_refs.push((d, u, f)),
-							Res::DataDir(d) => data_dir_refs.push((d, u, f)),
-							Res::Pkg(p) => edges.push((u, p)),
-							_ => {}
-						},
-						Ref::Global(name) => {
-							let g = linker.global(name);
-							edges.push((u, g));
-						}
+					match linker.ref_targets(f, r, &mut targets, true) {
+						Res::Read(d) => read_refs.push((d, u, f)),
+						Res::DataDir(d) => data_dir_refs.push((d, u, f)),
+						_ => {}
 					}
+					edges.extend(targets.drain(..).map(|v| (u, v)));
 				}
+			}
+			// The test cases of the initializer, for the platform analysis only (see
+			// `FileFacts::cases`): what each one references, not edges of the graph.
+			if !facts.cases.is_empty() {
+				let cases = facts
+					.cases
+					.iter()
+					.map(|case| {
+						for r in &case.refs {
+							linker.ref_targets(f, r, &mut targets, false);
+						}
+						targets.sort_unstable();
+						targets.dedup();
+						targets.drain(..).collect()
+					})
+					.collect();
+				case_targets.insert(f, cases);
 			}
 			let mut targets = Vec::new();
 			let mut order = Vec::new();
@@ -953,6 +1105,8 @@ impl Graph {
 		}
 		let packages = std::mem::take(&mut linker.packages);
 		let globals = std::mem::take(&mut linker.globals);
+		let signals = std::mem::take(&mut linker.signals);
+		let unresolved = linker.unresolved;
 		let surfaces = linker.surfaces.iter().map(|(&f, &s)| (s, f)).collect();
 		let mut reads: HashMap<Box<str>, (Vec<u32>, Vec<u32>)> = HashMap::new();
 		for (d, u, f) in read_refs {
@@ -986,6 +1140,7 @@ impl Graph {
 			reads,
 			data_dirs,
 			globals,
+			signals,
 			loads,
 			load_order,
 			effectful,
@@ -1006,6 +1161,7 @@ impl Graph {
 			node_file,
 			packages,
 			surfaces,
+			cases: case_targets,
 			unresolved,
 		}
 	}
@@ -1222,9 +1378,155 @@ impl Graph {
 			format!("package {name}")
 		} else if let Some(name) = named(&self.globals) {
 			format!("global {name}")
+		} else if let Some(name) = named(&self.signals) {
+			format!("signal {name}")
 		} else {
 			format!("node {v}")
 		}
+	}
+
+	/// The platform signal name of a node (see `Signals`): `path#key` for a declaration, the path
+	/// of a file that is not analyzed or of a module that code references as a whole,
+	/// `npm:<package>`, or the name of a signal such as `node:fs#realpath`.
+	pub fn signal_name(&self, snap: &Snapshot, v: u32) -> String {
+		let named = |nodes: &HashMap<String, u32>| {
+			nodes
+				.iter()
+				.find(|&(_, &n)| n == v)
+				.map(|(name, _)| name.clone())
+		};
+		let f = self.node_file[v as usize];
+		if let Some(entry) = snap.entries.get(f as usize) {
+			return match &entry.facts {
+				Some(facts) => format!(
+					"{}#{}",
+					entry.path,
+					facts.decls[(v - self.base[f as usize]) as usize].key
+				),
+				None => entry.path.to_string(),
+			};
+		}
+		if let Some(&m) = self.surfaces.get(&v) {
+			snap.entries[m as usize].path.to_string()
+		} else if let Some(name) = named(&self.packages) {
+			format!("npm:{name}")
+		} else if let Some(name) = named(&self.globals) {
+			format!("globalThis.{name}")
+		} else if let Some(name) = named(&self.signals) {
+			name
+		} else {
+			format!("node {v}")
+		}
+	}
+
+	/// The nodes that platform signals name: the signal nodes, the npm packages, and the
+	/// declarations of modules, or all the nodes of a module that a signal names as a whole.
+	pub fn signal_marks(&self, snap: &Snapshot, signals: &Signals) -> Vec<bool> {
+		let mut marks = vec![false; self.node_count()];
+		if signals.is_empty() {
+			return marks;
+		}
+		for (name, &v) in &self.signals {
+			marks[v as usize] |= signals.matching(name).is_some();
+		}
+		for (name, &v) in &self.packages {
+			marks[v as usize] |= signals.matching(&format!("npm:{name}")).is_some();
+		}
+		let surface_of: HashMap<u32, u32> = self.surfaces.iter().map(|(&s, &f)| (f, s)).collect();
+		for (f, e) in snap.entries.iter().enumerate() {
+			if signals.naming(&e.path).is_none() {
+				continue;
+			}
+			let whole = signals.matching(&e.path).is_some();
+			match &e.facts {
+				Some(facts) => {
+					for (d, decl) in facts.decls.iter().enumerate() {
+						if whole
+							|| signals
+								.matching(&format!("{}#{}", e.path, decl.key))
+								.is_some()
+						{
+							marks[self.base[f] as usize + d] = true;
+						}
+					}
+				}
+				None => marks[self.base[f] as usize] |= whole,
+			}
+			if let (true, Some(&s)) = (whole, surface_of.get(&(f as u32))) {
+				marks[s as usize] = true;
+			}
+		}
+		marks
+	}
+
+	/// Whether a node is the initializer of its module (or stands for a file that is not
+	/// analyzed).
+	fn is_init(&self, v: u32) -> bool {
+		let f = self.node_file[v as usize];
+		f != u32::MAX && self.base[f as usize] == v
+	}
+
+	/// A path of at most `depth` edges from test case `case` of entry `f` to a marked node (see
+	/// `signal_path`), if there is one. A test case is not a node: the path starts at what it
+	/// references.
+	pub fn case_signal_path(
+		&self,
+		f: u32,
+		case: usize,
+		marks: &[bool],
+		depth: u32,
+	) -> Option<Vec<u32>> {
+		let targets = self.cases.get(&f)?.get(case)?;
+		if depth == 0 {
+			return None;
+		}
+		if let Some(&t) = targets.iter().find(|&&t| marks[t as usize]) {
+			return Some(vec![t]);
+		}
+		targets
+			.iter()
+			.find_map(|&t| self.signal_path(t, marks, depth - 1))
+	}
+
+	/// A path of at most `depth` edges from `start` to a marked node (see `signal_marks`), if
+	/// there is one: `[start]` when `start` is marked itself. Loading a module is not using it, so
+	/// the path does not go from a module initializer to another module's.
+	pub fn signal_path(&self, start: u32, marks: &[bool], depth: u32) -> Option<Vec<u32>> {
+		if marks[start as usize] {
+			return Some(vec![start]);
+		}
+		let mut from: HashMap<u32, u32> = HashMap::new();
+		let mut frontier = vec![start];
+		for _ in 0..depth {
+			let mut next = Vec::new();
+			for &n in &frontier {
+				let init = self.is_init(n);
+				for &v in self.forward.of(n) {
+					if v == start
+						|| from.contains_key(&v)
+						|| (init
+							&& self.is_init(v) && self.node_file[v as usize]
+							!= self.node_file[n as usize])
+					{
+						continue;
+					}
+					from.insert(v, n);
+					if marks[v as usize] {
+						let mut path = vec![v];
+						let mut cur = v;
+						while let Some(&p) = from.get(&cur) {
+							path.push(p);
+							cur = p;
+						}
+						path.reverse();
+						return Some(path);
+					}
+					next.push(v);
+				}
+			}
+			frontier = next;
+		}
+		None
 	}
 
 	/// Nodes and files that read `path` or a directory containing it, including, for a data file

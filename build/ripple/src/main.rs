@@ -11,18 +11,21 @@ mod deps;
 mod engine;
 mod git;
 mod graph;
+mod platform;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::{Context, Result, bail};
+use serde::Deserialize;
 
-use crate::config::{Config, Role};
+use crate::config::{Config, OSES, Role};
 use crate::engine::{Engine, blob_texts, changed_nodes, select};
 use crate::graph::{Graph, Snapshot};
+use crate::platform::{OsPlan, Rule, Tier};
 
 const USAGE: &str = "usage: ripple <command> --config FILE [--repo PATH] [options]\n\
 	\n\
@@ -32,17 +35,32 @@ const USAGE: &str = "usage: ripple <command> --config FILE [--repo PATH] [option
 	\tplan --base REV [--head REV] [--out-dir DIR]: the unit test files to run for a change\n\
 	\tblame --test PATH --since REV [--until REV]: the commits in a range that can affect a test\n\
 	\twhy --test PATH --base REV [--head REV]: how a change reaches a test that it selects\n\
-	\treplay --since DATE [--until REV] [--out FILE] [--hubs 1]: selection statistics over first-parent history";
+	\twhy --platform OS [--test PATH] --base REV [--head REV]: why a change runs tests on win32 or darwin\n\
+	\treplay --since DATE [--until REV] [--out FILE] [--hubs 1] [--platforms 1]: selection statistics over first-parent history\n\
+	\teval --labels FILE: whether the platform analysis runs the tiers that labeled failures failed in";
 
 /// The commands of `USAGE`.
 const COMMANDS: &[&str] = &[
-	"stats", "affected", "analyze", "plan", "blame", "why", "replay",
+	"stats", "affected", "analyze", "plan", "blame", "why", "replay", "eval",
 ];
 
 /// The options of all commands. Each one takes a value.
 const OPTIONS: &[&str] = &[
-	"config", "repo", "rev", "base", "head", "file", "out-dir", "test", "since", "until", "out",
+	"config",
+	"repo",
+	"rev",
+	"base",
+	"head",
+	"file",
+	"out-dir",
+	"test",
+	"since",
+	"until",
+	"out",
 	"hubs",
+	"platform",
+	"platforms",
+	"labels",
 ];
 
 struct Args {
@@ -139,7 +157,8 @@ fn main() -> Result<()> {
 		"why" => why(
 			&config,
 			repo,
-			args.get("test").context("--test is required")?,
+			args.get("test"),
+			args.get("platform"),
 			args.get("base").context("--base is required")?,
 			args.get("head").unwrap_or("HEAD"),
 		),
@@ -150,6 +169,12 @@ fn main() -> Result<()> {
 			args.get("until").unwrap_or("HEAD"),
 			args.get("out"),
 			args.get("hubs").is_some(),
+			args.get("platforms").is_some(),
+		),
+		"eval" => eval(
+			&config,
+			repo,
+			args.get("labels").context("--labels is required")?,
 		),
 		_ => unreachable!(),
 	}
@@ -405,8 +430,10 @@ fn plan(
 		),
 	};
 	let select_integration = select_only && sel.run_all_integration.is_none();
+	let platforms = platform::plan(config, &mut blobs, &bs, &bg, &hs, &hg, &changes, &sel)?;
+	let share_of = |p: &OsPlan| os_share(&hs, p);
 
-	let json = serde_json::json!({
+	let mut json = serde_json::json!({
 		"select": select_only,
 		"reason": reason,
 		"share": (share * 10000.0).round() / 10000.0,
@@ -418,11 +445,17 @@ fn plan(
 			"reason": integration_reason,
 			"files": integration,
 		},
-	})
-	.to_string();
+	});
+	if let Some(plans) = &platforms {
+		json["platforms"] = platform::to_json(plans, share_of);
+	}
+	let json = json.to_string();
 	println!("{json}");
 	eprintln!("{reason}");
 	eprintln!("{integration_reason}");
+	for p in platforms.iter().flatten() {
+		eprintln!("{}", os_line(p, share_of(p)));
+	}
 
 	if let Some(dir) = out_dir {
 		let dir = Path::new(dir);
@@ -434,10 +467,18 @@ fn plan(
 			select_integration,
 			&integration,
 		)?;
+		for p in platforms.iter().flatten() {
+			let tests: Vec<&str> = p.tests.iter().map(|t| &**t).collect();
+			write_list(&dir.join(format!("{}.txt", p.os)), !p.all, &tests)?;
+		}
 	}
 	if let Some(path) = std::env::var_os("GITHUB_OUTPUT") {
 		let mut out = std::fs::OpenOptions::new().append(true).open(path)?;
 		writeln!(out, "select={select_only}")?;
+		for p in platforms.iter().flatten() {
+			writeln!(out, "{}-unit={}", p.os, p.unit)?;
+			writeln!(out, "{}-e2e={}", p.os, p.e2e)?;
+		}
 	}
 	if let Some(path) = std::env::var_os("GITHUB_STEP_SUMMARY") {
 		let mut out = std::fs::OpenOptions::new().append(true).open(path)?;
@@ -456,8 +497,65 @@ fn plan(
 			all_integration.len(),
 			"integration",
 		)?;
+		if let Some(plans) = &platforms {
+			write!(out, "{}", platform::summary(plans, share_of))?;
+		}
 	}
 	Ok(())
+}
+
+/// The share of the unit test work that an operating system runs: all of it when every test runs.
+fn os_share(snap: &Snapshot, p: &OsPlan) -> f64 {
+	if p.all {
+		return 1.0;
+	}
+	let total = weight(
+		snap,
+		snap.entries
+			.iter()
+			.filter(|e| e.role == Role::UnitTest)
+			.map(|e| &*e.path),
+	);
+	if total > 0.0 {
+		weight(snap, p.tests.iter()) / total
+	} else {
+		0.0
+	}
+}
+
+/// One line that summarizes the plan of an operating system.
+fn os_line(p: &OsPlan, share: f64) -> String {
+	let unit = if p.all {
+		"every test".to_owned()
+	} else if p.unit {
+		let mut parts = vec![format!(
+			"{} test files ({:.1}% of the unit test work)",
+			p.tests.len(),
+			share * 100.0
+		)];
+		if !p.extensions.is_empty() {
+			parts.push(format!("the tests of {}", p.extensions.join(", ")));
+		}
+		parts.join(" and ")
+	} else {
+		"nothing".to_owned()
+	};
+	let rules = |tier: Tier| -> String {
+		let rules = p.rules(tier);
+		if rules.is_empty() {
+			String::new()
+		} else {
+			let names: Vec<&str> = rules.iter().map(|r| r.name()).collect();
+			format!(" ({})", names.join(", "))
+		}
+	};
+	format!(
+		"{}: unit tier runs {unit}{}; e2e tier {}{}",
+		p.os,
+		rules(Tier::Unit),
+		if p.e2e { "runs" } else { "skipped" },
+		rules(Tier::E2e)
+	)
 }
 
 /// Writes the selected test files to `path`, one per line, when selection is on and selects any
@@ -565,8 +663,16 @@ fn blame(config: &Config, repo: PathBuf, test: &str, since: &str, until: &str) -
 }
 
 /// Explains why a change selects a test: a path from the test's code to what the change changed,
-/// through the declarations, whole modules, packages and globals in between.
-fn why(config: &Config, repo: PathBuf, test: &str, base: &str, head: &str) -> Result<()> {
+/// through the declarations, whole modules, packages and globals in between. With `platform`,
+/// explains why the change runs tests on that operating system, or runs that test there.
+fn why(
+	config: &Config,
+	repo: PathBuf,
+	test: Option<&str>,
+	platform: Option<&str>,
+	base: &str,
+	head: &str,
+) -> Result<()> {
 	let mut engine = Engine::new(repo.clone(), config);
 	let mut blobs = blob_texts(&repo)?;
 	let bs = engine.snapshot(base)?;
@@ -574,6 +680,66 @@ fn why(config: &Config, repo: PathBuf, test: &str, base: &str, head: &str) -> Re
 	let (bg, hg) = (Graph::build(&bs, config), Graph::build(&hs, config));
 	let changes = git::diff_tree(&repo, base, head)?;
 	let sel = select(config, &mut blobs, &bs, &bg, &hs, &hg, &changes)?;
+	let data = |p: &str| !bs.role(p).is_module() && !hs.role(p).is_module();
+	let graphs = [(&hs, &hg, &sel.head_seeds), (&bs, &bg, &sel.base_seeds)];
+	if let Some(os) = platform {
+		if !OSES.contains(&os) {
+			bail!("unknown operating system '{os}': {}", OSES.join(", "));
+		}
+		let plans = platform::plan(config, &mut blobs, &bs, &bg, &hs, &hg, &changes, &sel)?
+			.context("the configuration has no platforms")?;
+		let p = plans.iter().find(|p| p.os == os).unwrap();
+		let Some(test) = test else {
+			println!("{}", os_line(p, os_share(&hs, p)));
+			for r in &p.reasons {
+				let tier = if r.tier == Tier::Unit { "unit" } else { "e2e" };
+				let group = r.group.map(|g| format!(" ({g})")).unwrap_or_default();
+				println!("  [{tier}] {}{group}", r.text());
+			}
+			return Ok(());
+		};
+		if let Some(reason) = &sel.run_all {
+			println!("every test runs on {os}: {reason}");
+			return Ok(());
+		}
+		if !p.tests.iter().any(|t| &**t == test) {
+			println!("the change does not run {test} on {os}");
+			return Ok(());
+		}
+		let own = format!("{test}#");
+		for r in p.reasons.iter().filter(|r| {
+			matches!(r.rule, Rule::SelectedTest | Rule::ChangedTest)
+				&& (r.change == test || r.change.starts_with(&own))
+		}) {
+			println!("{}", r.text());
+		}
+		// Only the base graph has the code that the change removed.
+		for ((snap, graph, _), signals) in graphs.iter().zip([&p.head_seeds, &p.base_seeds]) {
+			let seeds: Vec<u32> = signals.keys().copied().collect();
+			if print_path(snap, graph, test, &seeds, &changes, data, Some(signals)) {
+				break;
+			}
+		}
+		if p.every_selected {
+			println!("every test that the change selects runs on {os}:");
+			for r in p
+				.reasons
+				.iter()
+				.filter(|r| r.tier == Tier::Unit && matches!(r.rule, Rule::Path | Rule::Package))
+			{
+				println!("  {}", r.text());
+			}
+			if sel.decl.iter().any(|p| &**p == test) {
+				for (snap, graph, seeds) in graphs {
+					if print_path(snap, graph, test, seeds, &changes, data, None) {
+						break;
+					}
+				}
+			}
+		}
+		return Ok(());
+	}
+	let test = test.context("--test is required")?;
 	if let Some(reason) = &sel.run_all {
 		println!("every unit test runs: {reason}");
 		return Ok(());
@@ -582,45 +748,73 @@ fn why(config: &Config, repo: PathBuf, test: &str, base: &str, head: &str) -> Re
 		println!("the change does not select {test}");
 		return Ok(());
 	}
-	// Only the base graph has the code that the change removed.
-	for (snap, graph, seeds) in [(&hs, &hg, &sel.head_seeds), (&bs, &bg, &sel.base_seeds)] {
-		let Some(f) = snap.find(test) else {
-			continue;
-		};
-		let mut targets = vec![false; graph.node_count()];
-		for &s in seeds {
-			targets[s as usize] = true;
+	for (snap, graph, seeds) in graphs {
+		if print_path(snap, graph, test, seeds, &changes, data, None) {
+			return Ok(());
 		}
-		let roots: Vec<u32> = graph.file_nodes(f as usize).collect();
-		let Some(path) = graph.path_from(&roots, &[], &targets) else {
-			continue;
-		};
-		let seed = path[path.len() - 1].0;
-		let data = |p: &str| !bs.role(p).is_module() && !hs.role(p).is_module();
-		let read: Vec<&str> = changes
-			.iter()
-			.map(|c| c.path.as_str())
-			.filter(|p| graph.readers(p, data(p)).0.contains(&seed))
-			.collect();
-		for (i, &(v, opener)) in path.iter().enumerate() {
-			let mut line = format!(
-				"{}{}",
-				if i == 0 { "" } else { "  -> " },
-				graph.label(snap, v)
-			);
-			if let Some(o) = opener {
-				line += &format!("  (method opened by its name in {})", graph.label(snap, o));
-			}
-			if v == seed && read.is_empty() {
-				line += "  (changed)";
-			} else if v == seed {
-				line += &format!("  (reads {} by path)", read.join(", "));
-			}
-			println!("{line}");
-		}
-		return Ok(());
 	}
 	bail!("found no path from {test} to the change")
+}
+
+/// Prints a path from the code of `test` to one of `seeds` in one graph, if there is one, and
+/// whether it does. The seed is what the change changed, or code reading changed files by path.
+/// With `signals`, the path goes on from the seed to the platform signal it uses.
+fn print_path(
+	snap: &Snapshot,
+	graph: &Graph,
+	test: &str,
+	seeds: &[u32],
+	changes: &[git::Change],
+	data: impl Fn(&str) -> bool,
+	signals: Option<&HashMap<u32, Vec<u32>>>,
+) -> bool {
+	let Some(f) = snap.find(test) else {
+		return false;
+	};
+	let mut targets = vec![false; graph.node_count()];
+	for &s in seeds {
+		targets[s as usize] = true;
+	}
+	let roots: Vec<u32> = graph.file_nodes(f as usize).collect();
+	let Some(path) = graph.path_from(&roots, &[], &targets) else {
+		return false;
+	};
+	let seed = path[path.len() - 1].0;
+	let read: Vec<&str> = changes
+		.iter()
+		.map(|c| c.path.as_str())
+		.filter(|p| graph.readers(p, data(p)).0.contains(&seed))
+		.collect();
+	for (i, &(v, opener)) in path.iter().enumerate() {
+		let mut line = format!(
+			"{}{}",
+			if i == 0 { "" } else { "  -> " },
+			graph.label(snap, v)
+		);
+		if let Some(o) = opener {
+			line += &format!("  (method opened by its name in {})", graph.label(snap, o));
+		}
+		if v == seed && read.is_empty() {
+			line += "  (changed)";
+		} else if v == seed {
+			line += &format!("  (reads {} by path)", read.join(", "));
+		}
+		println!("{line}");
+	}
+	if let Some(signal_path) = signals.and_then(|s| s.get(&seed)) {
+		for (i, &v) in signal_path.iter().enumerate().skip(1) {
+			let last = i == signal_path.len() - 1;
+			println!(
+				"  -> {}{}",
+				graph.label(snap, v),
+				if last { "  (platform signal)" } else { "" }
+			);
+		}
+		if signal_path.len() == 1 {
+			println!("  (a platform signal itself)");
+		}
+	}
+	true
 }
 
 /// Replays first-parent history and compares the share of unit test work that file-level and
@@ -632,7 +826,11 @@ fn replay(
 	until: &str,
 	out: Option<&str>,
 	hubs: bool,
+	platforms: bool,
 ) -> Result<()> {
+	if platforms && config.platforms.is_none() {
+		bail!("--platforms needs `platforms` in the configuration");
+	}
 	let commits = first_parent_commits(&repo, &[&format!("--since={since}"), until])?;
 	let Some(first) = commits.first() else {
 		bail!("no commits")
@@ -660,6 +858,7 @@ fn replay(
 	let mut run_all_commits = 0;
 	let mut module_commits = 0;
 	let mut step_ms = 0u128;
+	let mut platform_stats = PlatformStats::default();
 	for (sha, parent, subject) in &commits {
 		let t = Instant::now();
 		let changes = git::diff_tree(&repo, parent, sha)?;
@@ -667,6 +866,18 @@ fn replay(
 		let hg = Graph::build(&head, config);
 		let sel = select(config, &mut blobs, &base, &bg, &head, &hg, &changes)?;
 		step_ms += t.elapsed().as_millis();
+		let plans = if platforms {
+			let t = Instant::now();
+			let plans = platform::plan(config, &mut blobs, &base, &bg, &head, &hg, &changes, &sel)?;
+			platform_stats.ms += t.elapsed().as_millis();
+			plans.unwrap_or_default()
+		} else {
+			Vec::new()
+		};
+		let plan_shares: Vec<f64> = plans.iter().map(|p| os_share(&head, p)).collect();
+		if platforms {
+			platform_stats.add(&head, &plans, &plan_shares);
+		}
 		let touches_modules = changes.iter().any(|c| config.role(&c.path).is_module());
 		module_commits += touches_modules as usize;
 		let all_tests: HashSet<Arc<str>> = head
@@ -744,25 +955,44 @@ fn replay(
 				.iter()
 				.filter(|p| head.role(p) == Role::IntegrationTest)
 				.count();
-			writeln!(
-				out,
-				"{}",
-				serde_json::json!({
-					"sha": sha,
-					"pr": pr,
-					"changed": changes.len(),
-					"modules": touches_modules,
-					"packages": sel.packages,
-					"runAll": sel.run_all,
-					"runAllIntegration": sel.run_all_integration,
-					"changedDecls": sel.changed_decls,
-					"fileAll": row[1],
-					"fileRuntime": row[2],
-					"decl": row[3],
-					"declTestFiles": decl_tests,
-					"declIntegrationTestFiles": decl_integration_tests,
-				})
-			)?;
+			let mut row_json = serde_json::json!({
+				"sha": sha,
+				"pr": pr,
+				"changed": changes.len(),
+				"modules": touches_modules,
+				"packages": sel.changed_packages.len(),
+				"runAll": sel.run_all,
+				"runAllIntegration": sel.run_all_integration,
+				"changedDecls": sel.changed_decls,
+				"fileAll": row[1],
+				"fileRuntime": row[2],
+				"decl": row[3],
+				"declTestFiles": decl_tests,
+				"declIntegrationTestFiles": decl_integration_tests,
+			});
+			if platforms {
+				let mut map = serde_json::Map::new();
+				for (p, share) in plans.iter().zip(&plan_shares) {
+					let names = |tier: Tier| -> Vec<&str> {
+						p.rules(tier).iter().map(|r| r.name()).collect()
+					};
+					map.insert(
+						p.os.to_owned(),
+						serde_json::json!({
+							"unit": p.unit,
+							"e2e": p.e2e,
+							"all": p.all,
+							"tests": p.tests.len(),
+							"extensions": p.extensions,
+							"share": share,
+							"unitRules": names(Tier::Unit),
+							"e2eRules": names(Tier::E2e),
+						}),
+					);
+				}
+				row_json["platforms"] = serde_json::Value::Object(map);
+			}
+			writeln!(out, "{row_json}")?;
 		}
 		base = head;
 		bg = hg;
@@ -815,6 +1045,342 @@ fn replay(
 				reach * 100.0
 			);
 		}
+	}
+	if platforms {
+		platform_stats.print(n);
+	}
+	Ok(())
+}
+
+/// How often the platform analysis runs the tiers of each operating system over replayed
+/// commits, and which rules make it run them (see `replay --platforms`).
+#[derive(Default)]
+struct PlatformStats {
+	/// By operating system: (unit tier, e2e tier, every test, summed share of the unit test work).
+	tiers: BTreeMap<&'static str, (usize, usize, usize, f64)>,
+	/// By operating system, tier and rule: (commits where the rule applies, where it is the only
+	/// rule that runs the tier).
+	rules: BTreeMap<(&'static str, bool, Rule), (usize, usize)>,
+	/// By rule and signal (or path pattern) that runs the unit tier on any operating system:
+	/// (commits where it applies, where it is the only one).
+	signals: HashMap<String, (usize, usize)>,
+	any_unit: usize,
+	any_e2e: usize,
+	ms: u128,
+}
+
+impl PlatformStats {
+	fn add(&mut self, snap: &Snapshot, plans: &[OsPlan], shares: &[f64]) {
+		let mut signals: HashSet<String> = HashSet::new();
+		// A plan that runs every test runs it whatever the signals.
+		for p in plans.iter().filter(|p| p.unit && !p.all) {
+			for r in p.reasons.iter().filter(|r| r.tier == Tier::Unit) {
+				if r.rule == Rule::RunEverything {
+					continue;
+				}
+				let changed = r.change.split_once('#').map_or(&*r.change, |(p, _)| p);
+				let rule = match r.rule {
+					Rule::Declaration if snap.role(changed).is_test() => "declaration in a test",
+					rule => rule.name(),
+				};
+				signals.insert(format!("{rule}: {}", r.signal.as_deref().unwrap_or("-")));
+			}
+		}
+		let only = signals.len() == 1;
+		for s in signals {
+			let e = self.signals.entry(s).or_default();
+			e.0 += 1;
+			e.1 += only as usize;
+		}
+		for (p, share) in plans.iter().zip(shares) {
+			let t = self.tiers.entry(p.os).or_default();
+			t.0 += p.unit as usize;
+			t.1 += p.e2e as usize;
+			t.2 += p.all as usize;
+			t.3 += share;
+			for (tier, on) in [(Tier::Unit, p.unit), (Tier::E2e, p.e2e)] {
+				let rules = p.rules(tier);
+				for &rule in &rules {
+					let r = self
+						.rules
+						.entry((p.os, tier == Tier::E2e, rule))
+						.or_default();
+					r.0 += on as usize;
+					r.1 += (on && rules.len() == 1) as usize;
+				}
+			}
+		}
+		self.any_unit += plans.iter().any(|p| p.unit) as usize;
+		self.any_e2e += plans.iter().any(|p| p.e2e) as usize;
+	}
+
+	fn print(&self, n: usize) {
+		let pct = |c: usize| c as f64 / n.max(1) as f64 * 100.0;
+		println!(
+			"\nplatform analysis: share of commits that run each tier ({} ms per commit):",
+			self.ms / n.max(1) as u128
+		);
+		println!(
+			"{:<10} {:>10} {:>10} {:>12} {:>24}",
+			"os", "unit tier", "e2e tier", "every test", "mean unit work there"
+		);
+		for (os, (unit, e2e, all, share)) in &self.tiers {
+			println!(
+				"{os:<10} {:>9.1}% {:>9.1}% {:>11.1}% {:>23.1}%",
+				pct(*unit),
+				pct(*e2e),
+				pct(*all),
+				share / n.max(1) as f64 * 100.0
+			);
+		}
+		println!(
+			"{:<10} {:>9.1}% {:>9.1}%",
+			"any",
+			pct(self.any_unit),
+			pct(self.any_e2e)
+		);
+		for (e2e, title) in [(false, "unit tier"), (true, "e2e tier")] {
+			println!(
+				"\nrules that run the {title}: share of commits where a rule applies / where it is the only one:"
+			);
+			print!("{:<16}", "rule");
+			for os in OSES {
+				print!(" {os:>20}");
+			}
+			println!();
+			for rule in Rule::ALL {
+				if !OSES
+					.iter()
+					.any(|&os| self.rules.contains_key(&(os, e2e, rule)))
+				{
+					continue;
+				}
+				print!("{:<16}", rule.name());
+				for os in OSES {
+					let (applies, only) = self
+						.rules
+						.get(&(os, e2e, rule))
+						.copied()
+						.unwrap_or_default();
+					print!(" {:>9.1}% / {:>6.1}%", pct(applies), pct(only));
+				}
+				println!();
+			}
+		}
+		let mut signals: Vec<(&String, &(usize, usize))> = self.signals.iter().collect();
+		signals.sort_by(|a, b| b.1.0.cmp(&a.1.0).then(a.0.cmp(b.0)));
+		println!(
+			"\nsignals that run the unit tier: share of commits where one applies / where it is the only one:"
+		);
+		for (signal, (applies, only)) in signals.iter().take(40) {
+			println!("{:>6.1}% / {:>5.1}%  {signal}", pct(*applies), pct(*only));
+		}
+	}
+}
+
+/// A failure from the labeled set of `eval --labels`: a CI job that failed on one operating
+/// system for a change. Fields that the set has beyond these are ignored.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Label {
+	base_sha: Option<String>,
+	head_sha: Option<String>,
+	/// `win`, `windows` or `win32`; `mac`, `macos` or `darwin`.
+	os: Option<String>,
+	/// `unit` or `e2e`: the tier that failed, else derived from `job_name`.
+	tier: Option<String>,
+	job_name: Option<String>,
+	/// Only failures that the change caused count: `real`, or no verdict at all.
+	refined_verdict: Option<String>,
+	verdict: Option<String>,
+	/// Attempts of the same failure share a group.
+	analysis_group: Option<serde_json::Value>,
+	category: Option<String>,
+	pr_number: Option<serde_json::Value>,
+}
+
+impl Label {
+	fn os(&self) -> Option<&'static str> {
+		match self.os.as_deref()?.to_ascii_lowercase().as_str() {
+			"win" | "windows" | "win32" => Some("win32"),
+			"mac" | "macos" | "darwin" | "osx" => Some("darwin"),
+			_ => None,
+		}
+	}
+
+	/// The tier of the failed job: end-to-end for smoke, remote and browser integration jobs
+	/// (`macOS / Browser`, not `macOS / Browser-Unit`), the unit tier for the others.
+	fn tier(&self) -> Tier {
+		if let Some(tier) = &self.tier {
+			return if tier.eq_ignore_ascii_case("e2e") {
+				Tier::E2e
+			} else {
+				Tier::Unit
+			};
+		}
+		let job = self.job_name.as_deref().unwrap_or_default();
+		let job = job.rsplit(" / ").next().unwrap_or(job);
+		let job = job.split(" (").next().unwrap_or(job).to_ascii_lowercase();
+		if job.contains("smoke") || job.starts_with("remote") || job == "browser" {
+			Tier::E2e
+		} else {
+			Tier::Unit
+		}
+	}
+
+	fn counts(&self) -> bool {
+		self.refined_verdict
+			.as_deref()
+			.or(self.verdict.as_deref())
+			.is_none_or(|v| v == "real")
+	}
+
+	fn pr(&self) -> String {
+		match &self.pr_number {
+			Some(serde_json::Value::Number(n)) => format!("#{n}"),
+			Some(serde_json::Value::String(s)) => format!("#{s}"),
+			_ => "-".to_owned(),
+		}
+	}
+
+	fn group(&self) -> String {
+		match &self.analysis_group {
+			Some(serde_json::Value::Null) | None => format!(
+				"{}/{}/{}",
+				self.pr(),
+				self.os.as_deref().unwrap_or_default(),
+				self.job_name.as_deref().unwrap_or_default()
+			),
+			Some(g) => g.to_string(),
+		}
+	}
+
+	fn category(&self) -> String {
+		let c = self.category.as_deref().unwrap_or("uncategorized");
+		c.strip_suffix(" (inferred)").unwrap_or(c).to_owned()
+	}
+}
+
+/// Replays labeled failures, such as macOS- and Windows-only CI failures that changes caused, and
+/// reports whether the platform analysis runs the failed tier on that operating system for each:
+/// the recall of the rules. Each change is planned from the merge base of its base and head.
+fn eval(config: &Config, repo: PathBuf, labels: &str) -> Result<()> {
+	if config.platforms.is_none() {
+		bail!("eval needs `platforms` in the configuration");
+	}
+	let text = std::fs::read_to_string(labels).with_context(|| format!("cannot read {labels}"))?;
+	let labels: Vec<Label> =
+		serde_json::from_str(&text).with_context(|| format!("invalid labels {labels}"))?;
+	let mut engine = Engine::new(repo.clone(), config);
+	let mut blobs = blob_texts(&repo)?;
+	let has_commit =
+		|sha: &str| git::git(&repo, &["cat-file", "-e", &format!("{sha}^{{commit}}")]).is_ok();
+	// By group: (category, PR, the rules that run the failed tier for each attempt, empty when
+	// it does not run).
+	let mut groups: BTreeMap<String, (String, String, Vec<Vec<Rule>>)> = BTreeMap::new();
+	let mut skipped = Vec::new();
+	println!(
+		"{:<8} {:<7} {:<5} {:<36} {:<34} result",
+		"pr", "os", "tier", "job", "category"
+	);
+	for label in labels.iter().filter(|l| l.counts()) {
+		let (Some(base), Some(head), Some(os)) = (
+			label.base_sha.as_deref(),
+			label.head_sha.as_deref(),
+			label.os(),
+		) else {
+			skipped.push(format!("{} (no base, head or known os)", label.pr()));
+			continue;
+		};
+		if !has_commit(base) || !has_commit(head) {
+			skipped.push(format!(
+				"{} (commits not available: fetch them first)",
+				label.pr()
+			));
+			continue;
+		}
+		let merge_base = git::git(&repo, &["merge-base", base, head])?
+			.trim()
+			.to_owned();
+		let bs = engine.snapshot(&merge_base)?;
+		let hs = engine.snapshot(head)?;
+		let (bg, hg) = (Graph::build(&bs, config), Graph::build(&hs, config));
+		let changes = git::diff_tree(&repo, &merge_base, head)?;
+		let sel = select(config, &mut blobs, &bs, &bg, &hs, &hg, &changes)?;
+		let plans = platform::plan(config, &mut blobs, &bs, &bg, &hs, &hg, &changes, &sel)?
+			.unwrap_or_default();
+		let tier = label.tier();
+		let p = plans.iter().find(|p| p.os == os).unwrap();
+		let caught = match tier {
+			Tier::Unit => p.unit,
+			Tier::E2e => p.e2e,
+		};
+		let rules: Vec<&str> = p.rules(tier).iter().map(|r| r.name()).collect();
+		println!(
+			"{:<8} {:<7} {:<5} {:<36} {:<34} {}",
+			label.pr(),
+			os,
+			if tier == Tier::Unit { "unit" } else { "e2e" },
+			label.job_name.as_deref().unwrap_or_default(),
+			label.category(),
+			if caught {
+				format!("runs ({})", rules.join(", "))
+			} else {
+				"missed".to_owned()
+			}
+		);
+		let g = groups
+			.entry(label.group())
+			.or_insert_with(|| (label.category(), label.pr(), Vec::new()));
+		g.2.push(if caught { p.rules(tier) } else { Vec::new() });
+	}
+	// By category: (groups caught, groups, attempts caught, attempts).
+	let mut categories: BTreeMap<&str, (usize, usize, usize, usize)> = BTreeMap::new();
+	// By rule: the groups that no other rule catches.
+	let mut unique: BTreeMap<Rule, Vec<String>> = BTreeMap::new();
+	for (category, pr, attempts) in groups.values() {
+		let caught = attempts.iter().filter(|r| !r.is_empty()).count();
+		let c = categories.entry(category).or_default();
+		c.0 += (caught > 0) as usize;
+		c.1 += 1;
+		c.2 += caught;
+		c.3 += attempts.len();
+		for rule in Rule::ALL {
+			let only = attempts
+				.iter()
+				.all(|rules| rules.iter().all(|&r| r == rule))
+				&& caught > 0;
+			if only {
+				unique
+					.entry(rule)
+					.or_default()
+					.push(format!("{pr} ({category})"));
+			}
+		}
+	}
+	println!("\nrecall by category (a group of attempts counts when any attempt runs the tier):");
+	println!("{:<40} {:>14} {:>16}", "category", "groups", "attempts");
+	let mut total = (0, 0, 0, 0);
+	for (category, (gc, g, ac, a)) in &categories {
+		println!("{category:<40} {:>8} of {g:<3} {:>10} of {a:<3}", gc, ac);
+		total = (total.0 + gc, total.1 + g, total.2 + ac, total.3 + a);
+	}
+	println!(
+		"{:<40} {:>8} of {:<3} {:>10} of {:<3}",
+		"all", total.0, total.1, total.2, total.3
+	);
+	println!("\ngroups that only one rule catches:");
+	for rule in Rule::ALL {
+		let groups = unique.get(&rule).map_or(&[][..], |g| &g[..]);
+		println!(
+			"{:<16} {:>3}  {}",
+			rule.name(),
+			groups.len(),
+			groups.join(", ")
+		);
+	}
+	if !skipped.is_empty() {
+		println!("\nskipped {} labels: {}", skipped.len(), skipped.join(", "));
 	}
 	Ok(())
 }
