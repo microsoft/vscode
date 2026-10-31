@@ -120,7 +120,7 @@ export function drawChatPetComposite(
 		}
 	}
 	if (hasAnimatedPropeller) {
-		clearChatPetPropeller(context, state, rigFrameIndex, facingDirection, frameWidth);
+		clearChatPetPropeller(context, state, rigFrameIndex, 'right', frameWidth);
 	}
 }
 
@@ -146,6 +146,11 @@ export function drawChatPetPropeller(context: CanvasRenderingContext2D, accessor
 	}
 	const rigFrame = getChatPetAccessoryRigFrame(state, frameIndex);
 	const cellSize = getAtlasCellSize(accessoryImage);
+	context.save();
+	if (rigFrame.mirrorsHeadAccessory) {
+		context.translate(context.canvas.width, 0);
+		context.scale(-1, 1);
+	}
 	context.drawImage(
 		accessoryImage,
 		rigPoseColumn[rigFrame.pose] * cellSize,
@@ -157,6 +162,7 @@ export function drawChatPetPropeller(context: CanvasRenderingContext2D, accessor
 		bounds.width,
 		bounds.height
 	);
+	context.restore();
 }
 
 function clearChatPetPropeller(context: CanvasRenderingContext2D, state: ChatPetState, frameIndex: number, facingDirection: 'left' | 'right', frameWidth: number): void {
