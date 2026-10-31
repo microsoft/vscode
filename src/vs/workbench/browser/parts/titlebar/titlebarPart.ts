@@ -23,7 +23,7 @@ import { CustomMenubarControl } from './menubarControl.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
-import { Parts, IWorkbenchLayoutService, ActivityBarPosition, LayoutSettings, EditorActionsLocation, EditorTabsMode } from '../../../services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService, ActivityBarPosition, LayoutSettings, EditorActionsLocation, EditorTabsMode, isCompactMenuInTitlebar } from '../../../services/layout/browser/layoutService.js';
 import { createActionViewItem, fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -270,6 +270,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	protected appIcon: HTMLElement | undefined;
 	private appIconBadge: HTMLElement | undefined;
 	protected menubar?: HTMLElement;
+	private installedCompactMenubar = false;
 	private lastLayoutDimensions: Dimension | undefined;
 
 	private actionToolBar!: WorkbenchToolBar;
@@ -372,14 +373,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		}
 
 		// Custom menu bar (disabled if auxiliary)
-		if (!this.isAuxiliary && !hasNativeMenu(this.configurationService, this.titleBarStyle) && (!isMacintosh || isWeb)) {
-			if (event.affectsConfiguration(MenuSettings.MenuBarVisibility)) {
-				if (this.currentMenubarVisibility === 'compact') {
-					this.uninstallMenubar();
-				} else {
-					this.installMenubar();
-				}
-			}
+		if (event.affectsConfiguration(MenuSettings.MenuBarVisibility) || event.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
+			this.updateMenubarInstallation();
 		}
 
 		// Actions
@@ -418,10 +413,41 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		}
 	}
 
+	/**
+	 * Whether this platform renders a custom (non-native) menu bar in the title bar.
+	 */
+	protected get supportsCustomMenubar(): boolean {
+		return !isMacintosh || isWeb;
+	}
+
+	/**
+	 * Installs, uninstalls or recreates the custom menu bar so that it matches the
+	 * current configuration. The title bar owns the menu bar when it is not compact,
+	 * and also when it is compact but the activity bar is at the top (see
+	 * {@link isCompactMenuInTitlebar}). The compact mode of a menu bar is fixed at
+	 * creation, so the control is recreated when it changes.
+	 */
+	private updateMenubarInstallation(): void {
+		const canInstall = !this.isAuxiliary && !hasNativeMenu(this.configurationService, this.titleBarStyle) && this.supportsCustomMenubar;
+		const wantCompact = isCompactMenuInTitlebar(this.configurationService);
+		const wanted = canInstall && (this.currentMenubarVisibility !== 'compact' || wantCompact);
+
+		if (wanted) {
+			if (this.menubar && this.installedCompactMenubar !== wantCompact) {
+				this.uninstallMenubar();
+			}
+			this.installMenubar();
+		} else if (this.menubar) {
+			this.uninstallMenubar();
+		}
+	}
+
 	protected installMenubar(): void {
 		if (this.menubar) {
 			return; // If the menubar is already installed, skip
 		}
+
+		this.installedCompactMenubar = isCompactMenuInTitlebar(this.configurationService);
 
 		const customMenubar = this.instantiationService.createInstance(CustomMenubarControl);
 		this.customMenubar.value = customMenubar;
@@ -483,14 +509,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
 
 		// Menubar: install a custom menu bar depending on configuration
-		if (
-			!this.isAuxiliary &&
-			!hasNativeMenu(this.configurationService, this.titleBarStyle) &&
-			(!isMacintosh || isWeb) &&
-			this.currentMenubarVisibility !== 'compact'
-		) {
-			this.installMenubar();
-		}
+		this.updateMenubarInstallation();
 
 		// Title
 		this.title = append(this.centerContent, $('div.window-title'));
@@ -920,7 +939,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	get hasZoomableElements(): boolean {
-		const hasMenubar = !(this.currentMenubarVisibility === 'hidden' || this.currentMenubarVisibility === 'compact' || (!isWeb && isMacintosh));
+		const hasMenubar = !(this.currentMenubarVisibility === 'hidden' || (this.currentMenubarVisibility === 'compact' && !isCompactMenuInTitlebar(this.configurationService)) || (!isWeb && isMacintosh));
 		const hasCommandCenter = this.isCommandCenterVisible;
 		const hasToolBarActions = this.globalActionsEnabled || this.layoutControlEnabled || this.editorActionsEnabled || this.activityActionsEnabled;
 		return hasMenubar || hasCommandCenter || hasToolBarActions;

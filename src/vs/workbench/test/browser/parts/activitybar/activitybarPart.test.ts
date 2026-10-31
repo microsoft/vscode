@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
@@ -762,6 +762,131 @@ suite('ActivitybarPart', () => {
 		}, 300, 35);
 
 		assert.deepStrictEqual(laidOut, new Dimension(265, 35));
+	});
+
+	// --- compact menu ownership ------------------------------------------------
+
+	interface IFakeMenubarControl extends IDisposable {
+		readonly createdIn: HTMLElement[];
+		disposed: boolean;
+		create(container: HTMLElement): void;
+		toggleFocus(): void;
+	}
+
+	interface IMenubarTestHarness {
+		element: HTMLElement;
+		menuBar: MutableDisposable<IFakeMenubarControl>;
+		menuBarContainer: HTMLElement | undefined;
+		menuBarKeyboardNavigation: MutableDisposable<DisposableStore>;
+		configurationService: TestConfigurationService;
+		instantiationService: { createInstance(): IFakeMenubarControl };
+		focusCount: number;
+		focus(): void;
+		createdControls: IFakeMenubarControl[];
+	}
+
+	const activityBarShouldInstallMenubar = Reflect.get(ActivityBarCompositeBar.prototype, 'shouldInstallMenubar') as (this: IMenubarTestHarness) => boolean;
+	const activityBarInstallMenubar = Reflect.get(ActivityBarCompositeBar.prototype, 'installMenubar') as (this: IMenubarTestHarness) => void;
+	const activityBarUninstallMenubar = Reflect.get(ActivityBarCompositeBar.prototype, 'uninstallMenubar') as (this: IMenubarTestHarness) => void;
+
+	function createMenubarHarness(menuBarVisibility: string, activityBarLocation: string): IMenubarTestHarness {
+		const element = document.createElement('div');
+		fixture.appendChild(element);
+		const createdControls: IFakeMenubarControl[] = [];
+		const harness: IMenubarTestHarness = {
+			element,
+			menuBar: disposables.add(new MutableDisposable<IFakeMenubarControl>()),
+			menuBarContainer: undefined,
+			menuBarKeyboardNavigation: disposables.add(new MutableDisposable<DisposableStore>()),
+			configurationService: new TestConfigurationService({
+				'window.menuBarVisibility': menuBarVisibility,
+				[LayoutSettings.ACTIVITY_BAR_LOCATION]: activityBarLocation,
+			}),
+			instantiationService: {
+				createInstance: () => {
+					const control: IFakeMenubarControl = {
+						createdIn: [],
+						disposed: false,
+						create(container) { this.createdIn.push(container); },
+						toggleFocus() { },
+						dispose() { this.disposed = true; },
+					};
+					createdControls.push(control);
+					return control;
+				}
+			},
+			focusCount: 0,
+			focus() { this.focusCount++; },
+			createdControls,
+		};
+		return harness;
+	}
+
+	function pressKey(target: HTMLElement, key: string, keyCode: number): void {
+		target.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true } as KeyboardEventInit));
+	}
+
+	test('activity bar owns the compact menu only when the titlebar does not', () => {
+		const owns = (visibility: string, location: string) => activityBarShouldInstallMenubar.call(createMenubarHarness(visibility, location));
+		assert.deepStrictEqual(
+			{
+				compactDefault: owns('compact', 'default'),
+				compactTop: owns('compact', 'top'),
+				compactBottom: owns('compact', 'bottom'),
+				classicDefault: owns('classic', 'default'),
+				toggleTop: owns('toggle', 'top'),
+			},
+			{
+				compactDefault: true,
+				compactTop: false,
+				compactBottom: true,
+				classicDefault: false,
+				toggleTop: false,
+			}
+		);
+	});
+
+	test('compact menu install is idempotent, uninstall removes it and its keyboard navigation', () => {
+		const harness = createMenubarHarness('compact', 'default');
+
+		activityBarInstallMenubar.call(harness);
+		activityBarInstallMenubar.call(harness);
+		const container = harness.menuBarContainer!;
+		const installed = {
+			menubarElements: harness.element.querySelectorAll('.menubar').length,
+			isFirstChild: harness.element.firstElementChild === container,
+			controls: harness.createdControls.length,
+			createdInContainer: harness.createdControls[0].createdIn[0] === container,
+		};
+
+		pressKey(container, 'ArrowDown', 40);
+		pressKey(container, 'ArrowRight', 39);
+		pressKey(container, 'ArrowUp', 38);
+		const focusWhileInstalled = harness.focusCount;
+
+		activityBarUninstallMenubar.call(harness);
+		pressKey(container, 'ArrowDown', 40);
+
+		assert.deepStrictEqual(
+			{
+				installed,
+				focusWhileInstalled,
+				menubarElementsAfterUninstall: harness.element.querySelectorAll('.menubar').length,
+				containerAfterUninstall: harness.menuBarContainer,
+				controlDisposed: harness.createdControls[0].disposed,
+				keyboardNavigationCleared: harness.menuBarKeyboardNavigation.value,
+				focusAfterUninstall: harness.focusCount,
+			},
+			{
+				installed: { menubarElements: 1, isFirstChild: true, controls: 1, createdInContainer: true },
+				focusWhileInstalled: 2,
+				menubarElementsAfterUninstall: 0,
+				containerAfterUninstall: undefined,
+				controlDisposed: true,
+				keyboardNavigationCleared: undefined,
+				focusAfterUninstall: 2,
+			}
+		);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

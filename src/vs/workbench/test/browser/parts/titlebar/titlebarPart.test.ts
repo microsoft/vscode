@@ -8,16 +8,18 @@ import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { getMenuBarVisibility } from '../../../../../platform/window/common/window.js';
 import { CustomMenubarControl } from '../../../../browser/parts/titlebar/menubarControl.js';
 import { BrowserTitlebarPart } from '../../../../browser/parts/titlebar/titlebarPart.js';
 import { WindowTitle } from '../../../../browser/parts/titlebar/windowTitle.js';
 import { MODERN_UI_INACTIVE_SHELL_BACKGROUND, MODERN_UI_SHELL_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
 import { IEditorGroupsContainer } from '../../../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, isCompactMenuInTitlebar, IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { TestContextMenuService, TestHostService, TestLayoutService, workbenchInstantiationService } from '../../workbenchTestServices.js';
 
 suite('TitlebarPart colors', () => {
@@ -234,6 +236,28 @@ suite('Workbench - Titlebar Part', () => {
 			centerHiddenFirst: [true, false],
 			bothHidden: [true, true],
 			bothVisible: [false, false],
+		});
+	});
+
+	test('compact menu is owned by the titlebar only when the activity bar is at the top', () => {
+		const config = (menuBarVisibility: string, location: string) => new TestConfigurationService({
+			window: { menuBarVisibility },
+			workbench: { activityBar: { location } }
+		});
+		const owner = (menuBarVisibility: string, location: string) => isCompactMenuInTitlebar(config(menuBarVisibility, location));
+		// Native macOS (and native menus) force the classic menu bar, in which case nothing is compact.
+		const compactSupported = getMenuBarVisibility(config('compact', ActivityBarPosition.TOP)) === 'compact';
+
+		assert.deepStrictEqual({
+			compactTop: owner('compact', ActivityBarPosition.TOP),
+			compactDefault: owner('compact', ActivityBarPosition.DEFAULT),
+			compactBottom: owner('compact', ActivityBarPosition.BOTTOM),
+			classicTop: owner('classic', ActivityBarPosition.TOP),
+		}, {
+			compactTop: compactSupported,
+			compactDefault: false,
+			compactBottom: false,
+			classicTop: false,
 		});
 	});
 });
