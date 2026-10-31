@@ -7,7 +7,7 @@ import assert from 'assert';
 import { $, append, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { Direction, Grid, ISerializableView, ISerializedGrid, ISerializedNode, LayoutPriority, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { Emitter, type Event as BaseEvent } from '../../../base/common/event.js';
-import { DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../base/common/observable.js';
 import { SashState } from '../../../base/browser/ui/sash/sash.js';
 import { mainWindow } from '../../../base/browser/window.js';
@@ -31,10 +31,10 @@ import { GroupDirection, GroupOrientation } from '../../../workbench/services/ed
 import { SESSIONS_LIST_MINIMUM_WIDTH } from '../../browser/parts/sidebarPart.js';
 import { Menus } from '../../browser/menus.js';
 import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../../workbench/browser/parts/notifications/notificationsViewer.js';
-import { NullTelemetryServiceShape } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupViewOptions } from '../../../workbench/browser/parts/editor/editor.js';
 import { EditorInput } from '../../../workbench/common/editor/editorInput.js';
 import '../../browser/parts/media/chatCompositeBar.css';
+import { TestDataTelemetryService } from '../../../platform/telemetry/test/common/testTelemetryService.js';
 
 interface IViewSize { width: number; height: number }
 type TestSerializedGrid = Omit<ISerializedGrid, 'root'> & { root: Extract<ISerializedNode, { type: 'branch' }> };
@@ -62,20 +62,6 @@ class TestPartView extends TestView implements ISerializableView {
 class TestDockedEditorInput extends DockedEditorInput {
 	override get typeId(): string { return 'test.dockedEditor'; }
 	override get resource(): undefined { return undefined; }
-}
-
-function isTelemetryData(data: unknown): data is Record<string, unknown> {
-	return typeof data === 'object' && data !== null;
-}
-
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
-
-	override publicLog2(eventName?: string, data?: unknown): void {
-		if (eventName && isTelemetryData(data)) {
-			this.events.push({ name: eventName, data });
-		}
-	}
 }
 
 suite('Sessions - Workbench', () => {
@@ -168,7 +154,7 @@ suite('Sessions - Workbench', () => {
 		layoutPolicy: { isPhoneLayout: IObservable<boolean> };
 		_register<T extends IDisposable>(disposable: T): T;
 	}) => void;
-	const logWindowLayout = Reflect.get(Workbench.prototype, 'logWindowLayout') as (this: ITestWorkbench, telemetryService: TestTelemetryService) => void;
+	const logWindowLayout = Reflect.get(Workbench.prototype, 'logWindowLayout') as (this: ITestWorkbench, telemetryService: TestDataTelemetryService) => void;
 
 	// --- Harness ------------------------------------------------------------
 
@@ -226,6 +212,8 @@ suite('Sessions - Workbench', () => {
 
 	interface IPanelAlignmentTestHarness {
 		agentWorkbenchLayout: AgentWorkbenchLayout;
+		/** Whether the side pane shows, which the alignment keeps answering while it moves the grid's views. */
+		isEditorPaneVisible?(): boolean;
 		_panelAlignment: PanelAlignment;
 		_panelMaximizedEditorState?: { width: number | undefined };
 		_maximumEditorDimensionsOverride?: IViewSize;
@@ -533,7 +521,7 @@ suite('Sessions - Workbench', () => {
 	// --- Notifications ------------------------------------------------------
 
 	test('logs the selected Agents window layout', () => {
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestDataTelemetryService();
 
 		logWindowLayout.call(createHost(), telemetryService);
 		logWindowLayout.call(createHost({ single: true }), telemetryService);
@@ -546,27 +534,22 @@ suite('Sessions - Workbench', () => {
 
 	test('uses touch-sized notification rows on phone layouts', () => {
 		setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
-		const registeredDisposables = new DisposableStore();
+		const registeredDisposables = store.add(new DisposableStore());
 		const isPhoneLayout = observableValue('isPhoneLayout', false);
 		const rowHeights: number[] = [];
-		const listener = onDidChangeNotificationRowHeight(height => rowHeights.push(height));
+		store.add(onDidChangeNotificationRowHeight(height => rowHeights.push(height)));
 
-		try {
-			registerNotificationRowHeight.call({
-				layoutPolicy: { isPhoneLayout },
-				_register: disposable => registeredDisposables.add(disposable),
-			});
+		store.add(toDisposable(() => setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT)));
+		registerNotificationRowHeight.call({
+			layoutPolicy: { isPhoneLayout },
+			_register: disposable => registeredDisposables.add(disposable),
+		});
 
-			isPhoneLayout.set(true, undefined);
-			isPhoneLayout.set(false, undefined);
-			registeredDisposables.dispose();
+		isPhoneLayout.set(true, undefined);
+		isPhoneLayout.set(false, undefined);
+		registeredDisposables.dispose();
 
-			assert.deepStrictEqual(rowHeights, [34, 44, 34, 42]);
-		} finally {
-			listener.dispose();
-			registeredDisposables.dispose();
-			setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
-		}
+		assert.deepStrictEqual(rowHeights, [34, 44, 34, 42]);
 	});
 
 	test('centers notification content in touch-sized phone rows', () => {
@@ -583,11 +566,8 @@ suite('Sessions - Workbench', () => {
 		root.appendChild(list);
 		document.body.appendChild(root);
 
-		try {
-			assert.strictEqual(mainWindow.getComputedStyle(mainRow).alignItems, 'center');
-		} finally {
-			root.remove();
-		}
+		store.add(toDisposable(() => root.remove()));
+		assert.strictEqual(mainWindow.getComputedStyle(mainRow).alignItems, 'center');
 	});
 
 	test('keeps the bottom panel inset when the primary sidebar is hidden', () => {
@@ -605,21 +585,18 @@ suite('Sessions - Workbench', () => {
 			};
 		};
 
-		try {
-			assert.deepStrictEqual({
-				sidebarVisible: gaps('panel-alignment-justify'),
-				sidebarHidden: gaps('nosidebar panel-alignment-justify'),
-				sidebarHiddenCentered: gaps('nosidebar panel-alignment-center'),
-				phone: gaps('nosidebar phone-layout panel-alignment-justify'),
-			}, {
-				sidebarVisible: { left: 0, right: 0 },
-				sidebarHidden: { left: 4, right: 0 },
-				sidebarHiddenCentered: { left: 4, right: 4 },
-				phone: { left: 0, right: 0 },
-			});
-		} finally {
-			root.remove();
-		}
+		store.add(toDisposable(() => root.remove()));
+		assert.deepStrictEqual({
+			sidebarVisible: gaps('panel-alignment-justify'),
+			sidebarHidden: gaps('nosidebar panel-alignment-justify'),
+			sidebarHiddenCentered: gaps('nosidebar panel-alignment-center'),
+			phone: gaps('nosidebar phone-layout panel-alignment-justify'),
+		}, {
+			sidebarVisible: { left: 0, right: 0 },
+			sidebarHidden: { left: 4, right: 0 },
+			sidebarHiddenCentered: { left: 4, right: 4 },
+			phone: { left: 0, right: 0 },
+		});
 	});
 
 	test('matches only the Agents cards next to macOS window corners', () => {
@@ -653,67 +630,64 @@ suite('Sessions - Workbench', () => {
 		};
 		document.body.appendChild(root);
 
-		try {
-			assert.deepStrictEqual({
-				sessions: corners(sessions, 'nopanel noeditorpane'),
-				sessionsWithoutSidebar: corners(sessions, 'nopanel noeditorpane nosidebar'),
-				sessionsBesideEditor: corners(sessions, 'nopanel noauxiliarybar'),
-				sessionsBesideEditorWithoutSidebar: corners(sessions, 'nopanel noauxiliarybar nosidebar'),
-				sessionView: corners(sessionView, `${connectedTabs} nopanel noeditorpane`),
-				sessionViewWithoutSidebar: corners(sessionView, `${connectedTabs} nopanel noeditorpane nosidebar`),
-				sessionViewBesideEditor: corners(sessionView, `${connectedTabs} nopanel noauxiliarybar`),
-				sessionViewBesideEditorWithoutSidebar: corners(sessionView, `${connectedTabs} nopanel noauxiliarybar nosidebar`),
-				sessionViewAbovePanel: corners(sessionView, `${connectedTabs} noeditorpane nosidebar`),
-				sessionViewBorder: corners(sessionView, `${connectedTabs} nopanel noeditorpane nosidebar`, '::after'),
-				internalSessionView: corners(internalSessionView, `${connectedTabs} nopanel noeditorpane nosidebar`),
-				sessionViewWithoutConnectedTabs: corners(sessionView, 'modern-ui-tabs nopanel noeditorpane nosidebar'),
-				sessionViewWithoutModernTabs: corners(sessionView, 'modern-ui-connected-editor-tabs nopanel noeditorpane nosidebar'),
-				customView: corners(customView, 'nopanel noeditorpane nosessionspart'),
-				editor: corners(editor, 'nopanel noauxiliarybar'),
-				dockedEditor: corners(editor, 'nopanel dock-detail-panel'),
-				editorBesideDetails: corners(editor, 'nopanel'),
-				details: corners(auxiliaryBar, 'nopanel'),
-				detailsWithoutEditor: corners(auxiliaryBar, 'nopanel nomaineditorarea'),
-				sessionsAbovePanel: corners(sessions, 'noeditorpane'),
-				editorAbovePanel: corners(editor, 'noauxiliarybar'),
-				panel: corners(panel, ''),
-				panelWithoutSidebar: corners(panel, 'nosidebar'),
-				centeredPanel: corners(panel, 'panel-alignment-center dock-detail-panel'),
-				centeredPanelWithoutSidebar: corners(panel, 'panel-alignment-center dock-detail-panel nosidebar'),
-				centeredEditor: corners(editor, 'panel-alignment-center dock-detail-panel'),
-				centeredPanelWithoutSidePane: corners(panel, 'panel-alignment-center dock-detail-panel noeditorpane'),
-			}, {
-				sessions: ['8px', '8px', '12px', '8px'],
-				sessionsWithoutSidebar: ['8px', '8px', '12px', '12px'],
-				sessionsBesideEditor: ['8px', '8px', '8px', '8px'],
-				sessionsBesideEditorWithoutSidebar: ['8px', '8px', '8px', '12px'],
-				sessionView: ['7px', '7px', '11px', '7px'],
-				sessionViewWithoutSidebar: ['7px', '7px', '11px', '11px'],
-				sessionViewBesideEditor: ['7px', '7px', '7px', '7px'],
-				sessionViewBesideEditorWithoutSidebar: ['7px', '7px', '7px', '11px'],
-				sessionViewAbovePanel: ['7px', '7px', '7px', '7px'],
-				sessionViewBorder: ['7px', '7px', '11px', '11px'],
-				internalSessionView: ['7px', '7px', '7px', '7px'],
-				sessionViewWithoutConnectedTabs: ['7px', '7px', '11px', '11px'],
-				sessionViewWithoutModernTabs: ['0px', '0px', '0px', '0px'],
-				customView: ['8px', '8px', '12px', '8px'],
-				editor: ['8px', '8px', '12px', '8px'],
-				dockedEditor: ['8px', '8px', '12px', '8px'],
-				editorBesideDetails: ['8px', '0px', '0px', '8px'],
-				details: ['0px', '8px', '12px', '0px'],
-				detailsWithoutEditor: ['8px', '8px', '12px', '8px'],
-				sessionsAbovePanel: ['8px', '8px', '8px', '8px'],
-				editorAbovePanel: ['8px', '8px', '8px', '8px'],
-				panel: ['8px', '8px', '12px', '8px'],
-				panelWithoutSidebar: ['8px', '8px', '12px', '12px'],
-				centeredPanel: ['8px', '8px', '8px', '8px'],
-				centeredPanelWithoutSidebar: ['8px', '8px', '8px', '12px'],
-				centeredEditor: ['8px', '8px', '12px', '8px'],
-				centeredPanelWithoutSidePane: ['8px', '8px', '12px', '8px'],
-			});
-		} finally {
-			root.remove();
-		}
+		store.add(toDisposable(() => root.remove()));
+		assert.deepStrictEqual({
+			sessions: corners(sessions, 'nopanel noeditorpane'),
+			sessionsWithoutSidebar: corners(sessions, 'nopanel noeditorpane nosidebar'),
+			sessionsBesideEditor: corners(sessions, 'nopanel noauxiliarybar'),
+			sessionsBesideEditorWithoutSidebar: corners(sessions, 'nopanel noauxiliarybar nosidebar'),
+			sessionView: corners(sessionView, `${connectedTabs} nopanel noeditorpane`),
+			sessionViewWithoutSidebar: corners(sessionView, `${connectedTabs} nopanel noeditorpane nosidebar`),
+			sessionViewBesideEditor: corners(sessionView, `${connectedTabs} nopanel noauxiliarybar`),
+			sessionViewBesideEditorWithoutSidebar: corners(sessionView, `${connectedTabs} nopanel noauxiliarybar nosidebar`),
+			sessionViewAbovePanel: corners(sessionView, `${connectedTabs} noeditorpane nosidebar`),
+			sessionViewBorder: corners(sessionView, `${connectedTabs} nopanel noeditorpane nosidebar`, '::after'),
+			internalSessionView: corners(internalSessionView, `${connectedTabs} nopanel noeditorpane nosidebar`),
+			sessionViewWithoutConnectedTabs: corners(sessionView, 'modern-ui-tabs nopanel noeditorpane nosidebar'),
+			sessionViewWithoutModernTabs: corners(sessionView, 'modern-ui-connected-editor-tabs nopanel noeditorpane nosidebar'),
+			customView: corners(customView, 'nopanel noeditorpane nosessionspart'),
+			editor: corners(editor, 'nopanel noauxiliarybar'),
+			dockedEditor: corners(editor, 'nopanel dock-detail-panel'),
+			editorBesideDetails: corners(editor, 'nopanel'),
+			details: corners(auxiliaryBar, 'nopanel'),
+			detailsWithoutEditor: corners(auxiliaryBar, 'nopanel nomaineditorarea'),
+			sessionsAbovePanel: corners(sessions, 'noeditorpane'),
+			editorAbovePanel: corners(editor, 'noauxiliarybar'),
+			panel: corners(panel, ''),
+			panelWithoutSidebar: corners(panel, 'nosidebar'),
+			centeredPanel: corners(panel, 'panel-alignment-center dock-detail-panel'),
+			centeredPanelWithoutSidebar: corners(panel, 'panel-alignment-center dock-detail-panel nosidebar'),
+			centeredEditor: corners(editor, 'panel-alignment-center dock-detail-panel'),
+			centeredPanelWithoutSidePane: corners(panel, 'panel-alignment-center dock-detail-panel noeditorpane'),
+		}, {
+			sessions: ['8px', '8px', '12px', '8px'],
+			sessionsWithoutSidebar: ['8px', '8px', '12px', '12px'],
+			sessionsBesideEditor: ['8px', '8px', '8px', '8px'],
+			sessionsBesideEditorWithoutSidebar: ['8px', '8px', '8px', '12px'],
+			sessionView: ['7px', '7px', '11px', '7px'],
+			sessionViewWithoutSidebar: ['7px', '7px', '11px', '11px'],
+			sessionViewBesideEditor: ['7px', '7px', '7px', '7px'],
+			sessionViewBesideEditorWithoutSidebar: ['7px', '7px', '7px', '11px'],
+			sessionViewAbovePanel: ['7px', '7px', '7px', '7px'],
+			sessionViewBorder: ['7px', '7px', '11px', '11px'],
+			internalSessionView: ['7px', '7px', '7px', '7px'],
+			sessionViewWithoutConnectedTabs: ['7px', '7px', '11px', '11px'],
+			sessionViewWithoutModernTabs: ['0px', '0px', '0px', '0px'],
+			customView: ['8px', '8px', '12px', '8px'],
+			editor: ['8px', '8px', '12px', '8px'],
+			dockedEditor: ['8px', '8px', '12px', '8px'],
+			editorBesideDetails: ['8px', '0px', '0px', '8px'],
+			details: ['0px', '8px', '12px', '0px'],
+			detailsWithoutEditor: ['8px', '8px', '12px', '8px'],
+			sessionsAbovePanel: ['8px', '8px', '8px', '8px'],
+			editorAbovePanel: ['8px', '8px', '8px', '8px'],
+			panel: ['8px', '8px', '12px', '8px'],
+			panelWithoutSidebar: ['8px', '8px', '12px', '12px'],
+			centeredPanel: ['8px', '8px', '8px', '8px'],
+			centeredPanelWithoutSidebar: ['8px', '8px', '8px', '12px'],
+			centeredEditor: ['8px', '8px', '12px', '8px'],
+			centeredPanelWithoutSidePane: ['8px', '8px', '12px', '8px'],
+		});
 	});
 
 	test('keeps Agents window corner geometry native-only and zoom-aware', () => {
@@ -735,35 +709,32 @@ suite('Sessions - Workbench', () => {
 			];
 		};
 
-		try {
-			assert.deepStrictEqual({
-				tahoe: radius('mac macos-tahoe'),
-				olderMacOS: radius('mac'),
-				zoomedIn: radius('mac macos-tahoe', 2),
-				zoomedOut: radius('mac macos-tahoe', 0.5),
-				clamped: radius('mac macos-tahoe', 4),
-				highContrast: radius('mac macos-tahoe hc-black'),
-				fullscreen: radius('mac macos-tahoe fullscreen'),
-				web: radius('mac macos-tahoe web'),
-				phone: radius('mac macos-tahoe phone-layout'),
-				windows: radius('windows'),
-				linux: radius('linux'),
-			}, {
-				tahoe: ['12px', '11px'],
-				olderMacOS: ['6px', '5px'],
-				zoomedIn: ['4px', '3px'],
-				zoomedOut: ['28px', '27px'],
-				clamped: ['0px', '0px'],
-				highContrast: ['12px', '11px'],
-				fullscreen: ['8px', '7px'],
-				web: ['8px', '7px'],
-				phone: ['0px', '0px'],
-				windows: ['8px', '7px'],
-				linux: ['8px', '7px'],
-			});
-		} finally {
-			root.remove();
-		}
+		store.add(toDisposable(() => root.remove()));
+		assert.deepStrictEqual({
+			tahoe: radius('mac macos-tahoe'),
+			olderMacOS: radius('mac'),
+			zoomedIn: radius('mac macos-tahoe', 2),
+			zoomedOut: radius('mac macos-tahoe', 0.5),
+			clamped: radius('mac macos-tahoe', 4),
+			highContrast: radius('mac macos-tahoe hc-black'),
+			fullscreen: radius('mac macos-tahoe fullscreen'),
+			web: radius('mac macos-tahoe web'),
+			phone: radius('mac macos-tahoe phone-layout'),
+			windows: radius('windows'),
+			linux: radius('linux'),
+		}, {
+			tahoe: ['12px', '11px'],
+			olderMacOS: ['6px', '5px'],
+			zoomedIn: ['4px', '3px'],
+			zoomedOut: ['28px', '27px'],
+			clamped: ['0px', '0px'],
+			highContrast: ['12px', '11px'],
+			fullscreen: ['8px', '7px'],
+			web: ['8px', '7px'],
+			phone: ['0px', '0px'],
+			windows: ['8px', '7px'],
+			linux: ['8px', '7px'],
+		});
 	});
 
 	// --- Editor split / reveal ---------------------------------------------
@@ -1806,42 +1777,30 @@ suite('Sessions - Workbench', () => {
 		// editor limit of 1 would otherwise evict them and the managed-tab
 		// reconciliation would reopen them, hanging the renderer. Docked inputs opt
 		// out of the limit so they are never auto-closed.
-		const dockedEditor = new TestDockedEditorInput();
+		const dockedEditor = store.add(new TestDockedEditorInput());
 
-		try {
-			assert.strictEqual(dockedEditor.hasCapability(EditorInputCapabilities.ExcludeFromEditorLimit), true);
-		} finally {
-			dockedEditor.dispose();
-		}
+		assert.strictEqual(dockedEditor.hasCapability(EditorInputCapabilities.ExcludeFromEditorLimit), true);
 	});
 
 	test('[Scenario 5] desktop does not reveal a docked editor while the detail panel is open and the editor is closed', () => {
 		// Re-activating a docked-detail editor (closing a neighbouring tab, or
 		// clicking the tab) while the detail panel already shows its content must
 		// not reveal the closed editor area.
-		const dockedEditor = new TestDockedEditorInput();
+		const dockedEditor = store.add(new TestDockedEditorInput());
 		const { harness, setEditorHiddenCalls } = createWillOpenHarness({ partVisibility: { editor: false, auxiliaryBar: true } });
 
-		try {
-			revealEditorOnOpenDesktop.call(harness, { groupId: 1, editor: dockedEditor });
-			assert.deepStrictEqual(setEditorHiddenCalls, []);
-		} finally {
-			dockedEditor.dispose();
-		}
+		revealEditorOnOpenDesktop.call(harness, { groupId: 1, editor: dockedEditor });
+		assert.deepStrictEqual(setEditorHiddenCalls, []);
 	});
 
 	test('[Scenario 5] desktop reveals a docked editor when the detail panel is closed', () => {
 		// With the whole side pane closed (detail panel hidden), opening a docked
 		// editor must reveal the editor area so its content becomes visible.
-		const dockedEditor = new TestDockedEditorInput();
+		const dockedEditor = store.add(new TestDockedEditorInput());
 		const { harness, setEditorHiddenCalls } = createWillOpenHarness({ partVisibility: { editor: false, auxiliaryBar: false } });
 
-		try {
-			revealEditorOnOpenDesktop.call(harness, { groupId: 1, editor: dockedEditor });
-			assert.deepStrictEqual(setEditorHiddenCalls, [{ hidden: false, explicit: true }]);
-		} finally {
-			dockedEditor.dispose();
-		}
+		revealEditorOnOpenDesktop.call(harness, { groupId: 1, editor: dockedEditor });
+		assert.deepStrictEqual(setEditorHiddenCalls, [{ hidden: false, explicit: true }]);
 	});
 
 	test('[Scenario 5] desktop reveals a non-docked editor even while the detail panel is open', () => {
@@ -2271,61 +2230,60 @@ suite('Sessions - Workbench', () => {
 			this.element = parent;
 			return parent;
 		});
-		try {
-			const editorPart = Object.assign(Object.create(DesktopMainEditorPart.prototype), {
-				onDidChangeEditorPartOptions: optionsEmitter.event,
-				agentWorkbenchLayoutService: {
-					mainContainer: root,
-					layout: () => layouts++,
-				},
-				_tabsPresentationRelayout: relayout,
-				_updateTabsOverride: () => { },
-				_register<T extends IDisposable>(disposable: T): T {
-					return disposables.add(disposable);
-				},
-				_registerGroupRelayoutListeners(): never {
-					throw stopAfterTabsLifecycle;
-				},
-			}) as ITabsPresentationLifecycleHarness;
-			Object.defineProperty(editorPart, 'partOptions', { get: () => partOptions });
-			const createContentArea = Reflect.get(DesktopMainEditorPart.prototype, 'createContentArea') as (this: ITabsPresentationLifecycleHarness, parent: HTMLElement) => HTMLElement;
-			let thrown: unknown;
-			try {
-				createContentArea.call(editorPart, root);
-			} catch (error) {
-				thrown = error;
-			}
-
-			const states = [{
-				showTabs: partOptions.showTabs,
-				multipleTabsClass: root.classList.contains(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS),
-				layouts,
-			}];
-			for (const showTabs of ['multiple', 'single'] as const) {
-				const oldPartOptions = partOptions;
-				partOptions = { ...partOptions, showTabs };
-				optionsEmitter.fire({ oldPartOptions, newPartOptions: partOptions });
-				await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
-				states.push({
-					showTabs,
-					multipleTabsClass: root.classList.contains(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS),
-					layouts,
-				});
-			}
-
-			assert.deepStrictEqual({ thrown, states }, {
-				thrown: stopAfterTabsLifecycle,
-				states: [
-					{ showTabs: 'single', multipleTabsClass: false, layouts: 0 },
-					{ showTabs: 'multiple', multipleTabsClass: true, layouts: 1 },
-					{ showTabs: 'single', multipleTabsClass: false, layouts: 2 },
-				],
-			});
-		} finally {
+		store.add(toDisposable(() => {
 			Reflect.set(MainEditorPart.prototype, 'createContentArea', originalCreateContentArea);
 			disposables.dispose();
 			root.remove();
+		}));
+		const editorPart = Object.assign(Object.create(DesktopMainEditorPart.prototype), {
+			onDidChangeEditorPartOptions: optionsEmitter.event,
+			agentWorkbenchLayoutService: {
+				mainContainer: root,
+				layout: () => layouts++,
+			},
+			_tabsPresentationRelayout: relayout,
+			_updateTabsOverride: () => { },
+			_register<T extends IDisposable>(disposable: T): T {
+				return disposables.add(disposable);
+			},
+			_registerGroupRelayoutListeners(): never {
+				throw stopAfterTabsLifecycle;
+			},
+		}) as ITabsPresentationLifecycleHarness;
+		Object.defineProperty(editorPart, 'partOptions', { get: () => partOptions });
+		const createContentArea = Reflect.get(DesktopMainEditorPart.prototype, 'createContentArea') as (this: ITabsPresentationLifecycleHarness, parent: HTMLElement) => HTMLElement;
+		let thrown: unknown;
+		try {
+			createContentArea.call(editorPart, root);
+		} catch (error) {
+			thrown = error;
 		}
+
+		const states = [{
+			showTabs: partOptions.showTabs,
+			multipleTabsClass: root.classList.contains(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS),
+			layouts,
+		}];
+		for (const showTabs of ['multiple', 'single'] as const) {
+			const oldPartOptions = partOptions;
+			partOptions = { ...partOptions, showTabs };
+			optionsEmitter.fire({ oldPartOptions, newPartOptions: partOptions });
+			await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
+			states.push({
+				showTabs,
+				multipleTabsClass: root.classList.contains(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS),
+				layouts,
+			});
+		}
+
+		assert.deepStrictEqual({ thrown, states }, {
+			thrown: stopAfterTabsLifecycle,
+			states: [
+				{ showTabs: 'single', multipleTabsClass: false, layouts: 0 },
+				{ showTabs: 'multiple', multipleTabsClass: true, layouts: 1 },
+				{ showTabs: 'single', multipleTabsClass: false, layouts: 2 },
+			],
+		});
 	});
 
 	test('desktop editor part initializes tabs from restored visibility at content creation', () => {
@@ -3477,6 +3435,7 @@ suite('Sessions - Workbench', () => {
 			[customViewGridPartView, 'customViewGrid'],
 		]);
 		const host: IPanelAlignmentTestHarness = {
+			isEditorPaneVisible: () => true,
 			agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
 			_panelAlignment: 'justify',
 			panelPartView,
@@ -3576,6 +3535,96 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
+	test('answers whether the side pane shows while the panel aligns, as the grid moves the editor beside the Sessions Part', () => {
+		const store = new DisposableStore();
+		try {
+			const host = createHost({ single: true, partVisibility: { sidebar: true, editor: true, auxiliaryBar: false, panel: true } }) as IGridDescriptorTestHarness & { _panelAlignment: PanelAlignment };
+			host._panelAlignment = 'justify';
+			host._savedPartSizes = { editor: 500 };
+			host.layoutPolicy = {
+				getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 340, panelSize: 300 }),
+				viewportClass: { get: () => 'desktop' },
+			};
+			host.titleBarPartView = { minimumHeight: 30 };
+			const views = new Map<Parts, TestPartView>();
+			const grid = store.add(SerializableGrid.deserialize<ISerializableView>(createDesktopGridDescriptor.call(host, 1200, 800), {
+				fromJSON: ({ type }: { type: Parts }) => {
+					const view = store.add(new TestPartView(type));
+					views.set(type, view);
+					return view;
+				},
+			}, { proportionalLayout: false }));
+			grid.layout(1200, 800);
+			const view = (part: Parts) => views.get(part)!;
+			let moving = false;
+			const alignmentHost = {
+				agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
+				_panelAlignment: 'justify' as PanelAlignment,
+				partVisibility: { editor: true, auxiliaryBar: false, sidebar: true, sessions: true, panel: true, customViewGrid: false },
+				panelPartView: view(Parts.PANEL_PART),
+				sessionsPartView: view(Parts.SESSIONS_PART),
+				editorPartView: view(Parts.EDITOR_PART),
+				customViewGridPartView: view(Parts.CUSTOM_VIEW_GRID_PART),
+				workbenchGrid: {
+					element: undefined,
+					isViewVisible: (candidate: ISerializableView) => grid.isViewVisible(candidate),
+					isViewMaximized: (candidate: ISerializableView) => grid.isViewMaximized(candidate),
+					hasMaximizedView: () => grid.hasMaximizedView(),
+					getViewSize: (candidate: ISerializableView) => grid.getViewSize(candidate),
+					getViewCachedVisibleSize: (candidate: ISerializableView) => grid.getViewCachedVisibleSize(candidate),
+					setViewVisible: (candidate: ISerializableView, visible: boolean) => grid.setViewVisible(candidate, visible),
+					moveView: (candidate: ISerializableView, size: number | Sizing, reference: ISerializableView, direction: Direction) => {
+						moving = true;
+						try {
+							grid.moveView(candidate, size, reference, direction);
+						} finally {
+							moving = false;
+						}
+					},
+					resizeView: (candidate: ISerializableView, size: IViewSize) => grid.resizeView(candidate, size),
+					exitMaximizedView: () => grid.exitMaximizedView(),
+				},
+				mainContainer: { classList: { toggle: () => { } } },
+				getMaximumEditorDimensions: () => ({ width: 1200, height: 500 }),
+				storageService: { store: () => { } },
+				_onDidChangePanelAlignment: { fire: () => { } },
+				_runWithEditorResizeSyncSuspended: (fn: () => void) => fn(),
+				_layoutGrid: () => grid.layout(1200, 800),
+				hasFocus: () => false,
+				focusPart: () => { },
+			};
+			Object.setPrototypeOf(alignmentHost, DesktopWorkbench.prototype);
+			// As the Sessions Part does as the grid lays it out, also halfway through a move: it reads whether the side pane shows.
+			let aligning: PanelAlignment | undefined;
+			const answers: string[] = [];
+			store.add(view(Parts.SESSIONS_PART).onDidLayout(() => {
+				if (moving) {
+					try {
+						answers.push(`${aligning}: ${isDesktopEditorPaneVisible.call(alignmentHost as never)}`);
+					} catch (error) {
+						answers.push(`${aligning}: ${error instanceof Error ? error.message : error}`);
+					}
+				}
+			}));
+
+			const alignments: PanelAlignment[] = [];
+			for (const alignment of ['center', 'justify', 'center', 'justify'] as PanelAlignment[]) {
+				aligning = alignment;
+				setPanelAlignment.call(alignmentHost as never, alignment);
+				alignments.push(alignmentHost._panelAlignment);
+			}
+
+			assert.deepStrictEqual({ alignments, answers: [...new Set(answers)], editorVisible: grid.isViewVisible(view(Parts.EDITOR_PART)) }, {
+				alignments: ['center', 'justify', 'center', 'justify'],
+				// What showed as the move started, never an error.
+				answers: ['center: true', 'justify: true'],
+				editorVisible: true,
+			});
+		} finally {
+			store.dispose();
+		}
+	});
+
 	test('keeps editor resize sync suspended while restoring detail-only panel maximization', () => {
 		const host = createHost({
 			single: true,
@@ -3652,105 +3701,105 @@ suite('Sessions - Workbench', () => {
 	test('marks the Sessions and side-pane divider in initial and reparented grid DOM', () => {
 		const localStore = new DisposableStore();
 		const root = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.panel-alignment-center'));
-		try {
-			const descriptorHost = createHost({
-				single: true,
-				windowWidth: 1200,
-				partVisibility: { sidebar: true, editor: true, auxiliaryBar: true, panel: true },
-			}) as IGridDescriptorTestHarness;
-			descriptorHost._panelAlignment = 'center';
-			descriptorHost.layoutPolicy = {
-				getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 340, panelSize: 300 }),
-				viewportClass: { get: () => 'desktop' },
-			};
-			descriptorHost.titleBarPartView = { minimumHeight: 30 };
-
-			const views = new Map<Parts, TestPartView>();
-			const grid = localStore.add(SerializableGrid.deserialize(createDesktopGridDescriptor.call(descriptorHost, 1200, 800), {
-				fromJSON: ({ type }: { type: Parts }) => {
-					const view = localStore.add(new TestPartView(type));
-					view.element.classList.add('part');
-					if (type === Parts.SESSIONS_PART) {
-						view.element.classList.add('sessionspart');
-					} else if (type === Parts.EDITOR_PART) {
-						view.element.classList.add('editor');
-					}
-					views.set(type, view);
-					return view;
-				},
-			}, { proportionalLayout: false }));
-			root.appendChild(grid.element);
-			grid.layout(1200, 800);
-
-			const sessionsPartView = views.get(Parts.SESSIONS_PART)!;
-			const editorPartView = views.get(Parts.EDITOR_PART)!;
-			const markerHost = { workbenchGrid: grid, sessionsPartView, editorPartView };
-			updateSessionsSidePaneDivider.call(markerHost);
-			localStore.add(grid.onDidChange(() => updateSessionsSidePaneDivider.call(markerHost)));
-
-			const getDividerPosition = () => {
-				const divider = grid.element.querySelector<HTMLElement>('.sessions-side-pane-divider');
-				assert.ok(divider);
-				const splitView = divider.closest<HTMLElement>('.monaco-split-view2.horizontal');
-				assert.ok(splitView);
-				const viewContainer = splitView.querySelector<HTMLElement>(':scope > .monaco-scrollable-element > .split-view-container');
-				const sashContainer = splitView.querySelector<HTMLElement>(':scope > .sash-container');
-				assert.ok(viewContainer);
-				assert.ok(sashContainer);
-				const splitViews = Array.from(viewContainer.children);
-				const sashes = Array.from(sashContainer.children);
-				return {
-					dividerCount: grid.element.querySelectorAll('.sessions-side-pane-divider').length,
-					dividerIndex: sashes.indexOf(divider),
-					sessionsIndex: splitViews.findIndex(view => view.contains(sessionsPartView.element)),
-					editorIndex: splitViews.findIndex(view => view.contains(editorPartView.element)),
-				};
-			};
-
-			const centered = getDividerPosition();
-			const getView = (view: object): TestPartView => {
-				if (!(view instanceof TestPartView)) {
-					throw new Error('Expected a test part view');
-				}
-				return view;
-			};
-			const alignmentHost: IPanelAlignmentTestHarness = {
-				agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
-				_panelAlignment: 'center',
-				panelPartView: views.get(Parts.PANEL_PART)!,
-				sessionsPartView,
-				editorPartView,
-				customViewGridPartView: views.get(Parts.CUSTOM_VIEW_GRID_PART)!,
-				workbenchGrid: {
-					element: grid.element,
-					isViewVisible: view => grid.isViewVisible(getView(view)),
-					isViewMaximized: view => grid.isViewMaximized(getView(view)),
-					getViewSize: view => grid.getViewSize(getView(view)),
-					getViewCachedVisibleSize: view => grid.getViewCachedVisibleSize(getView(view)),
-					moveView: (view, size, referenceView, direction) => grid.moveView(getView(view), size, getView(referenceView), direction),
-					resizeView: (view, size) => grid.resizeView(getView(view), size),
-					exitMaximizedView: () => grid.exitMaximizedView(),
-				},
-				mainContainer: root,
-				getMaximumEditorDimensions: () => ({ width: 1200, height: 500 }),
-				storageService: { store: () => { } },
-				_onDidChangePanelAlignment: { fire: () => { } },
-				_runWithEditorResizeSyncSuspended: fn => fn(),
-				_layoutGrid: () => grid.layout(1200, 800),
-				hasFocus: () => false,
-				focusPart: () => { },
-			};
-			Object.setPrototypeOf(alignmentHost, Workbench.prototype);
-			setPanelAlignment.call(alignmentHost, 'justify');
-
-			assert.deepStrictEqual({ centered, justified: getDividerPosition() }, {
-				centered: { dividerCount: 1, dividerIndex: 1, sessionsIndex: 1, editorIndex: 2 },
-				justified: { dividerCount: 1, dividerIndex: 0, sessionsIndex: 0, editorIndex: 1 },
-			});
-		} finally {
+		store.add(toDisposable(() => {
 			root.remove();
 			localStore.dispose();
-		}
+		}));
+		const descriptorHost = createHost({
+			single: true,
+			windowWidth: 1200,
+			partVisibility: { sidebar: true, editor: true, auxiliaryBar: true, panel: true },
+		}) as IGridDescriptorTestHarness;
+		descriptorHost._panelAlignment = 'center';
+		descriptorHost.layoutPolicy = {
+			getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 340, panelSize: 300 }),
+			viewportClass: { get: () => 'desktop' },
+		};
+		descriptorHost.titleBarPartView = { minimumHeight: 30 };
+
+		const views = new Map<Parts, TestPartView>();
+		const grid = localStore.add(SerializableGrid.deserialize(createDesktopGridDescriptor.call(descriptorHost, 1200, 800), {
+			fromJSON: ({ type }: { type: Parts }) => {
+				const view = localStore.add(new TestPartView(type));
+				view.element.classList.add('part');
+				if (type === Parts.SESSIONS_PART) {
+					view.element.classList.add('sessionspart');
+				} else if (type === Parts.EDITOR_PART) {
+					view.element.classList.add('editor');
+				}
+				views.set(type, view);
+				return view;
+			},
+		}, { proportionalLayout: false }));
+		root.appendChild(grid.element);
+		grid.layout(1200, 800);
+
+		const sessionsPartView = views.get(Parts.SESSIONS_PART)!;
+		const editorPartView = views.get(Parts.EDITOR_PART)!;
+		const markerHost = { workbenchGrid: grid, sessionsPartView, editorPartView };
+		updateSessionsSidePaneDivider.call(markerHost);
+		localStore.add(grid.onDidChange(() => updateSessionsSidePaneDivider.call(markerHost)));
+
+		const getDividerPosition = () => {
+			const divider = grid.element.querySelector<HTMLElement>('.sessions-side-pane-divider');
+			assert.ok(divider);
+			const splitView = divider.closest<HTMLElement>('.monaco-split-view2.horizontal');
+			assert.ok(splitView);
+			const viewContainer = splitView.querySelector<HTMLElement>(':scope > .monaco-scrollable-element > .split-view-container');
+			const sashContainer = splitView.querySelector<HTMLElement>(':scope > .sash-container');
+			assert.ok(viewContainer);
+			assert.ok(sashContainer);
+			const splitViews = Array.from(viewContainer.children);
+			const sashes = Array.from(sashContainer.children);
+			return {
+				dividerCount: grid.element.querySelectorAll('.sessions-side-pane-divider').length,
+				dividerIndex: sashes.indexOf(divider),
+				sessionsIndex: splitViews.findIndex(view => view.contains(sessionsPartView.element)),
+				editorIndex: splitViews.findIndex(view => view.contains(editorPartView.element)),
+			};
+		};
+
+		const centered = getDividerPosition();
+		const getView = (view: object): TestPartView => {
+			if (!(view instanceof TestPartView)) {
+				throw new Error('Expected a test part view');
+			}
+			return view;
+		};
+		const alignmentHost: IPanelAlignmentTestHarness = {
+			isEditorPaneVisible: () => true,
+			agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
+			_panelAlignment: 'center',
+			panelPartView: views.get(Parts.PANEL_PART)!,
+			sessionsPartView,
+			editorPartView,
+			customViewGridPartView: views.get(Parts.CUSTOM_VIEW_GRID_PART)!,
+			workbenchGrid: {
+				element: grid.element,
+				isViewVisible: view => grid.isViewVisible(getView(view)),
+				isViewMaximized: view => grid.isViewMaximized(getView(view)),
+				getViewSize: view => grid.getViewSize(getView(view)),
+				getViewCachedVisibleSize: view => grid.getViewCachedVisibleSize(getView(view)),
+				moveView: (view, size, referenceView, direction) => grid.moveView(getView(view), size, getView(referenceView), direction),
+				resizeView: (view, size) => grid.resizeView(getView(view), size),
+				exitMaximizedView: () => grid.exitMaximizedView(),
+			},
+			mainContainer: root,
+			getMaximumEditorDimensions: () => ({ width: 1200, height: 500 }),
+			storageService: { store: () => { } },
+			_onDidChangePanelAlignment: { fire: () => { } },
+			_runWithEditorResizeSyncSuspended: fn => fn(),
+			_layoutGrid: () => grid.layout(1200, 800),
+			hasFocus: () => false,
+			focusPart: () => { },
+		};
+		Object.setPrototypeOf(alignmentHost, Workbench.prototype);
+		setPanelAlignment.call(alignmentHost, 'justify');
+
+		assert.deepStrictEqual({ centered, justified: getDividerPosition() }, {
+			centered: { dividerCount: 1, dividerIndex: 1, sessionsIndex: 1, editorIndex: 2 },
+			justified: { dividerCount: 1, dividerIndex: 0, sessionsIndex: 0, editorIndex: 1 },
+		});
 	});
 
 	test('restores the focused grid descendant after panel alignment reparents it', () => {
@@ -3764,6 +3813,7 @@ suite('Sessions - Workbench', () => {
 		const focusedParts: Parts[] = [];
 		let reparented = false;
 		const host: IPanelAlignmentTestHarness = {
+			isEditorPaneVisible: () => true,
 			agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
 			_panelAlignment: 'justify',
 			panelPartView,
@@ -3797,20 +3847,17 @@ suite('Sessions - Workbench', () => {
 		};
 		Object.setPrototypeOf(host, Workbench.prototype);
 
-		try {
-			input.focus();
-			setPanelAlignment.call(host, 'center');
+		store.add(toDisposable(() => root.remove()));
+		input.focus();
+		setPanelAlignment.call(host, 'center');
 
-			assert.deepStrictEqual({
-				activeElement: mainWindow.document.activeElement,
-				focusedParts,
-			}, {
-				activeElement: input,
-				focusedParts: [],
-			});
-		} finally {
-			root.remove();
-		}
+		assert.deepStrictEqual({
+			activeElement: mainWindow.document.activeElement,
+			focusedParts,
+		}, {
+			activeElement: input,
+			focusedParts: [],
+		});
 	});
 
 	test('panel maximization preserves whether the editor node had a restorable width', () => {
@@ -3880,34 +3927,30 @@ suite('Sessions - Workbench', () => {
 	});
 
 	test('forwards panel maximization after the Grid commits its state', () => {
-		const localStore = new DisposableStore();
-		try {
-			const panel = localStore.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-			const editor = localStore.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-			const grid = localStore.add(new Grid(panel));
-			grid.addView(editor, Sizing.Distribute, panel, Direction.Up);
-			grid.layout(800, 600);
-			const notifications: { partId: Parts; visible: boolean; maximized: boolean }[] = [];
-			const host = {
-				workbenchGrid: grid,
-				_register: <T extends IDisposable>(disposable: T) => localStore.add(disposable),
-				_fireDidChangePartVisibility: (partId: Parts, visible: boolean) => {
-					notifications.push({ partId, visible, maximized: grid.hasMaximizedView() });
-				},
-				isVisible: () => true,
-			};
-			registerGridMaximizationListener.call(host);
+		const localStore = store.add(new DisposableStore());
+		const panel = localStore.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		const editor = localStore.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		const grid = localStore.add(new Grid(panel));
+		grid.addView(editor, Sizing.Distribute, panel, Direction.Up);
+		grid.layout(800, 600);
+		const notifications: { partId: Parts; visible: boolean; maximized: boolean }[] = [];
+		const host = {
+			workbenchGrid: grid,
+			_register: <T extends IDisposable>(disposable: T) => localStore.add(disposable),
+			_fireDidChangePartVisibility: (partId: Parts, visible: boolean) => {
+				notifications.push({ partId, visible, maximized: grid.hasMaximizedView() });
+			},
+			isVisible: () => true,
+		};
+		registerGridMaximizationListener.call(host);
 
-			grid.maximizeView(panel);
-			grid.exitMaximizedView();
+		grid.maximizeView(panel);
+		grid.exitMaximizedView();
 
-			assert.deepStrictEqual(notifications, [
-				{ partId: Parts.PANEL_PART, visible: true, maximized: true },
-				{ partId: Parts.PANEL_PART, visible: true, maximized: false },
-			]);
-		} finally {
-			localStore.dispose();
-		}
+		assert.deepStrictEqual(notifications, [
+			{ partId: Parts.PANEL_PART, visible: true, maximized: true },
+			{ partId: Parts.PANEL_PART, visible: true, maximized: false },
+		]);
 	});
 
 	test('round trips a detail-only pane and preserves hidden views through panel maximization', () => {
@@ -3938,6 +3981,7 @@ suite('Sessions - Workbench', () => {
 				return view;
 			};
 			const alignmentHost: IPanelAlignmentTestHarness = {
+				isEditorPaneVisible: () => true,
 				agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
 				_panelAlignment: 'justify',
 				panelPartView: views.get(Parts.PANEL_PART)!,

@@ -38,8 +38,25 @@ import { IAgentHostToolSetEnablementService, isCopilotCliSessionType, isToolEnab
 import { AgentHostMcpServerSupportScope, IAgentHostMcpServerSupportScope } from './agentHostMcpServerSupportScope.js';
 import { type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
+import { type IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { toAgentHostClientCustomization } from '../../../common/agentHostSessionCustomizations.js';
 
 export const IAgentHostActiveClientService = createDecorator<IAgentHostActiveClientService>('agentHostActiveClientService');
+
+/** Appends session tool lists to an active client, preserving earlier definitions on name collisions. */
+export function composeSessionActiveClient(activeClient: SessionActiveClient, ...toolLists: readonly (readonly ToolDefinition[])[]): SessionActiveClient {
+	const tools = [...activeClient.tools];
+	const toolNames = new Set(tools.map(tool => tool.name));
+	for (const toolList of toolLists) {
+		for (const tool of toolList) {
+			if (!toolNames.has(tool.name)) {
+				tools.push(tool);
+				toolNames.add(tool.name);
+			}
+		}
+	}
+	return { ...activeClient, tools };
+}
 
 /** Identity a published customization set is resolved against. Refcounted; disposed by each holder. */
 export interface IAgentCustomizationScope extends IDisposable {
@@ -47,8 +64,8 @@ export interface IAgentCustomizationScope extends IDisposable {
 	readonly customAgents: IObservable<readonly AgentCustomization[]>;
 	/** Tools available to this scope's active client. */
 	readonly tools: IObservable<readonly ToolDefinition[]>;
-	/** Composed active-client view for this scope. */
-	activeClient(clientId: string): IObservable<SessionActiveClient>;
+	/** Composed publication view; the scope's original client-side customization URIs stay unchanged. */
+	activeClient(clientId: string, resourceUris: IAgentHostResourceUriMapper): IObservable<SessionActiveClient>;
 	/**
 	 * `false` until the initial customization resolution completes. Publishing an
 	 * unresolved scope would transiently wipe the host's customization state.
@@ -129,8 +146,9 @@ class AgentCustomizationScope extends Disposable {
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 	) {
 		super();
-		this._bundler = this._register(instantiationService.createInstance(SyncedCustomizationBundler, createScopeAuthority(_sessionType, scopeKey), undefined));
-		this._standaloneBundler = this._register(instantiationService.createInstance(SyncedCustomizationBundler, createStandaloneScopeAuthority(_sessionType, scopeKey), { standalone: true }));
+		const preserveAgentFileCollisions = isCopilotCliSessionType(_sessionType);
+		this._bundler = this._register(instantiationService.createInstance(SyncedCustomizationBundler, createScopeAuthority(_sessionType, scopeKey), { preserveAgentFileCollisions }));
+		this._standaloneBundler = this._register(instantiationService.createInstance(SyncedCustomizationBundler, createStandaloneScopeAuthority(_sessionType, scopeKey), { standalone: true, preserveAgentFileCollisions }));
 		this._updateDelayer = this._register(new Delayer<void>(CUSTOMIZATION_UPDATE_DEBOUNCE_DELAY));
 
 		const updateCustomizations = async () => {
@@ -220,7 +238,7 @@ class AgentCustomizationScope extends Disposable {
 			isResolved: this.isResolved,
 			whenResolved: () => this._initialResolution.p,
 			getSyncedUri: sourceUri => this._bundler.getSyncedUri(sourceUri) ?? this._standaloneBundler.getSyncedUri(sourceUri),
-			activeClient: clientId => this.activeClient(clientId),
+			activeClient: (clientId, resourceUris) => this.activeClient(clientId, resourceUris),
 			dispose: () => {
 				if (!released) {
 					released = true;
@@ -238,7 +256,7 @@ class AgentCustomizationScope extends Disposable {
 		return this._bundler.isBundledMcpServer(pluginUri, serverName) || this._standaloneBundler.isBundledMcpServer(pluginUri, serverName);
 	}
 
-	activeClient(clientId: string): IObservable<SessionActiveClient> {
+	activeClient(clientId: string, resourceUris: IAgentHostResourceUriMapper): IObservable<SessionActiveClient> {
 		let activeClient = this._activeClients.get(clientId);
 		if (!activeClient) {
 			activeClient = derived(reader => {
@@ -248,7 +266,7 @@ class AgentCustomizationScope extends Disposable {
 				return {
 					clientId,
 					tools: [...this.tools.read(reader)],
-					customizations: [...this._customizations.read(reader)],
+					customizations: this._customizations.read(reader).map(customization => toAgentHostClientCustomization(customization, resourceUris)),
 				};
 			});
 			this._activeClients.set(clientId, activeClient);

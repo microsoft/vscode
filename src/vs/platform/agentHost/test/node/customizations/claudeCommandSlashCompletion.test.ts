@@ -9,6 +9,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../files/common/files.js';
+import { createInMemoryFileService } from '../../../../files/test/common/inMemoryFileService.js';
 import { CompletionItem, CompletionItemKind } from '../../../common/state/protocol/commands.js';
 import { buildDefaultChatUri, MessageAttachmentKind } from '../../../common/state/sessionState.js';
 import { AgentHostSkillCompletionProvider } from '../../../node/agentHostSkillCompletionProvider.js';
@@ -16,7 +17,7 @@ import type { ISdkResolvedCustomizations } from '../../../node/claude/claudeSdkP
 import { buildDiscoveredCustomizations } from '../../../node/claude/customizations/claudeSessionCustomizationDiscovery.js';
 import { scanClaudeDiskCustomizations } from '../../../node/claude/customizations/scan/claudeAgentSkillScan.js';
 import { MockAgent } from '../mockAgent.js';
-import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, createInMemoryFileService, seedFile } from './claudeCustomizationTestUtils.js';
+import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, seedFile } from './claudeCustomizationTestUtils.js';
 import { createTestAgentChatContext } from '../agentChatContextTestUtils.js';
 
 /**

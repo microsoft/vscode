@@ -122,6 +122,12 @@ background and glow, and defaults to enabled. Resource-specific changes are sent
 to the renderer without reloading the document or changing source-marker visibility.
 The webview reserves symmetric scrollbar gutters so the document remains centered.
 
+### Whitespace indicators
+
+`markdown.editor.renderWhitespace` controls the space and tab indicators shown
+where Markdown syntax is revealed, and defaults to disabled. Like active block
+highlighting, changes are sent to the renderer without reloading the document.
+
 ### Mermaid
 
 The `mermaid-markdown-features` extension contributes the Mermaid code block

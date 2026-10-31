@@ -8,9 +8,11 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { CustomizationType } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { agentHostAgentPickerStorageKey, resolveAgentHostAgent } from '../../../../../platform/agentHost/common/customAgents.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -36,7 +38,7 @@ import { ISessionContext } from '../../../../services/sessions/browser/sessionCo
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING } from '../../../chat/common/constants.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IChatContextPickService, IChatContextValueItem } from '../../../../../workbench/contrib/chat/browser/attachments/chatContextPickService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -117,25 +119,12 @@ registerAction2(class extends Action2 {
 				order: -1,
 				when: ContextKeyExpr.and(
 					IsActiveSessionAgentHost, IsPhoneLayoutContext.negate(), ChatContextKeys.inAutomationsDialog.negate(),
-					ContextKeyExpr.has(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`),
-					ContextKeyExpr.has(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`),
 				),
 			}, {
 				id: Menus.AutomationsDialogInputToolbar,
 				group: 'navigation',
 				order: -1,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inAutomationsDialog, IsActiveSessionAgentHost, IsPhoneLayoutContext.negate()),
-			}, {
-				id: Menus.NewSessionChatInputToolbar,
-				group: 'navigation',
-				order: 0,
-				when: ContextKeyExpr.and(
-					IsActiveSessionAgentHost, IsPhoneLayoutContext.negate(),
-					ContextKeyExpr.or(
-						ContextKeyExpr.not(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`),
-						ContextKeyExpr.not(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`),
-					),
-				),
 			}, {
 				// Running-session input bar — only inside the dedicated
 				// Agents Window. The regular VS Code chat editor uses the
@@ -391,11 +380,27 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 			return;
 		}
 
-		const agents = provider.getCustomAgents(session.sessionId);
+		const customizations = provider.getCustomizations(session.sessionId);
+		const rawAgents = provider.getCustomAgents(session.sessionId);
+		const agents = rawAgents.map(agent => {
+			const containers = customizations.filter(customization => customization.type !== CustomizationType.McpServer && customization.children?.some(child => child.uri === agent.uri));
+			return containers.length > 0
+				? { ...agent, uri: provider.mapAgentHostResource(URI.parse(agent.uri)).toString() }
+				: agent;
+		});
 		const storedUri = isUntitled
 			? this.storageService.get(agentHostAgentPickerStorageKey(session.resource.scheme), StorageScope.PROFILE)
 			: undefined;
-		const resolved = resolveAgentHostAgent(agents, selectedAgentUri, storedUri);
+		// Resolve selected, remembered, or draft-source URIs to the client-space URI the picker lists.
+		const toPickerUri = (uri: string | undefined) => {
+			if (!uri) {
+				return undefined;
+			}
+			const hostUri = provider.resolveCustomAgent?.(session.sessionId, uri)?.uri ?? uri;
+			const index = rawAgents.findIndex(agent => agent.uri === hostUri);
+			return index >= 0 ? agents[index].uri : uri;
+		};
+		const resolved = resolveAgentHostAgent(agents, toPickerUri(selectedAgentUri), toPickerUri(storedUri));
 
 		if (!selectedAgentUri && isUntitled && resolved) {
 			beginInternalSet();

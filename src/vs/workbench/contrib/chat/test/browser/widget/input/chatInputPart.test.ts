@@ -31,7 +31,8 @@ import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js
 import { ChatSessionWorkingSetKeptChanges } from '../../../../browser/widget/input/chatSessionWorkingSet.js';
 import { ChatSessionReviewPreferencesService, IChatSessionReviewPreferencesService } from '../../../../common/editing/chatSessionReviewPreferences.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
-import { ChatConfiguration } from '../../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../common/constants.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { IChatSessionFileChange2, IChatSessionsService, SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { emptySessionEntryDiff, hasUndecidedChatEditingResourceContextKey, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
@@ -39,11 +40,97 @@ import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import { IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry } from '../../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { createChatReferenceVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { MockChatModel } from '../../../common/model/mockChatModel.js';
+import { ChatQuestionCarouselData } from '../../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
+import { ChatPlanReviewData } from '../../../../common/model/chatProgressTypes/chatPlanReviewData.js';
+import { ChatToolInvocation } from '../../../../common/model/chatProgressTypes/chatToolInvocation.js';
+import { IChatToolInvocation } from '../../../../common/chatService/chatService.js';
+import { ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
+import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { Target } from '../../../../common/promptSyntax/promptTypes.js';
 import '../../../../browser/widget/media/chat.css';
 
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const { preserveFocus, moveFocus } of [
+		{ preserveFocus: undefined, moveFocus: false },
+		{ preserveFocus: true, moveFocus: false },
+		{ preserveFocus: true, moveFocus: true },
+	]) {
+		test(`disabling input retains editor focus only when opted in and never steals it back (${preserveFocus}, ${moveFocus})`, () => {
+			const root = dom.append(mainWindow.document.body, dom.$('div'));
+			store.add(toDisposable(() => root.remove()));
+			const editorElement = dom.append(root, dom.$('div'));
+			const textInput = dom.append(editorElement, dom.$('textarea'));
+			const toolbarButton = dom.append(root, dom.$('button'));
+			const attachments = dom.append(root, dom.$('div'));
+			const inputActions = dom.append(root, dom.$('div'));
+			const secondaryToolbar = dom.append(root, dom.$('div'));
+			let readOnly = false;
+			let disabledOverlay = false;
+			const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+				inputEnabled: true,
+				_inputEditor: {
+					hasWidgetFocus: () => mainWindow.document.activeElement === textInput,
+					updateOptions: (options: { readOnly: boolean }) => { readOnly = options.readOnly; },
+					focus: () => textInput.focus(),
+				},
+				_inputEditorElement: editorElement,
+				attachmentsContainer: attachments,
+				inputActionsToolbar: { getElement: () => inputActions },
+				secondaryToolbarContainer: secondaryToolbar,
+				executeToolbar: { focus: () => toolbarButton.focus() },
+				dnd: { setDisabledOverlay: (disabled: boolean) => { disabledOverlay = disabled; } },
+			});
+			textInput.focus();
+			input.setInputEnabled(false, preserveFocus);
+			const disabled = {
+				readOnly, disabledOverlay, editorInert: editorElement.inert,
+				attachmentsInert: attachments.inert, actionsInert: inputActions.inert, secondaryInert: secondaryToolbar.inert,
+				editorFocused: mainWindow.document.activeElement === textInput,
+				toolbarFocused: mainWindow.document.activeElement === toolbarButton,
+			};
+			if (moveFocus) {
+				toolbarButton.focus();
+			}
+			input.setInputEnabled(true);
+			assert.deepStrictEqual({
+				disabled, readOnly, disabledOverlay, editorInert: editorElement.inert,
+				focused: mainWindow.document.activeElement === (preserveFocus && !moveFocus ? textInput : toolbarButton),
+			}, {
+				disabled: {
+					readOnly: true, disabledOverlay: true, editorInert: !preserveFocus,
+					attachmentsInert: true, actionsInert: true, secondaryInert: true,
+					editorFocused: !!preserveFocus, toolbarFocused: !preserveFocus,
+				},
+				readOnly: false, disabledOverlay: false, editorInert: false, focused: true,
+			});
+		});
+	}
+
+	test('a suppressed input rejects requests routed by other renderers without resolving them', () => {
+		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), { options: { renderInputRequests: false } });
+		const question = new ChatQuestionCarouselData([{ id: 'question', type: 'text', title: 'Choose a direction' }], true);
+		const review = new ChatPlanReviewData('Review plan', 'Approve this plan.', [{ label: 'Implement' }], false);
+		const tool = new ChatToolInvocation(
+			{ invocationMessage: 'Run a check', confirmationMessages: { title: 'Allow check?', message: 'Run this check?' } },
+			{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+			'check', undefined, {},
+		);
+		const factory = () => { throw new Error('Suppressed confirmations must not be constructed'); };
+		input.addToolToConfirmationCarousel(tool, factory);
+		assert.deepStrictEqual({
+			question: input.renderQuestionCarousel(question, undefined, { onSubmit: () => assert.fail('Question submitted') }),
+			review: input.renderPlanReview(review, upcastPartial<IChatContentPartRenderContext>({}), { onSubmit: () => assert.fail('Plan submitted') }),
+			confirmation: input.renderToolConfirmationCarousel(tool, factory),
+			questionUsed: !!question.isUsed,
+			reviewUsed: !!review.isUsed,
+			toolState: tool.state.get().type,
+		}, {
+			question: undefined, review: undefined, confirmation: undefined,
+			questionUsed: false, reviewUsed: false, toolState: IChatToolInvocation.StateKind.WaitingForConfirmation,
+		});
+	});
 
 	for (const theme of [
 		{ name: 'dark', background: 'rgb(14, 99, 156)', foreground: 'rgb(255, 255, 255)', hover: 'rgb(17, 119, 187)' },
@@ -109,6 +196,7 @@ suite('ChatInputPart', () => {
 				onDidChange: Event.None,
 				getElements: () => [heading, trigger],
 				getBaseElement: () => base,
+				getJumpGameElement: () => heading,
 			}]),
 			container: inputPartContainer,
 			inputContainer: input,
@@ -128,6 +216,7 @@ suite('ChatInputPart', () => {
 		};
 		const visibleColliders = inputPart.getChatPetPlatforms().map(platform => platform.element === heading ? 'heading'
 			: platform.element === base ? 'container' : platform.element === input ? 'input' : 'control');
+		const jumpGamePlatforms = inputPart.getChatPetPlatforms().filter(platform => platform.supportsJumpGame).map(platform => platform.element === heading);
 		base.style.visibility = 'hidden';
 		const invisibleBase = inputPart.getChatPetPlatformTop(insideBase);
 		base.style.visibility = '';
@@ -136,6 +225,7 @@ suite('ChatInputPart', () => {
 		assert.deepStrictEqual({
 			visible,
 			visibleColliders,
+			jumpGamePlatforms,
 			invisibleBase,
 			hiddenBase: inputPart.getChatPetPlatformTop(insideBase),
 		}, {
@@ -147,6 +237,7 @@ suite('ChatInputPart', () => {
 				withoutHorizontalPosition: inputBounds.top,
 			},
 			visibleColliders: ['input', 'heading', 'container'],
+			jumpGamePlatforms: [true],
 			invisibleBase: inputBounds.top,
 			hiddenBase: inputBounds.top,
 		});
@@ -190,6 +281,78 @@ suite('ChatInputPart', () => {
 		availabilityChanged.fire();
 		states.push(targetedModels.get());
 		assert.deepStrictEqual(states, [false, true, false, false]);
+	});
+
+	function createModelPoolInput(models: readonly ILanguageModelChatMetadataAndIdentifier[]) {
+		const sessionResource = URI.from({ scheme: 'agent-host-copilotcli', path: '/session', fragment: 'peer' });
+		const revalidations: (string | undefined)[] = [];
+		const inputPart: ChatInputPart = Object.create(ChatInputPart.prototype);
+		Object.defineProperty(inputPart, 'currentModeKind', { value: ChatModeKind.Agent });
+		Object.assign(inputPart, {
+			location: ChatAgentLocation.Chat,
+			_inputModelSessionResource: sessionResource,
+			_widget: { viewModel: { model: { sessionResource } } },
+			_currentSessionTypeObservable: observableValue<string | undefined>('currentSessionType', 'agent-host-copilotcli'),
+			_modelSessionTypeOverride: observableValue<{ readonly resource: URI; readonly sessionType: string } | undefined>('override', undefined),
+			_modelSelectionController: { revalidateForSessionType: () => revalidations.push(inputPart.modelTargetSessionType) },
+			getAllMergedModels: () => [...models],
+			chatSessionsService: upcastPartial<IChatSessionsService>({ requiresCustomModelsForSessionType: () => true }),
+			languageModelsService: upcastPartial<ILanguageModelsService>({ isModelHidden: () => false }),
+		});
+		return { inputPart, revalidations };
+	}
+
+	function targetedModel(sessionType: string, id: string): ILanguageModelChatMetadataAndIdentifier {
+		return { identifier: `${sessionType}:${id}`, metadata: upcastPartial<ILanguageModelChatMetadata>({ id, name: id, targetChatSessionType: sessionType, isUserSelectable: true }) };
+	}
+
+	test('selects a chat\'s models from the session type it is answered by, never another one\'s', () => {
+		const copilot = targetedModel('agent-host-copilotcli', 'gpt');
+		const claude = targetedModel('agent-host-claude', 'claude-haiku');
+		const read = (input: ChatInputPart) => ({ target: input.modelTargetSessionType, models: (input as unknown as { getModels(): ILanguageModelChatMetadataAndIdentifier[] }).getModels().map(model => model.identifier) });
+
+		const withClaude = createModelPoolInput([copilot, claude]);
+		const sessionDefault = read(withClaude.inputPart);
+		withClaude.inputPart.setModelSessionTypeOverride({ sessionType: 'agent-host-claude' });
+		const overridden = read(withClaude.inputPart);
+		withClaude.inputPart.setModelSessionTypeOverride(undefined);
+		const restored = read(withClaude.inputPart);
+
+		const emptyVendor = createModelPoolInput([copilot]);
+		emptyVendor.inputPart.setModelSessionTypeOverride({ sessionType: 'agent-host-claude' });
+		const unresolved = createModelPoolInput([copilot, claude]);
+		unresolved.inputPart.setModelSessionTypeOverride({ sessionType: undefined });
+		const whileUnresolved = read(unresolved.inputPart);
+		unresolved.inputPart.setModelSessionTypeOverride({ sessionType: 'agent-host-claude' });
+		const onceResolved = read(unresolved.inputPart);
+		const otherChat = createModelPoolInput([copilot, claude]);
+		otherChat.inputPart.setModelSessionTypeOverride({ sessionType: 'agent-host-claude' }, URI.parse('agent-host-copilotcli:/session#incoming'));
+
+		assert.deepStrictEqual({ sessionDefault, overridden, restored, revalidations: withClaude.revalidations, emptyVendor: read(emptyVendor.inputPart), whileUnresolved, onceResolved, otherChat: { ...read(otherChat.inputPart), revalidations: otherChat.revalidations } }, {
+			sessionDefault: { target: 'agent-host-copilotcli', models: [copilot.identifier] },
+			overridden: { target: 'agent-host-claude', models: [claude.identifier] },
+			restored: { target: 'agent-host-copilotcli', models: [copilot.identifier] },
+			revalidations: ['agent-host-claude', 'agent-host-copilotcli'],
+			emptyVendor: { target: 'agent-host-claude', models: [] },
+			whileUnresolved: { target: 'agent-host-copilotcli', models: [] },
+			onceResolved: { target: 'agent-host-claude', models: [claude.identifier] },
+			// Set ahead for a chat that is not bound yet: the bound chat is not revalidated against it.
+			otherChat: { target: 'agent-host-copilotcli', models: [copilot.identifier], revalidations: [] },
+		});
+	});
+
+	test('replacing or dropping the bound chat\'s pool while switching away never revalidates it against another pool', () => {
+		const claude = targetedModel('agent-host-claude', 'claude-haiku');
+		const { inputPart, revalidations } = createModelPoolInput([targetedModel('agent-host-copilotcli', 'gpt'), claude]);
+		inputPart.setModelSessionTypeOverride({ sessionType: 'agent-host-claude' });
+		const bound = revalidations.length;
+		inputPart.setModelSessionTypeOverride({ sessionType: 'agent-host-codex' }, URI.parse('agent-host-copilotcli:/session#incoming'), { revalidate: false });
+		inputPart.setModelSessionTypeOverride(undefined, undefined, { revalidate: false });
+		Object.assign(inputPart, { _widget: { viewModel: undefined } });
+		inputPart.setModelSessionTypeOverride({ sessionType: 'agent-host-claude' });
+		inputPart.setModelSessionTypeOverride(undefined);
+
+		assert.deepStrictEqual({ bound, revalidations }, { bound: 1, revalidations: ['agent-host-claude'] });
 	});
 
 	test('lets a host that submits for itself decide whether its session options are valid', () => {

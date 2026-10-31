@@ -2568,11 +2568,6 @@
         "category": "Chat"
       },
       {
-        "command": "github.copilot.debug.workbenchState",
-        "title": "%github.copilot.command.logWorkbenchState%",
-        "category": "Developer"
-      },
-      {
         "command": "github.copilot.debug.togglePowerSaveBlocker",
         "title": "%github.copilot.command.togglePowerSaveBlocker%",
         "category": "Developer"
@@ -3281,8 +3276,10 @@
             "markdownDescription": "Enable or disable auto triggering of Copilot completions for specified [languages](https://code.visualstudio.com/docs/languages/identifiers). You can still trigger suggestions manually using `Alt + \\`",
             "agentsWindow": {
               "default": {
+                "*": true,
+                "plaintext": true,
                 "markdown": true,
-                "plaintext": true
+                "scminput": false
               }
             }
           },
@@ -3477,6 +3474,15 @@
             "type": "boolean",
             "default": false,
             "markdownDescription": "%github.copilot.config.switchAgent.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.recordVideoSkill.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.recordVideoSkill.enabled%",
             "tags": [
               "experimental",
               "onExp"
@@ -5532,10 +5538,6 @@
           "when": "github.copilot-chat.activated && !github.copilot.interactiveSession.disabled"
         },
         {
-          "command": "github.copilot.debug.workbenchState",
-          "when": "true"
-        },
-        {
           "command": "github.copilot.chat.rerunWithCopilotDebug",
           "when": "false"
         },
@@ -6745,6 +6747,13 @@
         "sessionTypes": [
           "local"
         ]
+      },
+      {
+        "path": "./assets/prompts/skills/record-video/SKILL.md",
+        "when": "config.github.copilot.chat.recordVideoSkill.enabled",
+        "sessionTypes": [
+          "copilotcli"
+        ]
       }
     ],
     "terminal": {
@@ -6795,7 +6804,6 @@
     "setup:dotnet": "run-script-os",
     "setup:dotnet:darwin:linux": "curl -O https://raw.githubusercontent.com/dotnet/install-scripts/main/src/dotnet-install.sh && chmod u+x dotnet-install.sh && ./dotnet-install.sh --channel 10.0 && rm dotnet-install.sh",
     "setup:dotnet:win32": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Invoke-WebRequest -Uri https://raw.githubusercontent.com/dotnet/install-scripts/main/src/dotnet-install.ps1 -OutFile dotnet-install.ps1; ./dotnet-install.ps1 -channel 10.0; Remove-Item dotnet-install.ps1\"",
-    "analyze-edits": "tsx script/analyzeEdits.ts",
     "extract-chat-lib": "tsx script/build/extractChatLib.ts",
     "create_venv": "tsx script/setup/createVenv.mts",
     "package": "vsce package",
@@ -6834,7 +6842,7 @@
     "@typescript-eslint/eslint-plugin": "^8.35.0",
     "@typescript-eslint/parser": "^8.32.0",
     "@typescript-eslint/typescript-estree": "^8.26.1",
-    "@typescript/native": "npm:typescript@7.1.0-dev.20260818.1",
+    "@typescript/native": "npm:typescript@7.1.0-dev.20261027.1",
     "@vitest/coverage-v8": "^4.1.8",
     "@vitest/snapshot": "^1.5.0",
     "@vscode/debugadapter": "^1.68.0",

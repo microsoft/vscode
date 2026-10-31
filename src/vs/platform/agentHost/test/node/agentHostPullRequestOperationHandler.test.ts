@@ -8,7 +8,6 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
@@ -18,7 +17,8 @@ import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common
 import { buildBranchChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { buildChatUri, buildDefaultChatUri, withSessionGitHubState, withSessionGitState, type ISessionFileDiff, type ISessionGitState, MessageKind, ResponsePartKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
-import type { IAgentHostGitService, IBranch, IDefaultBranch, IPushOptions } from '../../common/agentHostGitService.js';
+import type { IDefaultBranch, IPushOptions } from '../../common/agentHostGitService.js';
+import { TestAgentHostGitService } from '../common/testAgentHostGitService.js';
 import { AgentHostPullRequestOperationHandler } from '../../node/agentHostPullRequestOperationHandler.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostUtilityModelService } from '../../node/agentHostUtilityModelService.js';
@@ -91,9 +91,7 @@ class TestBranchNameGenerator implements IAgentBranchNameGenerator {
 	}
 }
 
-class TestGitService implements IAgentHostGitService {
-	declare readonly _serviceBrand: undefined;
-
+class TestGitService extends TestAgentHostGitService {
 	readonly calls: string[] = [];
 	readonly requestedBaseBranches: Array<string | undefined> = [];
 	readonly workingDirectories: string[] = [];
@@ -106,79 +104,45 @@ class TestGitService implements IAgentHostGitService {
 	onMutation: ((operation: string) => void) | undefined;
 	branchChanges: readonly ISessionFileDiff[] | undefined = [{ after: { uri: 'file:///repo/file.ts', content: { uri: 'file:///repo/file.ts' } } }];
 
-	async getCurrentBranch(): Promise<string | undefined> { return 'feature/test'; }
-	async getHEAD(): Promise<IBranch | undefined> { return undefined; }
-	async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return { name: 'main', startPoint: 'main' }; }
-	async getDefaultBranch2(): Promise<IBranch | undefined> { return undefined; }
-	async getBranch(): Promise<IBranch | undefined> { return undefined; }
-	async getRefs(): Promise<IBranch[]> { return []; }
-	async getBranches(): Promise<IBranch[]> { return []; }
-	hasGitRoot() { return constObservable(undefined); }
-	async getRepositoryRoot(): Promise<URI | undefined> { return URI.file('/repo'); }
-	async getWorktreeRoots(): Promise<URI[]> { return []; }
-	async addWorktree(): Promise<void> { }
-	async copyWorktreeIncludeFiles(): Promise<void> { }
-	async symlinkWorktreeFolders(): Promise<readonly string[]> { return []; }
-	async addExistingWorktree(): Promise<void> { }
-	async isWorktreeRegistered(): Promise<boolean> { return true; }
-	async removeWorktree(): Promise<void> { }
-	async branchExists(_repositoryRoot: URI, branchName: string): Promise<boolean> {
+	override async getCurrentBranch(): Promise<string | undefined> { return 'feature/test'; }
+	override async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return { name: 'main', startPoint: 'main' }; }
+	override async getRepositoryRoot(): Promise<URI | undefined> { return URI.file('/repo'); }
+	override async branchExists(_repositoryRoot: URI, branchName: string): Promise<boolean> {
 		this.calls.push(`branchExists:${branchName}`);
 		return false;
 	}
-	async createBranch(_workingDirectory: URI, branchName: string): Promise<void> {
+	override async createBranch(_workingDirectory: URI, branchName: string): Promise<void> {
 		this.onMutation?.('createBranch');
 		this.calls.push(`createBranch:${branchName}`);
 		this.createdBranch = branchName;
 	}
-	async checkout(): Promise<void> { }
-	async hasUncommittedChanges(): Promise<boolean> {
+	override async hasUncommittedChanges(): Promise<boolean> {
 		this.calls.push('hasUncommittedChanges');
 		return this.uncommitted;
 	}
-	async createStash(): Promise<void> { }
-	async commitAll(_workingDirectory: URI, message: string): Promise<void> {
+	override async commitAll(_workingDirectory: URI, message: string): Promise<void> {
 		this.onMutation?.('commitAll');
 		this.calls.push(`commitAll:${message}`);
 		this.uncommitted = false;
 	}
-	async mergeBranch(): Promise<string> { return ''; }
-	async restore(): Promise<void> { }
-	async hasUpstream(): Promise<boolean> {
+	override async hasUpstream(): Promise<boolean> {
 		this.calls.push('hasUpstream');
 		return this.upstream;
 	}
-	async fetch(): Promise<void> { }
-	async pull(): Promise<void> { }
-	async push(_workingDirectory: URI, options: IPushOptions): Promise<void> {
+	override async push(_workingDirectory: URI, options: IPushOptions): Promise<void> {
 		this.onMutation?.('push');
 		this.calls.push(`push:${options.ref}:${options.setUpstream}`);
 		this.pushOptions.push(options);
 	}
-	async getSessionGitState(workingDirectory: URI, baseBranchName?: string): Promise<ISessionGitState | undefined> {
+	override async getSessionGitState(workingDirectory: URI, baseBranchName?: string): Promise<ISessionGitState | undefined> {
 		this.workingDirectories.push(workingDirectory.toString());
 		this.requestedBaseBranches.push(baseBranchName);
 		return this.createdBranch ? this.gitStateAfterBranchCreation : this.gitState;
 	}
-	async computeSessionFileDiffs(): Promise<readonly ISessionFileDiff[] | undefined> {
+	override async computeSessionFileDiffs(): Promise<readonly ISessionFileDiff[] | undefined> {
 		this.calls.push('computeSessionFileDiffs');
 		return this.branchChanges;
 	}
-	async showBlob(): Promise<undefined> { return undefined; }
-	async captureWorkingTreeAsTree(): Promise<undefined> { return undefined; }
-	async commitTree(): Promise<undefined> { return undefined; }
-	async updateRef(): Promise<void> { }
-	async deleteRefs(): Promise<void> { }
-	async revParse(): Promise<string | undefined> { return undefined; }
-	async resolveBranchBaselineCommit(): Promise<string | undefined> { return undefined; }
-	async overlayPathIntoTree(): Promise<string | undefined> { return undefined; }
-	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
-	async computeFileDiffsBetweenRefs(): Promise<readonly ISessionFileDiff[] | undefined> { return undefined; }
-	async getFetchRemoteUrls(): Promise<undefined> { return undefined; }
-	async getFetchRemotes(): Promise<undefined> { return undefined; }
-	async getUntrackedPaths(): Promise<[]> { return []; }
-	async getBranchDiffSafetyInfo(): Promise<undefined> { return undefined; }
-	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }
 }
 
 class TestGitHubClient {
@@ -372,6 +336,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 	}() : gitHubClient;
 	const providerService = new class extends mock<IAgentHostProviderService>() {
 		override getProviderForSession() { return undefined; }
+		override getProviderForChat() { return undefined; }
 	}();
 	const utilityModelService = new AgentHostUtilityModelService(true, configurationService, copilotApiService, new NullByokLmBridgeRegistry(), providerService, stateManager, authenticationService, gitHubEndpointService, logService, createTestChatOwnershipService(stateManager), new class extends mock<IAgentHostSessionStateStore>() { override peek() { return undefined; } }());
 	return {

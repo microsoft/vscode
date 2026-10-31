@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-Q3Tfcw0dGu/YD4dGBrRqBeOnmRMAH8HbKxArK4YSXBc=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-29YeDbmHnhN2BgMJKVq7vDCMiuya6rpEctI6SkJFfJc=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -135,8 +135,13 @@
 				max-height: 100%;
 			}
 
-			a, a code {
+			a {
 				color: var(--vscode-textLink-foreground);
+			}
+
+			a code {
+				color: var(--vscode-textPreformat-foreground);
+				text-decoration: underline;
 			}
 
 			p > a {
@@ -164,6 +169,7 @@
 			}
 
 			pre code {
+				background-color: transparent;
 				padding: 0;
 			}
 

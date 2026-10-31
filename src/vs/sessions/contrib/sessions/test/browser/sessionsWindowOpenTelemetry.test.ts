@@ -7,7 +7,6 @@ import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ShutdownReason } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
@@ -16,20 +15,7 @@ import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../
 import { URI } from '../../../../../base/common/uri.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { EditorChatUsage } from '../../../../../workbench/contrib/chat/common/editorChatUsage.js';
-
-function isTelemetryData(data: unknown): data is Record<string, unknown> {
-	return typeof data === 'object' && data !== null;
-}
-
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
-
-	override publicLog2(eventName?: string, data?: unknown): void {
-		if (eventName && isTelemetryData(data)) {
-			this.events.push({ name: eventName, data });
-		}
-	}
-}
+import { TestDataTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 
 suite('SessionsWindowOpenTelemetry', () => {
 
@@ -43,7 +29,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 	};
 
 	test('emits one window session start when initialized', () => {
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestDataTelemetryService();
 		new SessionsWindowSessionStartTelemetry(AgentsWindowOpenSource.TitleBar, false, telemetryService);
 
 		assert.deepStrictEqual(telemetryService.events, [{
@@ -55,7 +41,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 	test('emits captured initial state and close duration for a quick close', async () => {
 		await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
 			const lifecycleService = disposables.add(new TestLifecycleService());
-			const telemetryService = new TestTelemetryService();
+			const telemetryService = new TestDataTelemetryService();
 			let workspacePreselected = true;
 			let workspacePreselectionSource = 'existingSessions';
 			let nonArchivedSessionListCount = 1;
@@ -125,7 +111,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 	test('emits once after three minutes without a close duration', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const lifecycleService = disposables.add(new TestLifecycleService());
-			const telemetryService = new TestTelemetryService();
+			const telemetryService = new TestDataTelemetryService();
 			const tracker = disposables.add(new SessionsWindowOpenTelemetry(
 				AgentsWindowOpenSource.CommandPalette,
 				{ workspaceArgumentKind: 'local', hasSessionArgument: true },
@@ -185,7 +171,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 
 		for (const [shutdownReason, emissionReason] of reasons) {
 			const lifecycleService = disposables.add(new TestLifecycleService());
-			const telemetryService = new TestTelemetryService();
+			const telemetryService = new TestDataTelemetryService();
 			const tracker = disposables.add(new SessionsWindowOpenTelemetry(
 				AgentsWindowOpenSource.CommandPalette,
 				{ workspaceArgumentKind: 'none', hasSessionArgument: false },
@@ -231,7 +217,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 	test('distinguishes an early close while setup is pending from no eligible workspace', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const lifecycleService = disposables.add(new TestLifecycleService());
-			const telemetryService = new TestTelemetryService();
+			const telemetryService = new TestDataTelemetryService();
 			const tracker = disposables.add(new SessionsWindowOpenTelemetry(
 				AgentsWindowOpenSource.WelcomeTryOut,
 				{ workspaceArgumentKind: 'local', hasSessionArgument: false },
@@ -269,7 +255,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 	test('keeps the initial pending snapshot when a workspace is selected before emission', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const lifecycleService = disposables.add(new TestLifecycleService());
-			const telemetryService = new TestTelemetryService();
+			const telemetryService = new TestDataTelemetryService();
 			let selection: IWorkspaceSelectionSnapshot = {
 				folderUri: undefined,
 				origin: WorkspaceSelectionOrigin.None,
@@ -330,7 +316,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 
 	test('records unsupported arguments separately from history selection and caps provider counts', () => {
 		const lifecycleService = disposables.add(new TestLifecycleService());
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestDataTelemetryService();
 		const tracker = disposables.add(new SessionsWindowOpenTelemetry(
 			AgentsWindowOpenSource.CommandPalette,
 			{ workspaceArgumentKind: 'remote', hasSessionArgument: false },
@@ -379,7 +365,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 			const storage = disposables.add(new InMemoryStorageService());
 			new EditorChatUsage(storage).recordSubmission('local', true, true, false, 7_500);
 			const lifecycle = disposables.add(new TestLifecycleService());
-			const telemetry = new TestTelemetryService();
+			const telemetry = new TestDataTelemetryService();
 			disposables.add(new SessionsWindowOpenTelemetry(
 				AgentsWindowOpenSource.TitleBar,
 				{ workspaceArgumentKind: 'none', hasSessionArgument: false },
