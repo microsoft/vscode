@@ -1,8 +1,11 @@
 name: node_modules restore benchmark
 
-# Throwaway benchmark of ways to restore the node_modules cache on the runners of the PR checks.
-# Each job downloads the same node_modules cache as the PR jobs of its platform, without extracting
-# it, and runs .github/workflows/node_modules_bench/bench.ts, which writes a table to the job summary.
+# Throwaway benchmark of ways to restore node_modules on the runners of the PR checks, on fresh
+# runners like the PR jobs. A prepare job per platform restores the node_modules cache of the PR
+# jobs, builds the archives and images to compare from it, and uploads them as artifacts, which,
+# unlike new cache entries, cannot evict the caches of the PR jobs. Each other job then sets up
+# the workspace like a PR job, with one way to restore node_modules, and transpiles. Compare the
+# durations of their steps. The scripts are in .github/workflows/node_modules_bench.
 on:
   push:
     branches:
@@ -20,13 +23,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  windows:
-    name: Windows
+  prepare-windows:
+    name: 'Prepare: Windows'
     runs-on: vscode-large-runners-windows-8-core
-    timeout-minutes: 180
+    timeout-minutes: 60
     steps:
-      # Same as in pr-win32-test.yml
-      - name: Move the workspace to a Dev Drive
+      - &dev-drive
+        # Same as in pr-win32-test.yml
+        name: Move the workspace to a Dev Drive
         shell: pwsh
         working-directory: ${{ runner.temp }}
         run: |
@@ -59,113 +63,332 @@ jobs:
           }
           exit 0
 
-      - name: Checkout microsoft/vscode
+      - &checkout
+        name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
 
-      - name: Setup Node.js
+      - &setup-node
+        name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
 
-      - name: Compute the node_modules cache key
+      - &restore-windows
+        name: Restore node_modules cache
+        id: cache-node-modules
+        uses: ./.github/actions/restore-node-modules
+        with:
+          key-prefix: node_modules-windows
+          key-args: "win32 x64 $(node -p process.arch)"
+
+      - &cache-miss
+        name: Fail on a node_modules cache miss
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: exit 1
+
+      - name: Pack the archives
         shell: pwsh
         run: |
-          mkdir .build -ea 0
-          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 x64 $(node -p process.arch) > .build/packagelockhash
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = 'Stop'
+          mkdir .build/nmb -ea 0
+          exec { node build/azure-pipelines/common/listNodeModules.ts .build/nmb/list.txt }
+          exec { node .github/workflows/node_modules_bench/archive.ts pack --root . --list .build/nmb/list.txt --out .build/nmb/plain.tar.zst --out nomap+nocopilot@.build/nmb/pruned.tar.zst }
 
-      - name: Download the node_modules cache
-        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-        with:
-          path: .build/node_modules_cache
-          key: "node_modules-windows-${{ hashFiles('.build/packagelockhash') }}"
-          fail-on-cache-miss: true
-
-      - name: Benchmark
+      - name: Build the Dev Drive images
         shell: pwsh
-        run: node .github/workflows/node_modules_bench/bench.ts
+        run: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = 'Stop'
+          exec { node .github/workflows/node_modules_bench/bench.ts images }
 
-      - name: Upload the results
-        if: always()
+      - name: Upload plain.tar.zst
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: node-modules-bench-windows
-          path: .build/nmb/results.*
-          if-no-files-found: ignore
+        with: { name: nmb-windows-plain, path: .build/nmb/plain.tar.zst, compression-level: 0, retention-days: 1, if-no-files-found: error }
+      - name: Upload pruned.tar.zst
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: nmb-windows-pruned, path: .build/nmb/pruned.tar.zst, compression-level: 0, retention-days: 1, if-no-files-found: error }
+      - name: Upload the node_modules Dev Drive
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: nmb-windows-image, path: .build/nmb/node-modules.vhdx.zst, compression-level: 0, retention-days: 1, if-no-files-found: error }
+      - name: Upload the empty Dev Drive
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: nmb-windows-empty, path: .build/nmb/empty.vhdx.zst, compression-level: 0, retention-days: 1, if-no-files-found: error }
 
-  linux:
-    name: Linux
-    # Runs 1 and 2 measured Linux and macOS consistently; later runs only benchmark Windows
-    if: false
+  prepare-linux:
+    name: 'Prepare: Linux'
     runs-on: vscode-large-runners-ubuntu-8-core
-    timeout-minutes: 120
+    timeout-minutes: 60
     steps:
-      - name: Checkout microsoft/vscode
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - *checkout
+      - *setup-node
+      - &restore-linux
+        name: Restore node_modules cache
+        id: cache-node-modules
+        uses: ./.github/actions/restore-node-modules
         with:
-          node-version-file: .nvmrc
+          key-prefix: node_modules-linux
+          key-args: "linux x64 $(node -p process.arch)"
+      - *cache-miss
 
-      - name: Install the file system image tools
-        continue-on-error: true
+      - name: Install squashfs-tools
         run: |
           set -e
           ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
-          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y squashfs-tools erofs-utils
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y squashfs-tools
 
-      - name: Compute the node_modules cache key
-        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux x64 $(node -p process.arch) > .build/packagelockhash
+      - name: Pack the archives
+        run: |
+          set -e
+          mkdir -p .build/nmb
+          node build/azure-pipelines/common/listNodeModules.ts .build/nmb/list.txt
+          node .github/workflows/node_modules_bench/archive.ts pack --root . --list .build/nmb/list.txt --out .build/nmb/plain.tar.zst --out nomap+nocopilot@.build/nmb/pruned.tar.zst
 
-      - name: Download the node_modules cache
-        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-        with:
-          path: .build/node_modules_cache
-          key: "node_modules-linux-${{ hashFiles('.build/packagelockhash') }}"
-          fail-on-cache-miss: true
+      - name: Build the squashfs image
+        run: |
+          set -e
+          stage="$RUNNER_TEMP/nm-stage"
+          UV_THREADPOOL_SIZE=32 node .github/workflows/node_modules_bench/archive.ts extract --archive .build/nmb/plain.tar.zst --dest "$stage" --concurrency 32
+          awk -F/ '{ for (i = 1; i <= NF; i++) if ($i == "node_modules") { s = $1; for (j = 2; j <= i; j++) s = s "/" $j; print s; break } }' .build/nmb/list.txt | sort -u > "$stage/.nmb-roots.txt"
+          mksquashfs "$stage" .build/nmb/node-modules.squashfs -noappend -comp zstd -Xcompression-level 3 -b 128K -no-progress -quiet
+          ls -la .build/nmb
 
-      - name: Benchmark
-        run: node .github/workflows/node_modules_bench/bench.ts
-
-      - name: Upload the results
-        if: always()
+      - name: Upload pruned.tar.zst
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: node-modules-bench-linux
-          path: .build/nmb/results.*
-          if-no-files-found: ignore
+        with: { name: nmb-linux-pruned, path: .build/nmb/pruned.tar.zst, compression-level: 0, retention-days: 1, if-no-files-found: error }
+      - name: Upload the squashfs image
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: nmb-linux-squashfs, path: .build/nmb/node-modules.squashfs, compression-level: 0, retention-days: 1, if-no-files-found: error }
 
-  macos:
-    name: macOS
-    if: false
+  prepare-macos:
+    name: 'Prepare: macOS'
     runs-on: vscode-large-runners-macos-5-core-0
-    timeout-minutes: 180
+    timeout-minutes: 60
     steps:
-      - name: Checkout microsoft/vscode
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - *checkout
+      - *setup-node
+      - &restore-macos
+        name: Restore node_modules cache
+        id: cache-node-modules
+        uses: ./.github/actions/restore-node-modules
         with:
-          node-version-file: .nvmrc
+          key-prefix: node_modules-macos
+          key-args: "darwin arm64 $(node -p process.arch)"
+      - *cache-miss
 
-      - name: Compute the node_modules cache key
-        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin arm64 $(node -p process.arch) > .build/packagelockhash
+      - name: Pack the archives
+        run: |
+          set -e
+          mkdir -p .build/nmb
+          node build/azure-pipelines/common/listNodeModules.ts .build/nmb/list.txt
+          node .github/workflows/node_modules_bench/archive.ts pack --root . --list .build/nmb/list.txt --out .build/nmb/plain.tar.zst --out nomap+nocopilot@.build/nmb/pruned.tar.zst
 
-      - name: Download the node_modules cache
-        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-        with:
-          path: .build/node_modules_cache
-          key: "node_modules-macos-${{ hashFiles('.build/packagelockhash') }}"
-          fail-on-cache-miss: true
-
-      - name: Benchmark
-        run: node .github/workflows/node_modules_bench/bench.ts
-
-      - name: Upload the results
-        if: always()
+      - name: Upload plain.tar.zst
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: nmb-macos-plain, path: .build/nmb/plain.tar.zst, compression-level: 0, retention-days: 1, if-no-files-found: error }
+      - name: Upload pruned.tar.zst
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: nmb-macos-pruned, path: .build/nmb/pruned.tar.zst, compression-level: 0, retention-days: 1, if-no-files-found: error }
+
+  # Today: a new Dev Drive, the checkout, then the node_modules cache, extracted with 7-Zip
+  windows-today:
+    name: 'Windows: today'
+    needs: prepare-windows
+    runs-on: vscode-large-runners-windows-8-core
+    timeout-minutes: 60
+    steps:
+      - *dev-drive
+      - *checkout
+      - *setup-node
+      - *restore-windows
+      - *cache-miss
+      - &transpile
+        name: Transpile client and extensions
+        run: npm run gulp "transpile-client-esbuild" "transpile-extensions"
+
+  # A Dev Drive formatted in advance, the checkout, then the parallel extractor writing through the
+  # volume path, which bypasses the mount point of the workspace on drive C
+  windows-extractor:
+    name: 'Windows: extractor (${{ matrix.archive }})'
+    needs: prepare-windows
+    runs-on: vscode-large-runners-windows-8-core
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        archive: [plain, pruned]
+    steps:
+      - name: Download the empty Dev Drive
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: node-modules-bench-macos
-          path: .build/nmb/results.*
-          if-no-files-found: ignore
+          name: nmb-windows-empty
+          path: ${{ runner.temp }}/nmb
+      - &attach-dev-drive
+        name: Move the workspace to the downloaded Dev Drive
+        shell: pwsh
+        working-directory: ${{ runner.temp }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $workspace = $env:GITHUB_WORKSPACE
+          $mount = Split-Path $workspace -Parent
+          $vhd = Join-Path $env:RUNNER_TEMP 'workspace.vhdx'
+          $image = Get-ChildItem (Join-Path $env:RUNNER_TEMP 'nmb') -Filter '*.vhdx.zst' | Select-Object -First 1
+          zstd -d -q --long=31 -f $image.FullName -o $vhd
+          if ($LASTEXITCODE -ne 0) { throw "zstd exited with $LASTEXITCODE" }
+          Remove-Item $image.FullName
+          if (Get-ChildItem -Force $workspace) { throw "$workspace is not empty" }
+          $disk = Mount-DiskImage -ImagePath $vhd -NoDriveLetter -PassThru | Get-Disk
+          $partition = $null
+          for ($i = 0; $i -lt 40; $i++) {
+            $partition = $disk | Get-Partition | Where-Object Type -ne Reserved | Select-Object -First 1
+            if ($partition) { break }
+            Start-Sleep -Milliseconds 250
+          }
+          $partition | Set-Partition -NewDriveLetter W
+          fsutil devdrv trust W: | Out-Host
+          Remove-Item $workspace
+          if (Get-ChildItem -Force $mount) { throw "$mount holds more than the workspace" }
+          Add-PartitionAccessPath -DriveLetter W -AccessPath "$mount\"
+          Remove-PartitionAccessPath -DriveLetter W -AccessPath 'W:\'
+          New-Item -ItemType Directory -Path $workspace | Out-Null
+          fsutil devdrv query $mount | Out-Host
+      - *checkout
+      - *setup-node
+      - name: Download the node_modules archive
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: nmb-windows-${{ matrix.archive }}
+          path: ${{ runner.temp }}/nmb
+      - name: Extract node_modules
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $mount = Split-Path $env:GITHUB_WORKSPACE -Parent
+          $volume = (Get-Partition | Where-Object { $_.AccessPaths -contains "$mount\" } | Get-Volume).Path
+          $env:UV_THREADPOOL_SIZE = '256'
+          node .github/workflows/node_modules_bench/archive.ts extract --archive "$env:RUNNER_TEMP\nmb\${{ matrix.archive }}.tar.zst" --dest "$volume$(Split-Path $env:GITHUB_WORKSPACE -Leaf)" --concurrency 256
+          if ($LASTEXITCODE -ne 0) { throw "The extractor exited with $LASTEXITCODE" }
+      - *transpile
+
+  # A Dev Drive that already holds node_modules becomes the workspace volume: after the checkout,
+  # its node_modules folders move into the checkout, which renames them on the same volume
+  windows-image:
+    name: 'Windows: image'
+    needs: prepare-windows
+    runs-on: vscode-large-runners-windows-8-core
+    timeout-minutes: 60
+    steps:
+      - name: Download the node_modules Dev Drive
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: nmb-windows-image
+          path: ${{ runner.temp }}/nmb
+      - *attach-dev-drive
+      - *checkout
+      - *setup-node
+      - name: Move node_modules into the checkout
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $mount = Split-Path $env:GITHUB_WORKSPACE -Parent
+          node .github/workflows/node_modules_bench/archive.ts move --from "$mount\nm" --to $env:GITHUB_WORKSPACE --roots "$mount\nm\.nmb-roots.txt"
+          if ($LASTEXITCODE -ne 0) { throw "The move exited with $LASTEXITCODE" }
+      - *transpile
+
+  linux-today:
+    name: 'Linux: today'
+    needs: prepare-linux
+    runs-on: vscode-large-runners-ubuntu-8-core
+    timeout-minutes: 60
+    steps:
+      - *checkout
+      - *setup-node
+      - *restore-linux
+      - *cache-miss
+      - *transpile
+
+  # Mounts the compressed, read-only image, and an overlay on each node_modules folder of the
+  # checkout, which keeps them writable
+  linux-squashfs:
+    name: 'Linux: squashfs'
+    needs: prepare-linux
+    runs-on: vscode-large-runners-ubuntu-8-core
+    timeout-minutes: 60
+    steps:
+      - *checkout
+      - *setup-node
+      - name: Download the squashfs image
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: nmb-linux-squashfs
+          path: ${{ runner.temp }}/nmb
+      - name: Mount node_modules
+        run: |
+          set -e
+          sudo mkdir -p /mnt/nm
+          sudo mount -t squashfs -o loop,ro "$RUNNER_TEMP/nmb/node-modules.squashfs" /mnt/nm
+          count=0
+          while read -r root; do
+            [ -n "$root" ] || continue
+            if [ -e "$root" ]; then
+              echo "Skipping $root, which the checkout has"
+              continue
+            fi
+            mkdir -p "$root" "$RUNNER_TEMP/overlay/upper/$root" "$RUNNER_TEMP/overlay/work/$root"
+            sudo mount -t overlay overlay -o "lowerdir=/mnt/nm/$root,upperdir=$RUNNER_TEMP/overlay/upper/$root,workdir=$RUNNER_TEMP/overlay/work/$root" "$root"
+            count=$((count + 1))
+          done < /mnt/nm/.nmb-roots.txt
+          echo "Mounted $count node_modules folders"
+      - *transpile
+
+  linux-extractor:
+    name: 'Linux: extractor (pruned)'
+    needs: prepare-linux
+    runs-on: vscode-large-runners-ubuntu-8-core
+    timeout-minutes: 60
+    steps:
+      - *checkout
+      - *setup-node
+      - name: Download the node_modules archive
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: nmb-linux-pruned
+          path: ${{ runner.temp }}/nmb
+      - name: Extract node_modules
+        run: UV_THREADPOOL_SIZE=32 node .github/workflows/node_modules_bench/archive.ts extract --archive "$RUNNER_TEMP/nmb/pruned.tar.zst" --dest . --concurrency 32
+      - *transpile
+
+  macos-today:
+    name: 'macOS: today'
+    needs: prepare-macos
+    runs-on: vscode-large-runners-macos-5-core-0
+    timeout-minutes: 60
+    steps:
+      - *checkout
+      - *setup-node
+      - *restore-macos
+      - *cache-miss
+      - *transpile
+
+  macos-extractor:
+    name: 'macOS: extractor (${{ matrix.archive }})'
+    needs: prepare-macos
+    runs-on: vscode-large-runners-macos-5-core-0
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        archive: [plain, pruned]
+    steps:
+      - *checkout
+      - *setup-node
+      - name: Download the node_modules archive
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: nmb-macos-${{ matrix.archive }}
+          path: ${{ runner.temp }}/nmb
+      - name: Extract node_modules
+        run: UV_THREADPOOL_SIZE=16 node .github/workflows/node_modules_bench/archive.ts extract --archive "$RUNNER_TEMP/nmb/${{ matrix.archive }}.tar.zst" --dest . --concurrency 16
+      - *transpile
