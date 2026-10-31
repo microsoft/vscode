@@ -40,7 +40,6 @@ import { IChatMLCache } from './base/cachingChatMLFetcher';
 import { usedResourceCaches } from './base/cachingResourceFetcher';
 import { ChatMLSQLiteCache } from './base/chatMLCache';
 import { CompletionsSQLiteCache, ICompletionsCache } from './base/completionsCache';
-import { usedEmbeddingsCaches } from './base/embeddingsCache';
 import { TestingCacheSalts } from './base/salts';
 import { ICompleteBaselineComparison, IModifiedScenario, SimulationBaseline } from './base/simulationBaseline';
 import { CacheMode, CurrentTestRunInfo, SimulationServicesOptions, createSimulationChatModelThrottlingTaskLaunchers, loadConfigFile } from './base/simulationContext';
@@ -309,9 +308,7 @@ async function runTests(opts: SimulationOptions, jsonOutputPrinter: IJSONOutputP
 	const writeUsedOtherCaches = false;
 	if (writeUsedOtherCaches) {
 		await fs.promises.writeFile('other-caches.json', JSON.stringify(
-			([] as string[])
-				.concat(Array.from(usedEmbeddingsCaches))
-				.concat(Array.from(usedResourceCaches))
+			Array.from(usedResourceCaches)
 		));
 	}
 
@@ -588,8 +585,6 @@ function createSimulationTestContext(
 		languageModelCacheMode: opts.lmCacheMode,
 		resourcesCacheMode: opts.resourcesCacheMode,
 		disabledTools: opts.disabledTools,
-		summarizeHistory: opts.summarizeHistory,
-		useExperimentalCodeSearchService: opts.useExperimentalCodeSearchService,
 		configs
 	};
 
