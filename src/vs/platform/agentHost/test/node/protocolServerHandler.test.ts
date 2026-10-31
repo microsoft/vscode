@@ -10,6 +10,8 @@ import { rootCertificates } from 'tls';
 import { AgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { LoadClientCertificatesExtensionMethod } from '../../common/clientCertificatesProtocol.js';
+import { ClientProxyChangedExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, ResolveClientProxyExtensionMethod } from '../../common/clientProxyProtocol.js';
+import { AgentHostClientProxyCapabilityMetaKey } from '../../common/meta/agentHostClientProxyMeta.js';
 import sinon from 'sinon';
 import { generateKeyPairSync, sign, type JsonWebKey } from 'crypto';
 import { EventEmitter } from 'events';
@@ -742,7 +744,7 @@ suite('ProtocolServerHandler', () => {
 		});
 	}
 
-	test('does not pull client certificates over the relay data plane', async () => {
+	test('does not pull client certificates or proxy lookups over the relay data plane', async () => {
 		const relayServer = disposables.add(new MockProtocolServer());
 		disposables.add(new ProtocolServerHandler(
 			agentService, stateManager, relayServer, { allowExtensionMethods: false, relayRoots: ['/workspace'] },
@@ -753,13 +755,15 @@ suite('ProtocolServerHandler', () => {
 		const transport = disposables.add(new MockProtocolTransport());
 		relayServer.simulateConnection(transport);
 		const initialized = waitForResponse(transport, 1);
-		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'relay-certificates', _meta: { 'vscode.clientCertificates': true } }));
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'relay-certificates', _meta: { 'vscode.clientCertificates': true, [AgentHostClientProxyCapabilityMetaKey]: true } }));
 		await initialized;
 		await proxyResolver.loadClientCertificates();
 		assert.deepStrictEqual({
 			request: findRequest(transport.sent, LoadClientCertificatesExtensionMethod),
 			certificates: proxyResolver.clientCertificates,
-		}, { request: undefined, certificates: [] });
+			kerberos: await proxyResolver.lookupClientKerberosAuthorization('http://proxy.example:8080'),
+			kerberosRequest: findRequest(transport.sent, LookupClientProxyKerberosAuthorizationExtensionMethod),
+		}, { request: undefined, certificates: [], kerberos: undefined, kerberosRequest: undefined });
 	});
 
 	test('handshake returns initialize response', () => {
@@ -964,6 +968,53 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('serves proxy lookups through clients advertising the client proxy and stops after disconnect', async () => {
+		const unadvertised = connectClient('other-host-client');
+		const malformed = connectClient('malformed-capability', undefined, undefined, { [AgentHostClientProxyCapabilityMetaKey]: 'true' });
+		const wsl = connectClient('wsl', undefined, undefined, { [AgentHostClientProxyCapabilityMetaKey]: true });
+		const respond = async <T>(method: string, start: () => Promise<T>, result: { readonly proxy: string } | { readonly authorization: string }) => {
+			const sent = Event.toPromise(Event.filter(wsl.onDidSend, message => !!findRequest([message], method)));
+			const pending = start();
+			const reverseRequest = findRequest([await sent], method);
+			assert.ok(reverseRequest);
+			wsl.simulateMessage({ jsonrpc: '2.0', id: reverseRequest.id, result });
+			return { params: reverseRequest.params, result: await pending };
+		};
+
+		const proxy = await respond(ResolveClientProxyExtensionMethod, () => proxyResolver.resolveProxy('https://example.com/path'), { proxy: 'PROXY proxy.example:8080' });
+		const kerberos = await respond(LookupClientProxyKerberosAuthorizationExtensionMethod, () => proxyResolver.lookupClientKerberosAuthorization('http://proxy.example:8080'), { authorization: 'Negotiate ticket' });
+		wsl.simulateClose();
+		assert.deepStrictEqual({
+			proxy, kerberos,
+			afterDisconnect: await proxyResolver.lookupClientKerberosAuthorization('http://proxy.example:8080'),
+			unadvertised: [ResolveClientProxyExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod].map(method => findRequest(unadvertised.sent, method)),
+			malformed: [ResolveClientProxyExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod].map(method => findRequest(malformed.sent, method)),
+		}, {
+			proxy: { params: { url: 'https://example.com/path' }, result: 'http://proxy.example:8080' },
+			kerberos: { params: { proxyUrl: 'http://proxy.example:8080' }, result: 'Negotiate ticket' },
+			afterDisconnect: undefined,
+			unadvertised: [undefined, undefined],
+			malformed: [undefined, undefined],
+		});
+	});
+
+	test('confirms the client proxy to the clients it serves and refreshes proxies when they report a change', async () => {
+		let changes = 0;
+		disposables.add(proxyResolver.onDidChangeConfiguration(() => changes++));
+		const clients = [connectClient('other-host-client'), connectClient('wsl', undefined, undefined, { [AgentHostClientProxyCapabilityMetaKey]: true })];
+		const confirmations = [];
+		for (const client of clients) {
+			while (!findResponse(client.sent, 1)) {
+				await Promise.resolve();
+			}
+			confirmations.push((findResponse(client.sent, 1) as { result?: { _meta?: Record<string, unknown> } }).result?._meta?.[AgentHostClientProxyCapabilityMetaKey]);
+			const response = waitForResponse(client, 2);
+			client.simulateMessage(request(2, ClientProxyChangedExtensionMethod, {}));
+			await response;
+		}
+
+		assert.deepStrictEqual({ confirmations, changes }, { confirmations: [undefined, true], changes: 1 });
+	});
 	test('returns false for MCP authentication without connected clients', async () => {
 		const params: IAgentHostMcpAuthenticationRequest = {
 			serverName: 'example',

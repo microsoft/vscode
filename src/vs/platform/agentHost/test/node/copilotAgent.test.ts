@@ -108,7 +108,7 @@ import { TestAgentHostGitService as BaseTestAgentHostGitService } from '../commo
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService, NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
-import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotManagedSettingsDiagnostics, mapDiscoveredCustomizations, type CopilotAutoTierMetadata, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
+import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, type ICopilotClientKerberosAuthOptions, getCopilotManagedSettingsDiagnostics, mapDiscoveredCustomizations, type CopilotAutoTierMetadata, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
 import { buildCopilotBuiltinAgents, buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENTS, COPILOT_BUILTIN_AGENT_NAMES, getCopilotBuiltinAgentUri } from '../../node/copilot/copilotBuiltinAgents.js';
 import { ICopilotChatDiscoveryScan } from '../../node/copilot/copilotChatDiscovery.js';
 import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, deferCopilotSdkExecution } from '../../node/copilot/copilotSessionExecutionMarker.js';
@@ -1381,6 +1381,18 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 				this._connections.delete(clientId);
 			}
 		});
+	}
+
+	registerSharedNetworkClient(): IDisposable {
+		return Disposable.None;
+	}
+
+	notifySharedNetworkClientChanged(): void { }
+
+	readonly clientKerberosLookups: string[] = [];
+	async lookupClientKerberosAuthorization(proxyUrl: string): Promise<string | undefined> {
+		this.clientKerberosLookups.push(proxyUrl);
+		return 'Negotiate client-ticket';
 	}
 
 	getConfigurationValue<T>(_key: string): T | undefined {
@@ -13851,6 +13863,32 @@ suite('CopilotAgent', () => {
 				noProxy: '127.0.0.1,localhost',
 				lowercaseNoProxy: undefined,
 			});
+		});
+
+		test('registers a runtime-scoped fallback Kerberos callback backed by clients sharing the network', async () => {
+			const proxyResolver = new TestProxyResolver();
+			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), proxyResolver });
+			try {
+				await agent.listChatsToMigrate();
+				const callback = (getCreatedClientOptions(agent).at(-1) as ICopilotClientKerberosAuthOptions | undefined)?.kerberosAuth;
+				const signal = new AbortController().signal;
+				assert.deepStrictEqual({
+					mode: callback?.mode,
+					scope: callback?.scope,
+					tokens: [
+						await callback?.callback({ spn: 'HTTP/proxy.example@EXAMPLE.COM' }, signal),
+						await callback?.callback({ spn: 'ldap/directory.example' }, signal),
+					],
+					lookups: proxyResolver.clientKerberosLookups,
+				}, {
+					mode: 'fallback',
+					scope: 'runtime',
+					tokens: ['client-ticket', undefined],
+					lookups: ['http://proxy.example'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
 		});
 
 		test('forwards the configured Kerberos proxy SPN to the Copilot runtime', async () => {
