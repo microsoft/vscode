@@ -2001,6 +2001,12 @@ export class ModifiedElement extends AbstractElementRenderer {
 		// Else when the model is set, the height of the editor will be x, after diff is computed, then height will be y.
 		// & that results in flicker.
 		await vm.waitForDiff();
+
+		if (this._isDisposed) {
+			// Disposed during the await; model refs are gone, so skip setModel.
+			return;
+		}
+
 		this._editor!.setModel(vm);
 
 		const handleViewStateChange = () => {
