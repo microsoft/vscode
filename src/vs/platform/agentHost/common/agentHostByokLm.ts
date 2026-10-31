@@ -169,6 +169,11 @@ export interface IByokLmModelInfo {
 	readonly maxOutputTokens?: number;
 	/** Whether the model accepts image inputs, when known. */
 	readonly supportsVision?: boolean;
+	/**
+	 * Whether the model supports client-executed tool search, when the provider
+	 * declared it explicitly. `undefined` leaves the model-id heuristic in charge.
+	 */
+	readonly supportsToolSearch?: boolean;
 	/** Reasoning effort values advertised by the renderer model, when known. */
 	readonly supportedReasoningEfforts?: readonly string[];
 	/** Default reasoning effort advertised by the renderer model, when known. */
@@ -185,6 +190,25 @@ export function getByokLmSelectionModelId(model: IByokLmModelInfo): string {
 	return model.modelIdentifier?.startsWith(vendorPrefix)
 		? model.modelIdentifier.slice(vendorPrefix.length)
 		: model.id;
+}
+
+/**
+ * The renderer's explicit tool-search declaration for the vendor/selection-id
+ * pair a request addresses, or `undefined` when no matching model declares it.
+ * The exact selection id wins: a grouped model must not lend its declaration
+ * to an ungrouped twin through the provider-local id fallback, which only
+ * applies when no model carries the exact selection id.
+ */
+export function byokLmModelToolSearchDeclaration(models: readonly IByokLmModelInfo[], vendor: string, selectionId: string): boolean | undefined {
+	const vendorModels = models.filter(model => model.vendor === vendor);
+	const exact = vendorModels.filter(model => getByokLmSelectionModelId(model) === selectionId);
+	const candidates = exact.length > 0 ? exact : vendorModels.filter(model => model.id === selectionId);
+	for (const model of candidates) {
+		if (model.supportsToolSearch !== undefined) {
+			return model.supportsToolSearch;
+		}
+	}
+	return undefined;
 }
 
 /** Returns the provider-qualified model id advertised by the agent host. */

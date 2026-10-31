@@ -74,6 +74,13 @@ export interface BYOKModelCapabilities {
 	zeroDataRetentionEnabled?: boolean;
 	/** Whether the Responses API server retains prior responses for `previous_response_id` chaining. */
 	statefulResponses?: boolean;
+	/**
+	 * Whether the model supports client-executed tool search, letting the runtime
+	 * defer tools instead of sending every tool in each request. `true`/`false`
+	 * declare the capability explicitly (overriding the model-id heuristic);
+	 * omitting it leaves the heuristic in charge.
+	 */
+	toolSearch?: boolean;
 	supportsReasoningEffort?: string[];
 	defaultReasoningEffort?: string;
 	/**
@@ -163,7 +170,8 @@ export function resolveModelInfo(modelId: string, providerName: string, knownMod
 				adaptive_thinking: !!knownModelInfo?.adaptiveThinking,
 				min_thinking_budget: knownModelInfo?.minThinkingBudget,
 				max_thinking_budget: knownModelInfo?.maxThinkingBudget,
-				reasoning_effort: knownModelInfo?.supportsReasoningEffort
+				reasoning_effort: knownModelInfo?.supportsReasoningEffort,
+				tool_search: knownModelInfo?.toolSearch,
 			},
 			tokenizer: TokenizerType.O200K,
 			limits: {

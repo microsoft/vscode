@@ -41,8 +41,27 @@ describe('ExtensionContributedChatEndpoint', () => {
 		expect(capturedOptions?.modelOptions?._telemetryTurn).toBe(5);
 	});
 
-	it('issue #330712: forwards the request thinking capability through model options', async () => {
-		const capturedOptions: vscode.LanguageModelChatRequestOptions[] = [];
+	it('exposes the provider tool-search declaration with the id heuristic as fallback', () => {
+		const withDeclaration = (toolSearch: boolean | undefined, id: string): ExtensionContributedChatEndpoint => {
+			const languageModel = createLanguageModel(() => { }, undefined, 'test-vendor');
+			(languageModel as { id: string }).id = id;
+			(languageModel as { capabilities: { toolSearch?: boolean } }).capabilities = { toolSearch };
+			return new ExtensionContributedChatEndpoint(
+				languageModel,
+				createInstantiationService(),
+				new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })),
+				new DefaultsOnlyConfigurationService(),
+			);
+		};
+		// An explicit declaration wins in both directions over the id heuristic.
+		expect(withDeclaration(true, 'unrecognized-model').supportsToolSearch).toBe(true);
+		expect(withDeclaration(false, 'gpt-5.4').supportsToolSearch).toBe(false);
+		// Omitted declaration leaves the id heuristic in charge.
+		expect(withDeclaration(undefined, 'gpt-5.4').supportsToolSearch).toBe(true);
+		expect(withDeclaration(undefined, 'unrecognized-model').supportsToolSearch).toBe(false);
+	});
+
+	it('issue #330712: forwards the request thinking capability through model options', async () => {		const capturedOptions: vscode.LanguageModelChatRequestOptions[] = [];
 		const languageModel = createLanguageModel(options => capturedOptions.push(options));
 		const endpoint = new ExtensionContributedChatEndpoint(
 			languageModel,

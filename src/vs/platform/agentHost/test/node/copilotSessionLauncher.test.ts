@@ -4337,6 +4337,133 @@ suite('CopilotSessionLauncher resume config', () => {
 		store.dispose();
 	});
 
+	test('tool search honors a BYOK model that declares the capability', async () => {
+		const store = new DisposableStore();
+		const searchSnapshot = {
+			discoveredAgents: [], additionalRootInstructions: [],
+			tools: [{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME, description: 'Search tools', inputSchema: { type: 'object' as const, properties: {} } }],
+			plugins: [],
+			mcpServers: {},
+		};
+		// The registry advertises `acme/qwen3-max` with `supportsToolSearch: true` —
+		// an id the heuristic does not recognize, so only the declaration can enable it.
+		const registry = new ByokLmBridgeRegistry();
+		const models = store.add(new Emitter<IByokLmModelInfo[]>());
+		store.add(registry.register('client-1', { chat: async (): Promise<IByokLmChatResult> => ({ output: [] }), onDidChangeModels: models.event }));
+		models.fire([{ vendor: 'acme', id: 'qwen3-max', supportsToolSearch: true }]);
+		const services = new ServiceCollection();
+		services.set(ILogService, new NullLogService());
+		services.set(IByokLmBridgeRegistry, registry);
+		services.set(IAgentHostManagedSettingsService, store.add(new AgentHostManagedSettingsService()));
+		services.set(IAgentConfigurationService, {
+			_serviceBrand: undefined,
+			getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.ToolSearchEnabled ? true : undefined,
+		} as unknown as IAgentConfigurationService);
+		const instantiationService = store.add(new InstantiationService(services));
+		const launcher = instantiationService.createInstance(CopilotSessionLauncher);
+
+		const config = await buildResumeConfig(launcher, { id: 'acme/qwen3-max' }, searchSnapshot);
+
+		assert.deepStrictEqual(config.toolSearch, { enabled: true, deferThreshold: 1 });
+		store.dispose();
+	});
+
+	test('a grouped BYOK model does not lend tool search to its ungrouped twin', async () => {
+		const store = new DisposableStore();
+		const searchSnapshot = {
+			discoveredAgents: [], additionalRootInstructions: [],
+			tools: [{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME, description: 'Search tools', inputSchema: { type: 'object' as const, properties: {} } }],
+			plugins: [], mcpServers: {},
+		};
+		// The grouped `acme/Search/qwen3-max` declares tool search; the ungrouped
+		// `acme/qwen3-max` declares it off. The ungrouped selection must not
+		// inherit the grouped twin's declaration through the provider-local id.
+		const registry = new ByokLmBridgeRegistry();
+		const models = store.add(new Emitter<IByokLmModelInfo[]>());
+		store.add(registry.register('client-1', { chat: async (): Promise<IByokLmChatResult> => ({ output: [] }), onDidChangeModels: models.event }));
+		models.fire([
+			{ vendor: 'acme', id: 'qwen3-max', modelIdentifier: 'acme/Search/qwen3-max', supportsToolSearch: true },
+			{ vendor: 'acme', id: 'qwen3-max', modelIdentifier: 'acme/qwen3-max', supportsToolSearch: false },
+		]);
+		const services = new ServiceCollection();
+		services.set(ILogService, new NullLogService());
+		services.set(IByokLmBridgeRegistry, registry);
+		services.set(IAgentHostManagedSettingsService, store.add(new AgentHostManagedSettingsService()));
+		services.set(IAgentConfigurationService, {
+			_serviceBrand: undefined,
+			getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.ToolSearchEnabled ? true : undefined,
+		} as unknown as IAgentConfigurationService);
+		const instantiationService = store.add(new InstantiationService(services));
+		const launcher = instantiationService.createInstance(CopilotSessionLauncher);
+
+		const config = await buildResumeConfig(launcher, { id: 'acme/qwen3-max' }, searchSnapshot);
+
+		assert.deepStrictEqual(config.toolSearch, { enabled: false });
+		store.dispose();
+	});
+
+	test('a family override does not defeat an explicit BYOK tool-search declaration', async () => {
+		const store = new DisposableStore();
+		const searchSnapshot = {
+			discoveredAgents: [], additionalRootInstructions: [],
+			tools: [{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME, description: 'Search tools', inputSchema: { type: 'object' as const, properties: {} } }],
+			plugins: [], mcpServers: {},
+		};
+		// The selected `acme/qwen3-max` is aliased to the `gpt-5.6-sol` family,
+		// whose id heuristic enables tool search — but the model's own explicit
+		// `false` declaration must win over the aliased family's heuristic.
+		const registry = new ByokLmBridgeRegistry();
+		const models = store.add(new Emitter<IByokLmModelInfo[]>());
+		store.add(registry.register('client-1', { chat: async (): Promise<IByokLmChatResult> => ({ output: [] }), onDidChangeModels: models.event }));
+		models.fire([{ vendor: 'acme', id: 'qwen3-max', supportsToolSearch: false }]);
+		const services = new ServiceCollection();
+		services.set(ILogService, new NullLogService());
+		services.set(IByokLmBridgeRegistry, registry);
+		services.set(IAgentHostManagedSettingsService, store.add(new AgentHostManagedSettingsService()));
+		services.set(IAgentConfigurationService, {
+			_serviceBrand: undefined,
+			getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.ToolSearchEnabled ? true : key === CopilotCliConfigKey.ModelCapabilityOverrides ? { 'acme/qwen3-max': { family: 'gpt-5.6-sol' } } : undefined,
+		} as unknown as IAgentConfigurationService);
+		const instantiationService = store.add(new InstantiationService(services));
+		const launcher = instantiationService.createInstance(CopilotSessionLauncher);
+
+		const config = await buildResumeConfig(launcher, { id: 'acme/qwen3-max' }, searchSnapshot);
+
+		assert.deepStrictEqual(config.toolSearch, { enabled: false });
+		store.dispose();
+	});
+
+	test('a family override does not defeat an explicit BYOK tool-search declaration of true', async () => {
+		const store = new DisposableStore();
+		const searchSnapshot = {
+			discoveredAgents: [], additionalRootInstructions: [],
+			tools: [{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME, description: 'Search tools', inputSchema: { type: 'object' as const, properties: {} } }],
+			plugins: [], mcpServers: {},
+		};
+		// The selected `acme/qwen3-max` is aliased to a family the heuristic does
+		// not recognize, but the model's own explicit `true` declaration must
+		// still enable tool search despite the alias.
+		const registry = new ByokLmBridgeRegistry();
+		const models = store.add(new Emitter<IByokLmModelInfo[]>());
+		store.add(registry.register('client-1', { chat: async (): Promise<IByokLmChatResult> => ({ output: [] }), onDidChangeModels: models.event }));
+		models.fire([{ vendor: 'acme', id: 'qwen3-max', supportsToolSearch: true }]);
+		const services = new ServiceCollection();
+		services.set(ILogService, new NullLogService());
+		services.set(IByokLmBridgeRegistry, registry);
+		services.set(IAgentHostManagedSettingsService, store.add(new AgentHostManagedSettingsService()));
+		services.set(IAgentConfigurationService, {
+			_serviceBrand: undefined,
+			getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.ToolSearchEnabled ? true : key === CopilotCliConfigKey.ModelCapabilityOverrides ? { 'acme/qwen3-max': { family: 'some-unknown-family' } } : undefined,
+		} as unknown as IAgentConfigurationService);
+		const instantiationService = store.add(new InstantiationService(services));
+		const launcher = instantiationService.createInstance(CopilotSessionLauncher);
+
+		const config = await buildResumeConfig(launcher, { id: 'acme/qwen3-max' }, searchSnapshot);
+
+		assert.deepStrictEqual(config.toolSearch, { enabled: true, deferThreshold: 1 });
+		store.dispose();
+	});
+
 	test('an app named toolSearch does not activate the trusted tool-search override', async () => {
 		const store = new DisposableStore();
 		const decisions: boolean[] = [];

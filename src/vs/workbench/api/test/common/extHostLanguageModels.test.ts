@@ -48,27 +48,33 @@ suite('ExtHostLanguageModels reasoning capabilities', () => {
 			model('responses', { apiType: LanguageModelChatApiType.Responses }),
 			model('budget', { apiType: LanguageModelChatApiType.Messages, adaptiveThinking: false }),
 			model('adaptive', { apiType: LanguageModelChatApiType.Messages, adaptiveThinking: true }),
+			model('searchy', { toolSearch: true }),
+			model('searchless', { toolSearch: false }),
 			model('unknown', {}),
 		]);
 		const metadata = await host.$provideLanguageModelChatInfo('test', { silent: true }, CancellationToken.None);
 		const selected = await host.selectLanguageModels(extension, { vendor: 'test' });
 		const expected = [
-			['completions', 'chatCompletions', undefined],
-			['responses', 'responses', undefined],
-			['budget', 'messages', false],
-			['adaptive', 'messages', true],
-			['unknown', undefined, undefined],
+			['completions', 'chatCompletions', undefined, undefined],
+			['responses', 'responses', undefined, undefined],
+			['budget', 'messages', false, undefined],
+			['adaptive', 'messages', true, undefined],
+			['searchy', undefined, undefined, true],
+			['searchless', undefined, undefined, false],
+			['unknown', undefined, undefined, undefined],
 		];
 		assert.deepStrictEqual({
-			metadata: metadata.map(({ metadata }) => [metadata.id, metadata.capabilities?.apiType, metadata.capabilities?.adaptiveThinking]),
-			selected: selected.map(model => [model.id, model.capabilities.apiType, model.capabilities.supportsAdaptiveThinking]),
+			metadata: metadata.map(({ metadata }) => [metadata.id, metadata.capabilities?.apiType, metadata.capabilities?.adaptiveThinking, metadata.capabilities?.toolSearch]),
+			selected: selected.map(model => [model.id, model.capabilities.apiType, model.capabilities.supportsAdaptiveThinking, model.capabilities.toolSearch]),
 		}, {
 			metadata: expected, selected: [
-				['completions', LanguageModelChatApiType.ChatCompletions, undefined],
-				['responses', LanguageModelChatApiType.Responses, undefined],
-				['budget', LanguageModelChatApiType.Messages, false],
-				['adaptive', LanguageModelChatApiType.Messages, true],
-				['unknown', undefined, undefined],
+				['completions', LanguageModelChatApiType.ChatCompletions, undefined, undefined],
+				['responses', LanguageModelChatApiType.Responses, undefined, undefined],
+				['budget', LanguageModelChatApiType.Messages, false, undefined],
+				['adaptive', LanguageModelChatApiType.Messages, true, undefined],
+				['searchy', undefined, undefined, true],
+				['searchless', undefined, undefined, false],
+				['unknown', undefined, undefined, undefined],
 			]
 		});
 	});
