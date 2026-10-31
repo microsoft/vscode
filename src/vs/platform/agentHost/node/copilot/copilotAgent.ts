@@ -82,6 +82,7 @@ import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/session
 import { getRepositoryRootFromWorktree } from '../../common/worktreePaths.js';
 import { CustomizationLoadStatus, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, ResponsePartKind, SessionStatus, withSessionEhcliAdoptable, withSessionStatusFlag, withSessionWorkspaceless, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { CopilotChatDiscovery, ICopilotChatDiscoveryScan } from './copilotChatDiscovery.js';
+import { EXTENSION_HOST_CLI_PER_INSTALL_BULK_FILE, EXTENSION_HOST_CLI_SHARED_BULK_FILE, ILegacyMarkerFallbackResult, restoreMissingLegacyMarkers } from './copilotLegacyMarkerFallback.js';
 import { getByokLmAgentModelId, resolveByokLmEnablement } from '../../common/agentHostByokLm.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
@@ -884,6 +885,32 @@ const EXTENSION_HOST_CLI_MARKER_ORIGIN = 'vscode';
 
 /** File name of the marker written beside a Copilot CLI session's SDK event log. */
 const EXTENSION_HOST_CLI_MARKER_FILE = 'vscode.metadata.json';
+
+type LegacyMarkerFallbackEvent = {
+	sharedBulkFile: string;
+	perInstallBulkFile: string;
+	candidateCount: number;
+	notVSCodeCount: number;
+	existingFileCount: number;
+	missingSessionDirectoryCount: number;
+	writtenCount: number;
+	failedCount: number;
+	durationMs: number;
+};
+
+type LegacyMarkerFallbackClassification = {
+	sharedBulkFile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the shared bulk metadata file in the Copilot home was present, missing or unreadable.' };
+	perInstallBulkFile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the older per-install globalStorage bulk metadata file was present, missing or unreadable.' };
+	candidateCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of distinct sessions across both bulk files.' };
+	notVSCodeCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Entries skipped because they are not VS Code-created sessions or have an invalid session id.' };
+	existingFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'VS Code sessions that already had a per-session marker.' };
+	missingSessionDirectoryCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'VS Code sessions whose session-state directory no longer exists.' };
+	writtenCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'VS Code sessions whose missing per-session marker the agent host restored, making them adoptable.' };
+	failedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Per-session markers that could not be written.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time taken in milliseconds.' };
+	owner: 'vijayupadya';
+	comment: 'Agent host fallback for legacy extension-host Copilot CLI sessions recorded only in the bulk metadata files, for machines where the extension backfill never ran (including remote hosts). Counts only; sent once per host process when migration is on and a bulk file exists.';
+};
 
 /**
  * Shape of the `vscode.metadata.json` marker written next to a Copilot CLI
@@ -4930,7 +4957,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// The host's frozen gate is authoritative: reading the setting here could see a client's value mirrored after host startup.
 			this._migrateLegacyEnabledSnapshot = options.migrateLegacyChats;
 		}
-		return this._copilotChatDiscovery.start();
+		if (!this._isMigrateLegacyCopilotCliEnabled()) {
+			return this._copilotChatDiscovery.start();
+		}
+		// Restored markers must exist before the first scan classifies the chats they describe.
+		return this._restoreLegacyMarkersOnce().then(() => this._shutdownPromise || this._store.isDisposed ? undefined : this._copilotChatDiscovery.start());
 	}
 
 	/** Publishes eligible chats and returns the candidates that no longer need readiness watching. */
@@ -6347,6 +6378,51 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
+	private _legacyMarkerFallback: Promise<void> | undefined;
+
+	/**
+	 * Restores, once per host process, the per-session markers of VS Code
+	 * sessions the extension host recorded only in its bulk metadata files: the
+	 * shared one in the Copilot home and the older per-install one in this
+	 * install's `globalStorage` (on a remote, the server's). This covers machines
+	 * where the extension's own backfill never ran. Never fails: an error leaves
+	 * those sessions un-adoptable, as before.
+	 */
+	private _restoreLegacyMarkersOnce(): Promise<void> {
+		return this._legacyMarkerFallback ??= (async () => {
+			const startTime = Date.now();
+			const settingsHome: URI | undefined = this._environmentService.appSettingsHome;
+			let result: ILegacyMarkerFallbackResult;
+			try {
+				result = await restoreMissingLegacyMarkers(
+					resourceJoinPath(this._copilotHomeService.home, 'session-state').fsPath,
+					resourceJoinPath(this._copilotHomeService.home, EXTENSION_HOST_CLI_SHARED_BULK_FILE).fsPath,
+					settingsHome ? resourceJoinPath(settingsHome, ...EXTENSION_HOST_CLI_PER_INSTALL_BULK_FILE).fsPath : undefined,
+					EXTENSION_HOST_CLI_MARKER_FILE,
+					this._logService,
+				);
+			} catch (error) {
+				this._logService.warn('[Copilot] Failed to restore extension-host markers from bulk metadata', error);
+				return;
+			}
+			if (result.sharedBulkFile === 'missing' && result.perInstallBulkFile === 'missing') {
+				return;
+			}
+			this._logService.info(`[Copilot] Restored extension-host markers from bulk metadata: shared=${result.sharedBulkFile}, perInstall=${result.perInstallBulkFile}, candidates=${result.candidates}, notVSCode=${result.notVSCode}, exists=${result.exists}, missingSessionDirectory=${result.missingSessionDirectory}, written=${result.written}, failed=${result.failed}`);
+			this._telemetryService.publicLog2<LegacyMarkerFallbackEvent, LegacyMarkerFallbackClassification>('agentHost.legacyCopilotCliMarkerFallback', {
+				sharedBulkFile: result.sharedBulkFile,
+				perInstallBulkFile: result.perInstallBulkFile,
+				candidateCount: result.candidates,
+				notVSCodeCount: result.notVSCode,
+				existingFileCount: result.exists,
+				missingSessionDirectoryCount: result.missingSessionDirectory,
+				writtenCount: result.written,
+				failedCount: result.failed,
+				durationMs: Date.now() - startTime,
+			});
+		})();
+	}
+
 	private async _readExtensionHostCliMarker(sessionId: string): Promise<IExtensionHostCliMarker | undefined> {
 		return (await this._readExtensionHostCliMarkerWithDiagnostics(sessionId)).marker;
 	}
@@ -6604,6 +6680,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			// Only migrate legacy EH Copilot CLI sessions — never other Copilot SDK
 			// sessions (standalone CLI, Local agent, …) that share `~/.copilot`.
+			// A session the extension recorded only in its bulk metadata gets its marker first.
+			await this._restoreLegacyMarkersOnce();
 			const markerRead = await this._readExtensionHostCliMarkerWithDiagnostics(sessionId);
 			if (!isExtensionHostCliMarker(markerRead.marker)) {
 				this._logService.info(`[Copilot] Adoption declined for ${sessionId}: marker=${markerRead.diagnostics.markerStatus}, provenance=${markerRead.diagnostics.provenance}, cached=${markerRead.diagnostics.markerFromCache}`);
