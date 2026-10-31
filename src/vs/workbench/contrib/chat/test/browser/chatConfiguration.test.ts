@@ -14,7 +14,10 @@ import { CustomizationMarketplaceConfiguration } from '../../../../../platform/c
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { chatProgressConfigurationProperties, legacyChatThinkingConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
 import { customizationMarketplaceConfigurationProperties, isAgentFinderPublicFeedAvailable, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
-import { CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { CopilotCliConfigKey, CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch } from '../../../../../platform/agentHost/common/agentHostConfigurationSync.js';
+import { AgentHostCopilotM365EnabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import '../../browser/agentSessionsConfiguration.js';
 import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 
@@ -24,6 +27,7 @@ const registeredAgentSessionsSettings = [
 	ChatConfiguration.AutoDeleteMarkedAsDoneMergedSessionsAfterDays,
 ].map(key => configurationProperties[key] !== undefined);
 const agentsPickerSetting = configurationProperties[ChatConfiguration.AgentsPickerInAttachContextMenu];
+const copilotM365Setting = configurationProperties[AgentHostCopilotM365EnabledSettingId];
 const migrations = Registry.as<IConfigurationMigrationRegistry & { readonly migrations: readonly ConfigurationMigration[] }>(WorkbenchConfigurationExtensions.ConfigurationMigration).migrations;
 const legacyAutoArchiveMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoArchiveMergedSessionsAfterDays');
 const legacyAutoDeleteArchivedMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays');
@@ -47,6 +51,49 @@ suite('Chat configuration', () => {
 
 	test('registers Agents Window settings in the shared workbench contribution', () => {
 		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true]);
+	});
+
+	test('registers one default-off, restart-required Copilot M365 rollout setting', () => {
+		assert.deepStrictEqual({
+			keys: Object.keys(configurationProperties).filter(key => key.startsWith('chat.agentHost.copilot.m365.')),
+			type: copilotM365Setting.type,
+			default: copilotM365Setting.default,
+			scope: copilotM365Setting.scope,
+			tags: copilotM365Setting.tags?.filter(tag => tag !== 'onExP'),
+			experiment: copilotM365Setting.experiment,
+			treatment: getConfigurationExperimentName(AgentHostCopilotM365EnabledSettingId, copilotM365Setting.experiment!),
+			restartRequired: copilotM365Setting.markdownDescription?.includes('requires restarting VS Code'),
+			agentHost: copilotM365Setting.agentHost,
+			policy: copilotM365Setting.policy,
+		}, {
+			keys: ['chat.agentHost.copilot.m365.enabled'],
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'startup' },
+			treatment: 'config.chat.agentHost.copilot.m365.enabled',
+			restartRequired: true,
+			agentHost: { key: CopilotCliConfigKey.M365Enabled },
+			policy: undefined,
+		});
+	});
+
+	test('mirrors the configured Copilot M365 flag to Agent Host root configuration', () => {
+		const targets = [
+			AgentHostConfigurationSyncTarget.Local,
+			AgentHostConfigurationSyncTarget.RemoteExtensionHost,
+			AgentHostConfigurationSyncTarget.Remote,
+		];
+		assert.deepStrictEqual([undefined, true, false, 'invalid'].map(value => {
+			const configurationService = new TestConfigurationService({ [AgentHostCopilotM365EnabledSettingId]: value });
+			return targets.map(target => resolveAgentHostConfigurationSyncPatch(configurationService, target)[CopilotCliConfigKey.M365Enabled]);
+		}), [
+			[false, false, false],
+			[true, true, true],
+			[false, false, false],
+			[false, false, false],
+		]);
 	});
 
 	test('registers the existing Agent picker setting for both editor and Agents windows', () => {
