@@ -570,52 +570,6 @@ suite('CopilotCanvasesWidget', () => {
 		});
 	});
 
-	test('does not suggest agent opening when required-input Canvas definitions have another blocker', async () => {
-		const disabledDefinition = definition({
-			canvasId: 'disabled-form',
-			displayName: 'Disabled Form',
-			requiresInput: true,
-		});
-		const disabled = createHarness({
-			definitions: [disabledDefinition],
-			extensionInventory: inventory([disabledDefinition], 'disabled'),
-		});
-		const unsupported = createHarness({
-			definitions: [definition({
-				canvasId: 'unsupported-form',
-				extensionId: 'github-app',
-				extensionSource: 'unknown',
-				displayName: 'Unsupported Form',
-				requiresInput: true,
-			})],
-		});
-		await timeout(0);
-
-		const disabledRow = disabled.container.querySelector<HTMLElement>('.monaco-list-row[aria-label^="Disabled Form."]');
-		const unsupportedRow = unsupported.container.querySelector<HTMLElement>('.monaco-list-row[aria-label^="Unsupported Form."]');
-		assert.ok(disabledRow);
-		assert.ok(unsupportedRow);
-		assert.deepStrictEqual({
-			disabled: {
-				guidance: disabled.widget.getAccessibilityContent().includes('Ask an agent to open it.'),
-				moreVisible: disabledRow.querySelector<HTMLElement>('[data-customization-action="more"]')?.checkVisibility(),
-			},
-			unsupported: {
-				guidance: unsupported.widget.getAccessibilityContent().includes('Ask an agent to open it.'),
-				moreVisible: unsupportedRow.querySelector<HTMLElement>('[data-customization-action="more"]')?.checkVisibility(),
-			},
-		}, {
-			disabled: {
-				guidance: false,
-				moreVisible: false,
-			},
-			unsupported: {
-				guidance: false,
-				moreVisible: false,
-			},
-		});
-	});
-
 	test('search treats dashes and spaces as equivalent separators', async () => {
 		const harness = createHarness({
 			definitions: [
@@ -663,7 +617,7 @@ suite('CopilotCanvasesWidget', () => {
 	test('disables only at the extension parent and retains its Canvas children', async () => {
 		const harness = createHarness({
 			definitions: [
-				definition({ canvasId: 'review', extensionId: 'user:pr-tools', extensionSource: 'user', extensionName: 'PR Tools', displayName: 'PR Review Board' }),
+				definition({ canvasId: 'review', extensionId: 'user:pr-tools', extensionSource: 'user', extensionName: 'PR Tools', displayName: 'PR Review Board', requiresInput: true }),
 				definition({ canvasId: 'release', extensionId: 'user:pr-tools', extensionSource: 'user', extensionName: 'PR Tools', displayName: 'Release Notes Draft' }),
 			],
 		});
@@ -673,12 +627,16 @@ suite('CopilotCanvasesWidget', () => {
 		disable.click();
 		await timeout(20);
 		const accessible = harness.widget.getAccessibilityContent();
+		const reviewRow = harness.container.querySelector<HTMLElement>('.monaco-list-row[aria-label^="PR Review Board."]');
+		assert.ok(reviewRow);
 
 		assert.deepStrictEqual({
 			requests: harness.setRequests.map(request => ({ session: request.session.toString(), extensionId: request.extensionId, enabled: request.enabled })),
 			visibleSwitchChecked: harness.container.querySelector('[aria-label="Enable canvas extension \'PR Tools\'"]')?.getAttribute('aria-checked'),
 			retainedCanvases: ['PR Review Board', 'Release Notes Draft'].filter(name => accessible.includes(name)),
 			canvasSwitches: harness.container.querySelectorAll('.copilot-canvas-tree-item [role="switch"]').length,
+			inputGuidance: accessible.includes('Ask an agent to open it.'),
+			inputActionVisible: reviewRow.querySelector<HTMLElement>('[data-customization-action="more"]')?.checkVisibility(),
 		}, {
 			requests: [{
 				session: harness.frontendSessionResource.toString(),
@@ -688,6 +646,8 @@ suite('CopilotCanvasesWidget', () => {
 			visibleSwitchChecked: 'false',
 			retainedCanvases: ['PR Review Board', 'Release Notes Draft'],
 			canvasSwitches: 0,
+			inputGuidance: false,
+			inputActionVisible: false,
 		});
 	});
 

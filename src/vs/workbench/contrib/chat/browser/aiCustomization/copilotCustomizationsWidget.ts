@@ -1228,7 +1228,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 	}
 
 	private hasCanvasActions(item: ICopilotCanvasItem): boolean {
-		return this.isCanvasEnabled(item) && isOpenableExtensionCanvasDefinition(item.canvas)
+		return (this.isCanvasEnabled(item) && isOpenableExtensionCanvasDefinition(item.canvas))
 			|| this.getCanvasOpenUnavailableMessage(item) !== undefined;
 	}
 
