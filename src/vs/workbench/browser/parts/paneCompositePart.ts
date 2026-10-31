@@ -183,6 +183,12 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	private registerListeners(): void {
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.sideBar.fontFamily') || e.affectsConfiguration('workbench.sideBar.fontSize')) {
+				this.updateSideBarFont();
+			}
+		}));
+
 		this._register(this.onDidPaneCompositeOpen(composite => this.onDidOpen(composite)));
 		this._register(this.onDidPaneCompositeClose(this.onDidClose, this));
 
@@ -207,6 +213,24 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		this._register(this.extensionService.onDidRegisterExtensions(() => {
 			this.layoutCompositeBar();
 		}));
+	}
+
+	override updateStyles(): void {
+		super.updateStyles();
+		this.updateSideBarFont();
+	}
+
+	private updateSideBarFont(): void {
+		if (this.location === ViewContainerLocation.Panel || !this.contentArea) {
+			return;
+		}
+
+		this.contentArea.style.fontFamily = this.configurationService.getValue<string>('workbench.sideBar.fontFamily') ?? '';
+		const fontSize = this.configurationService.getValue<number>('workbench.sideBar.fontSize');
+		// Side bar trees use fixed-height rows. Keep text within their existing geometry.
+		this.contentArea.style.fontSize = typeof fontSize === 'number' && Number.isFinite(fontSize) && fontSize !== 13
+			? `${Math.min(16, Math.max(9, fontSize))}px`
+			: '';
 	}
 
 	private onDidOpen(composite: IComposite): void {
