@@ -163,7 +163,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 						|| (presentation?.opened && (presentation.requestId === requestId || !request?.succeeded))) {
 						continue;
 					}
-					if (modalActive && request && !request.succeeded) {
+					if (modalActive && request?.pending) {
 						continue;
 					}
 					const input = existingInput ?? this.getOrCreateInput(reference, canvas);

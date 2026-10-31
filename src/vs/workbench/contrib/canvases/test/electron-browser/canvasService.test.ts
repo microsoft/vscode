@@ -152,7 +152,7 @@ suite('CanvasService', () => {
 		harness.opened[0].dispose();
 		harness.canvases.set([{ ...harness.canvas, title: 'Updated', source: URI.parse('https://example.test/replacement') }], undefined);
 		const afterMetadata = harness.opened.length;
-		harness.openRequests.set(new Map([['preview', { id: 'second', succeeded: false }]]), undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'second', succeeded: false, pending: true }]]), undefined);
 		const beforeSuccess = harness.opened.length;
 		harness.openRequests.set(new Map([['preview', { id: 'second', succeeded: true }]]), undefined);
 		await timeout(0);
@@ -163,7 +163,7 @@ suite('CanvasService', () => {
 
 	test('does not undo a user close after the corresponding model open started', async () => {
 		const harness = createHarness();
-		harness.openRequests.set(new Map([['preview', { id: 'opening', succeeded: false }]]), undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'opening', succeeded: false, pending: true }]]), undefined);
 		harness.canvases.set([harness.canvas], undefined);
 		await timeout(0);
 		harness.opened[0].dispose();
@@ -173,7 +173,7 @@ suite('CanvasService', () => {
 
 	test('acknowledges successful opens of a visible canvas without repeatedly revealing it', async () => {
 		const harness = createHarness();
-		harness.openRequests.set(new Map([['preview', { id: 'first', succeeded: false }]]), undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'first', succeeded: false, pending: true }]]), undefined);
 		harness.canvases.set([harness.canvas], undefined);
 		await timeout(0);
 		harness.openRequests.set(new Map([['preview', { id: 'first', succeeded: true }]]), undefined);
@@ -216,7 +216,7 @@ suite('CanvasService', () => {
 	test('waits for a running model open before foregrounding through a modal', async () => {
 		const harness = createHarness();
 		harness.setModalActive(true);
-		harness.openRequests.set(new Map([['preview', { id: 'fresh-request', succeeded: false }]]), undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'fresh-request', succeeded: false, pending: true }]]), undefined);
 		harness.canvases.set([harness.canvas], undefined);
 		const beforeSuccess = harness.opened.length;
 		harness.openRequests.set(new Map([['preview', { id: 'fresh-request', succeeded: true }]]), undefined);
@@ -229,6 +229,22 @@ suite('CanvasService', () => {
 			beforeSuccess: 0,
 			options: [{ pinned: true, revealIfOpened: true, preserveFocus: false }],
 		});
+	});
+
+	test('failed model opens still allow modal-safe background presentation', async () => {
+		const harness = createHarness();
+		harness.setModalActive(true);
+		harness.openRequests.set(new Map([['preview', { id: 'failed-request', succeeded: false }]]), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.openOptions, [{
+			pinned: true,
+			revealIfOpened: true,
+			preserveFocus: true,
+			inactive: true,
+			activation: EditorActivation.PRESERVE,
+		}]);
 	});
 
 	test('foregrounds a successful model open that arrives during modal-safe presentation', async () => {
