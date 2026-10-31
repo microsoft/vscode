@@ -19,9 +19,11 @@ import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../c
 import { buildGitBlobUri } from './gitDiffContent.js';
 import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
+import { isDefined } from '../../../base/common/types.js';
 import { firstParallel, Limiter, SequencerByKey, timeout } from '../../../base/common/async.js';
 import { derived, observableValueOpts, type IObservable } from '../../../base/common/observable.js';
 import { createWorktreeSymlink } from './worktreeSymlink.js';
+import { IGitProcessEnvironment, mayBeInGitRepository, nodeGitProcessEnvironment } from './gitProcess.js';
 
 /**
  * `git worktree remove`/`prune` can transiently fail — or, worse, exit 0 while
@@ -58,6 +60,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		@IFileService private readonly _fileService: IFileService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
+		private readonly _gitProcess: IGitProcessEnvironment = nodeGitProcessEnvironment,
 	) { }
 
 	async getCurrentBranch(workingDirectory: URI): Promise<string | undefined> {
@@ -236,6 +239,14 @@ export class AgentHostGitService implements IAgentHostGitService {
 
 			if (await this._isMissingDirectory(workingDirectory.fsPath)) {
 				this._logService.trace(`[agentHostGitService] Skipping repository root lookup for missing directory ${workingDirectory.fsPath}`);
+				return undefined;
+			}
+
+			if (!await mayBeInGitRepository(workingDirectory.fsPath, this._gitProcess.env, this._gitProcess.fileSystem)) {
+				this._logService.trace(`[agentHostGitService] Skipping repository root lookup for ${workingDirectory.fsPath}: no .git entry in it or its parent directories`);
+				if (!roots.peek(workingDirectoryKey)) {
+					this._cacheRepositoryRoot(workingDirectoryKey, undefined);
+				}
 				return undefined;
 			}
 
@@ -518,7 +529,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 	 */
 	private async _isMissingDirectory(fsPath: string): Promise<boolean> {
 		try {
-			return !(await fsPromises.stat(fsPath)).isDirectory();
+			return !(await this._gitProcess.fileSystem.stat(fsPath)).isDirectory();
 		} catch (error) {
 			const code = (error as NodeJS.ErrnoException)?.code;
 			return code === 'ENOENT' || code === 'ENOTDIR';
@@ -1024,12 +1035,14 @@ export class AgentHostGitService implements IAgentHostGitService {
 
 		const args = ['show', `${ref}:${repoRelativePath}`];
 		this._logService.trace(`[agentHostGitService] > git ${args.join(' ')}`);
+		const executable = await this._gitProcess.executable.resolve(this._gitProcess.env);
 
 		// Callers only get `undefined`, which surfaces as "git blob not found"
 		// whatever actually went wrong, so log the real reason.
 		return new Promise((resolve) => {
-			cp.execFile('git', args, { cwd: workingDirectory.fsPath, timeout: SHOW_BLOB_TIMEOUT_MS, encoding: 'buffer', maxBuffer: 32 * 1024 * 1024 }, (error, stdout, stderr) => {
+			cp.execFile(executable, args, { cwd: workingDirectory.fsPath, timeout: SHOW_BLOB_TIMEOUT_MS, encoding: 'buffer', maxBuffer: 32 * 1024 * 1024 }, (error, stdout, stderr) => {
 				if (error) {
+					this._gitProcess.executable.handleSpawnError(this._gitProcess.env, executable, error);
 					// The timeout above is the only thing that kills this process.
 					this._logService.warn(`[agentHostGitService] > git ${args.join(' ')} failed: ${formatGitError(args, SHOW_BLOB_TIMEOUT_MS, error.killed === true, error, (stderr as Buffer).toString())}`);
 					resolve(undefined);
@@ -1145,8 +1158,12 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// invocation. Each command is `delete SP <ref> NUL [<expected_oid>] NUL`;
 		// we omit the expected oid so already-missing refs don't fail the batch.
 		const stdin = refs.map(ref => `delete ${ref}\x00\x00`).join('');
+		const executable = await this._gitProcess.executable.resolve(this._gitProcess.env);
 		await new Promise<void>((resolve) => {
-			const proc = cp.execFile('git', ['update-ref', '--stdin', '-z'], { cwd: repositoryRoot.fsPath, timeout: 10_000 }, () => {
+			const proc = cp.execFile(executable, ['update-ref', '--stdin', '-z'], { cwd: repositoryRoot.fsPath, timeout: 10_000 }, error => {
+				if (error) {
+					this._gitProcess.executable.handleSpawnError(this._gitProcess.env, executable, error);
+				}
 				// Tolerate non-zero exits — missing refs are not fatal for cleanup.
 				resolve();
 			});
@@ -1255,13 +1272,15 @@ export class AgentHostGitService implements IAgentHostGitService {
 			return undefined;
 		}
 
-		const [virtualFileSystem, sparseCheckout, timestamp, commitCount, workspaceFiles] = await Promise.all([
-			this._runGit(repositoryRoot, ['config', '--get', 'core.virtualfilesystem']),
-			this._runGit(repositoryRoot, ['config', '--get', 'core.sparsecheckout']),
+		const [config, timestamp, commitCount, workspaceFiles] = await Promise.all([
+			this._runGit(repositoryRoot, ['config', '-z', '--get-regexp', '^core\\.(virtualfilesystem|sparsecheckout)$']),
 			this._runGit(repositoryRoot, ['show', '-s', '--format=%ct', baselineCommit]),
 			this._runGit(repositoryRoot, ['rev-list', '--count', `${baselineCommit}..HEAD`]),
 			this._runGit(repositoryRoot, ['ls-files', '--cached', '--others', '--exclude-standard', '-z']),
 		]);
+		const configValues = parseGitConfigEntries(config);
+		const virtualFileSystem = configValues.get('core.virtualfilesystem');
+		const sparseCheckout = configValues.get('core.sparsecheckout');
 		const sparseCheckoutEnabled = new Set(['true', 'yes', 'on', '1']).has(sparseCheckout?.trim().toLowerCase() ?? '');
 		const timestampSeconds = Number(timestamp?.trim());
 		const parsedCommitCount = Number(commitCount?.trim());
@@ -1335,18 +1354,22 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// `gh pr checkout` can create a local branch whose head lives on a fork but
 		// has no upstream tracking ref; Git still reports the branch's push remote,
 		// which can be a remote name or the literal fork URL.
-		const [pushRemote, baseBranchDivergence, hasDefaultRemoteBranch] = await Promise.all([
-			!upstreamRemote && status.branchName
-				? this._getPushRemote(repositoryRoot, status.branchName)
-				: undefined,
-			baseBranchName && status.branchName && status.branchName !== baseBranchName
-				? this._computeBaseBranchDivergence(repositoryRoot, baseBranchName, status.outgoingChanges === undefined)
-				: undefined,
-			// `origin/HEAD` can outlive its target (e.g. after the remote renames its default branch).
-			defaultBranch
-				? this._runGit(repositoryRoot, ['show-ref', '--verify', '--quiet', `refs/remotes/${defaultBranch.remoteBranchName}`]).then(output => output !== undefined)
-				: false,
-		]);
+		const pushRemoteRef = !upstreamRemote && status.branchName ? `refs/heads/${status.branchName}` : undefined;
+		const baseBranchRefs = baseBranchName && status.branchName && status.branchName !== baseBranchName
+			? { local: `refs/heads/${baseBranchName}`, remote: `refs/remotes/origin/${baseBranchName}` }
+			: undefined;
+		// `origin/HEAD` can outlive its target (e.g. after the remote renames its default branch).
+		const defaultRemoteRef = defaultBranch ? `refs/remotes/${defaultBranch.remoteBranchName}` : undefined;
+		const refs = await this._readRefs(repositoryRoot, [pushRemoteRef, baseBranchRefs?.local, baseBranchRefs?.remote, defaultRemoteRef]);
+		const pushRemote = pushRemoteRef ? refs?.get(pushRemoteRef) || undefined : undefined;
+		const hasDefaultRemoteBranch = defaultRemoteRef !== undefined && refs?.has(defaultRemoteRef) === true;
+		const baseBranchDivergence = baseBranchName && baseBranchRefs && refs
+			? await this._computeBaseBranchDivergence(
+				repositoryRoot,
+				refs.has(baseBranchRefs.local) ? baseBranchRefs.local : refs.has(baseBranchRefs.remote) ? baseBranchRefs.remote : baseBranchName,
+				status.outgoingChanges === undefined,
+			)
+			: undefined;
 		const githubHeadRepo = upstreamRemote
 			? parseGitHubRepoFromRemote(remotesOutput, upstreamRemote)
 			: parseGitHubHeadRepoFromRemoteSelection(remotesOutput, pushRemote);
@@ -1387,19 +1410,31 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return stripUndefined(result);
 	}
 
-	private async _getPushRemote(repositoryRoot: URI, branchName: string): Promise<string | undefined> {
-		return (await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(push:remotename)', `refs/heads/${branchName}`]))?.trim() || undefined;
-	}
-
-	private async _computeBaseBranchDivergence(repositoryRoot: URI, baseBranchName: string, countCommits: boolean): Promise<{ readonly hasChanges: boolean; readonly count?: number } | undefined> {
-		const localRef = `refs/heads/${baseBranchName}`;
-		const remoteRef = `refs/remotes/origin/${baseBranchName}`;
-		const refs = await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(refname)', localRef, remoteRef]);
-		if (refs === undefined) {
+	/**
+	 * Reads which of `refNames` exist, mapped to their push remotes (empty if
+	 * none), with a single `git for-each-ref`. `undefined` if git fails.
+	 */
+	private async _readRefs(repositoryRoot: URI, refNames: readonly (string | undefined)[]): Promise<ReadonlyMap<string, string> | undefined> {
+		const patterns = [...new Set(refNames.filter(isDefined))];
+		if (patterns.length === 0) {
+			return new Map();
+		}
+		const output = await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(refname)%00%(push:remotename)', ...patterns]);
+		if (output === undefined) {
 			return undefined;
 		}
-		const refNames = new Set(refs.split(/\r?\n/g).filter(Boolean));
-		const baseBranchRef = refNames.has(localRef) ? localRef : refNames.has(remoteRef) ? remoteRef : baseBranchName;
+		// Patterns also match refs below them (`refs/heads/a` matches `refs/heads/a/b`), so callers look refs up by exact name.
+		const refs = new Map<string, string>();
+		for (const line of output.split(/\r?\n/g)) {
+			const separator = line.indexOf('\0');
+			if (separator > 0) {
+				refs.set(line.substring(0, separator), line.substring(separator + 1).trim());
+			}
+		}
+		return refs;
+	}
+
+	private async _computeBaseBranchDivergence(repositoryRoot: URI, baseBranchRef: string, countCommits: boolean): Promise<{ readonly hasChanges: boolean; readonly count?: number } | undefined> {
 		// Upstream divergence can remain after a local merge, so operation availability tracks the local base separately.
 		const output = await this._runGit(repositoryRoot, ['rev-list', countCommits ? '--count' : '--max-count=1', `${baseBranchRef}..HEAD`]);
 		if (output === undefined) {
@@ -1417,11 +1452,13 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return this._runGit(workingDirectory, ['status', ...args], { env: { GIT_OPTIONAL_LOCKS: '0' } });
 	}
 
-	private _runGit(workingDirectory: URI, args: readonly string[], options?: { readonly timeout?: number; readonly throwOnError?: boolean; readonly env?: Record<string, string>; readonly maxBuffer?: number; readonly onStderr?: (chunk: string) => void; readonly input?: string }): Promise<string | undefined> {
+	/** Runs git in `workingDirectory`. Protected so tests can substitute git's output. */
+	protected async _runGit(workingDirectory: URI, args: readonly string[], options?: { readonly timeout?: number; readonly throwOnError?: boolean; readonly env?: Record<string, string>; readonly maxBuffer?: number; readonly onStderr?: (chunk: string) => void; readonly input?: string }): Promise<string | undefined> {
 		this._logService.trace(`[agentHostGitService] > git ${args.join(' ')}`);
+		const env = options?.env ? { ...this._gitProcess.env, ...options.env } : this._gitProcess.env;
+		const executable = await this._gitProcess.executable.resolve(env);
 
 		return new Promise((resolve, reject) => {
-			const env = options?.env ? { ...process.env, ...options.env } : undefined;
 			const timeoutMs = options?.timeout ?? 30_000;
 			// Use our own timer rather than execFile's `timeout` option so
 			// we can definitively flag the timeout case in the error
@@ -1431,8 +1468,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 			// Default maxBuffer is 32MB — Node's default is ~1MB, which is
 			// easy to exceed for diff output in large repos. Exceeding it
 			// causes execFile to error and we'd silently drop the diff.
-			const child = cp.execFile('git', [...args], { cwd: workingDirectory.fsPath, env, maxBuffer: options?.maxBuffer ?? 32 * 1024 * 1024 }, (error, stdout, stderr) => {
+			const child = cp.execFile(executable, [...args], { cwd: workingDirectory.fsPath, env, maxBuffer: options?.maxBuffer ?? 32 * 1024 * 1024 }, (error, stdout, stderr) => {
 				if (error) {
+					this._gitProcess.executable.handleSpawnError(env, executable, error);
 					// stderr is summarized in the thrown error message to keep
 					// it readable; log the full unmodified output here so the
 					// raw progress/diagnostic text is still available.
@@ -1871,6 +1909,29 @@ export function parseGitWorktrees(output: string): IAgentHostGitWorktree[] {
  */
 export function parseUntrackedPaths(output: string | undefined): string[] {
 	return parseChangedPaths(output, status => status === '??');
+}
+
+/**
+ * Parses `git config -z --get-regexp` output into each key's last value, which
+ * is what `git config --get` reports. A key without a value (an implicit
+ * boolean `true`) maps to an empty string, as `git config --get` prints it.
+ *
+ * Exported for tests.
+ */
+export function parseGitConfigEntries(output: string | undefined): ReadonlyMap<string, string> {
+	const entries = new Map<string, string>();
+	for (const entry of output?.split('\x00') ?? []) {
+		if (!entry) {
+			continue;
+		}
+		const separator = entry.indexOf('\n');
+		if (separator === -1) {
+			entries.set(entry, '');
+		} else {
+			entries.set(entry.substring(0, separator), entry.substring(separator + 1));
+		}
+	}
+	return entries;
 }
 
 /** Allows index copying only when changed paths have no staged blobs or unmatched pathspecs. */

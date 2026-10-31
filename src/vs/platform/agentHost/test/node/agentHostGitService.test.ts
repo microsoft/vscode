@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentHostGitService, canRestageOntoIndexCopy, formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseGitWorktrees, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { AgentHostGitService, canRestageOntoIndexCopy, formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitConfigEntries, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseGitWorktrees, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Branch, EMPTY_TREE_OBJECT, getBranchCompletions, GitRefType, IRefQuery, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
@@ -15,6 +15,10 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { IFileService } from '../../../files/common/files.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { NullLogService } from '../../../log/common/log.js';
+import * as path from '../../../../base/common/path.js';
+import type { IProcessEnvironment } from '../../../../base/common/platform.js';
+import { GitExecutableResolver } from '../../node/gitProcess.js';
+import { FakeGitFileSystem } from './fakeGitFileSystem.js';
 
 suite('AgentHostGitService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -375,6 +379,157 @@ suite('AgentHostGitService', () => {
 			// must be skipped.
 			const out = '?? new.txt\x00 M edited.txt\x00R  to.txt\x00from.txt\x00?? other.txt\x00';
 			assert.deepStrictEqual(parseUntrackedPaths(out), ['new.txt', 'other.txt']);
+		});
+	});
+
+	suite('parseGitConfigEntries', () => {
+		test('keeps the last value of each key and an empty value for valueless keys, like git config --get', () => {
+			assert.deepStrictEqual({
+				missing: [...parseGitConfigEntries(undefined)],
+				entries: [...parseGitConfigEntries('core.sparsecheckout\x00core.virtualfilesystem\nfirst\x00core.virtualfilesystem\nsecond\nline\x00')],
+			}, {
+				missing: [],
+				entries: [['core.sparsecheckout', ''], ['core.virtualfilesystem', 'second\nline']],
+			});
+		});
+	});
+
+	suite('git process costs', () => {
+		const root = path.resolve('/agent-host-git');
+		// `URI.fsPath` normalizes Windows drive letters, so key the fake filesystem the same way.
+		const at = (...segments: string[]) => URI.file(path.join(root, ...segments)).fsPath;
+
+		class TestGitService extends AgentHostGitService {
+			readonly runs: string[] = [];
+
+			constructor(fileSystem: FakeGitFileSystem, env: IProcessEnvironment, private readonly _outputs: ReadonlyMap<string, string> = new Map()) {
+				super(new class extends mock<IFileService>() { }(), new class extends mock<INativeEnvironmentService>() { }(), new NullLogService(), {
+					env,
+					fileSystem,
+					executable: new GitExecutableResolver(false, fileSystem),
+				});
+			}
+
+			protected override async _runGit(_workingDirectory: URI, args: readonly string[]): Promise<string | undefined> {
+				this.runs.push(args.join(' '));
+				return this._outputs.get(args.join(' '));
+			}
+		}
+
+		test('does not run git for a folder without a .git entry, even when refreshing', async () => {
+			const git = new TestGitService(new FakeGitFileSystem([[at('plain'), 'directory']]), {});
+			const directory = URI.file(at('plain'));
+			const results = [
+				await git.getRepositoryRoot(directory),
+				await git.getRepositoryRoot(directory, { refreshIfNone: true }),
+				await git.getRepositoryRoot(directory, { refreshIfNone: true }),
+			];
+
+			assert.deepStrictEqual({ results, hasGitRoot: git.hasGitRoot(directory).get(), runs: git.runs }, {
+				results: [undefined, undefined, undefined],
+				hasGitRoot: false,
+				runs: [],
+			});
+		});
+
+		test('runs git when a .git file or the environment may place the folder in a repository', async () => {
+			const fileSystem = new FakeGitFileSystem([
+				[at('worktree'), 'directory'],
+				[path.join(at('worktree'), '.git'), 'file'],
+				[at('plain'), 'directory'],
+			]);
+			const worktreeGit = new TestGitService(fileSystem, {}, new Map([['rev-parse --show-toplevel', `${at('worktree')}\n`]]));
+			const gitDirGit = new TestGitService(fileSystem, { GIT_DIR: path.join(at('repo'), '.git') }, new Map([['rev-parse --show-toplevel', `${at('repo')}\n`]]));
+
+			assert.deepStrictEqual({
+				worktree: (await worktreeGit.getRepositoryRoot(URI.file(at('worktree'))))?.toString(),
+				worktreeRuns: worktreeGit.runs,
+				gitDir: (await gitDirGit.getRepositoryRoot(URI.file(at('plain'))))?.toString(),
+				gitDirRuns: gitDirGit.runs,
+			}, {
+				worktree: URI.file(at('worktree')).toString(),
+				worktreeRuns: ['rev-parse --show-toplevel'],
+				gitDir: URI.file(at('repo')).toString(),
+				gitDirRuns: ['rev-parse --show-toplevel'],
+			});
+		});
+
+		test('a refresh finds a repository initialized after a lookup that skipped git', async () => {
+			const fileSystem = new FakeGitFileSystem([[at('plain'), 'directory']]);
+			const git = new TestGitService(fileSystem, {}, new Map([['rev-parse --show-toplevel', `${at('plain')}\n`]]));
+			const directory = URI.file(at('plain'));
+
+			const before = await git.getRepositoryRoot(directory);
+			fileSystem.entries.set(path.join(at('plain'), '.git'), 'directory');
+			const cached = await git.getRepositoryRoot(directory);
+			const refreshed = await git.getRepositoryRoot(directory, { refreshIfNone: true });
+
+			assert.deepStrictEqual({ before, cached, refreshed: refreshed?.toString(), runs: git.runs }, {
+				before: undefined,
+				cached: undefined,
+				refreshed: directory.toString(),
+				runs: ['rev-parse --show-toplevel'],
+			});
+		});
+
+		test('reads the push remote, base branch and default branch refs of the session git state with one for-each-ref', async () => {
+			const repository = at('repo');
+			const git = new TestGitService(new FakeGitFileSystem([[repository, 'directory'], [path.join(repository, '.git'), 'directory']]), {}, new Map([
+				['rev-parse --show-toplevel', `${repository}\n`],
+				['status -b --porcelain=v2', '# branch.oid 1234\n# branch.head agents/feature\n1 .M N... 100644 100644 100644 1234 1234 file.txt\n'],
+				['remote -v', 'origin\thttps://github.com/microsoft/vscode.git (fetch)\norigin\thttps://github.com/microsoft/vscode.git (push)\nfork\thttps://github.com/contributor/vscode.git (fetch)\nfork\thttps://github.com/contributor/vscode.git (push)\n'],
+				['symbolic-ref --quiet refs/remotes/origin/HEAD', 'refs/remotes/origin/main\n'],
+				// `refs/heads/main/old` matches the `refs/heads/main` pattern without being that branch.
+				['for-each-ref --format=%(refname)%00%(push:remotename) refs/heads/agents/feature refs/heads/main refs/remotes/origin/main', 'refs/heads/agents/feature\0fork\nrefs/heads/main/old\0\nrefs/remotes/origin/main\0\n'],
+				['rev-list --count refs/remotes/origin/main..HEAD', '3\n'],
+			]));
+
+			assert.deepStrictEqual({ state: await git.getSessionGitState(URI.file(repository)), runs: git.runs }, {
+				state: {
+					hasGitRemote: true,
+					hasGitHubRemote: true,
+					branchName: 'agents/feature',
+					baseBranchName: 'main',
+					defaultBranchName: 'main',
+					defaultRemoteBranchName: 'origin/main',
+					outgoingChanges: 3,
+					uncommittedChanges: 1,
+					hasBaseBranchChanges: true,
+					githubOwner: 'microsoft',
+					githubHeadOwner: 'contributor',
+					githubRepo: 'vscode',
+				},
+				runs: [
+					'rev-parse --show-toplevel',
+					'status -b --porcelain=v2',
+					'remote -v',
+					'symbolic-ref --quiet refs/remotes/origin/HEAD',
+					'for-each-ref --format=%(refname)%00%(push:remotename) refs/heads/agents/feature refs/heads/main refs/remotes/origin/main',
+					'rev-list --count refs/remotes/origin/main..HEAD',
+				],
+			});
+		});
+
+		test('reads both branch diff safety config values with one git config', async () => {
+			const repository = at('repo');
+			const git = new TestGitService(new FakeGitFileSystem([[repository, 'directory'], [path.join(repository, '.git'), 'directory']]), {}, new Map([
+				['rev-parse --show-toplevel', `${repository}\n`],
+				['config -z --get-regexp ^core\\.(virtualfilesystem|sparsecheckout)$', 'core.sparsecheckout\ntrue\0'],
+				['show -s --format=%ct base', '1700000000\n'],
+				['rev-list --count base..HEAD', '2\n'],
+				['ls-files --cached --others --exclude-standard -z', 'a.txt\0b.txt\0'],
+			]));
+
+			assert.deepStrictEqual({ info: await git.getBranchDiffSafetyInfo(URI.file(repository), 'base'), runs: git.runs }, {
+				info: { hasVirtualFileSystem: true, baselineCommitTimestamp: 1_700_000_000_000, commitCount: 2, workspaceFileCount: 2 },
+				runs: [
+					'rev-parse --show-toplevel',
+					'config -z --get-regexp ^core\\.(virtualfilesystem|sparsecheckout)$',
+					'show -s --format=%ct base',
+					'rev-list --count base..HEAD',
+					'ls-files --cached --others --exclude-standard -z',
+				],
+			});
 		});
 	});
 
