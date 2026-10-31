@@ -48,6 +48,8 @@ export interface IContextMenuDelegate {
 	 * A number selects a zero-based index in {@link getActions}, counting separators and each submenu as one item; non-integer or out-of-range indices are ignored.
 	 */
 	autoSelectItem?: boolean | number;
+	/** Whether action labels use menu mnemonic syntax. */
+	enableMnemonics?: boolean;
 	anchorAlignment?: AnchorAlignment;
 	anchorAxisAlignment?: AnchorAxisAlignment;
 	domForShadowRoot?: HTMLElement;
