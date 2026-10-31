@@ -586,6 +586,10 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		return this._terminalLocation === ViewContainerLocation.Panel && isHorizontal(this._panelPosition) ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 	}
 
+	private _getPositionOrientation(): Orientation {
+		return isHorizontal(this._getPosition()) ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+	}
+
 	private _getSplitOrientation(): Orientation {
 		if (this._splitOrientationOverride !== undefined) {
 			return this._splitOrientationOverride;
@@ -610,7 +614,10 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		}
 		const orientation = this._getSplitOrientation();
 		if (orientation !== this._splitPaneContainer.orientation) {
+			// Rebuilding the split view detaches the terminals from the DOM, restore focus afterwards
+			const focusedInstance = this._terminalInstances.find(instance => instance.hasFocus);
 			this._splitPaneContainer.setOrientation(orientation);
+			focusedInstance?.focus();
 			this._onDidChangeSplitOrientation.fire(orientation);
 		}
 	}
@@ -627,7 +634,8 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 
 		const isHorizontalResize = (direction === Direction.Left || direction === Direction.Right);
 
-		const groupOrientation = this._splitPaneContainer.orientation;
+		// Without a split, resizing follows the location of the terminal
+		const groupOrientation = this._terminalInstances.length > 1 ? this._splitPaneContainer.orientation : this._getPositionOrientation();
 
 		const shouldResizePart =
 			(isHorizontalResize && groupOrientation === Orientation.VERTICAL) ||
@@ -653,7 +661,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 					resizeAmount *= -1;
 				}
 
-				this._layoutService.resizePart(this._paneCompositePartService.getPartId(this._terminalLocation), resizeAmount, resizeAmount);
+				this._layoutService.resizePart(this._paneCompositePartService.getPartId(this._terminalLocation), isHorizontalResize ? resizeAmount : 0, isHorizontalResize ? 0 : resizeAmount);
 			} else {
 				this._splitPaneContainer.resizePane(this._activeInstanceIndex, direction, resizeAmount);
 			}

@@ -560,6 +560,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.SplitInActiveWorkspace,
 	TerminalCommandId.Split,
 	TerminalCommandId.Toggle,
+	TerminalCommandId.ToggleSplitOrientation,
 	TerminalCommandId.FocusHover,
 	AccessibilityCommandId.OpenAccessibilityHelp,
 	TerminalCommandId.StopVoice,
