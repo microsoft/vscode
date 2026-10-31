@@ -19,6 +19,7 @@ import { IChatExternalEdit } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { ChatEditPillElement, isResourceContentEmpty } from './chatEditPillElement.js';
+import { IChatEditPhonePresenter } from './chatEditPhonePresenter.js';
 import { IChatContentPart, IChatContentPartDiffData, IChatContentPartRenderContext } from './chatContentParts.js';
 
 /**
@@ -65,6 +66,7 @@ export class ChatExternalEditContentPart extends ChatEditPillElement implements 
 		@IHoverService hoverService: IHoverService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextModelService private readonly textModelService: ITextModelService,
+		@IChatEditPhonePresenter private readonly chatEditPhonePresenter: IChatEditPhonePresenter,
 	) {
 		super(labelService, modelService, languageService, hoverService);
 
@@ -115,6 +117,17 @@ export class ChatExternalEditContentPart extends ChatEditPillElement implements 
 	}
 
 	private async openEdit({ editorOptions: options, openToSide }: IOpenEditorOptions): Promise<void> {
+		// On the phone the change opens in the phone diff overlay rather than an editor.
+		if (this.chatEditPhonePresenter.enabled.get() && await this.chatEditPhonePresenter.openDiff({
+			uri: this.edit.uri,
+			originalURI: this.edit.beforeContentUri,
+			modifiedURI: this.edit.editKind === 'delete' ? undefined : this.edit.afterContentUri ?? this.edit.uri,
+			added: this.edit.diff?.added ?? 0,
+			removed: this.edit.diff?.removed ?? 0,
+		})) {
+			return;
+		}
+
 		const group = openToSide ? SIDE_GROUP : undefined;
 		if (this.edit.beforeContentUri && this.edit.afterContentUri) {
 			// If the change is a pure addition into a file whose original version did not

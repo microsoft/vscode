@@ -29,6 +29,7 @@ import { FileEditorInput } from '../../../files/browser/editors/fileEditorInput.
 import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
 import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../attachments/chatContextPickService.js';
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
+import { IChatPhoneInputPresenter } from '../widget/input/chatPhoneInputPresenter.js';
 import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { isToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
 import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES } from '../../common/model/chatModel.js';
@@ -438,6 +439,7 @@ class ClipboardImageContextValuePick implements IChatContextValueItem {
 
 	constructor(
 		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@IChatPhoneInputPresenter private readonly _presentation: IChatPhoneInputPresenter,
 	) { }
 
 	async isEnabled(widget: IChatWidget) {
@@ -447,12 +449,19 @@ class ClipboardImageContextValuePick implements IChatContextValueItem {
 		if (!widget.input.selectedLanguageModel.get()?.metadata.capabilities?.vision) {
 			return false;
 		}
+		// Touch-first embedders read the clipboard only after an explicit tap.
+		if (this._presentation.deferClipboardImageRead) {
+			return true;
+		}
 		const imageData = await this._clipboardService.readImage();
 		return isImage(imageData);
 	}
 
-	async asAttachment(): Promise<IImageVariableEntry> {
+	async asAttachment(): Promise<IImageVariableEntry | undefined> {
 		const fileBuffer = await this._clipboardService.readImage();
+		if (this._presentation.deferClipboardImageRead && !isImage(fileBuffer)) {
+			return undefined;
+		}
 		return {
 			id: await imageToHash(fileBuffer),
 			name: localize('pastedImage', 'Pasted Image'),

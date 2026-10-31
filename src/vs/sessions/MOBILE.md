@@ -12,6 +12,8 @@ This specification defines stable mobile composition and ownership. Exact dimens
 
 Mobile components are presentation adapters over shared Sessions services. They may replace a desktop part, picker, or editor presentation, but must preserve provider-neutral session identity, scoped context, and command semantics.
 
+Alternative web entry points can supply a workbench factory and presentation services without changing the existing entries. `ISessionsPresentation` owns optional Sessions headers, list decoration, naming, repository selection, and diff-text access. Its default is a no-op; providers retain authentication and repository handling. Shared chat input and edit presenters likewise fall back to their existing UI. Concrete replacements and their styles belong to the entry that opts in, never to these shared contracts.
+
 ## Viewport classification
 
 The Agents Window derives phone layout from the current viewport and platform environment. Mobile context keys are declarative inputs for menus, view registration, and presentation selection; they are not the source of truth for model or provider behavior.

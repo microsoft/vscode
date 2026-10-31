@@ -101,6 +101,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { filterConfigurationToSchema } from '../../../../workbench/contrib/chat/browser/widget/input/chatModelConfigurationLogic.js';
+import { ISessionsPresentation } from '../../../services/presentation/browser/sessionsPresentation.js';
 
 // #region --- New Chat Widget ---
 
@@ -257,6 +258,7 @@ export class NewChatWidget extends Disposable {
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@ISessionsPresentation private readonly presentation: ISessionsPresentation,
 	) {
 		super();
 		this._preserveCustomView = options.preserveCustomView === true;
@@ -1624,6 +1626,7 @@ export class NewChatWidget extends Disposable {
 		const row = this._workspacePicker.renderCategoryTriggers(container, [
 			workspaceTrigger,
 		], undefined, this._newChatInput.pickerHoverDelegate);
+		store.add(this._renderPlaceRow(container, row));
 		store.add(autorun(reader => {
 			if (canOptOut.read(reader)) {
 				logSettingExperimentTrigger(this.telemetryService, WORKSPACE_OPT_OUT_SETTING);
@@ -1809,6 +1812,10 @@ export class NewChatWidget extends Disposable {
 				type.providerId === session.providerId && type.sessionType.id === session.sessionType && type.sessionType.supportsWorktreeConfiguration)
 			&& !resolvingConfig
 			&& supportsWorktreeIsolation;
+	}
+
+	private _renderPlaceRow(container: HTMLElement, chipRow: HTMLElement): IDisposable {
+		return this.presentation.renderNewSessionHeader(container, chipRow);
 	}
 
 	private _renderSessionTypePicker(container: HTMLElement, prependBeforeSiblings: boolean): void {

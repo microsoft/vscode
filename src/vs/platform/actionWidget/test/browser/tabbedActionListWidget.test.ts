@@ -699,7 +699,7 @@ suite('TabbedActionListWidget', () => {
 			tabs: [{ id: 'Models' }],
 			initialTab: 'Models',
 			createActionList: () => ({
-				items: [{ ...action('model'), inlineToggle: { label: 'Use in Auto', checked: true, onChange: checked => changes.push(checked) } }],
+				items: [{ ...action('model'), inlineToggle: { label: 'Use in Auto', checked: true, onChange: checked => { changes.push(checked); } } }],
 			}),
 			delegate: { onSelect: () => assert.fail('The switch must not select the row'), onHide: () => { } },
 		});

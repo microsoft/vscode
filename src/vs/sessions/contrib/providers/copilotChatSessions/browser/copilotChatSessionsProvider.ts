@@ -68,6 +68,7 @@ import { resolveGitRepositoryFromGitConfig } from '../../../../services/sessions
 import { cloneRepository } from '../../../../services/sessions/browser/cloneRepository.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
 import { RepositoryPicker } from '../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
+import { ISessionsPresentation } from '../../../../services/presentation/browser/sessionsPresentation.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { CloudSandboxModels } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxModels.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -1161,6 +1162,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@IPathService private readonly pathService: IPathService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ICloudSandboxDraftPreparationService private readonly draftPreparationService: ICloudSandboxDraftPreparationService,
+		@ISessionsPresentation private readonly sessionsPresentation: ISessionsPresentation,
 	) {
 		super();
 
@@ -2528,13 +2530,15 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					return undefined;
 				}
 				checkHost();
-				const picker = store.add(this.instantiationService.createInstance(RepositoryPicker));
-				const selection = await picker.pickRepository(async (query, requestToken) => {
+				const getRepositories = async (query: string, requestToken: CancellationToken) => {
 					checkHost();
 					const repositories = await this.gitHubService.getRepositories(getGitHubRepositoryId(query.trim()) ?? query, requestToken);
 					checkHost();
 					return repositories.map(repository => repository.fullName);
-				}, undefined, token);
+				};
+				const selection = this.sessionsPresentation.pickRepository
+					? await this.sessionsPresentation.pickRepository(getRepositories, token)
+					: await store.add(this.instantiationService.createInstance(RepositoryPicker)).pickRepository(getRepositories, undefined, token);
 				if (selection) {
 					checkHost();
 				}
