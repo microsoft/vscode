@@ -3,9 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { type AgentProvider } from './agentService.js';
+import { type AgentProvider } from './agent.js';
 
+const LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX = 'agent-host-';
 const REMOTE_AGENT_HOST_SESSION_TYPE_PREFIX = 'remote-';
+
+/** Identifies the Copilot agent family without changing the host's provider ID or implying runtime capabilities. */
+export function isCopilotAgentHostProvider(provider: AgentProvider | undefined): boolean {
+	return provider === 'copilotcli' || provider === 'copilot';
+}
+
+/** Identifies local and remote Copilot agent-host session types, preserving their existing URI schemes. */
+export function isCopilotAgentHostSessionType(sessionType: string): boolean {
+	const provider = parseAgentHostHarness(sessionType);
+	return provider !== undefined && isCopilotAgentHostProvider(provider)
+		&& (!isRemoteAgentHostSessionType(sessionType) || parseRemoteAgentHostSessionTypeAuthority(sessionType, provider) !== undefined);
+}
 
 /**
  * Builds the unique per-connection identifier for a remote agent host.
@@ -55,6 +68,32 @@ export function findRemoteAgentHostSessionTypeAuthority(sessionType: string, con
 
 function isRemoteAgentHostSessionTypeForAuthority(sessionType: string, connectionAuthority: string): boolean {
 	return !!connectionAuthority && sessionType.startsWith(remoteAgentHostSessionTypeAuthorityPrefix(connectionAuthority));
+}
+
+/**
+ * Extracts the harness/provider suffix from a remote agent host session type.
+ *
+ * Remote session types are formatted as `remote-{authority}-{provider}`. The
+ * authority may contain `-`, but provider names do not, so the harness is the
+ * final `-`-delimited segment. Returns `undefined` for non-remote session types.
+ */
+export function parseRemoteAgentHostHarness(sessionType: string): string | undefined {
+	if (!isRemoteAgentHostSessionType(sessionType)) {
+		return undefined;
+	}
+	const lastDash = sessionType.lastIndexOf('-');
+	const harness = sessionType.slice(lastDash + 1);
+	return harness || undefined;
+}
+
+/**
+ * Extracts the logical harness/provider from a local or remote agent-host session type.
+ */
+export function parseAgentHostHarness(sessionType: string): string | undefined {
+	if (sessionType.startsWith(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX)) {
+		return sessionType.slice(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX.length) || undefined;
+	}
+	return parseRemoteAgentHostHarness(sessionType);
 }
 
 /**

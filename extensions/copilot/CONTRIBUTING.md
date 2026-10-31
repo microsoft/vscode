@@ -99,6 +99,8 @@ npm run test:extension
 
 Finally, there are **simulation tests**. These tests reach out to Copilot API endpoints, invoke LLMs and require expensive computations to run. Each test runs 10 times, to accommodate for the stochastic nature of LLMs themselves. The results of all runs of all tests are snapshotted in the baseline file, [`test/simulation/baseline.json`](test/simulation/baseline.json), which encodes the quality of the test suite at any given point in time.
 
+The legacy chat-panel and code-editor inline chat-widget simulation suites have been retired, including the multi-file Edit-mode variants and all suites labelled `[panel]`. Panel chat now runs through the Agent Host Protocol; add panel end-to-end coverage to the [Agent Host E2E tests](../../src/vs/platform/agentHost/test/node/e2e/README.md). Non-panel code-mapper, notebook, standalone review, and prompt tests remain, as do inline-completion and next-edit-suggestion simulations. This test cleanup does not remove runtime features or change CI gates.
+
 Because LLM results are both random and costly, they are cached within the repo in `test/simulation/cache`. This means rerunning the simulation tests and benefiting from the cache will make the test run be both faster as well as deterministic.
 
 You can run the simulation tests with:
@@ -309,6 +311,8 @@ The view also has entries for tool calls on their own, and a prompt-tsx debug vi
 ## API updates
 
 When updating VS Code proposed extension API that is used by the extension, the `engines.vscode` field in `package.json` is used to make sure that the version of the extension that gets installed will be compatible with the version of VS Code.
+
+When adding a proposal to `enabledApiProposals` in `package.json`, also add it to `extensionEnabledApiProposals["GitHub.copilot-chat"]` in the applicable `microsoft/vscode-distro` product mixins. Product builds override the extension's proposal declarations with this allowlist; running from sources or in extension development mode does not expose missing entries. For example, BYOK Voice Mode requires the `speech` proposal.
 
 ### Updating to the latest API
 

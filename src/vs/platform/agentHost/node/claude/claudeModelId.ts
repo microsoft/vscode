@@ -4,17 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Mirror of `extensions/copilot/src/extension/chatSessions/claude/{common,node}/claudeModelId.ts`.
- *
  * The Claude Agent SDK speaks Anthropic-canonical hyphenated model IDs
  * (e.g. `claude-opus-4-6-20251101`). CAPI speaks dotted endpoint IDs
  * (`claude-opus-4.6`). The Phase 2 proxy needs bidirectional translation
  * at three points: inbound `requestBody.model` (SDK→CAPI), outbound
  * `model` fields on streaming events / non-streaming responses (CAPI→SDK),
  * and `GET /v1/models` response IDs (CAPI→SDK).
- *
- * **Keep in sync with the extension copy.** When the model-ID grammar
- * changes (new family name, new modifier suffix), update both files.
  */
 
 export interface ParsedClaudeModelId {

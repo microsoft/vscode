@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ThrottledDelayer } from '../../../base/common/async.js';
+import { Barrier, ThrottledDelayer } from '../../../base/common/async.js';
+import { isCancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
@@ -12,7 +13,7 @@ import { isObject } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { IFileManagedSettingsService, normalizeManagedSettings } from './copilotManagedSettings.js';
+import { IFileManagedSettingsService, normalizeManagedSettings, RawManagedSettingsData } from './copilotManagedSettings.js';
 
 /**
  * Upper bound on the size of `managed-settings.json` we will read into the main process. A
@@ -26,13 +27,20 @@ export class FileManagedSettingsService extends Disposable implements IFileManag
 
 	readonly _serviceBrand: undefined;
 
+	private _rawManagedSettings: RawManagedSettingsData = {};
+	get rawManagedSettings(): RawManagedSettingsData { return this._rawManagedSettings; }
+
 	private _managedSettings: ManagedSettingsData = {};
 	get managedSettings(): ManagedSettingsData { return this._managedSettings; }
+
+	private readonly _onDidChangeRawManagedSettings = this._register(new Emitter<RawManagedSettingsData>());
+	readonly onDidChangeRawManagedSettings = this._onDidChangeRawManagedSettings.event;
 
 	private readonly _onDidChangeManagedSettings = this._register(new Emitter<ManagedSettingsData>());
 	readonly onDidChangeManagedSettings = this._onDidChangeManagedSettings.event;
 
 	private readonly throttledDelayer = this._register(new ThrottledDelayer(500));
+	private readonly initialized = new Barrier();
 
 	constructor(
 		private readonly file: URI,
@@ -43,15 +51,29 @@ export class FileManagedSettingsService extends Disposable implements IFileManag
 
 		const onDidChangeFile = Event.filter(fileService.onDidFilesChange, e => e.affects(file));
 		this._register(fileService.watch(file));
-		this._register(onDidChangeFile(() => this.throttledDelayer.trigger(() => this.refresh())));
+		this._register(onDidChangeFile(() => this.scheduleRefresh()));
 
-		// Initial read — routed through the same delayer (with no delay) so it is serialized
-		// against change-triggered refreshes and can't be clobbered by a racing read. Non-blocking;
-		// IPC clients handle eventual data arrival.
-		this.throttledDelayer.trigger(() => this.refresh(), 0);
+		this.scheduleRefresh(0);
+	}
+
+	async initialize(): Promise<ManagedSettingsData> {
+		await this.initialized.wait();
+		return this._managedSettings;
+	}
+
+	private scheduleRefresh(delay?: number): void {
+		void this.throttledDelayer.trigger(() => this.refresh(), delay).then(() => {
+			this.initialized.open();
+		}, error => {
+			if (!isCancellationError(error)) {
+				this.logService.error('[FileManagedSettingsService] Failed to schedule managed-settings refresh', error);
+				this.initialized.open();
+			}
+		});
 	}
 
 	private async refresh(): Promise<void> {
+		const previousRaw = this._rawManagedSettings;
 		const previous = this._managedSettings;
 
 		try {
@@ -59,19 +81,25 @@ export class FileManagedSettingsService extends Disposable implements IFileManag
 			const parsed = JSON.parse(content.value.toString());
 
 			if (isObject(parsed)) {
+				this._rawManagedSettings = parsed as Record<string, unknown>;
 				this._managedSettings = normalizeManagedSettings(parsed as Record<string, unknown>,
 					msg => this.logService.warn(`[FileManagedSettingsService] ${msg}`));
 			} else {
 				this.logService.warn('[FileManagedSettingsService] managed-settings.json is not a JSON object');
+				this._rawManagedSettings = {};
 				this._managedSettings = {};
 			}
 		} catch (error) {
 			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
 				this.logService.error('[FileManagedSettingsService] Failed to read managed-settings.json', error);
 			}
+			this._rawManagedSettings = {};
 			this._managedSettings = {};
 		}
 
+		if (!equals(previousRaw, this._rawManagedSettings)) {
+			this._onDidChangeRawManagedSettings.fire(this._rawManagedSettings);
+		}
 		if (!equals(previous, this._managedSettings)) {
 			this._onDidChangeManagedSettings.fire(this._managedSettings);
 		}

@@ -5,6 +5,7 @@
 
 import { IObservable } from '../../../../base/common/observable.js';
 import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import type { IOnboardingTryoutMetadata } from './onboardingTryout.js';
 
 /**
  * Describes when an onboarding scenario becomes eligible to run automatically.
@@ -39,17 +40,17 @@ export interface IOnboardingPresentationRef<TPayload = unknown> {
  * onboarding would be shown — otherwise the scorecard counts activity from before the
  * experiment could have had any effect.
  *
- * The treatment flags that tell the client *which* identifier belongs to a given tour resolve
+ * The treatment flags that tell the client *which* variant belongs to a given tour resolve
  * asynchronously, after the assignment context has already been committed to telemetry, so
  * they are too late to block the very first events. This prefix solves that race: because it
  * is a *static, well-known* string, the client can pre-emptively exclude **any**
  * assignment-context entry that starts with it from the very first event, and then
- * selectively unblock the one specific identifier once the user reaches the onboarding moment.
+ * selectively unblock the one specific variant once the user reaches the onboarding moment.
  *
  * ### Contract for experiment authors
- * - Every onboarding experiment configured in ExP MUST set its assignment-context identifier
- *   to a value beginning with this prefix.
- * - That same value MUST be returned by the experiment's
+ * - Every onboarding experiment configured in ExP MUST use variant names beginning with this
+ *   prefix.
+ * - Each arm's variant name MUST be returned by the experiment's
  *   {@link IOnboardingExperiment.assignmentContextIdFlag} treatment flag.
  *
  * The engine enforces this defensively: an id that lacks the prefix is rejected (the experiment
@@ -66,7 +67,9 @@ export const ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX = 'onb-';
  * with {@link ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX}. If either flag is missing or the id lacks
  * the required prefix, the experiment is **inactive** and the scenario does not run
  * automatically (it can still be started explicitly via a command/`runScenario`, which
- * bypasses experiment gating and does not open the telemetry gate).
+ * bypasses experiment gating and does not open the telemetry gate; or by enabling
+ * `onboarding.developerMode` for the scenario, which previews the tour without opening the
+ * telemetry gate).
  */
 export interface IOnboardingExperiment {
 	/**
@@ -77,9 +80,8 @@ export interface IOnboardingExperiment {
 	readonly behaviorFlag: string;
 
 	/**
-	 * Name of the string treatment flag whose value is this experiment's assignment-context
-	 * identifier — the exact entry that appears inside the telemetry `abexp.assignmentcontext`
-	 * property and that the scorecard keys on. The value MUST start with
+	 * Name of the string treatment flag whose value is the current arm's ExP variant name. The
+	 * telemetry entry appends `:<allocationId>`; the value itself MUST start with
 	 * {@link ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX}; an id without the prefix is rejected (the
 	 * experiment is treated as inactive) so it can never leak into telemetry ungated.
 	 */
@@ -116,12 +118,18 @@ export interface IOnboardingScenario<TPayload = unknown> {
 	/** The presentation that renders this scenario plus its payload. */
 	readonly presentation: IOnboardingPresentationRef<TPayload>;
 
+	/** Explicitly exposes a manual-only feature example through the guarded tryout service. */
+	readonly tryout?: IOnboardingTryoutMetadata;
+
 	/**
 	 * Optional experiment that gates and measures this scenario. When present, the scenario
 	 * only runs if the experiment is active (both treatment flags set). See
 	 * {@link IOnboardingExperiment}.
 	 */
 	readonly experiment?: IOnboardingExperiment;
+
+	/** Variations exposed through the onboarding developer-mode variation override. */
+	readonly developerModeVariations?: readonly string[];
 
 	/** When `true`, the scenario runs on every eligible session instead of once per user. */
 	readonly repeatable?: boolean;

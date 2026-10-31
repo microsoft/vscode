@@ -11,7 +11,7 @@ import { DocumentColorProvider, IColorInformation } from '../../../common/langua
 import { ITextModel, TrackedRangeStickiness } from '../../../common/model.js';
 import { getColorPresentations } from './color.js';
 import { ColorPickerModel } from './colorPickerModel.js';
-import { Range } from '../../../common/core/range.js';
+import { IRange, Range } from '../../../common/core/range.js';
 
 export const enum ColorPickerWidgetType {
 	Hover = 'hover',
@@ -42,16 +42,20 @@ export async function createColorHover(editorModel: ITextModel, colorInfo: IColo
 	};
 }
 
-export function updateEditorModel(editor: IActiveCodeEditor, range: Range, model: ColorPickerModel): Range {
+export function updateEditorModel(editor: IActiveCodeEditor, range: Range, model: ColorPickerModel, insertionRanges?: IRange[]): Range {
 	const textEdits: ISingleEditOperation[] = [];
 	const edit = model.presentation.textEdit ?? { range, text: model.presentation.label, forceMoveMarkers: false };
-	textEdits.push(edit);
 
 	if (model.presentation.additionalTextEdits) {
 		textEdits.push(...model.presentation.additionalTextEdits);
 	}
 	const replaceRange = Range.lift(edit.range);
 	const trackedRange = editor.getModel()._setTrackedRange(null, replaceRange, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
+	if (insertionRanges) {
+		textEdits.push(...insertionRanges.map(insertionRange => ({ range: insertionRange, text: edit.text, forceMoveMarkers: false })));
+	} else {
+		textEdits.push(edit);
+	}
 	editor.executeEdits('colorpicker', textEdits);
 	editor.pushUndoStop();
 	return editor.getModel()._getTrackedRange(trackedRange) ?? replaceRange;

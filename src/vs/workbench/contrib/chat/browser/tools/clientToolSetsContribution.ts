@@ -36,18 +36,76 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 	) {
 		super();
 
-		this._register(this._registerDynamicToolSet(toolsService, {
-			id: 'vscode-tasks',
-			referenceName: 'vscodeTasks',
-			icon: Codicon.tasklist,
-			description: localize('clientToolSet.tasks.description', "Tasks"),
-			detail: localize('clientToolSet.tasks.detail', "Create and run tasks defined in your workspace."),
-			members: [
-				'createAndRunTask',
-				'runTask',
-				'getTaskOutput',
-			],
-		}));
+		if (!workspaceService.isSessionsWindow) {
+			this._register(this._registerDynamicToolSet(toolsService, {
+				id: 'vscode-tasks',
+				referenceName: 'vscodeTasks',
+				icon: Codicon.tasklist,
+				description: localize('clientToolSet.tasks.description', "Tasks and Problems"),
+				detail: localize('clientToolSet.tasks.detail', "Create and run tasks and inspect workspace problems."),
+				members: [
+					'createAndRunTask',
+					'runTask',
+					'getTaskOutput',
+					'problems',
+				],
+			}));
+		}
+
+		if (workspaceService.isSessionsWindow) {
+			this._register(this._registerDynamicToolSet(toolsService, {
+				id: 'vscode-remote-sessions',
+				referenceName: 'vscodeRemoteSessions',
+				icon: Codicon.remote,
+				description: localize('clientToolSet.remoteSessions.description', "Remote Sessions"),
+				detail: localize('clientToolSet.remoteSessions.detail', "Find remote agent hosts, delegate and inspect work, and send messages between hosts."),
+				members: [
+					'list_agent_hosts',
+					'create_remote_session',
+					'get_remote_session',
+					'send_remote_message',
+				],
+			}));
+
+			this._register(this._registerDynamicToolSet(toolsService, {
+				id: 'vscode-automations',
+				referenceName: 'vscodeAutomations',
+				icon: Codicon.calendar,
+				description: localize('clientToolSet.automations.description', "Automations"),
+				detail: localize('clientToolSet.automations.detail', "List, configure, run, and delete scheduled agent automations."),
+				members: [
+					'listAutomations',
+					'configureAutomation',
+					'runAutomation',
+					'deleteAutomation',
+				],
+			}));
+
+			this._register(this._registerDynamicToolSet(toolsService, {
+				id: 'vscode-sessions-list',
+				referenceName: 'vscodeSessionsList',
+				icon: Codicon.listTree,
+				description: localize('clientToolSet.sessionsList.description', "Sessions List"),
+				detail: localize('clientToolSet.sessionsList.detail', "Group, order, filter, and sort the sessions in the Sessions list."),
+				members: [
+					'readSessionsList',
+					'organizeSessionsList',
+				],
+			}));
+
+			this._register(this._registerDynamicToolSet(toolsService, {
+				id: 'vscode-appearance',
+				referenceName: 'vscodeAppearance',
+				icon: Codicon.paintcan,
+				description: localize('clientToolSet.appearance.description', "Appearance"),
+				detail: localize('clientToolSet.appearance.detail', "Read theme colors, change the chat background, and capture the Agents window."),
+				members: [
+					'getThemeColors',
+					'setChatBackground',
+					'screenshotWindow',
+				],
+			}));
+		}
 
 		this._register(this._registerDynamicToolSet(toolsService, {
 			id: 'vscode-browser',
@@ -65,17 +123,8 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 			description: localize('clientToolSet.vscode.description', "VS Code"),
 			detail: localize('clientToolSet.vscode.detail', "Navigate code, manage extensions, and run built-in VS Code commands."),
 			members: [
-				'runTests',
-				'testFailure',
-				'problems',
-				'rename',
-				'usages',
-				'extensions',
-				'installExtension',
-				'newWorkspace',
-				'runCommand',
+				...(workspaceService.isSessionsWindow ? [] : ['runTests', 'testFailure', 'rename', 'usages']),
 				'toolSearch',
-				'vscodeAPI',
 			],
 		}));
 

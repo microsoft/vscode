@@ -1,0 +1,49 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run exactly this shell command, with no modifications: `node -e "process.stdout.write(require(''fs'').readFileSync(''nested/value.txt'',''utf8''))"`. Then reply with its exact output only.'
+    response:
+      content:
+        - type: text
+          text: Running the exact command now and I’ll return only its raw output.
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: node -e "process.stdout.write(require('fs').readFileSync('nested/value.txt','utf8'))"
+            workdir: ${workdir}
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run exactly this shell command, with no modifications: `node -e "process.stdout.write(require(''fs'').readFileSync(''nested/value.txt'',''utf8''))"`. Then reply with its exact output only.'
+        - role: assistant
+          content: Running the exact command now and I’ll return only its raw output.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: node -e "process.stdout.write(require('fs').readFileSync('nested/value.txt','utf8'))"
+                workdir: ${workdir}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: e9b22f
+                Wall time: 0.1643 seconds
+                Process exited with code 0
+                Original token count: 4
+                Output:
+                NESTED_VALUE_42
+    response:
+      content: NESTED_VALUE_42
+      stopReason: end_turn

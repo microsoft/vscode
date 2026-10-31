@@ -163,7 +163,7 @@ async function resolveInteractive(
 
 		const result = await toolService.invokeTool('vscode_reviewPlan', {
 			input: {
-				title: l10n.t('Review Plan'),
+				title: l10n.t('Plan summary'),
 				plan: planPath ? Uri.file(planPath).toString() : undefined,
 				content: event.summary,
 				actions,

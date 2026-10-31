@@ -16,16 +16,61 @@ export enum NesDatagenSampleTask {
 	CursorBoth = 'cursor-both',
 }
 
+/**
+ * Shape of the recordings in the nes-datagen input file.
+ */
+export enum NesDatagenInputFormat {
+	/** Per-request "alternative action" recordings bookmarked at the NES request time. */
+	AlternativeAction = 'alternative-action',
+	/** Continuous enhanced-telemetry slices with no request bookmark; a pivot is synthesized. */
+	Continuous = 'continuous',
+	/** A raw, stateful local workspaceRecording@1.0 JSONL timeline. */
+	WorkspaceRecording = 'workspace-recording',
+}
+
+export const DEFAULT_WORKSPACE_RECORDING_SAMPLE_CAP = 100;
+export const DEFAULT_NES_DATAGEN_ORACLE_EDIT_LIMIT = 10;
+
+/**
+ * How to choose the pivot in a continuous recording (only meaningful when
+ * `--input-format=continuous`). The pivot splits the timeline into context and
+ * the oracle (next user edit).
+ */
+export enum PivotStrategy {
+	/** Pick a single eligible pivot uniformly at random. */
+	Random = 'random',
+}
+
 export type NesDatagen = {
 	readonly input: string;
 	readonly output: string | undefined;
 	readonly rowOffset: number;
 	readonly workerMode: boolean;
 	readonly sampleTask: NesDatagenSampleTask;
+	/** Shape of the input recordings. */
+	readonly inputFormat: NesDatagenInputFormat;
+	/** Pivot selection strategy for continuous recordings. Ignored for alternative-action input. */
+	readonly pivotStrategy: PivotStrategy;
+	/**
+	 * Seed for the continuous pivot RNG. Resolved once (random when `--seed` is
+	 * omitted) so it can be propagated to all parallel workers for reproducible
+	 * output. Ignored for alternative-action input.
+	 */
+	readonly seed: number;
 	/** Minimum same-file lines above the request cursor for a move to count as a jump. */
 	readonly sameFileJumpMinAbove: number;
 	/** Minimum same-file lines below the request cursor for a move to count as a jump. */
 	readonly sameFileJumpMinBelow: number;
+	/** Maximum number of samples selected from one raw workspace recording. */
+	readonly maxSamplesPerRecording?: number;
+	/** Maximum number of composed, non-touching oracle edits in one sample. */
+	readonly maxOracleEdits?: number;
+	/** Whether to emit scoredEdits viewer files for generated samples. */
+	readonly generateScoredEdits: boolean;
+	/** Internal worker-only directory for staging scoredEdits files. */
+	readonly scoredEditsOutputDirectory?: string;
+	/** Internal worker-only subset of selected workspace-recording operation indices. */
+	readonly workspacePivotOperationIndices?: readonly number[];
 };
 
 export class SimulationOptions {
@@ -50,20 +95,15 @@ export class SimulationOptions {
 	public readonly fastChatModel: string | undefined;
 	public readonly fastRewriteModel: string | undefined;
 	public readonly summarizeHistory: boolean;
-	public readonly swebenchPrompt: boolean;
 	public readonly embeddingType: EmbeddingType | undefined;
 	public readonly boost: boolean;
 	public readonly parallelism: number;
 	public readonly lmCacheMode: CacheMode;
 	public readonly modelCacheMode: CacheMode;
 	public readonly resourcesCacheMode: CacheMode;
-	public readonly cachePath: string | undefined;
 	public readonly externalBaseline: string | undefined;
 	public readonly externalScenarios: string | undefined;
 	public readonly output: string | undefined;
-	public readonly inline: boolean;
-	public readonly sidebar: boolean;
-	public readonly applyChatCodeBlocks: boolean;
 	public readonly stageCacheEntries: boolean;
 	public readonly ci: boolean;
 	public readonly gc: boolean;
@@ -81,7 +121,6 @@ export class SimulationOptions {
 	 * A label for the current simulation run, to be displayed in the UI for distinguishing between runs.
 	 */
 	public readonly label: string;
-	public readonly runServerPoweredNesProvider: boolean;
 	public readonly nes: 'external' | 'coffe' | undefined;
 	public readonly nesUrl: string | undefined;
 	public readonly nesApiKey: string | undefined;
@@ -91,17 +130,6 @@ export class SimulationOptions {
 	public readonly subcommand: 'nes-datagen' | undefined;
 
 	public readonly disabledTools: Set<string>;
-
-	/** If true, all tests are run in the extension host */
-	public readonly inExtensionHost: boolean;
-	/** Extensions to ensure are available in the extension host */
-	public readonly installExtensions: string[];
-	/** Whether to run headless (defaults to false) */
-	public readonly headless: boolean;
-	/** @internal Only run a single test number */
-	public readonly runNumber: number;
-	/** Explicit workspace URI to use for stest --in-extension-host */
-	public readonly useScenarioWorkspace: boolean;
 
 	/** If true, will try to use code search using our service. */
 	public readonly useExperimentalCodeSearchService: boolean;
@@ -137,7 +165,6 @@ export class SimulationOptions {
 		this.fastChatModel = this.argv['fast-model'];
 		this.fastRewriteModel = this.argv['fast-rewrite-model'];
 		this.summarizeHistory = boolean(argv['summarize-history'], true);
-		this.swebenchPrompt = boolean(argv['swebench-prompt'], false);
 		this.embeddingType = cliOptionsToWellKnownEmbeddingsType(this.argv['embedding-model']);
 		this.parallelism = this.argv['parallelism'] ?? this.argv['p'] ?? 20;
 		this.modelCacheMode = this.argv['skip-model-cache'] ? CacheMode.Disable : CacheMode.Default;
@@ -152,10 +179,6 @@ export class SimulationOptions {
 		this.externalBaseline = this.argv['external-baseline']; // must be set after `externalScenarios`
 		this.validateExternalBaseline();
 		this.output = this.argv['output'];
-		this.cachePath = this.argv['cache-location'];
-		this.inline = boolean(this.argv['inline'], false);
-		this.sidebar = boolean(this.argv['sidebar'], false);
-		this.applyChatCodeBlocks = boolean(this.argv['apply-chat-code-blocks'], false);
 		this.stageCacheEntries = boolean(this.argv['stage-cache-entries'], false);
 		this.ci = boolean(this.argv['ci'], false);
 		this.gc = boolean(this.argv['gc'], false);
@@ -167,13 +190,6 @@ export class SimulationOptions {
 		this.scenarioTest = argv['scenarioTest'] ?? argv['scenario-test'];
 		this.label = argv['label'] ?? '';
 
-		this.inExtensionHost = boolean(argv['in-extension-host'], false);
-		this.installExtensions = argv['install-extension'] ? argv['install-extension'].split(',') : [];
-		this.headless = boolean(argv['headless'], true);
-		this.runNumber = Number(argv['run-number']) || 0;
-
-		this.runServerPoweredNesProvider = boolean(argv['runServerPoweredNesProvider'], false);
-
 		this.nes = SimulationOptions.validateNesArgument(argv['nes']);
 
 		this.nesUrl = argv['nes-url'];
@@ -182,7 +198,6 @@ export class SimulationOptions {
 		SimulationOptions.validateNesUrlOverride(this.nesUrl, this.nesApiKey);
 
 		this.disabledTools = argv['disable-tools'] ? new Set(argv['disable-tools'].split(',')) : new Set();
-		this.useScenarioWorkspace = boolean(argv['scenario-workspace-folder'], false);
 
 		this.useExperimentalCodeSearchService = boolean(argv['use-experimental-code-search-service'], false);
 
@@ -195,8 +210,24 @@ export class SimulationOptions {
 				rowOffset: typeof argv['row-offset'] === 'number' ? argv['row-offset'] : 0,
 				workerMode: boolean(argv['worker'], false),
 				sampleTask: SimulationOptions.validateSampleTask(argv['sample-task']),
+				inputFormat: SimulationOptions.validateInputFormat(argv['input-format']),
+				pivotStrategy: SimulationOptions.validatePivotStrategy(argv['pivot-strategy']),
+				seed: SimulationOptions.resolveSeed(argv['seed']),
 				sameFileJumpMinAbove: typeof argv['same-file-jump-min-above'] === 'number' ? argv['same-file-jump-min-above'] : 2,
 				sameFileJumpMinBelow: typeof argv['same-file-jump-min-below'] === 'number' ? argv['same-file-jump-min-below'] : 5,
+				maxSamplesPerRecording: SimulationOptions.validatePositiveInteger(
+					argv['max-samples-per-recording'],
+					'--max-samples-per-recording',
+					DEFAULT_WORKSPACE_RECORDING_SAMPLE_CAP,
+				),
+				maxOracleEdits: SimulationOptions.validatePositiveInteger(
+					argv['max-oracle-edits'],
+					'--max-oracle-edits',
+					DEFAULT_NES_DATAGEN_ORACLE_EDIT_LIMIT,
+				),
+				generateScoredEdits: boolean(argv['generate-scored-edits'], false),
+				scoredEditsOutputDirectory: argv['scored-edits-output-directory'],
+				workspacePivotOperationIndices: SimulationOptions.parseWorkspacePivotOperationIndices(argv['workspace-pivot-operation-indices']),
 			}
 			: undefined;
 
@@ -209,16 +240,12 @@ export class SimulationOptions {
 		console.log([
 			`Example usages: `,
 			`  npm run simulate`,
-			`  npm run simulate -- --external-scenarios=<path> --inline --output=<path>`,
-			`  npm run simulate -- --external-scenarios=<path> --sidebar --output=<path>`,
-			`  npm run simulate -- --external-scenarios=<path> --nes --output=<path>`,
+			`  npm run simulate -- --external-scenarios=<path> --nes=external --output=<path>`,
 			`  npm run simulate -- --update-baseline`,
 			``,
 			`  -u, --update-baseline              Updates scores in baseline.json if they change as a result of your changes to prompts sent to the model`,
-			`  --external-scenarios               Path to a directory containing scenarios to run`,
-			`  --inline                           Run inline chat external scenarios`,
-			`  --sidebar                          Run sidebar chat external scenarios`,
-			`  --nes                              Run NES external scenarios`,
+			`  --external-scenarios               Path to a directory containing NES scenarios to run (requires --nes)`,
+			`  --nes                              Kind of NES external scenarios: external (default) or coffe`,
 			`  --output                           Path to a directory where to generate output`,
 			`  --n                                Run each scenario N times`,
 			`  --ci                               Equivalent to --n=${BASELINE_RUN_COUNT} but throws if the baseline is not up-to-date`,
@@ -236,7 +263,6 @@ export class SimulationOptions {
 			`  -p, --parallelism                  [experimental] Run tests in parallel (default: 1)`,
 			`  --skip-cache                       [experimental] Do not use the cache for language model requests`,
 			`  --require-cache                    [experimental] Require cache hits, fail on cache misses`,
-			`  --regenerate-cache                 [experimental] Fetch all responses and refresh the cache`,
 			`  --skip-resources-cache             [experimental] Do not use the cache for computed resources`,
 			`  --skip-model-cache                 [experimental] Do not use the cache for model metadata`,
 			`  --stage-cache-entries              [experimental] Stage cache files that were used in current simulation run`,
@@ -249,16 +275,13 @@ export class SimulationOptions {
 			`  --label                            A label for the current simulation run, to be displayed in the UI for distinguishing between runs`,
 			`  --nes-url                           To override endpoint URL for NES (must be used with --nes-api-key)`,
 			`  --nes-api-key                        API key for endpoint URL provided via NES (must be used with --nes-url)`,
-			`  --runServerPoweredNesProvider      Run stests against the http server powered NES provider (server must be run at port 8001)`,
 			`  --disable-tools                    A comma-separated list of tools to disable`,
-			`  --swebench-prompt                  Use the headless swebench prompt for agent mode`,
 			`  --summarize-history                Enable experimental conversation history summarization in agent mode`,
-			`  --scenario-workspace-folder        If true, runs the stest inline in the scenario's workspace folder`,
 			`  --config-file                      Path to a JSON file containing configuration options`,
 			`  --model-config-file                Path to a JSON file containing model configuration options`,
 			``,
 			`Subcommands:`,
-			`  nes-datagen                        Generate training data from alternative action recordings`,
+			`  nes-datagen                        Generate NES training data from recorded editing sessions`,
 			`                                     Run 'npm run simulate -- nes-datagen --help' for options`,
 			``,
 		].join('\n'));
@@ -268,13 +291,27 @@ export class SimulationOptions {
 		console.log([
 			`Usage: npm run simulate -- --config-file=<path> [global options] nes-datagen --input=<path> [options]`,
 			``,
-			`Generate training data by replaying alternative action recordings through the NES prompt pipeline.`,
+			`Generate training data by replaying recorded editing sessions through the NES prompt pipeline.`,
 			`The prompting strategy is read from the model configuration in --config-file.`,
+			`Raw workspace recordings contain source code. Keep input and output files in approved secure storage.`,
 			``,
 			`Options:`,
 			`  --input                            Path to a JSON or JSON Lines file with training data recordings (required)`,
 			`                                     Format is inferred from the extension: .jsonl/.ndjson → JSON Lines, otherwise JSON array`,
 			`  --out                              Output path for the JSON Lines file. Default: <input-path>_output.jsonl`,
+			`  --input-format                     Shape of the input recordings (default: alternative-action)`,
+			`                                     Values: alternative-action, continuous, workspace-recording`,
+			`                                       alternative-action → per-request recordings bookmarked at the NES request time`,
+			`                                       continuous         → continuous enhanced-telemetry slices; a pivot is synthesized`,
+			`                                       workspace-recording → raw stateful *.workspaceRecording.jsonl timeline`,
+			`  --pivot-strategy                   How to pick the pivot in a continuous recording (default: random; only for --input-format=continuous)`,
+			`                                     Values: random`,
+			`                                       random             → pick a single eligible pivot uniformly at random`,
+			`  --seed                             Integer seed for the continuous pivot RNG (default: random, logged for reproducibility)`,
+			`  --max-samples-per-recording        Maximum samples selected from a workspace recording (default: 100)`,
+			`  --max-oracle-edits                 Maximum composed, non-touching oracle edits per sample (default: 10)`,
+			`  --generate-scored-edits            Generate <sample-id>.scoredEdits.w.json files beside the output JSONL`,
+			`                                     Requires --sample-task=xtab`,
 			`  --sample-task                      Which target to generate (default: xtab)`,
 			`                                     Values: xtab, cursor-same-file, cursor-cross-file, cursor-both`,
 			`                                       xtab               → edit-prediction sample (assistant = an edit)`,
@@ -298,6 +335,10 @@ export class SimulationOptions {
 			`  npm run simulate -- --config-file=config.json nes-datagen --input=data.json --sample-task=cursor-same-file`,
 			`  npm run simulate -- --config-file=config.json nes-datagen --input=data.json --sample-task=cursor-cross-file`,
 			`  npm run simulate -- --config-file=config.json nes-datagen --input=data.json --sample-task=cursor-both --same-file-jump-min-above=8 --same-file-jump-min-below=8`,
+			`  npm run simulate -- --config-file=config.json nes-datagen --input=continuous.jsonl --input-format=continuous`,
+			`  npm run simulate -- --config-file=config.json nes-datagen --input=continuous.jsonl --input-format=continuous --pivot-strategy=random --seed=42`,
+			`  npm run simulate -- --config-file=config.json nes-datagen --input=current.workspaceRecording.jsonl --input-format=workspace-recording`,
+			`  npm run simulate -- --config-file=config.json nes-datagen --input=current.workspaceRecording.jsonl --input-format=workspace-recording --generate-scored-edits`,
 			``,
 		].join('\n'));
 	}
@@ -348,6 +389,79 @@ export class SimulationOptions {
 			throw new Error(`--sample-task must be one of [${allowed.join(', ')}], but got: ${value}`);
 		}
 		return value as NesDatagenSampleTask;
+	}
+
+	private static validateInputFormat(value: unknown): NesDatagenInputFormat {
+		if (value === undefined || value === null) {
+			return NesDatagenInputFormat.AlternativeAction;
+		}
+		if (typeof value !== 'string') {
+			throw new Error(`--input-format must be a string, but got: ${typeof value}`);
+		}
+		const allowed = Object.values(NesDatagenInputFormat) as string[];
+		if (!allowed.includes(value)) {
+			throw new Error(`--input-format must be one of [${allowed.join(', ')}], but got: ${value}`);
+		}
+		return value as NesDatagenInputFormat;
+	}
+
+	private static validatePivotStrategy(value: unknown): PivotStrategy {
+		if (value === undefined || value === null) {
+			return PivotStrategy.Random;
+		}
+
+		if (typeof value !== 'string') {
+			throw new Error(`--pivot-strategy must be a string, but got: ${typeof value}`);
+		}
+		const allowed = Object.values(PivotStrategy) as string[];
+		if (!allowed.includes(value)) {
+			throw new Error(`--pivot-strategy must be one of [${allowed.join(', ')}], but got: ${value}`);
+		}
+		return value as PivotStrategy;
+	}
+
+	private static validatePositiveInteger(value: unknown, optionName: string, defaultValue: number): number {
+		if (value === undefined || value === null) {
+			return defaultValue;
+		}
+		if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+			throw new Error(`${optionName} must be a positive integer, but got: ${value}`);
+		}
+		return value;
+	}
+
+	private static parseWorkspacePivotOperationIndices(value: unknown): readonly number[] | undefined {
+		if (value === undefined || value === null) {
+			return undefined;
+		}
+		const serialized = typeof value === 'number' ? String(value) : value;
+		if (typeof serialized !== 'string' || serialized.length === 0) {
+			throw new Error(`--workspace-pivot-operation-indices must be a comma-separated list of non-negative integers`);
+		}
+
+		const indices = serialized.split(',').map(part => Number(part));
+		if (indices.some(index => !Number.isInteger(index) || index < 0)) {
+			throw new Error(`--workspace-pivot-operation-indices must be a comma-separated list of non-negative integers`);
+		}
+		if (new Set(indices).size !== indices.length) {
+			throw new Error(`--workspace-pivot-operation-indices must not contain duplicates`);
+		}
+		return indices;
+	}
+
+	/**
+	 * Resolve the continuous pivot seed. When `--seed` is omitted a random
+	 * 32-bit seed is generated so that the parent can log it and propagate it to
+	 * every worker, keeping output reproducible.
+	 */
+	private static resolveSeed(value: unknown): number {
+		if (value === undefined || value === null) {
+			return Math.floor(Math.random() * 0x100000000);
+		}
+		if (typeof value !== 'number' || !Number.isInteger(value)) {
+			throw new Error(`--seed must be an integer, but got: ${value}`);
+		}
+		return value >>> 0;
 	}
 }
 

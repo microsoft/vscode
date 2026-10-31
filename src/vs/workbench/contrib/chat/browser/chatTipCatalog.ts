@@ -112,6 +112,15 @@ export interface ITipDefinition extends ITipExclusionConfig {
 	 */
 	readonly when?: ContextKeyExpression;
 	/**
+	 * Command IDs that must be registered for this tip to be eligible.
+	 */
+	readonly requiresCommands?: readonly string[];
+	/**
+	 * Chat mode names that must be available in the current widget for this tip to
+	 * be eligible.
+	 */
+	readonly requiresModeNames?: readonly string[];
+	/**
 	 * Chat model IDs for which this tip is eligible (lowercase).
 	 */
 	readonly onlyWhenModelIds?: readonly string[];
@@ -244,13 +253,14 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.planMode',
-					"Try the [{0}](command:workbench.action.chat.openPlan \"Start Plan Mode\"){1} to research and plan before implementing changes.",
+					"Try the [{0}](command:workbench.action.chat.open?%5B%7B%22mode%22%3A%22Plan%22%7D%5D \"Start Plan Mode\"){1} to research and plan before implementing changes.",
 					'Plan agent',
 					kb
 				)
 			);
 		},
 		when: ChatContextKeys.chatModeName.notEqualsTo('Plan'),
+		requiresModeNames: ['Plan'],
 		excludeWhenCommandsExecuted: ['workbench.action.chat.openPlan'],
 		excludeWhenModesUsed: ['Plan'],
 	},
@@ -278,6 +288,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 				localize('tip.codeActions', "Select a code block in the editor and right-click to access more AI actions.")
 			);
 		},
+		when: IsSessionsWindowContext.negate(),
 		excludeWhenCommandsExecuted: ['inlineChat.start'],
 	},
 	{
@@ -307,6 +318,23 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		},
 		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 		excludeWhenCommandsExecuted: ['workbench.action.chat.queueMessage', 'workbench.action.chat.steerWithMessage'],
+	},
+	{
+		id: 'tip.btw',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize('tip.btw', "Use `/btw <question>` to ask a side question without adding it to the current conversation.")
+			);
+		},
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(`config.${ChatConfiguration.BtwTipEnabled}`, true),
+			IsSessionsWindowContext,
+			ContextKeyExpr.has('sessionIsCreated'),
+			ContextKeyExpr.not('sessionIsArchived'),
+			ContextKeyExpr.has('sessionSupportsSideChat'),
+		),
+		excludeWhenCommandsExecuted: [TipTrackingCommands.BtwUsed],
 	},
 	{
 		id: 'tip.forkConversation',
@@ -380,9 +408,12 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 				)
 			);
 		},
-		when: ContextKeyExpr.or(
-			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
+		when: ContextKeyExpr.and(
+			IsSessionsWindowContext.negate(),
+			ContextKeyExpr.or(
+				ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+				ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
+			),
 		),
 		excludeWhenSettingsChanged: ['chat.editing.autoAcceptDelay'],
 		dismissWhenCommandsClicked: ['workbench.action.openSettings'],

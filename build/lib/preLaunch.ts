@@ -33,7 +33,10 @@ async function ensureNodeModules() {
 }
 
 async function getElectron() {
-	await runProcess(npm, ['run', 'electron']);
+	const { shouldDownloadElectron } = await import('./electronVersion.ts');
+	if (shouldDownloadElectron(rootDir)) {
+		await runProcess(npm, ['run', 'electron']);
+	}
 }
 
 async function ensureCompiled() {

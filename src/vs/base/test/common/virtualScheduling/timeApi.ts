@@ -28,6 +28,8 @@ export interface TimeApi {
 	requestAnimationFrame?: ((cb: (time: number) => void) => AnimationFrameId);
 	cancelAnimationFrame?: ((id: AnimationFrameId) => void);
 	Date: DateConstructor;
+	performanceNow: () => number;
+	performanceTimeOrigin: number;
 }
 
 export function captureGlobalTimeApi(): TimeApi {
@@ -41,6 +43,8 @@ export function captureGlobalTimeApi(): TimeApi {
 		requestAnimationFrame: globalThis.requestAnimationFrame?.bind(globalThis) as unknown as TimeApi['requestAnimationFrame'],
 		cancelAnimationFrame: globalThis.cancelAnimationFrame?.bind(globalThis) as unknown as TimeApi['cancelAnimationFrame'],
 		Date: globalThis.Date,
+		performanceNow: globalThis.performance?.now.bind(globalThis.performance) ?? globalThis.Date.now.bind(globalThis.Date),
+		performanceTimeOrigin: globalThis.performance?.timeOrigin ?? 0,
 	};
 }
 

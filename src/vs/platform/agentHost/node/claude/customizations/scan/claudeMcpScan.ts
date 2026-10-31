@@ -45,7 +45,7 @@ function extractMcpServerMap(uri: URI, raw: unknown): Record<string, unknown> | 
  * user scope) for declared MCP servers and returns them as
  * {@link McpServerCustomization} entries pointing at the real source file.
  *
- * Pre-materialize, the state is {@link McpServerStatus.Starting} (declared
+ * Pre-materialize, the state is {@link McpServerStatus.Stopped} (declared
  * but not yet connected). Post-materialize, the live connection status is
  * enriched from the SDK's `mcpServerStatus()` by the projector.
  */

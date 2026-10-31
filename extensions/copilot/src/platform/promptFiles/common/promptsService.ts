@@ -38,7 +38,6 @@ export namespace PromptConfig {
 	export const INCLUDE_APPLYING_INSTRUCTIONS = 'chat.includeApplyingInstructions';
 	export const INCLUDE_REFERENCED_INSTRUCTIONS = 'chat.includeReferencedInstructions';
 	export const USE_SKILL_ADHERENCE_PROMPT = 'chat.experimental.useSkillAdherencePrompt';
-	export const GENERAL_PURPOSE_AGENT_ENABLED = 'chat.generalPurposeAgent.enabled';
 	export const COLLECT_INSTRUCTIONS_IN_EXTENSION = 'chat.experimental.collectInstructionsInExtension';
 }
 
@@ -131,6 +130,13 @@ export interface IPromptsService {
 	 * The list of currently installed agent plugins.
 	 */
 	getPlugins(token: CancellationToken): Promise<readonly ChatPlugin[]>;
+
+	/**
+	 * Resolves customization discovery roots for the supplied workspace folders,
+	 * including trusted parent repositories when enabled by configuration.
+	 * These roots do not grant edit access outside the workspace.
+	 */
+	getWorkspaceFolderRoots(workspaceFolders: readonly URI[]): Promise<URI[]>;
 
 	/**
 	 * Gets the combined list of agent instruction files (`AGENTS.md`,

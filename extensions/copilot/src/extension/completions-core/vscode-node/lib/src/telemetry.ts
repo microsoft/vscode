@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { IEnvService } from '../../../../../platform/env/common/envService';
-import { RequestId } from '../../../../../platform/networking/common/fetch';
+import { gitHubCopilotRequestTeProperty, RequestId } from '../../../../../platform/networking/common/fetch';
 import { createServiceIdentifier } from '../../../../../util/common/services';
 import { generateUuid } from '../../../../../util/vs/base/common/uuid';
 import { IInstantiationService, ServicesAccessor } from '../../../../../util/vs/platform/instantiation/common/instantiation';
@@ -170,8 +170,12 @@ export class TelemetryData {
 			headerRequestId: requestId.headerRequestId,
 			serverExperiments: requestId.serverExperiments,
 			deploymentId: requestId.deploymentId,
+			...gitHubCopilotRequestTeProperty(requestId.gitHubCopilotRequestTe),
 		};
-		this.properties = { ...this.properties, ...requestProperties };
+		// Never carry over a value from an earlier request when this one lacks the header.
+		const properties = { ...this.properties };
+		delete properties.gitHubCopilotRequestTe;
+		this.properties = { ...properties, ...requestProperties };
 	}
 
 	private static keysToRemoveFromStandardTelemetry: string[] = [

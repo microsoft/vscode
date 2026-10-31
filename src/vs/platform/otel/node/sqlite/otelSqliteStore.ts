@@ -6,7 +6,6 @@
 import { mkdirSync } from 'fs';
 // The 'node:module' specifier is unresolvable by the Electron renderer
 // ESM loader (used by the unit test harness), so use the bare form.
-// eslint-disable-next-line local/code-import-patterns
 import { createRequire } from 'module';
 // eslint-disable-next-line local/code-import-patterns
 import type { DatabaseSync, StatementSync } from 'node:sqlite';
@@ -323,6 +322,7 @@ export class OTelSqliteStore {
 		if (this._db) { return this._db; }
 
 		if (this._dbPath !== ':memory:') {
+			// eslint-disable-next-line local/code-no-sync-fs -- TODO: introduce awaited store initialization; synchronous span/query methods open DatabaseSync immediately and require its parent directory to exist.
 			mkdirSync(dirname(this._dbPath), { recursive: true });
 		}
 

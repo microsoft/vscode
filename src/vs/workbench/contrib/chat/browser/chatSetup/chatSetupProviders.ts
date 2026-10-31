@@ -22,7 +22,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolProgress } from '../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatEntitlementContext, chatRequiresSetup, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ChatModel, ChatRequestModel, IChatRequestModel, IChatRequestVariableData } from '../../common/model/chatModel.js';
@@ -48,7 +48,7 @@ import { IPosition } from '../../../../../editor/common/core/position.js';
 import { IMarker, IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { ChatSetupController } from './chatSetupController.js';
 import { ChatGlobalPerfMark, markChatGlobal } from '../../common/chatPerf.js';
-import { ChatSetupAnonymous, ChatSetupStep, IChatSetupResult, maybeEnableAuthExtension, refreshTokens } from './chatSetup.js';
+import { ChatSetupAnonymous, ChatSetupSource, ChatSetupStep, IChatSetupResult, maybeEnableAuthExtension, refreshTokens } from './chatSetup.js';
 import { ChatSetup } from './chatSetupRunner.js';
 import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -60,7 +60,7 @@ import { IExtensionsWorkbenchService } from '../../../extensions/common/extensio
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
-	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' } },
+	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' }, microsoft: { id: '', name: '' } },
 	outputChannelId: product.defaultChatAgent?.chatExtensionOutputId ?? '',
 	outputExtensionStateCommand: product.defaultChatAgent?.chatExtensionOutputExtensionStateCommand ?? '',
 };
@@ -128,19 +128,6 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			// Register terminal agent
 			const { disposable: terminalDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.terminal.agent', 'terminal', false, localize2('terminalAgentDescription', "Ask how to do something in the terminal").value, ChatAgentLocation.Chat, ChatModeKind.Agent, context, controller);
 			disposables.add(terminalDisposable);
-
-			// Register tools
-			disposables.add(SetupTool.registerTool(instantiationService, {
-				id: 'setup_tools_createNewWorkspace',
-				source: ToolDataSource.Internal,
-				icon: Codicon.newFolder,
-				displayName: localize('setupToolDisplayName', "New Workspace"),
-				modelDescription: 'Scaffold a new workspace in VS Code',
-				userDescription: localize('setupToolsDescription', "Scaffold a new workspace in VS Code"),
-				canBeReferencedInPrompt: true,
-				toolReferenceName: 'new',
-				when: ContextKeyExpr.true(),
-			}));
 
 			return disposables;
 		});
@@ -534,7 +521,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		await chatService.resendRequest(requestModel, {
 			...widget?.getModeRequestOptions(),
 			modeInfo,
-			userSelectedModelId: widget?.input?.currentLanguageModel
+			...widget?.getSelectedModelRequestOptions()
 		});
 	}
 
@@ -704,6 +691,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		let result: IChatSetupResult | undefined = undefined;
 		try {
 			result = await ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run({
+				telemetrySource: ChatSetupSource.Chat,
 				disableChatViewReveal: true, 																				// we are already in a chat context
 				forceAnonymous: this.chatEntitlementService.anonymous ? ChatSetupAnonymous.EnabledWithoutDialog : undefined	// only enable anonymous selectively
 			});
@@ -830,35 +818,6 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 }
 
-export class SetupTool implements IToolImpl {
-
-	static registerTool(instantiationService: IInstantiationService, toolData: IToolData): IDisposable {
-		return instantiationService.invokeFunction(accessor => {
-			const toolService = accessor.get(ILanguageModelToolsService);
-
-			const tool = instantiationService.createInstance(SetupTool);
-			return toolService.registerTool(toolData, tool);
-		});
-	}
-
-	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		const result: IToolResult = {
-			content: [
-				{
-					kind: 'text',
-					value: ''
-				}
-			]
-		};
-
-		return result;
-	}
-
-	async prepareToolInvocation?(parameters: unknown, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
-		return undefined;
-	}
-}
-
 export class AINewSymbolNamesProvider {
 
 	static registerProvider(instantiationService: IInstantiationService, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): IDisposable {
@@ -881,6 +840,7 @@ export class AINewSymbolNamesProvider {
 	async provideNewSymbolNames(model: ITextModel, range: IRange, triggerKind: NewSymbolNameTriggerKind, token: CancellationToken): Promise<NewSymbolName[] | undefined> {
 		await this.instantiationService.invokeFunction(accessor => {
 			return ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run({
+				telemetrySource: ChatSetupSource.InlineRename,
 				forceAnonymous: this.chatEntitlementService.anonymous ? ChatSetupAnonymous.EnabledWithDialog : undefined
 			});
 		});

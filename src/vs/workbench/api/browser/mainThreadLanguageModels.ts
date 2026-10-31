@@ -7,7 +7,7 @@ import { AsyncIterableSource, DeferredPromise } from '../../../base/common/async
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
-import { CancellationError, SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
+import { CancellationError, SerializedError, transformErrorFromSerialization } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { equalSets } from '../../../base/common/collections.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -15,6 +15,7 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
+import { IProductService } from '../../../platform/product/common/productService.js';
 import { resizeImage } from '../../contrib/chat/browser/chatImageUtils.js';
 import { ILanguageModelIgnoredFilesService } from '../../contrib/chat/common/ignoredFiles.js';
 import { IChatMessage, IChatResponsePart, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
@@ -24,7 +25,7 @@ import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostContext, ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from '../common/extHost.protocol.js';
-import { LanguageModelError } from '../common/extHostTypes.js';
+import { LanguageModelError, serializeLanguageModelError } from '../common/extHostTypes.js';
 
 class RequestCancellationTokenSource extends Disposable {
 
@@ -62,6 +63,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		extHostContext: IExtHostContext,
 		@ILanguageModelsService private readonly _chatProviderService: ILanguageModelsService,
 		@ILogService private readonly _logService: ILogService,
+		@IProductService private readonly _productService: IProductService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IAuthenticationAccessService private readonly _authenticationAccessService: IAuthenticationAccessService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -100,12 +102,18 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 				onDidChange: Event.filter(this._lmProviderChange.event, e => e.vendor === vendor, disposables) as unknown as Event<void>,
 				provideLanguageModelChatInfo: async (options, token) => {
 					const modelsAndIdentifiers = await this._proxy.$provideLanguageModelChatInfo(vendor, options, token);
-					modelsAndIdentifiers.forEach(m => {
+					const copilotExtensionId = this._productService.defaultChatAgent?.chatExtensionId;
+					return modelsAndIdentifiers.map(m => {
 						if (m.metadata.auth) {
 							disposables.add(this._registerAuthenticationProvider(m.metadata.extension, m.metadata.auth));
 						}
+						if (m.metadata.isBYOK !== undefined) {
+							return m; // provider declared it explicitly
+						}
+						// Any contributed model that isn't from the built-in Copilot chat extension is BYOK.
+						const isBuiltinCopilot = !!copilotExtensionId && ExtensionIdentifier.equals(m.metadata.extension, copilotExtensionId);
+						return { ...m, metadata: { ...m.metadata, isBYOK: !isBuiltinCopilot } };
 					});
-					return modelsAndIdentifiers;
 				},
 				sendChatRequest: async (modelId, messages, from, options, token) => {
 					const requestId = (Math.random() * 1e6) | 0;
@@ -239,7 +247,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 				this._logService.trace('[CHAT] request DONE', extension.value, requestId);
 			} catch (err) {
 				this._logService.error('[CHAT] extension request ERRORED in STREAM', toErrorMessage(err, true), extension.value, requestId);
-				this._proxy.$acceptResponseDone(requestId, transformErrorForSerialization(err));
+				this._proxy.$acceptResponseDone(requestId, serializeLanguageModelError(err));
 			}
 		})();
 
@@ -251,7 +259,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		}, err => {
 			this._logService.error('[CHAT] extension request ERRORED', toErrorMessage(err, true), extension.value, requestId);
 			this._pendingCancelCTS.deleteAndDispose(requestId);
-			this._proxy.$acceptResponseDone(requestId, transformErrorForSerialization(err));
+			this._proxy.$acceptResponseDone(requestId, serializeLanguageModelError(err));
 		});
 	}
 

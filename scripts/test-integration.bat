@@ -7,17 +7,21 @@ set "SCRIPT_DIR=%~dp0"
 pushd %SCRIPT_DIR%\..
 
 :: Parse arguments for help and filters
+set "BUILD_ARG="
 set "HAS_FILTER="
 set "RUN_FILE="
 set "RUN_GLOB="
 set "GREP_PATTERN="
 set "SUITE_FILTER="
+set "ONLY_NODE_TESTS="
+set "ONLY_EXTENSION_HOST_TESTS="
 set "SHOW_HELP="
 
 :parse_args
 if "%~1"=="" goto done_parsing
 if /i "%~1"=="--help" (set SHOW_HELP=1& shift & goto parse_args)
 if /i "%~1"=="-h" (set SHOW_HELP=1& shift & goto parse_args)
+if /i "%~1"=="--build" (set "BUILD_ARG=--build"& shift & goto parse_args)
 if /i "%~1"=="--run" (set "RUN_FILE=%~2"& set HAS_FILTER=1& shift & shift & goto parse_args)
 if /i "%~1"=="--grep" (set "GREP_PATTERN=%~2"& shift & shift & goto parse_args)
 if /i "%~1"=="-g" (set "GREP_PATTERN=%~2"& shift & shift & goto parse_args)
@@ -25,7 +29,10 @@ if /i "%~1"=="-f" (set "GREP_PATTERN=%~2"& shift & shift & goto parse_args)
 if /i "%~1"=="--runGlob" (set "RUN_GLOB=%~2"& set HAS_FILTER=1& shift & shift & goto parse_args)
 if /i "%~1"=="--glob" (set "RUN_GLOB=%~2"& set HAS_FILTER=1& shift & shift & goto parse_args)
 if /i "%~1"=="--runGrep" (set "RUN_GLOB=%~2"& set HAS_FILTER=1& shift & shift & goto parse_args)
+if /i "%~1"=="--runList" (set HAS_FILTER=1& shift & shift & goto parse_args)
 if /i "%~1"=="--suite" (set "SUITE_FILTER=%~2"& shift & shift & goto parse_args)
+if /i "%~1"=="--only-node-tests" (set ONLY_NODE_TESTS=1& shift & goto parse_args)
+if /i "%~1"=="--only-extension-host-tests" (set ONLY_EXTENSION_HOST_TESTS=1& shift & goto parse_args)
 shift
 goto parse_args
 :done_parsing
@@ -35,9 +42,11 @@ if defined SHOW_HELP (
 	echo.
 	echo Runs integration tests. When no filters are given, all integration tests
 	echo ^(node.js integration tests + extension host tests^) are run.
+	echo Agent Host E2E suites are not included; run them with scripts\test-agent-host-e2e.bat.
 	echo.
-	echo --run and --runGlob select which node.js integration test files to load.
-	echo Extension host tests are skipped when these options are used.
+	echo --run and --runGlob select which node.js integration test files to load, and
+	echo --runList runs only the files that a list names. Extension host tests are
+	echo skipped when these options are used.
 	echo.
 	echo --grep filters test cases by name across all test runners. When used alone,
 	echo the pattern is applied to both node.js integration tests and all extension
@@ -46,18 +55,25 @@ if defined SHOW_HELP (
 	echo --suite selects which extension host test suites to run.
 	echo Node.js integration tests are skipped when this option is used.
 	echo.
+	echo --only-node-tests and --only-extension-host-tests run one of the two parts,
+	echo for example in separate CI steps.
+	echo.
 	echo Options:
+	echo   --build                      use the out-build directory for node.js and JSON tests
 	echo   --run ^<file^>                  run tests from a specific file ^(src/ path^)
 	echo   --runGlob, --glob ^<pattern^>   select test files by path glob ^(e.g. '**\*.integrationTest.js'^)
+	echo   --runList ^<file^>              run only the test files listed in ^<file^>, one per line ^(src/ paths^)
 	echo   --grep, -g, -f ^<pattern^>      filter test cases by name ^(matched against test titles^)
 	echo   --suite ^<pattern^>             run only matching extension host test suites
 	echo                                 supports comma-separated list
+	echo   --only-node-tests             run only the node.js integration tests
+	echo   --only-extension-host-tests   run only the extension host tests
 	echo   --help, -h                    show this help
 	echo.
 	echo Available suites:
 	echo   api-folder, api-workspace, colorize, terminal-suggest, typescript,
 	echo   markdown, emmet, git, git-base, ipynb, notebook-renderers,
-	echo   configuration-editing, github-authentication, copilot, css, html
+	echo   configuration-editing, github-authentication, copilot, css, html, json
 	echo.
 	echo All other options are forwarded to the node.js test runner ^(see scripts\test.bat --help^).
 	echo Note: extra options are not forwarded to extension host suites ^(--suite mode^).
@@ -71,6 +87,19 @@ if defined SHOW_HELP (
 	echo   %~nx0 --suite "api-folder,api-workspace"       # run multiple suites
 	echo   %~nx0 --suite api-folder --grep "some test"   # grep within a suite
 	exit /b 0
+)
+
+if defined ONLY_NODE_TESTS if defined ONLY_EXTENSION_HOST_TESTS (
+	echo Error: --only-node-tests cannot be combined with --only-extension-host-tests or --suite
+	exit /b 1
+)
+if defined ONLY_NODE_TESTS if defined SUITE_FILTER (
+	echo Error: --only-node-tests cannot be combined with --only-extension-host-tests or --suite
+	exit /b 1
+)
+if defined ONLY_EXTENSION_HOST_TESTS if defined HAS_FILTER (
+	echo Error: --only-extension-host-tests cannot be combined with --run, --runGlob or --runList
+	exit /b 1
 )
 
 set VSCODEUSERDATADIR=%TEMP%\vscodeuserfolder-%RANDOM%-%TIME:~6,2%
@@ -107,13 +136,13 @@ echo Storing log files into '%VSCODELOGSDIR%'.
 :: Validate --suite filter matches at least one known suite
 if defined SUITE_FILTER (
 	set "_any_match="
-	for %%s in (api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base ipynb notebook-renderers configuration-editing github-authentication copilot css html) do (
+	for %%s in (api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base ipynb notebook-renderers configuration-editing github-authentication copilot css html json) do (
 		call :should_run_suite %%s && set "_any_match=1"
 	)
 	if not defined _any_match (
 		echo Error: no suites match filter '%SUITE_FILTER%'
-		echo Available suites: api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base ipynb notebook-renderers configuration-editing github-authentication copilot css html
-		exit /b 1
+		echo Available suites: api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base ipynb notebook-renderers configuration-editing github-authentication copilot css html json
+		goto :failed
 	)
 )
 
@@ -121,14 +150,18 @@ if defined SUITE_FILTER (
 :: Node.js integration tests
 
 if defined SUITE_FILTER goto skip_nodejs_tests
+if defined ONLY_EXTENSION_HOST_TESTS goto skip_nodejs_tests
 echo.
 echo ### node.js integration tests
+call node --input-type=module -e "import { getAgentHostTestProfile } from './src/vs/platform/agentHost/test/node/agentHostTestProfile.ts'; console.log('Agent Host test profile:', getAgentHostTestProfile(), '(' + (process.env.AGENT_HOST_TEST_PROFILE_REASON ?? 'default') + ')');"
+if errorlevel 1 goto :failed
 if defined RUN_GLOB (
 	call .\scripts\test.bat %*
 ) else if defined RUN_FILE (
 	call .\scripts\test.bat %*
 ) else (
-	call .\scripts\test.bat --runGlob **\*.integrationTest.js %*
+	rem Agent Host E2E runs separately, in parallel isolated processes: scripts\test-agent-host-e2e.bat
+	call .\scripts\test.bat --runGlob **\*.integrationTest.js --excludeRunGlob "**/agentHost/test/node/e2e/{providers/*AgentHostE2E,conformance/*}.integrationTest.js" %*
 )
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_nodejs_tests
@@ -137,6 +170,11 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 if not defined SUITE_FILTER if defined HAS_FILTER (
 	echo.
 	echo Filter active, skipping extension host tests.
+	rmdir /s /q "%VSCODEUSERDATADIR%" 2>nul
+	exit /b 0
+)
+
+if defined ONLY_NODE_TESTS (
 	rmdir /s /q "%VSCODEUSERDATADIR%" 2>nul
 	exit /b 0
 )
@@ -302,6 +340,13 @@ call %SCRIPT_DIR%\node-electron.bat %SCRIPT_DIR%\..\extensions\html-language-fea
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_html
 
+call :should_run_suite json || goto skip_json
+echo.
+echo ### JSON tests
+call "%SCRIPT_DIR%\node-electron.bat" "%SCRIPT_DIR%\..\extensions\json-language-features\client\out\test\index.js" %BUILD_ARG%
+if %errorlevel% neq 0 goto :failed
+:skip_json
+
 
 :: Cleanup
 
@@ -321,6 +366,12 @@ set "_filter=%SUITE_FILTER:,= %"
 for %%p in (%_filter%) do (
 	if /i "%%p"=="%_suite_name%" exit /b 0
 )
+exit /b 1
+
+:failed
+if defined VSCODEUSERDATADIR rmdir /s /q "%VSCODEUSERDATADIR%" 2>nul
+popd
+endlocal
 exit /b 1
 
 :end

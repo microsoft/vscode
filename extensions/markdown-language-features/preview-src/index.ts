@@ -13,6 +13,8 @@ import morphdom from 'morphdom';
 import type { MarkdownPreviewChangeIndicator, MarkdownPreviewInnerChange, MarkdownPreviewLineChanges, ToWebviewMessage } from '../types/previewMessaging';
 import { isOfScheme, Schemes } from '../src/util/schemes';
 import { DiffScrollSyncManager } from './diffScrollSync';
+import { areNodesEqual } from '../src/util/previewNodeEquality';
+import { updateSourceLineAttributes } from '../src/util/sourceLineMap';
 
 let scrollDisabledCount = 0;
 let scrollDisabledTimer: number | undefined;
@@ -54,7 +56,7 @@ const state: State = {
 const hasStartingLine = typeof settings.settings.line === 'number' && !isNaN(settings.settings.line);
 if (typeof originalState.scrollProgress !== 'undefined'
 	&& (originalState?.resource !== state.resource || (hasStartingLine && originalState.line !== settings.settings.line))) {
-	state.scrollProgress = undefined;
+	state.scrollProgress = hasStartingLine ? undefined : 0;
 }
 
 // Make sure to sync VS Code state here
@@ -104,6 +106,7 @@ onceDocumentLoaded(() => {
 	// Restore
 	const scrollProgress = state.scrollProgress;
 	addImageContexts();
+	addCodeBlockCopyButtons();
 	applyLineChanges(lineChanges);
 	if (typeof scrollProgress === 'number' && !settings.settings.fragment) {
 		doAfterImagesLoaded(() => {
@@ -194,6 +197,82 @@ function addImageContexts() {
 	}
 }
 
+function createCopyIcon(): SVGElement {
+	const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+	svg.setAttribute('aria-hidden', 'true');
+	svg.setAttribute('focusable', 'false');
+	svg.setAttribute('width', '16');
+	svg.setAttribute('height', '16');
+	svg.setAttribute('viewBox', '0 0 16 16');
+	svg.setAttribute('fill', 'none');
+	const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+	path1.setAttribute('d', 'M4 4H2V14H11V12H4V4Z');
+	path1.setAttribute('fill', 'currentColor');
+	const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+	path2.setAttribute('fill-rule', 'evenodd');
+	path2.setAttribute('clip-rule', 'evenodd');
+	path2.setAttribute('d', 'M5 2H14V11H5V2ZM6 3H13V10H6V3Z');
+	path2.setAttribute('fill', 'currentColor');
+	svg.appendChild(path1);
+	svg.appendChild(path2);
+	return svg;
+}
+
+function createCheckIcon(): SVGElement {
+	const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+	svg.setAttribute('aria-hidden', 'true');
+	svg.setAttribute('focusable', 'false');
+	svg.setAttribute('width', '16');
+	svg.setAttribute('height', '16');
+	svg.setAttribute('viewBox', '0 0 16 16');
+	svg.setAttribute('fill', 'none');
+	const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+	path.setAttribute('d', 'M6.27 10.87L3.63 8.23L2.56 9.3L6.27 13.01L14.07 5.21L13 4.14L6.27 10.87Z');
+	path.setAttribute('fill', 'currentColor');
+	svg.appendChild(path);
+	return svg;
+}
+
+function addCodeBlockCopyButtons() {
+	const codeBlocks = document.querySelectorAll('pre > code');
+	for (const code of codeBlocks) {
+		const pre = code.parentElement!;
+
+		// Inject copy button if not already present
+		if (!pre.querySelector('.code-block-copy-button')) {
+			const button = document.createElement('button');
+			button.className = 'code-block-copy-button';
+			button.setAttribute('aria-label', 'Copy code block');
+			button.appendChild(createCopyIcon());
+			button.addEventListener('click', async (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				const text = code.textContent ?? '';
+				try {
+					await navigator.clipboard.writeText(text);
+					button.replaceChildren(createCheckIcon());
+					button.classList.add('copied');
+					setTimeout(() => {
+						button.replaceChildren(createCopyIcon());
+						button.classList.remove('copied');
+					}, 2000);
+				} catch {
+					const selection = window.getSelection();
+					if (selection) {
+						selection.removeAllRanges();
+						const range = document.createRange();
+						range.selectNodeContents(code);
+						selection.addRange(range);
+						document.execCommand('copy');
+						selection.removeAllRanges();
+					}
+				}
+			});
+			pre.appendChild(button);
+		}
+	}
+}
+
 async function copyImage(image: HTMLImageElement, retries = 5) {
 	if (!document.hasFocus() && retries > 0) {
 		// copyImage is called at the same time as webview.reveal, which means this function is running whilst the webview is gaining focus.
@@ -276,6 +355,8 @@ window.addEventListener('message', async event => {
 				}
 			}
 
+			// Diff decorations are not source content and should not affect DOM reconciliation.
+			clearLineChanges();
 			if (data.source !== documentResource) {
 				documentResource = data.source;
 				const newBody = newContent.querySelector('.markdown-body')!;
@@ -297,20 +378,7 @@ window.addEventListener('message', async event => {
 					onBeforeElUpdated: (fromEl: Element, toEl: Element) => {
 						if (areNodesEqual(fromEl, toEl)) {
 							// areEqual doesn't look at `data-line` so copy those over manually
-							const fromLines = fromEl.querySelectorAll('[data-line]');
-							const toLines = toEl.querySelectorAll('[data-line]');
-							if (fromLines.length !== toLines.length) {
-								console.log('unexpected line number change');
-							}
-
-							for (let i = 0; i < fromLines.length; ++i) {
-								const fromChild = fromLines[i];
-								const toChild = toLines[i];
-								if (toChild) {
-									fromChild.setAttribute('data-line', toChild.getAttribute('data-line')!);
-								}
-							}
-
+							updateSourceLineAttributes(fromEl, toEl);
 							return false;
 						}
 
@@ -335,13 +403,14 @@ window.addEventListener('message', async event => {
 
 			window.dispatchEvent(new CustomEvent('vscode.markdown.updateContent'));
 			addImageContexts();
+			addCodeBlockCopyButtons();
 			applyLineChanges(lineChanges);
 			break;
 		}
 	}
 }, false);
 
-function applyLineChanges(lineChanges: MarkdownPreviewLineChanges | undefined): void {
+function clearLineChanges(): void {
 	for (const element of document.querySelectorAll('.code-line-diff-added, .code-line-diff-deleted, .code-line-diff-modified')) {
 		element.classList.remove('code-line-diff', 'code-line-diff-added', 'code-line-diff-deleted', 'code-line-diff-modified');
 	}
@@ -355,7 +424,10 @@ function applyLineChanges(lineChanges: MarkdownPreviewLineChanges | undefined): 
 	for (const element of document.querySelectorAll('.diff-modification-gutter')) {
 		element.remove();
 	}
+}
 
+function applyLineChanges(lineChanges: MarkdownPreviewLineChanges | undefined): void {
+	clearLineChanges();
 	markChangedLines(lineChanges?.added, 'code-line-diff-added');
 	markChangedLines(lineChanges?.deleted, 'code-line-diff-deleted');
 
@@ -368,12 +440,14 @@ function markChangedLines(lines: readonly number[] | undefined, className: strin
 		return;
 	}
 
+	let lastMarkedElement: HTMLElement | undefined;
 	for (const line of lines) {
 		const { previous, next } = getElementsForSourceLine(line, documentVersion);
 		const lineElement = previous.line >= 0 ? previous : next;
 		const element = lineElement?.codeElement || lineElement?.element;
-		if (element) {
+		if (element && element !== lastMarkedElement) {
 			element.classList.add('code-line-diff', className);
+			lastMarkedElement = element;
 		}
 	}
 }
@@ -708,48 +782,6 @@ window.addEventListener('scroll', throttle(() => {
 function updateScrollProgress() {
 	state.scrollProgress = window.scrollY / document.body.clientHeight;
 	vscode.setState(state);
-}
-
-
-/**
- * Compares two nodes for morphdom to see if they are equal.
- *
- * This skips some attributes that should not cause equality to fail.
- */
-function areNodesEqual(a: Element, b: Element): boolean {
-	const skippedAttrs = [
-		'open', // for details
-	];
-
-	if (a.isEqualNode(b)) {
-		return true;
-	}
-
-	if (a.tagName !== b.tagName || a.textContent !== b.textContent) {
-		return false;
-	}
-
-	const aAttrs = [...a.attributes].filter(attr => !skippedAttrs.includes(attr.name));
-	const bAttrs = [...b.attributes].filter(attr => !skippedAttrs.includes(attr.name));
-	if (aAttrs.length !== bAttrs.length) {
-		return false;
-	}
-
-	for (let i = 0; i < aAttrs.length; ++i) {
-		const aAttr = aAttrs[i];
-		const bAttr = bAttrs[i];
-		if (aAttr.name !== bAttr.name) {
-			return false;
-		}
-		if (aAttr.value !== bAttr.value && aAttr.name !== 'data-line') {
-			return false;
-		}
-	}
-
-	const aChildren = Array.from(a.children);
-	const bChildren = Array.from(b.children);
-
-	return aChildren.length === bChildren.length && aChildren.every((x, i) => areNodesEqual(x, bChildren[i]));
 }
 
 

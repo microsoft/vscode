@@ -8,6 +8,7 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../files/common/files.js';
 import { ILogService } from '../../../../../log/common/log.js';
 import { detectPluginFormat, parsePlugin, readJsonFile, type IParsedPlugin } from '../../../../../agentPlugins/common/pluginParsers.js';
+import { findMostSpecificClaudeWorkspaceRoot, selectEnabledClaudePluginIds } from '../claudeCustomizationPolicy.js';
 
 /**
  * A Claude-native plugin enabled via `enabledPlugins` and resolved to its
@@ -46,6 +47,22 @@ function claudeSettingsFilesByPrecedence(workingDirectory: URI | undefined, user
 	return files;
 }
 
+async function readEnabledPlugins(uri: URI, fileService: IFileService): Promise<ReadonlyMap<string, boolean>> {
+	const result = new Map<string, boolean>();
+	const raw = await readJsonFile(uri, fileService);
+	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+		return result;
+	}
+	const enabledPlugins = (raw as Record<string, unknown>)['enabledPlugins'];
+	if (!enabledPlugins || typeof enabledPlugins !== 'object' || Array.isArray(enabledPlugins)) {
+		return result;
+	}
+	for (const [id, value] of Object.entries(enabledPlugins as Record<string, unknown>)) {
+		result.set(id, value !== false);
+	}
+	return result;
+}
+
 /**
  * Computes the effective set of enabled plugin ids across the settings
  * scopes. A plugin's value may be `true`, a `string[]` (version
@@ -57,8 +74,6 @@ async function resolveEnabledPluginIds(workingDirectory: URI | undefined, userHo
 	const seenFiles = new ResourceSet();
 	for (const uri of claudeSettingsFilesByPrecedence(workingDirectory, userHome)) {
 		if (seenFiles.has(uri)) {
-			// The same settings file can be reached from two scopes (cwd ===
-			// userHome) — read it once. Mirrors the per-scanner dedupe.
 			continue;
 		}
 		seenFiles.add(uri);
@@ -114,9 +129,9 @@ async function hasManifest(dir: URI, fileService: IFileService): Promise<boolean
  * workspace scope over the user scope. Accepts a candidate only when it
  * holds a plugin manifest.
  */
-async function resolveSkillsDirRoot(plugin: string, workingDirectory: URI | undefined, userHome: URI, fileService: IFileService): Promise<URI | undefined> {
+async function resolveSkillsDirRoot(plugin: string, workingDirectories: readonly URI[], userHome: URI, fileService: IFileService): Promise<URI | undefined> {
 	const candidates: URI[] = [];
-	if (workingDirectory) {
+	for (const workingDirectory of workingDirectories) {
 		candidates.push(URI.joinPath(workingDirectory, '.claude', 'skills', plugin));
 	}
 	candidates.push(URI.joinPath(userHome, '.claude', 'skills', plugin));
@@ -189,6 +204,34 @@ export async function scanClaudeNativePlugins(
 	logService: ILogService,
 ): Promise<readonly IResolvedNativePlugin[]> {
 	const ids = await resolveEnabledPluginIds(workingDirectory, userHome, fileService);
+	return resolveNativePlugins(ids, workingDirectory ? [workingDirectory] : [], userHome, fileService, logService);
+}
+
+export async function scanClaudeNativePluginsForRoots(
+	workingDirectories: readonly URI[],
+	userHome: URI,
+	fileService: IFileService,
+	logService: ILogService,
+): Promise<readonly IResolvedNativePlugin[]> {
+	const settingsFiles: URI[] = [];
+	for (const workingDirectory of workingDirectories) {
+		settingsFiles.push(
+			URI.joinPath(workingDirectory, '.claude', 'settings.local.json'),
+			URI.joinPath(workingDirectory, '.claude', 'settings.json'),
+		);
+	}
+	settingsFiles.push(URI.joinPath(userHome, '.claude', 'settings.json'));
+	const ids = selectEnabledClaudePluginIds(await Promise.all(settingsFiles.map(uri => readEnabledPlugins(uri, fileService))));
+	return resolveNativePlugins(ids, workingDirectories, userHome, fileService, logService);
+}
+
+async function resolveNativePlugins(
+	ids: readonly string[],
+	workingDirectories: readonly URI[],
+	userHome: URI,
+	fileService: IFileService,
+	logService: ILogService,
+): Promise<readonly IResolvedNativePlugin[]> {
 	const result: IResolvedNativePlugin[] = [];
 	const seenRoots = new ResourceSet();
 	for (const id of ids) {
@@ -198,7 +241,7 @@ export async function scanClaudeNativePlugins(
 			continue;
 		}
 		const root = parts.marketplace === SKILLS_DIR_MARKETPLACE
-			? await resolveSkillsDirRoot(parts.plugin, workingDirectory, userHome, fileService)
+			? await resolveSkillsDirRoot(parts.plugin, workingDirectories, userHome, fileService)
 			: await resolveMarketplaceCacheRoot(parts.plugin, parts.marketplace, userHome, fileService);
 		if (!root) {
 			logService.warn(`[claudeNativePluginScan] could not resolve an on-disk root for enabled plugin '${id}'`);
@@ -209,7 +252,10 @@ export async function scanClaudeNativePlugins(
 		}
 		seenRoots.add(root);
 		try {
-			const parsed = await parsePlugin(root, fileService, workingDirectory, userHome, root);
+			const workspaceRoot = parts.marketplace === SKILLS_DIR_MARKETPLACE
+				? findMostSpecificClaudeWorkspaceRoot(root, workingDirectories)
+				: undefined;
+			const parsed = await parsePlugin(root, fileService, workspaceRoot ?? workingDirectories[0], userHome, root);
 			result.push({ id, root, parsed });
 		} catch (err) {
 			logService.warn(`[claudeNativePluginScan] failed to parse plugin '${id}' at '${root.toString()}': ${err instanceof Error ? err.message : String(err)}`);

@@ -11,15 +11,15 @@ import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { getPromptFileDefaultLocations } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { isEqualOrParent } from '../../../../../base/common/resources.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { localize } from '../../../../../nls.js';
 import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { PromptsServiceCustomizationItemProvider } from './promptsServiceCustomizationItemProvider.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 
 /**
  * Service that opens an AI-guided chat session to help the user create
@@ -38,12 +38,15 @@ export class CustomizationCreatorService {
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
 
 	) { }
 
-	async createWithAI(type: PromptsType): Promise<void> {
+	async createWithAI(type: PromptsType, workspaceFolder?: URI): Promise<void> {
+		const currentSessionResource = this.harnessService.activeSessionResource.get();
+
+
 		// Ask for the name before entering chat
 		const typeLabel = getTypeLabel(type);
 		const name = await this.quickInputService.input({
@@ -67,7 +70,13 @@ export class CustomizationCreatorService {
 		// directory and have those changes tracked.
 
 		// Capture project root BEFORE opening new chat (which may change active session)
-		const targetDir = await this.resolveTargetDirectoryWithPicker(type);
+		const picker = this.instantiationService.createInstance(CustomizationLocationPicker);
+		const targetDir = await picker.resolveTargetDirectoryWithPicker(
+			currentSessionResource,
+			type,
+			'local',
+			workspaceFolder,
+		);
 		if (targetDir === null) {
 			return; // User cancelled the picker
 		}
@@ -109,70 +118,61 @@ export class CustomizationCreatorService {
 	}
 
 	/**
-	 * Resolves the target directory for creating a new customization file.
-	 * If multiple source folders exist for the given storage type, shows a
-	 * picker to let the user choose. Otherwise, returns the single match.
-	 *
-	 * Source folders come from the active harness's item provider (via the
-	 * items model) — each session can supply its own set of customization
-	 * locations through `ICustomizationItemProvider.provideSourceFolders`.
-	 *
-	 * @returns the resolved URI, `undefined` when no folder is available,
-	 *          or `null` when the user cancelled the picker.
-	 */
-	private async resolveTargetDirectoryWithPicker(type: PromptsType): Promise<URI | undefined | null> {
-		const sessionResource = this.harnessService.activeSessionResource.get();
-		const activeDescriptor = this.harnessService.getActiveDescriptor();
-		const provider = activeDescriptor.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider, () => activeDescriptor);
-		if (!provider.provideSourceFolders) {
-			return undefined;
-		}
-		const allFolders = await provider.provideSourceFolders(sessionResource, type, CancellationToken.None);
-		if (!allFolders) {
-			// Provider returned no source folders for this type/session.
-			return undefined;
-		}
-
-		const projectRoot = this.workspaceService.getActiveProjectRoot();
-		const matchingFolders: ICustomizationSourceFolder[] = [];
-		const hasSeen = new ResourceSet();
-		for (const f of allFolders) {
-			if (projectRoot && isEqualOrParent(f.uri, projectRoot) && !hasSeen.has(f.uri)) {
-				hasSeen.add(f.uri);
-				matchingFolders.push(f);
-			}
-		}
-
-		if (matchingFolders.length === 0) {
-			// No matching folders — return undefined so the command can fall
-			// back to askForPromptSourceFolder (not null which means cancellation)
-			return undefined;
-		}
-
-		if (matchingFolders.length === 1) {
-			return matchingFolders[0].uri;
-		}
-
-		// Multiple directories — ask the user which one to use
-		const items: (IQuickPickItem & { uri: URI })[] = matchingFolders.map(folder => ({
-			label: folder.label,
-			description: folder.uri.fsPath,
-			uri: folder.uri,
-		}));
-
-		const picked = await this.quickInputService.pick(items, {
-			placeHolder: localize('selectTargetDirectory', "Select a directory for the new customization file"),
-		});
-
-		return picked?.uri ?? null;
-	}
-
-	/**
 	 * Resolves the user-level directory for a new customization file.
 	 */
 	async resolveUserDirectory(type: PromptsType): Promise<URI | undefined> {
 		return resolveUserTargetDirectory(this.promptsService, type);
 	}
+}
+
+
+export class CustomizationLocationPicker {
+	constructor(
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILabelService private readonly labelService: ILabelService
+	) { }
+
+	/** Resolves a writable target URI, or `null` when the user cancels destination selection. */
+	public async resolveTargetDirectoryWithPicker(sessionResource: URI, type: PromptsType, target?: 'local' | 'user', workspaceFolder?: URI): Promise<URI | undefined | null> {
+		const folder = await this.resolveTargetFolderWithPicker(sessionResource, type, target, workspaceFolder);
+		return folder ? folder.uri : folder;
+	}
+
+	/** Resolves a writable target folder, asking the user when more than one destination is available. */
+	public async resolveTargetFolderWithPicker(sessionResource: URI, type: PromptsType, target?: 'local' | 'user', workspaceFolder?: URI): Promise<ICustomizationSourceFolder | undefined | null> {
+		const matchingFolders = (await this.resolveTargetFolders(sessionResource, type, target))
+			?.filter(folder => !workspaceFolder || folder.source !== 'local' || folder.workspaceGroupId === workspaceFolder.toString());
+		if (!matchingFolders?.length) {
+			return undefined;
+		}
+		if (matchingFolders.length === 1) {
+			return matchingFolders[0];
+		}
+		const items: (IQuickPickItem & { folder: ICustomizationSourceFolder })[] = matchingFolders.map(folder => ({
+			label: folder.label,
+			description: this.labelService.getUriLabel(folder.uri, { relative: true, noPrefix: !!workspaceFolder && folder.source === 'local' }),
+			folder,
+		}));
+		const picked = await this.quickInputService.pick(items, {
+			placeHolder: localize('selectTargetDirectory', "Select a directory for the new customization file"),
+		});
+		return picked?.folder ?? null;
+	}
+
+	/** Returns writable source folders without prompting for a destination. */
+	public async resolveTargetFolders(sessionResource: URI, type: PromptsType, target?: 'local' | 'user', token = CancellationToken.None): Promise<readonly ICustomizationSourceFolder[] | undefined> {
+		const sessionType = getChatSessionType(sessionResource);
+		const descriptor = this.harnessService.findHarnessById(sessionType);
+		const provider = descriptor?.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider);
+		if (!provider.provideSourceFolders) {
+			return undefined;
+		}
+		const allFolders = await provider.provideSourceFolders(sessionResource, type, token);
+		return allFolders?.filter(folder => target ? folder.source === target : folder.source === 'local' || folder.source === 'user');
+	}
+
 }
 
 /**

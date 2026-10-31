@@ -1,0 +1,165 @@
+{
+  "$comment": "Conformance vectors for the `copilot.toolDefer` key on ToolDefinition._meta. This key is produced by the AHP client registering a tool and consumed by the host. See ../tool-definition.md for the prose spec and ./README.md for the harness contract.",
+  "key": "copilot.toolDefer",
+  "carrier": "ToolDefinition._meta",
+  "tests": [
+    {
+      "name": "set: stamps the preference onto a tool with no _meta",
+      "op": "set",
+      "input": {
+        "tool": {
+          "name": "search_huge_index",
+          "description": "Search a very large index."
+        },
+        "defer": "auto"
+      },
+      "expected": {
+        "tool": {
+          "name": "search_huge_index",
+          "description": "Search a very large index.",
+          "_meta": { "copilot.toolDefer": "auto" }
+        }
+      }
+    },
+    {
+      "name": "set: preserves other tool metadata",
+      "op": "set",
+      "input": {
+        "tool": {
+          "name": "search_huge_index",
+          "description": "Search a very large index.",
+          "_meta": { "copilot.unrelated": true }
+        },
+        "defer": "auto"
+      },
+      "expected": {
+        "tool": {
+          "name": "search_huge_index",
+          "description": "Search a very large index.",
+          "_meta": {
+            "copilot.unrelated": true,
+            "copilot.toolDefer": "auto"
+          }
+        }
+      }
+    },
+    {
+      "name": "extract: returns Auto when value is 'auto'",
+      "op": "extract",
+      "input": {
+        "tool": {
+          "name": "search_huge_index",
+          "description": "Search a very large index.",
+          "_meta": { "copilot.toolDefer": "auto" }
+        }
+      },
+      "expected": { "defer": "auto" }
+    },
+    {
+      "name": "extract: returns Never when value is 'never'",
+      "op": "extract",
+      "input": {
+        "tool": {
+          "name": "read_file",
+          "_meta": { "copilot.toolDefer": "never" }
+        }
+      },
+      "expected": { "defer": "never" }
+    },
+    {
+      "name": "extract: returns null when _meta is absent",
+      "op": "extract",
+      "input": {
+        "tool": { "name": "read_file", "description": "Read a file." }
+      },
+      "expected": { "defer": null }
+    },
+    {
+      "name": "extract: returns null when the key is absent",
+      "op": "extract",
+      "input": {
+        "tool": {
+          "name": "read_file",
+          "_meta": { "copilot.unrelated": "ignored" }
+        }
+      },
+      "expected": { "defer": null }
+    },
+    {
+      "name": "extract: returns null when value is the empty string",
+      "op": "extract",
+      "input": {
+        "tool": {
+          "name": "read_file",
+          "_meta": { "copilot.toolDefer": "" }
+        }
+      },
+      "expected": { "defer": null }
+    },
+    {
+      "name": "extract: returns null when value is not a string",
+      "op": "extract",
+      "input": {
+        "tool": {
+          "name": "read_file",
+          "_meta": { "copilot.toolDefer": 42 }
+        }
+      },
+      "expected": { "defer": null }
+    },
+    {
+      "name": "extract: returns null when value is outside the closed enum",
+      "$comment": "Forward compatibility: an unrecognised member maps to 'no preference', not a guessed mode.",
+      "op": "extract",
+      "input": {
+        "tool": {
+          "name": "read_file",
+          "_meta": { "copilot.toolDefer": "eager" }
+        }
+      },
+      "expected": { "defer": null }
+    },
+    {
+      "name": "projectFromSdk: Auto -> 'auto'",
+      "op": "projectFromSdk",
+      "input": { "sdkDefer": "Auto" },
+      "expected": { "wireValue": "auto" }
+    },
+    {
+      "name": "projectFromSdk: Never -> 'never'",
+      "op": "projectFromSdk",
+      "input": { "sdkDefer": "Never" },
+      "expected": { "wireValue": "never" }
+    },
+    {
+      "name": "wireShape: a tool carrying the key serializes to the flat-dotted shape",
+      "$comment": "Pins that the AHP ToolDefinition encodes _meta as a single flat dotted key, not a nested {copilot:{...}} object.",
+      "op": "wireShape",
+      "input": {
+        "tool": {
+          "name": "search_huge_index",
+          "description": "Search a very large index.",
+          "_meta": { "copilot.toolDefer": "auto" }
+        }
+      },
+      "expected": {
+        "json": {
+          "name": "search_huge_index",
+          "description": "Search a very large index.",
+          "_meta": { "copilot.toolDefer": "auto" }
+        }
+      }
+    },
+    {
+      "name": "wireShape: a tool with no preference serializes without _meta",
+      "$comment": "Pins the 'omit the key entirely; no empty {} envelope' rule.",
+      "op": "wireShape",
+      "input": {
+        "tool": { "name": "read_file", "description": "Read a file." }
+      },
+      "expected": {
+        "json": { "name": "read_file", "description": "Read a file." }
+      }
+    }
+  ]
+}

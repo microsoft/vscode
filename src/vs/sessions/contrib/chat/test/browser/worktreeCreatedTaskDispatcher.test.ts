@@ -58,14 +58,15 @@ function makeSession(opts: { id?: string; providerId?: string; runsWorktreeCreat
 		resource: chat.resource,
 		providerId: opts.providerId ?? 'test',
 		sessionType: 'background',
+		harness: 'copilot',
+		environment: 'local',
+		application: constObservable({ id: 'vscode', label: 'VS Code' }),
 		icon: Codicon.copilot,
 		createdAt: new Date(),
 		workspace,
 		title: observableValue('title', 'session'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status,
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: observableValue('modelId', undefined),
 		mode: observableValue('mode', undefined),
 		loading,
@@ -75,7 +76,7 @@ function makeSession(opts: { id?: string; providerId?: string; runsWorktreeCreat
 		description: observableValue('description', undefined),
 		chats: observableValue('chats', [chat]),
 		mainChat: constObservable(chat),
-		capabilities: { supportsMultipleChats: false, runsWorktreeCreatedTasks: opts.runsWorktreeCreatedTasks },
+		capabilities: constObservable({ supportsMultipleChats: false, runsWorktreeCreatedTasks: opts.runsWorktreeCreatedTasks }),
 	};
 	return { session, loading, status, workspace, isArchived };
 }

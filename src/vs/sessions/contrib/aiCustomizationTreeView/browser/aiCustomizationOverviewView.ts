@@ -32,6 +32,7 @@ import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.j
 import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { getCustomizationToolSets } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/copilotCliBuiltinToolSet.js';
 
 const $ = DOM.$;
 
@@ -88,6 +89,8 @@ export class AICustomizationOverviewView extends ViewPane {
 			{ id: AICustomizationManagementSection.Agents, label: localize('agents', "Agents"), icon: agentIcon, count: 0 },
 			{ id: AICustomizationManagementSection.Skills, label: localize('skills', "Skills"), icon: skillIcon, count: 0 },
 			{ id: AICustomizationManagementSection.Instructions, label: localize('instructions', "Instructions"), icon: instructionsIcon, count: 0 },
+		);
+		this.sections.push(
 			{ id: AICustomizationManagementSection.McpServers, label: localize('mcpServers', "MCP Servers"), icon: mcpServerIcon, count: 0 },
 			{ id: AICustomizationManagementSection.Plugins, label: localize('plugins', "Plugins"), icon: pluginIcon, count: 0 },
 			{ id: AICustomizationManagementSection.Tools, label: localize('tools', "Tools"), icon: toolsIcon, count: 0 },
@@ -225,7 +228,7 @@ export class AICustomizationOverviewView extends ViewPane {
 		if (toolsSection) {
 			this._register(autorun(reader => {
 				const state = this.toolEnablementService.observe(AGENT_HOST_COPILOT_CLI_SESSION_TYPE).read(reader);
-				const toolSets = this.languageModelToolsService.toolSets.read(reader);
+				const toolSets = getCustomizationToolSets(this.languageModelToolsService.toolSets.read(reader));
 				toolsSection.count = countEnabledCustomizationTools(toolSets, state, reader);
 				this.updateCountElements();
 			}));

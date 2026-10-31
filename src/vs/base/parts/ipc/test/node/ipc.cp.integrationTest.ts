@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../common/async.js';
 import { Event } from '../../../../common/event.js';
 import { IChannel } from '../../common/ipc.js';
 import { Client } from '../../node/ipc.cp.js';
 import { ITestService, TestServiceClient } from './testService.js';
 import { FileAccess } from '../../../../common/network.js';
 
-function createClient(): Client {
+function createClient(env?: Record<string, string>): Client {
 	return new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, {
 		serverName: 'TestServer',
-		env: { VSCODE_ESM_ENTRYPOINT: 'vs/base/parts/ipc/test/node/testApp', verbose: true }
+		env: { VSCODE_ESM_ENTRYPOINT: 'vs/base/parts/ipc/test/node/testApp', verbose: true, ...env }
 	});
 }
 
@@ -67,5 +68,22 @@ suite('IPC, Child Process', function () {
 		const answer_2 = await service.marco();
 		assert.strictEqual(answer_2, 'polo');
 		assert.strictEqual(count, 2);
+	});
+
+	test('rejected call does not cause an unhandled rejection', async () => {
+		await assert.rejects(channel.call('unknown'), /command not found: unknown/);
+		await timeout(0);
+	});
+
+	test('deferred cancellation does not cause unhandled rejections', async () => {
+		client.dispose();
+		client = createClient({ VSCODE_IPC_TEST_DEFERRED_CANCELLATION: 'true' });
+		channel = client.getChannel('test');
+		const onDidProcessExit = Event.toPromise(Event.once(client.onDidProcessExit));
+		const result = channel.call('start');
+
+		const { code } = await onDidProcessExit;
+		await assert.rejects(result, /Canceled/);
+		assert.strictEqual(code, 0);
 	});
 });

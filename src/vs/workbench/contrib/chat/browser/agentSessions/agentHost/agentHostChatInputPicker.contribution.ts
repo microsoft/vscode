@@ -5,9 +5,21 @@
 
 import { localize2 } from '../../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
+import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IsSessionsWindowContext, WorkspaceFolderCountContext } from '../../../../../common/contextkeys.js';
 import { ChatContextKeys, ChatContextKeyExprs } from '../../../common/actions/chatContextKeys.js';
+import { SessionType } from '../../../common/chatSessionsService.js';
+
+const modeAndPermissionsWhen = ContextKeyExpr.and(
+	ChatContextKeys.enabled,
+	ContextKeyExpr.or(
+		ChatContextKeyExprs.isAgentHostSession,
+		ContextKeyExpr.and(IsSessionsWindowContext.negate(), ChatContextKeys.chatSessionType.isEqualTo(SessionType.CloudSandbox)),
+	),
+);
 
 /**
  * Agent-host pickers live under `MenuId.ChatInputSecondary` group
@@ -21,7 +33,8 @@ import { ChatContextKeys, ChatContextKeyExprs } from '../../../common/actions/ch
  *   0.7  OpenAgentHostModePickerAction        (NEW — Mode)
  *   0.8  OpenAgentHostAutoApprovePickerAction (NEW — Auto-Approve)
  *   0.9  OpenAgentHostPermissionModePickerAction (NEW — Claude Approvals)
- *   1    OpenPermissionPickerAction           (Default Approvals)
+ *   0.9  OpenAgentHostCodexApprovalsPickerAction (NEW — Codex Approvals)
+ *   1    OpenPermissionPickerAction           (Manual permissions)
  *   1.1  OpenAgentHostFolderPickerAction      (NEW — Folder, multi-root only;
  *                                              ordered last to match the
  *                                              extension-host Copilot CLI)
@@ -50,6 +63,11 @@ export class OpenAgentHostFolderPickerAction extends Action2 {
 					ChatContextKeyExprs.isAgentHostSession,
 					WorkspaceFolderCountContext.greater(1),
 					IsSessionsWindowContext.negate(),
+					// Equal-peer providers add every workspace folder automatically, so they do not need a primary picker.
+					ChatContextKeys.chatAgentHostHasImmutablePrimaryWorkingDirectory,
+					// Hidden by default; the harness decision reveals the picker (e.g. when several folders carry hooks),
+					// so the chip never flashes visible-then-hidden while the decision is resolving.
+					ChatContextKeys.chatAgentHostFolderPickerVisible,
 				),
 			}],
 		});
@@ -69,7 +87,7 @@ export class OpenAgentHostModePickerAction extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 0.7,
-				when: ChatContextKeyExprs.isAgentHostSession,
+				when: modeAndPermissionsWhen,
 			}],
 		});
 	}
@@ -88,7 +106,7 @@ export class OpenAgentHostAutoApprovePickerAction extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 0.8,
-				when: ChatContextKeyExprs.isAgentHostSession,
+				when: modeAndPermissionsWhen,
 			}],
 		});
 	}
@@ -114,7 +132,42 @@ export class OpenAgentHostPermissionModePickerAction extends Action2 {
 	override async run(): Promise<void> { /* the action view item handles interaction */ }
 }
 
+export class OpenAgentHostCodexApprovalsPickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.openAgentHostCodexApprovalsPicker';
+	constructor() {
+		super({
+			id: OpenAgentHostCodexApprovalsPickerAction.ID,
+			title: localize2('agentHost.codexApprovalsPicker', "Approvals"),
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			menu: [{
+				id: MenuId.ChatInputSecondary,
+				group: 'navigation',
+				order: 0.9,
+				when: ChatContextKeyExprs.isAgentHostSession,
+			}],
+		});
+	}
+	override async run(): Promise<void> { /* the action view item handles interaction */ }
+}
+
+export function getAgentHostPickerProperty(actionId: string): string | undefined {
+	switch (actionId) {
+		case OpenAgentHostModePickerAction.ID:
+			return SessionConfigKey.Mode;
+		case OpenAgentHostAutoApprovePickerAction.ID:
+			return SessionConfigKey.AutoApprove;
+		case OpenAgentHostPermissionModePickerAction.ID:
+			return ClaudeSessionConfigKey.PermissionMode;
+		case OpenAgentHostCodexApprovalsPickerAction.ID:
+			return CodexSessionConfigKey.PermissionsPreset;
+		default:
+			return undefined;
+	}
+}
+
 registerAction2(OpenAgentHostModePickerAction);
 registerAction2(OpenAgentHostAutoApprovePickerAction);
 registerAction2(OpenAgentHostPermissionModePickerAction);
+registerAction2(OpenAgentHostCodexApprovalsPickerAction);
 registerAction2(OpenAgentHostFolderPickerAction);

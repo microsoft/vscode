@@ -54,7 +54,7 @@ export class VsCodeIgnoreService extends BaseIgnoreService {
 		this._disposables.push(
 			workspace.onDidSaveTextDocument(async doc => {
 				if (this.isIgnoreFile(doc.uri)) {
-					const contents = (await workspace.fs.readFile(doc.uri)).toString();
+					const contents = new TextDecoder().decode(await workspace.fs.readFile(doc.uri));
 					const folder = workspace.getWorkspaceFolder(doc.uri);
 					this.trackIgnoreFile(folder?.uri, doc.uri, contents);
 				}
@@ -67,7 +67,7 @@ export class VsCodeIgnoreService extends BaseIgnoreService {
 			workspace.onDidRenameFiles(async e => {
 				for (const f of e.files) {
 					if (this.isIgnoreFile(f.newUri)) {
-						const contents = (await workspace.fs.readFile(f.newUri)).toString();
+						const contents = new TextDecoder().decode(await workspace.fs.readFile(f.newUri));
 						this.removeIgnoreFile(f.oldUri);
 						const folder = workspace.getWorkspaceFolder(f.newUri);
 						this.trackIgnoreFile(folder?.uri, f.newUri, contents);

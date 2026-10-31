@@ -13,12 +13,76 @@
 	box-shadow: var(--vscode-shadow-xl);
 }
 
+.modern-ui.monaco-enable-motion .quick-input-widget:not(.quick-input-widget-overlay) {
+	animation: quick-input-widget-open 250ms cubic-bezier(0.22, 1, 0.36, 1) both;
+	transform-origin: top center;
+	will-change: transform, opacity;
+}
+
+.modern-ui.monaco-enable-motion .quick-input-widget.quick-input-widget-closing:not(.quick-input-widget-overlay) {
+	animation: quick-input-widget-close 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
+	pointer-events: none;
+}
+
+@keyframes quick-input-widget-open {
+	0% {
+		opacity: 0;
+		transform: scale(0.97);
+	}
+
+	100% {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+@keyframes quick-input-widget-close {
+	0% {
+		opacity: 1;
+		transform: scale(1);
+	}
+
+	100% {
+		opacity: 0;
+		transform: scale(0.99);
+	}
+}
+
+/*
+ * Once the entrance animation has ended (or is ended early because an item hover is shown), the
+ * widget must not establish a containing block, so that fixed-position item hovers rendered inside
+ * it are neither clipped nor sized by it. The final frame of the animation is identical.
+ */
+.modern-ui.monaco-enable-motion .quick-input-widget.quick-input-widget-motion-settled:not(.quick-input-widget-overlay):not(.quick-input-widget-closing) {
+	animation: none;
+	will-change: auto;
+}
+
+/*
+ * Viewport-sized host for item hovers. It stays inside the widget for tab order and focus
+ * tracking, but its containing block is the viewport (which requires the widget to be settled,
+ * see above), so the widget's overflow and size do not affect the hover. The hover's
+ * `.context-view` must be a direct child to receive pointer events.
+ */
+.quick-input-list-hover-host {
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+	/* The host is a stacking context, so it needs the hover's stack level (see ContextView) to stay
+	above positioned list contents such as sticky headers and the scrollbar */
+	z-index: 2575;
+}
+
+.quick-input-list-hover-host > .context-view {
+	pointer-events: auto;
+}
+
 .quick-input-titlebar {
 	cursor: grab;
 	display: flex;
 	align-items: center;
-	border-top-right-radius: 5px;
-	border-top-left-radius: 5px;
+	border-top-right-radius: inherit;
+	border-top-left-radius: inherit;
 }
 
 .quick-input-widget.no-drag .quick-input-titlebar,
@@ -209,6 +273,8 @@
 	box-sizing: border-box;
 	overflow: hidden;
 	display: flex;
+	align-items: center;
+	height: 100%;
 	padding: 0 6px;
 }
 
@@ -294,6 +360,10 @@
 	overflow: hidden;
 }
 
+.quick-input-list .monaco-list-row.focused .quick-input-list-label-meta {
+	opacity: 1;
+}
+
 /* preserve list-like styling instead of tree-like styling */
 .quick-input-list .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
 	font-weight: bold;
@@ -319,11 +389,13 @@
 	overflow: visible;
 }
 
-.quick-input-list .quick-input-list-entry-action-bar .action-label,
-.quick-input-list .quick-input-list-entry-action-bar .monaco-custom-toggle {
+.quick-input-list .quick-input-list-entry .quick-input-list-entry-action-bar .action-label,
+.quick-input-list .quick-input-list-entry .quick-input-list-entry-action-bar .monaco-custom-toggle {
 	/*
-	 * By default, actions in the quick input action bar are hidden
-	 * until hovered over them or selected.
+	 * Icon actions and toggles also match `.monaco-action-bar .action-item .codicon`,
+	 * whose equal-specificity `display: flex` would reveal them in the idle state
+	 * when loaded later. The hover, focus, and always-visible rules below remain
+	 * more specific and reveal the controls on intent.
 	 */
 	display: none;
 }

@@ -4,9 +4,14 @@ steps:
   # The repository resource is declared in the top-level pipeline (resources.repositories)
   # and is checked out into .build/distro so that mixin-npm.ts / mixin-quality.ts can
   # consume it from there (`.build/distro/npm`, `.build/distro/mixin/<quality>`).
+  # Only the commit pinned in package.json is needed, so fetch it alone: the full
+  # history is ~455 MiB, and on a slow agent that fetch outlives the one-hour
+  # GitHub App token, after which every retry fails to authenticate.
   - checkout: distro
     path: s/.build/distro
-    fetchDepth: 0
+    fetchDepth: 1
+    fetchTags: false
+    persistCredentials: true
     retryCountOnTaskFailure: 3
     displayName: Checkout microsoft/vscode-distro
 
@@ -14,13 +19,18 @@ steps:
       $ErrorActionPreference = "Stop"
       $DistroVersion = (Get-Content -Path package.json -Raw | ConvertFrom-Json).distro
       Write-Host "Checking out distro commit $DistroVersion"
+      if ($DistroVersion -notmatch '^[0-9a-f]{40}$') { throw "Invalid distro commit '$DistroVersion' in package.json" }
+      git -C .build/distro fetch --depth 1 --no-tags origin $DistroVersion
+      if ($LASTEXITCODE -ne 0) { throw "Failed to fetch distro commit $DistroVersion" }
       git -C .build/distro checkout $DistroVersion
+      if ($LASTEXITCODE -ne 0) { throw "Failed to check out distro commit $DistroVersion" }
+    retryCountOnTaskFailure: 3
     displayName: Checkout distro commit
 
-  - script: git lfs install --local
+  - script: git -C .build/distro lfs install --local
     displayName: Initialize Git LFS
 
-  - script: git lfs pull
+  - script: git -C .build/distro lfs pull
     displayName: Pull Git LFS objects
 
   # Check out the private microsoft/vscode-encrypt, microsoft/vsda and

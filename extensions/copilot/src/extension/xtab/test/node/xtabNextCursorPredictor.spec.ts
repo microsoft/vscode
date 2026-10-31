@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Raw } from '@vscode/prompt-tsx';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { IChatMLFetcher } from '../../../../platform/chat/common/chatMLFetcher';
 import { ChatFetchResponseType } from '../../../../platform/chat/common/commonTypes';
@@ -12,9 +13,10 @@ import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/do
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
 import { NextCursorLinePrediction } from '../../../../platform/inlineEdits/common/dataTypes/nextCursorLinePrediction';
-import { AggressivenessLevel, DEFAULT_OPTIONS, PromptOptions } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, DEFAULT_OPTIONS, PromptOptions, PromptingStrategy, RejectedEditsMemoryMode } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { StatelessNextEditDocument, StatelessNextEditTelemetryBuilder } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
+import { IXtabHistoryRejectedEditEntry } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { TestLanguageDiagnosticsService } from '../../../../platform/languages/common/testLanguageDiagnosticsService';
 import { ILogger } from '../../../../platform/log/common/logService';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
@@ -50,7 +52,7 @@ function computeTokens(s: string): number {
 	return Math.ceil(s.length / 4);
 }
 
-function createTestPromptPieces(): PromptPieces {
+function createTestPromptPieces(promptOptions: Partial<PromptOptions> = {}, rejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[] = []): PromptPieces {
 	const currentDocLines = ['line 1', 'line 2', 'line 3', 'line 4', 'line 5'];
 	const docText = new StringText(currentDocLines.join('\n'));
 	const documentId = DocumentId.create('file:///test/file.ts');
@@ -74,8 +76,10 @@ function createTestPromptPieces(): PromptPieces {
 
 	const opts: PromptOptions = {
 		...DEFAULT_OPTIONS,
+		...promptOptions,
 		currentFile: {
 			...DEFAULT_OPTIONS.currentFile,
+			...promptOptions.currentFile,
 			maxTokens: 1000,
 		}
 	};
@@ -92,7 +96,10 @@ function createTestPromptPieces(): PromptPieces {
 		AggressivenessLevel.Medium,
 		new LintErrors(documentId, currentDocument, new TestLanguageDiagnosticsService()), // lintErrors
 		computeTokens,
-		opts
+		opts,
+		rejectedEditHistory,
+		undefined,
+		undefined,
 	);
 }
 
@@ -120,6 +127,37 @@ describe('XtabNextCursorPredictor', () => {
 
 	afterEach(() => {
 		disposables.clear();
+	});
+
+	it('excludes rejected edit history from cursor prediction prompts', () => {
+		const predictor = instaService.createInstance(XtabNextCursorPredictor, computeTokens);
+		const rejectedEditHistory: IXtabHistoryRejectedEditEntry[] = [];
+		const promptPieces = createTestPromptPieces(
+			{
+				promptingStrategy: PromptingStrategy.PatchBased02,
+				memory: { rejectedEdits: RejectedEditsMemoryMode.DiffWithTags },
+			},
+			rejectedEditHistory,
+		);
+		rejectedEditHistory.push({
+			kind: 'rejectedEdit',
+			docId: promptPieces.activeDoc.id,
+			hunks: [{ startLineNumber: 2, oldLines: ['line 2'], newLines: ['replacement line'] }],
+			ordinal: 0,
+		});
+
+		const result = predictor.buildCursorPredictionPrompt(promptPieces);
+
+		expect(result.isOk()).toBe(true);
+		if (result.isOk()) {
+			const userMessage = result.val.messages.find(message => message.role === Raw.ChatRole.User);
+			const userMessageText = userMessage?.content
+				.filter(part => part.type === Raw.ChatCompletionContentPartKind.Text)
+				.map(part => (part as Raw.ChatCompletionContentPartText).text)
+				.join('\n');
+			expect(userMessageText).not.toContain('<|rejected/|>');
+			expect(userMessageText).not.toContain('previous suggestions the developer rejected');
+		}
 	});
 
 	describe('404 disabling behavior', () => {

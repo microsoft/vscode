@@ -217,8 +217,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		// All other kinds of Quick things handle Accept, except Widget. In other words, Accepting is a detail on the things
 		// that extend IQuickInput
 		ContextKeyExpr.notEquals(quickInputTypeContextKeyValue, QuickInputType.QuickWidget),
-		inQuickInputContext,
-		ContextKeyExpr.not('isComposing')
+		inQuickInputContext
 	),
 	metadata: { description: localize('nonQuickWidget', "Used while in the context of some quick input. If you change one keybinding for this command, you should change all of the other keybindings (modifier variants) of this command as well.") },
 	handler: (accessor) => {

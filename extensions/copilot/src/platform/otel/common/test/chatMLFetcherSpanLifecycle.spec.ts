@@ -27,7 +27,7 @@ describe('chatMLFetcher Span Lifecycle', () => {
 				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.CHAT,
 				[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.GITHUB,
 				[GenAiAttr.REQUEST_MODEL]: 'gpt-4o',
-				[GenAiAttr.CONVERSATION_ID]: 'req-abc',
+				[GenAiAttr.CONVERSATION_ID]: 'session-abc',
 				[GenAiAttr.REQUEST_MAX_TOKENS]: 2048,
 				[CopilotChatAttr.MAX_PROMPT_TOKENS]: 128000,
 			},
@@ -37,7 +37,7 @@ describe('chatMLFetcher Span Lifecycle', () => {
 		expect(s.name).toBe('chat gpt-4o');
 		expect(s.kind).toBe(SpanKind.CLIENT);
 		expect(s.attributes[GenAiAttr.REQUEST_MODEL]).toBe('gpt-4o');
-		expect(s.attributes[GenAiAttr.CONVERSATION_ID]).toBe('req-abc');
+		expect(s.attributes[GenAiAttr.CONVERSATION_ID]).toBe('session-abc');
 		expect(s.ended).toBe(false);
 
 		// Phase 2: fetchMany enriches with response data

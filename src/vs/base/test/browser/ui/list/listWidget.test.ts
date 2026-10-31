@@ -5,9 +5,10 @@
 
 import assert from 'assert';
 import { IListRenderer, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
-import { List } from '../../../../browser/ui/list/listWidget.js';
+import { DefaultStyleController, List, unthemedListStyles } from '../../../../browser/ui/list/listWidget.js';
 import { range } from '../../../../common/arrays.js';
 import { timeout } from '../../../../common/async.js';
+import { toDisposable } from '../../../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('ListWidget', function () {
@@ -92,5 +93,119 @@ suite('ListWidget', function () {
 		listWidget.focusPreviousPage();
 		await timeout(0);
 		assert.strictEqual(listWidget.getFocus()[0], 0, 'page up to next page');
+	});
+
+	test('aria-activedescendant references a rendered element', function () {
+		const element = document.createElement('div');
+		element.style.height = '20px';
+		element.style.width = '200px';
+
+		const delegate: IListVirtualDelegate<number> = {
+			getHeight() { return 20; },
+			getTemplateId() { return 'template'; }
+		};
+
+		const renderer: IListRenderer<number, void> = {
+			templateId: 'template',
+			renderTemplate() { },
+			renderElement() { },
+			disposeTemplate() { }
+		};
+
+		const listWidget = store.add(new List<number>('test', element, delegate, [renderer], {
+			accessibilityProvider: {
+				getAriaLabel: element => String(element),
+				getWidgetAriaLabel: () => 'Test list',
+				getActiveDescendantId: () => undefined
+			}
+		}));
+		listWidget.layout(20);
+		listWidget.splice(0, 0, range(100));
+
+		const listElement = element.querySelector<HTMLElement>('.monaco-list')!;
+		const focusedElementId = listWidget.getElementID(50);
+
+		listWidget.setFocus([50]);
+		const beforeReveal = {
+			activeDescendant: listElement.getAttribute('aria-activedescendant'),
+			focusedElementRendered: element.querySelector(`#${focusedElementId}`) !== null
+		};
+
+		listWidget.reveal(50);
+		const afterReveal = {
+			activeDescendant: listElement.getAttribute('aria-activedescendant'),
+			focusedElementRendered: element.querySelector(`#${focusedElementId}`) !== null
+		};
+
+		assert.deepStrictEqual({ beforeReveal, afterReveal }, {
+			beforeReveal: {
+				activeDescendant: null,
+				focusedElementRendered: false
+			},
+			afterReveal: {
+				activeDescendant: focusedElementId,
+				focusedElementRendered: true
+			}
+		});
+	});
+
+	test('Tab focuses the first rendered enabled row action', function () {
+		const element = document.createElement('div');
+		element.style.height = '20px';
+		element.style.width = '200px';
+		document.body.appendChild(element);
+		store.add(toDisposable(() => element.remove()));
+
+		const delegate: IListVirtualDelegate<number> = {
+			getHeight() { return 20; },
+			getTemplateId() { return 'template'; }
+		};
+
+		const renderer: IListRenderer<number, void> = {
+			templateId: 'template',
+			renderTemplate(container) {
+				const ignoredAction = document.createElement('button');
+				ignoredAction.tabIndex = -1;
+				const disabledAction = document.createElement('button');
+				disabledAction.disabled = true;
+				disabledAction.tabIndex = 0;
+				const hiddenWrapper = document.createElement('div');
+				hiddenWrapper.style.display = 'none';
+				const hiddenAction = document.createElement('button');
+				hiddenAction.tabIndex = 0;
+				hiddenWrapper.appendChild(hiddenAction);
+				const enabledAction = document.createElement('button');
+				enabledAction.tabIndex = 0;
+				container.append(ignoredAction, disabledAction, hiddenWrapper, enabledAction);
+			},
+			renderElement() { },
+			disposeTemplate() { }
+		};
+
+		const listWidget = store.add(new List<number>('test', element, delegate, [renderer]));
+		listWidget.layout(20);
+		listWidget.splice(0, 0, [0]);
+		listWidget.setFocus([0]);
+		listWidget.domFocus();
+		listWidget.getHTMLElement().dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
+
+		assert.strictEqual(document.activeElement, element.querySelectorAll('button')[3]);
+	});
+
+	test('styles a .hovered row like a pointer-hovered row', function () {
+		const styleElement = document.createElement('style');
+		new DefaultStyleController(styleElement, 'test-list').style({
+			...unthemedListStyles,
+			listHoverBackground: 'red',
+			listHoverForeground: 'white',
+			listHoverOutline: 'blue',
+		});
+
+		const hoverRules = (styleElement.textContent ?? '').split('\n').filter(rule => rule.includes('.monaco-list-row:is(:hover, .hovered)'));
+		assert.deepStrictEqual(hoverRules, [
+			'.monaco-list.test-list:not(.drop-target):not(.dragging) .monaco-list-row:is(:hover, .hovered):not(.selected):not(.focused) { background-color: red; }',
+			'.monaco-list.test-list:not(.drop-target):not(.dragging) .monaco-list-row:is(:hover, .hovered):not(.selected):not(.focused) { color:  white; }',
+			'.monaco-list.test-list .monaco-list-row:is(:hover, .hovered) { outline: 1px dashed blue; outline-offset: -1px; }',
+		]);
 	});
 });

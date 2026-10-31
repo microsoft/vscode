@@ -38,6 +38,22 @@ describe('nodePtyShim', () => {
 		await expect(resolveNodePtySourcePath(testDir, logService)).resolves.toBe(prebuildDir);
 	});
 
+	it('resolves node-pty from node_modules.asar.unpacked in a packaged build', async () => {
+		const unpackedBuildDir = join(testDir, 'node_modules.asar.unpacked', 'node-pty', 'build', 'Release');
+		await mkdir(unpackedBuildDir, { recursive: true });
+
+		await expect(resolveNodePtySourcePath(testDir, logService)).resolves.toBe(unpackedBuildDir);
+	});
+
+	it('prefers node_modules.asar.unpacked over plain node_modules', async () => {
+		const buildDir = join(testDir, 'node_modules', 'node-pty', 'build', 'Release');
+		const unpackedBuildDir = join(testDir, 'node_modules.asar.unpacked', 'node-pty', 'build', 'Release');
+		await mkdir(buildDir, { recursive: true });
+		await mkdir(unpackedBuildDir, { recursive: true });
+
+		await expect(resolveNodePtySourcePath(testDir, logService)).resolves.toBe(unpackedBuildDir);
+	});
+
 	it('throws when node-pty binaries are missing', async () => {
 		await expect(resolveNodePtySourcePath(testDir, logService)).rejects.toThrow('Unable to find node-pty binaries');
 	});

@@ -22,7 +22,7 @@ describe('byokKnownModelToAPIInfoWithEffort', () => {
 		expect((info as { configurationSchema?: unknown }).configurationSchema).toBeUndefined();
 	});
 
-	it('builds a Thinking Effort picker with non-Claude default `medium` for non-Claude families', () => {
+	it('builds an Effort Level picker with non-Claude default `medium` for non-Claude families', () => {
 		const info = byokKnownModelToAPIInfoWithEffort('TestProvider', 'gpt-5', {
 			...baseCapabilities,
 			supportsReasoningEffort: ['minimal', 'low', 'medium', 'high'],
@@ -59,5 +59,15 @@ describe('byokKnownModelToAPIInfoWithEffort', () => {
 		});
 
 		expect((info as { configurationSchema?: { properties: { reasoningEffort: { default?: string } } } }).configurationSchema?.properties.reasoningEffort.default).toBe('low');
+	});
+
+	it('uses a model-declared default reasoning effort', () => {
+		const info = byokKnownModelToAPIInfoWithEffort('Gemini', 'gemini-3-pro-preview', {
+			...baseCapabilities,
+			supportsReasoningEffort: ['low', 'high'],
+			defaultReasoningEffort: 'high',
+		});
+
+		expect((info as { configurationSchema?: { properties: { reasoningEffort: { default?: string } } } }).configurationSchema?.properties.reasoningEffort.default).toBe('high');
 	});
 });

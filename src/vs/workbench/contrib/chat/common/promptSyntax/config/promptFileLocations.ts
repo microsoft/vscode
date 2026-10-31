@@ -77,6 +77,16 @@ export const COPILOT_CONFIG_FOLDER = '.copilot';
 export const COPILOT_CUSTOM_INSTRUCTIONS_FILENAME = 'copilot-instructions.md';
 
 /**
+ * Voice customization file name.
+ */
+export const VOICE_INSTRUCTIONS_FILENAME = 'voice.md';
+
+/**
+ * Dictation customization file name.
+ */
+export const DICTATION_INSTRUCTIONS_FILENAME = 'dictation.md';
+
+/**
  * GitHub configuration folder name.
  */
 export const GITHUB_CONFIG_FOLDER = '.github';

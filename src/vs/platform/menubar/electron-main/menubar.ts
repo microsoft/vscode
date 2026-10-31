@@ -666,6 +666,9 @@ export class Menubar extends Disposable {
 			case StateType.Updating:
 				return [new MenuItem({ label: nls.localize('miInstallingUpdate', "Installing Update..."), enabled: false })];
 
+			case StateType.Cancelling:
+				return [new MenuItem({ label: nls.localize('miCancellingUpdate', "Cancelling Update..."), enabled: false })];
+
 			case StateType.Ready:
 				return [new MenuItem({
 					label: this.mnemonicLabel(nls.localize('miRestartToUpdate', "Restart to &&Update")), click: () => {

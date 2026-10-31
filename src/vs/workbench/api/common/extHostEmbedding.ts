@@ -15,6 +15,7 @@ export class ExtHostEmbeddings implements ExtHostEmbeddingsShape {
 
 	private readonly _proxy: MainThreadEmbeddingsShape;
 	private readonly _provider = new Map<number, { id: string; provider: vscode.EmbeddingsProvider }>();
+	private readonly _registeredModels = new Set<string>();
 
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
@@ -29,17 +30,18 @@ export class ExtHostEmbeddings implements ExtHostEmbeddingsShape {
 	}
 
 	registerEmbeddingsProvider(_extension: IExtensionDescription, embeddingsModel: string, provider: vscode.EmbeddingsProvider): IDisposable {
-		if (this._allKnownModels.has(embeddingsModel)) {
-			throw new Error('An embeddings provider for this model is already registered');
+		if (this._registeredModels.has(embeddingsModel)) {
+			throw new Error(`An embeddings provider for model '${embeddingsModel}' is already registered`);
 		}
 
 		const handle = this._handlePool++;
 
 		this._proxy.$registerEmbeddingProvider(handle, embeddingsModel);
 		this._provider.set(handle, { id: embeddingsModel, provider });
+		this._registeredModels.add(embeddingsModel);
 
 		return toDisposable(() => {
-			this._allKnownModels.delete(embeddingsModel);
+			this._registeredModels.delete(embeddingsModel);
 			this._proxy.$unregisterEmbeddingProvider(handle);
 			this._provider.delete(handle);
 		});

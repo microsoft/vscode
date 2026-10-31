@@ -6,8 +6,9 @@
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { webContents as electronWebContents } from 'electron';
+import electron from 'electron';
 import { localize } from '../../../nls.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { StorageScope, StorageTarget } from '../../storage/common/storage.js';
@@ -22,7 +23,7 @@ import {
 	isAlwaysAllowedPermission,
 	toOriginKey,
 } from '../common/browserPermissions.js';
-import { BrowserViewStorageScope, IBrowserViewPermissionRequestEvent, IBrowserViewStorageKeys } from '../common/browserView.js';
+import { IBrowserViewPermissionRequestEvent, IBrowserViewStorageKeys, isInMemoryStorageScope } from '../common/browserView.js';
 import type { BrowserSession } from './browserSession.js';
 
 /** Time the main process waits for a prompt answer before a non-persisted deny. */
@@ -146,7 +147,7 @@ export class BrowserSessionPermissions extends Disposable implements IBrowserSes
 	constructor(session: BrowserSession) {
 		super();
 
-		this.storageKeys = session.storageScope === BrowserViewStorageScope.Ephemeral
+		this.storageKeys = isInMemoryStorageScope(session.storageScope)
 			? {}
 			: { permissions: `browser.permissions.${session.id}` };
 
@@ -188,12 +189,9 @@ export class BrowserSessionPermissions extends Disposable implements IBrowserSes
 			if (isAlwaysAllowedPermission(permission)) {
 				return true;
 			}
-			// Prefer the full requesting URL so file: documents key off their
-			// path; `requestingUrl` is absent for cross-origin subframes, in
-			// which case Electron only gives us the bare origin.
-			const origin = toOriginKey(details.requestingUrl || requestingOrigin);
+			const origin = getPermissionOrigin(details.requestingUrl, details.securityOrigin ?? requestingOrigin);
 			const categories = electronPermissionToCategories(permission, mediaKindsFromDetails(details));
-			if (categories.length === 0) {
+			if (categories.length === 0 || !origin) {
 				return false;
 			}
 			// Synchronous gate used by Blink pre-checks and `permissions.query`.
@@ -296,6 +294,13 @@ export class BrowserSessionPermissions extends Disposable implements IBrowserSes
 	}
 
 	set(origin: string, grants: readonly IPermissionCategoryState[]): void {
+		const key = toOriginKey(origin);
+		for (const grant of grants) {
+			if (grant.state === null) {
+				this._resolvePendingForCategory(key, grant.category);
+			}
+		}
+
 		// Coalesce the per-category onDidChange flushes into a single write for
 		// the whole batch so persisting from the management UI isn't N writes.
 		this._batching = true;
@@ -307,6 +312,17 @@ export class BrowserSessionPermissions extends Disposable implements IBrowserSes
 		}
 		if (this._batchDirty && this._persistable) {
 			this._flushNow();
+		}
+	}
+
+	private _resolvePendingForCategory(origin: string, category: PermissionCategory): void {
+		if (!origin || this._pending.size === 0) {
+			return;
+		}
+		for (const pending of [...this._pending]) {
+			if (pending.origin === origin && pending.category === category) {
+				pending.deferred.complete();
+			}
 		}
 	}
 
@@ -433,7 +449,7 @@ export class BrowserSessionPermissions extends Disposable implements IBrowserSes
 		if (!frame) {
 			return undefined;
 		}
-		const webContents = electronWebContents.fromFrame(frame);
+		const webContents = electron.webContents.fromFrame(frame);
 		if (!webContents) {
 			return undefined;
 		}
@@ -448,7 +464,9 @@ export class BrowserSessionPermissions extends Disposable implements IBrowserSes
 		if (isAlwaysAllowedPermission(permission)) {
 			return true;
 		}
-		const origin = toOriginKey(details?.requestingUrl ?? webContents?.getURL());
+		// eslint-disable-next-line local/code-no-in-operator
+		const securityOrigin = details && 'securityOrigin' in details ? details.securityOrigin : undefined;
+		const origin = getPermissionOrigin(details?.requestingUrl ?? webContents?.getURL(), securityOrigin);
 		const categories = electronPermissionToCategories(permission, mediaKindsFromDetails(details));
 		if (categories.length === 0 || !origin) {
 			return false;
@@ -563,10 +581,22 @@ function parseSnapshot<T>(raw: string | undefined): T | undefined {
 	}
 }
 
+/** Prefer Electron's security origin over the document URL, preserving per-file permission keys. */
+function getPermissionOrigin(requestingUrl: string | undefined, securityOrigin: string | undefined): string {
+	const origin = toOriginKey(securityOrigin ?? requestingUrl);
+	if (origin === `${Schemas.file}:///`) {
+		const fileOrigin = toOriginKey(requestingUrl);
+		if (fileOrigin.startsWith(`${Schemas.file}://`)) {
+			return fileOrigin;
+		}
+	}
+	return origin;
+}
+
 /**
  * The Electron details union passed to `setPermissionRequestHandler`. All
  * variants extend `PermissionRequest` (so share `requestingUrl`); only
- * `MediaAccessPermissionRequest` adds `mediaTypes`.
+ * `MediaAccessPermissionRequest` adds `mediaTypes` and `securityOrigin`.
  */
 type PermissionRequestDetails =
 	| Electron.PermissionRequest

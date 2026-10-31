@@ -39,7 +39,7 @@ const mermaidMarkdownBuildOptions: Partial<esbuild.BuildOptions> = {
 		'.ttf': 'dataurl',
 	},
 	plugins: [cssTextPlugin],
-	minify: false,
+	splitting: true,
 };
 
 await Promise.all([
@@ -77,5 +77,14 @@ await Promise.all([
 		additionalOptions: {
 			...mermaidMarkdownBuildOptions,
 		},
+	}, process.argv),
+	// Markdown editor code blocks
+	run({
+		entryPoints: {
+			'index': path.join(previewSrcDir, 'markdownEditor', 'index.ts'),
+		},
+		srcDir: previewSrcDir,
+		outdir: path.join(rootDir, 'markdown-editor-out'),
+		additionalOptions: mermaidMarkdownBuildOptions,
 	}, process.argv),
 ]);

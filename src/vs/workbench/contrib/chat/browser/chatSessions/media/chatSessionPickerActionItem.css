@@ -28,13 +28,17 @@
 		text-overflow: ellipsis;
 	}
 
+	.codicon + .chat-session-option-label {
+		margin-left: 6px;
+	}
+
 	span.codicon {
-		font-size: 12px;
+		font-size: var(--vscode-codiconFontSize-compact);
 		margin-left: 2px;
 	}
 
 	span.codicon.codicon-chevron-down {
-		font-size: 12px;
+		font-size: var(--vscode-codiconFontSize-compact);
 		margin-left: 2px;
 	}
 }

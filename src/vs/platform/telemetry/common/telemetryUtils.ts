@@ -146,7 +146,7 @@ export function getTelemetryLevel(configurationService: IConfigurationService): 
 	}
 
 	// Maps new telemetry setting to a telemetry level
-	switch (newConfig ?? TelemetryConfiguration.ON) {
+	switch (newConfig === undefined ? TelemetryConfiguration.ON : newConfig) {
 		case TelemetryConfiguration.ON:
 			return TelemetryLevel.USAGE;
 		case TelemetryConfiguration.ERROR:
@@ -154,6 +154,8 @@ export function getTelemetryLevel(configurationService: IConfigurationService): 
 		case TelemetryConfiguration.CRASH:
 			return TelemetryLevel.CRASH;
 		case TelemetryConfiguration.OFF:
+			return TelemetryLevel.NONE;
+		default:
 			return TelemetryLevel.NONE;
 	}
 }
@@ -282,15 +284,38 @@ export function getPiiPathsFromEnvironment(paths: IPathEnvironment): string[] {
 	return [paths.appRoot, paths.extensionsPath, paths.userHome.fsPath, paths.tmpDir.fsPath, paths.userDataPath];
 }
 
+/**
+ * Returns the paths that contain user content rather than VS Code owned files.
+ * File paths beneath them are fully redacted instead of being kept relative to them.
+ */
+export function getUserContentPathsFromEnvironment(paths: Pick<IPathEnvironment, 'userHome' | 'tmpDir'>): string[] {
+	return [paths.userHome.fsPath, paths.tmpDir.fsPath];
+}
+
 //#region Telemetry Cleaning
+
+function getMatchRanges(value: string, patterns: RegExp[]): [number, number][] {
+	const ranges: [number, number][] = [];
+	for (const regexp of patterns) {
+		while (true) {
+			const result = regexp.exec(value);
+			if (!result) {
+				break;
+			}
+			ranges.push([result.index, regexp.lastIndex]);
+		}
+	}
+	return ranges;
+}
 
 /**
  * Cleans a given stack of possible paths
  * @param stack The stack to sanitize
- * @param cleanupPatterns Cleanup patterns to remove from the stack
+ * @param relativePathRootPatterns Patterns for roots whose descendant file paths are kept so the root can later be removed, leaving a relative path
+ * @param userContentRootPatterns Patterns for roots whose descendant file paths are always fully redacted, unless they are also beneath a relative path root
  * @returns The cleaned stack
  */
-function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
+function anonymizeFilePaths(stack: string, relativePathRootPatterns: RegExp[], userContentRootPatterns: RegExp[]): string {
 
 	// Fast check to see if it is a file path to avoid doing unnecessary heavy regex work
 	if (!stack || (!stack.includes('/') && !stack.includes('\\'))) {
@@ -299,16 +324,8 @@ function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
 
 	let updatedStack = stack;
 
-	const cleanUpIndexes: [number, number][] = [];
-	for (const regexp of cleanupPatterns) {
-		while (true) {
-			const result = regexp.exec(stack);
-			if (!result) {
-				break;
-			}
-			cleanUpIndexes.push([result.index, regexp.lastIndex]);
-		}
-	}
+	const cleanUpIndexes = getMatchRanges(stack, relativePathRootPatterns);
+	const userContentIndexes = getMatchRanges(stack, userContentRootPatterns);
 
 	// Match node_modules or node_modules.asar at any position in the path, capturing the node_modules/... suffix
 	const nodeModulesRegex = /(?:^|[\\\/])((node_modules|node_modules\.asar)[\\\/].*)$/;
@@ -332,14 +349,15 @@ function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
 
 		// anoynimize user file paths that do not need to be retained or cleaned up.
 		if (!overlappingRange) {
+			const isUserContent = userContentIndexes.some(([start, end]) => result.index < end && start < fileRegex.lastIndex);
 			// Check if this is a VS Code extension path - if so, preserve the .vscode*/extensions/... portion
-			const vscodeExtMatch = vscodeExtensionsPathRegex.exec(result[0]);
+			const vscodeExtMatch = isUserContent ? null : vscodeExtensionsPathRegex.exec(result[0]);
 			if (vscodeExtMatch) {
 				// Keep ".vscode[-variant]/extensions/extension-name/..." but redact the parent folder
 				updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>/' + vscodeExtMatch[2];
 			} else {
 				// Check if node_modules appears in the path — preserve node_modules/... suffix
-				const nodeModulesMatch = nodeModulesRegex.exec(result[0]);
+				const nodeModulesMatch = isUserContent ? null : nodeModulesRegex.exec(result[0]);
 				if (nodeModulesMatch) {
 					updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>/' + nodeModulesMatch[1];
 				} else {
@@ -358,15 +376,28 @@ function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
 
 const userDataRegexes = [
 	{ label: 'URL', regex: /[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^\s]*/ },
-	{ label: 'Google API Key', regex: /AIza[A-Za-z0-9_\\\-]{35}/ },
+	// Also matches truncated or mistyped keys, which are still sensitive.
+	{ label: 'Google API Key', regex: /AIza[0-9A-Za-z_\-]{20,}/ },
 	{ label: 'JWT', regex: /eyJ[0eXAiOiJKV1Qi|hbGci|a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+/ },
 	{ label: 'Slack Token', regex: /xox[pbar]\-[A-Za-z0-9]/ },
 	{ label: 'GitHub Token', regex: /(gh[psuro]_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59})/ },
 	{ label: 'Generic Secret', regex: /(key|token|sig|secret|signature|password|passwd|pwd|android:value)[^a-zA-Z0-9]/i },
 	{ label: 'CLI Credentials', regex: /((login|psexec|(certutil|psexec)\.exe).{1,50}(\s-u(ser(name)?)?\s+.{3,100})?\s-(admin|user|vm|root)?p(ass(word)?)?\s+["']?[^$\-\/\s]|(^|[\s\r\n\\])net(\.exe)?.{1,5}(user\s+|share\s+\/user:| user -? secrets ? set) \s + [^ $\s \/])/ },
+	// Short password flags such as `plink -pw`, `openssl -pass`, `cmdkey /pass:`, and `sshpass -p`. MSBuild's `/p:` property flag is intentionally not matched.
+	{ label: 'CLI Password Flag', regex: /(?:^|[\s"'`])(?:--?(?:pw|pass)(?:\s+|=)|\/pass:|sshpass\s+-p\s*)["']?[^\s"'$\-]/i },
+	// `user:password` credentials passed with `-u` or `--user`, such as curl. Short options may be attached (`-uuser:password`). Numeric `uid:gid` pairs are not matched.
+	{ label: 'CLI Basic Auth', regex: /(?:^|\s)(?:-u(?:\s+|=)?|--user(?:\s+|=))["']?(?!\d+:\d+\b)[^\s:"']+:[^\s"']+/ },
 	{ label: 'Microsoft Entra ID', regex: /eyJ(?:0eXAiOiJKV1Qi|hbGci|[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.)/ },
 	{ label: 'Email', regex: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/ }
 ];
+
+/**
+ * Matches the organization name in OneDrive for Business folders, e.g. `OneDrive - Contoso`.
+ * Folder names with spaces are not recognized by path anonymization, so the name is removed first.
+ * When followed by a path separator, the whole folder name is matched, including quotes that are
+ * valid in folder names. Otherwise matching stops at the first quote.
+ */
+const oneDriveOrganizationRegex = /OneDrive - (?:[^\\\/\r\n"<>|:*?]+(?=[\\\/])|[^\\\/\r\n"'`]+)/g;
 
 /**
  * Redacts a value if it contains commonly leaked PII.
@@ -440,10 +471,12 @@ function removePropertiesWithPossibleUserInfo(property: string): string {
 /**
  * Does a best possible effort to clean a data object from any possible PII.
  * @param data The data object to clean
- * @param paths Any additional patterns that should be removed from the data set
+ * @param cleanUpPatterns Any additional patterns that should be removed from the data set
+ * @param relativePathRootPatterns Patterns for roots whose descendant file paths are kept relative to the root instead of being redacted. Defaults to `cleanUpPatterns`.
+ * @param userContentRootPatterns Patterns for roots whose descendant file paths are always fully redacted, unless they are also beneath a relative path root.
  * @returns A new object with the PII removed
  */
-export function cleanData(data: ITelemetryData | undefined, cleanUpPatterns: RegExp[]): Record<string, unknown> {
+export function cleanData(data: ITelemetryData | undefined, cleanUpPatterns: RegExp[], relativePathRootPatterns: RegExp[] = cleanUpPatterns, userContentRootPatterns: RegExp[] = []): Record<string, unknown> {
 	if (!data) {
 		return {};
 	}
@@ -458,8 +491,12 @@ export function cleanData(data: ITelemetryData | undefined, cleanUpPatterns: Reg
 		if (typeof value === 'string') {
 			let updatedProperty = value.replaceAll('%20', ' ');
 
+			if (updatedProperty.includes('OneDrive - ')) {
+				updatedProperty = updatedProperty.replace(oneDriveOrganizationRegex, 'OneDrive');
+			}
+
 			// First we anonymize any possible file paths
-			updatedProperty = anonymizeFilePaths(updatedProperty, cleanUpPatterns);
+			updatedProperty = anonymizeFilePaths(updatedProperty, relativePathRootPatterns, userContentRootPatterns);
 
 			// Then we do a simple regex replace with the defined patterns
 			for (const regexp of cleanUpPatterns) {

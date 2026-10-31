@@ -7,6 +7,18 @@
 	justify-content: initial;
 }
 
+/* Keep window controls full-height when Modern UI applies its macOS offset. */
+.agent-sessions-workbench.monaco-workbench:not(.modern-ui-compact) .part.titlebar > .sessions-titlebar-container > :is(.titlebar-left, .titlebar-right) {
+	padding-top: 0;
+}
+
+/* Apply optical centering to toolbar content, not the window-control hit targets. */
+.agent-sessions-workbench.monaco-workbench:not(.modern-ui-compact) .part.titlebar > .sessions-titlebar-container > .titlebar-center,
+.agent-sessions-workbench.monaco-workbench:not(.modern-ui-compact) .part.titlebar > .sessions-titlebar-container > :is(.titlebar-left, .titlebar-right) > :is(.left-toolbar-container, .titlebar-actions-container) {
+	box-sizing: border-box;
+	padding-top: var(--vscode-spacing-size20);
+}
+
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left {
 	display: flex;
 	height: 100%;
@@ -64,7 +76,7 @@
 .agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center .window-title {
 	margin: unset;
 	/* Match the VS Code window command center font size. */
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 }
 
 .agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right {
@@ -97,11 +109,31 @@
 	flex-shrink: 0;
 	-webkit-app-region: no-drag;
 	height: 100%;
+	position: relative;
+	z-index: 2500;
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container:not(.has-no-actions) {
 	display: flex;
 	align-items: center;
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container {
+	padding-right: var(--vscode-spacing-size80);
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-screen-reader-container:not(.has-no-actions) {
+	margin-right: var(--vscode-spacing-size40);
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-screen-reader-container .monaco-button {
+	height: 22px;
+	padding: 0 var(--vscode-spacing-size80);
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container.overflowing,
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container.overflowing {
+	display: none;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container.sessions-titlebar-container .monaco-toolbar .actions-container {
@@ -160,6 +192,10 @@
 	display: flex;
 	justify-content: center;
 	align-items: center;
+}
+
+.monaco-workbench.mac:not(.web) .part.titlebar:not(.titlebar-fullscreen) > .sessions-titlebar-container > .titlebar-left > .window-controls-container + .left-toolbar-container {
+	padding-left: var(--vscode-spacing-size160);
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container .monaco-action-bar .action-item:not(.disabled) .codicon {

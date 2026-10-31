@@ -13,22 +13,34 @@ use crate::tunnels::shutdown_signal::ShutdownRequest;
 use crate::util::errors::AnyError;
 
 use super::agent;
+use super::agent_discovery;
 use super::args::AgentLogsArgs;
-use super::output::Styles;
+use super::output::{self, Styles};
 use super::CommandContext;
 
 /// Subscribes to a session and streams actions/notifications in real time.
 pub async fn agent_logs(ctx: CommandContext, args: AgentLogsArgs) -> Result<i32, AnyError> {
-	let client = agent::connect(&ctx, args.address.as_deref(), args.tunnel.as_deref()).await?;
+	let client = match (
+		args.discovery.address.as_deref(),
+		args.discovery.tunnel.as_deref(),
+	) {
+		(None, None) => {
+			agent_discovery::connect_to_session_host(
+				&ctx,
+				&args.session,
+				args.discovery.user_data_dir.as_deref(),
+			)
+			.await?
+		}
+		(address, tunnel) => agent::connect_explicit(&ctx, address, tunnel).await?,
+	};
 
 	let (result, mut sub): (SubscribeResult, _) = {
 		let r: SubscribeResult = agent::request_with_auth(
 			&ctx,
 			&client,
 			"subscribe",
-			SubscribeParams {
-				channel: args.session.clone(),
-			},
+			SubscribeParams::new(args.session.clone()),
 		)
 		.await?;
 		let s = client.attach_subscription(&args.session).await;
@@ -43,7 +55,10 @@ pub async fn agent_logs(ctx: CommandContext, args: AgentLogsArgs) -> Result<i32,
 		"\n{}",
 		header.apply_to("Streaming events (Ctrl+C to quit)...")
 	);
-	println!("{}", header.apply_to("─".repeat(50)));
+	println!(
+		"{}",
+		header.apply_to(output::utf8_or_ascii("─", "-").repeat(50))
+	);
 
 	// Stream events until Ctrl+C or the subscription closes.
 	let mut shutdown = ShutdownRequest::create_rx([ShutdownRequest::CtrlC]);
@@ -90,7 +105,7 @@ fn print_initial_state(uri: &str, result: &SubscribeResult) {
 	};
 
 	if let SnapshotState::Session(ref session) = snapshot.state {
-		let s = &session.summary;
+		let s = session;
 		if !s.title.is_empty() {
 			println!("  {} {}", label.apply_to("title:"), s.title);
 		}
@@ -106,11 +121,14 @@ fn print_initial_state(uri: &str, result: &SubscribeResult) {
 		for chat in &session.chats {
 			let status = SessionStatus::from_bits(chat.status);
 			let marker = if status.contains(SessionStatus::InProgress) {
-				Style::new().green().bold().apply_to("►")
+				Style::new()
+					.green()
+					.bold()
+					.apply_to(output::utf8_or_ascii("►", ">"))
 			} else if status.contains(SessionStatus::Error) {
-				Styles::error().apply_to("✗")
+				Styles::error().apply_to(output::utf8_or_ascii("✗", "x"))
 			} else {
-				Styles::muted().apply_to("○")
+				Styles::muted().apply_to(output::utf8_or_ascii("○", "o"))
 			};
 			let title = if chat.title.is_empty() {
 				"(untitled)".to_string()
@@ -178,9 +196,30 @@ fn action_style(type_name: &str) -> Style {
 
 fn truncate(s: &str, max: usize) -> String {
 	let s = s.replace('\n', " ");
-	if s.len() <= max {
+	if s.chars().count() <= max {
 		s
 	} else {
-		format!("{}…", &s[..max - 1])
+		let suffix = output::utf8_or_ascii("…", "...");
+		let prefix_length = max.saturating_sub(suffix.chars().count());
+		format!(
+			"{}{suffix}",
+			s.chars().take(prefix_length).collect::<String>()
+		)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn truncate_respects_character_limit() {
+		assert_eq!(
+			(
+				truncate("abcdef", 5).chars().count(),
+				truncate("áéíóúñ", 5).chars().count()
+			),
+			(5, 5)
+		);
 	}
 }

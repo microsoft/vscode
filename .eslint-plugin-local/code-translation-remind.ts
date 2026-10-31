@@ -30,7 +30,7 @@ export default new class TranslationRemind implements eslint.Rule.RuleModule {
 			return;
 		}
 
-		const currentFile = context.getFilename();
+		const currentFile = context.filename;
 		const matchService = currentFile.match(/vs\/workbench\/services\/\w+/);
 		const matchPart = currentFile.match(/vs\/workbench\/contrib\/\w+/);
 		const matchSessionsPart = currentFile.match(/vs\/sessions\/contrib\/\w+/);

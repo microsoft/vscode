@@ -7,9 +7,11 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../../files/common/files.js';
+import { createInMemoryFileService } from '../../../../../files/test/common/inMemoryFileService.js';
 import { CustomizationType } from '../../../../common/state/protocol/state.js';
 import { scanClaudeDiskCustomizations } from '../../../../node/claude/customizations/scan/claudeAgentSkillScan.js';
-import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, createInMemoryFileService, seedFile } from '../claudeCustomizationTestUtils.js';
+import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, seedFile } from '../claudeCustomizationTestUtils.js';
+import { AGENT_PLUGIN_SCHEMA } from '../../../../../agentPlugins/common/agentPluginParser.js';
 
 suite('claudeAgentSkillScan', () => {
 
@@ -42,6 +44,22 @@ suite('claudeAgentSkillScan', () => {
 			{ type: CustomizationType.Skill, uri: command.toString(), name: 'c-cmd', description: 'Command C' },
 			{ type: CustomizationType.Skill, uri: skill.toString(), name: 's-skill', description: 'Skill S' },
 		].sort((a, b) => a.uri.localeCompare(b.uri)));
+	});
+
+	test('preserves invocation metadata for skills and commands', async () => {
+		await seed('/workspace/.claude/skills/s/SKILL.md', '---\nname: skill\nuser-invocable: false\ndisable-model-invocation: true\n---\nbody');
+		await seed('/workspace/.claude/commands/c.md', '---\nname: command\nuser-invocable: false\ndisable-model-invocation: true\n---\nbody');
+
+		const discovered = await scanClaudeDiskCustomizations(workspace, userHome, fileService);
+
+		assert.deepStrictEqual(discovered.map(item => ({
+			name: item.name,
+			disableModelInvocation: item.customization.disableModelInvocation,
+			disableUserInvocation: item.customization.disableUserInvocation,
+		})).sort((a, b) => a.name.localeCompare(b.name)), [
+			{ name: 'command', disableModelInvocation: true, disableUserInvocation: true },
+			{ name: 'skill', disableModelInvocation: true, disableUserInvocation: true },
+		]);
 	});
 
 	test('a skill wins over a same-named command (spec §3 priority)', async () => {
@@ -82,6 +100,24 @@ suite('claudeAgentSkillScan', () => {
 		assert.deepStrictEqual(
 			discovered.filter(d => d.customization.type === CustomizationType.Skill).map(d => ({ name: d.name, uri: d.uri.toString() })),
 			[{ name: 'real', uri: realSkill.toString() }],
+		);
+	});
+
+	test('Agent Plugin directories are excluded across compatible manifest shapes', async () => {
+		const agent = await seed('/workspace/.claude/agents/helper.md', '---\nname: helper\ndescription: Helper\n---\nbody');
+		await seed('/workspace/.claude/skills/minimal/SKILL.md', '---\nname: minimal\ndescription: Minimal\n---\nbody');
+		await seed('/workspace/.claude/skills/compatible/SKILL.md', '---\nname: compatible\ndescription: Compatible\n---\nbody');
+		await seed('/workspace/.claude/skills/minimal/plugin.json', JSON.stringify({ $schema: AGENT_PLUGIN_SCHEMA }));
+		await seed('/workspace/.claude/skills/compatible/plugin.json', JSON.stringify({
+			$schema: AGENT_PLUGIN_SCHEMA.replace('/1.0.0/', '/1.0.1/'),
+			name: 'compatible',
+		}));
+
+		const discovered = await scanClaudeDiskCustomizations(workspace, userHome, fileService);
+
+		assert.deepStrictEqual(
+			discovered.map(d => ({ name: d.name, uri: d.uri.toString() })),
+			[{ name: 'helper', uri: agent.toString() }],
 		);
 	});
 });

@@ -169,6 +169,11 @@ export class NativeWindow extends BaseWindow {
 						args.push(resource);
 					}
 				}
+			} else if (request.from === 'systemWideKeybinding') {
+				// A system-wide (OS global) keybinding runs the command with exactly the arguments
+				// configured in `keybindings.json` (already in `request.args`). We intentionally do
+				// not append a `{ from }` sentinel so that commands taking positional arguments
+				// receive the same payload they would from a regular in-window keybinding.
 			} else {
 				args.push({ from: request.from });
 			}

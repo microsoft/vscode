@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/common/browserEditorInput.js';
@@ -59,15 +60,16 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 		this._register(this._browserViewService.registerContextualFilter({
 			include: (input, context) => {
 				const tracked = this._trackedInputs.get(input.id);
-				// `owner.sessionId` is the session *resource* URI string (set by the
-				// browser tools from `sessionResource.toString()`), not the composite
-				// `ISession.sessionId` (`providerId:resource`). Compare resource-to-resource.
-				const sessionResource = input.model?.owner.sessionId ?? tracked?.session.resource.toString();
-				if (!sessionResource) {
+				const ownerId = input.model?.owner.type === 'agent' ? input.model.owner.sessionId : tracked?.session.resource.toString();
+				if (!ownerId) {
 					return true; // no owning session known
 				}
-				const activeSessionResource = context.activeSessionId ?? this._sessionsService.activeSession.read(undefined)?.resource.toString();
-				return sessionResource === activeSessionResource;
+				const owningSession = resolveBrowserOwnerSession(this._sessionManagementService, ownerId)?.session ?? tracked?.session;
+				if (!owningSession) {
+					return true; // owning chat/session no longer known; don't hide it
+				}
+				const activeSession = context.activeSessionId ? resolveBrowserOwnerSession(this._sessionManagementService, context.activeSessionId)?.session : this._sessionsService.activeSession.read(undefined);
+				return activeSession?.sessionId === owningSession.sessionId;
 			},
 			onDidChange: onDidChangeActiveSession.event,
 		}));
@@ -75,11 +77,15 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 		// Only open a browser tab automatically when its owning session is the active session.
 		this._register(this._browserViewService.registerOpenHandler({
 			shouldOpenEditor: (_input, owner) => {
-				if (!owner.sessionId) {
+				if (owner.type !== 'agent') {
 					return true; // no owning session known; open in the active session
 				}
-				const activeSessionResource = this._sessionsService.activeSession.read(undefined)?.resource.toString();
-				return owner.sessionId === activeSessionResource;
+				const owningSession = resolveBrowserOwnerSession(this._sessionManagementService, owner.sessionId)?.session;
+				if (!owningSession) {
+					return true; // owning chat/session no longer known; open in the active session
+				}
+				const activeSession = this._sessionsService.activeSession.read(undefined);
+				return owningSession.sessionId === activeSession?.sessionId;
 			},
 		}));
 
@@ -137,4 +143,21 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 			this._trackedInputs.deleteAndDispose(input.id);
 		}));
 	}
+}
+
+/**
+ * Resolves a browser view owner id (the *chat* resource string the browser
+ * tools stamp onto `IBrowserViewOwner.sessionId`) to that resource and the
+ * `ISession` that owns it. A session's browsers can be opened from any of its
+ * chats (main, peer, or subagent), so this looks up the owning session across
+ * all chats rather than comparing against the session's own resource directly.
+ */
+export function resolveBrowserOwnerSession(sessionsManagementService: ISessionsManagementService, ownerId: string): { readonly resource: URI; readonly session: ISession | undefined } | undefined {
+	let resource: URI;
+	try {
+		resource = URI.parse(ownerId);
+	} catch {
+		return undefined;
+	}
+	return { resource, session: sessionsManagementService.getSessionForChatResource(resource)?.session ?? sessionsManagementService.getSession(resource) };
 }

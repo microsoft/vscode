@@ -1,0 +1,28 @@
+{
+	"name": "vscode-modern-icons",
+	"private": true,
+	"version": "1.0.0",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"publisher": "vscode",
+	"license": "MIT",
+	"engines": {
+		"vscode": "*"
+	},
+	"categories": [
+		"Themes"
+	],
+	"contributes": {
+		"iconThemes": [
+			{
+				"id": "vscode-modern-icons",
+				"label": "%themeLabel%",
+				"path": "./fileicons/vscode-modern-icons-icon-theme.json"
+			}
+		]
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/microsoft/vscode.git"
+	}
+}

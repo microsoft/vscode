@@ -14,12 +14,23 @@ import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../..
 import { TextFileEditorModel } from '../../../textfile/common/textFileEditorModel.js';
 import { snapshotToString } from '../../../textfile/common/textfiles.js';
 import { TextFileEditorModelManager } from '../../../textfile/common/textFileEditorModelManager.js';
-import { Event } from '../../../../../base/common/event.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { Emitter, Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { UntitledTextEditorInput } from '../../../untitled/common/untitledTextEditorInput.js';
 import { createTextBufferFactory } from '../../../../../editor/common/model/textModel.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
+import { TestDiffProviderFactoryService } from '../../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
+import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
+import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
+import { MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { ILanguageDetectionService } from '../../../languageDetection/common/languageDetectionWorkerService.js';
+import { TextModelResolverService } from '../../common/textModelResolverService.js';
 
 suite('Workbench - TextModelResolverService', () => {
 
@@ -225,6 +236,217 @@ suite('Workbench - TextModelResolverService', () => {
 
 		await p;
 		assert(textModel.isDisposed(), 'the inMemory text model should be disposed after the reference is released');
+	});
+
+	for (const releaseCreatorFirst of [false, true]) {
+		test(`synthetic document survives until both owners release (creator first: ${releaseCreatorFirst})`, async () => {
+			const owner = disposables.add(await accessor.textModelResolverService.createSyntheticDocument('shared', null));
+			const model = owner.object.textEditorModel;
+			let disposalCount = 0;
+			disposables.add(model.onWillDispose(() => disposalCount++));
+			const reference = disposables.add(await accessor.textModelResolverService.createModelReference(model.uri));
+			if (releaseCreatorFirst) {
+				owner.dispose();
+			} else {
+				reference.dispose();
+				await timeout(0);
+			}
+			assert.deepStrictEqual({ value: model.getValue(), disposalCount }, { value: 'shared', disposalCount: 0 });
+
+			const disposed = Event.toPromise(model.onWillDispose);
+			owner.dispose();
+			reference.dispose();
+			await disposed;
+			assert.deepStrictEqual({ disposed: model.isDisposed(), disposalCount }, { disposed: true, disposalCount: 1 });
+		});
+	}
+
+	test('synthetic document is retained while a resolver reference is still opening', async () => {
+		const owner = disposables.add(await accessor.textModelResolverService.createSyntheticDocument('shared', null));
+		const model = owner.object.textEditorModel;
+		const pending = accessor.textModelResolverService.createModelReference(model.uri);
+		owner.dispose();
+		const reference = disposables.add(await pending);
+		assert.strictEqual(reference.object.textEditorModel.getValue(), 'shared');
+		const disposed = Event.toPromise(model.onWillDispose);
+		reference.dispose();
+		await disposed;
+	});
+
+	test('synthetic document can be reacquired during pending resolver disposal', async () => {
+		const owner = disposables.add(await accessor.textModelResolverService.createSyntheticDocument('shared', null));
+		const model = owner.object.textEditorModel;
+		owner.dispose();
+		const pending = accessor.textModelResolverService.createModelReference(model.uri);
+		const second = disposables.add(await pending);
+		assert.strictEqual(second.object.textEditorModel.getValue(), 'shared');
+		const disposed = Event.toPromise(model.onWillDispose);
+		second.dispose();
+		await disposed;
+	});
+
+	test('synthetic creation establishes the reference before onModelAdded', async () => {
+		let pending: Promise<IReference<IResolvedTextEditorModel>> | undefined;
+		disposables.add(accessor.modelService.onModelAdded(model => {
+			pending = accessor.textModelResolverService.createModelReference(model.uri);
+		}));
+		const owner = disposables.add(await accessor.textModelResolverService.createSyntheticDocument('', null));
+		assert.ok(pending);
+		const reference = disposables.add(await pending);
+		assert.strictEqual(reference.object, owner.object);
+		reference.dispose();
+		await timeout(0);
+		assert.strictEqual(owner.object.textEditorModel.isDisposed(), false);
+		const disposed = Event.toPromise(owner.object.textEditorModel.onWillDispose);
+		owner.dispose();
+		await disposed;
+	});
+
+	test('synthetic documents have unique URIs and preserve content and language', async () => {
+		disposables.add(accessor.languageService.registerLanguage({ id: 'json' }));
+		const language = accessor.languageService.createById('json');
+		const first = disposables.add(await accessor.textModelResolverService.createSyntheticDocument(createTextBufferFactory('{}'), language));
+		const second = disposables.add(await accessor.textModelResolverService.createSyntheticDocument('', null));
+		assert.deepStrictEqual({
+			content: first.object.textEditorModel.getValue(),
+			language: first.object.getLanguageId(),
+			unique: first.object.textEditorModel.uri.toString() !== second.object.textEditorModel.uri.toString(),
+			scheme: first.object.textEditorModel.uri.scheme,
+		}, { content: '{}', language: 'json', unique: true, scheme: Schemas.inMemory });
+		const disposed = Promise.all([Event.toPromise(first.object.textEditorModel.onWillDispose), Event.toPromise(second.object.textEditorModel.onWillDispose)]);
+		first.dispose();
+		second.dispose();
+		await disposed;
+	});
+
+	test('failed synthetic wrapper construction releases the text model', async () => {
+		const services = disposables.add(instantiationService.createChild(new ServiceCollection(
+			[ILanguageDetectionService, new SyncDescriptor(class extends mock<ILanguageDetectionService>() {
+				constructor() {
+					super();
+					throw new Error('Wrapper construction failed');
+				}
+			})],
+		)));
+		const resolver = disposables.add(services.createInstance(TextModelResolverService));
+		await assert.rejects(resolver.createSyntheticDocument('', null), /Wrapper construction failed/);
+		assert.deepStrictEqual(accessor.modelService.getModels(), []);
+	});
+
+	for (const added of [false, true]) {
+		test(`multi-diff synthetic side shares its lifetime with document references (added: ${added})`, async () => {
+			const services = disposables.add(instantiationService.createChild(new ServiceCollection(
+				[IDiffProviderFactoryService, new TestDiffProviderFactoryService()],
+			)));
+			const textModel = accessor.modelService.createModel('content', null);
+			const source = new DiffItemSource(textModel.uri, textModel);
+			const document = disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+				original: added ? undefined : source,
+				modified: added ? source : undefined,
+			}, textModel));
+			const parent = disposables.add(services.createInstance(MultiDiffEditorViewModel, { documents: ValueWithChangeEvent.const([document]) }));
+			await parent.waitForDiffOr1s();
+			const item = parent.items.get()[0];
+			const diffReference = disposables.add(item.diffEditorViewModelRef.createNewRef());
+			const empty = added ? item.diffEditorViewModel.model.original : item.diffEditorViewModel.model.modified;
+			const first = disposables.add(await accessor.textModelResolverService.createModelReference(empty.uri));
+			first.dispose();
+			await timeout(0);
+			assert.deepStrictEqual({
+				empty: empty.getValue(),
+				missingUri: added ? item.originalUri : item.modifiedUri,
+				alive: item.isAlive.get(),
+			}, { empty: '', missingUri: undefined, alive: true });
+
+			const second = disposables.add(await accessor.textModelResolverService.createModelReference(empty.uri));
+			parent.dispose();
+			assert.strictEqual(empty.isDisposed(), false);
+			diffReference.dispose();
+			assert.strictEqual(empty.isDisposed(), false);
+			const disposed = Event.toPromise(empty.onWillDispose);
+			second.dispose();
+			await disposed;
+		});
+	}
+
+	for (const disposeParent of [false, true]) {
+		for (const pendingSide of [1, 2]) {
+			test(`multi-diff releases pending synthetic sides (dispose parent: ${disposeParent}, side: ${pendingSide})`, async () => {
+				const created = new DeferredPromise<ITextModel>();
+				const finish = new DeferredPromise<void>();
+				let creationCount = 0;
+				const resolver = new class extends mock<ITextModelService>() {
+					override async createSyntheticDocument(): Promise<IReference<IResolvedTextEditorModel>> {
+						const reference = disposables.add(await accessor.textModelResolverService.createSyntheticDocument('', null));
+						if (++creationCount === pendingSide) {
+							await created.complete(reference.object.textEditorModel);
+							await finish.p;
+						}
+						return reference;
+					}
+				}();
+				const services = disposables.add(instantiationService.createChild(new ServiceCollection(
+					[ITextModelService, resolver],
+					[IDiffProviderFactoryService, new TestDiffProviderFactoryService()],
+				)));
+				let sourceDisposed = false;
+				const document = disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original: undefined, modified: undefined }, toDisposable(() => sourceDisposed = true)));
+				let documents: readonly RefCounted<IDocumentDiffItem>[] = [document];
+				const changed = disposables.add(new Emitter<void>());
+				const parent = disposables.add(services.createInstance(MultiDiffEditorViewModel, {
+					documents: { get value() { return documents; }, onDidChange: changed.event },
+				}));
+				const pending = parent.waitForDiffOr1s();
+				const model = await created.p;
+				if (disposeParent) {
+					parent.dispose();
+				} else {
+					documents = [];
+					changed.fire();
+				}
+				document.dispose();
+				assert.strictEqual(sourceDisposed, false);
+				const disposed = Event.toPromise(model.onWillDispose);
+				await finish.complete();
+				await pending;
+				await disposed;
+				assert.deepStrictEqual({
+					sourceDisposed,
+					creationCount,
+					models: accessor.modelService.getModels(),
+				}, { sourceDisposed: true, creationCount: pendingSide, models: [] });
+			});
+		}
+	}
+
+	test('multi-diff releases a partially resolved item when remaining resolution fails after disposal', async () => {
+		const secondRequested = new DeferredPromise<void>();
+		const fail = new DeferredPromise<void>();
+		let creationCount = 0;
+		const resolver = new class extends mock<ITextModelService>() {
+			override async createSyntheticDocument(): Promise<IReference<IResolvedTextEditorModel>> {
+				if (++creationCount === 2) {
+					await secondRequested.complete();
+					await fail.p;
+					throw new Error('Synthetic resolution failed');
+				}
+				return accessor.textModelResolverService.createSyntheticDocument('', null);
+			}
+		}();
+		const services = disposables.add(instantiationService.createChild(new ServiceCollection([ITextModelService, resolver])));
+		let sourceDisposed = false;
+		const document = disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>(
+			{ original: undefined, modified: undefined },
+			toDisposable(() => sourceDisposed = true),
+		));
+		const parent = disposables.add(services.createInstance(MultiDiffEditorViewModel, { documents: ValueWithChangeEvent.const([document]) }));
+		const rejected = assert.rejects(parent.waitForDiffOr1s(), /Synthetic resolution failed/);
+		await secondRequested.p;
+		parent.dispose();
+		document.dispose();
+		await fail.complete();
+		await rejected;
+		assert.deepStrictEqual({ sourceDisposed, models: accessor.modelService.getModels() }, { sourceDisposed: true, models: [] });
 	});
 
 	test('resolve inMemory throws when model not found', async () => {

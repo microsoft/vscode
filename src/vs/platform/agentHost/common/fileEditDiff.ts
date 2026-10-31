@@ -5,6 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { isEqual } from '../../../base/common/resources.js';
+import { canonicalizeSessionDbUri } from './sessionDbUri.js';
 import type { FileEdit } from './state/protocol/state.js';
 import { FileEditKind } from './state/sessionState.js';
 
@@ -36,6 +37,11 @@ export interface INormalizedFileEdit {
  * Decodes a protocol {@link FileEdit} into parsed URIs and a resolved
  * {@link FileEditKind}. Returns `undefined` when the edit carries no usable
  * file URI (neither `before` nor `after`).
+ *
+ * Content URIs are canonicalized so their path is the edited file's path,
+ * which keeps resource labels readable and stops diff editors from reporting
+ * an edit as a rename because the content snapshot's path differs from the
+ * file's.
  */
 export function normalizeFileEdit(edit: FileEdit): INormalizedFileEdit | undefined {
 	const beforeUri = edit.before ? URI.parse(edit.before.uri) : undefined;
@@ -62,7 +68,7 @@ export function normalizeFileEdit(edit: FileEdit): INormalizedFileEdit | undefin
 		resource,
 		beforeUri,
 		afterUri,
-		beforeContentUri: edit.before?.content.uri ? URI.parse(edit.before.content.uri) : undefined,
-		afterContentUri: edit.after?.content.uri ? URI.parse(edit.after.content.uri) : undefined,
+		beforeContentUri: edit.before?.content.uri && beforeUri ? canonicalizeSessionDbUri(URI.parse(edit.before.content.uri), beforeUri) : undefined,
+		afterContentUri: edit.after?.content.uri && afterUri ? canonicalizeSessionDbUri(URI.parse(edit.after.content.uri), afterUri) : undefined,
 	};
 }

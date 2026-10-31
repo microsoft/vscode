@@ -77,7 +77,8 @@ const defaultRenderLineInputOptions: IRenderLineInputOptions = {
 	selectionsOnLine: null,
 	textDirection: null,
 	verticalScrollbarSize: 14,
-	renderNewLineWhenEmpty: false
+	renderNewLineWhenEmpty: false,
+	useTwoCellFullwidthCharacters: false
 };
 
 function createRenderLineInputOptions(opts: IRelaxedRenderLineInputOptions): IRenderLineInputOptions {
@@ -111,7 +112,8 @@ function createRenderLineInput(opts: IRelaxedRenderLineInputOptions): RenderLine
 		options.selectionsOnLine,
 		options.textDirection,
 		options.verticalScrollbarSize,
-		options.renderNewLineWhenEmpty
+		options.renderNewLineWhenEmpty,
+		options.useTwoCellFullwidthCharacters
 	);
 }
 
@@ -1645,5 +1647,232 @@ suite('renderViewLine2', () => {
 		testGetColumnOfLinePartOffset(1, 8, 6, 9);
 		testGetColumnOfLinePartOffset(1, 8, 7, 10);
 		testGetColumnOfLinePartOffset(1, 8, 8, 11);
+	});
+});
+
+suite('renderViewLine - useTwoCellFullwidthCharacters', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	/**
+	 * The style attribute emitted for a character that is centered in two character cells. The
+	 * declarations it shares with every other such character live in the `mtkfullwidth` class.
+	 */
+	function cell(width: number): string {
+		return ` style="width:${width}px"`;
+	}
+
+	function render(lineContent: string, opts: IRelaxedRenderLineInputOptions = {}): string[] {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent,
+			isBasicASCII: strings.isBasicASCII(lineContent),
+			containsRTL: strings.containsRTL(lineContent),
+			lineTokens: createViewLineTokens([createPart(lineContent.length, 1)]),
+			useTwoCellFullwidthCharacters: true,
+			...opts
+		}));
+		return inflateRenderLineOutput(actual).html;
+	}
+
+	test('a lone full-width character is centered in two cells', () => {
+		assert.deepStrictEqual(render('漢'), [
+			`<span${cell(20)} class="mtk1 mtkfullwidth">漢</span>`
+		]);
+	});
+
+	test('every full-width character of a run gets its own cell', () => {
+		assert.deepStrictEqual(render('漢字'), [
+			`<span${cell(20)} class="mtk1 mtkfullwidth">漢</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">字</span>`
+		]);
+	});
+
+	test('narrow characters around a full-width character stay in shared parts', () => {
+		assert.deepStrictEqual(render('ab漢cd'), [
+			`<span class="mtk1">ab</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">漢</span>`,
+			`<span class="mtk1">cd</span>`
+		]);
+	});
+
+	test('a full-width character at either end of the line is centered', () => {
+		assert.deepStrictEqual(render('漢a漢'), [
+			`<span${cell(20)} class="mtk1 mtkfullwidth">漢</span>`,
+			`<span class="mtk1">a</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">漢</span>`
+		]);
+	});
+
+	test('full-width forms of ASCII characters are centered', () => {
+		assert.deepStrictEqual(render('Ａ１！'), [
+			`<span${cell(20)} class="mtk1 mtkfullwidth">Ａ</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">１</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">！</span>`
+		]);
+	});
+
+	test('CJK punctuation is centered', () => {
+		assert.deepStrictEqual(render('あ、い。'), [
+			`<span${cell(20)} class="mtk1 mtkfullwidth">あ</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">、</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">い</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">。</span>`
+		]);
+	});
+
+	test('Hangul Jamo outside the shared full-width classification is left alone', () => {
+		const hangulJamo = '\u1100';
+		assert.deepStrictEqual(render(hangulJamo), [
+			`<span class="mtk1">${hangulJamo}</span>`
+		]);
+	});
+
+	test('half-width katakana is left alone', () => {
+		assert.deepStrictEqual(render('ｱｲｳ'), [
+			`<span class="mtk1">ｱｲｳ</span>`
+		]);
+	});
+
+	test('non-ASCII narrow characters are left alone', () => {
+		assert.deepStrictEqual(render('Ünïcödé'), [
+			`<span class="mtk1">Ünïcödé</span>`
+		]);
+	});
+
+	test('characters included by the shared full-width classification are centered', () => {
+		const vaiSyllable = '\uA500';
+		assert.deepStrictEqual(render(vaiSyllable), [
+			`<span${cell(20)} class="mtk1 mtkfullwidth">${vaiSyllable}</span>`
+		]);
+	});
+
+	test('the cell width follows the space width', () => {
+		assert.deepStrictEqual(render('漢', { spaceWidth: 7.5 }), [
+			`<span${cell(15)} class="mtk1 mtkfullwidth">漢</span>`
+		]);
+	});
+
+	test('nothing changes when the setting is off', () => {
+		assert.deepStrictEqual(render('ab漢cd', { useTwoCellFullwidthCharacters: false }), [
+			`<span class="mtk1">ab漢cd</span>`
+		]);
+	});
+
+	test('basic ASCII lines are untouched', () => {
+		assert.deepStrictEqual(render('abcd'), [
+			`<span class="mtk1">abcd</span>`
+		]);
+	});
+
+	test('RTL parts preserve bidi isolation without centering', () => {
+		assert.deepStrictEqual(render('漢عربى'), [
+			`<span style="unicode-bidi:isolate" class="mtk1">漢</span>`,
+			`<span style="unicode-bidi:isolate" class="mtk1">عربى</span>`
+		]);
+	});
+
+	test('a full-width character carrying a combining mark is centered by code point', () => {
+		assert.deepStrictEqual(render('あ́い'), [
+			`<span${cell(20)} class="mtk1 mtkfullwidth">あ</span>`,
+			`<span class="mtk1">́</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">い</span>`
+		]);
+	});
+
+	test('a full-width character followed by a variation selector is centered by code point', () => {
+		assert.deepStrictEqual(render('神︀社'), [
+			`<span${cell(20)} class="mtk1 mtkfullwidth">神</span>`,
+			`<span class="mtk1">︀</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">社</span>`
+		]);
+	});
+
+	test('characters outside the shared full-width classification are not centered', () => {
+		const ideograph = '\u{2000B}';
+		assert.deepStrictEqual(render(`${ideograph}漢`), [
+			`<span class="mtk1">${ideograph}</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">漢</span>`
+		]);
+	});
+
+	test('supplementary characters with variation selectors are left intact', () => {
+		const ideographWithVariationSelector = '\u{2000B}\uFE00';
+		assert.deepStrictEqual(render(ideographWithVariationSelector), [
+			`<span class="mtk1">${ideographWithVariationSelector}</span>`
+		]);
+	});
+
+	test('emoji modifier and ZWJ sequences are left intact', () => {
+		const emojiWithModifier = '\u{1F469}\u{1F3FD}';
+		const emojiWithZwj = '\u{1F469}\u200D\u{1F4BB}';
+		assert.deepStrictEqual({
+			modifier: render(emojiWithModifier),
+			zwj: render(emojiWithZwj),
+		}, {
+			modifier: [`<span class="mtk1">${emojiWithModifier}</span>`],
+			zwj: [`<span class="mtk1">${emojiWithZwj}</span>`],
+		});
+	});
+
+	test('token boundaries are preserved', () => {
+		assert.deepStrictEqual(render('ab漢cd', {
+			lineTokens: createViewLineTokens([createPart(3, 1), createPart(5, 2)])
+		}), [
+			`<span class="mtk1">ab</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">漢</span>`,
+			`<span class="mtk2">cd</span>`
+		]);
+	});
+
+	test('a token boundary in the middle of a run of full-width characters is preserved', () => {
+		assert.deepStrictEqual(render('漢字', {
+			lineTokens: createViewLineTokens([createPart(1, 1), createPart(2, 2)])
+		}), [
+			`<span${cell(20)} class="mtk1 mtkfullwidth">漢</span>`,
+			`<span${cell(20)} class="mtk2 mtkfullwidth">字</span>`
+		]);
+	});
+
+	test('inline decorations are preserved', () => {
+		assert.deepStrictEqual(render('a漢b', {
+			lineDecorations: [new LineDecoration(1, 4, 'link', InlineDecorationType.Regular)]
+		}), [
+			`<span class="mtk1 link">a</span>`,
+			`<span${cell(20)} class="mtk1 link mtkfullwidth">漢</span>`,
+			`<span class="mtk1 link">b</span>`
+		]);
+	});
+
+	test('rendered whitespace next to a full-width character is preserved', () => {
+		assert.deepStrictEqual(render('  漢', { useMonospaceOptimizations: true, renderWhitespace: 'all' }), [
+			`<span class="mtkw">·‌·‌</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">漢</span>`
+		]);
+	});
+
+	test('stopRenderingLineAfter truncates before centering', () => {
+		assert.deepStrictEqual(render('漢字漢字', { stopRenderingLineAfter: 2 }), [
+			`<span${cell(20)} class="mtk1 mtkfullwidth">漢</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">字</span>`,
+			`<span class="mtkoverflow">Show more (2 chars)</span>`
+		]);
+	});
+
+	// The character mapping already treats a full-width character as two columns wide; centering
+	// the glyph is what makes the rendered line agree with it.
+	test('the character mapping is unaffected by the extra parts', () => {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: 'a漢b',
+			isBasicASCII: false,
+			lineTokens: createViewLineTokens([createPart(3, 1)]),
+			useTwoCellFullwidthCharacters: true
+		}));
+
+		assertCharacterMapping3(actual.characterMapping, [
+			[0, [0, 0]],
+			[1, [1, 0]],
+			[3, [2, 0]],
+			[4, [2, 1]]
+		]);
 	});
 });

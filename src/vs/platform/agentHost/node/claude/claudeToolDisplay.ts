@@ -8,6 +8,8 @@ import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel } from '../../
 import { basename } from '../../../../base/common/resources.js';
 import { truncate } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
+import { AgentPermissionKind } from '../../common/agent.js';
+import { getStreamingCreateMessage, getStreamingEditMessage, getStreamingReplaceMessage, streamingToolTextLineCount } from '../../common/streamingToolCallDisplay.js';
 import { toToolCallMeta, type IToolCallMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import type { StringOrMarkdown } from '../../common/state/protocol/state.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
@@ -20,26 +22,10 @@ import { getServerToolDisplay } from '../shared/serverToolGroups.js';
  * here (and is snapshot-tested in
  * [claudeToolDisplay.test.ts](../../test/node/claudeToolDisplay.test.ts))
  * so renames of either the SDK tool names or the host's `permissionKind`
- * union flow through compile-checks and the snapshot diff.
+ * enum flow through compile-checks and the snapshot diff.
  *
  * No I/O, no DI; safe to import from any layer of `agentHost`.
  */
-
-/**
- * Auto-approval kind reported alongside `pending_confirmation` signals
- * (see `IAgentToolPendingConfirmationSignal.permissionKind` in
- * [agentService.ts:317](../../common/agentService.ts#L317)).
- *
- * Phase 7 only emits the subset relevant to Claude's built-in tools —
- * `hook` and `memory` are reserved for later phases.
- */
-export type ClaudePermissionKind =
-	| 'shell'
-	| 'write'
-	| 'mcp'
-	| 'read'
-	| 'url'
-	| 'custom-tool';
 
 /**
  * Phase 8.5 — rendering hint for the workbench. Drives terminal /
@@ -71,7 +57,7 @@ type ClaudeToolPathField = 'file_path' | 'notebook_path' | 'path' | 'url';
  * {@link getClaudeToolDisplayName}.
  */
 interface ClaudeToolRow {
-	readonly permissionKind: ClaudePermissionKind;
+	readonly permissionKind: AgentPermissionKind;
 	/** Field on `tool_input` carrying the path/url for this tool, if any. */
 	readonly pathField?: ClaudeToolPathField;
 	/** True for tools whose execution writes to disk and is tracked by `FileEditTracker` (Phase 8). */
@@ -83,45 +69,51 @@ interface ClaudeToolRow {
 	 */
 	readonly interactive?: true;
 	/**
-	 * Phase 8.5 — rendering hint for the workbench (drives the
-	 * terminal / search / subagent renderers). Omit for tools that
-	 * render in the generic tool renderer (read, write, MCP, …).
+	 * Phase 8.5 — rendering hint for the workbench. Omit for tools that
+	 * use the generic renderer without specialized streaming behavior.
 	 */
 	readonly toolKind?: ClaudeToolKind;
 }
 
 const TOOL_ROWS: { readonly [toolName: string]: ClaudeToolRow } = {
-	// shell tools — no `language` is carried: the workbench picks
-	// `'shellscript'` from the tool name (it only special-cases
-	// `'powershell'`), and the SDK's `Bash` tool is the generic shell
-	// entry point (bash on POSIX, Git Bash on Windows), so claiming a
-	// specific dialect here would be misleading and unused.
-	Bash: { permissionKind: 'shell', toolKind: 'terminal' },
-	BashOutput: { permissionKind: 'shell', toolKind: 'terminal' },
-	KillBash: { permissionKind: 'shell', toolKind: 'terminal' },
+	// Shell tools — no `language` is carried. The SDK calls its generic
+	// command tool `Bash`, but the command may invoke bash, pwsh, or any
+	// other executable, so claiming a specific dialect would be misleading.
+	Bash: { permissionKind: AgentPermissionKind.Shell, toolKind: 'terminal' },
+	BashOutput: { permissionKind: AgentPermissionKind.Shell, toolKind: 'terminal' },
+	KillBash: { permissionKind: AgentPermissionKind.Shell, toolKind: 'terminal' },
 
 	// read tools
-	Read: { permissionKind: 'read', pathField: 'file_path' },
-	Glob: { permissionKind: 'read', pathField: 'path', toolKind: 'search' },
-	Grep: { permissionKind: 'read', pathField: 'path', toolKind: 'search' },
-	LS: { permissionKind: 'read', pathField: 'path' },
-	NotebookRead: { permissionKind: 'read', pathField: 'notebook_path' },
+	Read: { permissionKind: AgentPermissionKind.Read, pathField: 'file_path', toolKind: 'read' },
+	Glob: { permissionKind: AgentPermissionKind.Read, pathField: 'path', toolKind: 'search' },
+	Grep: { permissionKind: AgentPermissionKind.Read, pathField: 'path', toolKind: 'search' },
+	LS: { permissionKind: AgentPermissionKind.Read, pathField: 'path' },
+	NotebookRead: { permissionKind: AgentPermissionKind.Read, pathField: 'notebook_path', toolKind: 'read' },
 
 	// write tools
-	Write: { permissionKind: 'write', pathField: 'file_path', isFileEdit: true },
-	Edit: { permissionKind: 'write', pathField: 'file_path', isFileEdit: true },
-	MultiEdit: { permissionKind: 'write', pathField: 'file_path', isFileEdit: true },
-	NotebookEdit: { permissionKind: 'write', pathField: 'notebook_path', isFileEdit: true },
-	TodoWrite: { permissionKind: 'write' },
+	Write: { permissionKind: AgentPermissionKind.Write, pathField: 'file_path', isFileEdit: true },
+	Edit: { permissionKind: AgentPermissionKind.Write, pathField: 'file_path', isFileEdit: true },
+	MultiEdit: { permissionKind: AgentPermissionKind.Write, pathField: 'file_path', isFileEdit: true },
+	NotebookEdit: { permissionKind: AgentPermissionKind.Write, pathField: 'notebook_path', isFileEdit: true },
+	TodoWrite: { permissionKind: AgentPermissionKind.Write },
 
 	// network tools
-	WebFetch: { permissionKind: 'url', pathField: 'url' },
+	WebFetch: { permissionKind: AgentPermissionKind.Url, pathField: 'url' },
 
 	// host-routed / custom
-	Task: { permissionKind: 'custom-tool', toolKind: 'subagent' },
-	Agent: { permissionKind: 'custom-tool', toolKind: 'subagent' },
-	ExitPlanMode: { permissionKind: 'custom-tool', interactive: true },
-	AskUserQuestion: { permissionKind: 'custom-tool', interactive: true },
+	Task: { permissionKind: AgentPermissionKind.CustomTool, toolKind: 'subagent' },
+	Agent: { permissionKind: AgentPermissionKind.CustomTool, toolKind: 'subagent' },
+	ExitPlanMode: { permissionKind: AgentPermissionKind.CustomTool, interactive: true },
+	AskUserQuestion: { permissionKind: AgentPermissionKind.CustomTool, interactive: true },
+
+	// skill + task-list family — host-routed custom tools that render in the
+	// generic tool renderer (no `toolKind`) but carry rich invocation /
+	// past-tense messages so their collapsed row is self-explanatory.
+	Skill: { permissionKind: AgentPermissionKind.Skill },
+	TaskCreate: { permissionKind: AgentPermissionKind.CustomTool },
+	TaskUpdate: { permissionKind: AgentPermissionKind.CustomTool },
+	TaskList: { permissionKind: AgentPermissionKind.CustomTool },
+	TaskGet: { permissionKind: AgentPermissionKind.CustomTool },
 };
 
 const MCP_TOOL_PREFIX = 'mcp__';
@@ -130,15 +122,15 @@ const MCP_TOOL_PREFIX = 'mcp__';
  * S4 row lookup. Falls back to `'custom-tool'` for unknown tools so
  * Claude's growing built-in list never breaks the host.
  */
-export function getClaudePermissionKind(toolName: string): ClaudePermissionKind {
+export function getClaudePermissionKind(toolName: string): AgentPermissionKind {
 	const row = TOOL_ROWS[toolName];
 	if (row) {
 		return row.permissionKind;
 	}
 	if (toolName.startsWith(MCP_TOOL_PREFIX)) {
-		return 'mcp';
+		return AgentPermissionKind.Mcp;
 	}
-	return 'custom-tool';
+	return AgentPermissionKind.CustomTool;
 }
 
 /**
@@ -171,6 +163,11 @@ export function getClaudeToolDisplayName(toolName: string): string {
 		case 'Agent': return localize('claude.tool.task', "Run subagent task");
 		case 'ExitPlanMode': return localize('claude.tool.exitPlanMode', "Ready to code?");
 		case 'AskUserQuestion': return localize('claude.tool.askUserQuestion', "Ask user a question");
+		case 'Skill': return localize('claude.tool.skill', "Run skill");
+		case 'TaskCreate': return localize('claude.tool.taskCreate', "Create task");
+		case 'TaskUpdate': return localize('claude.tool.taskUpdate', "Update task");
+		case 'TaskList': return localize('claude.tool.taskList', "List tasks");
+		case 'TaskGet': return localize('claude.tool.taskGet', "Read task");
 	}
 	if (toolName.startsWith(MCP_TOOL_PREFIX)) {
 		return localize('claude.tool.mcp', "Run MCP tool {0}", toolName.slice(MCP_TOOL_PREFIX.length));
@@ -238,15 +235,17 @@ export const INTERACTIVE_CLAUDE_TOOLS: ReadonlySet<string> = new Set(
  */
 export function getClaudeConfirmationTitle(toolName: string): string {
 	switch (getClaudePermissionKind(toolName)) {
-		case 'shell':
+		case AgentPermissionKind.Shell:
 			return localize('claude.permission.shell.title', "Run in terminal?");
-		case 'write':
+		case AgentPermissionKind.Write:
 			return localize('claude.permission.write.title', "Edit file?");
-		case 'read':
+		case AgentPermissionKind.Read:
 			return localize('claude.permission.read.title', "Read file?");
-		case 'url':
+		case AgentPermissionKind.Url:
 			return localize('claude.permission.url.title', "Fetch URL?");
-		case 'mcp': {
+		case AgentPermissionKind.Skill:
+			return localize('claude.permission.skill.title', "Run skill?");
+		case AgentPermissionKind.Mcp: {
 			const serverName = toolName.startsWith(MCP_TOOL_PREFIX)
 				? toolName.slice(MCP_TOOL_PREFIX.length).split('__')[0]
 				: undefined;
@@ -254,7 +253,7 @@ export function getClaudeConfirmationTitle(toolName: string): string {
 				? localize('claude.permission.mcp.title', "Allow tool from {0}?", serverName)
 				: localize('claude.permission.default.title', "Allow tool call?");
 		}
-		case 'custom-tool':
+		case AgentPermissionKind.CustomTool:
 		default:
 			return localize('claude.permission.default.title', "Allow tool call?");
 	}
@@ -266,8 +265,8 @@ export function getClaudeConfirmationTitle(toolName: string): string {
  * Phase 8.5 — workbench rendering hint. One-liner over `TOOL_ROWS`.
  * Returns `'terminal'` for shell tools (drives the terminal renderer),
  * `'search'` for `Grep` / `Glob` (drives the search renderer),
- * `'subagent'` for `Task` / `Agent` (drives the subagent renderer),
- * `undefined` for everything else (generic tool renderer).
+ * `'subagent'` for `Task` / `Agent` (drives the subagent renderer), and
+ * `'read'` for file reads (defers incomplete resource arguments).
  */
 export function getClaudeToolKind(toolName: string): ClaudeToolKind | undefined {
 	return TOOL_ROWS[toolName]?.toolKind;
@@ -276,8 +275,7 @@ export function getClaudeToolKind(toolName: string): ClaudeToolKind | undefined 
 /**
  * Phase 8.5 — build the `_meta` bag stamped at the tool-open seam.
  * Returns `undefined` for tools that have no `toolKind` hint so the
- * resulting envelope stays minimal (a `Read` row gets no `_meta` at
- * all). Mirrors Copilot's
+ * resulting envelope stays minimal. Mirrors Copilot's
  * [`mapSessionEvents.ts:197`](../copilot/mapSessionEvents.ts#L197)
  * single-write pattern.
  */
@@ -331,6 +329,15 @@ function firstShellLine(input: unknown): string | undefined {
 }
 
 /**
+ * Narrows a `TaskUpdate` call's `status` to the values that change the rendered
+ * verb; any other or absent value yields `undefined` (generic "Updating" verb).
+ */
+function readTaskUpdateStatus(input: unknown): 'in_progress' | 'completed' | 'deleted' | undefined {
+	const status = readStringField(input, 'status');
+	return status === 'in_progress' || status === 'completed' || status === 'deleted' ? status : undefined;
+}
+
+/**
  * Phase 8.5 — rich invocation message for a `pending_confirmation`
  * card or a streaming `ChatToolCallStart` action. Reads the
  * SDK's `tool_use.input` defensively and falls back to the static
@@ -357,21 +364,21 @@ export function getClaudeInvocationMessage(
 		case 'BashOutput':
 			return localize('claude.toolInvoke.bashOutput', "Reading shell output");
 		case 'KillBash':
-			return localize('claude.toolInvoke.killBash', "Killing shell command");
+			return localize('claude.toolInvoke.killBash', "Kill shell command");
 		case 'Read':
 		case 'NotebookRead': {
 			const path = getClaudeToolPath(toolName, input);
 			if (path) {
-				return md(localize('claude.toolInvoke.readFile', "Reading {0}", formatPathAsMarkdownLink(path)));
+				return md(localize('claude.toolInvoke.readFile', "Read {0}", formatPathAsMarkdownLink(path)));
 			}
-			return localize('claude.toolInvoke.read', "Reading file");
+			return localize('claude.toolInvoke.read', "Read file");
 		}
 		case 'LS': {
 			const path = getClaudeToolPath(toolName, input);
 			if (path) {
-				return md(localize('claude.toolInvoke.lsPath', "Listing {0}", formatPathAsMarkdownLink(path)));
+				return md(localize('claude.toolInvoke.lsPath', "List {0}", formatPathAsMarkdownLink(path)));
 			}
-			return localize('claude.toolInvoke.ls', "Listing directory");
+			return localize('claude.toolInvoke.ls', "List directory");
 		}
 		case 'Write':
 		case 'Edit':
@@ -379,25 +386,25 @@ export function getClaudeInvocationMessage(
 		case 'NotebookEdit': {
 			const path = getClaudeToolPath(toolName, input);
 			if (path) {
-				return md(localize('claude.toolInvoke.editFile', "Editing {0}", formatPathAsMarkdownLink(path)));
+				return md(localize('claude.toolInvoke.editFile', "Edit {0}", formatPathAsMarkdownLink(path)));
 			}
-			return localize('claude.toolInvoke.edit', "Editing file");
+			return localize('claude.toolInvoke.edit', "Edit file");
 		}
 		case 'TodoWrite':
-			return localize('claude.toolInvoke.todoWrite', "Updating todo list");
+			return localize('claude.toolInvoke.todoWrite', "Update todo list");
 		case 'Grep': {
 			const pattern = readStringField(input, 'pattern');
 			if (pattern) {
-				return md(localize('claude.toolInvoke.grepPattern', "Searching for {0}", appendEscapedMarkdownInlineCode(truncate(pattern, 80))));
+				return md(localize('claude.toolInvoke.grepPattern', "Search for {0}", appendEscapedMarkdownInlineCode(truncate(pattern, 80))));
 			}
-			return localize('claude.toolInvoke.grep', "Searching files");
+			return localize('claude.toolInvoke.grep', "Search files");
 		}
 		case 'Glob': {
 			const pattern = readStringField(input, 'pattern');
 			if (pattern) {
-				return md(localize('claude.toolInvoke.globPattern', "Finding files matching {0}", appendEscapedMarkdownInlineCode(truncate(pattern, 80))));
+				return md(localize('claude.toolInvoke.globPattern', "Find files matching {0}", appendEscapedMarkdownInlineCode(truncate(pattern, 80))));
 			}
-			return localize('claude.toolInvoke.glob', "Finding files");
+			return localize('claude.toolInvoke.glob', "Find files");
 		}
 		case 'WebFetch': {
 			const url = readStringField(input, 'url');
@@ -414,8 +421,69 @@ export function getClaudeInvocationMessage(
 			}
 			return displayName;
 		}
+		case 'Skill': {
+			const skill = readStringField(input, 'skill');
+			if (skill) {
+				return md(localize('claude.toolInvoke.skillNamed', "Running skill {0}", appendEscapedMarkdownInlineCode(truncate(skill, 80))));
+			}
+			return localize('claude.toolInvoke.skill', "Running skill");
+		}
+		case 'TaskCreate': {
+			const subject = readStringField(input, 'subject');
+			if (subject) {
+				return localize('claude.toolInvoke.taskCreateNamed', "Create task: {0}", truncate(subject, 80));
+			}
+			return localize('claude.toolInvoke.taskCreate', "Create task");
+		}
+		case 'TaskUpdate':
+			switch (readTaskUpdateStatus(input)) {
+				case 'in_progress': return localize('claude.toolInvoke.taskStart', "Start task");
+				case 'completed': return localize('claude.toolInvoke.taskComplete', "Complete task");
+				case 'deleted': return localize('claude.toolInvoke.taskDelete', "Delete task");
+				default: return localize('claude.toolInvoke.taskUpdate', "Update task");
+			}
+		case 'TaskList':
+			return localize('claude.toolInvoke.taskList', "Read task list");
+		case 'TaskGet':
+			return localize('claude.toolInvoke.taskGet', "Read task");
 		default:
 			return displayName;
+	}
+}
+
+export function getClaudeStreamingInvocationMessage(toolName: string, input: Record<string, unknown> | undefined): StringOrMarkdown | undefined {
+	switch (toolName) {
+		case 'Write':
+			return getStreamingCreateMessage(input?.['file_path'], streamingToolTextLineCount(input?.['content']));
+		case 'Edit':
+			return getStreamingReplaceMessage(
+				input?.['file_path'],
+				streamingToolTextLineCount(input?.['old_string']),
+				streamingToolTextLineCount(input?.['new_string']),
+			);
+		case 'MultiEdit': {
+			const edits = Array.isArray(input?.['edits']) ? input['edits'] : [];
+			let oldLineCount: number | undefined;
+			let newLineCount: number | undefined;
+			for (const edit of edits) {
+				if (!edit || typeof edit !== 'object' || Array.isArray(edit)) {
+					continue;
+				}
+				const oldLines = streamingToolTextLineCount((edit as Record<string, unknown>)['old_string']);
+				const newLines = streamingToolTextLineCount((edit as Record<string, unknown>)['new_string']);
+				if (oldLines !== undefined) {
+					oldLineCount = (oldLineCount ?? 0) + oldLines;
+				}
+				if (newLines !== undefined) {
+					newLineCount = (newLineCount ?? 0) + newLines;
+				}
+			}
+			return getStreamingReplaceMessage(input?.['file_path'], oldLineCount, newLineCount);
+		}
+		case 'NotebookEdit':
+			return getStreamingEditMessage(input?.['notebook_path'], streamingToolTextLineCount(input?.['new_source']));
+		default:
+			return undefined;
 	}
 }
 
@@ -450,49 +518,6 @@ export function getClaudePastTenseMessage(
 		}
 		case 'BashOutput':
 			return localize('claude.toolComplete.bashOutput', "Read shell output");
-		case 'KillBash':
-			return localize('claude.toolComplete.killBash', "Killed shell command");
-		case 'Read':
-		case 'NotebookRead': {
-			const path = getClaudeToolPath(toolName, input);
-			if (path) {
-				return md(localize('claude.toolComplete.readFile', "Read {0}", formatPathAsMarkdownLink(path)));
-			}
-			return localize('claude.toolComplete.read', "Read file");
-		}
-		case 'LS': {
-			const path = getClaudeToolPath(toolName, input);
-			if (path) {
-				return md(localize('claude.toolComplete.lsPath', "Listed {0}", formatPathAsMarkdownLink(path)));
-			}
-			return localize('claude.toolComplete.ls', "Listed directory");
-		}
-		case 'Write':
-		case 'Edit':
-		case 'MultiEdit':
-		case 'NotebookEdit': {
-			const path = getClaudeToolPath(toolName, input);
-			if (path) {
-				return md(localize('claude.toolComplete.editFile', "Edited {0}", formatPathAsMarkdownLink(path)));
-			}
-			return localize('claude.toolComplete.edit', "Edited file");
-		}
-		case 'TodoWrite':
-			return localize('claude.toolComplete.todoWrite', "Updated todo list");
-		case 'Grep': {
-			const pattern = readStringField(input, 'pattern');
-			if (pattern) {
-				return md(localize('claude.toolComplete.grepPattern', "Searched for {0}", appendEscapedMarkdownInlineCode(truncate(pattern, 80))));
-			}
-			return localize('claude.toolComplete.grep', "Searched files");
-		}
-		case 'Glob': {
-			const pattern = readStringField(input, 'pattern');
-			if (pattern) {
-				return md(localize('claude.toolComplete.globPattern', "Found files matching {0}", appendEscapedMarkdownInlineCode(truncate(pattern, 80))));
-			}
-			return localize('claude.toolComplete.glob', "Found files");
-		}
 		case 'WebFetch': {
 			const url = readStringField(input, 'url');
 			if (url) {
@@ -503,8 +528,15 @@ export function getClaudePastTenseMessage(
 		case 'Task':
 		case 'Agent':
 			return localize('claude.toolComplete.task', "Ran subagent");
+		case 'Skill': {
+			const skill = readStringField(input, 'skill');
+			if (skill) {
+				return md(localize('claude.toolComplete.skillNamed', "Ran skill {0}", appendEscapedMarkdownInlineCode(truncate(skill, 80))));
+			}
+			return localize('claude.toolComplete.skill', "Ran skill");
+		}
 		default:
-			return localize('claude.toolComplete.generic', "Used \"{0}\"", displayName);
+			return getClaudeInvocationMessage(toolName, displayName, input);
 	}
 }
 

@@ -226,7 +226,12 @@
 	line-height: 22px;
 	padding: 0;
 	height: 100%;
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.search-view > .results > .monaco-list:focus-visible .monaco-list-row.focused {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-list-focusOutline);
+	outline-offset: calc(var(--vscode-strokeThickness) * -1);
 }
 
 .search-view .textsearchresult .actionBarContainer {

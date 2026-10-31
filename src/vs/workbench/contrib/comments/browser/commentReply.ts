@@ -86,14 +86,10 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this.updateAuthorInfo();
 		const hasExistingComments = this._commentThread.comments && this._commentThread.comments.length > 0;
 		const modeId = generateUuid() + '-' + (hasExistingComments ? this._commentThread.threadId : ++INMEM_MODEL_ID);
-		const params = JSON.stringify({
-			extensionId: this._commentThread.extensionId,
-			commentThreadId: this._commentThread.threadId
-		});
 
 		let resource = URI.from({
 			scheme: Schemas.commentsInput,
-			path: `/${this._commentThread.extensionId}/commentinput-${modeId}.md?${params}` // TODO. Remove params once extensions adopt authority.
+			path: `/${this._commentThread.extensionId}/commentinput-${modeId}.md`
 		});
 		const commentController = this.commentService.getCommentController(this.owner);
 		if (commentController) {
@@ -119,7 +115,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 			}
 		}));
 
-		this.createTextModelListener(this.commentEditor, this._form);
+		this.createTextModelListener(this.commentEditor);
 
 		this.setCommentEditorDecorations();
 
@@ -241,7 +237,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this.commentEditor.updateOptions({ placeholder });
 	}
 
-	private createTextModelListener(commentEditor: ICodeEditor, commentForm: HTMLElement) {
+	private createTextModelListener(commentEditor: ICodeEditor) {
 		this._commentThreadDisposables.push(commentEditor.onDidFocusEditorWidget(() => {
 			this._commentThread.input = {
 				uri: commentEditor.getModel()!.uri,
@@ -276,7 +272,9 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 
 				if (input.value === '') {
 					this._pendingComment = { body: '', cursor: new Position(1, 1) };
-					commentForm.classList.remove('expand');
+					if (this.isReply) {
+						this._container.classList.remove('expand');
+					}
 					commentEditor.getDomNode()!.style.outline = '';
 					this._error.textContent = '';
 					this._error.classList.add('hidden');
@@ -335,6 +333,13 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this._commentEditorActions.setActions(editorMenu, true);
 	}
 
+	/**
+	 * Whether the editor is for a reply, i.e. the thread already has comments.
+	 */
+	private get isReply(): boolean {
+		return !!this._commentThread.comments?.length;
+	}
+
 	private get isReplyExpanded(): boolean {
 		return this._container.classList.contains('expand');
 	}
@@ -378,8 +383,8 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this._register(dom.addDisposableListener(this._reviewThreadReplyButton, 'focus', _ => this.clearAndExpandReplyArea()));
 
 		this._register(commentEditor.onDidBlurEditorWidget(() => {
-			if (commentEditor.getModel()!.getValueLength() === 0 && commentForm.classList.contains('expand')) {
-				commentForm.classList.remove('expand');
+			if (this.isReply && commentEditor.getModel()!.getValueLength() === 0 && this.isReplyExpanded) {
+				this._container.classList.remove('expand');
 			}
 		}));
 	}

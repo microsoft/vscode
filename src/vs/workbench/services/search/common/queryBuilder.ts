@@ -23,7 +23,6 @@ import { IWorkspaceContextService, IWorkspaceFolderData, toWorkspaceFolder, Work
 import { IEditorGroupsService } from '../../editor/common/editorGroupsService.js';
 import { IPathService } from '../../path/common/pathService.js';
 import { ExcludeGlobPattern, getExcludes, IAITextQuery, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from './search.js';
-import { GlobPattern } from './searchExtTypes.js';
 
 /**
  * One folder to search and a glob expression that should be applied.
@@ -50,20 +49,6 @@ export interface ISearchPatternBuilder<U extends UriComponents> {
 
 export function isISearchPatternBuilder<U extends UriComponents>(object: ISearchPatternBuilder<U> | ISearchPathPatternBuilder): object is ISearchPatternBuilder<U> {
 	return (typeof object === 'object' && 'uri' in object && 'pattern' in object);
-}
-
-export function globPatternToISearchPatternBuilder(globPattern: GlobPattern): ISearchPatternBuilder<URI> {
-
-	if (typeof globPattern === 'string') {
-		return {
-			pattern: globPattern
-		};
-	}
-
-	return {
-		pattern: globPattern.pattern,
-		uri: globPattern.baseUri
-	};
 }
 
 /**
@@ -141,12 +126,6 @@ export class QueryBuilder {
 
 	text(contentPattern: IPatternInfo, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): ITextQuery {
 		contentPattern = this.getContentPattern(contentPattern, options);
-		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
-
-		const fallbackToPCRE = folderResources && folderResources.some(folder => {
-			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
-			return !folderConfig.search?.useRipgrep;
-		});
 
 		const commonQuery = this.commonQuery(folderResources?.map(toWorkspaceFolder), options);
 		return {
@@ -155,7 +134,6 @@ export class QueryBuilder {
 			contentPattern,
 			previewOptions: options.previewOptions,
 			maxFileSize: options.maxFileSize,
-			usePCRE2: searchConfig.search?.usePCRE2 || fallbackToPCRE || false,
 			surroundingContext: options.surroundingContext,
 			userDisabledExcludesAndIgnoreFiles: options.disregardExcludeSettings && options.disregardIgnoreFiles,
 
@@ -254,7 +232,7 @@ export class QueryBuilder {
 		let excludePatterns: string | string[] | undefined = Array.isArray(options.excludePattern) ? options.excludePattern.map(p => p.pattern).flat() : options.excludePattern;
 		excludePatterns = excludePatterns?.length === 1 ? excludePatterns[0] : excludePatterns;
 		const includeSearchPathsInfo: ISearchPathsInfo = this.handleIncludeExclude(options.includePattern, options.expandPatterns);
-		const excludeSearchPathsInfo: ISearchPathsInfo = this.handleIncludeExclude(excludePatterns, options.expandPatterns);
+		const excludeSearchPathsInfo: ISearchPathsInfo = escapeExcludeExceptions(this.handleIncludeExclude(excludePatterns, options.expandPatterns));
 
 		// Build folderQueries from searchPaths, if given, otherwise folderResources
 		const includeFolderName = folderResources.length > 1;
@@ -661,6 +639,31 @@ function patternListToIExpression(...patterns: string[]): glob.IExpression | und
 	return patterns.length ?
 		patterns.reduce((glob, cur) => { glob[cur] = true; return glob; }, Object.create(null)) :
 		undefined;
+}
+
+/**
+ * Exclude patterns from the search input or the extension API are not settings, so a
+ * leading `!` matches literally instead of being an exclude exception.
+ */
+function escapeExcludeExceptions(info: ISearchPathsInfo): ISearchPathsInfo {
+	return {
+		...info,
+		pattern: escapeExcludeExceptionKeys(info.pattern),
+		searchPaths: info.searchPaths?.map(searchPath => ({ ...searchPath, pattern: escapeExcludeExceptionKeys(searchPath.pattern) })),
+	};
+}
+
+function escapeExcludeExceptionKeys(expression: glob.IExpression | undefined): glob.IExpression | undefined {
+	if (!expression || !Object.keys(expression).some(glob.isExcludeException)) {
+		return expression;
+	}
+
+	const escaped: glob.IExpression = Object.create(null);
+	for (const key of Object.keys(expression)) {
+		escaped[glob.escapeExcludeException(key)] = expression[key];
+	}
+
+	return escaped;
 }
 
 function splitGlobPattern(pattern: string): string[] {

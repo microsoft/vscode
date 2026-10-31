@@ -1,0 +1,200 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Event } from '../../../../base/common/event.js';
+import { IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { withGitHubCredentialDeadline } from '../../../../platform/github/common/githubCredentialService.js';
+import { deriveGitHubEndpoints } from '../../../../platform/github/common/githubEndpoints.js';
+import { createGitHubClientMetadata } from '../../../../platform/github/common/githubRequestMetadata.js';
+import { GitHubService, IGitHubClient, IGitHubRequestProviderScope } from '../../../../platform/github/common/githubService.js';
+import { IGitHubAccountClient } from '../../../../platform/github/common/account/account.js';
+import { AccountClient } from '../../../../platform/github/common/account/accountClient.js';
+import { IGitHubAnonymousClient } from '../../../../platform/github/common/anonymous/anonymous.js';
+import { GitHubAuthorizationContext, GitHubClientOptions, GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ITelemetryService, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../../../platform/telemetry/common/telemetry.js';
+import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { IAuthenticationService } from '../../authentication/common/authentication.js';
+import { IWorkbenchGitHubService } from '../common/githubService.js';
+import { getWorkbenchMissionControlOptions, WorkbenchGitHubCredentialProvider } from './githubCredentialProvider.js';
+
+export class WorkbenchGitHubService extends GitHubService implements IWorkbenchGitHubService {
+
+	readonly onDidChangeDefaultClient: Event<void>;
+	private readonly _credentialProvider: WorkbenchGitHubCredentialProvider;
+	private readonly _defaultClient = this._register(new MutableDisposable<IReference<IGitHubClient>>());
+	private readonly _apiScope = this._register(new MutableDisposable<IGitHubRequestProviderScope>());
+	private readonly _lifetime = new AbortController();
+	private _defaultClientGeneration = 0;
+	private _defaultSessionAccountId: string | undefined;
+
+	constructor(
+		@IAuthenticationService authenticationService: IAuthenticationService,
+		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
+		@ILogService logService: ILogService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IProductService productService: IProductService,
+		@IConfigurationService configurationService: IConfigurationService,
+	) {
+		const credentialProvider = new WorkbenchGitHubCredentialProvider(authenticationService);
+		super({
+			credentialProvider,
+			useBrowserRedirects: true,
+			connectorsApiBaseUri: productService.defaultChatAgent?.mcpConnectorsUrl,
+			telemetrySource: isWeb ? 'web' : 'workbench',
+			clientMetadata: createGitHubClientMetadata(productService, 'workbench', 'browser'),
+			onDidChangeTelemetryLevel: Event.map(Event.filter(configurationService.onDidChangeConfiguration, event =>
+				event.affectsConfiguration(TELEMETRY_SETTING_ID)
+				|| event.affectsConfiguration(TELEMETRY_OLD_SETTING_ID)
+				|| event.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID)
+			), () => getTelemetryLevel(configurationService)),
+		}, logService, telemetryService);
+		this._credentialProvider = this._register(credentialProvider);
+		let defaultAccountKey = this._getDefaultAccountKey();
+		this.onDidChangeDefaultClient = Event.any(
+			Event.signal(Event.filter(_defaultAccountService.onDidChangeDefaultAccount, () => {
+				const key = this._getDefaultAccountKey();
+				if (key === defaultAccountKey) {
+					return false;
+				}
+				defaultAccountKey = key;
+				this._defaultSessionAccountId = undefined;
+				return true;
+			}, this._store)),
+			Event.signal(Event.filter(credentialProvider.onDidChangeSessions, event =>
+				event.providerId === _defaultAccountService.getDefaultAccountAuthenticationProvider().id
+				&& [...event.event.added ?? [], ...event.event.changed ?? [], ...event.event.removed ?? []].some(session =>
+					!this._defaultSessionAccountId || session.account.id === this._defaultSessionAccountId
+					|| session.id === this._defaultClient.value?.object.authorization.sessionId
+					|| session.id === _defaultAccountService.currentDefaultAccount?.sessionId
+				), this._store)),
+		);
+		this._register(this.onDidChangeDefaultClient(() => {
+			this._defaultClientGeneration++;
+			this._defaultClient.clear();
+		}));
+		this._register(toDisposable(() => this._lifetime.abort(new GitHubRequestError('GitHub service was disposed', 'unknown'))));
+	}
+
+	async acquireAnonymousApiClient(signal: AbortSignal): Promise<IGitHubAnonymousClient> {
+		signal.throwIfAborted();
+		return this.acquireAnonymousClient();
+	}
+
+	async acquireDefaultAccountClient(signal: AbortSignal): Promise<IReference<IGitHubClient>> {
+		const { options } = await this.resolveDefaultAccountOptions(signal);
+		this._defaultClient.value = this.acquireClient(options);
+		return this.acquireClient(options);
+	}
+
+	async acquireAccountApiClient(authorization: GitHubAuthorizationContext, signal: AbortSignal): Promise<IGitHubAccountClient> {
+		const combinedSignal = AbortSignal.any([signal, this._lifetime.signal]);
+		const options = await withGitHubCredentialDeadline(combinedSignal, signal => this._credentialProvider.resolveClient(authorization, signal));
+		combinedSignal.throwIfAborted();
+		const client = await this.acquireApiClient(options, combinedSignal);
+		if (combinedSignal.aborted) {
+			client.dispose();
+			combinedSignal.throwIfAborted();
+		}
+		return client;
+	}
+
+	async acquireDefaultAccountApiClient(signal: AbortSignal): Promise<IGitHubAccountClient> {
+		const combinedSignal = AbortSignal.any([signal, this._lifetime.signal]);
+		const { options, accountId, generation } = await this.resolveDefaultAccountOptions(combinedSignal);
+		const client = await this.acquireApiClient({ ...options, authorization: { ...options.authorization, accountId } }, combinedSignal);
+		try {
+			combinedSignal.throwIfAborted();
+			if (generation !== this._defaultClientGeneration) {
+				throw new GitHubRequestError(localize('githubAccountChanged', "The selected GitHub account changed. Try again."), 'authentication');
+			}
+			return client;
+		} catch (error) {
+			client.dispose();
+			throw error;
+		}
+	}
+
+	protected async acquireApiClient(options: GitHubClientOptions, signal: AbortSignal): Promise<IGitHubAccountClient> {
+		signal.throwIfAborted();
+		const scope = this._apiScope.value ??= this.createRequestProviderScope(this._credentialProvider);
+		const reference = scope.acquireClient(options);
+		return new AccountClient(reference.object.authorization, reference.object, reference);
+	}
+
+	private async resolveDefaultAccountOptions(signal: AbortSignal): Promise<{ options: GitHubClientOptions; accountId: string; generation: number }> {
+		const combinedSignal = AbortSignal.any([signal, this._lifetime.signal]);
+		const { options, accountId, generation } = await withGitHubCredentialDeadline(combinedSignal, signal => this._getDefaultAccountOptions(signal));
+		combinedSignal.throwIfAborted();
+		if (generation !== this._defaultClientGeneration) {
+			throw new GitHubRequestError(localize('githubAccountChanged', "The selected GitHub account changed. Try again."), 'authentication');
+		}
+		this._defaultSessionAccountId = accountId;
+		return { options, accountId, generation };
+	}
+
+	private _getDefaultAccountKey(): string {
+		const account = this._defaultAccountService.currentDefaultAccount;
+		const provider = account?.authenticationProvider ?? this._defaultAccountService.getDefaultAccountAuthenticationProvider();
+		return JSON.stringify([provider.id, account?.sessionId, provider.enterprise, provider.enterprise ? this._defaultAccountService.resolveGitHubUrl('') : undefined]);
+	}
+
+	private async _getDefaultAccountOptions(signal: AbortSignal): Promise<{ options: GitHubClientOptions; accountId: string; generation: number }> {
+		signal.throwIfAborted();
+		const account = this._defaultAccountService.currentDefaultAccount ?? await this._defaultAccountService.getDefaultAccount();
+		signal.throwIfAborted();
+		if (!account) {
+			throw new GitHubRequestError(localize('githubAuthenticationRequired', "Sign in to GitHub to load GitHub data."), 'authentication');
+		}
+		const generation = this._defaultClientGeneration;
+		const current = this._defaultAccountService.currentDefaultAccount;
+		if (!current || account.sessionId !== current.sessionId || account.authenticationProvider.id !== current.authenticationProvider.id) {
+			throw new GitHubRequestError(localize('githubAccountChanged', "The selected GitHub account changed. Try again."), 'authentication');
+		}
+		const provider = account.authenticationProvider;
+		const sessions = await this._credentialProvider.getSessions(provider.id, signal);
+		signal.throwIfAborted();
+		const selected = sessions.find(session => session.id === account.sessionId);
+		if (!selected) {
+			throw new GitHubRequestError(localize('githubSessionUnavailable', "The selected GitHub session is unavailable."), 'authentication');
+		}
+		const repositorySession = sessions
+			.filter(session => session.account.id === selected.account.id
+				&& session.authorizationServer?.toString() === selected.authorizationServer?.toString()
+				&& session.scopes.includes('repo'))
+			.sort((a, b) => a.scopes.length - b.scopes.length)[0];
+		if (!repositorySession) {
+			throw new GitHubRequestError(localize('githubRepositoryAccessRequired', "Sign in to GitHub with repository access to load GitHub data."), 'authentication');
+		}
+		const enterpriseUri = provider.enterprise ? this._defaultAccountService.resolveGitHubUrl('') : undefined;
+		if (provider.enterprise && !enterpriseUri) {
+			throw new GitHubRequestError(localize('githubUrlUnavailable', "The GitHub Enterprise URL is unavailable. Sign in and try again."), 'authentication');
+		}
+		const endpoints = deriveGitHubEndpoints(enterpriseUri);
+		return {
+			options: {
+				authorization: {
+					providerId: provider.id,
+					sessionId: repositorySession.id,
+					scopes: repositorySession.scopes,
+					...(repositorySession.authorizationServer ? { authorizationServer: repositorySession.authorizationServer.toString() } : {}),
+				},
+				apiBaseUri: endpoints.apiBaseUri,
+				graphQlUri: endpoints.graphQlUri,
+				missionControl: getWorkbenchMissionControlOptions(provider.id, endpoints.enterpriseHost),
+			},
+			accountId: selected.account.id,
+			generation,
+		};
+	}
+}
+
+registerSingleton(IWorkbenchGitHubService, WorkbenchGitHubService, InstantiationType.Delayed);

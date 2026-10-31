@@ -5,15 +5,22 @@
 
 import { Code } from './code';
 
+interface IQuickInputElementInfo {
+	label: string;
+	id?: string;
+}
+
 export class QuickInput {
 
 	private static QUICK_INPUT = '.quick-input-widget';
 	private static QUICK_INPUT_INPUT = `${QuickInput.QUICK_INPUT} .quick-input-box input`;
 	private static QUICK_INPUT_ROW = `${QuickInput.QUICK_INPUT} .quick-input-list .monaco-list-row`;
-	private static QUICK_INPUT_FOCUSED_ELEMENT = `${QuickInput.QUICK_INPUT_ROW}.focused .monaco-highlighted-label`;
+	private static QUICK_INPUT_FOCUSED_ENTRY = `${QuickInput.QUICK_INPUT_ROW}.focused .quick-input-list-entry`;
 	// Note: this only grabs the label and not the description or detail
 	private static QUICK_INPUT_ENTRY_LABEL = `${QuickInput.QUICK_INPUT_ROW} .quick-input-list-row > .monaco-icon-label .label-name`;
 	private static QUICK_INPUT_ENTRY_LABEL_SPAN = `${QuickInput.QUICK_INPUT_ROW} .monaco-highlighted-label`;
+	private static QUICK_INPUT_FOCUSED_LABEL = `${QuickInput.QUICK_INPUT_ROW}.focused .quick-input-list-row > .monaco-icon-label .label-name`;
+	private static QUICK_INPUT_FOCUSED_ELEMENTS = `${QuickInput.QUICK_INPUT_FOCUSED_ENTRY}, ${QuickInput.QUICK_INPUT_FOCUSED_LABEL}`;
 
 	constructor(private code: Code) { }
 
@@ -25,8 +32,12 @@ export class QuickInput {
 		await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
 	}
 
-	async waitForQuickInputElementFocused(): Promise<void> {
-		await this.code.waitForTextContent(QuickInput.QUICK_INPUT_FOCUSED_ELEMENT);
+	async waitForQuickInputElement(): Promise<IQuickInputElementInfo> {
+		const [entry, label] = await this.code.waitForElements(QuickInput.QUICK_INPUT_FOCUSED_ELEMENTS, false, elements => elements.length === 2);
+		return {
+			label: label.textContent,
+			id: entry.attributes['data-quick-input-id']
+		};
 	}
 
 	async waitForQuickInputElementText(): Promise<string> {

@@ -18,7 +18,7 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import { TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
 import { HasByokModelsContribution } from '../../browser/hasByokModelsContribution.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ChatConfiguration } from '../../common/constants.js';
+import { ChatAIDisabledSettingId } from '../../common/constants.js';
 import { COPILOT_VENDOR_ID } from '../../common/languageModels.js';
 import { ILanguageModelsConfigurationService, ILanguageModelsProviderGroup } from '../../common/languageModelsConfiguration.js';
 
@@ -92,7 +92,7 @@ suite('HasByokModelsContribution', () => {
 
 	function createScenario(store: DisposableStore, options: IScenarioOptions = {}): IScenario {
 		const configurationService = new TestConfigurationService();
-		configurationService.setUserConfiguration(ChatConfiguration.AIDisabled, options.configuration?.aiDisabled ?? false);
+		configurationService.setUserConfiguration(ChatAIDisabledSettingId, options.configuration?.aiDisabled ?? false);
 
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
 

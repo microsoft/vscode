@@ -15,6 +15,8 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import * as DOM from '../../../../../base/browser/dom.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
 suite('DecorationsService', function () {
 
@@ -94,6 +96,75 @@ suite('DecorationsService', function () {
 		assert.strictEqual(callCounter, 1);
 
 		reg.dispose();
+	});
+
+	test('Classifies text, icon, and bubbled badges', function () {
+		const textUri = URI.parse('file:///text.txt');
+		const iconUri = URI.parse('file:///icon.txt');
+		const parentUri = URI.parse('file:///folder/');
+		const childUri = URI.parse('file:///folder/child.txt');
+		const decorationData = new Map<string, IDecorationData>([
+			[textUri.toString(), { letter: 'M' }],
+			[iconUri.toString(), { letter: Codicon.lockSmall }],
+			[childUri.toString(), { letter: 'M', bubble: true }],
+		]);
+		const registration = service.registerDecorationsProvider({
+			label: 'Badge types',
+			onDidChange: Event.None,
+			provideDecorations: resource => decorationData.get(resource.toString()),
+		});
+
+		const textDecoration = service.getDecoration(textUri, false)!;
+		const iconDecoration = service.getDecoration(iconUri, false)!;
+		service.getDecoration(childUri, false)?.dispose();
+		const bubbleDecoration = service.getDecoration(parentUri, true)!;
+
+		assert.deepStrictEqual(
+			[textDecoration.isTextBadge, iconDecoration.isTextBadge, bubbleDecoration.isTextBadge],
+			[true, false, false]
+		);
+
+		textDecoration.dispose();
+		iconDecoration.dispose();
+		bubbleDecoration.dispose();
+		registration.dispose();
+	});
+
+	test('Falls back to lower-weight decoration color when a theme color is undefined', function () {
+
+		const uri = URI.parse('foo:/folder/file');
+		const parentUri = URI.parse('foo:/folder/');
+		const highPriority = service.registerDecorationsProvider({
+			label: 'High priority',
+			onDidChange: Event.None,
+			provideDecorations: resource => resource.toString() === uri.toString() ? { color: 'highPriorityColor', weight: 10, letter: 'H', bubble: true } : undefined
+		});
+		const lowPriority = service.registerDecorationsProvider({
+			label: 'Low priority',
+			onDidChange: Event.None,
+			provideDecorations: resource => resource.toString() === uri.toString() ? { color: 'lowPriorityColor', weight: 5, letter: 'L', bubble: true } : undefined
+		});
+
+		const decoration = service.getDecoration(uri, false)!;
+		const bubbleDecoration = service.getDecoration(parentUri, true)!;
+		for (const [className, pseudoElement] of [
+			[decoration.labelClassName, undefined],
+			[decoration.badgeClassName, '::after'],
+			[bubbleDecoration.badgeClassName, '::after']
+		] as const) {
+			const element = document.createElement('div');
+			element.className = className;
+			element.style.setProperty('--vscode-lowPriorityColor', '#ff0000');
+			document.body.appendChild(element);
+
+			assert.strictEqual(DOM.getWindow(element).getComputedStyle(element, pseudoElement).color, 'rgb(255, 0, 0)');
+			element.remove();
+		}
+
+		decoration.dispose();
+		bubbleDecoration.dispose();
+		highPriority.dispose();
+		lowPriority.dispose();
 	});
 
 	test('Clear decorations on provider dispose', async function () {

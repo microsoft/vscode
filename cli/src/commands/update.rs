@@ -31,7 +31,7 @@ pub async fn update(ctx: CommandContext, args: StandaloneUpdateArgs) -> Result<i
 			"{} is already up to date ({})",
 			PRODUCT_NAME_LONG, current_version.commit
 		));
-		return Ok(1);
+		return Ok(0);
 	}
 
 	if args.check {

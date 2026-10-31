@@ -7,30 +7,27 @@ import type { AgentInfo, McpServerStatus, PermissionMode, Query, SDKUserMessage,
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ClaudeRuntimeEffortLevel } from '../../common/claudeModelConfig.js';
-import { AgentSignal } from '../../common/agentService.js';
+import { AgentSignal, type IAgentChatOwnerRef } from '../../common/agent.js';
+import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ClaudePromptQueue, IPendingSdkMessage } from './claudePromptQueue.js';
 import { ClaudeSdkMessageRouter } from './claudeSdkMessageRouter.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
+import type { SessionClientToolsModel } from './clientTools/claudeSessionClientToolsModel.js';
 
 /**
- * Callback the agent supplies via {@link ClaudeSdkPipeline.attachRematerializer}
- * so the pipeline can rebuild its underlying {@link WarmQuery} /
- * {@link AbortController} on abort or crash recovery without depending on
- * the materializer service directly. The callback MUST start the SDK in
- * `resume` mode (i.e. pass `Options.resume = sessionId` instead of
- * `Options.sessionId`) and MUST NOT re-fire the agent's
- * `onDidMaterializeSession` event — that event is once-per-provisional
- * promotion (see `claudeAgent.ts` materialize path).
+ * Rebuilds the SDK subprocess without re-firing `onDidMaterializeChat`.
+ * Use resume mode only for an existing conversation, not a fresh chat rebuilt before its first send.
  */
 export interface IRematerializer {
-	(reason: 'restart' | 'recover'): Promise<{ readonly warm: WarmQuery; readonly abortController: AbortController }>;
+	rematerialize(reason: 'restart' | 'recover'): Promise<{ readonly warm: WarmQuery; readonly abortController: AbortController }>;
 }
 
 /**
@@ -113,6 +110,48 @@ export class ClaudeSdkPipeline extends Disposable {
 			query.mcpServerStatus(),
 		]);
 		return { commands, agents, mcpServers, plugins: this._initPlugins };
+	}
+
+	async startMcpServer(serverName: string): Promise<boolean> {
+		const query = await this._ensureQueryBound();
+		return this._applyMcpServerEnablement(query, serverName, true);
+	}
+
+	async stopMcpServer(serverName: string): Promise<boolean> {
+		const query = await this._ensureQueryBound();
+		return this._applyMcpServerEnablement(query, serverName, false);
+	}
+
+	async reconcileMcpServerEnablement(desired: ReadonlyMap<string, boolean>): Promise<boolean> {
+		const query = await this._ensureQueryBound();
+		const observed = new Map((await query.mcpServerStatus()).map(server => [server.name, server.status !== 'disabled']));
+		for (const [serverName, enabled] of desired) {
+			// `desired` is session-scoped state, so it can name servers this
+			// particular chat's query does not have (another chat that has not
+			// finished connecting its servers, or a chat created after the
+			// session state was published). Toggling one of those always fails
+			// with `Server not found: <name>` and would take the turn down with
+			// it, so only reconcile servers the live query actually reports.
+			const current = observed.get(serverName);
+			if (current === undefined || current === enabled) {
+				continue;
+			}
+			if (!await this._applyMcpServerEnablement(query, serverName, enabled)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private async _applyMcpServerEnablement(query: Query, serverName: string, enabled: boolean): Promise<boolean> {
+		if (!query.toggleMcpServer || (enabled && !query.reconnectMcpServer)) {
+			return false;
+		}
+		await query.toggleMcpServer(serverName, enabled);
+		if (enabled) {
+			await query.reconnectMcpServer!(serverName);
+		}
+		return true;
 	}
 
 	/**
@@ -203,32 +242,32 @@ export class ClaudeSdkPipeline extends Disposable {
 
 	constructor(
 		readonly sessionId: string,
-		readonly sessionUri: URI,
 		readonly chatChannelUri: URI,
+		owner: IAgentChatOwnerRef,
+		resource: URI,
 		warm: WarmQuery,
 		abortController: AbortController,
 		dbRef: IReference<ISessionDatabase>,
 		subagents: SubagentRegistry,
-		clientToolOwner: ((toolName: string) => string | undefined) | undefined = undefined,
+		clientTools: SessionClientToolsModel | undefined = undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._warm = warm;
 		this._abortController = abortController;
-		this._wireAbortHandler(abortController);
 		this._queue = this._register(instantiationService.createInstance(
 			ClaudePromptQueue,
 			sessionId,
-			() => this._abortController.signal,
-			(pendingId: string) => this._onDidProduceSignal.fire({
-				kind: 'steering_consumed',
-				chat: this.chatChannelUri,
-				id: pendingId,
-			}),
+			abortController.signal,
 		));
+		this._register(this._queue.onDidYieldSteering(pendingId => this._onDidProduceSignal.fire({
+			kind: 'steering_consumed',
+			chat: this.chatChannelUri,
+			id: pendingId,
+		})));
 		this._router = this._register(instantiationService.createInstance(
-			ClaudeSdkMessageRouter, sessionUri, chatChannelUri, dbRef, subagents, clientToolOwner,
+			ClaudeSdkMessageRouter, chatChannelUri, owner, resource, dbRef, subagents, clientTools,
 		));
 		this._register(this._router.onDidProduceSignal(s => this._onDidProduceSignal.fire(s)));
 		// Dispose chain → abort → SDK cleanup. Reads the *current*
@@ -243,6 +282,13 @@ export class ClaudeSdkPipeline extends Disposable {
 	get isResumed(): boolean { return this._isResumed; }
 
 	get isAborted(): boolean { return this._abortController.signal.aborted; }
+
+	/**
+	 * Whether a turn is currently in flight or queued. False between turns (the
+	 * warm query parks with a drained queue). Used by non-destructive idle
+	 * release to avoid tearing the pipeline down mid-turn.
+	 */
+	get hasActiveTurn(): boolean { return !this._queue.isEmpty; }
 
 	/**
 	 * Abort the live SDK subprocess and **await its actual exit**.
@@ -276,15 +322,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		return this._rebindQuery('restart');
 	}
 
-	/**
-	 * Phase 10 — update the resolver the stream mapper uses to stamp the
-	 * owning workbench `clientId` onto subsequent `ChatToolCallStart` events.
-	 */
-	setClientToolOwner(clientToolOwner: ((toolName: string) => string | undefined) | undefined): void {
-		this._router.setClientToolOwner(clientToolOwner);
-	}
-
-	/** Attach the rematerializer hook for abort / crash recovery. Optional — tests that exercise only the dispose path skip this. */
+	/** Attach the session's rebuild command for restart / crash recovery. */
 	attachRematerializer(rematerializer: IRematerializer): void {
 		this._rematerializer = rematerializer;
 	}
@@ -347,13 +385,34 @@ export class ClaudeSdkPipeline extends Disposable {
 	}
 
 	/**
+	 * Advance the *desired* model / effort for the NEXT rebind WITHOUT pushing
+	 * them to the live Query.
+	 *
+	 * A cross-transport provider switch is about to discard the running
+	 * subprocess (it is pinned to the old transport / credential), so
+	 * hot-swapping it via {@link setModel} / {@link setEffort} is pointless —
+	 * and would 400 on a model the old transport does not serve. But
+	 * {@link _currentModel} / {@link _currentEffort} must still move to the new
+	 * selection: after the rebuild, {@link _rebindQuery} resets the applied
+	 * cache and {@link _replayCurrentConfig} re-asserts `_currentModel` onto the
+	 * fresh Query. The rebuild resumes the transcript, which replays the
+	 * pre-switch `/model`; without advancing the buffer here that stale replay
+	 * would win and the rebuilt subprocess would silently run the old model on
+	 * the new transport (→ `model_not_supported`).
+	 */
+	bufferConfigForRebind(model: string, effort: ClaudeRuntimeEffortLevel | undefined): void {
+		this._currentModel = model;
+		this._currentEffort = effort;
+	}
+
+	/**
 	 * Queue a user prompt for the SDK. Resolves when the matching
 	 * `result` message arrives.
 	 *
 	 * If a previous turn aborted or crashed, this triggers a rebind via
 	 * the attached rematerializer before queueing.
 	 */
-	async send(prompt: SDKUserMessage, turnId: string): Promise<void> {
+	async send(prompt: SDKUserMessage, turnId: string, clientContext?: IAgentHostClientTelemetryContext): Promise<void> {
 		if (this._needsRebind) {
 			await this._rebindQuery('recover');
 		}
@@ -369,6 +428,8 @@ export class ClaudeSdkPipeline extends Disposable {
 			sdkMessage: prompt,
 			sdkUuid: typeof prompt.uuid === 'string' ? prompt.uuid : turnId,
 			turnId,
+			clientContext,
+			stopWatch: StopWatch.create(false),
 			deferred: new DeferredPromise<void>(),
 		};
 		return this._queue.push(entry);
@@ -404,6 +465,8 @@ export class ClaudeSdkPipeline extends Disposable {
 			sdkMessage: prompt,
 			sdkUuid,
 			turnId: parent.turnId,
+			clientContext: parent.clientContext,
+			stopWatch: parent.stopWatch,
 			deferred: new DeferredPromise<void>(),
 			steeringPendingId: pendingMessageId,
 		}).catch(() => { /* expected on abort/crash */ });
@@ -411,8 +474,7 @@ export class ClaudeSdkPipeline extends Disposable {
 	}
 
 	/**
-	 * Cancel the in-flight SDK turn via the abort controller. Mirrors
-	 * the production reference (`claudeCodeAgent.ts:719`). Drops every
+	 * Cancel the in-flight SDK turn via the abort controller. Drops every
 	 * pending entry's deferred (rejected with `CancellationError`),
 	 * marks the pipeline for rebind on next {@link send}. Idempotent.
 	 *
@@ -446,10 +508,9 @@ export class ClaudeSdkPipeline extends Disposable {
 		}
 	}
 
-	private _wireAbortHandler(controller: AbortController): void {
-		controller.signal.addEventListener('abort', () => {
-			this._queue.notifyAborted();
-		}, { once: true });
+	private _bindAbortController(controller: AbortController): void {
+		this._abortController = controller;
+		this._queue.bindAbortSignal(controller.signal);
 	}
 
 	private _ensureConsumerLoop(): void {
@@ -513,7 +574,7 @@ export class ClaudeSdkPipeline extends Disposable {
 
 	/**
 	 * Dispose the dead SDK plumbing and rebuild via the agent-supplied
-	 * rematerializer in `resume` mode. Re-applies the current model /
+	 * rematerializer. Re-applies the current model /
 	 * effort / permission mode to the fresh Query.
 	 */
 	private async _rebindQuery(reason: 'restart' | 'recover'): Promise<void> {
@@ -526,8 +587,8 @@ export class ClaudeSdkPipeline extends Disposable {
 		// instead of returning early as idempotent against the already-
 		// aborted old controller.
 		const placeholder = new AbortController();
-		this._abortController = placeholder;
-		const built = await this._rematerializer(reason);
+		this._bindAbortController(placeholder);
+		const built = await this._rematerializer.rematerialize(reason);
 		// Dispose may have run while we were awaiting the rematerializer.
 		// The dispose chain has already torn down the OLD warm/controller;
 		// the freshly-built pair would otherwise leak its subprocess. Mirror
@@ -554,8 +615,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		void Promise.resolve(oldWarm[Symbol.asyncDispose]()).catch((err: unknown) =>
 			this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] previous WarmQuery dispose failed during rebind: ${err}`));
 		this._warm = built.warm;
-		this._abortController = built.abortController;
-		this._wireAbortHandler(built.abortController);
+		this._bindAbortController(built.abortController);
 		this._queue.resetForRebind();
 		this._needsRebind = false;
 		// New SDK starts with the materializer's `Options.model` / effort /
@@ -601,9 +661,17 @@ export class ClaudeSdkPipeline extends Disposable {
 						this._isResumed = true;
 					}
 				}
-				const turnId = this._queue.peekParent()?.turnId;
+				const parent = this._queue.peekParent();
+				const turnId = parent?.turnId;
+				const clientContext = parent?.clientContext;
+				const turnDuration = parent?.stopWatch.elapsed();
 				try {
-					await this._router.handle(message, turnId);
+					await this._router.handle(message, turnId, {
+						turnDuration,
+						mode: this._currentPermissionMode,
+						clientContext,
+						signal: this._abortController.signal,
+					});
 				} catch (handlerErr) {
 					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] router threw, skipping: ${handlerErr}`);
 				}
@@ -620,6 +688,7 @@ export class ClaudeSdkPipeline extends Disposable {
 							action: {
 								type: ActionType.ChatTurnComplete,
 								turnId: completed.turnId,
+								duration: Math.max(0, completed.stopWatch.elapsed()),
 							},
 						});
 					}

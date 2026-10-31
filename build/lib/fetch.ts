@@ -16,7 +16,14 @@ export interface IFetchOptions {
 	nodeFetchOptions?: RequestInit;
 	verbose?: boolean;
 	checksumSha256?: string;
+	/**
+	 * Milliseconds after which a download whose response body stops arriving is aborted and retried. Defaults to 30
+	 * seconds.
+	 */
+	idleTimeout?: number;
 }
+
+const defaultIdleTimeout = 30 * 1000;
 
 export function fetchUrls(urls: string[] | string, options: IFetchOptions): es.ThroughStream {
 	if (options === undefined) {
@@ -63,7 +70,7 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 				// Reset timeout for body download - large files need more time
 				clearTimeout(timeout);
 				timeout = setTimeout(() => controller.abort(), 5 * 60 * 1000);
-				const contents = Buffer.from(await response.arrayBuffer());
+				const contents = await readBody(response, controller, options.idleTimeout ?? defaultIdleTimeout);
 				if (options.checksumSha256) {
 					const actualSHA256Checksum = crypto.createHash('sha256').update(contents).digest('hex');
 					if (actualSHA256Checksum !== options.checksumSha256) {
@@ -104,6 +111,32 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 	}
 }
 
+/**
+ * Reads a response body and aborts the request when no data arrives for `idleTimeout` milliseconds, so that a stalled
+ * download is retried right away instead of when the timeout of the whole download expires.
+ */
+async function readBody(response: Response, controller: AbortController, idleTimeout: number): Promise<Buffer> {
+	if (!response.body) {
+		return Buffer.from(await response.arrayBuffer());
+	}
+	const chunks: Uint8Array[] = [];
+	const reader = response.body.getReader();
+	const idleTimer = setTimeout(() => controller.abort(new Error(`No data received for ${idleTimeout} ms`)), idleTimeout);
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) {
+				break;
+			}
+			chunks.push(value);
+			idleTimer.refresh();
+		}
+	} finally {
+		clearTimeout(idleTimer);
+	}
+	return Buffer.concat(chunks);
+}
+
 const ghApiHeaders: Record<string, string> = {
 	Accept: 'application/vnd.github.v3+json',
 	'User-Agent': 'VSCode Build',
@@ -121,6 +154,17 @@ export interface IGitHubAssetOptions {
 	name: string | ((name: string) => boolean);
 	checksumSha256?: string;
 	verbose?: boolean;
+	/**
+	 * When set, ignore {@link IGitHubAssetOptions.version} and resolve the asset from the latest
+	 * published GitHub release (including pre-releases) instead of a specific tagged release.
+	 */
+	latest?: boolean;
+}
+
+interface IGitHubRelease {
+	draft?: boolean;
+	published_at?: string;
+	assets: { name: string; url: string }[];
 }
 
 /**
@@ -130,15 +174,48 @@ export interface IGitHubAssetOptions {
  * @returns a stream with the asset as file
  */
 export function fetchGithub(repo: string, options: IGitHubAssetOptions): Stream {
-	return fetchUrls(`/repos/${repo.replace(/^\/|\/$/g, '')}/releases/tags/v${options.version}`, {
+	const cleanRepo = repo.replace(/^\/|\/$/g, '');
+	// When `latest` is set, list all releases and pick the most recently published one (ignoring the
+	// requested version). Otherwise fetch the specific tagged release.
+	const releaseUrl = options.latest
+		? `/repos/${cleanRepo}/releases?per_page=100`
+		: `/repos/${cleanRepo}/releases/tags/v${options.version}`;
+	return fetchUrls(releaseUrl, {
 		base: 'https://api.github.com',
 		verbose: options.verbose,
 		nodeFetchOptions: { headers: ghApiHeaders }
 	}).pipe(through2.obj(async function (file, _enc, callback) {
+		const json = JSON.parse(file.contents.toString());
 		const assetFilter = typeof options.name === 'string' ? (name: string) => name === options.name : options.name;
-		const asset = JSON.parse(file.contents.toString()).assets.find((a: { name: string }) => assetFilter(a.name));
+		let release: IGitHubRelease | undefined;
+		let asset: { name: string; url: string } | undefined;
+		if (options.latest) {
+			// Pick the most recently published non-draft release that actually contains the
+			// requested asset. Sort by `published_at` (when the release was made public) rather than
+			// `created_at` (when the draft was first created); treat a missing/unparseable timestamp
+			// as 0 so it sorts to the end deterministically. Skipping releases without the asset makes
+			// this resilient to releases that ship other artifacts (e.g. tarballs) but no matching VSIX.
+			const publishedTime = (r: IGitHubRelease) => {
+				const time = Date.parse(r.published_at ?? '');
+				return isNaN(time) ? 0 : time;
+			};
+			const releases = (json as IGitHubRelease[])
+				.filter(r => !r.draft)
+				.sort((a, b) => publishedTime(b) - publishedTime(a));
+			for (const candidate of releases) {
+				const candidateAsset = candidate.assets.find(a => assetFilter(a.name));
+				if (candidateAsset) {
+					release = candidate;
+					asset = candidateAsset;
+					break;
+				}
+			}
+		} else {
+			release = json as IGitHubRelease;
+			asset = release.assets.find(a => assetFilter(a.name));
+		}
 		if (!asset) {
-			return callback(new Error(`Could not find asset in release of ${repo} @ ${options.version}`));
+			return callback(new Error(`Could not find asset in release of ${repo} @ ${options.latest ? 'latest' : options.version}`));
 		}
 		try {
 			callback(null, await fetchUrl(asset.url, {

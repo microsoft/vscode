@@ -12,8 +12,11 @@ import { TERMINAL_BACKGROUND_COLOR } from '../workbench/contrib/terminal/common/
 
 import '../workbench/api/browser/extensionHost.contribution.js';
 import '../workbench/browser/workbench.contribution.js';
+import '../workbench/contrib/modernUI/browser/media/notificationsDialogs.css';
+import '../workbench/contrib/modernUI/browser/media/suggestWidget.css';
 import { agentsPanelBackground } from './common/theme.js';
 import './common/sizes.js';
+import './contrib/providers/remoteAgentHost/browser/connectionDiagnostics.contribution.js';
 
 getColorRegistry().updateDefaultColor(PANEL_BACKGROUND, agentsPanelBackground);
 getColorRegistry().updateDefaultColor(TERMINAL_BACKGROUND_COLOR, agentsPanelBackground);
@@ -64,7 +67,6 @@ import '../platform/actions/common/actions.contribution.js';
 import '../platform/undoRedo/common/undoRedoService.js';
 import '../platform/mcp/common/mcpResourceScannerService.js';
 import '../workbench/services/workspaces/common/editSessionIdentityService.js';
-import '../workbench/services/workspaces/common/canonicalUriService.js';
 import '../workbench/services/extensions/browser/extensionUrlHandler.js';
 import '../workbench/services/keybinding/common/keybindingEditing.js';
 import '../workbench/services/decorations/browser/decorationsService.js';
@@ -123,6 +125,7 @@ import '../workbench/services/authentication/browser/authenticationMcpAccessServ
 import '../workbench/services/authentication/browser/authenticationMcpService.js';
 import '../workbench/services/authentication/browser/dynamicAuthenticationProviderStorageService.js';
 import '../workbench/services/authentication/browser/authenticationQueryService.js';
+import '../workbench/services/github/browser/githubService.js';
 import '../platform/hover/browser/hoverService.js';
 import '../platform/userInteraction/browser/userInteractionServiceImpl.js';
 import '../workbench/services/assignment/common/assignmentService.js';
@@ -143,9 +146,11 @@ import '../workbench/services/chat/common/chatEntitlementService.js';
 import '../workbench/services/log/common/defaultLogLevels.js';
 import '../workbench/services/agentHost/common/agentHostResourceService.js';
 import '../platform/agentHost/browser/agentHostConnectionsService.js';
+import '../platform/agentHost/browser/agentHostEnablementService.js';
 import './services/agentHost/browser/agentHostCustomizationService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
+import { ArtifactIntegrationRegistry, IArtifactIntegrationRegistry } from '../platform/artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { GlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionEnablementService.js';
 import { IAllowedExtensionsService, IGlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionManagement.js';
 import { ContextViewService } from '../platform/contextview/browser/contextViewService.js';
@@ -174,8 +179,10 @@ import { AllowedMcpServersService } from '../platform/mcp/common/allowedMcpServe
 import { IWebWorkerService } from '../platform/webWorker/browser/webWorkerService.js';
 import { WebWorkerService } from '../platform/webWorker/browser/webWorkerServiceImpl.js';
 import { ISessionsSetUpService, SessionsSetUpService } from './browser/sessionsSetUpService.js';
+import { AgentHostMcpOAuthMetadataService, IAgentHostMcpOAuthMetadataService } from '../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, InstantiationType.Delayed);
+registerSingleton(IArtifactIntegrationRegistry, ArtifactIntegrationRegistry, InstantiationType.Delayed);
 registerSingleton(IAllowedExtensionsService, AllowedExtensionsService, InstantiationType.Delayed);
 registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService, InstantiationType.Delayed);
 registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService, InstantiationType.Delayed);
@@ -192,6 +199,7 @@ registerSingleton(IWebWorkerService, WebWorkerService, InstantiationType.Delayed
 registerSingleton(IMcpGalleryService, McpGalleryService, InstantiationType.Delayed);
 registerSingleton(IAllowedMcpServersService, AllowedMcpServersService, InstantiationType.Delayed);
 registerSingleton(ISessionsSetUpService, SessionsSetUpService, InstantiationType.Delayed);
+registerSingleton(IAgentHostMcpOAuthMetadataService, AgentHostMcpOAuthMetadataService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -203,6 +211,7 @@ import '../workbench/services/accounts/browser/defaultAccount.js';
 
 // Telemetry
 import '../workbench/contrib/telemetry/browser/telemetry.contribution.js';
+import '../workbench/services/policies/browser/policyTelemetry.contribution.js';
 
 // Preferences
 import '../workbench/contrib/preferences/browser/preferences.contribution.js';
@@ -225,6 +234,10 @@ import '../workbench/contrib/mcp/browser/mcp.contribution.js';
 import '../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import '../workbench/contrib/chat/browser/contextContrib/chatContext.contribution.js';
 import '../workbench/contrib/imageCarousel/browser/imageCarousel.contribution.js';
+
+// Voice Mode (voice UI actions, settings and context keys)
+import '../workbench/contrib/agentsVoice/browser/agentsVoice.contribution.js';
+import './contrib/chat/browser/voiceBridge.contribution.js';
 
 // Interactive
 import '../workbench/contrib/interactive/browser/interactive.contribution.js';
@@ -307,6 +320,9 @@ import '../workbench/contrib/webview/browser/webview.contribution.js';
 import '../workbench/contrib/webviewPanel/browser/webviewPanel.contribution.js';
 import '../workbench/contrib/webviewView/browser/webviewView.contribution.js';
 import '../workbench/contrib/customEditor/browser/customEditor.contribution.js';
+
+// Media Preview
+import '../workbench/contrib/mediaPreview/browser/mediaPreview.contribution.js';
 
 // External Uri Opener
 import '../workbench/contrib/externalUriOpener/common/externalUriOpener.contribution.js';
@@ -449,21 +465,33 @@ import '../workbench/contrib/opener/browser/opener.contribution.js';
 import './browser/paneCompositePartService.js';
 import './browser/parts/editorParts.js';
 import './browser/parts/sessionsParts.js';
+import './browser/parts/customViewGridParts.js';
+import './services/sessions/browser/sessionsWindowUsageService.js';
 import './services/sessions/browser/sessionsService.js';
+import './services/workspaceFolderLabel/browser/workspaceFolderLabelService.js';
+import './services/mcp/browser/mcpWorkspaceInstallTargetService.js';
+import './services/customView/browser/customViewService.js';
+import './services/activity/common/sessionActivityBarActivityService.js';
 import './browser/parts/menubar.contribution.js';
 import './browser/layoutActions.js';
 
 import './contrib/accountMenu/browser/account.contribution.js';
 import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';
 import './contrib/chat/browser/chat.contribution.js';
+import './contrib/chat/browser/sharedChatInputComposer.contribution.js';
+import './contrib/chat/browser/requestOriginProvider.contribution.js';
+import './contrib/chat/browser/sideChatProvider.contribution.js';
+import './contrib/sessionComparison/browser/sessionComparison.contribution.js';
 import './contrib/providers/agentHost/browser/exportDebugLogsAction.js';
 import './contrib/providers/agentHost/browser/agentHostSessionConfigPicker.js';
+import './contrib/providers/agentHost/browser/agentHostPolicyContinuationPresenter.js';
+import './contrib/providers/agentHost/browser/agentHostForkActions.js';
 import './contrib/chat/browser/customizationsDebugLog.contribution.js';
 import './contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.js';
-import './contrib/providers/localChatSessions/browser/localChatSessions.contribution.js';
 import './contrib/sessions/browser/sessions.contribution.js';
 import './services/sessions/browser/sessionsListModelService.js';
 import './services/sessions/browser/sessionGroupsService.js';
+import './services/sessions/browser/sessionComparisonService.js';
 import './services/sessions/browser/sessionSectionOrderService.js';
 import './services/agentHostFilter/browser/agentHostFilterService.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
@@ -476,17 +504,28 @@ import './contrib/fileTreeView/browser/fileTreeView.contribution.js'; // view re
 import './contrib/configuration/browser/configuration.contribution.js';
 import './contrib/browserView/browser/sessionBrowserView.contribution.js';
 import './contrib/editor/browser/editor.contribution.js';
+import './contrib/extensions/browser/extensions.contribution.js';
 
 import './contrib/terminal/browser/sessionsTerminalContribution.js';
 import './contrib/chatDebug/browser/chatDebug.contribution.js';
 import './contrib/workspace/browser/workspace.contribution.js';
 import './contrib/aquarium/browser/aquarium.contribution.js';
 import './contrib/policyBlocked/browser/policyBlocked.contribution.js';
+import '../workbench/services/policies/browser/managedSettingsUpdate.contribution.js';
+import './contrib/automations/browser/automations.contribution.js';
+import './contrib/canvases/browser/windowCanvases.contribution.js';
+import './contrib/inboxOne/browser/inboxOne.contribution.js';
+import './contrib/remoteSessions/browser/remoteSessions.contribution.js';
+import './contrib/customViewTest/browser/customViewTest.contribution.js';
 
 // Onboarding: the engine + spotlight presentation (from the workbench layer) and
 // the Agents window scenario data.
 import '../workbench/contrib/onboarding/browser/onboarding.contribution.js';
+import '../workbench/contrib/chat/browser/onboarding/modelPickerTryout.contribution.js';
+import '../workbench/contrib/codeEditor/browser/diffEditorTryout.contribution.js';
 import './contrib/onboardingTours/browser/onboardingTours.contribution.js';
+import './contrib/getStarted/browser/getStarted.contribution.js';
+import './contrib/worktreeSuggestion/browser/worktreeSuggestion.contribution.js';
 
 import './services/sessions/browser/sessionsManagementService.js';
 //#endregion

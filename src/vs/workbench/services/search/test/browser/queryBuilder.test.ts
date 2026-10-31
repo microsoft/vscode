@@ -23,9 +23,8 @@ import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 const DEFAULT_EDITOR_CONFIG = {};
-const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true, useGlobalIgnoreFiles: true, useParentIgnoreFiles: true };
+const DEFAULT_USER_CONFIG = { useIgnoreFiles: true, useGlobalIgnoreFiles: true, useParentIgnoreFiles: true };
 const DEFAULT_QUERY_PROPS = {};
-const DEFAULT_TEXT_QUERY_PROPS = { usePCRE2: false };
 
 suite('QueryBuilder', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -220,6 +219,40 @@ suite('QueryBuilder', () => {
 						}
 					}]
 				}],
+				type: QueryType.Text
+			});
+	});
+
+	test('keeps exclude exceptions from settings and escapes a leading ! in other exclude patterns', () => {
+		mockConfigService.setUserConfiguration('search', {
+			...DEFAULT_USER_CONFIG,
+			exclude: {
+				'node_modules': true,
+				'!node_modules/@types': true
+			}
+		});
+
+		assertEqualTextQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				[ROOT_1_URI],
+				{ excludePattern: [{ pattern: ['!literal', 'other'] }] }
+			),
+			{
+				contentPattern: PATTERN_INFO,
+				folderQueries: [{
+					folder: ROOT_1_URI,
+					excludePattern: [{
+						pattern: {
+							'node_modules': true,
+							'!node_modules/@types': true
+						}
+					}]
+				}],
+				excludePattern: {
+					'{!}literal': true,
+					'other': true
+				},
 				type: QueryType.Text
 			});
 	});
@@ -451,6 +484,24 @@ suite('QueryBuilder', () => {
 	});
 
 	test('exclude ./ syntax', () => {
+		assertEqualTextQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				[ROOT_1_URI],
+				{
+					excludePattern: [{ pattern: './!old' }],
+					expandPatterns: true
+				}
+			),
+			{
+				contentPattern: PATTERN_INFO,
+				folderQueries: [{
+					folder: ROOT_1_URI,
+					excludePattern: makeExcludePatternFromPatterns('{!}old', '{!}old/**'),
+				}],
+				type: QueryType.Text
+			});
+
 		assertEqualTextQueries(
 			queryBuilder.text(
 				PATTERN_INFO,
@@ -1211,11 +1262,6 @@ function makeExcludePatternFromPatterns(...patterns: string[]): {
 }
 
 function assertEqualTextQueries(actual: ITextQuery, expected: ITextQuery): void {
-	expected = {
-		...DEFAULT_TEXT_QUERY_PROPS,
-		...expected
-	};
-
 	return assertEqualQueries(actual, expected);
 }
 

@@ -18,6 +18,7 @@
     "defaultChatParticipant",
     "diffCommand",
     "documentFiltersExclusive",
+    "documentSyntaxHighlighting",
     "editorInsets",
     "embeddings",
     "envIsConnectionMetered",
@@ -49,7 +50,6 @@
     "terminalDimensions",
     "testObserver",
     "textSearchProvider",
-    "timeline",
     "tokenInformation",
     "treeViewActiveItem",
     "treeViewReveal",
@@ -58,7 +58,8 @@
     "inlineCompletionsAdditions",
     "devDeviceId",
     "languageModelProxy",
-    "agentSessionsWorkspace"
+    "agentSessionsWorkspace",
+    "linkPresentation"
   ],
   "private": true,
   "activationEvents": [],

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Shopify/ruby-lsp/commit/ba41f8b4f9677fb14c1ecbe15d73ebe12a0d3859",
+	"version": "https://github.com/Shopify/ruby-lsp/commit/e044408a069f43c892143f19c389628eebffbd01",
 	"name": "Ruby",
 	"scopeName": "source.ruby",
 	"patterns": [
@@ -2136,7 +2136,7 @@
 			]
 		},
 		{
-			"begin": "(?>=\\s*<<([\"'`]?)(\\w+)\\1)",
+			"begin": "(?>=\\s*<<([\"'`]?)([A-Za-z_]\\w*)\\1)",
 			"beginCaptures": {
 				"0": {
 					"name": "string.definition.begin.ruby"
@@ -2162,7 +2162,7 @@
 			]
 		},
 		{
-			"begin": "(?>((<<[-~]?([\"'`]?)(\\w+)\\3,\\s?)*<<[-~]?([\"'`]?)(\\w+)\\5))(.*)",
+			"begin": "(?>((<<[-~]?([\"'`]?)([A-Za-z_]\\w*)\\3,\\s?)*<<[-~]?([\"'`]?)([A-Za-z_]\\w*)\\5))(.*)",
 			"beginCaptures": {
 				"1": {
 					"name": "string.definition.begin.ruby"
@@ -2487,7 +2487,7 @@
 			"name": "constant.character.escape.ruby"
 		},
 		"heredoc": {
-			"begin": "^<<[-~]?\\w+",
+			"begin": "^<<[-~]?[A-Za-z_]\\w*",
 			"end": "$",
 			"patterns": [
 				{

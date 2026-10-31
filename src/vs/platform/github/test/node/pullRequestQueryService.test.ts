@@ -1,0 +1,1060 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { structuralEquals } from '../../../../base/common/equals.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { PullRequestCore, PullRequestRef, PullRequestSubscriptionOptions } from '../../common/githubPullRequestService.js';
+import { GitHubHostCapabilities } from '../../common/githubTypes.js';
+import { GitHubCredential } from '../../common/githubCredentialService.js';
+import { IGitHubCapabilities } from '../../common/githubHostCapabilitiesService.js';
+import { GitHubRequestError, GitHubTransport } from '../../common/githubTransport.js';
+import { PullRequestQueryService } from '../../common/pullRequestQueryService.js';
+import { classifyRequiredPullRequestChecks, getRequiredPullRequestChecksStatus } from '../../common/pullRequestRequiredChecks.js';
+import { nodeFetch } from './nodeFetch.js';
+import { gitHubGraphQLResponse, gitHubGraphQLStep, gitHubJsonResponse, gitHubRestStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
+
+const availableCapabilities: GitHubHostCapabilities = {
+	graphql: true,
+	mergeQueue: true,
+	reviewThreads: true,
+	checkContextRequiredness: true,
+};
+
+class TestCapabilitiesService implements IGitHubCapabilities {
+
+	constructor(readonly value: GitHubHostCapabilities) { }
+
+	getCapabilities(): Promise<GitHubHostCapabilities> {
+		return Promise.resolve(this.value);
+	}
+
+}
+
+suite('PullRequestQueryService', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function withServer(fn: (server: ProgrammableGitHubServer) => Promise<void>): Promise<void> {
+		const server = await ProgrammableGitHubServer.start();
+		try {
+			await fn(server);
+		} finally {
+			await server.disposeAsync();
+		}
+	}
+
+	function setup(server: ProgrammableGitHubServer, capabilities = availableCapabilities, now?: number): {
+		readonly query: PullRequestQueryService;
+		readonly ref: PullRequestRef;
+		readonly credential: GitHubCredential;
+	} {
+		const account = { host: new URL(server.apiBaseUrl).host, accountId: '101' };
+		const signal = new AbortController().signal;
+		const transport = disposables.add(new GitHubTransport(nodeFetch));
+		return {
+			query: new PullRequestQueryService(transport, new TestCapabilitiesService(capabilities), server.createEndpointService(), undefined, now === undefined ? undefined : { now: () => now }),
+			ref: { ...account, owner: 'octo', repo: 'repo', number: 7 },
+			credential: { account, token: 'token', generation: 1, signal },
+		};
+	}
+
+	test('normalizes core and complete independent REST conversation fragments', async () => {
+		await withServer(async server => {
+			server.enqueue(
+				gitHubRestStep({ method: 'GET', path: '/repos/octo/repo/pulls/7', response: gitHubJsonResponse(rawCore('head-1'), { etag: '"core"' }) }),
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/octo/repo/issues/7/comments',
+					query: { per_page: 100 },
+					response: gitHubJsonResponse([{ id: 1, node_id: 'IC_1', body: 'one', author_association: 'MEMBER', user: { id: 10, login: 'a' } }], {
+						link: `<${server.apiBaseUrl}/repos/octo/repo/issues/7/comments?per_page=100&page=2>; rel="next"`,
+					}),
+				}),
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/octo/repo/issues/7/comments',
+					query: { per_page: 100, page: 2 },
+					response: gitHubJsonResponse([{ id: 2, body: 'two', user: { id: 11, login: 'b' } }]),
+				}),
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/octo/repo/pulls/7/reviews',
+					query: { per_page: 100 },
+					response: gitHubJsonResponse([{ id: 3, state: 'APPROVED', body: 'approved', author_association: 'COLLABORATOR', user: { login: 'c' }, commit_id: 'head-1' }]),
+				}),
+			);
+			const { query, ref, credential } = setup(server);
+			const signal = new AbortController().signal;
+			const options: PullRequestSubscriptionOptions = {
+				priority: 'visible',
+				conversation: {
+					topLevelComments: true,
+					submittedReviews: true,
+					includeBodies: true,
+				},
+			};
+
+			const coreResult = await query.fetch('core', ref, undefined, options, credential, signal);
+			const normalizedCore = coreResult.fragment === 'core' ? coreResult.value : undefined;
+			const comments = await query.fetch('topLevelComments', ref, normalizedCore, options, credential, signal);
+			const reviews = await query.fetch('submittedReviews', ref, normalizedCore, options, credential, signal);
+
+			assert.deepStrictEqual({
+				core: coreResult,
+				comments,
+				reviews,
+			}, {
+				core: { fragment: 'core', value: core('head-1'), complete: true },
+				comments: {
+					fragment: 'topLevelComments',
+					value: [
+						{ id: '1', nodeId: 'IC_1', author: { id: '10', login: 'a', association: 'MEMBER' }, body: 'one', url: undefined, createdAt: undefined, updatedAt: undefined },
+						{ id: '2', nodeId: undefined, author: { id: '11', login: 'b' }, body: 'two', url: undefined, createdAt: undefined, updatedAt: undefined },
+					],
+					complete: true,
+				},
+				reviews: {
+					fragment: 'submittedReviews',
+					value: [{ id: '3', nodeId: undefined, author: { login: 'c', association: 'COLLABORATOR' }, state: 'APPROVED', body: 'approved', commitId: 'head-1', submittedAt: undefined }],
+					complete: true,
+				},
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('fully paginates review threads and nested comments', async () => {
+		await withServer(async server => {
+			server.enqueue(
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestReviewThreads',
+					assert: request => assert.deepStrictEqual(request.graphQl?.variables, { owner: 'octo', repo: 'repo', number: 7 }),
+					response: gitHubGraphQLResponse({
+						repository: {
+							pullRequest: {
+								headRefOid: 'head-1',
+								reviewThreads: {
+									nodes: [{
+										id: 'T1',
+										isResolved: false,
+										path: 'a.ts',
+										diffSide: 'RIGHT',
+										comments: {
+											nodes: [{ id: 'C1', databaseId: 1, body: 'first', state: 'SUBMITTED', author: { login: 'a' } }],
+											pageInfo: { hasNextPage: true, endCursor: 'comments-1' },
+										},
+									}],
+									pageInfo: { hasNextPage: true, endCursor: 'threads-1' },
+								},
+							},
+						},
+					}),
+				}),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestReviewThreadComments',
+					assert: request => assert.deepStrictEqual(request.graphQl?.variables, { threadId: 'T1', after: 'comments-1' }),
+					response: gitHubGraphQLResponse({
+						node: {
+							comments: {
+								nodes: [{ id: 'C2', databaseId: 2, body: 'second', state: 'PENDING', author: { login: 'b' } }],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					}),
+				}),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestReviewThreads',
+					assert: request => assert.deepStrictEqual(request.graphQl?.variables, { owner: 'octo', repo: 'repo', number: 7, after: 'threads-1' }),
+					response: gitHubGraphQLResponse({
+						repository: {
+							pullRequest: {
+								headRefOid: 'head-1',
+								reviewThreads: {
+									nodes: [{
+										id: 'T2',
+										isResolved: true,
+										diffSide: 'LEFT',
+										comments: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } },
+									}],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+				}),
+			);
+			const { query, ref, credential } = setup(server);
+			const result = await query.fetch(
+				'reviewThreads',
+				ref,
+				core('head-1'),
+				{ priority: 'visible', conversation: { reviewThreads: true, includeBodies: true } },
+				credential,
+				new AbortController().signal,
+			);
+
+			assert.deepStrictEqual(result, {
+				fragment: 'reviewThreads',
+				value: [
+					{
+						id: 'T1',
+						isResolved: false,
+						isOutdated: undefined,
+						path: 'a.ts',
+						diffSide: 'RIGHT',
+						line: undefined,
+						originalLine: undefined,
+						comments: [
+							graphQLComment('1', 'C1', 'a', 'first', 'RIGHT', 'SUBMITTED'),
+							graphQLComment('2', 'C2', 'b', 'second', 'RIGHT', 'PENDING'),
+						],
+					},
+					{
+						id: 'T2',
+						isResolved: true,
+						isOutdated: undefined,
+						path: undefined,
+						diffSide: 'LEFT',
+						line: undefined,
+						originalLine: undefined,
+						comments: [],
+					},
+				],
+				complete: true,
+				headSha: 'head-1',
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('rejects review threads when the pull request head changes during pagination', async () => {
+		await withServer(async server => {
+			server.enqueue(
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestReviewThreads',
+					response: gitHubGraphQLResponse({
+						repository: {
+							pullRequest: {
+								headRefOid: 'head-1',
+								reviewThreads: {
+									nodes: [],
+									pageInfo: { hasNextPage: true, endCursor: 'threads-1' },
+								},
+							},
+						},
+					}),
+				}),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestReviewThreads',
+					response: gitHubGraphQLResponse({
+						repository: {
+							pullRequest: {
+								headRefOid: 'head-2',
+								reviewThreads: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+				}),
+			);
+			const { query, ref, credential } = setup(server);
+
+			await assert.rejects(() => query.fetch(
+				'reviewThreads',
+				ref,
+				core('head-1'),
+				{ priority: 'visible', conversation: { reviewThreads: true } },
+				credential,
+				new AbortController().signal,
+			), /old pull request head/);
+			server.assertSatisfied();
+		});
+	});
+
+	test('drops workflow names when the host refuses them and keeps the fallback for later polls', async () => {
+		await withServer(async server => {
+			const checkRun = { __typename: 'CheckRun', databaseId: 1, name: 'CI', status: 'COMPLETED', conclusion: 'SUCCESS', isRequired: true };
+			const expectedSuitesResponse = gitHubGraphQLResponse({
+				repository: {
+					object: {
+						oid: 'head-1',
+						checkSuites: {
+							nodes: [{ id: 'CS1', status: 'COMPLETED', conclusion: 'SUCCESS', app: { name: 'Build' }, checkRuns: { totalCount: 1 } }],
+							pageInfo: { hasNextPage: false, endCursor: null },
+						},
+					},
+				},
+			});
+			server.enqueue(
+				gitHubGraphQLStep({
+					queryIncludes: ['AgentHostPullRequestChecks', 'workflowRun'],
+					response: gitHubGraphQLResponse(undefined, [{
+						type: 'FORBIDDEN',
+						message: 'Resource protected by organization SAML enforcement. You must grant your OAuth token access to this organization.',
+					}]),
+				}),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestChecks',
+					assert: request => assert.ok(!request.graphQl?.query?.includes('workflowRun'), 'retry must omit the refused workflow-name subselection'),
+					response: gitHubGraphQLResponse(checksPage('head-1', [checkRun], false)),
+				}),
+				gitHubGraphQLStep({ queryIncludes: 'AgentHostPullRequestExpectedCheckSuites', response: expectedSuitesResponse }),
+				// The base branch's required checks are read once, then reused by the next poll.
+				...requiredContextSteps(['CI']),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestChecks',
+					assert: request => assert.ok(!request.graphQl?.query?.includes('workflowRun'), 'later polls must not retry the refused subselection'),
+					response: gitHubGraphQLResponse(checksPage('head-1', [checkRun], false)),
+				}),
+				gitHubGraphQLStep({ queryIncludes: 'AgentHostPullRequestExpectedCheckSuites', response: expectedSuitesResponse }),
+			);
+			const { query, ref, credential } = setup(server);
+			const signal = new AbortController().signal;
+			// The Agent Merge subscription shape, which always loads expected suites.
+			const options = { priority: 'interactive', checks: { required: true } } as const;
+			const first = await query.fetch('checks', ref, core('head-1'), options, credential, signal);
+			const second = await query.fetch('checks', ref, core('head-1'), options, credential, signal);
+
+			const expected = {
+				fragment: 'checks',
+				value: {
+					headSha: 'head-1',
+					checks: [{ id: '1', type: 'checkRun', name: 'CI', status: 'COMPLETED', conclusion: 'SUCCESS', required: true, detailsUrl: undefined, workflowName: undefined }],
+					requirednessComplete: true,
+					requiredContexts: ['CI'],
+					expectedSuites: [{ id: 'CS1', name: 'Build', status: 'COMPLETED', conclusion: 'SUCCESS', checkRunsReported: true }],
+					expectedSuitesComplete: true,
+				},
+				complete: true,
+				headSha: 'head-1',
+			};
+			assert.deepStrictEqual([first, second], [expected, expected]);
+			server.assertSatisfied();
+		});
+	});
+
+	test('keeps checks usable when only the expected check suites are refused', async () => {
+		await withServer(async server => {
+			const checkRun = {
+				__typename: 'CheckRun',
+				databaseId: 1,
+				name: 'CI',
+				status: 'COMPLETED',
+				conclusion: 'SUCCESS',
+				isRequired: true,
+				checkSuite: { workflowRun: { workflow: { name: 'Code OSS' } } },
+			};
+			const refusal = gitHubGraphQLResponse(undefined, [{
+				type: 'FORBIDDEN',
+				message: 'Resource protected by organization SAML enforcement. You must grant your OAuth token access to this organization.',
+			}]);
+			server.enqueue(
+				gitHubGraphQLStep({
+					queryIncludes: ['AgentHostPullRequestChecks', 'workflowRun'],
+					response: gitHubGraphQLResponse(checksPage('head-1', [checkRun], false)),
+				}),
+				gitHubGraphQLStep({ queryIncludes: 'AgentHostPullRequestExpectedCheckSuites', response: refusal }),
+				...requiredContextSteps(['CI']),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestChecks',
+					assert: request => assert.ok(request.graphQl?.query?.includes('workflowRun'), 'a refused expected-suites request must not disable workflow names'),
+					response: gitHubGraphQLResponse(checksPage('head-1', [checkRun], false)),
+				}),
+				gitHubGraphQLStep({ queryIncludes: 'AgentHostPullRequestExpectedCheckSuites', response: refusal }),
+			);
+			const { query, ref, credential } = setup(server);
+			const signal = new AbortController().signal;
+			const options = { priority: 'interactive', checks: { required: true } } as const;
+			const first = await query.fetch('checks', ref, core('head-1'), options, credential, signal);
+			const second = await query.fetch('checks', ref, core('head-1'), options, credential, signal);
+
+			// Checks stay readable, and the missing suites are reported incomplete.
+			const expected = {
+				fragment: 'checks',
+				value: {
+					headSha: 'head-1',
+					checks: [{ id: '1', type: 'checkRun', name: 'CI', status: 'COMPLETED', conclusion: 'SUCCESS', required: true, detailsUrl: undefined, workflowName: 'Code OSS' }],
+					requirednessComplete: true,
+					requiredContexts: ['CI'],
+					expectedSuites: [],
+					expectedSuitesComplete: false,
+				},
+				complete: true,
+				headSha: 'head-1',
+			};
+			assert.deepStrictEqual([first, second], [expected, expected]);
+			server.assertSatisfied();
+		});
+	});
+
+	test('keeps expected check suites whose app or workflow is withheld, names them after their workflow, and omits idle suites of other apps after a grace period', async () => {
+		await withServer(async server => {
+			const checkRun = { __typename: 'CheckRun', databaseId: 1, name: 'CI', status: 'COMPLETED', conclusion: 'SUCCESS', isRequired: true };
+			const withheld = (node: number, ...field: string[]) => ({
+				type: 'FORBIDDEN',
+				path: ['repository', 'object', 'checkSuites', 'nodes', node, ...field],
+				message: 'Resource protected by organization SAML enforcement. You must grant your OAuth token access to this organization.',
+			});
+			const pushedAt = '2026-01-01T00:00:00Z';
+			server.enqueue(
+				gitHubGraphQLStep({ queryIncludes: 'AgentHostPullRequestChecks', response: gitHubGraphQLResponse(checksPage('head-1', [checkRun], false)) }),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestExpectedCheckSuites',
+					response: gitHubGraphQLResponse({
+						repository: {
+							object: {
+								oid: 'head-1',
+								checkSuites: {
+									nodes: [
+										{ id: 'reported', status: 'COMPLETED', conclusion: 'SUCCESS', createdAt: pushedAt, app: null, checkRuns: { totalCount: 1 } },
+										{ id: 'withheld', status: 'QUEUED', conclusion: null, createdAt: pushedAt, app: null, checkRuns: { totalCount: 0 } },
+										{ id: 'actions', status: 'QUEUED', conclusion: null, createdAt: pushedAt, app: { name: 'GitHub Actions', slug: 'github-actions' }, checkRuns: { totalCount: 0 } },
+										{ id: 'idle', status: 'QUEUED', conclusion: null, createdAt: pushedAt, app: { name: 'Azure Boards', slug: 'azure-boards' }, checkRuns: { totalCount: 0 } },
+										{ id: 'delayed', status: 'QUEUED', conclusion: null, createdAt: '2026-01-01T00:00:15Z', app: { name: 'Third-Party CI', slug: 'third-party-ci' }, checkRuns: { totalCount: 0 } },
+										{ id: 'undated', status: 'QUEUED', conclusion: null, app: { name: 'Undated CI', slug: 'undated-ci' }, checkRuns: { totalCount: 0 } },
+										{ id: 'policy', status: 'COMPLETED', conclusion: 'FAILURE', createdAt: pushedAt, app: { name: 'Policy', slug: 'policy' }, checkRuns: { totalCount: 0 } },
+										// A workflow that fails to start reports no check run, and GitHub names it after its file.
+										{ id: 'invalid-workflow', status: 'COMPLETED', conclusion: 'FAILURE', createdAt: pushedAt, app: null, workflowRun: { workflow: { name: '.github/workflows/release-notes.yml' } }, checkRuns: { totalCount: 0 } },
+									],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}, [withheld(0, 'app'), withheld(1, 'app'), withheld(1, 'workflowRun', 'workflow'), withheld(7, 'app')]),
+				}),
+				// A ruleset can require a check that the branch protection does not name.
+				...requiredContextSteps([], ['CI']),
+			);
+			const { query, ref, credential } = setup(server, availableCapabilities, Date.parse('2026-01-01T00:00:20Z'));
+
+			const result = await query.fetch('checks', ref, core('head-1'), { priority: 'interactive', checks: { required: true } }, credential, new AbortController().signal);
+
+			assert.deepStrictEqual(result, {
+				fragment: 'checks',
+				value: {
+					headSha: 'head-1',
+					checks: [{ id: '1', type: 'checkRun', name: 'CI', status: 'COMPLETED', conclusion: 'SUCCESS', required: true, detailsUrl: undefined, workflowName: undefined }],
+					requirednessComplete: true,
+					requiredContexts: ['CI'],
+					expectedSuites: [
+						{ id: 'reported', name: 'unknown', status: 'COMPLETED', conclusion: 'SUCCESS', checkRunsReported: true },
+						{ id: 'withheld', name: 'unknown', status: 'QUEUED', conclusion: undefined, checkRunsReported: false },
+						{ id: 'actions', name: 'GitHub Actions', status: 'QUEUED', conclusion: undefined, checkRunsReported: false },
+						{ id: 'delayed', name: 'Third-Party CI', status: 'QUEUED', conclusion: undefined, checkRunsReported: false },
+						{ id: 'undated', name: 'Undated CI', status: 'QUEUED', conclusion: undefined, checkRunsReported: false },
+						{ id: 'policy', name: 'Policy', status: 'COMPLETED', conclusion: 'FAILURE', checkRunsReported: false },
+						{ id: 'invalid-workflow', name: '.github/workflows/release-notes.yml', status: 'COMPLETED', conclusion: 'FAILURE', checkRunsReported: false },
+					],
+					expectedSuitesComplete: true,
+				},
+				complete: true,
+				headSha: 'head-1',
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('fully paginates current-head checks and normalizes mergeability', async () => {
+		await withServer(async server => {
+			server.enqueue(
+				gitHubGraphQLStep({
+					queryIncludes: ['AgentHostPullRequestChecks', 'isRequired'],
+					response: gitHubGraphQLResponse(checksPage('head-1', [{
+						__typename: 'CheckRun',
+						databaseId: 1,
+						name: 'CI',
+						status: 'COMPLETED',
+						conclusion: 'SUCCESS',
+						isRequired: true,
+					}], true, 'checks-1')),
+				}),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestChecks',
+					assert: request => assert.deepStrictEqual(request.graphQl?.variables, { owner: 'octo', repo: 'repo', number: 7, after: 'checks-1' }),
+					response: gitHubGraphQLResponse(checksPage('head-1', [{
+						__typename: 'StatusContext',
+						id: 'SC1',
+						context: 'legacy',
+						state: 'SUCCESS',
+						isRequired: false,
+					}], false)),
+				}),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestExpectedCheckSuites',
+					response: gitHubGraphQLResponse({
+						repository: {
+							object: {
+								oid: 'head-1',
+								checkSuites: {
+									nodes: [{
+										id: 'CS1',
+										status: 'COMPLETED',
+										conclusion: 'SUCCESS',
+										app: { name: 'Build' },
+										checkRuns: { totalCount: 1 },
+									}],
+									pageInfo: { hasNextPage: true, endCursor: 'suites-1' },
+								},
+							},
+						},
+					}),
+				}),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestExpectedCheckSuites',
+					assert: request => assert.deepStrictEqual(request.graphQl?.variables, { owner: 'octo', repo: 'repo', headSha: 'head-1', after: 'suites-1' }),
+					response: gitHubGraphQLResponse({
+						repository: {
+							object: {
+								oid: 'head-1',
+								checkSuites: {
+									nodes: [{
+										id: 'CS2',
+										status: 'IN_PROGRESS',
+										conclusion: null,
+										app: { slug: 'analysis' },
+										checkRuns: { totalCount: 0 },
+									}],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+				}),
+				...requiredContextSteps(['CI']),
+				gitHubGraphQLStep({
+					queryIncludes: ['AgentHostPullRequestMergeability', 'mergeQueue(branch: $baseBranch)'],
+					response: gitHubGraphQLResponse({
+						repository: {
+							mergeCommitAllowed: true,
+							squashMergeAllowed: true,
+							rebaseMergeAllowed: false,
+							viewerPermission: 'WRITE',
+							mergeQueue: null,
+							pullRequest: {
+								headRefOid: 'head-1',
+								baseRefOid: 'base',
+								mergeable: 'MERGEABLE',
+								mergeStateStatus: 'CLEAN',
+								reviewDecision: 'APPROVED',
+								viewerCanUpdateBranch: true,
+								viewerCanEnableAutoMerge: true,
+								autoMergeRequest: null,
+								mergeQueueEntry: null,
+							},
+						},
+					}),
+				}),
+			);
+			const { query, ref, credential } = setup(server);
+			const signal = new AbortController().signal;
+			const checks = await query.fetch('checks', ref, core('head-1'), { priority: 'interactive', checks: { required: true } }, credential, signal);
+			const mergeability = await query.fetch('mergeability', ref, core('head-1'), { priority: 'interactive', mergeability: true }, credential, signal);
+
+			assert.deepStrictEqual({
+				checks,
+				mergeability,
+			}, {
+				checks: {
+					fragment: 'checks',
+					value: {
+						headSha: 'head-1',
+						requirednessComplete: true,
+						requiredContexts: ['CI'],
+						expectedSuites: [
+							{ id: 'CS1', name: 'Build', status: 'COMPLETED', conclusion: 'SUCCESS', checkRunsReported: true },
+							{ id: 'CS2', name: 'analysis', status: 'IN_PROGRESS', conclusion: undefined, checkRunsReported: false },
+						],
+						expectedSuitesComplete: true,
+						checks: [
+							{ id: '1', type: 'checkRun', name: 'CI', status: 'COMPLETED', conclusion: 'SUCCESS', required: true, detailsUrl: undefined, workflowName: undefined },
+						],
+					},
+					complete: true,
+					headSha: 'head-1',
+				},
+				mergeability: {
+					fragment: 'mergeability',
+					value: {
+						headSha: 'head-1',
+						baseSha: 'base',
+						mergeable: 'MERGEABLE',
+						mergeStateStatus: 'CLEAN',
+						reviewDecision: 'APPROVED',
+						viewerCanUpdate: true,
+						viewerCanMerge: true,
+						viewerCanEnableAutoMerge: true,
+						allowedMergeMethods: ['MERGE', 'SQUASH'],
+						autoMergeEnabled: false,
+						mergeQueueEntryId: undefined,
+						mergeQueueRequired: false,
+						queueRequirementKnown: true,
+					},
+					complete: true,
+					headSha: 'head-1',
+				},
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('marks the checks an unreported required check waits for, and reads each workflow once per head', async () => {
+		await withServer(async server => {
+			const run = (id: number, path: string, name: string) => ({ workflowRun: { databaseId: id, file: { path }, workflow: { name } } });
+			const nodes = [
+				{ __typename: 'CheckRun', databaseId: 1, name: 'Compile', status: 'COMPLETED', conclusion: 'FAILURE', isRequired: false, checkSuite: run(100, '.github/workflows/pr.yml', 'Code OSS') },
+				{ __typename: 'CheckRun', databaseId: 2, name: 'Linux / Electron', status: 'IN_PROGRESS', conclusion: null, isRequired: false, checkSuite: run(100, '.github/workflows/pr.yml', 'Code OSS') },
+				{ __typename: 'CheckRun', databaseId: 3, name: 'Unrelated', status: 'COMPLETED', conclusion: 'FAILURE', isRequired: false, checkSuite: run(100, '.github/workflows/pr.yml', 'Code OSS') },
+				{ __typename: 'CheckRun', databaseId: 4, name: 'Docs', status: 'COMPLETED', conclusion: 'FAILURE', isRequired: false, checkSuite: run(200, '.github/workflows/docs.yml', 'Docs') },
+			];
+			// YAML must be indented with spaces.
+			const prWorkflow = [
+				'name: Code OSS',
+				'on: pull_request',
+				'jobs:',
+				'  compile:',
+				'    name: Compile',
+				'    runs-on: ubuntu-latest',
+				'  linux:',
+				'    name: Linux',
+				'    needs: compile',
+				'    uses: ./.github/workflows/linux.yml',
+				'  unrelated:',
+				'    name: Unrelated',
+				'    runs-on: ubuntu-latest',
+				'  gate:',
+				'    name: PR Gate',
+				'    needs: [compile, linux]',
+				'    if: ${{ always() }}',
+				'    runs-on: ubuntu-latest',
+			].join('\n');
+			const docsWorkflow = ['jobs:', '  docs:', '    name: Docs', '    runs-on: ubuntu-latest'].join('\n');
+			const noSuites = gitHubGraphQLResponse({ repository: { object: { oid: 'head-1', checkSuites: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } });
+			server.enqueue(
+				gitHubGraphQLStep({ queryIncludes: ['AgentHostPullRequestChecks', 'file { path }'], response: gitHubGraphQLResponse(checksPage('head-1', nodes, false)) }),
+				gitHubGraphQLStep({ queryIncludes: 'AgentHostPullRequestExpectedCheckSuites', response: noSuites }),
+				...requiredContextSteps(['PR Gate']),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestWorkflowFiles',
+					assert: request => assert.deepStrictEqual(request.graphQl?.variables, { owner: 'octo', repo: 'repo', file0: 'head-1:.github/workflows/pr.yml', file1: 'head-1:.github/workflows/docs.yml' }),
+					response: gitHubGraphQLResponse({ repository: { file0: { text: prWorkflow, isTruncated: false }, file1: { text: docsWorkflow, isTruncated: false } } }),
+				}),
+				// The next poll reuses the required checks and workflows it read.
+				gitHubGraphQLStep({ queryIncludes: 'AgentHostPullRequestChecks', response: gitHubGraphQLResponse(checksPage('head-1', nodes, false)) }),
+				gitHubGraphQLStep({ queryIncludes: 'AgentHostPullRequestExpectedCheckSuites', response: noSuites }),
+			);
+			const { query, ref, credential } = setup(server);
+			const options = { priority: 'background', checks: { required: true } } as const;
+			const first = await query.fetch('checks', ref, core('head-1'), options, credential, new AbortController().signal);
+			const second = await query.fetch('checks', ref, core('head-1'), options, credential, new AbortController().signal);
+
+			const dependency = { required: false, detailsUrl: undefined, workflowName: 'Code OSS', workflowRunId: '100', workflowPath: '.github/workflows/pr.yml', requiredBy: ['PR Gate'] };
+			const value = first.fragment === 'checks' ? first.value : undefined;
+			const classified = value && classifyRequiredPullRequestChecks(value);
+			assert.deepStrictEqual({
+				// Optional checks that no required check waits for are dropped for a subscriber of required checks only.
+				checks: value?.checks,
+				requiredContexts: value?.requiredContexts,
+				failed: classified?.failed.map(check => check.name),
+				missing: classified?.missing,
+				pending: classified?.pending,
+				samePoll: structuralEquals(first, second),
+			}, {
+				checks: [
+					{ id: '1', type: 'checkRun', name: 'Compile', status: 'COMPLETED', conclusion: 'FAILURE', ...dependency },
+					{ id: '2', type: 'checkRun', name: 'Linux / Electron', status: 'IN_PROGRESS', conclusion: undefined, ...dependency },
+				],
+				requiredContexts: ['PR Gate'],
+				failed: ['Compile'],
+				missing: ['PR Gate'],
+				pending: true,
+				samePoll: true,
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('reads no workflow once every required check finished, whose own result then decides', async () => {
+		await withServer(async server => {
+			const run = { workflowRun: { databaseId: 100, file: { path: '.github/workflows/pr.yml' }, workflow: { name: 'Code OSS' } } };
+			server.enqueue(
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestChecks',
+					response: gitHubGraphQLResponse(checksPage('head-1', [
+						{ __typename: 'CheckRun', databaseId: 1, name: 'Detect Changes', status: 'COMPLETED', conclusion: 'FAILURE', isRequired: false, checkSuite: run },
+						{ __typename: 'CheckRun', databaseId: 2, name: 'PR Gate', status: 'COMPLETED', conclusion: 'SUCCESS', isRequired: true, checkSuite: run },
+					], false)),
+				}),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestExpectedCheckSuites',
+					response: gitHubGraphQLResponse({ repository: { object: { oid: 'head-1', checkSuites: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } }),
+				}),
+				...requiredContextSteps(['PR Gate']),
+			);
+			const { query, ref, credential } = setup(server);
+			const result = await query.fetch('checks', ref, core('head-1'), { priority: 'background', checks: { required: true } }, credential, new AbortController().signal);
+
+			const value = result.fragment === 'checks' ? result.value : undefined;
+			assert.deepStrictEqual({
+				checks: value?.checks.map(check => check.name),
+				status: value && getRequiredPullRequestChecksStatus(value),
+			}, { checks: ['PR Gate'], status: 'success' });
+			server.assertSatisfied();
+		});
+	});
+
+	test('reads the required checks of base branches whose names differ only in case separately', async () => {
+		await withServer(async server => {
+			const steps = (headSha: string, branch: string, contexts: readonly string[]) => [
+				gitHubGraphQLStep({ queryIncludes: 'AgentHostPullRequestChecks', response: gitHubGraphQLResponse(checksPage(headSha, [], false)) }),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestExpectedCheckSuites',
+					response: gitHubGraphQLResponse({ repository: { object: { oid: headSha, checkSuites: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } }),
+				}),
+				...requiredContextSteps(contexts, [], branch),
+			];
+			server.enqueue(...steps('head-1', 'release', ['CI']), ...steps('head-2', 'Release', []));
+			const { query, ref, credential } = setup(server);
+			const options = { priority: 'background', checks: { required: true } } as const;
+			const lower = await query.fetch('checks', ref, { ...core('head-1'), baseRef: 'release' }, options, credential, new AbortController().signal);
+			const upper = await query.fetch('checks', ref, { ...core('head-2'), baseRef: 'Release' }, options, credential, new AbortController().signal);
+
+			assert.deepStrictEqual({
+				lower: lower.fragment === 'checks' ? lower.value.requiredContexts : undefined,
+				upper: upper.fragment === 'checks' ? upper.value.requiredContexts : undefined,
+			}, { lower: ['CI'], upper: [] });
+			server.assertSatisfied();
+		});
+	});
+
+	test('derives merge permission from the repository permission of the viewer', async () => {
+		// `null` is what GitHub returns when the request is authenticated as a GitHub App.
+		const permissions = ['ADMIN', 'MAINTAIN', 'WRITE', 'TRIAGE', 'READ', null];
+		const canMerge: Record<string, boolean> = {};
+		for (const viewerPermission of permissions) {
+			await withServer(async server => {
+				server.enqueue(gitHubGraphQLStep({
+					queryIncludes: ['AgentHostPullRequestMergeability', 'viewerPermission'],
+					response: gitHubGraphQLResponse({
+						repository: {
+							mergeCommitAllowed: true,
+							squashMergeAllowed: false,
+							rebaseMergeAllowed: false,
+							viewerPermission,
+							mergeQueue: null,
+							pullRequest: {
+								headRefOid: 'head-1',
+								baseRefOid: 'base',
+								mergeable: 'MERGEABLE',
+								mergeStateStatus: 'CLEAN',
+								reviewDecision: 'APPROVED',
+								viewerCanUpdateBranch: false,
+								viewerCanEnableAutoMerge: false,
+								autoMergeRequest: null,
+								mergeQueueEntry: null,
+							},
+						},
+					}),
+				}));
+				const { query, ref, credential } = setup(server);
+				const result = await query.fetch('mergeability', ref, core('head-1'), { priority: 'interactive', mergeability: true }, credential, new AbortController().signal);
+				assert.ok(result.fragment === 'mergeability', `expected a mergeability fragment for ${viewerPermission ?? 'null'}, got ${result.fragment}`);
+				canMerge[viewerPermission ?? 'null'] = result.value.viewerCanMerge;
+				server.assertSatisfied();
+			});
+		}
+
+		assert.deepStrictEqual(canMerge, {
+			ADMIN: true,
+			MAINTAIN: true,
+			WRITE: true,
+			TRIAGE: false,
+			READ: false,
+			null: false,
+		});
+	});
+
+	test('normalizes the remaining mergeability fields', async () => {
+		await withServer(async server => {
+			server.enqueue(gitHubGraphQLStep({
+				queryIncludes: ['AgentHostPullRequestMergeability', 'viewerPermission'],
+				response: gitHubGraphQLResponse({
+					repository: {
+						mergeCommitAllowed: true,
+						squashMergeAllowed: false,
+						rebaseMergeAllowed: false,
+						viewerPermission: 'READ',
+						mergeQueue: null,
+						pullRequest: {
+							headRefOid: 'head-1',
+							baseRefOid: 'base',
+							mergeable: 'MERGEABLE',
+							mergeStateStatus: 'CLEAN',
+							reviewDecision: 'APPROVED',
+							viewerCanUpdateBranch: false,
+							viewerCanEnableAutoMerge: false,
+							autoMergeRequest: null,
+							mergeQueueEntry: null,
+						},
+					},
+				}),
+			}));
+			const { query, ref, credential } = setup(server);
+			const result = await query.fetch('mergeability', ref, core('head-1'), { priority: 'interactive', mergeability: true }, credential, new AbortController().signal);
+
+			assert.deepStrictEqual(result.fragment === 'mergeability' ? result.value : undefined, {
+				headSha: 'head-1',
+				baseSha: 'base',
+				mergeable: 'MERGEABLE',
+				mergeStateStatus: 'CLEAN',
+				reviewDecision: 'APPROVED',
+				viewerCanUpdate: false,
+				viewerCanMerge: false,
+				viewerCanEnableAutoMerge: false,
+				allowedMergeMethods: ['MERGE'],
+				autoMergeEnabled: false,
+				mergeQueueEntryId: undefined,
+				mergeQueueRequired: false,
+				queueRequirementKnown: true,
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	for (const type of ['RATE_LIMIT', 'RATE_LIMITED']) {
+		test(`surfaces GraphQL ${type} without accepting partial checks`, async () => {
+			await withServer(async server => {
+				const errors = [{ type, message: 'Checks rate limited' }];
+				server.enqueue(gitHubGraphQLStep({
+					response: gitHubGraphQLResponse(checksPage('head-1', [], false), errors),
+				}));
+				const { query, ref, credential } = setup(server);
+
+				await assert.rejects(
+					() => query.fetch('checks', ref, core('head-1'), { priority: 'interactive', checks: { required: true } }, credential, new AbortController().signal),
+					{ name: 'GitHubRequestError', kind: 'rateLimit', statusCode: 200, graphQLErrors: errors },
+				);
+				server.assertSatisfied();
+			});
+		});
+	}
+
+	test('fails closed for fallback checks and stale-head GraphQL checks', async () => {
+		await withServer(async server => {
+			const unavailable: GitHubHostCapabilities = {
+				graphql: false,
+				mergeQueue: false,
+				reviewThreads: false,
+				checkContextRequiredness: false,
+			};
+			server.enqueue(
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/octo/repo/commits/head-1/check-runs',
+					query: { per_page: 100 },
+					response: gitHubJsonResponse({ check_runs: [{ id: 1, name: 'CI', status: 'completed', conclusion: 'success' }] }),
+				}),
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/octo/repo/commits/head-1/status',
+					query: { per_page: 100 },
+					response: gitHubJsonResponse({ statuses: [{ id: 2, context: 'legacy', state: 'success' }] }),
+				}),
+			);
+			const fallback = setup(server, unavailable);
+			const result = await fallback.query.fetch(
+				'checks',
+				fallback.ref,
+				core('head-1'),
+				{ priority: 'background', checks: { required: true } },
+				fallback.credential,
+				new AbortController().signal,
+			);
+			assert.deepStrictEqual({
+				complete: result.complete,
+				value: result.fragment === 'checks' ? result.value : undefined,
+			}, {
+				complete: false,
+				value: {
+					headSha: 'head-1',
+					requirednessComplete: false,
+					expectedSuites: [],
+					expectedSuitesComplete: false,
+					checks: [
+						{ id: '1', type: 'checkRun', name: 'CI', status: 'COMPLETED', conclusion: 'SUCCESS', detailsUrl: undefined },
+						{ id: '2', type: 'statusContext', name: 'legacy', status: 'SUCCESS', detailsUrl: undefined },
+					],
+				},
+			});
+			server.assertSatisfied();
+		});
+
+		await withServer(async server => {
+			server.enqueue(gitHubGraphQLStep({
+				response: gitHubGraphQLResponse(checksPage('head-2', [], false)),
+			}));
+			const { query, ref, credential } = setup(server);
+			await assert.rejects(
+				() => query.fetch('checks', ref, core('head-1'), { priority: 'interactive', checks: { required: true } }, credential, new AbortController().signal),
+				error => error instanceof GitHubRequestError && error.message.includes('old pull request head'),
+			);
+			server.assertSatisfied();
+		});
+
+	});
+
+	test('REST mergeability fallback stays incomplete and never grants merge permissions', async () => {
+		await withServer(async server => {
+			const responses = [
+				{ mergeable: true, mergeable_state: 'clean', auto_merge: {} },
+				{ mergeable: false, mergeable_state: 'dirty', auto_merge: null },
+				{ mergeable: null, mergeable_state: 'unknown', auto_merge: null },
+			];
+			server.enqueue(...responses.map(body => gitHubRestStep({
+				method: 'GET',
+				path: '/repos/octo/repo/pulls/7',
+				assert: request => assert.strictEqual(request.headers['if-none-match'], undefined),
+				response: gitHubJsonResponse(body, { etag: '"mergeability"' }),
+			})));
+			const { query, ref, credential } = setup(server, { ...availableCapabilities, graphql: false });
+			const results = [];
+			for (let index = 0; index < responses.length; index++) {
+				results.push(await query.fetch('mergeability', ref, core('head-1'), {
+					priority: 'interactive', mergeability: true,
+				}, credential, new AbortController().signal));
+			}
+			assert.deepStrictEqual(results, ['MERGEABLE', 'CONFLICTING', 'UNKNOWN'].map((mergeable, index) => ({
+				fragment: 'mergeability',
+				complete: false,
+				headSha: 'head-1',
+				value: {
+					headSha: 'head-1', baseSha: 'base', mergeable, mergeStateStatus: responses[index].mergeable_state,
+					viewerCanUpdate: false, viewerCanMerge: false, viewerCanEnableAutoMerge: false, allowedMergeMethods: [],
+					autoMergeEnabled: index === 0, mergeQueueRequired: false, queueRequirementKnown: false,
+				},
+			})));
+			server.assertSatisfied();
+		});
+	});
+
+});
+
+function rawCore(headSha: string): object {
+	return {
+		node_id: 'PR_7',
+		number: 7,
+		title: 'PR title',
+		body: 'PR body',
+		html_url: 'https://github.example.test/new-owner/new-repo/pull/7',
+		state: 'open',
+		merged: false,
+		draft: false,
+		user: { id: 1, login: 'author' },
+		head: { sha: headSha, ref: 'feature', repo: { full_name: 'fork-owner/new-repo' } },
+		maintainer_can_modify: true,
+		base: {
+			sha: 'base',
+			ref: 'main',
+			repo: { node_id: 'R_1', full_name: 'new-owner/new-repo' },
+		},
+	};
+}
+
+function core(headSha: string): PullRequestCore {
+	return {
+		id: 'PR_7',
+		repositoryId: 'R_1',
+		repositoryNameWithOwner: 'new-owner/new-repo',
+		number: 7,
+		title: 'PR title',
+		body: 'PR body',
+		url: 'https://github.example.test/new-owner/new-repo/pull/7',
+		state: 'open',
+		draft: false,
+		headSha,
+		headRef: 'feature',
+		headRepositoryNameWithOwner: 'fork-owner/new-repo',
+		maintainerCanModify: true,
+		baseSha: 'base',
+		baseRef: 'main',
+		author: { id: '1', login: 'author' },
+		createdAt: undefined,
+		updatedAt: undefined,
+		closedAt: undefined,
+		mergedAt: undefined,
+	};
+}
+
+function graphQLComment(id: string, nodeId: string, login: string, body: string, side: string, state: string): object {
+	return {
+		id,
+		nodeId,
+		author: { login },
+		body,
+		url: undefined,
+		createdAt: undefined,
+		updatedAt: undefined,
+		state,
+		path: undefined,
+		line: undefined,
+		originalLine: undefined,
+		side,
+		commitId: undefined,
+		originalCommitId: undefined,
+	};
+}
+
+function checksPage(headSha: string, nodes: readonly object[], hasNextPage: boolean, endCursor: string | null = null): object {
+	return {
+		repository: {
+			pullRequest: {
+				headRefOid: headSha,
+				commits: {
+					nodes: [{
+						commit: {
+							statusCheckRollup: {
+								contexts: {
+									nodes,
+									pageInfo: { hasNextPage, endCursor },
+								},
+							},
+						},
+					}],
+				},
+			},
+		},
+	};
+}
+
+/** The base branch protection and rulesets that a fetch with `checks.required` reads. */
+function requiredContextSteps(protectionContexts: readonly string[], rulesetContexts: readonly string[] = [], branch = 'main') {
+	return [
+		gitHubRestStep({
+			method: 'GET',
+			path: `/repos/octo/repo/branches/${branch}`,
+			response: gitHubJsonResponse({
+				name: branch,
+				protected: protectionContexts.length > 0,
+				protection: {
+					enabled: protectionContexts.length > 0,
+					required_status_checks: {
+						enforcement_level: protectionContexts.length > 0 ? 'everyone' : 'off',
+						contexts: protectionContexts,
+						checks: protectionContexts.map(context => ({ context, app_id: 15368 })),
+					},
+				},
+			}),
+		}),
+		gitHubRestStep({
+			method: 'GET',
+			path: `/repos/octo/repo/rules/branches/${branch}`,
+			query: { per_page: 100 },
+			response: gitHubJsonResponse(rulesetContexts.length > 0
+				? [{ type: 'required_status_checks', ruleset_id: 1, parameters: { required_status_checks: rulesetContexts.map(context => ({ context })) } }]
+				: [{ type: 'deletion', ruleset_id: 1 }]),
+		}),
+	];
+}
