@@ -295,12 +295,27 @@ suite('byokResponsesTranslation', () => {
 			outputTypes: ['reasoning', 'message', 'function_call', 'custom_tool_call'],
 			usage: {
 				input_tokens: 10,
-				input_tokens_details: { cached_tokens: 0 },
 				output_tokens: 5,
 				output_tokens_details: { reasoning_tokens: 2 },
 				total_tokens: 15,
 			},
 		});
+	});
+
+	test('reports provider cache details only when present', () => {
+		const usageOf = (usage: IByokLmChatResult['usage']) => (JSON.parse(bridgeResultToResponsesBody({ output: [], usage }, 'gpt-5')) as { usage: unknown }).usage;
+
+		assert.deepStrictEqual([
+			usageOf({ inputTokens: 10, outputTokens: 5, cacheReadTokens: 0 }),
+			usageOf({ inputTokens: 10, outputTokens: 5, cacheReadTokens: 8, cacheWriteTokens: 2 }),
+			usageOf({ inputTokens: 10, outputTokens: 5, cacheWriteTokens: 2 }),
+			usageOf(undefined),
+		], [
+			{ input_tokens: 10, input_tokens_details: { cached_tokens: 0 }, output_tokens: 5, output_tokens_details: { reasoning_tokens: 0 }, total_tokens: 15 },
+			{ input_tokens: 10, input_tokens_details: { cached_tokens: 8, cache_write_tokens: 2 }, output_tokens: 5, output_tokens_details: { reasoning_tokens: 0 }, total_tokens: 15 },
+			{ input_tokens: 10, input_tokens_details: { cache_write_tokens: 2 }, output_tokens: 5, output_tokens_details: { reasoning_tokens: 0 }, total_tokens: 15 },
+			{ input_tokens: 0, output_tokens: 0, output_tokens_details: { reasoning_tokens: 0 }, total_tokens: 0 },
+		]);
 	});
 
 	test('encodes a completed non-streaming Responses body', () => {
@@ -338,7 +353,6 @@ suite('byokResponsesTranslation', () => {
 			top_p: 1,
 			usage: {
 				input_tokens: 3,
-				input_tokens_details: { cached_tokens: 0 },
 				output_tokens: 2,
 				output_tokens_details: { reasoning_tokens: 1 },
 				total_tokens: 5,
