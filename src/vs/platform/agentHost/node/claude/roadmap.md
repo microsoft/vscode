@@ -317,7 +317,7 @@ see why it's required.
 | `settings.env.ANTHROPIC_BASE_URL` | `http://localhost:${proxy.port}` | Routes all CAPI traffic through our proxy. **Note:** under `settings.env`, NOT top-level `Options.env`. | `claudeCodeAgent.ts` line 454 |
 | `settings.env.ANTHROPIC_AUTH_TOKEN` | `${proxy.nonce}.${sessionId}` | Per-session bearer; proxy splits at `.` to recover session id. | `claudeCodeAgent.ts` line 455 |
 | `settings.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` | `'1'` | Disables Anthropic-direct telemetry/feature flags. Required for our leak-tightness guarantees. | `claudeCodeAgent.ts` line 456 |
-| `disallowedTools` | `['WebSearch']` | CAPI doesn't support WebSearch; the SDK will error if invoked. | `claudeCodeAgent.ts` line 440 |
+| `disallowedTools` | `['WebSearch']` (proxy transport only) | CAPI doesn't support WebSearch; the SDK will error if invoked. Native sessions keep WebSearch. | `claudeCodeAgent.ts` line 440 |
 | `stderr` | wire to `ILogService.error` | Without it, SDK errors are invisible. | `claudeCodeAgent.ts` line 487 |
 
 #### Deferred to later phases
@@ -556,7 +556,7 @@ SDK options pinned in this phase (matching the reference):
   Tells the SDK which Node binary to use when forking its subprocess.
   Without it the SDK must locate Node on its own, which is undefined inside
   the utility process.
-- **`disallowedTools: ['WebSearch']`** — **required** (`claudeCodeAgent.ts:438–440`).
+- **`disallowedTools: ['WebSearch']`** — **required on the proxy transport** (`claudeCodeAgent.ts:438–440`).
   CAPI does not yet support the WebSearch tool. Without this the SDK may
   invoke it and the upstream CAPI call will fail mid-session.
 - **`abortController: this._abortController`** — wire the abort controller
