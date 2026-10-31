@@ -130,8 +130,9 @@ class SCMAccessibilityHelpContentProvider extends Disposable implements IAccessi
 		if (hasSCMStructuralDiffProvider(this._languageFeaturesService)) {
 			content.push(localize('scm-structural-toggle', " - Toggle \"Show Structural Diff\" in the \"View & Sort\" menu to show or hide changed symbols below files."));
 			content.push(localize('scm-structural-msg1', " - When \"Show Structural Diff\" is enabled, files with a structural diff provider can be expanded with the right arrow key to show changed symbols. Structural descendants expand automatically to reveal changed leaves. Use the left arrow key to collapse them."));
+			content.push(localize('scm-structural-staged', " - For Git, staged structural changes compare HEAD with the index, while unstaged structural changes compare the index with the working file. Both versions of the file and a provider that supports their document types are required."));
 			content.push(localize('scm-structural-msg2', " - Press Enter on a changed symbol to open its file diff at that symbol. Deleted symbols open on the original side. File-level actions continue to apply to file rows."));
-			content.push(localize('scm-structural-status', " - Changed symbols use [+] for additions, [-] for deletions, and [~] for modifications. Their status is included in the accessible label. Unchanged containers have no status marker."));
+			content.push(localize('scm-structural-status', " - Changed symbols use [+] for additions, [\u2212] for deletions, and [~] for modifications. Their status is included in the accessible label. Unchanged containers have no status marker."));
 			content.push(localize('scm-structural-annotations', " - Modified symbols indicate whether their declaration, implementation, or both changed. These details are included in accessible labels."));
 			content.push(localize('scm-structural-rename', " - Detected renames appear with the new symbol name and a rename annotation. The original and new names are included in the hover and accessible label."));
 		}

@@ -316,8 +316,7 @@ export class SCMStructuralDiffModel extends Disposable {
 			return false;
 		}
 		const modified = resource.multiDiffEditorModifiedUri;
-		if (!resource.multiDiffEditorOriginalUri || !modified
-			|| !this.uriIdentityService.extUri.isEqual(modified, resource.sourceUri)) {
+		if (!resource.multiDiffEditorOriginalUri || !modified) {
 			return false;
 		}
 		const model = this.modelService.getModel(modified);

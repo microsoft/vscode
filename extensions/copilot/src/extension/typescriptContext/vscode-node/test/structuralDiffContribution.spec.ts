@@ -71,14 +71,19 @@ suite('TypeScript structural diff contribution', () => {
 	afterEach(() => store.clear());
 	afterAll(() => store.dispose());
 
-	test('registers TypeScript and TSX providers and disposes their resources', () => {
+	test('registers TypeScript and TSX providers for working files and Git snapshots and disposes their resources', () => {
 		const contribution = store.add(new StructuralDiffContribution(new TestLogService()));
 		const selectors = mocks.register.mock.calls.map(([selector]) => selector);
 		contribution.dispose();
 		assert.deepStrictEqual({
 			selectors, created: mocks.created, disposed: mocks.dispose.mock.calls.length, unregistered: mocks.unregister.mock.calls.length,
 		}, {
-			selectors: [[{ language: 'typescript', scheme: 'file' }, { language: 'typescriptreact', scheme: 'file' }]],
+			selectors: [[
+				{ language: 'typescript', scheme: 'file' },
+				{ language: 'typescriptreact', scheme: 'file' },
+				{ language: 'typescript', scheme: 'git' },
+				{ language: 'typescriptreact', scheme: 'git' },
+			]],
 			created: 1, disposed: 1, unregistered: 1,
 		});
 	});

@@ -295,7 +295,7 @@ suite('SCM structural diff tree', () => {
 			warning: !!container.querySelector('.codicon-warning'),
 			warningColored: template.icon.classList.contains('codicon-colored'),
 			actions: container.querySelectorAll('.actions').length,
-		}, { classIcon: true, methodIcon: true, deletedText: 'run', deletedMarker: '[-]', status: 'Partial structural changes', marker: '', warning: true, warningColored: false, actions: 0 });
+		}, { classIcon: true, methodIcon: true, deletedText: 'run', deletedMarker: '[\u2212]', status: 'Partial structural changes', marker: '', warning: true, warningColored: false, actions: 0 });
 	});
 
 	test('applies the same symbol theme colors as Outline when reusing a row', () => {
@@ -372,7 +372,7 @@ suite('SCM structural diff tree', () => {
 		}, {
 			rows: [
 				{ marker: '[+]', iconClasses: [], color: 'rgb(10, 110, 30)', text: 'run(value: number)', annotation: '', activeHovers: 1, aria: 'run, method, Added, (value: number)' },
-				{ marker: '[-]', iconClasses: [], color: 'rgb(160, 20, 40)', text: 'run', annotation: '', activeHovers: 1, aria: 'run, method, Deleted' },
+				{ marker: '[\u2212]', iconClasses: [], color: 'rgb(160, 20, 40)', text: 'run', annotation: '', activeHovers: 1, aria: 'run, method, Deleted' },
 				{ marker: '[~]', iconClasses: [], color: 'rgb(30, 80, 170)', text: 'run', annotation: 'impl', activeHovers: 1, aria: 'run, method, Implementation changed' },
 			],
 			containerState: { hidden: true, marker: '', activeHovers: 0 }, hovers: ['Added', 'Deleted', 'Implementation changed', 'Implementation changed'],
@@ -508,15 +508,20 @@ suite('SCM structural diff tree', () => {
 			metadataHiddenFromScreenReaders: templates.every(template => template.metadata.getAttribute('aria-hidden') === 'true'),
 		}, {
 			annotations: ['decl', 'impl', 'decl+impl', '', ''],
-			markers: ['[~]', '[~]', '[~]', '[+]', '[-]'],
+			markers: ['[~]', '[~]', '[~]', '[+]', '[\u2212]'],
 			annotationEdgesAligned: true, statusEdgesAligned: true, noOverlap: true,
 			annotationsNotClipped: true, markersNotClipped: true, longNameTruncated: true, metadataHiddenFromScreenReaders: true,
 		});
 	});
 
-	for (const side of ['original', 'modified'] as const) {
+	for (const [side, staged] of [['original', false], ['modified', false], ['original', true], ['modified', true]] as const) {
 		for (const preserveFocus of [false, true]) {
-			test(`opens the ${side} side and respects preserveFocus=${preserveFocus}`, async () => {
+			test(`opens the ${side} side of ${staged ? 'staged' : 'working-tree'} changes and respects preserveFocus=${preserveFocus}`, async () => {
+				const comparisonResource = staged ? new class extends mock<ISCMResource>() {
+					override readonly sourceUri = resource.sourceUri;
+					override readonly multiDiffEditorOriginalUri = this.sourceUri.with({ scheme: 'git', query: JSON.stringify({ path: this.sourceUri.fsPath, ref: 'HEAD' }) });
+					override readonly multiDiffEditorModifiedUri = this.sourceUri.with({ scheme: 'git', query: JSON.stringify({ path: this.sourceUri.fsPath, ref: '' }) });
+				} : resource;
 				const originalEditor = new TestCodeEditor();
 				const modifiedEditor = new TestCodeEditor();
 				const diffEditor = new class extends mock<IDiffEditor>() {
@@ -531,7 +536,7 @@ suite('SCM structural diff tree', () => {
 				const editorService = new class extends mock<IEditorService>() {
 					override async openEditor(input: IUntypedEditorInput): Promise<ITextDiffEditorPane> { inputs.push(input); return pane; }
 				};
-				const element = side === 'modified' ? child : { ...child, node: { ...child.node, modified: undefined } };
+				const element = { ...child, resource: comparisonResource, node: side === 'modified' ? child.node : { ...child.node, modified: undefined } };
 				await openSCMStructuralDiff(element, { preserveFocus, pinned: true }, editorService, () => true);
 				const range = element.node[side]!.selectionRange!;
 				assert.deepStrictEqual({
@@ -540,8 +545,8 @@ suite('SCM structural diff tree', () => {
 					modified: { selections: modifiedEditor.selections, reveals: modifiedEditor.reveals, focused: modifiedEditor.focused },
 				}, {
 					inputs: [{
-						original: { resource: resource.multiDiffEditorOriginalUri },
-						modified: { resource: resource.multiDiffEditorModifiedUri },
+						original: { resource: comparisonResource.multiDiffEditorOriginalUri },
+						modified: { resource: comparisonResource.multiDiffEditorModifiedUri },
 						options: { preserveFocus, pinned: true, override: DEFAULT_EDITOR_ASSOCIATION.id },
 					}],
 					original: { selections: side === 'original' ? [range] : [], reveals: side === 'original' ? [range] : [], focused: side === 'original' && !preserveFocus },

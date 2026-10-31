@@ -9,6 +9,7 @@ import path from 'node:path';
 import { API, type DocumentIdentifier, type Snapshot } from '@typescript/native/async';
 import { afterAll, afterEach, beforeAll, beforeEach, suite, test } from 'vitest';
 import * as vscode from 'vscode';
+import { toGitUri } from '../../../../../platform/git/common/utils';
 import { TestLogService } from '../../../../../platform/testing/common/testLogService';
 import { createTextDocumentData, setDocText } from '../../../../../util/common/test/shims/textDocument';
 import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
@@ -40,14 +41,93 @@ suite('TypeScript 7 structural diff', () => {
 		await api.close();
 	});
 
-	async function compute(originalText: string, modifiedText: string, changes?: readonly vscode.StructuralDiffTextChange[], fileUri = uri, languageId = 'typescript'): Promise<vscode.StructuralDiff> {
-		const original = createTextDocumentData(fileUri.with({ scheme: 'git' }), originalText, languageId).document;
+	async function compute(originalText: string, modifiedText: string, changes?: readonly vscode.StructuralDiffTextChange[], fileUri = uri, languageId = 'typescript', originalUri = fileUri.with({ scheme: 'git' })): Promise<vscode.StructuralDiff> {
+		const original = createTextDocumentData(originalUri, originalText, languageId).document;
 		const modified = createTextDocumentData(fileUri, modifiedText, languageId).document;
 		const context = { changes: changes ?? [{ originalRange: fullRange(original), modifiedRange: fullRange(modified) }] };
 		const result = await provider.provideStructuralDiff(original, modified, context, CancellationToken.None);
 		assert.ok(result);
 		assertContract(result, original, modified, context);
 		return result;
+	}
+
+	for (const [file, languageId] of [['example.ts', 'typescript'], ['component.tsx', 'typescriptreact']]) {
+		test(`analyzes staged ${languageId} contents using the backing file only for project lookup`, async () => {
+			const fileUri = vscode.Uri.file(path.join(fixtureDirectory, file));
+			const diskContents = fs.readFileSync(fileUri.fsPath, 'utf8');
+			const original = 'function stagedOnly() { return 1; }';
+			const modified = 'function stagedOnly() { return 2; }';
+			const result = await compute(original, modified, [{
+				originalRange: rangeOf(original, '1'), modifiedRange: rangeOf(modified, '2'),
+			}], toGitUri(fileUri, ''), languageId, toGitUri(fileUri, 'HEAD'));
+			assert.deepStrictEqual({
+				nodes: summarize(result, original, modified).map(node => ({
+					name: node.modified, originalChanges: node.originalChanges, modifiedChanges: node.modifiedChanges,
+				})),
+				requests: native.requests,
+				disposed: native.snapshots.every(snapshot => snapshot.isDisposed()),
+				diskContents: fs.readFileSync(fileUri.fsPath, 'utf8'),
+			}, {
+				nodes: [{
+					name: 'stagedOnly',
+					originalChanges: [[0, vscode.StructuralDiffClassification.Implementation, '1', []]],
+					modifiedChanges: [[0, vscode.StructuralDiffClassification.Implementation, '2', []]],
+				}],
+				requests: [{ openFiles: [{ uri: fileUri.toString() }] }, { closeFiles: [{ uri: fileUri.toString() }] }],
+				disposed: true, diskContents,
+			});
+		});
+	}
+
+	test('resolves the backing path from Git metadata rather than a decorated document path', async () => {
+		const original = 'function stagedOnly() { return 1; }';
+		const modified = 'function stagedOnly() { return 2; }';
+		const result = await compute(original, modified, undefined, toGitUri(uri, '', { replaceFileExtension: true }), 'typescript', toGitUri(uri, 'HEAD'));
+		assert.deepStrictEqual({
+			names: result.root.children.map(node => node.modified?.name),
+			requests: native.requests,
+		}, {
+			names: ['stagedOnly'],
+			requests: [{ openFiles: [{ uri: uri.toString() }] }, { closeFiles: [{ uri: uri.toString() }] }],
+		});
+	});
+
+	test('keeps simultaneous staged and unstaged requests for the same backing file isolated', async () => {
+		const head = 'function before() { return 1; }';
+		const index = 'function renamed() { return 1; }';
+		const working = 'function renamed() { return 2; }';
+		const [staged, unstaged] = await Promise.all([
+			compute(head, index, [{ originalRange: rangeOf(head, 'before'), modifiedRange: rangeOf(index, 'renamed') }], toGitUri(uri, ''), 'typescript', toGitUri(uri, 'HEAD')),
+			compute(index, working, [{ originalRange: rangeOf(index, '1'), modifiedRange: rangeOf(working, '2') }], uri, 'typescript', toGitUri(uri, '')),
+		]);
+		assert.deepStrictEqual({
+			staged: summarize(staged, head, index).map(node => ({
+				original: node.original, modified: node.modified, modifiedChanges: node.modifiedChanges,
+			})),
+			unstaged: summarize(unstaged, index, working).map(node => ({
+				original: node.original, modified: node.modified, modifiedChanges: node.modifiedChanges,
+			})),
+			disposed: native.snapshots.every(snapshot => snapshot.isDisposed()),
+		}, {
+			staged: [{ original: 'before', modified: 'renamed', modifiedChanges: [[0, vscode.StructuralDiffClassification.Header, 'renamed', []]] }],
+			unstaged: [{ original: 'renamed', modified: 'renamed', modifiedChanges: [[0, vscode.StructuralDiffClassification.Implementation, '2', []]] }],
+			disposed: true,
+		});
+	});
+
+	for (const [name, query, error] of [
+		['malformed JSON', '{', SyntaxError],
+		['null metadata', 'null', /absolute file path and a string ref/],
+		['missing path', JSON.stringify({ ref: '' }), /absolute file path and a string ref/],
+		['relative path', JSON.stringify({ path: 'example.ts', ref: '' }), /absolute file path and a string ref/],
+		['missing ref', JSON.stringify({ path: fileName }), /absolute file path and a string ref/],
+	] as const) {
+		test(`rejects a Git snapshot with ${name} before starting native analysis`, async () => {
+			const original = createTextDocumentData(toGitUri(uri, 'HEAD'), '', 'typescript').document;
+			const modified = createTextDocumentData(uri.with({ scheme: 'git', query }), '', 'typescript').document;
+			await assert.rejects(provider.provideStructuralDiff(original, modified, { changes: [] }, CancellationToken.None), error);
+			assert.deepStrictEqual(native.requests, []);
+		});
 	}
 
 	test('groups a changed method under its unchanged class', async () => {

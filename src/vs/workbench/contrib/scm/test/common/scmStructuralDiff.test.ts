@@ -46,10 +46,17 @@ class TestResource extends mock<ISCMResource>() {
 class TestResolver extends mock<ITextModelService>() {
 	readonly requested: URI[] = [];
 	readonly released: URI[] = [];
+	readonly additionalModels: ITextModel[] = [];
 	blockOriginal?: DeferredPromise<void>;
 	failModified = false;
 
 	constructor(readonly original: ITextModel, readonly modified: ITextModel) { super(); }
+
+	getModel(resource: URI): ITextModel {
+		const model = [this.original, this.modified, ...this.additionalModels].find(model => extUri.isEqual(resource, model.uri));
+		assert.ok(model, `Unexpected model reference: ${resource}`);
+		return model;
+	}
 
 	override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 		this.requested.push(resource);
@@ -60,7 +67,7 @@ class TestResolver extends mock<ITextModelService>() {
 		if (!isOriginal && this.failModified) {
 			throw new Error('Cannot resolve modified model');
 		}
-		const model = isOriginal ? this.original : this.modified;
+		const model = this.getModel(resource);
 		return {
 			object: new class extends mock<IResolvedTextEditorModel>() {
 				override readonly textEditorModel = model;
@@ -109,8 +116,9 @@ suite('SCM structural diff model', () => {
 	let languageRegistryChanges: Emitter<void>;
 
 	setup(() => {
-		original = store.add(createTextModel('class Calculator {\n\trun() { return 1; }\n}', undefined, undefined, URI.parse('git:/file.ts')));
-		modified = store.add(createTextModel('class Calculator {\n\trun() { return 2; }\n}', undefined, undefined, URI.file('file.ts')));
+		const fileUri = URI.file('file.ts');
+		original = store.add(createTextModel('class Calculator {\n\trun() { return 1; }\n}', undefined, undefined, fileUri.with({ scheme: 'git', query: JSON.stringify({ path: fileUri.fsPath, ref: '' }) })));
+		modified = store.add(createTextModel('class Calculator {\n\trun() { return 2; }\n}', undefined, undefined, fileUri));
 		const scmProvider = new class extends mock<ISCMProvider>() {
 			override readonly id = 'test';
 		};
@@ -123,7 +131,10 @@ suite('SCM structural diff model', () => {
 		features = new LanguageFeaturesService();
 		provider = new TestProvider();
 		provider.result = createResult();
-		registration = store.add(features.structuralDiffProvider.register({ scheme: 'file', language: 'plaintext', pattern: '**/*.ts' }, provider));
+		registration = store.add(features.structuralDiffProvider.register([
+			{ scheme: 'file', language: 'plaintext', pattern: '**/*.ts' },
+			{ scheme: 'git', language: 'plaintext', pattern: '**/*.ts' },
+		], provider));
 		languageChanges = store.add(new Emitter<{ model: ITextModel; oldLanguageId: string }>());
 		languageRegistryChanges = store.add(new Emitter<void>());
 		errors = 0;
@@ -151,9 +162,9 @@ suite('SCM structural diff model', () => {
 			override getValue<T>(): T { return maxComputationTimeSetting as T; }
 		});
 		instantiationService.set(IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
-			override async computeDiff(_original: URI, _modified: URI, options: IDocumentDiffProviderOptions): Promise<IDocumentDiff> {
+			override async computeDiff(originalUri: URI, modifiedUri: URI, options: IDocumentDiffProviderOptions): Promise<IDocumentDiff> {
 				textDiffTimeBudgets.push(options.maxComputationTimeMs);
-				const result = linesDiffComputers.getDefault().computeDiff(original.getLinesContent(), modified.getLinesContent(), options);
+				const result = linesDiffComputers.getDefault().computeDiff(resolver.getModel(originalUri).getLinesContent(), resolver.getModel(modifiedUri).getLinesContent(), options);
 				return { identical: false, quitEarly: textDiffTimedOut || result.hitTimeout, changes: result.changes, moves: result.moves };
 			}
 		});
@@ -182,6 +193,16 @@ suite('SCM structural diff model', () => {
 		};
 	}
 
+	function createStagedResource(): { staged: ISCMResource; head: ITextModel } {
+		const head = store.add(createTextModel('class Calculator {\n\trun() { return 0; }\n}', undefined, undefined, original.uri.with({ query: JSON.stringify({ path: modified.uri.fsPath, ref: 'HEAD' }) })));
+		resolver.additionalModels.push(head);
+		const stagedGroup = new class extends mock<ISCMResourceGroup>() {
+			override readonly provider = group.provider;
+			override readonly id = 'index';
+		};
+		return { staged: new TestResource(stagedGroup, modified.uri, head.uri, original.uri), head };
+	}
+
 	test('checks eligibility without loading models or invoking providers', () => {
 		assert.deepStrictEqual({
 			supported: model.hasChildren(resource),
@@ -190,8 +211,69 @@ suite('SCM structural diff model', () => {
 			added: model.hasChildren(new TestResource(group, modified.uri, undefined, modified.uri)),
 			deleted: model.hasChildren(new TestResource(group, modified.uri, original.uri, undefined)),
 			requests: resolver.requested, calls: provider.calls,
-		}, { supported: true, unsupported: false, staged: false, added: false, deleted: false, requests: [], calls: 0 });
+		}, { supported: true, unsupported: false, staged: true, added: false, deleted: false, requests: [], calls: 0 });
 	});
+
+	test('does not offer staged structural changes when the provider only supports working files', () => {
+		const { staged } = createStagedResource();
+		registration.dispose();
+		store.add(features.structuralDiffProvider.register({ scheme: 'file', language: 'plaintext' }, provider));
+		assert.deepStrictEqual({
+			staged: model.hasChildren(staged), workingTree: model.hasChildren(resource),
+			requests: resolver.requested, calls: provider.calls,
+		}, { staged: false, workingTree: true, requests: [], calls: 0 });
+	});
+
+	test('keeps partially staged and working-tree comparisons separate for the same file', async () => {
+		const { staged, head } = createStagedResource();
+		const stagedChildren = await model.getChildren(staged);
+		const stagedInputs = [provider.original?.uri, provider.modified?.uri];
+		const stagedChanges = provider.context?.changes.map(change => [head.getValueInRange(change.originalRange), original.getValueInRange(change.modifiedRange)]);
+		const workingChildren = await model.getChildren(resource);
+		const workingInputs = [provider.original?.uri, provider.modified?.uri];
+		const workingChanges = provider.context?.changes.map(change => [original.getValueInRange(change.originalRange), modified.getValueInRange(change.modifiedRange)]);
+		modified.setValue('class Calculator {\n\trun() { return 3; }\n}');
+		assert.deepStrictEqual({
+			stagedInputs, workingInputs, stagedChanges, workingChanges,
+			requests: resolver.requested, calls: provider.calls,
+			distinctIds: stagedChildren[0].id !== workingChildren[0].id,
+			stagedStillCurrent: model.isCurrent(stagedChildren[0]),
+			workingStillCurrent: model.isCurrent(workingChildren[0]),
+			stagedStillCached: await model.getChildren(staged) === stagedChildren,
+		}, {
+			stagedInputs: [head.uri, original.uri], workingInputs: [original.uri, modified.uri],
+			stagedChanges: [['0', '1']], workingChanges: [['1', '2']],
+			requests: [head.uri, original.uri, original.uri, modified.uri], calls: 2,
+			distinctIds: true, stagedStillCurrent: true, workingStillCurrent: false, stagedStillCached: true,
+		});
+	});
+
+	for (const changed of ['HEAD', 'index', 'group'] as const) {
+		test(`invalidates staged results when ${changed} changes`, async () => {
+			const { staged, head } = createStagedResource();
+			const stagedChildren = await model.getChildren(staged);
+			const workingChildren = await model.getChildren(resource);
+			if (changed === 'HEAD') {
+				head.setValue('class Calculator {\n\trun() { return 4; }\n}');
+			} else if (changed === 'index') {
+				original.setValue('class Calculator {\n\trun() { return 3; }\n}');
+			} else {
+				model.invalidateGroup(staged.resourceGroup);
+			}
+			const current = { staged: model.isCurrent(stagedChildren[0]), workingTree: model.isCurrent(workingChildren[0]) };
+			const refreshed = await model.getChildren(staged);
+			assert.deepStrictEqual({
+				current, calls: provider.calls,
+				newIdentity: refreshed[0].id !== stagedChildren[0].id,
+				refreshedCurrent: model.isCurrent(refreshed[0]),
+				inputs: [provider.original?.getValue(), provider.modified?.getValue()],
+			}, {
+				current: { staged: false, workingTree: changed !== 'index' }, calls: 3,
+				newIdentity: true, refreshedCurrent: true,
+				inputs: [head.getValue(), original.getValue()],
+			});
+		});
+	}
 
 	test('loads lazily, coalesces requests and wraps the returned hierarchy beneath the file', async () => {
 		const first = model.getChildren(resource);
@@ -537,6 +619,7 @@ suite('SCM structural diff model', () => {
 	function createResources(count: number): ISCMResource[] {
 		return Array.from({ length: count }, (_, index) => {
 			const uri = URI.file(`file${index}.ts`);
+			resolver.additionalModels.push(store.add(createTextModel(modified.getValue(), undefined, undefined, uri)));
 			return new TestResource(group, uri, original.uri, uri);
 		});
 	}

@@ -27,6 +27,8 @@ export class StructuralDiffContribution extends Disposable {
 			resources.add(vscode.languages.registerStructuralDiffProvider([
 				{ language: 'typescript', scheme: 'file' },
 				{ language: 'typescriptreact', scheme: 'file' },
+				{ language: 'typescript', scheme: 'git' },
+				{ language: 'typescriptreact', scheme: 'git' },
 			], {
 				provideStructuralDiff: (original, modified, context, token) => TypeScript.runsVersion7()
 					? provider.provideStructuralDiff(original, modified, context, token)

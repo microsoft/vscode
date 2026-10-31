@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isAbsolute } from 'node:path';
 import type { API } from '@typescript/native/async';
 import type { SourceFile } from '@typescript/native/ast';
 import type * as vscode from 'vscode';
 import type { ILogService } from '../../../../platform/log/common/logService';
 import { CancellationError } from '../../../../util/vs/base/common/errors';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
+import { URI } from '../../../../util/vs/base/common/uri';
 import { computeStructuralDiff } from './structuralDiff';
 import { TypeScript7Api } from './ts7Api';
 
@@ -19,7 +21,7 @@ interface StructuralDiffApiProvider extends vscode.Disposable {
 }
 
 /**
- * Analyzes both versions in the modified file's TS7 project using isolated temporary snapshots.
+ * Uses the backing file for TS7 project lookup and analyzes only the supplied document contents in isolated snapshots.
  */
 export class TS7StructuralDiffProvider implements vscode.StructuralDiffProvider, vscode.Disposable {
 	private readonly disposables = new DisposableStore();
@@ -30,7 +32,8 @@ export class TS7StructuralDiffProvider implements vscode.StructuralDiffProvider,
 	}
 
 	async provideStructuralDiff(originalDocument: vscode.TextDocument, modifiedDocument: vscode.TextDocument, context: vscode.StructuralDiffContext, token: vscode.CancellationToken): Promise<vscode.StructuralDiff | undefined> {
-		if (modifiedDocument.uri.scheme !== 'file' || (modifiedDocument.languageId !== 'typescript' && modifiedDocument.languageId !== 'typescriptreact')) {
+		if ((modifiedDocument.uri.scheme !== 'file' && modifiedDocument.uri.scheme !== 'git')
+			|| (modifiedDocument.languageId !== 'typescript' && modifiedDocument.languageId !== 'typescriptreact')) {
 			return undefined;
 		}
 		const originalVersion = originalDocument.version;
@@ -42,6 +45,16 @@ export class TS7StructuralDiffProvider implements vscode.StructuralDiffProvider,
 			}
 		};
 		checkCancellation();
+		let fileUri = modifiedDocument.uri;
+		if (fileUri.scheme === 'git') {
+			const params: unknown = JSON.parse(fileUri.query);
+			if (typeof params !== 'object' || params === null
+				|| !('path' in params) || typeof params.path !== 'string' || !isAbsolute(params.path)
+				|| !('ref' in params) || typeof params.ref !== 'string') {
+				throw new Error('TypeScript structural diff requires a Git URI with an absolute file path and a string ref');
+			}
+			fileUri = URI.file(params.path);
+		}
 		const originalText = originalDocument.getText();
 		const modifiedText = modifiedDocument.getText();
 		const api = await this.nativeApi.getApi();
@@ -49,7 +62,7 @@ export class TS7StructuralDiffProvider implements vscode.StructuralDiffProvider,
 		if (api === undefined) {
 			return undefined;
 		}
-		const file = { uri: modifiedDocument.uri.toString() };
+		const file = { uri: fileUri.toString() };
 		api.clearSourceFileCache();
 		const snapshot = await api.createSnapshot({ openFiles: [file] });
 		let result: vscode.StructuralDiff | undefined;

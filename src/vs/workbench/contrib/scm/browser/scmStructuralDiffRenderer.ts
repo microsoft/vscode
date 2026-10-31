@@ -78,7 +78,7 @@ export class SCMStructuralDiffRenderer implements ICompressibleTreeRenderer<SCMS
 			template.status.textContent = change.type === 'added'
 				? localize('structuralDiff.addedMarker', "[+]")
 				: change.type === 'deleted'
-					? localize('structuralDiff.deletedMarker', "[-]")
+					? localize('structuralDiff.deletedMarker', "[\u2212]")
 					: localize('structuralDiff.modifiedMarker', "[~]");
 			template.status.classList.add(change.type);
 			template.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(template.metadata, {

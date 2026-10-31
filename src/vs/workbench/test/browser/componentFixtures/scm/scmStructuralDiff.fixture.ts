@@ -21,14 +21,14 @@ export default defineThemedFixtureGroup({ path: 'scm/' }, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: [
-			'A class named Calculator contains a changed calculate method, an added newMethod, and a deleted oldMethod. The changed method has a muted impl annotation without brackets aligned on the right, immediately before its [~] status marker. The signature stays beside the method name. The class and method icons use their respective Outline symbol theme colors, with normal Source Control row spacing. The textual [~], [+], and [-] status markers align on the right, using the corresponding Git decoration theme colors. Added/deleted methods have no change-part annotation, and the unchanged Calculator container has neither an annotation nor a status marker. A warning row below the class says Partial structural changes.',
+			'A class named Calculator contains a changed calculate method, an added newMethod, and a deleted oldMethod. The changed method has a muted impl annotation without brackets aligned on the right, immediately before its [~] status marker. The signature stays beside the method name. The class and method icons use their respective Outline symbol theme colors, with normal Source Control row spacing. The textual [~], [+], and [\u2212] status markers align on the right, using the corresponding Git decoration theme colors. Added/deleted methods have no change-part annotation, and the unchanged Calculator container has neither an annotation nor a status marker. A warning row below the class says Partial structural changes.',
 		],
 		render: context => renderStructuralChanges(context, 360),
 	}),
 	StructuralChangesNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: [
-			'A narrow Source Control symbol tree keeps its icons and indentation aligned. The long calculate method name and signature truncate with an ellipsis instead of overflowing, while the right-aligned impl annotation without brackets and [~] status marker remain fully visible. Right-aligned [+] and [-] status markers remain visible for added and deleted methods, and a partial-results warning appears below the class.',
+			'A narrow Source Control symbol tree keeps its icons and indentation aligned. The long calculate method name and signature truncate with an ellipsis instead of overflowing, while the right-aligned impl annotation without brackets and [~] status marker remain fully visible. Right-aligned [+] and [\u2212] status markers remain visible for added and deleted methods, and a partial-results warning appears below the class.',
 		],
 		render: context => renderStructuralChanges(context, 220),
 	}),
