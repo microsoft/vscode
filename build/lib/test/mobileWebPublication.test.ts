@@ -37,7 +37,7 @@ test('mobile publication cannot enter the normal web preload directory', () => {
 test('mobile CDN publication verifies the pipeline commit and quality without a second release ID', async t => {
 	const directory = await mkdtemp(join(tmpdir(), 'mobile-cdn-'));
 	t.after(() => rm(directory, { recursive: true, force: true }));
-	await writeFile(join(directory, 'mobile-preview.json'), JSON.stringify({
+	await writeFile(join(directory, mobilePreviewManifestName), JSON.stringify({
 		schemaVersion: 2, kind: 'sessions-mobile-preview', build: { commit, quality: 'insider' },
 	}));
 	await validateMobileWebCdnIdentity(directory, 'insider', commit);
