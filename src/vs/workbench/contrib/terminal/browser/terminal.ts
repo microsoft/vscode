@@ -412,6 +412,11 @@ export interface ITerminalGroup {
 	focusNextPane(): void;
 	resizePane(direction: Direction): void;
 	resizePanes(relativeSizes: number[]): void;
+	/**
+	 * Toggles the orientation of the split panes in this group, overriding the
+	 * `terminal.integrated.splitOrientation` setting.
+	 */
+	toggleSplitOrientation(): void;
 	setActiveInstanceByIndex(index: number, force?: boolean): void;
 	attachToElement(element: HTMLElement): void;
 	addInstance(instance: ITerminalInstance): void;
