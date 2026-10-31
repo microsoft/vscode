@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $ } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -27,6 +28,10 @@ class TestViewDescriptorService extends mock<IViewDescriptorService>() {
 class TestWebviewViewPane extends WebviewViewPane {
 	setBadge(badge: IViewBadge | undefined): void {
 		this.updateBadge(badge);
+	}
+
+	renderBodyForTest(container: HTMLElement): void {
+		this.renderBody(container);
 	}
 }
 
@@ -62,5 +67,34 @@ suite('WebviewViewPane', () => {
 			'show:testWebviewView',
 			'dispose:testWebviewView',
 		]);
+	});
+
+	test('assigns an id to the body container unless it already has one', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
+		instantiationService.stub(IActivityService, new class extends mock<IActivityService>() { });
+		instantiationService.stub(IViewsService, new TestViewsService());
+		instantiationService.stub(IWebviewService, new class extends mock<IWebviewService>() { });
+		instantiationService.stub(IWebviewViewService, new class extends mock<IWebviewViewService>() {
+			override readonly onNewResolverRegistered = Event.None;
+		});
+
+		const renderBody = (container: HTMLElement): string => {
+			const pane = store.add(instantiationService.createInstance(TestWebviewViewPane, {
+				id: 'testWebviewView',
+				title: 'Test Webview View',
+			}));
+
+			pane.renderBodyForTest(container);
+			return container.id;
+		};
+
+		assert.deepStrictEqual({
+			generated: renderBody($('div')).startsWith('webview-view-container-'),
+			existing: renderBody($('div#existing-id')),
+		}, {
+			generated: true,
+			existing: 'existing-id',
+		});
 	});
 });
