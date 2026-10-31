@@ -5,28 +5,14 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AutomationDialogTelemetry, logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from '../../browser/automationTelemetry.js';
-
-function isTelemetryData(data: unknown): data is Record<string, unknown> {
-	return typeof data === 'object' && data !== null;
-}
-
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
-
-	override publicLog2(eventName?: string, data?: unknown): void {
-		if (eventName && isTelemetryData(data)) {
-			this.events.push({ name: eventName, data });
-		}
-	}
-}
+import { TestDataTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 
 suite('Automation telemetry', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('reports identifier-free view and dialog funnel outcomes once', async () => {
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestDataTelemetryService();
 		logAutomationViewShown(telemetryService);
 		const dialog = new AutomationDialogTelemetry(telemetryService, 'create');
 		dialog.validationFailed();

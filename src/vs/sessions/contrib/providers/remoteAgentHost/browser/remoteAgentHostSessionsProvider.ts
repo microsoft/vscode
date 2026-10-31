@@ -10,7 +10,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, constObservable, derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -21,6 +21,7 @@ import { AgentHostProtocolClient } from '../../../../../platform/agentHost/brows
 import { AGENT_HOST_SCHEME, agentHostAuthority, type AgentHostUriMapper, fromAgentHostUri, normalizeRemoteAgentHostAddress, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostTcpSupport, getAgentHostTcpSupport } from '../../../../../platform/agentHost/common/agentHostTcpSupport.js';
 import { IAgentHostConnectionsService, type IAgentHostSessionSchemeAlias } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { IRemoteAgentHostService, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -35,7 +36,9 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { BrowserRemoteProxyEnabledSettingId } from '../../../../../workbench/contrib/browserView/common/browserView.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostMcpAppToolsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
@@ -74,6 +77,7 @@ const DEV_CONTAINER_IDLE_POLL_INTERVAL_MS = 60 * 1000;
 const CACHED_SESSIONS_STORAGE_PREFIXES_LEGACY = ['remoteAgentHost.cachedSessions.v3.', 'remoteAgentHost.cachedSessions.v2.', 'remoteAgentHost.cachedSessions.'];
 
 function toLocalProjectUri(uri: URI, connectionAuthority: string): URI {
+	// eslint-disable-next-line local/code-agent-host-uri-mapping -- wraps file projects for this remote-only provider, including disconnected cached sessions
 	return uri.scheme === Schemas.file ? toAgentHostUri(uri, connectionAuthority) : uri;
 }
 
@@ -313,6 +317,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		@IAgentHostSessionWorkingDirectoryResolver workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IRemoteAgentHostAuthenticationService remoteAuthenticationService: IRemoteAgentHostAuthenticationService,
 		@INewSessionComposerService private readonly _newSessionComposerService: INewSessionComposerService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, mcpAppToolsService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
 
@@ -395,7 +400,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.hostGroup = config.hostGroup;
 		this._storageKey = config.sessionCacheKey ?? `${CACHED_SESSIONS_STORAGE_PREFIX}${this._connectionAuthority}`;
 		this._automationStore = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, {
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- defines this remote-only automation store's client-to-host mapper
 			toHost: resource => fromAgentHostUri(resource),
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- defines this remote-only automation store's host-to-client mapper
 			fromHost: resource => toAgentHostUri(resource, this._connectionAuthority),
 			resourceSchemeForProvider: provider => this.resourceSchemeForProvider(provider),
 			sessionResource: resource => this.agentHostConnectionsService.findSessionResource(resource, this._connectionAuthority)
@@ -848,10 +855,16 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 	protected _adapterOptions(agentProvider: string) {
 		const typeIcon = this._workspaceTypeIcon;
+		// Canvas pages load through the host's network.
+		const remoteProxyEnabled = observableConfigValue(BrowserRemoteProxyEnabledSettingId, false, this._configurationService);
 		return {
 			readOnly: this._readOnly,
 			allowOfflineDrafts: this._allowOfflineDrafts,
-			supportsCanvasPresentation: (agentProvider: string) => !this.isWebPlatform && agentProvider === 'copilotcli',
+			// Support is unknown while disconnected; only a host known not to proxy browser connections removes canvases,
+			// so a temporary disconnect keeps their pages.
+			supportsCanvasPresentation: (agentProvider: string, connection: IAgentConnection | undefined, reader: IReader) =>
+				!this.isWebPlatform && agentProvider === 'copilotcli' && remoteProxyEnabled.read(reader)
+				&& getAgentHostTcpSupport(connection, reader) !== AgentHostTcpSupport.Unsupported,
 			defaultChangesetKind: this._defaultChangesetKind,
 			useSessionTitleForDefaultChat: agentProvider === 'copilot',
 			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
@@ -872,8 +885,11 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		return this._unpublished ? [] : super.getSessions();
 	}
 
-	async resolveSessionResource(resource: URI, _reason?: SessionResourceResolveReason): Promise<URI | undefined> {
+	async resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined> {
 		const ownsResource = [...this._sessionCache.values()].some(session => isEqual(session.resource, resource));
+		if (ownsResource) {
+			this._reportAdoptableRowOpen(resource, reason, this._telemetryService);
+		}
 		return ownsResource ? resource : undefined;
 	}
 
@@ -884,6 +900,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	protected override mapWorkingDirectoryUri(uri: URI): URI {
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- defines this remote-only provider's working-directory mapper, also used while disconnected
 		return toAgentHostUri(uri, this._connectionAuthority);
 	}
 
@@ -894,6 +911,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	protected override _diffUriMapper(): AgentHostUriMapper {
 		return (uri, options) => options?.contentRef
 			? toAgentHostContentUri(uri, this._connectionAuthority, options.fileUri)
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- wraps host filesystem diff resources alongside separate content-reference wrapping
 			: toAgentHostUri(uri, this._connectionAuthority);
 	}
 
@@ -1182,9 +1200,11 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 					if (!artifact.uri) {
 						continue;
 					}
+					// eslint-disable-next-line local/code-agent-host-uri-mapping -- artifact label homes are derived from wrapped Agent Host filesystem resources
 					const artifactUri = artifact.uri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(artifact.uri) : artifact.uri;
 					const match = /^(?<home>.*\/session-state\/[^/]+)(?:\/|$)/.exec(artifactUri.path);
 					if (match?.groups?.home) {
+						// eslint-disable-next-line local/code-agent-host-uri-mapping -- wraps an artifact filesystem home for this remote host's resource labels
 						homes.push({ uri: toAgentHostUri(artifactUri.with({ path: match.groups.home, query: null, fragment: null }), this._connectionAuthority), label });
 					}
 				}
@@ -1291,7 +1311,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			if (!directory) {
 				throw new Error(localize('cloneRepository.unsupported', "Repository cloning is not supported by {0}.", this.label));
 			}
-			return this._buildWorkspaceFromUri(toAgentHostUri(directory, this._connectionAuthority));
+			return this._buildWorkspaceFromUri(connection.resourceUris.fromAgentHost(directory));
 		} finally {
 			this._connectionListeners.delete(store);
 		}
@@ -1403,6 +1423,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 				listingAgentHostUri = URI.joinPath(rootAgentHostUri, subPath);
 			}
 		}
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- unwraps this remote-only provider's filesystem browse URI for resourceList
 		const listingOriginalUri = fromAgentHostUri(listingAgentHostUri);
 
 		let entries;

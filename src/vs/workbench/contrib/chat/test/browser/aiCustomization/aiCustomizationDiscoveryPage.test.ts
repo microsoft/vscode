@@ -509,7 +509,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		);
 	});
 
-	test('announces loading only after the scheduled catalog search starts', async () => {
+	test('does not announce loading progress after a scheduled catalog search starts', async () => {
 		const ariaHost = DOM.append(mainWindow.document.body, DOM.$('div'));
 		store.add(toDisposable(() => ariaHost.remove()));
 		setARIAContainer(ariaHost);
@@ -537,8 +537,38 @@ suite('AICustomizationDiscoveryPage', () => {
 
 		assert.deepStrictEqual({ pending, loading, complete }, {
 			pending: { requests: 1, busy: 'true', announcements: [] },
-			loading: { requests: 2, announcements: ['Loading customizations...'] },
+			loading: { requests: 2, announcements: [] },
 			complete: ['1 customizations found.'],
+		});
+	});
+
+	test('announces the same catalog error again after Retry', async () => {
+		const ariaHost = DOM.append(mainWindow.document.body, DOM.$('div'));
+		store.add(toDisposable(() => ariaHost.remove()));
+		setARIAContainer(ariaHost);
+		const fixture = createPage();
+		fixture.page.setSearchQuery('mail');
+		fixture.page.setVisible(true);
+
+		await fixture.requests[0].result.error(new Error('temporary failure'));
+		await timeout(0);
+		const announcements = [...ariaHost.querySelectorAll('.monaco-status')];
+		const first = announcements.map(element => element.textContent).findIndex(Boolean);
+		const firstAnnouncement = { index: first, message: announcements[first]?.textContent };
+		const retry = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-results .customization-discovery-state .monaco-button');
+		assert.ok(retry);
+		retry.click();
+		await waitForRequestCount(fixture.requests, 2);
+		await fixture.requests[1].result.error(new Error('temporary failure'));
+		await timeout(0);
+		const second = announcements.map(element => element.textContent).findIndex(Boolean);
+
+		assert.deepStrictEqual({
+			first: firstAnnouncement,
+			second: { index: second, message: announcements[second]?.textContent },
+		}, {
+			first: { index: 0, message: 'Could not load available customizations. temporary failure' },
+			second: { index: 1, message: 'Could not load available customizations. temporary failure' },
 		});
 	});
 
@@ -946,19 +976,21 @@ suite('AICustomizationDiscoveryPage', () => {
 	}
 
 	for (const query of ['', 'mail', '@type:plugin mail']) {
-		test(`initial loading reserves progress space without loading text or placeholders (${query || 'browse'})`, async () => {
+		test(`initial loading collapses empty status space without loading text or placeholders (${query || 'browse'})`, async () => {
 			const fixture = createPage();
 			fixture.page.setSearchQuery(query);
 			fixture.page.setVisible(true);
 			const search = fixture.container.querySelector<HTMLElement>('.customization-discovery-search-row')!;
 			const progress = fixture.container.querySelector<HTMLElement>('.customization-discovery-progress')!;
-			const pendingPosition = { top: search.getBoundingClientRect().top, progressHeight: progress.offsetHeight };
+			const browseStatus = fixture.container.querySelector<HTMLElement>('.customization-discovery-browse > .customization-discovery-state')!;
+			const pendingPosition = { top: search.getBoundingClientRect().top, progressHeight: progress.offsetHeight, statusHeight: browseStatus.offsetHeight };
 			assert.ok(progress.offsetHeight > 0);
 			assert.deepStrictEqual(loadingState(fixture.container), {
 				progress: true, placeholder: false, status: ['', ''],
 			});
+			assert.strictEqual(browseStatus.offsetHeight, 0);
 			assert.strictEqual(progress.querySelector('[role="progressbar"]')?.getAttribute('aria-label'), 'Loading customizations');
-			assert.ok(fixture.page.getAccessibilityContent().includes('Loading customizations...'));
+			assert.ok(fixture.page.getAccessibilityContent().includes('Loading customizations.'));
 
 			await fixture.requests[0].result.complete({
 				items: [resource('mail-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })],
@@ -966,11 +998,12 @@ suite('AICustomizationDiscoveryPage', () => {
 			await timeout(0);
 			assert.deepStrictEqual({
 				state: loadingState(fixture.container),
-				position: { top: search.getBoundingClientRect().top, progressHeight: progress.offsetHeight },
+				position: { top: search.getBoundingClientRect().top, progressHeight: progress.offsetHeight, statusHeight: browseStatus.offsetHeight },
 			}, {
 				state: { progress: false, placeholder: false, status: ['', ''] },
 				position: pendingPosition,
 			});
+			assert.ok(!fixture.page.getAccessibilityContent().includes('Loading customizations.'));
 		});
 	}
 
@@ -1052,6 +1085,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		list.reveal(24);
 		const placeholder = fixture.container.querySelector<HTMLElement>('.customization-discovery-result-content.loading')!;
 		assert.ok(placeholder.inert);
+		assert.ok(fixture.container.querySelector('.monaco-list-row[aria-label="Loading more customizations"]'));
 		placeholder.querySelector<HTMLButtonElement>('button')!.click();
 		const spinner = placeholder.querySelector<HTMLElement>('.customization-discovery-result-loading')!;
 		assert.deepStrictEqual({
@@ -3400,10 +3434,10 @@ suite('AICustomizationDiscoveryPage', () => {
 			item: fixture.container.querySelector('.customization-discovery-card-name')?.textContent,
 			status: fixture.container.querySelector('.customization-discovery-browse .customization-discovery-state')?.textContent,
 			busy: fixture.container.querySelector('.customization-discovery-browse')?.getAttribute('aria-busy'),
-			accessible: fixture.page.getAccessibilityContent().includes('Loading customizations... 1 of 2 sources loaded.'),
+			accessible: fixture.page.getAccessibilityContent().includes('Loading customizations'),
 		}, {
 			item: undefined,
-			status: 'Loading customizations... 1 of 2 sources loaded.',
+			status: '',
 			busy: 'true',
 			accessible: true,
 		});
@@ -3477,7 +3511,30 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
-	test('rate limits Browse loading announcements', async () => {
+	test('keeps cached refresh progress free of visible, announced, and reserved status text space', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		fixture.page.setVisible(true);
+		fixture.requests[0].onProgress?.({
+			page: { items: [resource('cached-source')] },
+			completedSourceIds: ['agentFinder'],
+			cachedSourceIds: ['agentFinder'],
+			totalSourceCount: 2,
+		});
+
+		assert.deepStrictEqual({
+			status: fixture.container.querySelector('.customization-discovery-browse .customization-discovery-state')?.textContent,
+			statusHeight: fixture.container.querySelector<HTMLElement>('.customization-discovery-browse > .customization-discovery-state')?.offsetHeight,
+			accessible: fixture.page.getAccessibilityContent().includes('Refreshing customizations'),
+		}, {
+			status: '',
+			statusHeight: 0,
+			accessible: false,
+		});
+
+		await fixture.requests[0].result.complete({ items: [resource('cached-source')] });
+	});
+
+	test('does not announce Browse loading progress', async () => {
 		const ariaHost = DOM.append(mainWindow.document.body, DOM.$('div'));
 		store.add(toDisposable(() => ariaHost.remove()));
 		setARIAContainer(ariaHost);
@@ -3497,13 +3554,13 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 		const immediate = [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean);
 
-		await timeout(1_050);
-		const settled = [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean);
 		await fixture.requests[0].result.complete({ items: [resource('fast-source'), resource('second-source')] });
+		await timeout(0);
+		const settled = [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean);
 
 		assert.deepStrictEqual({ immediate, settled }, {
-			immediate: ['Loading customizations... 1 of 3 sources loaded.'],
-			settled: ['Loading customizations... 2 of 3 sources loaded.'],
+			immediate: [],
+			settled: [],
 		});
 	});
 

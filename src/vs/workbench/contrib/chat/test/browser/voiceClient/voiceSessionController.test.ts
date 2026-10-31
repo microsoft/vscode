@@ -10,6 +10,7 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derived, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastDeepPartial, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -26,6 +27,7 @@ import { INotification, INotificationHandle, INotificationService, IPromptChoice
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestTelemetryService } from '../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -853,16 +855,6 @@ class NoVisibleSessionCommandService extends TestCommandService {
 	}
 }
 
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { name: string; data: unknown }[] = [];
-
-	override publicLog2(eventName?: string, data?: unknown): void {
-		if (eventName) {
-			this.events.push({ name: eventName, data });
-		}
-	}
-}
-
 suite('VoiceSessionController', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let clock: sinon.SinonFakeTimers;
@@ -1230,19 +1222,16 @@ suite('VoiceSessionController', () => {
 
 	test('bounds a stalled availability check with the connect watchdog', async () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const availability = new DeferredPromise<boolean>();
-			const voiceClientService = new TestVoiceClientService();
-			voiceClientService.gptLiveAvailability = availability.p;
-			const controller = createController(voiceClientService);
-			const connection = controller.connect(mainWindow);
-			await clock.tickAsync(60_000);
-			availability.complete(true);
-			await connection;
-			assert.deepStrictEqual({ connecting: controller.isConnecting.get(), connectCalls: voiceClientService.connectCalls }, { connecting: false, connectCalls: 0 });
-		} finally {
-			clock.restore();
-		}
+		store.add(toDisposable(() => clock.restore()));
+		const availability = new DeferredPromise<boolean>();
+		const voiceClientService = new TestVoiceClientService();
+		voiceClientService.gptLiveAvailability = availability.p;
+		const controller = createController(voiceClientService);
+		const connection = controller.connect(mainWindow);
+		await clock.tickAsync(60_000);
+		availability.complete(true);
+		await connection;
+		assert.deepStrictEqual({ connecting: controller.isConnecting.get(), connectCalls: voiceClientService.connectCalls }, { connecting: false, connectCalls: 0 });
 	});
 
 	test('keeps a BYOK session on a free plan when the Copilot entitlement refreshes', async () => {

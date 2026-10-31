@@ -58,7 +58,7 @@ function isEnabledChatCustomizationLocation(value: unknown): boolean {
 	return value === true || (typeof value === 'string' && value.trim().toLowerCase() === 'true');
 }
 
-function addSensitiveEditLocations(locations: Map<string, IChatSensitiveEditLocation>, configuredLocations: unknown, forceDirectory: boolean): void {
+function addSensitiveEditLocations(locations: Map<string, IChatSensitiveEditLocation>, configuredLocations: unknown): void {
 	if (typeof configuredLocations !== 'object' || configuredLocations === null || Array.isArray(configuredLocations)) {
 		return;
 	}
@@ -71,19 +71,18 @@ function addSensitiveEditLocations(locations: Map<string, IChatSensitiveEditLoca
 
 		const withoutCurrentDirectory = trimmedPath.replace(/^(?:\.\/)+/, '');
 		const normalizedPath = withoutCurrentDirectory.replace(/\/+$/, '') || '.';
-		const isDirectory = forceDirectory || !normalizedPath.toLowerCase().endsWith('.json');
-		const existing = locations.get(normalizedPath);
 		locations.set(normalizedPath, {
 			path: normalizedPath,
-			isDirectory: isDirectory || existing?.isDirectory === true,
+			isDirectory: true,
 		});
 	}
 }
 
+/** Protects configured locations and descendants without inferring filesystem types from names. */
 export function getChatSensitiveEditLocations(hookLocations: unknown, agentLocations: unknown): readonly IChatSensitiveEditLocation[] {
 	const locations = new Map<string, IChatSensitiveEditLocation>();
-	addSensitiveEditLocations(locations, hookLocations, false);
-	addSensitiveEditLocations(locations, agentLocations, true);
+	addSensitiveEditLocations(locations, hookLocations);
+	addSensitiveEditLocations(locations, agentLocations);
 	return [...locations.values()].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : Number(b.isDirectory) - Number(a.isDirectory));
 }
 

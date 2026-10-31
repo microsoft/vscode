@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createServiceIdentifier } from '../../../util/common/services';
+import { NullLogService } from '../../common/log.js';
 
+/**
+ * Records the message of each warning logged through it.
+ */
+export class TestWarningLogService extends NullLogService {
+	readonly warnings: string[] = [];
 
-export const IDebugOutputService = createServiceIdentifier<IDebugOutputService>('IDebugOutputService');
-
-export interface IDebugOutputService {
-	readonly _serviceBrand: undefined;
-	consoleOutput: string;
+	override warn(message: string): void {
+		this.warnings.push(message);
+	}
 }

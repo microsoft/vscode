@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
-import { buildDefaultChatUri, MessageKind, SessionStatus, withSessionWorkspaceless, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, SessionStatus, withSessionWorkspaceless, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { CustomizationEnablementKind, CustomizationType } from '../../common/state/protocol/channels-session/state.js';
@@ -23,6 +23,7 @@ import { TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { createLiveChatOwnership, createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 
 class EnablementSessionDatabase extends TestSessionDatabase {
 	metadataLoad: Promise<string | undefined> | undefined;
@@ -1083,16 +1084,11 @@ suite('AgentHostCustomizationEnablementService', () => {
 		const changes: string[][] = [];
 		disposables.add(service.onDidChange(event => changes.push([...event.sessions])));
 		const chat = buildDefaultChatUri(session);
-		state.dispatchServerAction(chat, {
-			type: ActionType.ChatTurnStarted,
-			turnId: 'turn-1',
-			startedAt: new Date(0).toISOString(),
-			message: { text: 'test', origin: { kind: MessageKind.User } },
-		});
+		state.dispatchServerAction(chat, chatTurnStarted('turn-1', 'test', new Date(0).toISOString()));
 
 		state.markSessionPersisted(session, makeSummary(session, [URI.file('/repo.worktrees/feature').toString()]), true);
 		const changesDuringTurn = [...changes];
-		state.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 });
+		state.dispatchServerAction(chat, chatTurnComplete('turn-1', 1));
 		await Promise.resolve();
 
 		assert.deepStrictEqual({

@@ -29,11 +29,12 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { CopilotConnectorsMarketplaceProvider, CopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { TestDataTelemetryService } from '../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 
 function catalogResponse(
 	status: ConnectorPlugin['connection']['status'],
@@ -62,16 +63,6 @@ function catalogResponse(
 			},
 		})),
 	};
-}
-
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
-
-	override publicLog2(eventName?: string, data?: Record<string, unknown>): void {
-		if (eventName && data) {
-			this.events.push({ name: eventName, data });
-		}
-	}
 }
 
 suite('CopilotConnectorsService', () => {
@@ -164,7 +155,7 @@ suite('CopilotConnectorsService', () => {
 				return true;
 			}
 		}();
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestDataTelemetryService();
 		const grants: GitHubAuthorizationContext[] = [];
 		const leases = { acquired: 0, released: 0 };
 		const invalidatedGrants = store.add(new Emitter<GitHubCredentialChange>());
@@ -563,7 +554,7 @@ suite('CopilotConnectorsService', () => {
 		const unavailable = createFixture([], true, true);
 		await unavailable.service.refresh(CancellationToken.None);
 
-		const snapshot = (telemetry: TestTelemetryService) => telemetry.events.find(event => event.name === 'copilotConnectors.catalogSnapshot')?.data;
+		const snapshot = (telemetry: TestDataTelemetryService) => telemetry.events.find(event => event.name === 'copilotConnectors.catalogSnapshot')?.data;
 		assert.deepStrictEqual({
 			scoped: snapshot(scoped.telemetryService),
 			unscoped: snapshot(unscoped.telemetryService),

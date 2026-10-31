@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { agentHostConnectionKinds } from '../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -23,6 +24,8 @@ import { createPolicyManagedEnablementAction, createUninstallPluginAction, Organ
 import { IAgentHostCustomizationService } from '../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { createCustomizationMarketplaceInstallationSnapshot, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { ContributionEnablementState } from '../../common/enablement.js';
+import { getAgentHostCustomizationUri } from '../../common/agentHostSessionCustomizations.js';
+import { identityAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 
 suite('AgentPluginActions', () => {
@@ -46,9 +49,9 @@ suite('AgentPluginActions', () => {
 		};
 	}
 
-	function createAgentPluginService(calls: unknown[][]): IAgentPluginService {
+	function createAgentPluginService(calls: unknown[][], pluginUri = URI.file('/plugins/client-plugin')): IAgentPluginService {
 		return {
-			plugins: constObservable([{ ...createPlugin(), uri: URI.file('/plugins/client-plugin') }]),
+			plugins: constObservable([{ ...createPlugin(), uri: pluginUri }]),
 			enablementModel: {
 				setEnabled: (...args: unknown[]) => calls.push(args),
 			},
@@ -264,6 +267,7 @@ suite('AgentPluginActions', () => {
 		const clientCalls: unknown[][] = [];
 		const actions = getAgentHostPluginEnablementActions({
 			setCustomizationEnablement: (...args: unknown[]) => hostCalls.push(args),
+			getClientPluginUri: (_session: URI, plugin: PluginCustomization) => getAgentHostCustomizationUri(URI.parse(plugin.uri), { clientId: 'client-1', resourceUris: identityAgentHostResourceUriMapper }, plugin),
 		} as unknown as IAgentHostCustomizationService, createAgentPluginService(clientCalls), URI.parse('vscode-agent-session:///session-1'), customization, true);
 
 		await actions[0].run();
@@ -273,6 +277,27 @@ suite('AgentPluginActions', () => {
 			hostCalls: [],
 		});
 	});
+
+	for (const kind of agentHostConnectionKinds) {
+		test(`routes same-host plugin global enablement through its decoded client identity (${kind.name})`, async () => {
+			const clientUri = kind.toClient(URI.file('/plugins/client-plugin')).toString();
+			const plugin: PluginCustomization = {
+				type: CustomizationType.Plugin, id: 'stable-client-id', name: 'Client Plugin',
+				uri: 'vscode-agent-host-file:///plugins/client-plugin', clientId: 'client-1',
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			};
+			const hostCalls: unknown[][] = [];
+			const clientCalls: unknown[][] = [];
+			const actions = getAgentHostPluginEnablementActions({
+				setCustomizationEnablement: (...args: unknown[]) => hostCalls.push(args),
+				getClientPluginUri: (_session: URI, plugin: PluginCustomization) => getAgentHostCustomizationUri(URI.parse(plugin.uri), { clientId: 'client-1', resourceUris: kind.resourceUris }, plugin),
+			} as unknown as IAgentHostCustomizationService, createAgentPluginService(clientCalls, URI.parse(clientUri)), URI.parse('vscode-agent-session:///session-1'), plugin, true);
+			await actions[0].run();
+			assert.deepStrictEqual({ clientCalls, hostCalls }, {
+				clientCalls: [[clientUri, ContributionEnablementState.EnabledProfile]], hostCalls: [],
+			});
+		});
+	}
 
 	test('writes host-discovered global plugin enablement to the host', () => {
 		const customization = {
@@ -288,6 +313,7 @@ suite('AgentPluginActions', () => {
 		const sessionResource = URI.parse('vscode-agent-session:///session-1');
 		const actions = getAgentHostPluginEnablementActions({
 			setCustomizationEnablement: (...args: unknown[]) => hostCalls.push(args),
+			getClientPluginUri: (_session: URI, plugin: PluginCustomization) => getAgentHostCustomizationUri(URI.parse(plugin.uri), { clientId: 'client-1', resourceUris: identityAgentHostResourceUriMapper }, plugin),
 		} as unknown as IAgentHostCustomizationService, createAgentPluginService(clientCalls), sessionResource, customization, true);
 
 		actions[0].run();

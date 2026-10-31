@@ -22,6 +22,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageAttachmentKind, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, type SessionSummary } from '../../common/state/sessionState.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../../common/state/protocol/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { chatToolCallStart, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { SessionPermissionManager, type IToolApprovalEvent } from '../../node/sessionPermissions.js';
@@ -95,8 +96,8 @@ suite('SessionPermissionManager', () => {
 
 	function startConfirmation(signal: IAgentToolPendingConfirmationSignal, pathOptions: readonly ConfirmationOption[] = []): void {
 		const chat = signal.chat.toString();
-		manager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'turn-scoped', startedAt: new Date().toISOString(), message: { text: 'go', origin: { kind: MessageKind.User } } });
-		manager.dispatchServerAction(chat, { type: ActionType.ChatToolCallStart, turnId: 'turn-scoped', toolCallId: signal.state.toolCallId, toolName: signal.state.toolName, displayName: signal.state.displayName });
+		manager.dispatchServerAction(chat, chatTurnStarted('turn-scoped', 'go'));
+		manager.dispatchServerAction(chat, chatToolCallStart('turn-scoped', signal.state.toolCallId, signal.state.toolName, signal.state.displayName));
 		manager.dispatchServerAction(chat, permissions.createToolReadyAction(signal, chat, 'turn-scoped', pathOptions));
 	}
 
@@ -856,7 +857,7 @@ suite('SessionPermissionManager', () => {
 			sensitiveEditLocations: [
 				{ path: 'custom-agents', isDirectory: true },
 				{ path: 'custom-hook-dir', isDirectory: true },
-				{ path: 'custom-hooks/hooks.json', isDirectory: false },
+				{ path: 'custom-hooks/hooks.json', isDirectory: true },
 			],
 			approvals: [
 				undefined,
@@ -869,6 +870,34 @@ suite('SessionPermissionManager', () => {
 			],
 		});
 	});
+
+	for (const location of ['settings.json', 'settings.json/', 'settings.JSON']) {
+		for (const exists of [false, true]) {
+			test(`requires confirmation for configured dotted hook location ${location} (exists: ${exists})`, async () => {
+				if (exists) {
+					mkdirSync(join(workDir, location));
+				}
+				configService.updateRootConfig({ [AgentHostEditAutoApprovePatternsConfigKey]: { '**/*': true } });
+				manager.setSessionConfig(sessionUri, {
+					schema: platformSessionSchema.toProtocol(),
+					values: {
+						[SessionConfigKey.SensitiveEditLocations]: getChatSensitiveEditLocations({ [location]: true }, {}),
+					},
+				});
+				const directory = location.replace(/\/+$/, '');
+
+				assert.deepStrictEqual(await Promise.all([
+					permissions.getAutoApproval(writeEvent(join(workDir, directory, 'hook.json')), sessionUri),
+					permissions.getAutoApproval(writeEvent(join(workDir, `${directory}-other`, 'hook.json')), sessionUri),
+					permissions.getAutoApproval(writeEvent(join(workDir, 'src', 'app.ts')), sessionUri),
+				]), [
+					undefined,
+					ToolCallConfirmationReason.NotNeeded,
+					ToolCallConfirmationReason.NotNeeded,
+				]);
+			});
+		}
+	}
 
 	test('requires confirmation for configured locations in every working directory', async () => {
 		const multiRootSession = URI.from({ scheme: 'copilot', path: '/multi-root' }).toString();
@@ -1266,8 +1295,8 @@ suite('SessionPermissionManager', () => {
 		manager.addChat(sessionUri, peer, storage(peer));
 		manager.addChat(sessionUri, peerSubagent, storage(peer), { origin: { kind: ChatOriginKind.Tool, chat: peer, toolCallId: 'spawn-2' } });
 		const startToolCall = (chat: string, toolCallId: string, toolName: string) => {
-			manager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: `turn-${toolCallId}`, startedAt: new Date().toISOString(), message: { text: 'go', origin: { kind: MessageKind.User } } });
-			manager.dispatchServerAction(chat, { type: ActionType.ChatToolCallStart, turnId: `turn-${toolCallId}`, toolCallId, toolName, displayName: toolName });
+			manager.dispatchServerAction(chat, chatTurnStarted(`turn-${toolCallId}`, 'go'));
+			manager.dispatchServerAction(chat, chatToolCallStart(`turn-${toolCallId}`, toolCallId, toolName, toolName));
 			manager.dispatchServerAction(chat, permissions.createToolReadyAction(confirmationSignal({ chat: URI.parse(chat), state: { status: ToolCallStatus.PendingConfirmation, toolCallId, toolName, displayName: toolName, invocationMessage: 'Run tool', confirmationTitle: 'Run tool?' } }), chat, `turn-${toolCallId}`));
 		};
 		const outsideWrite = writeEvent(join(outsideDir, 'outside.txt'));

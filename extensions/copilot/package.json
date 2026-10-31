@@ -2568,11 +2568,6 @@
         "category": "Chat"
       },
       {
-        "command": "github.copilot.debug.workbenchState",
-        "title": "%github.copilot.command.logWorkbenchState%",
-        "category": "Developer"
-      },
-      {
         "command": "github.copilot.debug.togglePowerSaveBlocker",
         "title": "%github.copilot.command.togglePowerSaveBlocker%",
         "category": "Developer"
@@ -3281,8 +3276,10 @@
             "markdownDescription": "Enable or disable auto triggering of Copilot completions for specified [languages](https://code.visualstudio.com/docs/languages/identifiers). You can still trigger suggestions manually using `Alt + \\`",
             "agentsWindow": {
               "default": {
+                "*": true,
+                "plaintext": true,
                 "markdown": true,
-                "plaintext": true
+                "scminput": false
               }
             }
           },
@@ -5539,10 +5536,6 @@
         {
           "command": "github.copilot.interactiveSession.feedback",
           "when": "github.copilot-chat.activated && !github.copilot.interactiveSession.disabled"
-        },
-        {
-          "command": "github.copilot.debug.workbenchState",
-          "when": "true"
         },
         {
           "command": "github.copilot.chat.rerunWithCopilotDebug",

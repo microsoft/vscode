@@ -59,7 +59,7 @@ import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI,
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
+import { type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatDiscoveryOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { autoModeTiers, defaultAutoModeTier, DynamicAutoTiersFeatureFlag, getAutoModeTierDescription, getAutoModeTierLabel, getFusionAutoModeTierLabel, setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { AUTO_MODEL_ID, isAutoModel } from './modelIdentifiers.js';
@@ -82,6 +82,7 @@ import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/session
 import { getRepositoryRootFromWorktree } from '../../common/worktreePaths.js';
 import { CustomizationLoadStatus, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, ResponsePartKind, SessionStatus, withSessionEhcliAdoptable, withSessionStatusFlag, withSessionWorkspaceless, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { CopilotChatDiscovery, ICopilotChatDiscoveryScan } from './copilotChatDiscovery.js';
+import { EXTENSION_HOST_CLI_PER_INSTALL_BULK_FILE, EXTENSION_HOST_CLI_SHARED_BULK_FILE, restoreMissingLegacyMarkers } from './copilotLegacyMarkerFallback.js';
 import { getByokLmAgentModelId, resolveByokLmEnablement } from '../../common/agentHostByokLm.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
@@ -552,8 +553,27 @@ interface IWorkingDirectoryChangeTransactionOptions {
 /** Stable empty host-customization snapshot used before the host publishes one. */
 const NO_HOST_CUSTOMIZATIONS: readonly Customization[] = Object.freeze([]);
 const CHAT_QUEUE_STALL_WARNING_MS = 60_000;
+const EXTENSION_RECONCILIATION_LIFECYCLE_FAILED = 'extension_reconciliation_lifecycle_failed';
 
 class IncompleteCopilotSessionMarkerError extends Error { }
+
+function isExtensionLifecycleReconciliationError(error: unknown): boolean {
+	if (!error || typeof error !== 'object') {
+		return false;
+	}
+	const data = (error as { readonly data?: unknown }).data;
+	return !!data
+		&& typeof data === 'object'
+		&& (data as { readonly code?: unknown }).code === EXTENSION_RECONCILIATION_LIFECYCLE_FAILED;
+}
+
+class CopilotExtensionReconciliationError extends Error {
+	constructor(message: string, readonly failedExtensions: readonly IAgentExtensionInfo[]) {
+		super(message);
+	}
+}
+
+class CopilotExtensionReconcileTargetUnavailableError extends Error { }
 
 class CopilotSessionConfigurationBusyError extends Error {
 	constructor(readonly session: CopilotAgentSession) {
@@ -865,6 +885,32 @@ const EXTENSION_HOST_CLI_MARKER_ORIGIN = 'vscode';
 
 /** File name of the marker written beside a Copilot CLI session's SDK event log. */
 const EXTENSION_HOST_CLI_MARKER_FILE = 'vscode.metadata.json';
+
+type LegacyMarkerFallbackEvent = {
+	sharedBulkFile: string;
+	perInstallBulkFile: string;
+	candidateCount: number;
+	notVSCodeCount: number;
+	existingFileCount: number;
+	missingSessionDirectoryCount: number;
+	writtenCount: number;
+	failedCount: number;
+	durationMs: number;
+};
+
+type LegacyMarkerFallbackClassification = {
+	sharedBulkFile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the shared bulk metadata file in the Copilot home was present, missing or unreadable.' };
+	perInstallBulkFile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the older per-install globalStorage bulk metadata file was present, missing or unreadable.' };
+	candidateCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of distinct sessions across both bulk files.' };
+	notVSCodeCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Entries skipped because they are not VS Code-created sessions or have an invalid session id.' };
+	existingFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'VS Code sessions that already had a per-session marker.' };
+	missingSessionDirectoryCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'VS Code sessions whose session-state directory no longer exists.' };
+	writtenCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'VS Code sessions whose missing per-session marker the agent host restored, making them adoptable.' };
+	failedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Per-session markers that could not be written.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time taken in milliseconds.' };
+	owner: 'vijayupadya';
+	comment: 'Agent host fallback for legacy extension-host Copilot CLI sessions recorded only in the bulk metadata files, for machines where the extension backfill never ran (including remote hosts). Counts only; sent once per host process when migration is on and a bulk file exists.';
+};
 
 /**
  * Shape of the `vscode.metadata.json` marker written next to a Copilot CLI
@@ -1818,8 +1864,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _isMigrateLegacyCopilotCliEnabled(): boolean {
-		// Frozen at startup: changing the setting requires a window reload, so a
-		// single discovery pass sees one stable gate value for the process lifetime.
+		// Set from the host's startup-frozen gate when discovery starts (see `startChatDiscovery`),
+		// so discovery and the host's listing agree. The setting is only read when no host passed it.
 		return this._migrateLegacyEnabledSnapshot ??= this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
 	}
 
@@ -3020,11 +3066,49 @@ export class CopilotAgent extends Disposable implements IAgent {
 			await this._queueChat(targetSessionId, targetSessionId, 'reconcileExtensions', () => {
 				const currentSession = this._findPluginOperationSession(session, chat);
 				if (!currentSession || currentSession.sessionId !== targetSessionId) {
-					throw new Error(localize('copilot.extensionReconcileTargetUnavailable', "The selected chat stopped or was replaced before its extension state could be updated."));
+					throw new CopilotExtensionReconcileTargetUnavailableError();
 				}
 				return this._reconcileExtensionEnablement(currentSession, extensionId, enabled);
 			});
 		} catch (error) {
+			if (error instanceof CopilotExtensionReconcileTargetUnavailableError) {
+				throw new Error(enabled
+					? localize('copilot.extensionEnableTargetUnavailable', "After enabling '{0}', the canvas extension change couldn't be confirmed because the selected chat stopped or was replaced. '{0}' is enabled in settings.", extension.name)
+					: localize('copilot.extensionDisableTargetUnavailable', "After disabling '{0}', the canvas extension change couldn't be confirmed because the selected chat stopped or was replaced. '{0}' is disabled in settings.", extension.name));
+			}
+			if (error instanceof CopilotExtensionReconciliationError && error.failedExtensions.length > 0) {
+				if (enabled) {
+					throw new Error(error.failedExtensions.length === 1
+						? localize(
+							'copilot.extensionEnableRefreshFailed',
+							"After enabling '{0}', this chat couldn't finish updating canvas extensions because '{1}' failed to start. This chat may not match your canvas extension settings.",
+							extension.name,
+							error.failedExtensions[0].name,
+						)
+						: localize(
+							'copilot.extensionEnableRefreshMultipleFailed',
+							"After enabling '{0}', this chat couldn't finish updating canvas extensions because other canvas extensions failed to start. This chat may not match your canvas extension settings.",
+							extension.name,
+						));
+				}
+				throw new Error(error.failedExtensions.length === 1
+					? localize(
+						'copilot.extensionDisableRefreshFailed',
+						"After disabling '{0}', this chat couldn't finish updating canvas extensions because '{1}' failed to start. This chat may not match your canvas extension settings.",
+						extension.name,
+						error.failedExtensions[0].name,
+					)
+					: localize(
+						'copilot.extensionDisableRefreshMultipleFailed',
+						"After disabling '{0}', this chat couldn't finish updating canvas extensions because other canvas extensions failed to start. This chat may not match your canvas extension settings.",
+						extension.name,
+					));
+			}
+			if (error instanceof CopilotExtensionReconciliationError) {
+				throw new Error(enabled
+					? localize('copilot.extensionEnableTargetFailed', "After enabling '{0}', this chat couldn't finish updating canvas extensions because '{0}' failed to start. This chat may not match your canvas extension settings.", extension.name)
+					: localize('copilot.extensionDisableTargetFailed', "After disabling '{0}', this chat couldn't finish updating canvas extensions because '{0}' couldn't be stopped. This chat may not match your canvas extension settings.", extension.name));
+			}
 			throw new Error(enabled
 				? localize('copilot.extensionEnableReconcileFailed', "Canvas extension '{0}' was enabled in settings, but couldn't be started in this chat. {1}", extension.name, getErrorMessage(error))
 				: localize('copilot.extensionDisableReconcileFailed', "Canvas extension '{0}' was disabled in settings, but couldn't be stopped in this chat. {1}", extension.name, getErrorMessage(error)));
@@ -3035,7 +3119,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			await session.reconcileExtensions();
 		} catch (error) {
-			if (!enabled || session.isDisposed) {
+			if (session.isDisposed || !isExtensionLifecycleReconciliationError(error)) {
 				throw error;
 			}
 			let extensions: readonly IAgentExtensionInfo[];
@@ -3044,11 +3128,29 @@ export class CopilotAgent extends Disposable implements IAgent {
 			} catch (verificationError) {
 				throw new AggregateError([error, verificationError], getErrorMessage(error));
 			}
-			const targets = extensions.filter(extension => extension.id === extensionId);
-			if (session.isDisposed || targets.length === 0 || targets.some(extension => extension.status !== 'running')) {
+			if (session.isDisposed) {
 				throw error;
 			}
-			this._logService.warn(`[Copilot:${session.sessionId}] Extension '${extensionId}' enablement was applied, but extension reconciliation reported a lifecycle failure`, error);
+			const targets = extensions.filter(extension => extension.id === extensionId);
+			const targetSettled = targets.length > 0 && targets.every(extension => extension.status === (enabled ? 'running' : 'disabled'));
+			if (enabled && targetSettled) {
+				this._logService.warn(`[Copilot:${session.sessionId}] Extension '${extensionId}' enablement was applied, but extension reconciliation reported a lifecycle failure`, error);
+				return;
+			}
+			const targetFailed = targets.some(extension => extension.status === 'failed');
+			const targetStatuses = new Set(targets.map(extension => extension.status));
+			const targetConsistentlyStarting = enabled && targetStatuses.size === 1 && targetStatuses.has('starting');
+			const canAttributeOtherFailures = !targetFailed && (targetSettled || targetConsistentlyStarting);
+			const failedExtensions = canAttributeOtherFailures
+				? [...new Map(extensions
+					.filter(extension => extension.id !== extensionId && extension.status === 'failed')
+					.map(extension => [extension.id, extension])).values()]
+				: [];
+			if ((!enabled && targetSettled || enabled && !targetFailed) && failedExtensions.length === 0) {
+				throw error;
+			}
+			this._logService.warn(`[Copilot:${session.sessionId}] Extension '${extensionId}' reconciliation reported a lifecycle failure`, error);
+			throw new CopilotExtensionReconciliationError(getErrorMessage(error), failedExtensions);
 		}
 	}
 
@@ -4847,11 +4949,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._knownSessionsFilter = filter;
 	}
 
-	startChatDiscovery(): Promise<void> {
+	startChatDiscovery(options?: IAgentChatDiscoveryOptions): Promise<void> {
 		if (this._shutdownPromise || this._store.isDisposed) {
 			return Promise.resolve();
 		}
-		return this._copilotChatDiscovery.start();
+		if (options) {
+			// The host's frozen gate is authoritative: reading the setting here could see a client's value mirrored after host startup.
+			this._migrateLegacyEnabledSnapshot = options.migrateLegacyChats;
+		}
+		if (!this._isMigrateLegacyCopilotCliEnabled()) {
+			return this._copilotChatDiscovery.start();
+		}
+		// Restored markers must exist before the first scan classifies the chats they describe.
+		return this._restoreLegacyMarkersOnce().then(() => this._shutdownPromise || this._store.isDisposed ? undefined : this._copilotChatDiscovery.start());
 	}
 
 	/** Publishes eligible chats and returns the candidates that no longer need readiness watching. */
@@ -6268,6 +6378,50 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
+	private _legacyMarkerFallback: Promise<void> | undefined;
+
+	/**
+	 * Restores, once per host process, the per-session markers of VS Code
+	 * sessions the extension host recorded only in its bulk metadata files: the
+	 * shared one in the Copilot home and the older per-install one in this
+	 * install's `globalStorage` (on a remote, the server's). This covers machines
+	 * where the extension's own backfill never ran. Never fails: an error leaves
+	 * those sessions un-adoptable, as before.
+	 */
+	private _restoreLegacyMarkersOnce(): Promise<void> {
+		// Memoized for the process, so it must never reject: that would stop discovery and every later adoption.
+		return this._legacyMarkerFallback ??= this._restoreLegacyMarkers().catch(error => {
+			this._logService.warn('[Copilot] Failed to restore extension-host markers from bulk metadata', error);
+		});
+	}
+
+	private async _restoreLegacyMarkers(): Promise<void> {
+		const startTime = Date.now();
+		const settingsHome: URI | undefined = this._environmentService.appSettingsHome;
+		const result = await restoreMissingLegacyMarkers(
+			resourceJoinPath(this._copilotHomeService.home, 'session-state').fsPath,
+			resourceJoinPath(this._copilotHomeService.home, EXTENSION_HOST_CLI_SHARED_BULK_FILE).fsPath,
+			settingsHome ? resourceJoinPath(settingsHome, ...EXTENSION_HOST_CLI_PER_INSTALL_BULK_FILE).fsPath : undefined,
+			EXTENSION_HOST_CLI_MARKER_FILE,
+			this._logService,
+		);
+		if (result.sharedBulkFile === 'missing' && result.perInstallBulkFile === 'missing') {
+			return;
+		}
+		this._logService.info(`[Copilot] Restored extension-host markers from bulk metadata: shared=${result.sharedBulkFile}, perInstall=${result.perInstallBulkFile}, candidates=${result.candidates}, notVSCode=${result.notVSCode}, exists=${result.exists}, missingSessionDirectory=${result.missingSessionDirectory}, written=${result.written}, failed=${result.failed}`);
+		this._telemetryService.publicLog2<LegacyMarkerFallbackEvent, LegacyMarkerFallbackClassification>('agentHost.legacyCopilotCliMarkerFallback', {
+			sharedBulkFile: result.sharedBulkFile,
+			perInstallBulkFile: result.perInstallBulkFile,
+			candidateCount: result.candidates,
+			notVSCodeCount: result.notVSCode,
+			existingFileCount: result.exists,
+			missingSessionDirectoryCount: result.missingSessionDirectory,
+			writtenCount: result.written,
+			failedCount: result.failed,
+			durationMs: Date.now() - startTime,
+		});
+	}
+
 	private async _readExtensionHostCliMarker(sessionId: string): Promise<IExtensionHostCliMarker | undefined> {
 		return (await this._readExtensionHostCliMarkerWithDiagnostics(sessionId)).marker;
 	}
@@ -6387,6 +6541,65 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
+	/** The worktree the extension host recorded for a session the Agent Host has not adopted. */
+	async readLegacyChatWorktree(session: URI): Promise<IAgentAdoptedWorktree | undefined> {
+		if (!AgentSession.isCanonical(session)) {
+			return undefined;
+		}
+		// Adoption records the worktree in the host's own metadata, which then owns its removal.
+		if ((await this._readStoredSessionMetadata(sessionMetadataScope(session)))?.workingDirectory) {
+			return undefined;
+		}
+		const sessionId = AgentSession.id(session);
+		const marker = await this._readExtensionHostCliMarker(sessionId);
+		const worktree = isExtensionHostCliMarker(marker) ? marker?.worktreeProperties : undefined;
+		if (!worktree?.worktreePath || !worktree.repositoryPath || !worktree.branchName) {
+			return undefined;
+		}
+		if (await this._isLegacyWorktreeUsedByAnotherSession(sessionId, URI.file(worktree.worktreePath))) {
+			this._logService.info(`[Copilot] Keeping the worktree of deleted legacy session ${sessionId}: another session recorded by the extension host still uses it`);
+			return undefined;
+		}
+		return {
+			branchName: worktree.branchName,
+			baseBranch: worktree.baseBranchName,
+			worktreePath: URI.file(worktree.worktreePath),
+			repositoryRoot: URI.file(worktree.repositoryPath),
+		};
+	}
+
+	/**
+	 * Whether another session the extension host recorded works in `worktree`
+	 * and is not archived, as the extension host checked before deleting a
+	 * worktree. Read from the markers on disk rather than the host's registry,
+	 * which discovery may not have filled yet. `true` when that cannot be
+	 * established, which keeps the folder.
+	 */
+	private async _isLegacyWorktreeUsedByAnotherSession(sessionId: string, worktree: URI): Promise<boolean> {
+		const root = resourceJoinPath(this._copilotHomeService.home, 'session-state').fsPath;
+		let sessionIds: string[];
+		try {
+			sessionIds = (await fs.readdir(root, { withFileTypes: true })).filter(entry => entry.isDirectory() && entry.name !== sessionId).map(entry => entry.name);
+		} catch (error) {
+			this._logService.warn(`[Copilot] Failed to list legacy sessions sharing the worktree of ${sessionId}; keeping it`, error);
+			return true;
+		}
+		const limiter = new Limiter<boolean>(16);
+		const usages = await Promise.all(sessionIds.map(id => limiter.queue(async () => {
+			let raw: string;
+			try {
+				raw = await fs.readFile(join(root, id, EXTENSION_HOST_CLI_MARKER_FILE), 'utf8');
+			} catch (error) {
+				const code = getErrorCode(error);
+				return code !== 'ENOENT' && code !== 'ENOTDIR';
+			}
+			const marker = parseExtensionHostCliMarker(raw);
+			return !!marker && marker.archived !== true
+				&& extensionHostCliWorkingDirectoryPaths(marker).some(path => extUriBiasedIgnorePathCase.isEqualOrParent(URI.file(path), worktree));
+		})));
+		return usages.some(used => used);
+	}
+
 	/**
 	 * Repairs durable metadata on a legacy Copilot CLI session adopted by a build
 	 * that predates it. Keyed off the extension-host marker, so it never claims a
@@ -6466,6 +6679,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			// Only migrate legacy EH Copilot CLI sessions — never other Copilot SDK
 			// sessions (standalone CLI, Local agent, …) that share `~/.copilot`.
+			// A session the extension recorded only in its bulk metadata gets its marker first.
+			await this._restoreLegacyMarkersOnce();
 			const markerRead = await this._readExtensionHostCliMarkerWithDiagnostics(sessionId);
 			if (!isExtensionHostCliMarker(markerRead.marker)) {
 				this._logService.info(`[Copilot] Adoption declined for ${sessionId}: marker=${markerRead.diagnostics.markerStatus}, provenance=${markerRead.diagnostics.provenance}, cached=${markerRead.diagnostics.markerFromCache}`);

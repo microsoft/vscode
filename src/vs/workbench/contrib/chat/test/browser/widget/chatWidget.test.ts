@@ -1731,21 +1731,18 @@ suite('ChatWidget', () => {
 		const { widget, domNode, rerenders } = createRerenderWidget();
 		domNode.style.display = 'none';
 		mainWindow.document.body.appendChild(domNode);
-		try {
-			widget.setReadOnly(true);
-			widget.setVisible(false);
-			widget.setVisible(true);
-			const whileHidden = rerenders();
+		store.add(toDisposable(() => domNode.remove()));
+		widget.setReadOnly(true);
+		widget.setVisible(false);
+		widget.setVisible(true);
+		const whileHidden = rerenders();
 
-			domNode.style.display = '';
-			domNode.style.height = '50px';
-			widget.layoutForInputHeight(100, 100);
-			widget.layoutForInputHeight(100, 100);
+		domNode.style.display = '';
+		domNode.style.height = '50px';
+		widget.layoutForInputHeight(100, 100);
+		widget.layoutForInputHeight(100, 100);
 
-			assert.deepStrictEqual({ whileHidden, afterLayouts: rerenders() }, { whileHidden: 0, afterLayouts: 1 });
-		} finally {
-			domNode.remove();
-		}
+		assert.deepStrictEqual({ whileHidden, afterLayouts: rerenders() }, { whileHidden: 0, afterLayouts: 1 });
 	});
 
 	for (const mode of ['local', 'remote', 'unsupported'] as const) {

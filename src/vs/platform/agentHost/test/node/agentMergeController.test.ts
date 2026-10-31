@@ -43,6 +43,7 @@ import { IAgentHostChatContributionContext } from '../../common/agentHostChatCon
 import { createPullRequestOperationMeta } from '../../common/meta/agentPullRequestOperationMeta.js';
 import { PullRequestChatContribution } from '../../node/chatContributions/pullRequest/pullRequestChatContribution.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 
 let sessionCounter = 0;
 
@@ -360,16 +361,13 @@ suite('AgentMergeController', () => {
 		const chat = buildDefaultChatUri(session);
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
-		stateManager.dispatchServerAction(chat, {
-			type: ActionType.ChatTurnStarted, turnId: 'running', startedAt: new Date().toISOString(),
-			message: { text: 'Already admitted', origin: { kind: MessageKind.User } },
-		});
+		stateManager.dispatchServerAction(chat, chatTurnStarted('running', 'Already admitted'));
 		selected = second;
 		configurationService.updateSessionConfig(session, {
 			[SessionConfigKey.AgentMerge]: { enabled: true, overrides: { fixCI: false } },
 		});
 		const busyCaptures = [...captures];
-		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'running', duration: 1 });
+		stateManager.dispatchServerAction(chat, chatTurnComplete('running', 1));
 		configurationService.updateSessionConfig(session, {
 			[SessionConfigKey.AgentMerge]: { enabled: true, overrides: { fixCI: true } },
 		});
@@ -508,7 +506,7 @@ suite('AgentMergeController', () => {
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 		const both = snapshot();
 		// Narrowing does not wait for the peer's turn to end.
-		stateManager.dispatchServerAction(peerChat, { type: ActionType.ChatTurnStarted, turnId: 'peer-turn', startedAt: new Date().toISOString(), message: { text: 'go', origin: { kind: MessageKind.User } } });
+		stateManager.dispatchServerAction(peerChat, chatTurnStarted('peer-turn', 'go'));
 		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMergeFolders]: { [repoKey]: { enabled: false }, [otherKey]: { enabled: true } } });
 		const peerOnly = snapshot();
 		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMergeFolders]: { [repoKey]: { enabled: false }, [otherKey]: { enabled: false } } });
@@ -624,12 +622,7 @@ suite('AgentMergeController', () => {
 		stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat, buildDefaultChatUri(session)), { workingDirectories: [OTHER_REPOSITORY] });
 		stateManager.setSessionConfig(session, { schema: platformSessionSchema.toProtocol(), values: {} });
 		stateManager.setSessionMeta(session, withFolderGitHubState(undefined, otherKey, { pullRequestUrls: ['https://github.com/octo/repo/pull/1'], pullRequestBranchName: 'feature-tools' }));
-		stateManager.dispatchServerAction(buildDefaultChatUri(session), {
-			type: ActionType.ChatTurnStarted,
-			turnId: 'default-busy',
-			startedAt: new Date().toISOString(),
-			message: { text: 'busy', origin: { kind: MessageKind.User } },
-		});
+		stateManager.dispatchServerAction(buildDefaultChatUri(session), chatTurnStarted('default-busy', 'busy'));
 
 		configurationService.updateSessionConfig(session, {
 			[SessionConfigKey.AgentMergeFolders]: {
@@ -670,10 +663,7 @@ suite('AgentMergeController', () => {
 	test('artifact integration mode stops only Agent Merge work and preserves the saved opt-in', async () => {
 		const h = createPeerRepairHarness(disposables);
 		const humanChat = buildDefaultChatUri(h.session);
-		h.stateManager.dispatchServerAction(humanChat, {
-			type: ActionType.ChatTurnStarted, turnId: 'human-turn', startedAt: new Date().toISOString(),
-			message: { text: 'Keep working', origin: { kind: MessageKind.User } },
-		});
+		h.stateManager.dispatchServerAction(humanChat, chatTurnStarted('human-turn', 'Keep working'));
 		await h.start();
 		h.configurationService.updateRootConfig({ [AgentHostArtifactIntegrationsConfigKey]: true });
 		const paused = { enabled: h.controller.isEnabled(), context: h.controller.getTurnContext(h.peerChat) };
@@ -736,7 +726,7 @@ suite('AgentMergeController', () => {
 			const completeTurn = () => {
 				const context = h.controller.getTurnContext(h.peerChat);
 				assert.ok(context);
-				h.stateManager.dispatchServerAction(h.peerChat, { type: ActionType.ChatTurnComplete, turnId: context.turnId, duration: 0 });
+				h.stateManager.dispatchServerAction(h.peerChat, chatTurnComplete(context.turnId, 0));
 			};
 			return { ...h, tools, mutations, replies, folderState, completeTurn };
 		}
@@ -951,10 +941,7 @@ suite('AgentMergeController', () => {
 		test('leaves monitoring and active work in another folder unchanged', () => withReviewReply(async h => {
 			const defaultChat = buildDefaultChatUri(h.session);
 			const primaryKey = getWorkingDirectoryKey(REPOSITORY);
-			h.stateManager.dispatchServerAction(defaultChat, {
-				type: ActionType.ChatTurnStarted, turnId: 'other-folder-work', startedAt: new Date().toISOString(),
-				message: { text: 'Other work', origin: { kind: MessageKind.User } },
-			});
+			h.stateManager.dispatchServerAction(defaultChat, chatTurnStarted('other-folder-work', 'Other work'));
 			await h.controller.setEnabled(defaultChat, true, { fixCI: false });
 			const primaryState = readAgentMergeFolderState(h.configurationService.getSessionConfigValues(h.session), primaryKey, primaryKey);
 
@@ -1046,10 +1033,7 @@ suite('AgentMergeController', () => {
 				attaching.complete();
 				await finishAttachment.p;
 			};
-			h.stateManager.dispatchServerAction(buildDefaultChatUri(h.session), {
-				type: ActionType.ChatTurnStarted, turnId: 'default-busy', startedAt: new Date().toISOString(),
-				message: { text: 'busy', origin: { kind: MessageKind.User } },
-			});
+			h.stateManager.dispatchServerAction(buildDefaultChatUri(h.session), chatTurnStarted('default-busy', 'busy'));
 			const started = h.start();
 			await attaching.p;
 			await h.controller.setEnabled(h.peerChat, true, { fixCI: false });
@@ -1228,12 +1212,7 @@ suite('AgentMergeController', () => {
 			[SessionConfigKey.AutoApprove]: 'default',
 		});
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
-		stateManager.dispatchServerAction(buildDefaultChatUri(session), {
-			type: ActionType.ChatTurnStarted,
-			turnId: 'user-turn',
-			startedAt: new Date().toISOString(),
-			message: { text: 'hello', origin: { kind: MessageKind.User } },
-		});
+		stateManager.dispatchServerAction(buildDefaultChatUri(session), chatTurnStarted('user-turn', 'hello'));
 		configurationService.updateSessionConfig(session, {
 			[SessionConfigKey.AgentMerge]: { enabled: true },
 		});
@@ -1291,7 +1270,7 @@ suite('AgentMergeController', () => {
 				void captured.complete();
 			}
 		}));
-		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: turn.turnId, duration: 0 });
+		stateManager.dispatchServerAction(chat, chatTurnComplete(turn.turnId, 0));
 		await captured.p;
 		const after = readAgentMergeSessionState(configurationService.getSessionConfigValues(session));
 		assert.deepStrictEqual({
@@ -1399,10 +1378,7 @@ suite('AgentMergeController', () => {
 		const chat = buildDefaultChatUri(session);
 		stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'main', baseBranchName: 'main' }));
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
-		stateManager.dispatchServerAction(chat, {
-			type: ActionType.ChatTurnStarted, turnId: 'create-pr', startedAt: new Date().toISOString(),
-			message: { text: 'Open PR and merge when green', origin: { kind: MessageKind.User } },
-		});
+		stateManager.dispatchServerAction(chat, chatTurnStarted('create-pr', 'Open PR and merge when green'));
 		const enabling = tools.setEnabled(session, true, { mergePullRequest: 'always' });
 		const whileReading = { state: readAgentMergeSessionState(configurationService.getSessionConfigValues(session)), notices: [...notices] };
 		await finishBranchRead.complete('fix/eval-session-safety');
@@ -1411,7 +1387,7 @@ suite('AgentMergeController', () => {
 			result, refreshCount, activeTurn: stateManager.getActiveTurnId(chat),
 			mode: configurationService.getSessionConfigValues(session)?.[SessionConfigKey.Mode],
 		};
-		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'create-pr', duration: 0 });
+		stateManager.dispatchServerAction(chat, chatTurnComplete('create-pr', 0));
 		await refreshStarted.p;
 		await finishRefresh.complete();
 		await attached.p;
@@ -1455,12 +1431,9 @@ suite('AgentMergeController', () => {
 			stateManager.setSessionMeta(session, withSessionGitState(undefined, cachedState === 'detached' ? { isDetachedHead: true, baseBranchName: 'main' } : undefined));
 			const chat = buildDefaultChatUri(session);
 			stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
-			stateManager.dispatchServerAction(chat, {
-				type: ActionType.ChatTurnStarted, turnId: 'user-turn', startedAt: new Date().toISOString(),
-				message: { text: 'Enable Agent Merge', origin: { kind: MessageKind.User } },
-			});
+			stateManager.dispatchServerAction(chat, chatTurnStarted('user-turn', 'Enable Agent Merge'));
 			await controller.setEnabled(session, true);
-			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'user-turn', duration: 0 });
+			stateManager.dispatchServerAction(chat, chatTurnComplete('user-turn', 0));
 			await refreshed.p;
 			await timeout(0);
 
@@ -1478,14 +1451,11 @@ suite('AgentMergeController', () => {
 			const chat = buildDefaultChatUri(session);
 			stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'main', baseBranchName: 'main' }));
 			stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
-			stateManager.dispatchServerAction(chat, {
-				type: ActionType.ChatTurnStarted, turnId: 'user-turn', startedAt: new Date().toISOString(),
-				message: { text: 'Enable Agent Merge', origin: { kind: MessageKind.User } },
-			});
+			stateManager.dispatchServerAction(chat, chatTurnStarted('user-turn', 'Enable Agent Merge'));
 			await controller.setEnabled(session, true);
 			gitService.getCurrentBranchName = async () => branchName;
 			const stopped = Event.toPromise(Event.filter(stateManager.onDidChangeSessionConfig, event => readAgentMergeSessionState(event.current?.values)?.enabled === false));
-			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'user-turn', duration: 0 });
+			stateManager.dispatchServerAction(chat, chatTurnComplete('user-turn', 0));
 			await stopped;
 
 			assert.deepStrictEqual({
@@ -1520,15 +1490,12 @@ suite('AgentMergeController', () => {
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 		await refreshStarted.p;
 		const chat = buildDefaultChatUri(session);
-		stateManager.dispatchServerAction(chat, {
-			type: ActionType.ChatTurnStarted, turnId: 'follow-up', startedAt: new Date().toISOString(),
-			message: { text: 'Make another change', origin: { kind: MessageKind.User } },
-		});
+		stateManager.dispatchServerAction(chat, chatTurnStarted('follow-up', 'Make another change'));
 		await finishRefresh.complete();
 		await timeout(0);
 		const duringTurn = { target: readAgentMergeSessionState(configurationService.getSessionConfigValues(session))?.target, notices: [...notices] };
 		const captured = Event.toPromise(Event.filter(stateManager.onDidChangeSessionConfig, event => !!readAgentMergeSessionState(event.current?.values)?.target));
-		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'follow-up', duration: 0 });
+		stateManager.dispatchServerAction(chat, chatTurnComplete('follow-up', 0));
 		await captured;
 
 		assert.deepStrictEqual({
@@ -1968,7 +1935,7 @@ suite('AgentMergeController', () => {
 			{
 				startTurn: (chat, turnId) => {
 					startTurns.push(chat);
-					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId, startedAt: new Date().toISOString(), message: { text: 'repair', origin: { kind: MessageKind.User } } });
+					stateManager.dispatchServerAction(chat, chatTurnStarted(turnId, 'repair'));
 					if (turnStart.reject) {
 						stateManager.dispatchServerAction(chat, { type: ActionType.ChatError, turnId, duration: 0, part: createErrorResponsePart({ errorType: 'failed', message: 'Turn rejected synchronously' }) });
 					}
@@ -2059,7 +2026,7 @@ suite('AgentMergeController', () => {
 
 			const turnId = h.stateManager.getChatState(h.peerChat)!.activeTurn!.id;
 			const refreshesBefore = h.refreshes.count;
-			h.stateManager.dispatchServerAction(h.peerChat, { type: ActionType.ChatTurnComplete, turnId, duration: 1 });
+			h.stateManager.dispatchServerAction(h.peerChat, chatTurnComplete(turnId, 1));
 			await timeout(1000);
 
 			assert.deepStrictEqual({
@@ -2085,7 +2052,7 @@ suite('AgentMergeController', () => {
 			await h.start();
 			const turnId = h.stateManager.getChatState(h.peerChat)!.activeTurn!.id;
 			const refreshesBefore = h.refreshes.count;
-			h.stateManager.dispatchServerAction(h.peerChat, { type: ActionType.ChatTurnComplete, turnId, duration: 1 });
+			h.stateManager.dispatchServerAction(h.peerChat, chatTurnComplete(turnId, 1));
 			const target = movePeer(h);
 			await timeout(1000);
 			const refreshedAfterTurn = h.refreshes.count > refreshesBefore;
