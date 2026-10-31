@@ -1,0 +1,96 @@
+name: Restore Playwright browsers
+description: Restores the browsers of the pinned Playwright version into .build/ms-playwright, or downloads and caches them. Sets PLAYWRIGHT_BROWSERS_PATH for the rest of the job, so a later `playwright install` of the same browsers downloads nothing on a hit and downloads as before on a miss.
+
+inputs:
+  browsers:
+    description: The arguments of `playwright install`, for example `--only-shell chromium`.
+    required: true
+  package-lock:
+    description: The package-lock.json whose `playwright` package installs the browsers.
+    default: package-lock.json
+  save-cache:
+    description: When 'true', also downloads and saves the browsers on a cache miss. Use on main, whose caches pull requests can read.
+    default: 'false'
+
+outputs:
+  cache-hit:
+    description: "'true' when an exact cache key match was found."
+    value: ${{ steps.restore.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Prepare Playwright browsers path
+      id: prepare
+      shell: node {0}
+      env:
+        PLAYWRIGHT_PACKAGE_LOCK: ${{ inputs.package-lock }}
+        PLAYWRIGHT_INSTALL_ARGS: ${{ inputs.browsers }}
+      run: |
+        const fs = require('fs');
+        const path = require('path');
+        const version = JSON.parse(fs.readFileSync(process.env.PLAYWRIGHT_PACKAGE_LOCK, 'utf8')).packages['node_modules/playwright'].version;
+        const browsers = process.env.PLAYWRIGHT_INSTALL_ARGS.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        fs.appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\nbrowsers=${browsers}\n`);
+        fs.appendFileSync(process.env.GITHUB_ENV, `PLAYWRIGHT_BROWSERS_PATH=${path.join(process.env.GITHUB_WORKSPACE, '.build', 'ms-playwright')}\n`);
+
+    - name: Restore Playwright browsers cache
+      id: restore
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: .build/ms-playwright
+        key: "playwright-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.prepare.outputs.version }}-${{ steps.prepare.outputs.browsers }}"
+
+    - name: Download Playwright browsers
+      if: inputs.save-cache == 'true' && steps.restore.outputs.cache-hit != 'true' && runner.os != 'Windows'
+      shell: bash
+      run: |
+        for i in {1..3}; do
+          if npx --yes "playwright@$PLAYWRIGHT_VERSION" install $PLAYWRIGHT_INSTALL_ARGS; then
+            break
+          fi
+
+          if [ $i -eq 3 ]; then
+            echo "Install failed after 3 attempts" >&2
+            exit 1
+          fi
+
+          echo "Install failed on attempt $i, retrying..."
+          sleep 5
+        done
+      env:
+        PLAYWRIGHT_VERSION: ${{ steps.prepare.outputs.version }}
+        PLAYWRIGHT_INSTALL_ARGS: ${{ inputs.browsers }}
+
+    - name: Download Playwright browsers
+      if: inputs.save-cache == 'true' && steps.restore.outputs.cache-hit != 'true' && runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        $installArgs = $env:PLAYWRIGHT_INSTALL_ARGS -split '\s+'
+
+        for ($i = 1; $i -le 3; $i++) {
+          try {
+            exec { npx --yes "playwright@$env:PLAYWRIGHT_VERSION" install @installArgs }
+            break
+          }
+          catch {
+            if ($i -eq 3) {
+              Write-Error "Install failed after 3 attempts"
+              throw
+            }
+            Write-Host "Install failed attempt $i, retrying..."
+            Start-Sleep -Seconds 5
+          }
+        }
+      env:
+        PLAYWRIGHT_VERSION: ${{ steps.prepare.outputs.version }}
+        PLAYWRIGHT_INSTALL_ARGS: ${{ inputs.browsers }}
+
+    - name: Save Playwright browsers cache
+      if: inputs.save-cache == 'true' && steps.restore.outputs.cache-hit != 'true'
+      uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      with:
+        path: .build/ms-playwright
+        key: ${{ steps.restore.outputs.cache-primary-key }}
