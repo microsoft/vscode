@@ -217,6 +217,7 @@ jobs:
         - script: |
             set -e
             npm run test-mobile-preview
+            node --test build/azure-pipelines/web/cdnConfiguration.test.ts
             npm run bundle-mobile-preview
             tar --owner=0 --group=0 -czf "$(Build.ArtifactStagingDirectory)/out/web/vscode-web-mobile.tar.gz" \
               -C out-mobile-preview out node_modules extensions mobile-preview.json

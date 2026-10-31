@@ -69,6 +69,7 @@ test('the existing Web job builds a normal archive before publication and guards
 	assert.equal(pipeline.parameters.find(parameter => parameter.name === 'VSCODE_BUILD_WEB_MOBILE')?.default, false);
 	assert.ok(JSON.stringify(pipeline.jobs[0].templateContext.outputs).includes('vscode_web_linux_mobile_archive-unsigned'));
 	assert.ok(source.includes('npm run test-mobile-preview'));
+	assert.ok(source.includes('node --test build/azure-pipelines/web/cdnConfiguration.test.ts'));
 	assert.ok(source.includes('npm run bundle-mobile-preview'));
 	assert.ok(source.includes('-C out-mobile-preview out node_modules extensions mobile-preview.json'));
 	assert.ok(source.includes('condition: and(succeeded(), eq(variables[\'VSCODE_PUBLISH\'], \'True\'))'));
