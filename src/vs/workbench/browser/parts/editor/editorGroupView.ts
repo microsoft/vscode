@@ -18,7 +18,7 @@ import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { editorBackground, contrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_HEADER_BORDER } from '../../../common/theme.js';
-import { ICloseEditorsFilter, GroupsOrder, ICloseEditorOptions, ICloseAllEditorsOptions, IEditorReplacement, IActiveEditorActions } from '../../../services/editor/common/editorGroupsService.js';
+import { ICloseEditorsFilter, GroupsOrder, ICloseEditorOptions, ICloseAllEditorsOptions, IEditorReplacement, IActiveEditorActions, IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { EditorPanes } from './editorPanes.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { EditorProgressIndicator } from '../../../services/progress/browser/progressIndicator.js';
@@ -1211,6 +1211,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return;
 		}
 
+		// An editor the part does not take opens where the part says instead, however it was to open here: opened, moved,
+		// copied or dropped. The title of the other group is updated now, as this group's title is not for that editor.
+		const redirect = this.groupsView.redirectEditor?.(editor, this);
+		if (redirect) {
+			return redirect instanceof EditorGroupView ? redirect.doOpenEditor(editor, options, { ...internalOptions, skipTitleUpdate: false }) : redirect.openEditor(editor, options);
+		}
+
 		// Fire the event letting everyone know we are about to open an editor
 		this._onWillOpenEditor.fire({ editor, groupId: this.id });
 
@@ -1355,11 +1362,61 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// e.g. to indicate dirty changes.
 		const editorsToOpen = coalesce(editors).filter(({ editor }) => !editor.isDisposed());
 
-		// Use the first editor as active editor
-		const firstEditor = editorsToOpen.at(0);
-		if (!firstEditor) {
+		if (!editorsToOpen.length) {
 			return;
 		}
+
+		// Editors the part does not take open in other groups, as a batch each: their indices and the
+		// resulting editor pane are theirs. A group of this part left without editors goes after all are open.
+		if (this.groupsView.redirectEditor) {
+			const batch = this.groupsView.openEditorsBatch?.(this);
+			try {
+				return await this.doOpenEditorsRedirected(editorsToOpen);
+			} finally {
+				batch?.dispose();
+			}
+		}
+
+		return this.doOpenEditors(editorsToOpen);
+	}
+
+	private async doOpenEditorsRedirected(editorsToOpen: { editor: EditorInput; options?: IEditorOptions }[]): Promise<IEditorPane | undefined> {
+		const taken: { editor: EditorInput; options?: IEditorOptions }[] = [];
+		const redirected = new Map<IEditorGroup, { editor: EditorInput; options?: IEditorOptions }[]>();
+		let firstTarget: IEditorGroup | undefined;
+		for (const [index, entry] of editorsToOpen.entries()) {
+			const target = this.groupsView.redirectEditor?.(entry.editor, this);
+			if (index === 0) {
+				firstTarget = target;
+			}
+			if (target) {
+				const entries = redirected.get(target) ?? [];
+				entries.push(entry);
+				redirected.set(target, entries);
+			} else {
+				taken.push(entry);
+			}
+		}
+
+		let result: IEditorPane | undefined;
+		if (taken.length) {
+			result = await this.doOpenEditors(taken);
+		}
+
+		for (const [target, entries] of redirected) {
+			const pane = await target.openEditors(entries);
+			if (target === firstTarget) {
+				result = pane;
+			}
+		}
+
+		return result;
+	}
+
+	private async doOpenEditors(editorsToOpen: { editor: EditorInput; options?: IEditorOptions }[]): Promise<IEditorPane | undefined> {
+
+		// Use the first editor as active editor
+		const firstEditor = editorsToOpen[0];
 
 		const openEditorsOptions: IInternalEditorOpenOptions = {
 			// Allow to match on a side-by-side editor when same
@@ -1485,6 +1542,17 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: EditorGroupView, openOptions?: IEditorOpenOptions, internalOptions?: IInternalMoveCopyOptions): boolean {
 		const keepCopy = internalOptions?.keepCopy;
+
+		// An editor the target's part does not take goes where that part says instead, whose title is updated now as the
+		// caller updates the target's; back where it is, it stays.
+		const redirect = target.groupsView.redirectEditor?.(editor, target);
+		if (redirect instanceof EditorGroupView) {
+			if (redirect === this) {
+				return true;
+			}
+			target = redirect;
+			internalOptions = { ...internalOptions, skipTitleUpdate: false };
+		}
 
 		// Validate that we can move
 		if (!keepCopy || editor.hasCapability(EditorInputCapabilities.Singleton) /* singleton editors will always move */) {
