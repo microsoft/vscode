@@ -140,6 +140,10 @@ suite('Sessions - New Nested Session composer', () => {
 				repositoryContainer.querySelector<HTMLElement>('.sessions-chat-isolation-picker .action-label')!.click();
 				await new Promise(resolve => setTimeout(resolve, 0));
 			},
+			isolationIcon() {
+				const icon = repositoryContainer.querySelector<HTMLElement>('.sessions-chat-isolation-picker .action-label .codicon')!;
+				return { className: icon.className, ariaHidden: icon.getAttribute('aria-hidden') };
+			},
 			state() {
 				const repository = repositoryContainer.querySelector<HTMLElement>('.nested-chat-repository-controls')!;
 				return {
@@ -309,23 +313,25 @@ suite('Sessions - New Nested Session composer', () => {
 	test('the isolation dropdown offers Branch and New Worktree, and only a worktree shows the branch picker', async () => {
 		const h = createControls(constObservable(support(repo)));
 		await new Promise(resolve => setTimeout(resolve, 0));
-		const initial = { ...h.repositoryState(), workspace: h.controls.getWorkspace() };
+		const initial = { ...h.repositoryState(), icon: h.isolationIcon(), workspace: h.controls.getWorkspace() };
 		await h.pickIsolation('New Worktree');
 		await new Promise(resolve => setTimeout(resolve, 0));
-		const worktree = { ...h.repositoryState(), items: h.shown.at(-1), workspace: h.controls.getWorkspace() };
+		const worktree = { ...h.repositoryState(), icon: h.isolationIcon(), items: h.shown.at(-1), itemIcons: h.lists.at(-1)?.icons, workspace: h.controls.getWorkspace() };
 		await h.pickIsolation('Branch');
-		const folder = { ...h.repositoryState(), workspace: h.controls.getWorkspace() };
+		const folder = { ...h.repositoryState(), icon: h.isolationIcon(), workspace: h.controls.getWorkspace() };
 
 		assert.deepStrictEqual({ initial, worktree, folder }, {
-			initial: { isolation: 'Isolation: Branch [button]', branch: 'hidden', separator: false, workspace: undefined },
+			initial: { isolation: 'Isolation: Branch [button]', branch: 'hidden', separator: false, icon: { className: 'codicon codicon-git-branch-checkout', ariaHidden: 'true' }, workspace: undefined },
 			worktree: {
 				isolation: 'Isolation: New Worktree [button]',
 				branch: 'Pick Branch, main [button]',
 				separator: true,
+				icon: { className: 'codicon codicon-worktree', ariaHidden: 'true' },
 				items: ['Branch', 'New Worktree'],
+				itemIcons: ['git-branch-checkout', 'worktree'],
 				workspace: { kind: 'folder', folder: repo, isolation: 'worktree', baseBranch: 'main' },
 			},
-			folder: { isolation: 'Isolation: Branch [button]', branch: 'hidden', separator: false, workspace: undefined },
+			folder: { isolation: 'Isolation: Branch [button]', branch: 'hidden', separator: false, icon: { className: 'codicon codicon-git-branch-checkout', ariaHidden: 'true' }, workspace: undefined },
 		});
 	});
 

@@ -106,6 +106,7 @@ export class RemoteAgentPluginController extends Disposable {
 			return;
 		}
 
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- unwraps a folder selected explicitly from this remote host's Agent Host filesystem provider
 		const original = fromAgentHostUri(selected);
 		const uriString = original.toString();
 		const newCustomization: Customization = {

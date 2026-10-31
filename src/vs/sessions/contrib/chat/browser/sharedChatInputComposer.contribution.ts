@@ -146,4 +146,5 @@ export class SharedChatInputComposerContribution extends Disposable implements I
 	}
 }
 
-registerWorkbenchContribution2(SharedChatInputComposerContribution.ID, SharedChatInputComposerContribution, WorkbenchPhase.AfterRestored);
+// Register before restoration: adding a factory later does not refresh existing toolbars.
+registerWorkbenchContribution2(SharedChatInputComposerContribution.ID, SharedChatInputComposerContribution, WorkbenchPhase.BlockRestore);

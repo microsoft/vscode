@@ -514,6 +514,9 @@ export interface ISessionsProvider {
 	 */
 	resolveWorkspace(workspaceUri: URI, options?: { readonly resolveMetadata?: boolean }): ISessionWorkspace | undefined;
 
+	/** Clones or reuses a repository on this provider's host, returning its ready workspace. */
+	cloneRepository?(repository: URI, token: CancellationToken): Promise<ISessionWorkspace>;
+
 	/** An alternate creation context for New Session gestures from an existing session. */
 	getNewSessionTarget?(sessionResource: URI): ISessionCreationTarget | undefined;
 

@@ -20,7 +20,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestTelemetryService } from '../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
@@ -47,16 +47,6 @@ suite('ChatPetWidget', () => {
 		}
 	});
 	teardown(() => sinon.restore());
-
-	class TestTelemetryService extends NullTelemetryServiceShape {
-		readonly events: { readonly name: string; readonly data: unknown }[] = [];
-
-		override publicLog2(eventName?: string, data?: unknown): void {
-			if (eventName) {
-				this.events.push({ name: eventName, data });
-			}
-		}
-	}
 
 	function createHopHarness(initialLeft = 48, minimumLeft = 0, maximumLeft = 96) {
 		const events: string[] = [];
@@ -769,36 +759,33 @@ suite('ChatPetWidget', () => {
 	for (const reducedMotion of [false, true]) {
 		test(`live color changes preserve the current frame and double buffering (${reducedMotion ? 'reduced motion' : 'animated'})`, async () => {
 			const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
-			try {
-				const { button, service } = createHostTransitionHarness(reducedMotion, 'teleport', '#ff8800', TestIntersectionObserver);
-				const firstImage = button.querySelector<HTMLImageElement>('.chat-pet-sprite img[src]')!;
-				const firstLoaded = whenSpriteLoaded(firstImage);
-				await firstImage.decode();
-				await firstLoaded;
-				clock.tick(800);
-				const activeCanvas = button.querySelector<HTMLCanvasElement>('.chat-pet-sprite:not(.hidden) canvas')!;
-				const expected = mainWindow.document.createElement('canvas');
-				expected.width = expected.height = 96;
-				const expectedContext = expected.getContext('2d')!;
-				service.setColor('#12abcd');
-				expectedContext.drawImage(getChatPetColoredSprite(firstImage, '#12abcd'), (reducedMotion ? 0 : 20) * 96, 0, 96, 96, 0, 0, 96, 96);
-				assert.strictEqual(activeCanvas.toDataURL(), expected.toDataURL(), 'Recolor the current frame rather than restarting at frame zero');
-				const previousFrame = activeCanvas.toDataURL();
-				service.setColor('insiders');
-				assert.strictEqual(activeCanvas.toDataURL(), previousFrame, 'Keep the previous composite until the new variant loads');
-				const insiders = button.querySelector<HTMLImageElement>('.chat-pet-sprite.hidden img[src*="insiders"]')!;
-				const insidersLoaded = whenSpriteLoaded(insiders);
-				await insiders.decode();
-				await insidersLoaded;
-				assert.ok(insiders.parentElement?.classList.contains('hidden') === false);
-				service.setColor('#12abcd');
-				const immediateCanvas = insiders.parentElement!.querySelector<HTMLCanvasElement>('canvas')!;
-				expectedContext.clearRect(0, 0, 96, 96);
-				expectedContext.drawImage(getChatPetColoredSprite(insiders, '#12abcd'), 0, 0, 96, 96, 0, 0, 96, 96);
-				assert.strictEqual(immediateCanvas.toDataURL(), expected.toDataURL(), 'Recolor the currently displayed Insiders sheet while Stable loads');
-			} finally {
-				clock.restore();
-			}
+			disposables.add(toDisposable(() => clock.restore()));
+			const { button, service } = createHostTransitionHarness(reducedMotion, 'teleport', '#ff8800', TestIntersectionObserver);
+			const firstImage = button.querySelector<HTMLImageElement>('.chat-pet-sprite img[src]')!;
+			const firstLoaded = whenSpriteLoaded(firstImage);
+			await firstImage.decode();
+			await firstLoaded;
+			clock.tick(800);
+			const activeCanvas = button.querySelector<HTMLCanvasElement>('.chat-pet-sprite:not(.hidden) canvas')!;
+			const expected = mainWindow.document.createElement('canvas');
+			expected.width = expected.height = 96;
+			const expectedContext = expected.getContext('2d')!;
+			service.setColor('#12abcd');
+			expectedContext.drawImage(getChatPetColoredSprite(firstImage, '#12abcd'), (reducedMotion ? 0 : 20) * 96, 0, 96, 96, 0, 0, 96, 96);
+			assert.strictEqual(activeCanvas.toDataURL(), expected.toDataURL(), 'Recolor the current frame rather than restarting at frame zero');
+			const previousFrame = activeCanvas.toDataURL();
+			service.setColor('insiders');
+			assert.strictEqual(activeCanvas.toDataURL(), previousFrame, 'Keep the previous composite until the new variant loads');
+			const insiders = button.querySelector<HTMLImageElement>('.chat-pet-sprite.hidden img[src*="insiders"]')!;
+			const insidersLoaded = whenSpriteLoaded(insiders);
+			await insiders.decode();
+			await insidersLoaded;
+			assert.ok(insiders.parentElement?.classList.contains('hidden') === false);
+			service.setColor('#12abcd');
+			const immediateCanvas = insiders.parentElement!.querySelector<HTMLCanvasElement>('canvas')!;
+			expectedContext.clearRect(0, 0, 96, 96);
+			expectedContext.drawImage(getChatPetColoredSprite(insiders, '#12abcd'), 0, 0, 96, 96, 0, 0, 96, 96);
+			assert.strictEqual(immediateCanvas.toDataURL(), expected.toDataURL(), 'Recolor the currently displayed Insiders sheet while Stable loads');
 		});
 	}
 
@@ -846,54 +833,51 @@ suite('ChatPetWidget', () => {
 
 	test('schedules only distinct poses, pauses invisible sprites, and resumes eyes at the body phase', async () => {
 		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
-		try {
-			let visibilityObserver: TestIntersectionObserver | undefined;
-			class VisibilityObserver extends TestIntersectionObserver {
-				constructor(callback: IntersectionObserverCallback) {
-					super(callback);
-					visibilityObserver = this;
-				}
+		disposables.add(toDisposable(() => clock.restore()));
+		let visibilityObserver: TestIntersectionObserver | undefined;
+		class VisibilityObserver extends TestIntersectionObserver {
+			constructor(callback: IntersectionObserverCallback) {
+				super(callback);
+				visibilityObserver = this;
 			}
-			const { button, widget, service } = createHostTransitionHarness(false, 'teleport', 'stable', VisibilityObserver);
-			await button.querySelector<HTMLImageElement>('.chat-pet-sprite img[src]')!.decode();
-			await Promise.resolve();
-			const canvas = button.querySelector<HTMLCanvasElement>('.chat-pet-sprite:not(.hidden) canvas')!;
-			const draws = sinon.spy(canvas.getContext('2d')!, 'drawImage');
-			const eyes = button.querySelector('.chat-pet-eyes')!;
-			const snapshots: { draws: number; lowered: boolean; paused: boolean }[] = [];
-			const record = () => snapshots.push({
-				draws: draws.callCount,
-				lowered: eyes.classList.contains('bobbed'),
-				paused: button.classList.contains('animation-paused'),
-			});
-			clock.tick(799);
-			record();
-			clock.tick(1);
-			record();
-			assert.ok(visibilityObserver);
-			visibilityObserver.setVisible(false);
-			clock.tick(1_200);
-			record();
-			visibilityObserver.setVisible(true);
-			record();
-			visibilityObserver.setVisible(false);
-			service.toggle();
-			const disabledWhileHidden = button.classList.contains('hidden') && button.tabIndex === -1;
-			widget.dispose();
-			clock.tick(4_000);
-			assert.deepStrictEqual({ snapshots, disabledWhileHidden, drawsAfterDisposal: draws.callCount }, {
-				snapshots: [
-					{ draws: 0, lowered: false, paused: false },
-					{ draws: 1, lowered: true, paused: false },
-					{ draws: 1, lowered: true, paused: true },
-					{ draws: 2, lowered: false, paused: false },
-				],
-				disabledWhileHidden: true,
-				drawsAfterDisposal: 2,
-			});
-		} finally {
-			clock.restore();
 		}
+		const { button, widget, service } = createHostTransitionHarness(false, 'teleport', 'stable', VisibilityObserver);
+		await button.querySelector<HTMLImageElement>('.chat-pet-sprite img[src]')!.decode();
+		await Promise.resolve();
+		const canvas = button.querySelector<HTMLCanvasElement>('.chat-pet-sprite:not(.hidden) canvas')!;
+		const draws = sinon.spy(canvas.getContext('2d')!, 'drawImage');
+		const eyes = button.querySelector('.chat-pet-eyes')!;
+		const snapshots: { draws: number; lowered: boolean; paused: boolean }[] = [];
+		const record = () => snapshots.push({
+			draws: draws.callCount,
+			lowered: eyes.classList.contains('bobbed'),
+			paused: button.classList.contains('animation-paused'),
+		});
+		clock.tick(799);
+		record();
+		clock.tick(1);
+		record();
+		assert.ok(visibilityObserver);
+		visibilityObserver.setVisible(false);
+		clock.tick(1_200);
+		record();
+		visibilityObserver.setVisible(true);
+		record();
+		visibilityObserver.setVisible(false);
+		service.toggle();
+		const disabledWhileHidden = button.classList.contains('hidden') && button.tabIndex === -1;
+		widget.dispose();
+		clock.tick(4_000);
+		assert.deepStrictEqual({ snapshots, disabledWhileHidden, drawsAfterDisposal: draws.callCount }, {
+			snapshots: [
+				{ draws: 0, lowered: false, paused: false },
+				{ draws: 1, lowered: true, paused: false },
+				{ draws: 1, lowered: true, paused: true },
+				{ draws: 2, lowered: false, paused: false },
+			],
+			disabledWhileHidden: true,
+			drawsAfterDisposal: 2,
+		});
 	});
 
 	test('does not rewrite pupils or redraw an accessory when the quantized gaze is unchanged', async () => {
@@ -1230,23 +1214,20 @@ suite('ChatPetWidget', () => {
 	test('runs one timed hop for a single key press', () => {
 		const clock = sinon.useFakeTimers();
 		const { controller, events } = createHopHarness();
-		try {
-			controller.request(1, false);
-			clock.tick(299);
-			clock.tick(1);
-			clock.tick(300);
-			controller.onAnimationComplete();
-			clock.tick(1_000);
+		disposables.add(toDisposable(() => controller.dispose()));
+		controller.request(1, false);
+		clock.tick(299);
+		clock.tick(1);
+		clock.tick(300);
+		controller.onAnimationComplete();
+		clock.tick(1_000);
 
-			assert.deepStrictEqual(events, [
-				'direction:1',
-				'request',
-				'start',
-				'move:24:72',
-			]);
-		} finally {
-			controller.dispose();
-		}
+		assert.deepStrictEqual(events, [
+			'direction:1',
+			'request',
+			'start',
+			'move:24:72',
+		]);
 	});
 
 	test('constructs body, pupils, and eye accessory layers in rendering order', () => {
@@ -1647,19 +1628,18 @@ suite('ChatPetWidget', () => {
 			}(),
 			workbenchInstantiationService(undefined, disposables),
 		);
-		try {
-			service.setOnTheRun(true);
-			clock.tick(10_000);
-
-			assert.strictEqual(Reflect.get(widget, '_transientState').get(), undefined);
-		} finally {
+		disposables.add(toDisposable(() => {
 			widget.dispose();
 			service.dispose();
 			storageService.dispose();
 			parent.remove();
 			movementBounds.remove();
 			clock.restore();
-		}
+		}));
+		service.setOnTheRun(true);
+		clock.tick(10_000);
+
+		assert.strictEqual(Reflect.get(widget, '_transientState').get(), undefined);
 	});
 
 	test('moves one pet instance between chat hosts without respawning it', () => {
@@ -2066,137 +2046,122 @@ suite('ChatPetWidget', () => {
 	test('repeats hops while key requests remain within the hold grace period', () => {
 		const clock = sinon.useFakeTimers();
 		const { controller, events } = createHopHarness();
-		try {
-			controller.request(1, false);
-			clock.tick(300);
-			controller.request(1, false);
-			clock.tick(300);
-			controller.onAnimationComplete();
-			clock.tick(90);
-			clock.tick(300);
+		disposables.add(toDisposable(() => controller.dispose()));
+		controller.request(1, false);
+		clock.tick(300);
+		controller.request(1, false);
+		clock.tick(300);
+		controller.onAnimationComplete();
+		clock.tick(90);
+		clock.tick(300);
 
-			assert.deepStrictEqual(events, [
-				'direction:1',
-				'request',
-				'start',
-				'move:24:72',
-				'direction:1',
-				'request',
-				'start',
-				'move:24:96',
-			]);
-		} finally {
-			controller.dispose();
-		}
+		assert.deepStrictEqual(events, [
+			'direction:1',
+			'request',
+			'start',
+			'move:24:72',
+			'direction:1',
+			'request',
+			'start',
+			'move:24:96',
+		]);
 	});
 
 	test('uses the latest direction when a hop changes direction before its step', () => {
 		const clock = sinon.useFakeTimers();
 		const { controller, events, getLeft } = createHopHarness();
-		try {
-			controller.request(-1, false);
-			clock.tick(100);
-			controller.request(1, false);
-			clock.tick(200);
+		disposables.add(toDisposable(() => controller.dispose()));
+		controller.request(-1, false);
+		clock.tick(100);
+		controller.request(1, false);
+		clock.tick(200);
 
-			assert.deepStrictEqual({
-				events,
-				left: getLeft(),
-			}, {
-				events: [
-					'direction:-1',
-					'request',
-					'start',
-					'direction:1',
-					'request',
-					'move:24:72',
-				],
-				left: 72,
-			});
-		} finally {
-			controller.dispose();
-		}
+		assert.deepStrictEqual({
+			events,
+			left: getLeft(),
+		}, {
+			events: [
+				'direction:-1',
+				'request',
+				'start',
+				'direction:1',
+				'request',
+				'move:24:72',
+			],
+			left: 72,
+		});
 	});
 
 	test('moves immediately without repetition when motion is reduced', () => {
 		const clock = sinon.useFakeTimers();
 		const { controller, events } = createHopHarness();
-		try {
-			controller.request(-1, true);
-			clock.tick(1_000);
-			controller.onAnimationComplete();
+		disposables.add(toDisposable(() => controller.dispose()));
+		controller.request(-1, true);
+		clock.tick(1_000);
+		controller.onAnimationComplete();
 
-			assert.deepStrictEqual(events, [
-				'direction:-1',
-				'request',
-				'move:-24:24',
-				'reduced',
-			]);
-		} finally {
-			controller.dispose();
-		}
+		assert.deepStrictEqual(events, [
+			'direction:-1',
+			'request',
+			'move:-24:24',
+			'reduced',
+		]);
 	});
 
 	test('clamps repeated hop steps to the movement bounds', () => {
 		const clock = sinon.useFakeTimers();
 		const { controller, events, getLeft } = createHopHarness(0, 0, 24);
-		try {
-			controller.request(-1, false);
-			clock.tick(600);
-			controller.onAnimationComplete();
-			controller.request(1, false);
-			clock.tick(600);
-			controller.onAnimationComplete();
-			controller.request(1, false);
-			clock.tick(300);
+		disposables.add(toDisposable(() => controller.dispose()));
+		controller.request(-1, false);
+		clock.tick(600);
+		controller.onAnimationComplete();
+		controller.request(1, false);
+		clock.tick(600);
+		controller.onAnimationComplete();
+		controller.request(1, false);
+		clock.tick(300);
 
-			assert.deepStrictEqual({
-				moves: events.filter(event => event.startsWith('move:')),
-				left: getLeft(),
-			}, {
-				moves: [
-					'move:-24:0',
-					'move:24:24',
-					'move:24:24',
-				],
-				left: 24,
-			});
-		} finally {
-			controller.dispose();
-		}
+		assert.deepStrictEqual({
+			moves: events.filter(event => event.startsWith('move:')),
+			left: getLeft(),
+		}, {
+			moves: [
+				'move:-24:0',
+				'move:24:24',
+				'move:24:24',
+			],
+			left: 24,
+		});
 	});
 
 	test('cancels pending steps and rests when disabled or sent on the run', () => {
 		const clock = sinon.useFakeTimers();
 		const { controller, events } = createHopHarness();
-		try {
-			controller.request(1, false);
-			clock.tick(100);
-			controller.cancel();
-			clock.tick(1_000);
+		disposables.add(toDisposable(() => controller.dispose()));
+		controller.request(1, false);
+		clock.tick(100);
+		controller.cancel();
+		clock.tick(1_000);
 
-			controller.request(1, false);
-			clock.tick(300);
-			controller.request(1, false);
-			clock.tick(300);
-			controller.onAnimationComplete();
-			controller.cancel();
-			clock.tick(1_000);
+		controller.request(1, false);
+		clock.tick(300);
+		controller.request(1, false);
+		clock.tick(300);
+		controller.onAnimationComplete();
+		controller.cancel();
+		clock.tick(1_000);
 
-			assert.deepStrictEqual(events, [
-				'direction:1',
-				'request',
-				'start',
-				'direction:1',
-				'request',
-				'start',
-				'move:24:72',
-				'direction:1',
-				'request',
-			]);
-		} finally {
-			controller.dispose();
-		}
+		assert.deepStrictEqual(events, [
+			'direction:1',
+			'request',
+			'start',
+			'direction:1',
+			'request',
+			'start',
+			'move:24:72',
+			'direction:1',
+			'request',
+		]);
 	});
 
 	test('maps chat activity to pet states by priority', () => {
@@ -3297,37 +3262,33 @@ suite('ChatPetWidget', () => {
 		const clock = sinon.useFakeTimers();
 		const changes: { readonly time: number; readonly blinking: boolean }[] = [];
 		const randomValues = [0, 0.5, 1];
-		const controller = new ChatPetBlinkController(blinking => changes.push({ time: Date.now(), blinking }), () => randomValues.shift() ?? 1);
-		try {
-			controller.setEnabled(true);
-			clock.tick(1_400);
-			clock.tick(260);
-			controller.onAnimationComplete();
-			clock.tick(2_400);
-			clock.tick(260);
-			controller.onAnimationComplete();
-			clock.tick(3_400);
-			clock.tick(260);
-			controller.onAnimationComplete();
-			controller.setEnabled(false);
+		const controller = disposables.add(new ChatPetBlinkController(blinking => changes.push({ time: Date.now(), blinking }), () => randomValues.shift() ?? 1));
+		controller.setEnabled(true);
+		clock.tick(1_400);
+		clock.tick(260);
+		controller.onAnimationComplete();
+		clock.tick(2_400);
+		clock.tick(260);
+		controller.onAnimationComplete();
+		clock.tick(3_400);
+		clock.tick(260);
+		controller.onAnimationComplete();
+		controller.setEnabled(false);
 
-			assert.deepStrictEqual({
-				delays: [getChatPetBlinkDelay(0), getChatPetBlinkDelay(0.5), getChatPetBlinkDelay(1)],
-				changes,
-			}, {
-				delays: [1_400, 2_400, 3_400],
-				changes: [
-					{ time: 1_400, blinking: true },
-					{ time: 1_660, blinking: false },
-					{ time: 4_060, blinking: true },
-					{ time: 4_320, blinking: false },
-					{ time: 7_720, blinking: true },
-					{ time: 7_980, blinking: false },
-				],
-			});
-		} finally {
-			controller.dispose();
-		}
+		assert.deepStrictEqual({
+			delays: [getChatPetBlinkDelay(0), getChatPetBlinkDelay(0.5), getChatPetBlinkDelay(1)],
+			changes,
+		}, {
+			delays: [1_400, 2_400, 3_400],
+			changes: [
+				{ time: 1_400, blinking: true },
+				{ time: 1_660, blinking: false },
+				{ time: 4_060, blinking: true },
+				{ time: 4_320, blinking: false },
+				{ time: 7_720, blinking: true },
+				{ time: 7_980, blinking: false },
+			],
+		});
 	});
 
 	test('disables cursor tracking for fixed-eye sprite states', () => {

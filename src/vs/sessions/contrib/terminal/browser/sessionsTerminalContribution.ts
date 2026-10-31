@@ -76,6 +76,7 @@ function getWorkspaceTerminalInfo(workspace: ISessionWorkspace | undefined): ISe
 	if (!cwd) {
 		return undefined;
 	}
+	// eslint-disable-next-line local/code-agent-host-uri-mapping -- extracts terminal cwd while retaining the wrapped agentHostCwd for host routing
 	const terminalCwd = fromAgentHostUri(cwd);
 	if (terminalCwd.scheme !== Schemas.file && terminalCwd.scheme !== Schemas.vscodeRemote) {
 		return undefined;

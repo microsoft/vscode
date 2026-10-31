@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -12,7 +11,6 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
@@ -142,16 +140,7 @@ suite('Sessions - Account Menu', () => {
 				selectedAccessory.set(accessory, undefined);
 			}
 		}();
-		const hoverService = new class extends mock<IHoverService>() {
-			override setupManagedHover(): IManagedHover {
-				return {
-					dispose() { },
-					show() { },
-					hide() { },
-					update() { },
-				};
-			}
-		}();
+		const hoverService = { ...NullHoverService };
 		store.add(new SessionsChatPetAchievementBadges(
 			parent,
 			() => { },

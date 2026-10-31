@@ -12,21 +12,80 @@
 	color: var(--vscode-foreground);
 	font-size: var(--vscode-fontSize-body1);
 	line-height: 1.5;
+	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size240);
+}
+
+.inbox-notifications-header {
+	flex: none;
+	padding-bottom: var(--vscode-spacing-size120);
+}
+
+.inbox-notifications-greeting {
+	margin: 0 0 var(--vscode-spacing-size120);
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.inbox-notifications-tabs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size40);
+}
+
+.inbox-notifications-tabs .monaco-button {
+	width: auto;
+}
+
+.inbox-notifications-view .inbox-notifications-toolbar .inbox-notifications-tabs .monaco-button.active {
+	background: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-foreground);
+	border-color: var(--vscode-contrastActiveBorder, transparent);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.inbox-notifications-search {
+	margin-inline-start: auto;
+	width: 160px;
+	min-width: 80px;
+}
+
+.inbox-notifications-composer {
+	flex: 0 1 auto;
+	max-height: 45%;
+	width: 100%;
+	max-width: 760px;
+	align-self: center;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	padding-top: var(--vscode-spacing-size120);
+	box-sizing: border-box;
+}
+
+.inbox-notifications-composer-label {
+	flex: none;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	padding-inline: var(--vscode-spacing-size120);
 }
 
 .inbox-notifications-content {
 	position: relative;
 	display: flex;
 	flex-direction: row;
-	flex: 1 1 auto;
+	flex: 1 1 0;
 	min-height: 0;
 	width: 100%;
 }
 
 .inbox-notifications-new-session {
 	display: none;
-	height: 240px;
-	flex: none;
+	flex: 0 1 auto;
+	min-height: 0;
 }
 
 .inbox-notifications-new-session.visible {
@@ -36,10 +95,27 @@
 .inbox-notifications-new-session .new-chat-widget-container,
 .inbox-notifications-new-session .new-chat-widget-container.revealed {
 	justify-content: flex-start;
+	padding: 0 var(--vscode-spacing-size120);
+	overflow-y: auto;
+	scrollbar-width: thin;
+	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+}
+
+.inbox-notifications-new-session .sessions-chat-widget > .new-chat-widget-container > .new-chat-widget-content {
+	/* Ignore the standalone composer's inline attachment-centering offset. */
+	position: static;
+	flex: none;
+	margin-top: auto;
 }
 
 .inbox-notifications-new-session .new-session-welcome-message {
 	display: none;
+}
+
+.inbox-notifications-new-session .new-chat-widget-container.revealed .new-chat-input-container,
+.inbox-notifications-new-session .new-chat-widget-container.revealed .new-session-workspace-picker-container {
+	/* Working-set restoration reattaches the canvas after a background send. */
+	animation: none;
 }
 
 .inbox-notifications-list-pane {
@@ -50,7 +126,7 @@
 	min-width: 0;
 	height: 100%;
 	box-sizing: border-box;
-	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size240);
+	padding: 0 var(--vscode-spacing-size120) 0 0;
 	overflow: hidden;
 }
 
@@ -103,14 +179,25 @@
 
 .inbox-notifications-detail-chat {
 	display: none;
-	height: 200px;
+	flex: 0 1 auto;
 	min-width: 0;
 	min-height: 0;
-	overflow: hidden;
+	overflow-x: hidden;
+	overflow-y: auto;
+	scrollbar-width: thin;
+	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
 }
 
-.inbox-notifications-detail-pane.has-chat .inbox-notifications-detail-chat {
+.inbox-notifications-detail-chat.visible {
 	display: flex;
+}
+
+.inbox-notifications-detail-chat .interactive-session {
+	justify-content: safe flex-end;
+}
+
+.inbox-notifications-detail-chat .interactive-session .interactive-input-part {
+	padding-block: 0;
 }
 
 .inbox-notifications-detail-chat .interactive-list,
@@ -242,10 +329,16 @@
 
 .inbox-notifications-detail-pr-row .monaco-button {
 	width: auto;
-	flex: 0 0 auto;
+	flex: 0 1 auto;
+	min-width: 0;
+	height: auto;
+	white-space: normal;
+	overflow-wrap: anywhere;
+	text-align: start;
 }
 
 .inbox-notifications-detail-pr-status {
+	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label2);
 }
@@ -277,12 +370,26 @@
 	display: none;
 }
 
-.inbox-evidence h3,
-.inbox-notifications-detail-evidence h3,
-.inbox-evidence-canvases h3 {
+.inbox-evidence-section > h3,
+.inbox-evidence-canvases h3,
+.inbox-evidence-disclosure > summary {
 	margin: 0;
 	font-size: var(--vscode-fontSize-heading3);
 	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.inbox-evidence-disclosure > summary {
+	cursor: pointer;
+}
+
+.inbox-evidence-disclosure > summary:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+.inbox-evidence-disclosure-content {
+	margin-block-start: var(--vscode-spacing-size80);
+	min-width: 0;
 }
 
 .inbox-evidence-note {
@@ -536,7 +643,7 @@
 .inbox-notifications-list {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size160);
+	gap: 0;
 	padding: var(--vscode-spacing-size20);
 }
 
@@ -549,18 +656,123 @@
 .inbox-notifications-section-cards {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size40);
+	gap: 0;
 }
 
 .inbox-notifications-item {
 	display: flex;
-	flex-direction: column;
-	gap: var(--vscode-spacing-size60);
-	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-widget-border, transparent));
+	align-items: center;
+	gap: var(--vscode-spacing-size100);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-bottom-color: var(--vscode-widget-border, transparent);
 	border-radius: var(--vscode-cornerRadius-small);
-	padding: var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
 	background-color: transparent;
 	cursor: pointer;
+}
+
+.inbox-notifications-row-icon {
+	flex: none;
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-descriptionForeground);
+}
+
+.inbox-notifications-row-titles {
+	flex: 1;
+	min-width: 0;
+}
+
+.inbox-notifications-row-titles > *,
+.inbox-notifications-row-repository {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.inbox-notifications-session-title {
+	font-size: var(--vscode-fontSize-label2);
+	color: var(--vscode-descriptionForeground);
+}
+
+.inbox-notifications-row-metadata {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	max-width: 25%;
+	min-width: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.inbox-notifications-visual {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	flex: none;
+}
+
+.inbox-notifications-visual .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.inbox-notifications-row-trailing {
+	display: grid;
+	align-items: center;
+	justify-items: end;
+	flex: none;
+	min-width: 60px;
+}
+
+.inbox-notifications-row-trailing > * {
+	grid-area: 1 / 1;
+}
+
+.inbox-notifications-row-actions {
+	display: flex;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.inbox-notifications-item:is(:hover, .hovered, :focus-within) .inbox-notifications-row-actions {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.inbox-notifications-item.has-actions:is(:hover, .hovered, :focus-within) .inbox-notifications-item-time {
+	opacity: 0;
+	pointer-events: none;
+}
+
+.inbox-notifications-row-actions .monaco-button {
+	width: auto;
+	padding: var(--vscode-spacing-size40);
+}
+
+.inbox-notifications-notification {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+}
+
+.inbox-notifications-evidence-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.inbox-notifications-evidence-header h3 {
+	flex: 1;
+	min-width: 0;
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.inbox-notifications-evidence-header .monaco-button {
+	width: auto;
+	flex: none;
 }
 
 .inbox-notifications-item:is(:hover, .hovered):not(.selected) {
@@ -633,9 +845,14 @@
 }
 
 .inbox-notifications-item-kind-label {
+	flex: 0 1 auto;
+	min-width: 0;
+	max-width: 30%;
 	font-size: var(--vscode-fontSize-label2);
-	font-weight: var(--vscode-fontWeight-semiBold);
+	overflow: hidden;
+	text-overflow: ellipsis;
 	white-space: nowrap;
+	text-align: end;
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -658,27 +875,35 @@
 	overflow-wrap: anywhere;
 }
 
-.inbox-notifications-item-header-actions {
+.inbox-notifications-item-actions {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
 	justify-content: flex-end;
+	min-width: 0;
+}
+
+.inbox-notifications-item-header-actions {
 	margin-inline-start: auto;
 	flex: 0 0 auto;
 	min-width: min-content;
 	max-width: 50%;
 }
 
-.inbox-notifications-item-header-actions .monaco-button,
-.inbox-notifications-item-header-actions .monaco-text-button {
+.inbox-notifications-item-footer-actions {
+	margin-block-start: var(--vscode-spacing-size40);
+}
+
+.inbox-notifications-item-actions .monaco-button,
+.inbox-notifications-item-actions .monaco-text-button {
 	width: auto;
 	flex: 0 0 auto;
 	max-width: 100%;
 	box-sizing: border-box;
 }
 
-.inbox-notifications-item-header-actions .monaco-button-dropdown {
+.inbox-notifications-item-actions .monaco-button-dropdown {
 	flex: 0 0 auto;
 }
 
@@ -687,6 +912,11 @@
 	flex-wrap: wrap;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
+}
+
+.inbox-notifications-row-metadata:empty,
+.inbox-notifications-item-badges:empty {
+	display: none;
 }
 
 .inbox-notifications-item-badge {
@@ -719,6 +949,55 @@
 	flex-wrap: wrap;
 	align-items: center;
 	gap: var(--vscode-spacing-size100);
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	min-width: 0;
+}
+
+.inbox-notifications-item-pr-states[hidden] {
+	display: none;
+}
+
+.inbox-notifications-item-pr-list {
+	flex-direction: column;
+	align-items: stretch;
+	gap: var(--vscode-spacing-size40);
+}
+
+.inbox-notifications-item-pr-list .inbox-notifications-item-pr-state {
+	width: 100%;
+	max-width: 100%;
+}
+
+.inbox-notifications-item-pr-group {
+	min-width: 0;
+}
+
+.inbox-notifications-item-pr-toggle.monaco-button,
+.inbox-notifications-item-pr-list .inbox-notifications-item-pr-state-link.monaco-button {
+	width: auto;
+	max-width: 100%;
+	justify-content: flex-start;
+	padding: var(--vscode-spacing-size20) 0;
+	border: none;
+	background: transparent;
+}
+
+.inbox-notifications-item-pr-list .inbox-notifications-item-pr-state-link.monaco-button {
+	color: var(--vscode-textLink-foreground);
+}
+
+.inbox-notifications-item-pr-list .inbox-notifications-item-pr-state-link.monaco-button:is(:hover, .hovered) {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.inbox-notifications-item-pr-list .inbox-notifications-item-pr-state-link > span:not(.codicon) {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .inbox-notifications-item-pr-state {
@@ -727,6 +1006,7 @@
 	gap: var(--vscode-spacing-size60);
 	color: var(--vscode-foreground);
 	min-height: 20px;
+	min-width: 0;
 }
 
 .inbox-notifications-item-pr-state .codicon {
@@ -745,7 +1025,6 @@
 
 .inbox-notifications-chat-part-host {
 	padding-top: var(--vscode-spacing-size80);
-	border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-widget-border, var(--vscode-editorGroup-border)));
 }
 
 .inbox-notifications-chat-part-host.interactive-session {
@@ -756,8 +1035,7 @@
 	margin: 0;
 }
 
-.inbox-notifications-chat-part-host .chat-confirmation-widget-container,
-.inbox-notifications-chat-part-host .chat-question-carousel-container {
+.inbox-notifications-chat-part-host .chat-confirmation-widget-container {
 	width: 100%;
 }
 
@@ -774,108 +1052,6 @@
  */
 .inbox-notifications-chat-part-host.interactive-session .interactive-input-part {
 	margin-inline: 0;
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container {
-	margin: 0;
-	border-color: transparent;
-	border-radius: 0;
-	background: transparent;
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-card-header {
-	padding: var(--vscode-spacing-size80) 0;
-	border-bottom: none;
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-carousel-message,
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-description {
-	padding: 0 0 var(--vscode-spacing-size60);
-	font-size: var(--vscode-fontSize-label1);
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-input-container {
-	padding: 0;
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-input-container::after {
-	height: var(--vscode-spacing-size40);
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-list {
-	gap: var(--vscode-spacing-size40);
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-input-container .chat-question-list .chat-question-list-item {
-	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
-	border-radius: var(--vscode-cornerRadius-small);
-	padding: var(--vscode-spacing-size80);
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-list-item:is(:hover, .hovered):not(.selected) {
-	background-color: var(--vscode-list-hoverBackground);
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-list-item.selected {
-	border-color: var(--vscode-list-inactiveFocusOutline, var(--vscode-focusBorder));
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-list:focus-visible .chat-question-list-item.selected,
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-list-item:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-input-container .chat-question-list .chat-question-list-item .chat-question-list-label {
-	font-size: var(--vscode-fontSize-label1);
-	font-weight: var(--vscode-fontWeight-regular);
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-input-container .chat-question-list .chat-question-list-item .chat-question-list-label-title {
-	font-weight: var(--vscode-fontWeight-regular);
-}
-
-.inbox-notifications-chat-part-host.interactive-session .chat-question-carousel-container .chat-question-footer-row {
-	padding: var(--vscode-spacing-size40) 0 0;
-	border-top: none;
-}
-
-.inbox-notifications-chat-part-host .chat-confirmation-widget,
-.inbox-notifications-chat-part-host .chat-confirmation-widget2 {
-	border-color: transparent;
-	border-radius: 0;
-	background: transparent;
-}
-
-.inbox-notifications-chat-part-host .chat-confirmation-widget .chat-confirmation-widget-message-container {
-	width: 100%;
-	border: none;
-	border-radius: 0;
-	font-size: var(--vscode-fontSize-label1);
-}
-
-.inbox-notifications-chat-part-host .chat-confirmation-widget-container .chat-confirmation-widget .chat-confirmation-widget-title {
-	padding: 0;
-	color: var(--vscode-foreground);
-	font-weight: var(--vscode-fontWeight-semiBold);
-}
-
-.inbox-notifications-chat-part-host .chat-confirmation-widget .chat-buttons-container,
-.inbox-notifications-chat-part-host .chat-confirmation-widget .chat-confirmation-widget-message {
-	padding: 0;
-}
-
-.inbox-notifications-chat-part-host .chat-confirmation-widget .chat-buttons {
-	flex-wrap: wrap;
-}
-
-.inbox-notifications-chat-part-host .chat-confirmation-widget .chat-buttons .monaco-button {
-	width: auto;
 }
 
 .hc-black .inbox-notifications-item.selected,
