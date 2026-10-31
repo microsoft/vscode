@@ -552,8 +552,27 @@ interface IWorkingDirectoryChangeTransactionOptions {
 /** Stable empty host-customization snapshot used before the host publishes one. */
 const NO_HOST_CUSTOMIZATIONS: readonly Customization[] = Object.freeze([]);
 const CHAT_QUEUE_STALL_WARNING_MS = 60_000;
+const EXTENSION_RECONCILIATION_LIFECYCLE_FAILED = 'extension_reconciliation_lifecycle_failed';
 
 class IncompleteCopilotSessionMarkerError extends Error { }
+
+function isExtensionLifecycleReconciliationError(error: unknown): boolean {
+	if (!error || typeof error !== 'object') {
+		return false;
+	}
+	const data = (error as { readonly data?: unknown }).data;
+	return !!data
+		&& typeof data === 'object'
+		&& (data as { readonly code?: unknown }).code === EXTENSION_RECONCILIATION_LIFECYCLE_FAILED;
+}
+
+class CopilotExtensionReconciliationError extends Error {
+	constructor(message: string, readonly failedExtensions: readonly IAgentExtensionInfo[]) {
+		super(message);
+	}
+}
+
+class CopilotExtensionReconcileTargetUnavailableError extends Error { }
 
 class CopilotSessionConfigurationBusyError extends Error {
 	constructor(readonly session: CopilotAgentSession) {
@@ -3020,11 +3039,49 @@ export class CopilotAgent extends Disposable implements IAgent {
 			await this._queueChat(targetSessionId, targetSessionId, 'reconcileExtensions', () => {
 				const currentSession = this._findPluginOperationSession(session, chat);
 				if (!currentSession || currentSession.sessionId !== targetSessionId) {
-					throw new Error(localize('copilot.extensionReconcileTargetUnavailable', "The selected chat stopped or was replaced before its extension state could be updated."));
+					throw new CopilotExtensionReconcileTargetUnavailableError();
 				}
 				return this._reconcileExtensionEnablement(currentSession, extensionId, enabled);
 			});
 		} catch (error) {
+			if (error instanceof CopilotExtensionReconcileTargetUnavailableError) {
+				throw new Error(enabled
+					? localize('copilot.extensionEnableTargetUnavailable', "After enabling '{0}', the canvas extension change couldn't be confirmed because the selected chat stopped or was replaced. '{0}' is enabled in settings.", extension.name)
+					: localize('copilot.extensionDisableTargetUnavailable', "After disabling '{0}', the canvas extension change couldn't be confirmed because the selected chat stopped or was replaced. '{0}' is disabled in settings.", extension.name));
+			}
+			if (error instanceof CopilotExtensionReconciliationError && error.failedExtensions.length > 0) {
+				if (enabled) {
+					throw new Error(error.failedExtensions.length === 1
+						? localize(
+							'copilot.extensionEnableRefreshFailed',
+							"After enabling '{0}', this chat couldn't finish updating canvas extensions because '{1}' failed to start. This chat may not match your canvas extension settings.",
+							extension.name,
+							error.failedExtensions[0].name,
+						)
+						: localize(
+							'copilot.extensionEnableRefreshMultipleFailed',
+							"After enabling '{0}', this chat couldn't finish updating canvas extensions because other canvas extensions failed to start. This chat may not match your canvas extension settings.",
+							extension.name,
+						));
+				}
+				throw new Error(error.failedExtensions.length === 1
+					? localize(
+						'copilot.extensionDisableRefreshFailed',
+						"After disabling '{0}', this chat couldn't finish updating canvas extensions because '{1}' failed to start. This chat may not match your canvas extension settings.",
+						extension.name,
+						error.failedExtensions[0].name,
+					)
+					: localize(
+						'copilot.extensionDisableRefreshMultipleFailed',
+						"After disabling '{0}', this chat couldn't finish updating canvas extensions because other canvas extensions failed to start. This chat may not match your canvas extension settings.",
+						extension.name,
+					));
+			}
+			if (error instanceof CopilotExtensionReconciliationError) {
+				throw new Error(enabled
+					? localize('copilot.extensionEnableTargetFailed', "After enabling '{0}', this chat couldn't finish updating canvas extensions because '{0}' failed to start. This chat may not match your canvas extension settings.", extension.name)
+					: localize('copilot.extensionDisableTargetFailed', "After disabling '{0}', this chat couldn't finish updating canvas extensions because '{0}' couldn't be stopped. This chat may not match your canvas extension settings.", extension.name));
+			}
 			throw new Error(enabled
 				? localize('copilot.extensionEnableReconcileFailed', "Canvas extension '{0}' was enabled in settings, but couldn't be started in this chat. {1}", extension.name, getErrorMessage(error))
 				: localize('copilot.extensionDisableReconcileFailed', "Canvas extension '{0}' was disabled in settings, but couldn't be stopped in this chat. {1}", extension.name, getErrorMessage(error)));
@@ -3035,7 +3092,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			await session.reconcileExtensions();
 		} catch (error) {
-			if (!enabled || session.isDisposed) {
+			if (session.isDisposed || !isExtensionLifecycleReconciliationError(error)) {
 				throw error;
 			}
 			let extensions: readonly IAgentExtensionInfo[];
@@ -3044,11 +3101,29 @@ export class CopilotAgent extends Disposable implements IAgent {
 			} catch (verificationError) {
 				throw new AggregateError([error, verificationError], getErrorMessage(error));
 			}
-			const targets = extensions.filter(extension => extension.id === extensionId);
-			if (session.isDisposed || targets.length === 0 || targets.some(extension => extension.status !== 'running')) {
+			if (session.isDisposed) {
 				throw error;
 			}
-			this._logService.warn(`[Copilot:${session.sessionId}] Extension '${extensionId}' enablement was applied, but extension reconciliation reported a lifecycle failure`, error);
+			const targets = extensions.filter(extension => extension.id === extensionId);
+			const targetSettled = targets.length > 0 && targets.every(extension => extension.status === (enabled ? 'running' : 'disabled'));
+			if (enabled && targetSettled) {
+				this._logService.warn(`[Copilot:${session.sessionId}] Extension '${extensionId}' enablement was applied, but extension reconciliation reported a lifecycle failure`, error);
+				return;
+			}
+			const targetFailed = targets.some(extension => extension.status === 'failed');
+			const targetStatuses = new Set(targets.map(extension => extension.status));
+			const targetConsistentlyStarting = enabled && targetStatuses.size === 1 && targetStatuses.has('starting');
+			const canAttributeOtherFailures = !targetFailed && (targetSettled || targetConsistentlyStarting);
+			const failedExtensions = canAttributeOtherFailures
+				? [...new Map(extensions
+					.filter(extension => extension.id !== extensionId && extension.status === 'failed')
+					.map(extension => [extension.id, extension])).values()]
+				: [];
+			if ((!enabled && targetSettled || enabled && !targetFailed) && failedExtensions.length === 0) {
+				throw error;
+			}
+			this._logService.warn(`[Copilot:${session.sessionId}] Extension '${extensionId}' reconciliation reported a lifecycle failure`, error);
+			throw new CopilotExtensionReconciliationError(getErrorMessage(error), failedExtensions);
 		}
 	}
 

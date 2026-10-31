@@ -416,6 +416,7 @@ type AgentHostLegacyMigrationEvent = IAgentHostCopilotSkuTelemetry & {
 	errorMessage: string | undefined;
 	reason: string;
 	hostLaunchKind: AgentHostLaunchKind;
+	trigger: AgentHostLegacyMigrationTrigger;
 };
 
 type AgentHostLegacyMigrationClassification = IAgentHostCopilotSkuClassification & {
@@ -450,9 +451,13 @@ type AgentHostLegacyMigrationClassification = IAgentHostCopilotSkuClassification
 	errorMessage: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Error message when the migration failed; absent for migrated/skipped outcomes.' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Provider adoption reason (including markerUnavailable), settingDisabled for a frozen-off host, or unknown. This is separate from the stage and exception that may fail after adoption.' };
 	hostLaunchKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'How the agent host was launched: vscode_main_process (local desktop host) or vscode_cli (a host spawned by a VS Code server, e.g. for a remote window), so local and remote migration can be compared.' };
+	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What restored the session: subscribe (a client opened or subscribed to it, including from its agent-host list row, which the client probe event does not see), action (a dispatched action such as rename or archive), or other (an internal restore). The first restore wins when several join.' };
 	owner: 'vijayupadya';
 	comment: 'Tracks one-time adopt-on-open migration of legacy extension-host Copilot CLI sessions into the agent host to measure attempt, success, failure, and skipped rates.';
 };
+
+/** What started the restore that ran a legacy migration attempt. */
+type AgentHostLegacyMigrationTrigger = 'subscribe' | 'action' | 'other';
 
 type AgentHostCatalogBulkReadFailureEvent = {
 	errorMessage: string;
@@ -11492,7 +11497,7 @@ export class AgentService extends Disposable implements IAgentService {
 				if (!this._isSessionRestored(session.toString())) {
 					restorationCredentials = await restorationSource(session);
 				}
-				return this.restoreSession(session, joinedRestore => telemetry.restoreStarted(joinedRestore), restorationCredentials);
+				return this.restoreSession(session, joinedRestore => telemetry.restoreStarted(joinedRestore), restorationCredentials, 'subscribe');
 			};
 			const restoreChangesetOwner = async (owner: string, session: string | undefined): Promise<string | undefined> => {
 				const containing = session ?? (await this._resolveChatOwnerAfterMoves(owner))?.owner;
@@ -12506,7 +12511,7 @@ export class AgentService extends Disposable implements IAgentService {
 							// Dropped so listing / scrolling can't adopt an un-opened legacy session; only an explicit open or archive toggle adopts.
 							return;
 						}
-						await this.restoreSession(sessionUri);
+						await this.restoreSession(sessionUri, undefined, undefined, 'action');
 						adoptedForArchiveToggle = true;
 					} else {
 						// Falls through so the envelope and its side effects (worktree
@@ -12534,7 +12539,7 @@ export class AgentService extends Disposable implements IAgentService {
 					return;
 				}
 				if (outcome === 'restore') {
-					await this.restoreSession(sessionUri);
+					await this.restoreSession(sessionUri, undefined, undefined, 'action');
 				} else if (outcome === 'applied' && !this._stateManager.getSessionState(sessionChannel)) {
 					// The chat has no registered state to reduce into; the envelope acknowledges the client.
 					this._stateManager.dispatchClientAction(chatChannel, action, { clientId, clientSeq }, clientContext);
@@ -12550,7 +12555,7 @@ export class AgentService extends Disposable implements IAgentService {
 				if (subagent) {
 					await this._restoreSubagentSession(sessionChannel, subagent.parentSession);
 				} else {
-					await this.restoreSession(sessionUri, undefined, credentials);
+					await this.restoreSession(sessionUri, undefined, credentials, 'action');
 				}
 			}
 			this._checkCredentialPrincipal(sessionChannel, credentials);
@@ -13876,11 +13881,11 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._resourceProviders.list(uri);
 	}
 
-	async restoreSession(session: URI, onRestoreStart?: (joinedRestore: boolean) => void, credentials?: IAgentHostCredentialSource): Promise<void> {
+	async restoreSession(session: URI, onRestoreStart?: (joinedRestore: boolean) => void, credentials?: IAgentHostCredentialSource, trigger: AgentHostLegacyMigrationTrigger = 'other'): Promise<void> {
 		// An identity-mapped session is one session; restoring its storage spelling would register a second state that peers and catalog ownership are not recorded under.
 		const runtimeSession = this._orchestratorDatabase.toRuntimeSession(session.toString());
 		if (runtimeSession !== session.toString()) {
-			return this.restoreSession(URI.parse(runtimeSession), onRestoreStart, credentials);
+			return this.restoreSession(URI.parse(runtimeSession), onRestoreStart, credentials, trigger);
 		}
 		const sessionStr = session.toString();
 		await this._scratchFoldersLoaded;
@@ -13912,7 +13917,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		onRestoreStart?.(false);
 		this._logService.trace(`[AgentService] restoreSession start: ${sessionStr}`);
-		const restore = this._doRestoreSession(session, sessionStr, credentials);
+		const restore = this._doRestoreSession(session, sessionStr, credentials, trigger);
 		this._restoreSessionInFlight.set(sessionStr, restore);
 		this._chatOwnership.trackRestore(restore);
 		try {
@@ -13943,7 +13948,7 @@ export class AgentService extends Disposable implements IAgentService {
 		outcome: AgentHostLegacyMigrationEvent['outcome'],
 		startTime: number,
 		stage: AgentHostLegacyMigrationEvent['stage'],
-		extra: { advertisedAsAdoptable: boolean; adoption?: IAgentChatAdoptionResult; turnCount?: number; hasProject?: boolean; hasWorktree?: boolean; workingDirectoryCount?: number; error?: unknown; reason?: AgentChatAdoptionReason | 'settingDisabled' },
+		extra: { advertisedAsAdoptable: boolean; trigger: AgentHostLegacyMigrationTrigger; adoption?: IAgentChatAdoptionResult; turnCount?: number; hasProject?: boolean; hasWorktree?: boolean; workingDirectoryCount?: number; error?: unknown; reason?: AgentChatAdoptionReason | 'settingDisabled' },
 	): void {
 		const diagnostics = extra.adoption?.diagnostics;
 		const invalidSessionId = diagnostics?.sessionIdStatus !== undefined && diagnostics.sessionIdStatus !== 'opaque';
@@ -14034,6 +14039,7 @@ export class AgentService extends Disposable implements IAgentService {
 			errorMessage: getTelemetryMigrationErrorMessage(extra.error, session),
 			reason: extra.reason ?? 'unknown',
 			hostLaunchKind: this._hostLaunchKind,
+			trigger: extra.trigger,
 		};
 		if (extra.error !== undefined || diagnostics?.errorMessage !== undefined) {
 			this._telemetryService.publicLogError2<AgentHostLegacyMigrationEvent, AgentHostLegacyMigrationClassification>('agentHost.legacyCopilotCliMigration', data);
@@ -14042,7 +14048,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	private async _doRestoreSession(session: URI, sessionStr: string, credentials?: IAgentHostCredentialSource): Promise<void> {
+	private async _doRestoreSession(session: URI, sessionStr: string, credentials?: IAgentHostCredentialSource, trigger: AgentHostLegacyMigrationTrigger = 'other'): Promise<void> {
 		// A passive metadata update in progress finishes before this restore reads the state it writes.
 		await this._passiveMetadataSequencer.queue(sessionStr, async () => { });
 		if (this._stateManager.getSessionState(sessionStr)) {
@@ -14110,7 +14116,7 @@ export class AgentService extends Disposable implements IAgentService {
 				adoption = await agent.ensureChatAdopted(defaultChat, this._chatContext(session, defaultChat, defaultChatStorage));
 			} catch (err) {
 				// Adoption itself threw — a genuine migration failure worth surfacing.
-				this._reportLegacyMigration(session, agent.id, 'failed', migrationStartTime, 'adoption', { advertisedAsAdoptable, error: err });
+				this._reportLegacyMigration(session, agent.id, 'failed', migrationStartTime, 'adoption', { advertisedAsAdoptable, trigger, error: err });
 				throw err;
 			}
 		}
@@ -14136,7 +14142,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (!registeredSession) {
 				this._logService.info(`[AgentService] restore refused for unregistered ${sessionStr}: not an adoptable legacy chat (reason=${adoption.reason ?? 'unknown'})`);
 				const reason = migrateLegacyEnabled ? adoption.reason : 'settingDisabled';
-				this._reportLegacyMigration(session, agent.id, 'declined', migrationStartTime, 'eligibility', { advertisedAsAdoptable, adoption: migrateLegacyEnabled ? adoption : undefined, reason });
+				this._reportLegacyMigration(session, agent.id, 'declined', migrationStartTime, 'eligibility', { advertisedAsAdoptable, trigger, adoption: migrateLegacyEnabled ? adoption : undefined, reason });
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session is not an adoptable legacy chat (reason=${reason ?? 'unknown'}): ${sessionStr}`);
 			}
 		}
@@ -14183,12 +14189,12 @@ export class AgentService extends Disposable implements IAgentService {
 				// startup, so clients have no entry for it and a restore alone stays
 				// silent. Publishing announces it with the adopted summary.
 				this._stateManager.setSessionSummaryPublished(sessionStr, true);
-				this._reportLegacyMigration(session, agent.id, 'migrated', migrationStartTime, 'complete', { ...facts, advertisedAsAdoptable, adoption, reason: adoption.reason });
+				this._reportLegacyMigration(session, agent.id, 'migrated', migrationStartTime, 'complete', { ...facts, advertisedAsAdoptable, trigger, adoption, reason: adoption.reason });
 			} else if (adoption.eligible) {
 				// Migrate setting on and a genuine legacy candidate, but not adopted
 				// this pass (e.g. its on-disk working directory could not be resolved).
 				this._logService.info(`[AgentService] legacy session ${sessionStr} was a migration candidate but was not adopted (reason=${adoption.reason ?? 'unknown'})`);
-				this._reportLegacyMigration(session, agent.id, 'skipped', migrationStartTime, 'complete', { advertisedAsAdoptable, adoption, hasProject: facts.hasProject, workingDirectoryCount: facts.workingDirectoryCount, reason: adoption.reason });
+				this._reportLegacyMigration(session, agent.id, 'skipped', migrationStartTime, 'complete', { advertisedAsAdoptable, trigger, adoption, hasProject: facts.hasProject, workingDirectoryCount: facts.workingDirectoryCount, reason: adoption.reason });
 			}
 		} catch (err) {
 			if (adopted) {
@@ -14197,7 +14203,7 @@ export class AgentService extends Disposable implements IAgentService {
 					: `[AgentService] legacy session ${sessionStr} was adopted but could not be registered; the extension host no longer lists it, so it will not appear until the next successful restore`, err);
 			}
 			if (adopted || adoption.eligible) {
-				this._reportLegacyMigration(session, agent.id, 'failed', migrationStartTime, migrationStage, { advertisedAsAdoptable, adoption, error: err, reason: adoption.reason });
+				this._reportLegacyMigration(session, agent.id, 'failed', migrationStartTime, migrationStage, { advertisedAsAdoptable, trigger, adoption, error: err, reason: adoption.reason });
 			}
 			throw err;
 		}

@@ -96,25 +96,22 @@ suite('Context menu alternative actions', () => {
 					}
 				);
 				mainWindow.dispatchEvent(new KeyboardEvent('keydown', { key: 'Alt', keyCode: 18, altKey: altAtOpen }));
-				try {
-					const actions = getFlatContextMenuActions([['navigation', [action]]]);
-					const host = append(mainWindow.document.body, $('div'));
-					disposables.add(toDisposable(() => host.remove()));
-					const menu = disposables.add(new Menu(host, actions, {}, unthemedMenuStyles));
-					menu.focus(true);
-					const labelAtOpen = host.querySelector('.action-label')?.textContent;
-					mainWindow.dispatchEvent(new KeyboardEvent(altAtActivation ? 'keydown' : 'keyup', { key: 'Alt', keyCode: 18, altKey: altAtActivation }));
-					const labelAtActivation = host.querySelector('.action-label')?.textContent;
-					host.querySelector<HTMLElement>('.action-item')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, altKey: altAtActivation, bubbles: true }));
-					await Promise.resolve();
-					assert.deepStrictEqual({ labelAtOpen, labelAtActivation, commands }, {
-						labelAtOpen: altAtOpen ? 'Alternative' : 'Primary',
-						labelAtActivation: altAtActivation ? 'Alternative' : 'Primary',
-						commands: [[altAtActivation ? 'alternative' : 'primary', 'source']]
-					});
-				} finally {
-					modifiers.resetKeyStatus();
-				}
+				disposables.add(toDisposable(() => modifiers.resetKeyStatus()));
+				const actions = getFlatContextMenuActions([['navigation', [action]]]);
+				const host = append(mainWindow.document.body, $('div'));
+				disposables.add(toDisposable(() => host.remove()));
+				const menu = disposables.add(new Menu(host, actions, {}, unthemedMenuStyles));
+				menu.focus(true);
+				const labelAtOpen = host.querySelector('.action-label')?.textContent;
+				mainWindow.dispatchEvent(new KeyboardEvent(altAtActivation ? 'keydown' : 'keyup', { key: 'Alt', keyCode: 18, altKey: altAtActivation }));
+				const labelAtActivation = host.querySelector('.action-label')?.textContent;
+				host.querySelector<HTMLElement>('.action-item')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, altKey: altAtActivation, bubbles: true }));
+				await Promise.resolve();
+				assert.deepStrictEqual({ labelAtOpen, labelAtActivation, commands }, {
+					labelAtOpen: altAtOpen ? 'Alternative' : 'Primary',
+					labelAtActivation: altAtActivation ? 'Alternative' : 'Primary',
+					commands: [[altAtActivation ? 'alternative' : 'primary', 'source']]
+				});
 			});
 		}
 	}

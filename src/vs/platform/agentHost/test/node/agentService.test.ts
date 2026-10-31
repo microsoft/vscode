@@ -1626,7 +1626,7 @@ suite('AgentService (node dispatcher)', () => {
 	teardown(() => disposables.clear());
 	// The fake databases stand for durable ones that outlive a simulated host restart, so they are released here.
 	teardown(() => disposeTestSessionStateDatabases());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('the default chat format follows the creating client capability', async () => {
 		registerTestAgentProvider(service, copilotAgent);
@@ -18356,13 +18356,10 @@ suite('AgentService (node dispatcher)', () => {
 				opened.push(s.toString());
 				return originalTryOpen.call(perSession.service, s);
 			};
-			try {
-				const changed = await register(agent, [discoveredChat(session, false)]);
+			testDisposables.add(toDisposable(() => { service.tryOpenDatabase = originalTryOpen; }));
+			const changed = await register(agent, [discoveredChat(session, false)]);
 
-				assert.deepStrictEqual({ changed, opened }, { changed: false, opened: [] });
-			} finally {
-				service.tryOpenDatabase = originalTryOpen;
-			}
+			assert.deepStrictEqual({ changed, opened }, { changed: false, opened: [] });
 		});
 
 		test('discovering new sessions reads central state once for the batch and never imports them', async () => {
@@ -26377,6 +26374,47 @@ suite('AgentService (node dispatcher)', () => {
 				}]);
 			});
 		}
+
+		test('legacy migration diagnostics record what restored the session', async () => {
+			const triggers: Record<string, unknown> = {};
+			const telemetry = new class extends NullTelemetryServiceShape {
+				override publicLog2(name?: string, data?: unknown): void {
+					if (name === 'agentHost.legacyCopilotCliMigration') {
+						const { migrationSessionId, trigger } = data as { migrationSessionId: string; trigger: unknown };
+						triggers[migrationSessionId] = trigger;
+					}
+				}
+			};
+			class MigrationAgent extends MockAgent {
+				constructor() { super('copilot'); }
+				override async listChatsToMigrate(): Promise<IAgentListedChat[]> {
+					return [];
+				}
+				async ensureChatAdopted(): Promise<IAgentChatAdoptionResult> {
+					return { adopted: true, eligible: true, reason: 'adopted' };
+				}
+				override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata> {
+					return { chat, startTime: 1, modifiedTime: 1 };
+				}
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, telemetry));
+			registerTestAgentProvider(svc, disposables.add(new MigrationAgent()));
+			getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			const subscribed = AgentSession.uri('copilot', 'migration-trigger-subscribe');
+			const renamed = AgentSession.uri('copilot', 'migration-trigger-action');
+			const restored = AgentSession.uri('copilot', 'migration-trigger-other');
+
+			// Opening a session from its agent-host list row subscribes to it directly, without the client probe.
+			await svc.subscribe(subscribed, 'client-1');
+			await svc.dispatchAction(renamed.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' }, 'client-1', 1);
+			await svc.restoreSession(restored);
+
+			assert.deepStrictEqual(triggers, {
+				[getTelemetryMigrationSessionId(subscribed)]: 'subscribe',
+				[getTelemetryMigrationSessionId(renamed)]: 'action',
+				[getTelemetryMigrationSessionId(restored)]: 'other',
+			});
+		});
 
 		const declineCases: {
 			name: string;

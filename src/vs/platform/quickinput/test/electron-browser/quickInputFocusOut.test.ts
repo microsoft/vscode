@@ -52,7 +52,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { IThemeService } from '../../../theme/common/themeService.js';
 import { TestThemeService } from '../../../theme/test/common/testThemeService.js';
 import { QuickInputController } from '../../browser/quickInputController.js';
-import { IQuickInputButton, IQuickPick, IQuickPickItem, QuickInputButtonLocation, QuickPickFocus } from '../../common/quickInput.js';
+import { IQuickInputButton, IQuickPick, IQuickPickItem, QuickInputButtonLocation } from '../../common/quickInput.js';
 
 /**
  * Real blur/focus events only fire while the test document has focus. The main
@@ -752,18 +752,12 @@ suite('QuickInput keeps focus while its context menus are open', () => { // http
 	test('a nested focus owner (icon picker) keeps focus while the menu of its search box is open; Escape restores the search box', async () => {
 		setupController();
 		editor.focus();
-		// Mirrors workbench IconPicker: hidden quick input box, an icon select box as custom widget
-		// that moves focus to the first item when it loses focus. The search box menu is opened by
-		// the generic opener.
-		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+		const picker = store.add(controller.createQuickWidget());
 		const grid = store.add(new IconSelectBox({ icons: [Codicon.add, Codicon.gear, Codicon.edit].map(icon => ThemeIcon.fromId(icon.id)), inputBoxStyles: unthemedInboxStyles }));
-		picker.hideInput = true;
 		picker.widget = grid.domNode;
-		picker.items = [{ type: 'separator' }, { label: 'Reset to default' }];
 		const gridFocus = store.add(dom.trackFocus(grid.domNode));
 		let gridBlurs = 0;
-		store.add(gridFocus.onDidFocus(() => picker.activeItems = []));
-		store.add(gridFocus.onDidBlur(() => { gridBlurs++; picker.focus(QuickPickFocus.First); }));
+		store.add(gridFocus.onDidBlur(() => gridBlurs++));
 		picker.show();
 		grid.layout(new dom.Dimension(400, 200));
 		grid.focus();
