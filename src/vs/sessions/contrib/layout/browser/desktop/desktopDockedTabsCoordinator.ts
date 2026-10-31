@@ -349,11 +349,11 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 
 	/** Queues coordinator-owned work, dropping tasks and failures that outlive disposal. */
 	private _queue(task: () => Promise<void>): void {
-		void this._sequencer.queue(() => this._store.isDisposed ? Promise.resolve() : task()).catch(error => {
+		this._ctx.trackWork(this._sequencer.queue(() => this._store.isDisposed ? Promise.resolve() : task()).catch(error => {
 			if (!this._store.isDisposed) {
 				onUnexpectedError(error);
 			}
-		});
+		}));
 	}
 
 	private async _reconcile(generation: number): Promise<void> {

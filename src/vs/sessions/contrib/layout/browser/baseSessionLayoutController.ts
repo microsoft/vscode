@@ -193,6 +193,9 @@ export abstract class BaseLayoutController extends Disposable {
 	private readonly _onDidEndSessionLayoutRestore = this._register(new Emitter<void>());
 	protected readonly onDidEndSessionLayoutRestore: Event<void> = this._onDidEndSessionLayoutRestore.event;
 
+	/** Fire-and-forget layout work that {@link whenIdle} awaits. */
+	private readonly _pendingWork = new Set<Promise<unknown>>();
+
 	/**
 	 * [D9] `true` between the layout service's side-pane will/did toggle events.
 	 * The per-session aux-bar capture skips this window, so toggling the whole
@@ -952,14 +955,36 @@ export abstract class BaseLayoutController extends Disposable {
 			const result = work();
 			if (isThenable(result)) {
 				settledSync = false;
-				Promise.resolve(result).catch(() => undefined).finally(() => {
+				this._trackWork(Promise.resolve(result).catch(() => undefined).finally(() => {
 					this._endSessionLayoutRestore(suppression);
-				});
+				}));
 			}
 		} finally {
 			if (settledSync) {
 				this._endSessionLayoutRestore(suppression);
 			}
+		}
+	}
+
+	/**
+	 * Tracks fire-and-forget layout work, such as an async session-switch restore
+	 * or a task queued by a layout coordinator, so that {@link whenIdle} awaits it.
+	 * Work that the tracked work starts must be tracked before it settles.
+	 */
+	protected _trackWork(work: Promise<unknown>): void {
+		this._pendingWork.add(work);
+		const untrack = () => this._pendingWork.delete(work);
+		work.then(untrack, untrack);
+	}
+
+	/**
+	 * Resolves once the layout work started so far has settled, including the
+	 * work it starts in turn (for example the reconcile that the end of a
+	 * session-switch restore queues).
+	 */
+	async whenIdle(): Promise<void> {
+		while (this._pendingWork.size > 0) {
+			await Promise.allSettled([...this._pendingWork]);
 		}
 	}
 
