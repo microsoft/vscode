@@ -1488,7 +1488,8 @@ export class ChatPetWidget extends Disposable {
 			this._pupils.push(dom.append(eye, dom.$('.chat-pet-pupil')));
 		}
 		this._propellerContainer = dom.append(this._visual, dom.$('.chat-pet-propeller.hidden', { 'aria-hidden': 'true' }));
-		this._propeller = dom.append(this._propellerContainer, dom.$('canvas.chat-pet-propeller-canvas')) as HTMLCanvasElement;
+		const propellerPose = dom.append(this._propellerContainer, dom.$('.chat-pet-propeller-pose'));
+		this._propeller = dom.append(propellerPose, dom.$('canvas.chat-pet-propeller-canvas')) as HTMLCanvasElement;
 		this._propeller.width = CHAT_PET_SOURCE_SIZE;
 		this._propeller.height = CHAT_PET_SOURCE_SIZE;
 		this._blinkController = this._register(new ChatPetBlinkController(blinking => this._eyes.classList.toggle('blink', blinking)));

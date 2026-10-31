@@ -216,6 +216,12 @@
 	pointer-events: none;
 }
 
+.chat-pet-propeller-pose {
+	width: 100%;
+	height: 100%;
+	transform-origin: 30% 80%;
+}
+
 .chat-pet-propeller.hidden {
 	display: none;
 }
@@ -337,13 +343,15 @@
 
 .chat-pet-button[data-state='yapping'] .chat-pet-sprite,
 .chat-pet-button[data-state='yapping'] .chat-pet-eyes,
-.chat-pet-button[data-state='yapping'] .chat-pet-eye-accessory {
+.chat-pet-button[data-state='yapping'] .chat-pet-eye-accessory,
+.chat-pet-button[data-state='yapping'] .chat-pet-propeller-pose {
 	transform-origin: 30% 80%;
 	animation: chat-pet-yapping-fall 480ms steps(4, end) forwards;
 }
 
 .chat-pet-button[data-state='yappingMouthOpen'] .chat-pet-sprite,
-.chat-pet-button[data-state='yappingMouthOpen'] .chat-pet-eye-accessory {
+.chat-pet-button[data-state='yappingMouthOpen'] .chat-pet-eye-accessory,
+.chat-pet-button[data-state='yappingMouthOpen'] .chat-pet-propeller-pose {
 	transform-origin: 30% 80%;
 	transform: translateY(calc(-1 * var(--vscode-spacing-size40))) rotate(-90deg);
 }
@@ -356,7 +364,7 @@
 	transition-timing-function: linear;
 }
 
-.chat-pet-button.animation-paused .chat-pet-propeller-canvas {
+.chat-pet-button[data-propeller='true'][data-state='falling'].animation-paused .chat-pet-propeller-canvas {
 	animation-play-state: paused;
 }
 
@@ -616,6 +624,7 @@
 .chat-pet-overlay > .chat-pet-button.animation-paused.dragging,
 .chat-pet-button.animation-paused .chat-pet-sprite,
 .chat-pet-button.animation-paused .chat-pet-eye-accessory,
+.chat-pet-button.animation-paused .chat-pet-propeller-pose,
 .chat-pet-button.animation-paused .chat-pet-pupil {
 	animation-play-state: paused;
 }
@@ -629,6 +638,7 @@
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-propeller='true'] .chat-pet-propeller-canvas,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='yapping'] .chat-pet-sprite,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='yapping'] .chat-pet-eye-accessory,
+.monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='yapping'] .chat-pet-propeller-pose,
 .monaco-workbench.monaco-reduce-motion .chat-pet-eyes,
 .monaco-workbench.monaco-reduce-motion .chat-pet-pupil {
 	animation: none;
@@ -636,6 +646,7 @@
 
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='yapping'] .chat-pet-sprite,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='yapping'] .chat-pet-eyes,
-.monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='yapping'] .chat-pet-eye-accessory {
+.monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='yapping'] .chat-pet-eye-accessory,
+.monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='yapping'] .chat-pet-propeller-pose {
 	transform: translateY(calc(-1 * var(--vscode-spacing-size40))) rotate(-90deg);
 }

@@ -33,7 +33,7 @@ import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAcce
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
 import { CHAT_PET_CHANGE_COLOR_COMMAND_ID, ChatPetColor, getChatPetColoredSprite } from '../../../browser/chatPetColors.js';
 import '../../../browser/widget/media/chat.css';
-import { getChatPetAccessoryImageSource, getChatPetPropellerBounds, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions } from '../../../browser/widget/chatPetAccessoryRenderer.js';
+import { drawChatPetComposite, drawChatPetPropeller, getChatPetAccessoryImageSource, getChatPetPropellerBounds, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions, IChatPetFixedOrientationDecoration } from '../../../browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetAccessoryRigPose, getChatPetAccessoryTrack, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor, getChatPetReducedMotionRigFrame } from '../../../browser/widget/chatPetAccessoryRig.js';
 import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION, CHAT_PET_CONFETTI_SCORE, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPlatformTop, getChatPetHorizontalPosition, getChatPetListPadding, getChatPetMouseBounceVelocity, getChatPetMouseCollisionTime, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetSpriteSources, getChatPetThrowLanding, getChatPetThrowMaximumFallSpeed, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetMouseBounceEligible, isChatPetMouseBounceGracePeriodElapsed, isChatPetMouseContact, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldCelebrateChatPetBounceScore, shouldClaimChatPetWindowOnConstruction, shouldDismissChatPetBounceResult, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
 
@@ -938,6 +938,63 @@ suite('ChatPetWidget', () => {
 		await waitForPetAnimation(() => button.querySelector('.chat-pet-propeller')!.classList.contains('hidden'));
 		assert.deepStrictEqual(equipped, { dataset: 'true', visible: true, hasRotorPixels: true });
 		assert.strictEqual(button.dataset.propeller, 'false');
+	});
+
+	test('mirrors the propeller when its rig frame mirrors head accessories', async () => {
+		const { button, service } = createHostTransitionHarness(true, 'teleport', 'stable', TestIntersectionObserver);
+		service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.PropellerHat).id);
+		service.setAccessory(ChatPetAccessoryIds.PropellerHat);
+		await waitForPetAnimation(() => !button.querySelector('.chat-pet-propeller')!.classList.contains('hidden'));
+		const accessoryImage = [...button.querySelectorAll<HTMLImageElement>('img')].find(image => image.naturalWidth === 384 && image.naturalHeight === 288);
+		assert.ok(accessoryImage);
+		const createRotorPixels = (frameIndex: number) => {
+			const canvas = mainWindow.document.createElement('canvas');
+			canvas.width = 96;
+			canvas.height = 96;
+			const context = canvas.getContext('2d')!;
+			drawChatPetPropeller(context, accessoryImage, 'worry', frameIndex);
+			return context.getImageData(0, 0, canvas.width, canvas.height).data;
+		};
+		const source = createRotorPixels(0);
+		const mirrored = createRotorPixels(1);
+		const expected = new Uint8ClampedArray(source.length);
+		for (let y = 0; y < 96; y++) {
+			for (let x = 0; x < 96; x++) {
+				const sourceOffset = (y * 96 + x) * 4;
+				const targetOffset = (y * 96 + 95 - x) * 4;
+				expected.set(source.subarray(sourceOffset, sourceOffset + 4), targetOffset);
+			}
+		}
+		assert.deepStrictEqual([...mirrored], [...expected]);
+	});
+
+	test('clears the propeller in canonical coordinates before facing reflection', async () => {
+		const { button, service } = createHostTransitionHarness(true, 'teleport', 'stable', TestIntersectionObserver);
+		service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.PropellerHat).id);
+		service.setAccessory(ChatPetAccessoryIds.PropellerHat);
+		await waitForPetAnimation(() => !button.querySelector('.chat-pet-propeller')!.classList.contains('hidden'));
+		const bodyImage = button.querySelector<HTMLImageElement>('.chat-pet-sprite img[src]')!;
+		const accessoryImage = [...button.querySelectorAll<HTMLImageElement>('img')].find(image => image.naturalWidth === 384 && image.naturalHeight === 288);
+		assert.ok(accessoryImage);
+		const canvas = mainWindow.document.createElement('canvas');
+		canvas.width = 168;
+		canvas.height = 96;
+		const context = canvas.getContext('2d')!;
+		const clearRect = sinon.spy(context, 'clearRect');
+		const draw = (fixedOrientationDecorations?: readonly IChatPetFixedOrientationDecoration[]) => {
+			drawChatPetComposite(context, bodyImage, accessoryImage, 0, 0, 168, 96, 'left', 'painting', fixedOrientationDecorations, false, true, false, undefined, true);
+			return clearRect.getCalls().slice(-1)[0].args;
+		};
+		const fixedOrientationDecorations = [{ frameBounds: [[0, 0, 1, 1] as const], sourceFrame: 0 }] as const;
+		const maskCalls = [
+			draw(),
+			draw(fixedOrientationDecorations),
+		];
+		const bounds = getChatPetPropellerBounds('painting', 0)!;
+		assert.deepStrictEqual(maskCalls, [
+			[bounds.x, bounds.y, bounds.width, bounds.height],
+			[168 - bounds.x - bounds.width, bounds.y, bounds.width, bounds.height],
+		]);
 	});
 
 	test('moves the pet without reading its changed bounds and commits the translated release position', async () => {
